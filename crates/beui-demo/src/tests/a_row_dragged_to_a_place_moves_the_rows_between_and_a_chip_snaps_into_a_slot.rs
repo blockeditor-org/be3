@@ -32,7 +32,9 @@ fn a_row_dragged_to_a_place_moves_the_rows_between_and_a_chip_snaps_into_a_slot(
     let snapped = test.rect_of("demo.snap.chip");
     let away = Vec2::new(-200.0, 110.0);
     test.down(snapped.center(), PointerButton::Primary);
-    test.frame(vec![Input::PointerMoved(snapped.center() + Vec2::new(-6.0, 0.0))]);
+    test.frame(vec![Input::PointerMoved(
+        snapped.center() + Vec2::new(-6.0, 0.0),
+    )]);
     test.frame(vec![Input::PointerMoved(snapped.center() + away)]);
     test.settle();
     test.up(snapped.center() + away, PointerButton::Primary);

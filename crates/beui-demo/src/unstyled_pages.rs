@@ -2,7 +2,6 @@ use super::*;
 use beui::Align;
 use beui::Rect;
 use beui::drag;
-use beui::{PointerPress, Pos2, Vec2};
 use beui::unstyled::{
     AnchoredSheetHandle, AnchoredStyle, ButtonHandle, ChoiceKind, ChoiceOptionHandle,
     DisclosureHandle, DragHandle, DragPoint, DropHandle, MenuRowHandle, PopupTriggerHandle,
@@ -16,6 +15,7 @@ use beui::unstyled::{
     NumberFaceHandle, NumberFieldHandle, SheetCurves, SheetGripHandle, SlideCurves,
     TreeRevealHandle, TreeRowHandle, TreeToggleHandle, emoji_completer,
 };
+use beui::{PointerPress, Pos2, Vec2};
 
 const FACE_PADDING_HORIZONTAL: Space = Space::Xl;
 const FACE_PADDING_VERTICAL: Space = Space::Md;
@@ -915,9 +915,11 @@ fn PlacesList() -> NodeId {
             drag::closest(unstyled::slots_in(list, rows, &fruit, Direction::Vertical))
                 .when_far(drag::floating())
         }),
-        Callback::new(move |(fruit, drag::After(after)): (usize, drag::After<usize>)| {
-            fruits.update(|fruits| drag::move_after(fruits, fruit, after))
-        }),
+        Callback::new(
+            move |(fruit, drag::After(after)): (usize, drag::After<usize>)| {
+                fruits.update(|fruits| drag::move_after(fruits, fruit, after))
+            },
+        ),
     );
     let order = create_memo(move || {
         let mut order = fruits.get();
@@ -971,7 +973,11 @@ fn SnapArea() -> NodeId {
         Func::new(|_: ()| true),
         Func::new(move |_: ()| {
             let slots = SNAP_SLOTS.iter().enumerate().map(|(slot, min)| {
-                drag::Candidate::new(Placed::Slot(slot), Rect::from_min_size(*min, SNAP_CHIP), area)
+                drag::Candidate::new(
+                    Placed::Slot(slot),
+                    Rect::from_min_size(*min, SNAP_CHIP),
+                    area,
+                )
             });
             drag::closest(slots).when_far(drag::free(area, Placed::Free))
         }),
@@ -996,23 +1002,23 @@ fn SnapArea() -> NodeId {
                 <SnapSlot at={SNAP_SLOTS[1]} />
                 <SnapSlot at={SNAP_SLOTS[2]} />
                 <List spacing=Space::None align=Align::Start>
-                <Frame translate={move || at.get().to_vec2()}>
-                    <Interactive
-                        @test_id="demo.snap.chip"
-                        focusable=true
-                        drag={Func::new(|_: PointerPress| Some(drag::Carry::new(())))}
-                    >
-                        <Frame
-                            width=Size::Custom(SNAP_CHIP.x)
-                            height=Size::Custom(SNAP_CHIP.y)
-                            fill={move || match snapped.get() {
-                                true => ColorRole::AccentSoft,
-                                false => ColorRole::Control,
-                            }}
-                            radius=Radius::Md
-                        />
-                    </Interactive>
-                </Frame>
+                    <Frame translate={move || at.get().to_vec2()}>
+                        <Interactive
+                            @test_id="demo.snap.chip"
+                            focusable=true
+                            drag={Func::new(|_: PointerPress| Some(drag::Carry::new(())))}
+                        >
+                            <Frame
+                                width=Size::Custom(SNAP_CHIP.x)
+                                height=Size::Custom(SNAP_CHIP.y)
+                                fill={move || match snapped.get() {
+                                    true => ColorRole::AccentSoft,
+                                    false => ColorRole::Control,
+                                }}
+                                radius=Radius::Md
+                            />
+                        </Interactive>
+                    </Frame>
                 </List>
             </Layers>
         </Frame>
