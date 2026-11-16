@@ -635,7 +635,8 @@ pub fn Reorder<K, P>(
     slot: Option<Func<P, Option<usize>>>,
     /// Whether a finger's long press lifts a row; off, the long press is the row's menu, and
     /// a finger lifts a row by dragging it across the list.
-    #[prop(default = false)] long_press: bool,
+    #[prop(default = false)]
+    long_press: bool,
     text: Callback<K, String>,
     on_move: Callback<ReorderMove<K, P>>,
     on_drag_change: Callback<Option<K>>,

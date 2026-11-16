@@ -70,7 +70,8 @@ pub fn Interactive(
     /// Whether a finger's long press lifts `drag`'s carry. Off for a source whose long press
     /// is its menu (a file in a tree): the held finger is then a secondary press, and only
     /// a finger dragged along `touch_drags` lifts it.
-    #[prop(default = true)] lifts_on_long_press: bool,
+    #[prop(default = true)]
+    lifts_on_long_press: bool,
     on_pointer: Callback<PointerInput, bool>,
     on_wheel: Callback<WheelInput, bool>,
     #[prop(default = Area::Nowhere)] gesture_area: Prop<Area>,
