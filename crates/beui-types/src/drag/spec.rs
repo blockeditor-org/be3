@@ -10,6 +10,7 @@ use std::rc::Rc;
 use be_lib_geometry::{Direction, Pos2, Rect, Vec2};
 
 use super::DragPoint;
+use crate::input::Modifiers;
 use crate::node::{NodeId, NodeRef};
 
 /// How close, in points, another candidate must come before a `closest` lets go of the one
@@ -102,6 +103,13 @@ pub enum DragSpec<D> {
         spec: Box<DragSpec<D>>,
         along: Direction,
     },
+    /// `held`'s places while the pointer holds `modifiers` (Alt keeping a dock's tab
+    /// floating), `otherwise`'s while it does not.
+    WhenHeld {
+        modifiers: Modifiers,
+        held: Box<DragSpec<D>>,
+        otherwise: Box<DragSpec<D>>,
+    },
     /// A nested site: chosen while the pointer is in `region`, which chooses from there on.
     Into { region: NodeRef, drop: D },
     /// A site whose places are a function of the point (a timeline, where a clip lands at the
@@ -160,6 +168,15 @@ impl<D> DragSpec<D> {
             near: Box::new(self),
             far: Box::new(far),
             reach: REACH,
+        }
+    }
+
+    /// `held` instead of `self` while the pointer holds `modifiers`.
+    pub fn when_held(self, modifiers: Modifiers, held: DragSpec<D>) -> Self {
+        DragSpec::WhenHeld {
+            modifiers,
+            held: Box::new(held),
+            otherwise: Box::new(self),
         }
     }
 
@@ -255,6 +272,15 @@ impl<D: 'static> DragSpec<D> {
                 reach,
             },
             DragSpec::Floating => DragSpec::Floating,
+            DragSpec::WhenHeld {
+                modifiers,
+                held,
+                otherwise,
+            } => DragSpec::WhenHeld {
+                modifiers,
+                held: Box::new(held.map(Rc::clone(&drop))),
+                otherwise: Box::new(otherwise.map(drop)),
+            },
             DragSpec::SnapRadius {
                 spec,
                 radius,
@@ -625,6 +651,20 @@ fn walk<'s, D: Clone>(
             }
         }
         DragSpec::Floating => Some(floated(carried)),
+        DragSpec::WhenHeld {
+            modifiers,
+            held,
+            otherwise,
+        } => {
+            // Ids stay the same whichever side is chosen, so count both.
+            let holds = evaluation.point.modifiers.holds(*modifiers);
+            let held = walk(held, evaluation, last, carried, next, along);
+            let otherwise = walk(otherwise, evaluation, last, carried, next, along);
+            match holds {
+                true => held,
+                false => otherwise,
+            }
+        }
         DragSpec::SnapRadius {
             spec,
             radius,
@@ -780,6 +820,12 @@ pub fn rests<D>(spec: &DragSpec<D>, placed: &dyn Fn(NodeId) -> Option<(Rect, f32
                 walk(near, placed, next, into);
                 walk(far, placed, next, into);
             }
+            DragSpec::WhenHeld {
+                held, otherwise, ..
+            } => {
+                walk(held, placed, next, into);
+                walk(otherwise, placed, next, into);
+            }
             DragSpec::SnapRadius { spec, .. }
             | DragSpec::Thrown { spec, .. }
             | DragSpec::Following { spec, .. } => walk(spec, placed, next, into),
@@ -791,6 +837,37 @@ pub fn rests<D>(spec: &DragSpec<D>, placed: &dyn Fn(NodeId) -> Option<(Rect, f32
     }
     let mut into = Vec::new();
     walk(spec, placed, &mut 0, &mut into);
+    into
+}
+
+/// Every node `spec` places relative to, in the spec's order: what a board needs to know the
+/// window of, so a place in one window is never chosen by a pointer in another.
+pub fn nodes<D>(spec: &DragSpec<D>) -> Vec<NodeRef> {
+    fn walk<D>(spec: &DragSpec<D>, into: &mut Vec<NodeRef>) {
+        match spec {
+            DragSpec::Fixed(candidate) => into.push(candidate.node),
+            DragSpec::Closest { of, .. } => of.iter().for_each(|spec| walk(spec, into)),
+            DragSpec::WhenFar { near, far, .. } => {
+                walk(near, into);
+                walk(far, into);
+            }
+            DragSpec::WhenHeld {
+                held, otherwise, ..
+            } => {
+                walk(held, into);
+                walk(otherwise, into);
+            }
+            DragSpec::SnapRadius { spec, .. }
+            | DragSpec::Thrown { spec, .. }
+            | DragSpec::Following { spec, .. } => walk(spec, into),
+            DragSpec::Free { area, .. } => into.push(*area),
+            DragSpec::Into { region, .. } => into.push(*region),
+            DragSpec::Custom { node, .. } => into.push(*node),
+            DragSpec::Floating => {}
+        }
+    }
+    let mut into = Vec::new();
+    walk(spec, &mut into);
     into
 }
 
