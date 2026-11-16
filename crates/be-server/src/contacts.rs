@@ -1075,11 +1075,46 @@ impl ServerStore {
         .await
     }
 
+    /// The grants in `organization` that removing `other` as `caller`'s contact revokes, named
+    /// in their blocks' logs (`removal-revocations`).
+    pub async fn contact_revocations(
+        &self,
+        caller: Uuid,
+        other: Uuid,
+        organization: Uuid,
+    ) -> Result<Vec<(Uuid, Uuid)>, ServerError> {
+        self.with_graph(organization, move |_, graph, database| {
+            let (Some(mine), Some(theirs)) = (
+                role_in(database, caller, organization)?,
+                role_in(database, other, organization)?,
+            ) else {
+                return Ok(Vec::new());
+            };
+            let pairs = contact_grants(graph, organization, caller, mine, other, theirs);
+            crate::access::named_pairs(database, graph, organization, &pairs)
+        })
+        .await
+    }
+
+    /// Removes `other` as `caller`'s contact, revoking each one's grants on blocks the other
+    /// manages, in every organization they share. In `current`, the organization the caller has
+    /// open, `revocations` are the signed revocations of those its logs name, each needed and
+    /// checked before anything changes; in any other the server's revocations wait for a device
+    /// to sign them (`KeyWork::unsigned_revocations`).
     pub async fn remove_contact(
         &self,
         caller: Uuid,
         other: Uuid,
+        current: Option<Uuid>,
+        revocations: Vec<Vec<u8>>,
     ) -> Result<Vec<Granted>, ServerError> {
+        let signed = match current {
+            Some(organization) => {
+                let named = self.contact_revocations(caller, other, organization).await?;
+                crate::access::revocations_for(&named, &revocations)?
+            }
+            None => crate::access::revocations_for(&[], &revocations)?,
+        };
         let shared = {
             self.with_database(move |_, database| {
                 let transaction = be_block_sqlite_schema::write_transaction(database)?;
@@ -1132,31 +1167,13 @@ impl ServerStore {
         };
         let mut revoked = Vec::new();
         for (organization, mine, theirs) in shared {
+            let signed = match current == Some(organization) {
+                true => signed.clone(),
+                false => std::collections::HashMap::new(),
+            };
             let found = self
                 .with_graph(organization, move |store, graph, database| {
-                    let me = visibility(Identity {
-                        account: caller,
-                        organization,
-                        role: mine,
-                        bound: None,
-                    });
-                    let them = visibility(Identity {
-                        account: other,
-                        organization,
-                        role: theirs,
-                        bound: None,
-                    });
-                    let mut grants = Vec::new();
-                    for (grantee, granter) in [(other, &me), (caller, &them)] {
-                        for block in graph.entry_points(grantee) {
-                            let held = graph
-                                .get(block)
-                                .is_some_and(|node| node.grants.contains_key(&grantee));
-                            if held && granter.can_manage(graph, block) {
-                                grants.push((block, grantee));
-                            }
-                        }
-                    }
+                    let grants = contact_grants(graph, organization, caller, mine, other, theirs);
                     let transaction = be_block_sqlite_schema::write_transaction(database)?;
                     let mut revoked = Vec::new();
                     for (block, grantee) in grants {
@@ -1169,6 +1186,18 @@ impl ServerStore {
                             grantee,
                             Access::None,
                         )?;
+                        if let Some(record) = signed.get(&(block, grantee)) {
+                            crate::access::append_grant(
+                                &transaction,
+                                graph,
+                                organization,
+                                block,
+                                caller,
+                                grantee,
+                                Access::None,
+                                record,
+                            )?;
+                        }
                         revoked.push(Granted {
                             organization,
                             block,
@@ -1191,4 +1220,40 @@ impl ServerStore {
         }
         Ok(revoked)
     }
+}
+
+/// Each one's grants on blocks the other manages, in `organization`: what removing a contact
+/// revokes there.
+fn contact_grants(
+    graph: &be_block_graph::BlockGraph,
+    organization: Uuid,
+    caller: Uuid,
+    mine: be_block_protocol::OrganizationRole,
+    other: Uuid,
+    theirs: be_block_protocol::OrganizationRole,
+) -> Vec<(Uuid, Uuid)> {
+    let me = visibility(Identity {
+        account: caller,
+        organization,
+        role: mine,
+        bound: None,
+    });
+    let them = visibility(Identity {
+        account: other,
+        organization,
+        role: theirs,
+        bound: None,
+    });
+    let mut grants = Vec::new();
+    for (grantee, granter) in [(other, &me), (caller, &them)] {
+        for block in graph.entry_points(grantee) {
+            let held = graph
+                .get(block)
+                .is_some_and(|node| node.grants.contains_key(&grantee));
+            if held && granter.can_manage(graph, block) {
+                grants.push((block, grantee));
+            }
+        }
+    }
+    grants
 }

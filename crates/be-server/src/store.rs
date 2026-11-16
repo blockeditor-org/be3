@@ -969,14 +969,33 @@ impl ServerStore {
         .await
     }
 
+    /// The grants of `account` in `organization`, named in their blocks' logs, that removing it
+    /// revokes (`removal-revocations`).
+    pub async fn member_revocations(
+        &self,
+        organization: Uuid,
+        account: Uuid,
+    ) -> Result<Vec<(Uuid, Uuid)>, ServerError> {
+        self.with_graph(organization, move |_, graph, database| {
+            let pairs = member_grants(graph, account);
+            crate::access::named_pairs(database, graph, organization, &pairs)
+        })
+        .await
+    }
+
     pub async fn remove_member(
         &self,
         identity: Identity,
         account: Uuid,
         signed: Option<Vec<u8>>,
+        revocations: Vec<Vec<u8>>,
     ) -> Result<Vec<crate::contacts::Granted>, ServerError> {
         let organization = identity.organization;
         self.with_graph(organization, move |store, graph, database| {
+            // Each grant a log names is revoked there by the remover's signed record.
+            let pairs = member_grants(graph, account);
+            let named = crate::access::named_pairs(database, graph, organization, &pairs)?;
+            let revoking = crate::access::revocations_for(&named, &revocations)?;
             if !identity.is_administrator() {
                 require_agent_of(graph, database, identity.account, organization, account)?;
             }
@@ -1023,6 +1042,18 @@ impl ServerStore {
                 true => delete_agent(graph, &transaction, organization, account)?,
                 false => remove_from(graph, &transaction, organization, account)?,
             };
+            for ((block, grantee), record) in &revoking {
+                crate::access::append_grant(
+                    &transaction,
+                    graph,
+                    organization,
+                    *block,
+                    identity.account,
+                    *grantee,
+                    Access::None,
+                    record,
+                )?;
+            }
             let forgotten = forget_orphaned_block_agents(graph, &transaction, organization)?;
             transaction.commit()?;
             if agent || !forgotten.is_empty() {
@@ -1989,4 +2020,18 @@ pub(crate) fn load_graph(
     }
     usage::load_sizes(connection, &mut graph, organization)?;
     Ok(graph)
+}
+
+/// The blocks `account` holds a grant on: what removing it revokes.
+fn member_grants(graph: &BlockGraph, account: Uuid) -> Vec<(Uuid, Uuid)> {
+    graph
+        .entry_points(account)
+        .into_iter()
+        .filter(|block| {
+            graph
+                .get(*block)
+                .is_some_and(|node| node.grants.contains_key(&account))
+        })
+        .map(|block| (block, account))
+        .collect()
 }

@@ -97,6 +97,13 @@ interface keys {
     /// of.
     put-keys: async func(keys: key-set) -> result<_, error>;
 
+    /// The grants in the organization open, named in their blocks' logs,
+    /// that removing `account` would revoke: as a member (`remove-member`),
+    /// or with `contact`, as the caller's contact (`remove-contact`: each
+    /// one's grants on blocks the other manages). The caller signs each
+    /// revocation and sends them with the removal.
+    removal-revocations: async func(account: account-id, contact: bool) -> result<list<revocation>, error>;
+
     get-recovery-key: async func() -> result<recovery-key, error>;
 
     /// Moves the account to a new recovery key and the signing key derived

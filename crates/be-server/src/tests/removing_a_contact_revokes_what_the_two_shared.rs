@@ -23,9 +23,7 @@ async fn removing_a_contact_revokes_what_the_two_shared() {
     assert_eq!(other.read_block(mine).await.access, Access::Edit);
     assert_eq!(owner.read_block(theirs).await.access, Access::Edit);
 
-    let removed = owner
-        .call(|peer| client::contacts::remove_contact(peer, other_id))
-        .await;
+    let removed = owner.remove_contact(other_id).await;
     assert!(matches!(removed, Ok(())), "{removed:?}");
     assert!(owner.contacts().await.is_empty());
     assert!(other.contacts().await.is_empty());

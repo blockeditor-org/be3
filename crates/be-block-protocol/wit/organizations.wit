@@ -110,8 +110,9 @@ interface members {
     /// granted and what was sealed to it.
     /// In a company organization, `signed` is the member record
     /// (be_block_keys::Member) signing them out, needed when its log names
-    /// them.
-    remove-member: async func(account: account-id, signed: option<list<u8>>) -> result<_, error>;
+    /// them; `revocations` are the signed revocations of their grants that
+    /// blocks' logs name (`removal-revocations`), each needed.
+    remove-member: async func(account: account-id, signed: option<list<u8>>, revocations: list<list<u8>>) -> result<_, error>;
 
     /// Appends `signed`, a member record (be_block_keys::Member) signing a
     /// member of the organization open in (a person, by an administrator,
