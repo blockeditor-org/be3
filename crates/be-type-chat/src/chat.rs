@@ -1395,7 +1395,6 @@ impl ChatContent {
             .collect()
     }
 
-    /// Whether `message` may be in a closed segment, rather than recent or unknown here.
     /// The hashes the recent messages cite `message` by (`Message::seen`,
     /// `Message::own_previous`): what it was, signed by whoever cited it, which the server or a
     /// member with Edit cannot change.
@@ -1410,6 +1409,7 @@ impl ChatContent {
             .collect()
     }
 
+    /// Whether `message` may be in a closed segment, rather than recent or unknown here.
     pub fn may_be_closed(&self, message: ObjectId) -> bool {
         self.segments()
             .iter()

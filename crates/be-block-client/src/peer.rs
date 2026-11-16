@@ -2055,10 +2055,10 @@ impl<S: ObjectStore> Peer<S> {
         )
     }
 
-    /// `seal` then `publish_sealed`: `Kept` when the commit waits in the outbox behind what
-    /// goes first. On `Rejected` it drops the commit from the outbox, since the caller retries
-    /// or merges.
-    /// Seals the write and publishes it, or offline keeps it in the outbox (`Saved::Kept`).
+    /// Seals the write and publishes it, or offline keeps it in the outbox (`Saved::Kept`):
+    /// `seal` then `publish_sealed`. `Kept` when the commit waits in the outbox behind what goes
+    /// first. On `Rejected` it drops the commit from the outbox, since the caller retries or
+    /// merges.
     pub async fn write(&self, block: Uuid, write: Write<'_>) -> Result<Saved, ClientError> {
         let before = self.local_head(block);
         let commit = match self.seal(block, write).await? {

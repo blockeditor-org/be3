@@ -1078,13 +1078,13 @@ impl<H: Host> Replicas<H> {
         Some((ticket, answered))
     }
 
-    /// Whether a module on this device has the type, whether or not it runs.
     /// The session tag of the module that holds `content_type`, as joining names it.
     fn tag_of(&self, content_type: Uuid) -> Option<be_block_store::Hash> {
         let module = self.modules.module_of(content_type)?;
         Some(be_block_store::Hash::from_bytes(self.modules.tag(module).0))
     }
 
+    /// Whether a module on this device has the type, whether or not it runs.
     pub fn has_module(&self, content_type: Uuid) -> bool {
         self.modules.module_of(content_type).is_some()
     }
