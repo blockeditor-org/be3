@@ -1,14 +1,18 @@
 // The page shares no memory with the host's worker (plans/web_page_never_waits.md): two pages,
 // Dev's and Ada's, each with its own browser context and host's worker, share a chat and each
 // sees what the other writes in it, which travels page to worker to server and back by
-// messages alone. Neither page makes a file call as it starts or runs, and one made on the page
-// fails at once, naming the call, rather than spinning.
+// messages alone. Neither page makes a file call or starts a thread (which would share its
+// memory) as it starts or runs, and one made on the page fails at once, naming itself, rather
+// than spinning.
 export default async function (test) {
     const refusal = "the page made a file call";
     const refused = [];
+    const threadRefusal = "the page started a thread";
+    const threads = [];
     const watch = (page) =>
         page.on("console", (message) => {
             if (message.text().includes(refusal)) refused.push(message.text());
+            if (message.text().includes(threadRefusal)) threads.push(message.text());
         });
     const expect = (condition, what, shown) => {
         if (!condition) throw new Error(`${what}: ${JSON.stringify(shown, null, 1)}`);
@@ -92,6 +96,7 @@ export default async function (test) {
     await ada.drive("wait", "the draft is ready");
 
     expect(refused.length === 0, "neither page made a file call", refused);
+    expect(threads.length === 0, "neither page started a thread", threads);
 
     // A file call made on the page fails at once, naming itself.
     const errno = await test.page.evaluate(async () => {
@@ -105,4 +110,13 @@ export default async function (test) {
         "the page names the file call it refused, once",
         refused,
     );
+
+    // A thread started on the page fails at once, saying so.
+    const spawned = await test.page.evaluate(async () => {
+        const threads = await import(new URL("threads.js", document.baseURI).href);
+        return threads["thread-spawn"](0);
+    });
+    expect(spawned < 0, "a thread started on the page fails", spawned);
+    await test.until(() => threads.length > 0, "the page saying it refused a thread");
+    expect(threads.length === 1, "the page refuses the thread once", threads);
 }

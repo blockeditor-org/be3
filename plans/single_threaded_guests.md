@@ -80,8 +80,8 @@ not write its own.
      `be-host/web/dylink.js`);
    - `thread-spawn` (`be-wasm-host/src/threads.rs`, `be-host/web/threads.js` and `thread.js`);
    - the thread-local diamond crates (`crates/be-tool-tls-diamond-*`) and their tests;
-   - what is left of `be-wasm-threads` once plans/web_page_never_waits.md has replaced its `Mutex`
-     with `std::sync::Mutex` (`initialize_page`, `initialize_worker`).
+   - what is left of `be-wasm-threads` (`initialize_page`, `initialize_worker`, `may_wait`) and
+     the page's refusal of a thread (`refuseThreads` in `be-host/web/threads.js`).
 5. See whether the base library still has to be a fixed-address root
    (decisions/app_library_base_is_a_fixed_address_root.md): the reason recorded there is the
    threaded std and wasi-libc builds. Libraries could also load after start, since nothing

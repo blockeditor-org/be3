@@ -9,7 +9,6 @@ name = "be"
 path = "src/main.rs"
 
 [dependencies]
-be-wasm-threads = { path = "../be-wasm-threads" }
 be-block = { path = "../be-block" }
 be-block-content = { path = "../be-block-content" }
 be-block-client = { path = "../be-block-client" }

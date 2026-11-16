@@ -5,7 +5,6 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
-be-wasm-threads = { path = "../be-wasm-threads" }
 serde = { version = "1", features = ["derive"] }
 be-block-content = { path = "../be-block-content" }
 be-block-client = { path = "../be-block-client" }

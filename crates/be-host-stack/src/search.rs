@@ -38,7 +38,7 @@ use be_block_graph::{Access, BlockParent, EDIT_KINDS, SEARCH_INDEX_TYPE, SETTING
 use be_block_search_index::{AsyncRead, IDLE_MERGE_BYTES, MERGE_BYTES, SearchIndexContent};
 use be_block_store::{ObjectStore, PartRef};
 use be_lib_search::{Batch, DocId, Put, Query, Text};
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 use uuid::Uuid;
 
 use crate::{

@@ -14,9 +14,9 @@
 // The file system is the host's only: once the host's worker binds files.js's
 // channel (bindFiles), every call on a descriptor other than the standard
 // streams is forwarded to that worker, which answers it from the origin private
-// file system, and the caller waits for the answer with Atomics.wait. be-host's
-// page binds none and refuses every file call loudly (refuseFiles), since it may
-// not block. An app binds no channel and has no file system at all.
+// file system, and the caller waits for the answer with Atomics.wait. Only a
+// worker binds one: be-host's page refuses every file call loudly (refuseFiles),
+// since it may not wait. An app binds no channel and has no file system at all.
 //
 // The memory is shared, so it is a SharedArrayBuffer. TextDecoder and
 // getRandomValues both refuse to look at one, and every call that reads or
@@ -97,11 +97,11 @@ export function filesChannel() {
     return files?.channel ?? null;
 }
 
+// Only a worker forwards a file call, so this waits for real: a page binds no channel, and
+// Atomics.wait would throw on one rather than spin.
 function waitWhile(control, index, value) {
     while (Atomics.load(control, index) === value) {
-        if (canBlock) {
-            Atomics.wait(control, index, value);
-        }
+        Atomics.wait(control, index, value);
     }
 }
 

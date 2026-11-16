@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::PoisonError;
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 
 use be_block::{OfflineChoice, OfflineSettings, Resolution};
 use uuid::Uuid;

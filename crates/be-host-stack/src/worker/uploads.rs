@@ -5,7 +5,7 @@ use std::{
     sync::{Arc, PoisonError},
 };
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 
 use be_block_client::transfer::Saved;
 use be_block_graph::BlockParent;

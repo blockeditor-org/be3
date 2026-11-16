@@ -1,6 +1,6 @@
 use std::sync::{MutexGuard, PoisonError};
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Notice {

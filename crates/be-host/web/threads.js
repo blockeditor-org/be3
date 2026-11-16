@@ -63,7 +63,26 @@ export function bindLinked(modules, plan) {
     linked = { modules, plan };
 }
 
+// Set on be-host's page, which starts no thread: each spawn fails, saying so (refuseThreads).
+let refusing = false;
+
+/**
+ * Has every thread the page spawns fail at once, naming itself on the console. A thread
+ * shares the memory of the instance that spawned it, so one on be-host's page would share the
+ * page's locks and malloc, and std's lock traps on the page if it ever finds one held
+ * (plans/web_page_never_waits.md): what has to run beside the page runs in the host's worker.
+ */
+export function refuseThreads() {
+    refusing = true;
+}
+
 function threadSpawn(startArgument) {
+    if (refusing) {
+        console.error(
+            "be-host: the page started a thread, which would share its memory (plans/web_page_never_waits.md)",
+        );
+        return -1;
+    }
     if (context === null) {
         console.error("a thread was spawned before bindThreads was called");
         return -1;

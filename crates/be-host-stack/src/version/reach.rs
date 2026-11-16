@@ -11,7 +11,7 @@ use be_block_commit::CommitId;
 use be_block_store::Manifest;
 use be_block_type_host::{Kind, Merged};
 use be_sdk_type_api::{Change, ClientId, Description};
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 use tokio::sync::{mpsc::UnboundedSender, oneshot};
 use uuid::Uuid;
 

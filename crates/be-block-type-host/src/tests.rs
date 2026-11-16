@@ -8,7 +8,7 @@ use be_block_store::{Manifest, MemoryStore};
 use be_sdk_type_api::{Description, EditorId, Status};
 use be_sdk_type_testing::probe::{self, Probe};
 use be_sdk_type_testing::sections::{self, Sections};
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 use uuid::Uuid;
 
 use crate::{Conflict, Host, Replicas, in_process, started};

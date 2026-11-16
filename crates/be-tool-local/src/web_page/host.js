@@ -1,6 +1,6 @@
 import { bindMemory, refuseFiles, CONTROL } from "./wasi.js";
             import { bindMemory as bindEnvironmentMemory } from "./env.js";
-            import { bindHostFiles, bindThreads, receiveLetters } from "./threads.js";
+            import { bindHostFiles, bindThreads, receiveLetters, refuseThreads } from "./threads.js";
             import init, {
                 be_letter_arrived,
                 run_web,
@@ -122,9 +122,11 @@ import { bindMemory, refuseFiles, CONTROL } from "./wasi.js";
                 bindEnvironmentMemory(wasm.memory);
                 bindThreads(module, wasm.memory);
                 receiveLetters(be_letter_arrived);
-                // The page makes no file call: files.js answers the host's worker, in its own
-                // memory, and a file call here fails loudly (plans/web_page_never_waits.md).
+                // The page makes no file call and starts no thread: files.js answers the host's
+                // worker, in its own memory, a thread would share the page's, and either fails
+                // loudly here (plans/web_page_never_waits.md).
                 refuseFiles();
+                refuseThreads();
                 bindHostFiles(files);
                 bindPush({
                     open: push_open,

@@ -5,7 +5,6 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
-be-wasm-threads = { path = "../be-wasm-threads" }
 be-block = { path = "../be-block" }
 be-block-content = { path = "../be-block-content" }
 be-block-commit = { path = "../be-block-commit" }
