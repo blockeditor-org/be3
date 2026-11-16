@@ -568,6 +568,15 @@ impl Screens {
                     Uuid::from_bytes(open.block_type),
                 );
             }
+            // A host component: the same session on its block, which the host never gives a
+            // screen, so it lays out and paints nothing.
+            OpeningKind::Host(open) => {
+                session.set_editable(open.editable);
+                session.connect(
+                    Uuid::from_bytes(open.block_id),
+                    Uuid::from_bytes(open.block_type),
+                );
+            }
             OpeningKind::Creation(open) => session.connect_creation(open.template),
             OpeningKind::Picker(open) => session.connect_picker(crate::host::PickerRequest {
                 filter: open.filter,

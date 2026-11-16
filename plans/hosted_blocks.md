@@ -110,7 +110,8 @@ a role inside the app, since the share dialog grants no roles. A game:
 - Since the host is checked as an account, the app knows which account is
   hosting and may show it
   (decisions/share_links_are_an_out_of_band_start.md).
-- **The host component.** The type module stays as simple as text's: storage
+- **The host component** (its manifest entry, opening and refusals are
+  built: guides/apps/host_services.md, "Host components"). The type module stays as simple as text's: storage
   and basic operations on the world, nothing game-specific, since every
   editor runs it as the replica. The rules (what each player sees, which
   moves are allowed, timers) live in the app, in a host component: an entry

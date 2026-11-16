@@ -148,23 +148,32 @@ pub mod __private {
             .editors
             .iter()
             .map(|editor| editor.name.as_str())
+            .chain(manifest.hosts.iter().map(|host| host.name.as_str()))
             .collect();
         let mut implemented: Vec<_> = entries.iter().map(|entry| entry.name).collect();
         declared.sort_unstable();
         implemented.sort_unstable();
         assert_eq!(
             declared, implemented,
-            "{name} must implement exactly the editors its manifest declares"
+            "{name} must implement exactly the editors and host components its manifest declares"
         );
         let openers = entries
             .into_iter()
             .map(|entry| {
-                let editor = manifest
+                let id = manifest
                     .editors
                     .iter()
                     .find(|editor| editor.name == entry.name)
-                    .expect("every entry names a declared editor");
-                (uuid::Uuid::from_bytes(editor.id), entry.open)
+                    .map(|editor| editor.id)
+                    .or_else(|| {
+                        manifest
+                            .hosts
+                            .iter()
+                            .find(|host| host.name == entry.name)
+                            .map(|host| host.id)
+                    })
+                    .expect("every entry names a declared editor or host component");
+                (uuid::Uuid::from_bytes(id), entry.open)
             })
             .collect();
         let identity = manifest.identity;
