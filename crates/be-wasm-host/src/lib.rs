@@ -3,6 +3,7 @@
 //! Each guest thread has an isolate of its own; modules are compiled once and shared between
 //! isolates; the gpu and transport imports are fast-API calls (gpu.rs).
 
+mod cache;
 mod dylink;
 pub(crate) mod engine;
 mod gauge;
@@ -46,6 +47,7 @@ use wake::Wake;
 use wasi::Wasi;
 
 pub use be_wasm_dylink::library_file_name;
+pub use cache::{cache_code_in, persist};
 pub use be_wasm_gpu_host::Imports;
 pub use gauge::memories;
 pub use interrupt::Interrupter;

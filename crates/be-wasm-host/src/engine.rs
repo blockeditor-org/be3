@@ -22,6 +22,21 @@ const TABLE_ENTRIES: u32 = 1 << 20;
 /// fast-API function directly, which is how every gpu and transport call reaches the host without
 /// JavaScript in between (gpu.rs). With `BE3_PERF_MAP` set, V8 writes the perf map that names the
 /// guests' compiled functions for `perf` (guides/performance.md).
+static PLATFORM: OnceLock<v8::SharedRef<v8::Platform>> = OnceLock::new();
+static FLAGS: OnceLock<String> = OnceLock::new();
+
+/// The platform V8 runs on, whose message loop a compilation that finishes later is pumped on.
+pub(crate) fn platform() -> v8::SharedRef<v8::Platform> {
+    initialize();
+    PLATFORM.get().cloned().unwrap_or_else(|| unreachable!("V8 is initialized"))
+}
+
+/// A hash of the flags V8 runs with, which code cached under other flags is kept apart by.
+pub(crate) fn flags_hash() -> String {
+    initialize();
+    be_wasm_dylink::identity(FLAGS.get().map_or("", String::as_str).as_bytes())[..16].to_owned()
+}
+
 pub(crate) fn initialize() {
     static STARTED: OnceLock<()> = OnceLock::new();
     STARTED.get_or_init(|| {
@@ -41,7 +56,10 @@ pub(crate) fn initialize() {
             flags.push_str(" --perf-basic-prof");
         }
         v8::V8::set_flags_from_string(&flags);
-        v8::V8::initialize_platform(v8::new_default_platform(0, false).make_shared());
+        let _ = FLAGS.set(flags);
+        let platform = v8::new_default_platform(0, false).make_shared();
+        let _ = PLATFORM.set(platform.clone());
+        v8::V8::initialize_platform(platform);
         v8::V8::initialize();
     });
 }
@@ -164,6 +182,8 @@ pub(crate) struct Shape {
     pub(crate) tables: usize,
     /// Whether it declares garbage-collected types (structs, arrays).
     pub(crate) collected: bool,
+    /// The functions it defines.
+    pub(crate) functions: usize,
 }
 
 impl Shape {
@@ -185,6 +205,7 @@ impl Shape {
                     }
                 }
                 Payload::TableSection(reader) => shape.tables += reader.count() as usize,
+                Payload::FunctionSection(reader) => shape.functions = reader.count() as usize,
                 Payload::ImportSection(reader) => {
                     for import in reader.into_imports() {
                         let import = import.map_err(invalid)?;
@@ -290,17 +311,31 @@ pub(crate) type Module = Arc<Compiled>;
 pub(crate) fn compile(scope: &mut v8::PinScope<'_, '_>, bytes: &[u8]) -> Result<Module, String> {
     let shape = Shape::read(bytes)?;
     shape.bounded()?;
+    let entry = crate::cache::entry(bytes);
+    if let Some(module) = entry.as_deref().and_then(crate::cache::compiled) {
+        return Ok(module);
+    }
+    let cached = entry.as_ref().and_then(|path| std::fs::read(path).ok());
+    let found = cached.as_ref().map_or(0, Vec::len);
     v8::tc_scope!(let caught, scope);
-    let Some(module) = v8::WasmModuleObject::compile(caught, bytes) else {
+    let module = match cached {
+        Some(cached) => crate::cache::compile_with(caught, bytes, cached),
+        None => v8::WasmModuleObject::compile(caught, bytes),
+    };
+    let Some(module) = module else {
         return Err(format!(
             "the app module could not be compiled: {}",
             thrown!(caught)
         ));
     };
-    Ok(Arc::new(Compiled {
+    let compiled = Arc::new(Compiled {
         module: module.get_compiled_module(),
         shape,
-    }))
+    });
+    if let Some(path) = entry {
+        crate::cache::remember(&compiled, path, found);
+    }
+    Ok(compiled)
 }
 
 /// A pure guest's module, checked for what a pure guest may not use (threads and shared memory,
