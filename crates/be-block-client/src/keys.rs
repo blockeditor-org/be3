@@ -4,7 +4,8 @@ use std::{
 };
 
 use be_block_keys::{
-    CarriedKey, EntryHash, EscrowSecret, Party, RecoveryPublic, RecoverySecret, SigningPublic,
+    CarriedKey, EntryHash, EscrowSecret, Party, PublicIdentity, RecoveryPublic, RecoverySecret,
+    SigningPublic,
 };
 use be_block_protocol::{EscrowKey, KeyKind, KeyRow, KeySet, WrappedBy, WrappedKey};
 use be_block_store::{ContentKey, Keyring, StoreError};
@@ -21,6 +22,9 @@ pub struct KeyBook {
     escrow: Mutex<Escrow>,
     server: Mutex<Option<(Uuid, RecoveryPublic)>>,
     roots: Mutex<Roots>,
+    /// Keys opened from an escrow wrap, waiting for `Peer::settle_escrowed` to find their sender
+    /// granted Edit or above in the block's log before they are taken.
+    escrowed: Mutex<HashMap<Uuid, (Escrowed, [u8; 32])>>,
     /// The hash of the organization's access log root, pinned from making it or an
     /// invitation (`crate::contacts::Pinned`).
     organization_root: Mutex<Option<EntryHash>>,
@@ -85,6 +89,19 @@ struct Escrow {
     /// The organization's administrators as its log checked names them, with their keys:
     /// those an epoch is taken from (`verify_escrow`). `None` until the log is read.
     administrators: Option<HashMap<Uuid, SigningPublic>>,
+    /// Its members (administrators among them), with the keys its log names: those an escrow
+    /// wrap is opened from.
+    members: HashMap<Uuid, PublicIdentity>,
+}
+
+/// A key opened from an escrow wrap, before it is taken: its block, the member who sealed it,
+/// and the root of the block's log it carries.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Escrowed {
+    pub key: Uuid,
+    pub block: Uuid,
+    pub sender: Uuid,
+    pub root: Option<EntryHash>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -189,6 +206,7 @@ impl KeyBook {
             escrow: Mutex::new(Escrow::default()),
             server: Mutex::new(None),
             roots: Mutex::new(Roots::default()),
+            escrowed: Mutex::new(HashMap::new()),
             organization_root: Mutex::new(None),
         }
     }
@@ -274,10 +292,89 @@ impl KeyBook {
         self.settle_escrow();
     }
 
-    /// The organization's administrators, with the signing keys its checked log names for them.
-    pub fn set_administrators(&self, administrators: Option<HashMap<Uuid, SigningPublic>>) {
-        self.escrow.lock().unwrap().administrators = administrators;
+    /// The organization as its checked log names it: its administrators with their signing
+    /// keys, and its members (administrators among them) with their keys. `None` when the log
+    /// did not check.
+    pub fn set_organization(&self, checked: Option<&be_block_keys::Checked>) {
+        {
+            let mut escrow = self.escrow.lock().unwrap();
+            escrow.administrators = checked.map(|checked| {
+                checked
+                    .administrators
+                    .iter()
+                    .map(|(account, identity)| (Uuid::from_bytes(*account), identity.signing))
+                    .collect()
+            });
+            escrow.members = checked
+                .map(|checked| {
+                    checked
+                        .administrators
+                        .iter()
+                        .map(|(account, identity)| (*account, *identity))
+                        .chain(
+                            checked
+                                .members
+                                .iter()
+                                .map(|(account, named)| (*account, named.identity)),
+                        )
+                        .map(|(account, identity)| (Uuid::from_bytes(account), identity))
+                        .collect()
+                })
+                .unwrap_or_default();
+        }
         self.settle_escrow();
+    }
+
+    /// Whether `set` holds an escrow wrap, under an escrow key this device holds, from a sender
+    /// not among the members it knows: the organization's log is read again first.
+    pub fn escrow_senders_unknown(&self, set: &KeySet) -> bool {
+        let escrow = self.escrow.lock().unwrap();
+        set.wrapped.iter().any(|wrap| match wrap.wrapped_by {
+            WrappedBy::Key(by) => {
+                escrow.chain.iter().any(|held| held.id == by)
+                    && self.ring.contains(by)
+                    && !escrow.members.contains_key(&wrap.sender)
+            }
+            WrappedBy::Account(_) => false,
+        })
+    }
+
+    /// Whether the organization's checked log names `account` an administrator.
+    pub fn is_administrator(&self, account: Uuid) -> bool {
+        self.escrow
+            .lock()
+            .unwrap()
+            .administrators
+            .as_ref()
+            .is_some_and(|administrators| administrators.contains_key(&account))
+    }
+
+    /// The keys opened from escrow wraps that wait for their sender's grant to be checked.
+    pub fn escrowed(&self) -> Vec<Escrowed> {
+        let mut found: Vec<Escrowed> = self
+            .escrowed
+            .lock()
+            .unwrap()
+            .values()
+            .map(|(escrowed, _)| *escrowed)
+            .collect();
+        found.sort_by_key(|escrowed| escrowed.key);
+        found
+    }
+
+    /// Takes a key opened from an escrow wrap once its sender is found granted Edit or above in
+    /// the block's log rooted at `root`, which is pinned.
+    pub fn take_escrowed(&self, key: Uuid, root: EntryHash) {
+        let Some((escrowed, secret)) = self.escrowed.lock().unwrap().remove(&key) else {
+            return;
+        };
+        {
+            let mut roots = self.roots.lock().unwrap();
+            roots.blocks.insert(key, escrowed.block);
+            roots.pin(escrowed.block, root);
+        }
+        self.ring.insert(key, ContentKey::from_bytes(secret));
+        self.trusted.lock().unwrap().insert(key);
     }
 
     /// What this account pinned for the organization: the escrow key, and the root of the
@@ -390,12 +487,20 @@ impl KeyBook {
         if self.wrapped_by(key).contains(&WrappedBy::Key(escrow.id)) {
             return Ok(None);
         }
+        // Sealed from this account, as to an account: only a sender holding an identity key
+        // makes one, which the escrow's holders check against the organization's members.
         let plain = self.carried_plain(key)?;
+        let to = Party {
+            account: escrow.id.into_bytes(),
+            public: RecoveryPublic(escrow.public),
+        };
         Ok(Some(WrappedKey {
             key,
             wrapped_by: WrappedBy::Key(escrow.id),
             sender: self.account,
-            sealed: RecoveryPublic(escrow.public).seal_anonymous(&plain),
+            sealed: self
+                .identity
+                .seal_for(self.account.into_bytes(), &to, key.as_bytes(), &plain),
         }))
     }
 
@@ -636,14 +741,39 @@ impl KeyBook {
                     .ok()?
             }
             WrappedBy::Account(_) => return None,
+            // Opened only from a member the organization's log names, with the keys it names,
+            // then held until `Peer::settle_escrowed` finds them granted in the block's log.
             WrappedBy::Key(by) if escrows.contains(&by) => {
-                if vouched {
+                if vouched || self.escrowed.lock().unwrap().contains_key(&wrap.key) {
                     return None;
                 }
+                let row = row?;
+                let sender = *self.escrow.lock().unwrap().members.get(&wrap.sender)?;
                 let secret = self.ring.get(by)?;
-                EscrowSecret::from_bytes(*secret.as_bytes())
-                    .open(&wrap.sealed)
-                    .ok()?
+                let from = Party {
+                    account: wrap.sender.into_bytes(),
+                    public: sender.public,
+                };
+                let plain = EscrowSecret::from_bytes(*secret.as_bytes())
+                    .open_from(&from, by.into_bytes(), wrap.key.as_bytes(), &wrap.sealed)
+                    .ok()?;
+                let carried = CarriedKey::decode(&plain).ok()?;
+                if carried.block != row.block.into_bytes() {
+                    return None;
+                }
+                self.escrowed.lock().unwrap().insert(
+                    wrap.key,
+                    (
+                        Escrowed {
+                            key: wrap.key,
+                            block: row.block,
+                            sender: wrap.sender,
+                            root: carried.root,
+                        },
+                        carried.key,
+                    ),
+                );
+                return None;
             }
             WrappedBy::Key(by) => {
                 if be_block_store::sealed_key(&wrap.sealed).ok()? != by || !self.ring.contains(by) {

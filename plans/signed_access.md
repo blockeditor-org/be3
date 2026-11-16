@@ -356,10 +356,11 @@ instead.
      block is under the organization's settings does the same, since a key
      the server holds reads there, plans/keys_bound_to_blocks.md), and is
      opened only from a
-     sender the organization's log names a member, with the keys it names,
-     who the block's log (rooted at the root this device pinned, or else the
-     one the wrap carries) names with Edit or above; the root it carries is
-     then pinned. Sealing it from
+     sender the organization's log names, with the keys it names: an
+     administrator (who holds the escrow key, so reads all it opens anyway,
+     and re-wraps under each new epoch), or a member the block's log (rooted
+     at the root this device pinned, or else the one the wrap carries) names
+     with Edit or above; the root it carries is then pinned. Sealing it from
      the sender sooner would prove nothing, as a sender who is not a contact
      has only keys the server names. Done: a test where a wrap the
      server seals to the escrow carries no root anyone trusts.
