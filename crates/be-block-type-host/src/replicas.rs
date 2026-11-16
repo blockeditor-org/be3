@@ -3138,7 +3138,6 @@ impl<H: Host> Replicas<H> {
             let joined = async {
                 let (client, session, journal) = peer.connection().join_session(block, tag).await?;
                 let head = peer.remote_head(block).await?;
-<<<<<<< HEAD
                 // The head may be a seal of the journal (`journal_for`), which needs the commit.
                 if let Some(head) = head {
                     fetched_for_join(&peer, head).await?;
@@ -3147,12 +3146,7 @@ impl<H: Host> Replicas<H> {
                     Some(journal) => Some(journal),
                     None => started_from_mirror(&peer, block, tag, client, &session, head).await,
                 };
-                let journal = opened(&peer, journal);
-||||||| parent of 46cb4c406 (fix: pointer reads the server chooses name their block)
-                let journal = opened(&peer, journal);
-=======
                 let journal = opened(&peer, block, journal);
->>>>>>> 46cb4c406 (fix: pointer reads the server chooses name their block)
                 Ok::<_, ClientError>((client, session, head, kept_commits(&peer, block), journal))
             }
             .await;

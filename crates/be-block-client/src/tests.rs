@@ -510,11 +510,9 @@ fn offline_ids(refs: &refs::Refs, listing: be_block_protocol::Listing) -> Option
         .map(|blocks| blocks.iter().map(|summary| summary.id).collect())
 }
 
-<<<<<<< HEAD
 /// The build of a block's type the test peers run.
 const BUILD: be_block_store::Hash = be_block_store::Hash::from_bytes([3; 32]);
-||||||| parent of 46cb4c406 (fix: pointer reads the server chooses name their block)
-=======
+
 /// Two notes `peer` saved, each in a workspace of its own: one whose readers are many, say, and
 /// one whose readers are few. A server that holds both could serve what was sealed in the open
 /// one as the secret one's.
@@ -532,4 +530,3 @@ async fn open_and_secret(peer: &Peer<MemoryStore>) -> (Uuid, Uuid) {
     }
     (notes[0], notes[1])
 }
->>>>>>> 46cb4c406 (fix: pointer reads the server chooses name their block)
