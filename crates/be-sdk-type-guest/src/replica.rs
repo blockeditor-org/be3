@@ -2460,11 +2460,23 @@ where
             self.incompatible = true;
             return self.passed(&op, mine);
         };
+        // An edit the order holds already, given again: its first submission reached the
+        // order unseen (from before a crash, or past a join's journal), so it came back under a
+        // new counter with the same `through`. Every replica passes it over alike, as its
+        // origin's `through` says it is held.
+        let again = matches!(entry, Entry::Operation(_))
+            && self
+                .origins
+                .get(&op.id.origin)
+                .is_some_and(|(noted, _)| through <= *noted);
         self.note_origin(op.id.origin, through, op.sequence);
         if mine {
             self.own_through = self.own_through.max(through);
             self.own_numbered.push_back((op.sequence, through));
             self.lacking.numbered(op.id.counter, op.sequence);
+        }
+        if again {
+            return self.held_again(&op, mine);
         }
         match entry {
             Entry::Operation(payload) => self.apply_operation(op, mine, payload),
@@ -2506,6 +2518,21 @@ where
     }
 
     /// The order passed over `op`: every replica does alike. One of this replica's own is gone.
+    /// An edit the order took twice, passed over the second time: this replica's own given
+    /// again is held already, so it leaves what it waits on without applying.
+    fn held_again(&mut self, op: &SessionOp, mine: bool) {
+        self.applied = op.sequence;
+        if mine && let Some(sent) = self.forget_sent(op.id) {
+            if let Some(id) = sent.reply {
+                self.reply(id, Answer::Changed(true));
+            }
+            self.in_flight = 0;
+            self.rebuild_visible();
+            self.cover_if_settled();
+        }
+        self.take_heard_seal();
+    }
+
     fn passed(&mut self, op: &SessionOp, mine: bool) {
         self.applied = op.sequence;
         if mine && let Some(sent) = self.forget_sent(op.id) {
