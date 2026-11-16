@@ -629,6 +629,10 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// The first local edit that replaces the content and has not landed yet: none taken since
     /// counts as in the order until it lands or fails.
     replacing_from: Option<u64>,
+    /// The last local edit a replacement from elsewhere dropped unsent: a stash or reload counts
+    /// it in the order (`entry_through`), so a replica opened again never sends it onto the
+    /// content that replaced it.
+    replaced_through: u64,
     /// Which opening this is (`Opened::epoch`), said with every status.
     epoch: u64,
     beaten: Option<u64>,
@@ -832,7 +836,20 @@ where
             replaced_at: 0,
             // Leaves room for 2^48 submissions after it.
             counter: Uuid::new_v4().as_u64_pair().0 >> 16,
-            kept_submissions: opened.kept_submissions.into(),
+            // In order, each holding the edits after the one before it: one that does not is not
+            // as the edits it would hold, and they go anew.
+            kept_submissions: opened
+                .kept_submissions
+                .into_iter()
+                .fold(VecDeque::new(), |mut kept, submission| {
+                    if kept
+                        .back()
+                        .is_none_or(|last: &KeptSubmission| last.through < submission.through)
+                    {
+                        kept.push_back(submission);
+                    }
+                    kept
+                }),
             own_through: 0,
             own_numbered: VecDeque::new(),
             presence: BTreeMap::new(),
@@ -882,6 +899,7 @@ where
             aged_out: false,
             own_in_journal: false,
             replacing_from: None,
+            replaced_through: 0,
             epoch: opened.epoch,
             beaten: None,
             active: false,
@@ -1302,6 +1320,15 @@ where
 
     fn job(&mut self, job: Job<C>) {
         let local = self.take(&job);
+        self.run_job(job, local);
+        // A local edit taken, even one not made, may complete what an earlier opening
+        // submitted (`kept_submissions`), which waits for it.
+        if local && self.unsent.front().is_some_and(|(.., kept)| kept.is_some()) {
+            self.flush();
+        }
+    }
+
+    fn run_job(&mut self, job: Job<C>, local: bool) {
         if self.unreadable.is_some() {
             return self.job_while_unreadable(job);
         }
@@ -2675,6 +2702,9 @@ where
             let unsaved =
                 !mine && (!self.pending.is_empty() || !self.unsent.is_empty() || after_base);
             let lost = unsaved.then(|| self.visible.clone());
+            if !mine {
+                self.replaced_through = self.edit_number();
+            }
             self.drop_unconfirmed();
             self.lacking.replaced();
             self.resnapshot = true;
@@ -2889,22 +2919,6 @@ where
         self.lacking.add(payload, announcements);
         let through = self.edit_number();
         let kept = self.kept_submission(through);
-        // Held by an earlier opening's submission already on its way again: it goes with it.
-        if let Some(kept) = &kept
-            && let Some(sent) = self
-                .pending
-                .iter_mut()
-                .find(|sent| sent.id.counter == kept.counter)
-        {
-            if let Some(submitted) = &mut sent.operation {
-                // What it absorbed came back as one operation before: the order brings back
-                // the whole of it all the same.
-                let _ = C::absorb_operation(submitted, operation);
-            }
-            self.in_flight += 1;
-            self.lacking.submitted(kept.counter, 1);
-            return true;
-        }
         let counter = kept.as_ref().map(|kept| kept.counter);
         let mut apart = false;
         let oversized = size > LARGEST_RELAYED_OPERATION;
@@ -2926,8 +2940,10 @@ where
                         *weight += 1;
                         *last_through = through;
                     }
-                    // Not as that submission held them: they go anew.
+                    // Not as that submission held them, which absorbing them the same way
+                    // again should never find: a known fallback, they go anew.
                     false => {
+                        debug_assert!(counter.is_none(), "kept edits absorbed apart");
                         *last_kept = None;
                         apart = true;
                     }
@@ -2987,17 +3003,29 @@ where
         {
             return;
         }
-        let Some((operation, _, _, _, kept)) = self.unsent.front() else {
+        let Some((operation, _, _, through, kept)) = self.unsent.front() else {
             return;
         };
-        // An earlier opening's submission goes again as it was: its payload, under its id.
-        let again = kept.as_ref().and_then(|kept| match Submitted::decode(&kept.payload) {
-            Some(Submitted {
-                entry: Entry::Operation(payload),
-                ..
-            }) => Some((kept.clone(), payload)),
-            _ => None,
-        });
+        // An earlier opening's submission waits for the rest of the edits it holds, then goes
+        // again as it was, its payload under its id, if they make it again exactly: otherwise
+        // they go anew.
+        if kept
+            .as_ref()
+            .is_some_and(|kept| self.edit_number() < kept.through)
+        {
+            return;
+        }
+        let again = kept
+            .as_ref()
+            .and_then(|kept| match Submitted::decode(&kept.payload) {
+                Some(Submitted {
+                    entry: Entry::Operation(Payload::Inline(bytes)),
+                    ..
+                }) if *through == kept.through && bytes == C::encode_operation(operation) => {
+                    Some((kept.clone(), Payload::Inline(bytes)))
+                }
+                _ => None,
+            });
         let payload = match &again {
             Some((_, payload)) => payload.clone(),
             None => match self.payload_of(C::encode_operation(operation)) {
@@ -3055,11 +3083,15 @@ where
     /// The local edits a reload or a stash submitted now holds (`Submitted::through`): those
     /// a replacement on its way counts as in the order, otherwise those the order holds
     /// already. Never edits still unsent: a replica opened again after a crash would take them
-    /// as ordered and not send them.
+    /// as ordered and not send them. Edits a replacement from elsewhere dropped count, as they
+    /// are gone.
     fn entry_through(&self) -> u64 {
         match self.replacing_from {
             Some(from) => self.taken_before + from,
-            None => self.own_through.max(self.taken_before),
+            None => self
+                .own_through
+                .max(self.taken_before)
+                .max(self.replaced_through),
         }
     }
 
