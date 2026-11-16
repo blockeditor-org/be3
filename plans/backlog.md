@@ -195,6 +195,10 @@ Depends on #686 (session catch-ups replaced by server ordering).
   clips (guides/beui/components.md, Drags as places). Done: the source's face
   captured as a texture on both cores floats in a top layer like a preview,
   so no carry needs `preview` just to leave its scroll.
+- **The dock's private `TabStrip`.** beui-dock-host keeps a copy of the old
+  `Reorder` for its tab bars (crates/beui-dock-host/src/unstyled/tab_strip.rs),
+  a second way to reorder until the dock moves onto drop sites. Done:
+  plans/declarative_dragging.md step 3 deletes it, right after step 5.
 - **A keyboard step reveals the place it chose.** Edge scrolling follows only a
   pointer, so a keyboard carry stepped to a place in the hidden part of a scroll
   leaves it out of sight. Done: after each keyboard step the board scrolls the

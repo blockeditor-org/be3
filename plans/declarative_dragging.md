@@ -217,7 +217,7 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      `slots_in`, and `Interactive`'s `drag` on both cores (it reaches the board through
      `beui-types`' `Space`/`Driver`, no new dependency); tests on the fake `Space` and a
      beui-tests screen both cores drive.
-   - **1c:** the floating preview (`Carry::preview`, and the source's own face by default), a
+   - **1c (done):** the floating preview (`Carry::preview`, and the source's own face by default), a
      `Driver` per pointer, keys on a lifted item, and publishing frames as presence. A source
      whose scope is dropped mid-carry puts the carry down, dropping nothing. The default face is
      the source drawn displaced and raised, which a scroll around it still clips: a carry that
@@ -262,6 +262,12 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      panel; today that is the dock's own `panels` map, which a `KeepAlive` with a `Kept` per
      panel could replace, since a `Kept` moves its subtree between parents under one
      `KeepAlive` (guides/beui/core.md).
+
+   - **`TabStrip` goes.** Step 2b moved the old `Reorder` unchanged into beui-dock-host as the
+     private `TabStrip`, because the dock still splits panes from the old `DropTarget`, which
+     only its drags reach. Tab bars become drop sites over `slots_in` like every other list,
+     and `TabStrip` is deleted. This step comes right after step 5, so the copy does not
+     linger.
 
    Expect a different feel, not a copy: replace the drop-highlight tests and paintings with ones
    that show the dock parting for a carried tab.

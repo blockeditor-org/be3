@@ -8,6 +8,7 @@ mod keyboard;
 mod modifier_drag;
 mod reveal;
 mod switch;
+mod tab_strip;
 #[cfg(test)]
 mod tests;
 
@@ -37,9 +38,7 @@ use beui_components_unstyled::menu::{MenuItem, MenuNodes};
 use beui_components_unstyled::menu_popup::MenuStyle;
 use beui_components_unstyled::rubber_band::Band;
 use beui_components_unstyled::{DragPoint, Take};
-use beui_components_unstyled::{
-    Reorder, ReorderHandle, ReorderItem, ReorderItemHandle, ReorderMove,
-};
+use tab_strip::{TabMove, TabStrip, TabStripHandle, TabStripItem, TabStripItemHandle};
 use beui_view::components::overlay::Overlay;
 use beui_view::components::root::Root;
 use beui_view::primitives::*;
@@ -221,7 +220,7 @@ thread_local! {
 struct TabBar {
     strip: NodeRef,
     tabs: NodeRef,
-    reorder: ReorderHandle<Entry, DockDragged>,
+    reorder: TabStripHandle<Entry, DockDragged>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -1364,7 +1363,7 @@ impl State {
         })
     }
 
-    fn move_into_bar(&self, leaf: LeafId, moved: ReorderMove<Entry, DockDragged>) {
+    fn move_into_bar(&self, leaf: LeafId, moved: TabMove<Entry, DockDragged>) {
         self.edit(|state| {
             let entries = state.entries(leaf);
             match moved.payload {
@@ -3197,7 +3196,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
     let entries = create_memo(move || state.with(|state| state.entries(leaf)));
     let preview = dock.preview;
     view! {
-        <Reorder
+        <TabStrip
             value={entries}
             spring={dock.curves.settle}
             direction
@@ -3208,7 +3207,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                 false => Take::Drop,
             }}
             text={move |entry: Entry| dock.entry_title(entry)}
-            on_move={move |moved: ReorderMove<Entry, DockDragged>| dock.move_into_bar(leaf, moved)}
+            on_move={move |moved: TabMove<Entry, DockDragged>| dock.move_into_bar(leaf, moved)}
             on_drag_change={move |entry: Option<Entry>| match entry {
                 Some(entry) => dock.begin_drag(DockDragged::Entry(entry)),
                 None => dock.end_drag(),
@@ -3219,7 +3218,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                 title: create_memo(move || dock.dragged_title(dragged)),
                 icon: create_memo(move || dock.dragged_icon(dragged)),
             })}
-        >|reorder: ReorderHandle<Entry, DockDragged>| {
+        >|reorder: TabStripHandle<Entry, DockDragged>| {
             dock.bars.value().borrow_mut().insert(leaf, TabBar {
                 strip,
                 tabs: tab_list,
@@ -3262,9 +3261,9 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                     item={move |item: ChoiceItem<Entry>| {
                         let ChoiceItem { value, button } = item;
                         view! {
-                            <ReorderItem reorder item=value>|_: ReorderItemHandle| {
+                            <TabStripItem reorder item=value>|_: TabStripItemHandle| {
                                 button
-                            }</ReorderItem>
+                            }</TabStripItem>
                         }
                     }}
                     handle={reorder.rows}
@@ -3284,7 +3283,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
             let scroll = dock.strip.call(DockStripHandle { direction, tabs });
             strip.fill(scroll);
             scroll
-        }</Reorder>
+        }</TabStrip>
     }
 }
 
