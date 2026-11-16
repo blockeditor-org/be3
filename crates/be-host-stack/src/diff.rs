@@ -57,7 +57,6 @@ whole!(
     Option<String>,
     Vec<uuid::Uuid>,
     Vec<String>,
-    Option<crate::seen::Words>,
 );
 
 /// The entries of a map that were added or changed, and the keys removed.

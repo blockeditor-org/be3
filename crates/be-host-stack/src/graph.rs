@@ -391,7 +391,7 @@ pub struct Dropped {
     pub child: Uuid,
     pub parent: Uuid,
     /// What set the parent's references without it: its open replica's report, or a listing.
-    pub by: crate::seen::Words,
+    pub by: String,
 }
 
 /// Blocks the server's answer to a listing left out while this device held each as belonging
@@ -1022,7 +1022,7 @@ impl Graph {
                 dropped.push(Dropped {
                     child,
                     parent,
-                    by: crate::seen::Words::Borrowed(by),
+                    by: by.to_owned(),
                 });
                 return false;
             }

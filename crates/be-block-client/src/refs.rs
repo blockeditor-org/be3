@@ -310,7 +310,7 @@ pub(crate) struct Unsent {
 
 /// Entries set aside because the block's access was refused. Only `Peer::discard_unsent`
 /// deletes anything here.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct UnsentBlock {
     pub block: Uuid,
     pub head: Option<CommitId>,

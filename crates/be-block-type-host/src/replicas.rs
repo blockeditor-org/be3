@@ -644,7 +644,7 @@ impl Open {
 
 /// An open block that owes a seal, and what its seal may be waiting on: what a host names when
 /// it stays busy sealing.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct Owing {
     pub block: Uuid,
     pub content_type: Uuid,
