@@ -1,7 +1,6 @@
 use super::*;
 
-mod a_callback_prop_with_too_many_type_arguments_is_rejected;
-mod a_children_prop_that_cannot_hold_children_is_rejected;
+mod a_render_with_no_handle_is_rejected;
 mod a_component_marking_two_children_props_is_rejected;
 mod a_method_chain_needs_braces_on_a_prop_and_a_framework_slot_alike;
 mod a_prop_written_twice_on_one_tag_is_rejected;

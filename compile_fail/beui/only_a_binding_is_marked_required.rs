@@ -1,4 +1,5 @@
 use beui::reactive::*;
+use beui::styled::*;
 
 #[component]
 fn Case(

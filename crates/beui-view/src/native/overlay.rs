@@ -4,7 +4,7 @@ use crate::reactive::Get;
 use crate::reactive::Memo;
 use crate::reactive::NodeRef;
 use crate::reactive::Prop;
-use crate::reactive::{RenderFn, BuildFn};
+use crate::reactive::BuildFn;
 use crate::reactive::Scope;
 use crate::reactive::Set;
 use crate::reactive::create_binding;
