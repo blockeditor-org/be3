@@ -144,7 +144,7 @@ pub(super) fn spawn(
 fn keep_staged_exports() {
     static KEPT: std::sync::Once = std::sync::Once::new();
     KEPT.call_once(|| {
-        let mut names = std::collections::HashSet::new();
+        let mut names = be_lib_stable_hash::HashSet::default();
         for manifest in discovery::manifests() {
             match discovery::open(&manifest.entry_point).and_then(be_wasm_host::imported_names) {
                 Ok(imported) => names.extend(imported),

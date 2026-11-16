@@ -321,8 +321,8 @@ struct OwnedBuffer {
     size: usize,
 }
 
-#[cfg(not(windows))]
 // unsafe(ffi)
+#[cfg(not(windows))]
 unsafe extern "C" {
     #[link_name = "_ZN2v818CompiledWasmModule9SerializeEv"]
     fn compiled_wasm_module_serialize(this: *mut std::ffi::c_void) -> OwnedBuffer;
