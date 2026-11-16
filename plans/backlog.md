@@ -129,6 +129,12 @@ Depends on #686 (session catch-ups replaced by server ordering).
   test where an index over the cap is left alone on battery. Until then the pass
   is capped at `IDLE_MERGE_BYTES` (128 MiB); with both signals it could merge
   larger tiers, once a merge no longer reads its segments whole into memory.
+- **A block indexed before its ancestor is listed.** Search's indexer meets a
+  block whose ancestor the mirror has not listed: push-web-host-test's Ada logs
+  "be-host: <block> is not indexed: the mirror cannot place it, as <parent> on
+  its way up is not listed" four times (on 1c0ba8a5e, before the worker had a
+  memory of its own, so not from it). Done: the cause found and fixed, with the
+  line gone from that test's log.
 
 ## 12. Large folders
 

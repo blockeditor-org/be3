@@ -30,3 +30,6 @@ its bytes (`Post::across`). The page binds no files channel, so a file call on i
    owing lists on each change, and an editor's queued frames. Send content as its edit (the
    block's own operations or a byte delta), or keep a value's `Arc` identity across updates so
    one the worker did not replace is never sent again.
+3. Fetch the app list once per start. The page and the worker each fetch it
+   (`discovery::load`), since neither can read the other's: the worker could send the page what
+   it read, or the page the worker.
