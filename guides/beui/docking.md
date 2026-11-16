@@ -198,7 +198,7 @@ them (`unstyled/modifier_drag.rs`; the desktop sets Super).
 
 ## Dragging, groups and locks
 
-Dropping a tab on a tab bar inserts it where the bar parts for it (each bar is a `Reorder`), on a
+Dropping a tab on a tab bar inserts it where the bar parts for it (each bar is a `TabStrip`, the old `Reorder`), on a
 pane's middle groups it with the tab the pane shows (`DockDrop::Group`; the highlight names that tab
 unless tidying would only fold it into the pane), on an edge splits it; Alt while dropping floats it. Dragging a pane's grip carries the pane.
 A group is a tab holding a dock tree of its own (`Entry::Group`); the tree tidies itself after every

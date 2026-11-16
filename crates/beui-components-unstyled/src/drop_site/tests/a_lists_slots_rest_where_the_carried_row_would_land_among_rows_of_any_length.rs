@@ -23,7 +23,7 @@ fn a_lists_slots_rest_where_the_carried_row_would_land_among_rows_of_any_length(
             .collect(),
     );
 
-    let slots = slots_with(&*fixture.flat, list, rows, &'b', Direction::Vertical);
+    let slots = slots_with(&*fixture.flat, list, rows, Some(&'b'), Direction::Vertical, None);
     let places: Vec<(Option<char>, f32)> = slots
         .iter()
         .map(|slot| (slot.drop.0, slot.rest.min.y))

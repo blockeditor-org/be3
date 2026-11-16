@@ -14,6 +14,8 @@ pub use be_lib_ui_types::input::{
 pub mod typing;
 
 pub const TOUCH_DRAG_THRESHOLD: f32 = 8.0;
+/// How far a mouse or pen moves while pressed before the press is a drag.
+pub const DRAG_THRESHOLD: f32 = 4.0;
 pub const WHEEL_LATCH_TIMEOUT: Duration = Duration::from_millis(500);
 pub const TOUCH_VELOCITY_WINDOW: f32 = 0.12;
 pub const MAX_TOUCH_VELOCITY: f32 = 4_000.0;

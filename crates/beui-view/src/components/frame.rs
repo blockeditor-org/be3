@@ -14,6 +14,10 @@ use beui_macros::component;
 /// the frame takes, not its content, like CSS `max-width` on a block; for a box as wide as
 /// its content up to a cap, wrap a list child in `<ListItem max=..>` instead.
 ///
+/// `collapsed` lays the frame out at no size, draws nothing of it and gives it no spacing
+/// in a `List`, as if it were not there, while its subtree stays built and running (unlike
+/// `Show`, which removes it).
+///
 /// `translate`, `rotate`, `opacity` and `fade_edges` leave the space the frame takes alone.
 /// `translate` snaps to the pixel grid and paints nothing while off screen. Opacity and
 /// faded edges are one mask over the whole frame, so overlapping shapes inside show
@@ -36,6 +40,7 @@ pub fn Frame(
     #[prop(default = 1.0)] opacity: Prop<f32>,
     #[prop(default = Sides::ZERO)] fade_edges: Prop<Sides>,
     #[prop(default = false)] raised: Prop<bool>,
+    #[prop(default = false)] collapsed: Prop<bool>,
     children: Option<Child>,
 ) -> NodeId {
     crate::core::frame(
@@ -52,6 +57,7 @@ pub fn Frame(
         opacity,
         fade_edges,
         raised,
+        collapsed,
         children,
     )
 }

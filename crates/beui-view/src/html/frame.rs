@@ -38,10 +38,18 @@ pub(crate) fn frame(
     opacity: Prop<f32>,
     fade_edges: Prop<Sides>,
     raised: Prop<bool>,
+    collapsed: Prop<bool>,
     children: Option<Child>,
 ) -> NodeId {
     let frame = create("Frame", "div");
-    set_style(frame, "display", Some("grid".to_owned()));
+    // Collapsed, it leaves the layout altogether: no size, and no gap in a list.
+    bind(collapsed, move |collapsed| {
+        let display = match collapsed {
+            true => "none",
+            false => "grid",
+        };
+        set_style(frame, "display", Some(display.to_owned()));
+    });
     set_style(
         frame,
         "grid-template",

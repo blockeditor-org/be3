@@ -9,16 +9,22 @@ fn a_row_pulled_out_of_its_list_shows_its_preview_under_the_pointer() {
     harness.settle();
     let row = harness.rect(harness.find("row.1"));
     let grab = row.min + vec2(30.0, 5.0);
-    let away = pos2(REORDER_COLUMN + 10.0, grab.y + 30.0);
+    let away = pos2(harness.center(harness.find("list.1")).x, grab.y + 30.0);
     harness.down(grab, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(grab + vec2(0.0, 6.0))]);
     harness.frame(vec![Input::PointerMoved(away)]);
     harness.settle();
-    assert_eq!(harness.document().find_test_id("row.1"), None);
+    assert_eq!(
+        top_of(&harness, "row.2"),
+        0.0,
+        "the row folds out of its own list"
+    );
     let preview = harness.rect(harness.find("preview.1"));
+    let other = harness.rect(harness.find("list.1"));
     assert_eq!(
         preview.min,
-        away - vec2(30.0, 5.0),
-        "the preview sits under the pointer where the row was held"
+        pos2(other.left(), away.y - 5.0),
+        "the list it is over draws its preview in the gap it opens: lined up with its rows, \
+         and under the pointer along it where the row was held"
     );
 }

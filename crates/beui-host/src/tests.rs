@@ -65,6 +65,8 @@ mod a_clicked_number_input_selects_its_text_until_enter;
 mod a_closed_overlay_leaves_its_content_out_of_the_tree;
 mod a_closed_sheet_gives_its_space_back;
 mod a_closure_child_receives_the_handle_its_slot_hands_over;
+mod a_collapsed_frame_in_a_list_takes_no_space_or_spacing;
+mod a_collapsed_frame_in_a_wrapping_list_neither_breaks_a_line_nor_spaces_one;
 mod a_colon_in_a_text_area_offers_emoji_that_enter_inserts;
 mod a_color_input_opens_its_picker_from_the_swatch;
 mod a_color_input_reports_the_hex_it_was_typed;
@@ -388,6 +390,7 @@ mod a_press_in_a_zoomed_text_area_places_the_caret_where_it_lands;
 mod a_press_in_one_window_dragged_into_another_drops_on_a_target_there;
 mod a_press_inside_a_color_wheels_triangle_picks_saturation_and_value;
 mod a_press_is_reported_in_the_coordinates_of_the_interactive_it_lands_on;
+mod a_press_its_drag_declines_hears_every_move_once_past_the_threshold;
 mod a_press_just_outside_a_windows_border_resizes_it;
 mod a_press_on_a_scaled_canvas_item_reaches_what_takes_presses_in_its_own_units;
 mod a_press_on_a_scroll_with_nothing_to_scroll_leaves_the_focus_where_it_is;
@@ -3146,7 +3149,6 @@ pub(crate) struct ReorderLists {
     pub(crate) lists: crate::reactive::Signal<Vec<Vec<u32>>>,
     pub(crate) moves: crate::reactive::Signal<Vec<(usize, unstyled::ReorderMove<u32, u32>)>>,
     pub(crate) disabled: crate::reactive::Signal<bool>,
-    pub(crate) long_press: bool,
     pub(crate) refuses: Option<usize>,
 }
 
@@ -3157,7 +3159,6 @@ impl ReorderLists {
             lists: create_signal(lists),
             moves: create_signal(Vec::new()),
             disabled: create_signal(false),
-            long_press: false,
             refuses: None,
         }
     }
@@ -3178,7 +3179,6 @@ pub(crate) fn reorder_lists(state: ReorderLists) -> Document {
         lists,
         moves,
         disabled,
-        long_press,
         refuses,
     } = state;
     build_node(move || {
@@ -3191,7 +3191,6 @@ pub(crate) fn reorder_lists(state: ReorderLists) -> Document {
                         payload={Func::new(|key: u32| Some(key))}
                         accepts={Func::new(move |_: u32| refuses != Some(column))}
                         disabled={disabled}
-                        long_press
                         text={|key: u32| format!("Row {key}")}
                         preview={|key: u32| view! {
                             <Frame

@@ -57,6 +57,8 @@ pub struct Board {
     next: Cell<u64>,
     sites: RefCell<Vec<Site>>,
     placing: RefCell<Option<sites::Placing>>,
+    /// The item a lift is lifting, while the sites give their places for it.
+    lifting: Cell<Option<Rect>>,
     lifted: OwnedSignal<Option<Erased>>,
     shown: OwnedSignal<Option<DragFrame>>,
     /// The carry held now, by the id its lift returned.
@@ -79,6 +81,7 @@ impl Board {
             next: Cell::default(),
             sites: RefCell::default(),
             placing: RefCell::default(),
+            lifting: Cell::default(),
             lifted: OwnedSignal::new(None),
             shown: OwnedSignal::new(None),
             current: OwnedSignal::new(None),

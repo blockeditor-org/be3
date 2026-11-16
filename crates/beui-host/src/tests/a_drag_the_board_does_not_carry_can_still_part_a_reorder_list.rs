@@ -52,17 +52,12 @@ fn a_drag_the_board_does_not_carry_can_still_part_a_reorder_list() {
         3.0 * REORDER_ROW,
         "a drag the editor follows itself, such as the host's block drag, opens the same gap"
     );
-    with_reactive_scope(&mut harness.document_mut(), || reorder.drop_at(9, over));
-    let moved = moves.get_untracked();
-    assert_eq!(moved.len(), 1);
-    assert_eq!(
-        (moved[0].key, moved[0].after, moved[0].index),
-        (None, Some(2), 2)
-    );
+    with_reactive_scope(&mut harness.document_mut(), || reorder.hover(None));
     harness.settle();
     assert_eq!(
         top_of(&harness, "row.3"),
         2.0 * REORDER_ROW,
-        "and the gap closes on the drop"
+        "and the gap closes when it leaves"
     );
+    assert!(moves.get_untracked().is_empty(), "parting writes nothing");
 }

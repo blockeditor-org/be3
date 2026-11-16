@@ -265,13 +265,26 @@ fn carrying(
             true
         })
     };
+    // The first drag past the threshold asks for a carry; the moves before it are not yet a
+    // drag of either kind, and every move of a press `drag` declined goes on as the source's
+    // own.
     let dragged = {
-        let (lift_at, lifted) = (Rc::clone(&lift_at), Rc::clone(&lifted));
+        let (lift_at, lifted, origin) = (Rc::clone(&lift_at), Rc::clone(&lifted), Rc::clone(&origin));
         Callback::new(move |press: PointerPress| {
             if lifted.get() {
                 return;
             }
-            if !asked.replace(true) && lift_at(press) {
+            let threshold = match press.touch {
+                true => crate::types::TOUCH_DRAG_THRESHOLD,
+                false => crate::types::DRAG_THRESHOLD,
+            };
+            // Once a press has crossed the threshold it is a drag until it ends, however near
+            // its start it comes back.
+            let past = asked.get()
+                || origin
+                    .get()
+                    .is_none_or(|origin| (press.pos - origin.pos).length() >= threshold);
+            if !past || (!asked.replace(true) && lift_at(press)) {
                 return;
             }
             on_drag.call(press);
