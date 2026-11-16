@@ -9,8 +9,14 @@ async fn an_escrow_secret_is_held_apart_from_content_keys() {
     let admin = harness.owner("admin@example.com").await;
     let escrow = admin.keys().escrow().expect("the owner made an escrow key");
     let laptop = harness.second(&admin).await;
-    for (device, peer) in [("the device that minted it", &admin), ("another device", &laptop)] {
-        assert!(peer.keys().has(escrow.id), "{device} holds the escrow secret");
+    for (device, peer) in [
+        ("the device that minted it", &admin),
+        ("another device", &laptop),
+    ] {
+        assert!(
+            peer.keys().has(escrow.id),
+            "{device} holds the escrow secret"
+        );
         assert!(
             !peer.keys().ring().contains(escrow.id),
             "{device} keeps it out of the content keyring"

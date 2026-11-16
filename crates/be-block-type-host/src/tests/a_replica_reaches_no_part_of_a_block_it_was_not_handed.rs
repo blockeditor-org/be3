@@ -18,7 +18,10 @@ fn a_replica_reaches_no_part_of_a_block_it_was_not_handed() {
         let reached = |part| reaches(&reach, &peer, mine, part);
 
         let peers = put(mine, b"a peer's part of this block").await;
-        assert!(reached(peers).await.unwrap(), "a part sealed in its own block");
+        assert!(
+            reached(peers).await.unwrap(),
+            "a part sealed in its own block"
+        );
         let elsewhere = put(source, b"a part of another block").await;
         assert!(
             !reached(elsewhere).await.unwrap(),

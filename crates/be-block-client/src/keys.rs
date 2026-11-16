@@ -601,9 +601,7 @@ impl KeyBook {
                     continue;
                 }
                 let row = rows.keys.get(key).copied();
-                let vouched = wraps
-                    .iter()
-                    .find_map(|wrap| self.unwrap(wrap, row, true));
+                let vouched = wraps.iter().find_map(|wrap| self.unwrap(wrap, row, true));
                 if let Some(opened) = vouched {
                     self.hold(*key, opened);
                     self.trusted.lock().unwrap().insert(*key);
@@ -614,10 +612,7 @@ impl KeyBook {
                 if self.has(*key) {
                     continue;
                 }
-                if let Some(bytes) = wraps
-                    .iter()
-                    .find_map(|wrap| self.unwrap(wrap, row, false))
-                {
+                if let Some(bytes) = wraps.iter().find_map(|wrap| self.unwrap(wrap, row, false)) {
                     self.hold(*key, bytes);
                     changed += 1;
                     progress = true;
@@ -636,18 +631,16 @@ impl KeyBook {
     fn hold(&self, key: Uuid, opened: Opened) {
         match opened.escrow {
             true => {
-                self.escrow_secrets.lock().unwrap().insert(key, opened.bytes);
+                self.escrow_secrets
+                    .lock()
+                    .unwrap()
+                    .insert(key, opened.bytes);
             }
             false => self.ring.insert(key, ContentKey::from_bytes(opened.bytes)),
         }
     }
 
-    fn unwrap(
-        &self,
-        wrap: &WrappedKey,
-        row: Option<KeyRow>,
-        vouched: bool,
-    ) -> Option<Opened> {
+    fn unwrap(&self, wrap: &WrappedKey, row: Option<KeyRow>, vouched: bool) -> Option<Opened> {
         let block = row.map(|row| row.block);
         let bytes = match wrap.wrapped_by {
             WrappedBy::Account(account) if account == self.account => {
@@ -851,8 +844,6 @@ impl KeyBook {
     }
 
     pub fn missing(&self, keys: impl IntoIterator<Item = Uuid>) -> HashSet<Uuid> {
-        keys.into_iter()
-            .filter(|key| !self.has(*key))
-            .collect()
+        keys.into_iter().filter(|key| !self.has(*key)).collect()
     }
 }
