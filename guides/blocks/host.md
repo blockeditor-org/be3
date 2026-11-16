@@ -263,7 +263,9 @@ the connection a stopping stack closed.
   (`Replicas::stop_keeping`): what it made after is sealed as it closes and
   set aside in its turn, and one opened next starts under a fresh origin. The
   discard marks the block (`Refs::drop_local_edits`, kept until the block is
-  forgotten or this account may edit it again): while marked, keeping its
+  forgotten or a join's `may-edit` says this account may edit it again,
+  `Peer::join_session`; a listing that says so may be older than the access
+  that lost it, so it does not count): while marked, keeping its
   edits fails (`ClientError::Discarded`), so a submission waits rather than
   going out unkept. Opened before it
   joins (offline, or joining), those the server may hold already only show

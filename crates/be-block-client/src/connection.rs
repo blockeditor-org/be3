@@ -410,13 +410,14 @@ impl Connection {
     }
 
     /// Joins a block's session, running the build `tag` of its type: this connection's id, the
-    /// session's state and the block's journal as of joining, sealed. What the order numbers
-    /// after it arrives as `Event::Sequenced`.
+    /// session's state, the block's journal as of joining, sealed, and whether this account may
+    /// edit it as the server answered. What the order numbers after it arrives as
+    /// `Event::Sequenced`.
     pub fn join_session(
         self: &Arc<Self>,
         block: Uuid,
         tag: Hash,
-    ) -> Answer<(ClientId, SessionState, Option<Journal>)> {
+    ) -> Answer<(ClientId, SessionState, Option<Journal>, bool)> {
         let session = Arc::new(client::sessions::Session::new(&self.peer, block, tag));
         let mut joining = session.join();
         let left = self.registry().sessions.insert(block, Arc::clone(&session));
@@ -428,7 +429,8 @@ impl Connection {
                     client,
                     state,
                     journal,
-                }) => Ok((client, state, journal)),
+                    may_edit,
+                }) => Ok((client, state, journal, may_edit)),
                 Some(SessionEvent::Refused(error)) => Err(ClientError::from(error)),
                 Some(
                     SessionEvent::Changed(_)
