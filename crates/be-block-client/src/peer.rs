@@ -2380,6 +2380,15 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn seal(&self, block: Uuid, mut write: Write<'_>) -> Result<Sealed, ClientError> {
+        // Its local edits were discarded: none of them is sealed, so none reaches the server
+        // once this account may edit it again (`refs::Dropped`). Answered as unchanged, so a
+        // replica closing with them lets go of them rather than waiting on a seal.
+        if self.refs.discarded(block) {
+            return match write.expected {
+                Some(head) => Ok(Sealed::Unchanged(head)),
+                None => Err(ClientError::Discarded(block)),
+            };
+        }
         let (manifest, extra_parents, metadata) = self.prepare_write(block, &mut write).await?;
         let Write {
             references,
