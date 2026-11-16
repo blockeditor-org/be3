@@ -590,7 +590,7 @@ impl Versions {
         if let Some(found) = self.objects.commit(commit) {
             return Ok(found);
         }
-        let loaded = peer.load_commit(commit).await.map_err(Failure::client)?;
+        let loaded = peer.load_reached(commit).await.map_err(Failure::client)?;
         #[cfg(test)]
         count_read("commit", commit);
         self.objects.put_commit(commit, loaded.clone());
@@ -2218,7 +2218,7 @@ async fn read<R: Root + Model + Default>(
     let head = head_here(peer, block).await?;
     let content = match head {
         Some(head) => peer
-            .open_commit::<Document<R>>(head)
+            .open_commit::<Document<R>>(block, head)
             .await
             .map_err(failed)?
             .root(),
@@ -2643,7 +2643,7 @@ async fn merge_over(
                 Some(base) => Some(
                     context
                         .peer
-                        .load_commit(base)
+                        .load_reached(base)
                         .await
                         .map_err(failed)?
                         .manifest,
@@ -2655,7 +2655,7 @@ async fn merge_over(
     };
     let theirs = context
         .peer
-        .load_commit(theirs)
+        .load_head(block, theirs)
         .await
         .map_err(failed)?
         .manifest;

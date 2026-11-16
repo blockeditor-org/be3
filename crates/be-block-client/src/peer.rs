@@ -1091,7 +1091,7 @@ impl<S: ObjectStore> Peer<S> {
         for parent in commit.parents.iter().skip(1) {
             held.push(parent.hash());
             held.extend(
-                self.objects_of(&self.load_commit(*parent).await?.manifest)
+                self.objects_of(&self.load_reached(*parent).await?.manifest)
                     .await?,
             );
         }
@@ -1868,7 +1868,7 @@ impl<S: ObjectStore> Peer<S> {
     /// A commit reached by hash from one already checked (a parent, a repository's history):
     /// bound by that hash, whichever key sealed it. A block's head, which the server names,
     /// goes through `load_head`.
-    pub async fn load_commit(&self, commit: CommitId) -> Result<Commit, ClientError> {
+    pub async fn load_reached(&self, commit: CommitId) -> Result<Commit, ClientError> {
         self.fetch(&[commit.hash()]).await?;
         self.retrying(|| Ok(self.commits.get(commit)?)).await
     }
@@ -1877,7 +1877,7 @@ impl<S: ObjectStore> Peer<S> {
     /// sealed it (`sealed_in`), since the server could name another block's commit, which a
     /// device would show as this block's and write back under this block's key.
     pub async fn load_head(&self, block: Uuid, commit: CommitId) -> Result<Commit, ClientError> {
-        let loaded = self.load_commit(commit).await?;
+        let loaded = self.load_reached(commit).await?;
         self.sealed_in(block, commit)?;
         Ok(loaded)
     }
@@ -2028,7 +2028,7 @@ impl<S: ObjectStore> Peer<S> {
         if let Some(head) = self.local_head(block)
             && !self.pending_commits(block).is_empty()
         {
-            return Ok(Some(C::from_stored(&self.read_at(head).await?)?));
+            return Ok(Some(C::from_stored(&self.read_at(block, head).await?)?));
         }
         let read = self
             .read_contents(&[(block, self.local_head(block))])
@@ -2047,8 +2047,13 @@ impl<S: ObjectStore> Peer<S> {
         Ok(Some(C::from_stored(&stored)?))
     }
 
-    pub async fn open_commit<C: BlockContent>(&self, commit: CommitId) -> Result<C, ClientError> {
-        let commit = self.load_commit(commit).await?;
+    /// `block`'s content at `commit`, which the server may have named (`load_head`).
+    pub async fn open_commit<C: BlockContent>(
+        &self,
+        block: Uuid,
+        commit: CommitId,
+    ) -> Result<C, ClientError> {
+        let commit = self.load_head(block, commit).await?;
         Ok(C::from_stored(
             &self.load_manifest(&commit.manifest).await?,
         )?)
@@ -2183,7 +2188,7 @@ impl<S: ObjectStore> Peer<S> {
         // The commit it goes on, to tell a write that changes nothing: unknown offline when only
         // its summary is held, and then the write is sealed all the same.
         let previous = match expected {
-            Some(head) => match self.load_commit(head).await {
+            Some(head) => match self.load_head(block, head).await {
                 Ok(previous) => Some(previous),
                 Err(error) if offline::unreachable(&error) => None,
                 Err(error) => return Err(error),

@@ -116,7 +116,7 @@ fn a_fork_pulls_and_pushes_offline() {
         let head = repository
             .branch(be_block_repository::MAIN_BRANCH)
             .expect("main has a head");
-        peer.load_commit(head).await.unwrap();
+        peer.load_reached(head).await.unwrap();
         head
     });
     assert_eq!(

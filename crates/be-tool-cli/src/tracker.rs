@@ -555,7 +555,7 @@ impl<S: ObjectStore> Tracker<S> {
         let head = self.index.lock().await.get(block).map(|entry| entry.head);
         match head {
             Some(Some(head)) => Ok(Some(
-                self.peer.open_commit::<C>(head).await.map_err(explain)?,
+                self.peer.open_commit::<C>(block, head).await.map_err(explain)?,
             )),
             Some(None) => Ok(None),
             None => self.peer.open::<C>(block).await.map_err(explain),

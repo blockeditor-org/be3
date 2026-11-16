@@ -24,7 +24,7 @@ fn a_type_module_that_stops_is_started_again_with_the_edits_it_had_not_sealed() 
     let saved = runtime().block_on(async {
         let outside = harness.outside_peer().await;
         outside
-            .open_commit::<CounterContent>(head)
+            .open_commit::<CounterContent>(block, head)
             .await
             .expect("the sealed commit opens")
     });
