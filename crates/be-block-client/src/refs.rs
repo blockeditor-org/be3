@@ -350,6 +350,11 @@ pub struct ListedBlock {
 pub struct KnownSigner {
     pub key: [u8; 32],
     pub verified: bool,
+    /// For a verified key a newer verified one replaced: when this device learned of that
+    /// newer key, by the server's clock as it estimated it (`Peer::server_now`); none when it
+    /// could not tell. A record this key signed that the server took later than this is not
+    /// the account's (`Peer::verify_authored`).
+    pub replaced: Option<i64>,
 }
 
 #[derive(Default)]
@@ -1351,14 +1356,16 @@ impl Refs {
     }
 
     /// Keeps `key` as one `account` signs with: verified once a contact's card or key change
-    /// names it, which no later pin undoes. The newest verified key, last, is the account's current one. A key is
-    /// never forgotten, so what an account signed before a new phrase still verifies, though
-    /// not as its current key (`Peer::verify_authored`).
+    /// names it, which no later pin undoes. The newest verified key, last, is the account's
+    /// current one; each older verified key is marked replaced as of `now`, the server's clock
+    /// (`KnownSigner::replaced`). A key is never forgotten, so what an account signed before a
+    /// new phrase still verifies, though not as its current key (`Peer::verify_authored`).
     pub fn add_signer(
         &self,
         account: Uuid,
         key: [u8; 32],
         verified: bool,
+        now: Option<i64>,
     ) -> Result<(), StoreError> {
         let known = {
             let mut state = self.state.lock().unwrap();
@@ -1368,7 +1375,17 @@ impl Refs {
             match known.iter_mut().find(|known| known.key == key) {
                 Some(found) if found.verified || !verified => return Ok(()),
                 Some(found) => found.verified = true,
-                None => known.push(KnownSigner { key, verified }),
+                None => known.push(KnownSigner {
+                    key,
+                    verified,
+                    replaced: None,
+                }),
+            }
+            let current = known.iter().rposition(|known| known.verified);
+            for (index, older) in known.iter_mut().enumerate() {
+                if older.verified && Some(index) != current && older.replaced.is_none() {
+                    older.replaced = now;
+                }
             }
             known.clone()
         };

@@ -68,6 +68,7 @@ impl Signatures {
                 account,
                 bytes,
                 signature: signed,
+                ..
             } => {
                 let account = Uuid::from_bytes(account);
                 let signer = match signed == signature(account, &bytes) {

@@ -443,7 +443,7 @@ impl<S: ObjectStore> Peer<S> {
         })?;
         let session = refs.session();
         let ring = Keyring::new();
-        let _ = refs.add_signer(account, config.identity.signing().0, true);
+        let _ = refs.add_signer(account, config.identity.signing().0, true, None);
         let keys = KeyBook::new(account, organization, config.identity, ring.clone());
         keys.set_contacts(
             refs.contacts()
@@ -758,7 +758,7 @@ impl<S: ObjectStore> Peer<S> {
     pub(crate) fn adopt_contacts(&self, contacts: &[crate::Contact]) {
         for contact in contacts {
             if let Some(signing) = contact.signing {
-                let _ = self.refs.add_signer(contact.account, signing.0, true);
+                let _ = self.refs.add_signer(contact.account, signing.0, true, self.server_now());
             }
         }
         let verified: Vec<(Uuid, RecoveryPublic)> = contacts

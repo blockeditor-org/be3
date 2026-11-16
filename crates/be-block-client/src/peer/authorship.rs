@@ -50,6 +50,34 @@ impl Forged {
 /// The most records `Forged` remembers.
 const MAX_FORGED: usize = 4096;
 
+/// How far this device's estimate of the server's clock (`Peer::server_now`), by which it marks
+/// when it learned a key was replaced, may be off from the stamps the server gives arrivals.
+const SERVER_CLOCK_MARGIN_MILLISECONDS: i64 = 60 * 1000;
+
+/// Who of an account's verified keys made a signature, as `made` tells: the current one, or a
+/// replaced one, which answers `Bad` for a record the server took (`arrived`) after this device
+/// learned of the key that replaced it, since only someone holding the old phrase signs with it
+/// then.
+fn by_verified(
+    verified: &[&crate::refs::KnownSigner],
+    made: impl Fn([u8; 32]) -> bool,
+    arrived: Option<i64>,
+) -> Option<Signer> {
+    if verified.last().is_some_and(|current| made(current.key)) {
+        return Some(Signer::Verified);
+    }
+    let old = verified.iter().find(|old| made(old.key))?;
+    let after = matches!(
+        (arrived, old.replaced),
+        (Some(arrived), Some(replaced))
+            if arrived > replaced.saturating_add(SERVER_CLOCK_MARGIN_MILLISECONDS)
+    );
+    Some(match after {
+        true => Signer::Bad,
+        false => Signer::Changed,
+    })
+}
+
 /// A record's identity for `Forged`: who it names, where, what it says and its signature.
 fn record(account: Uuid, block: Uuid, bytes: &[u8], signature: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
@@ -90,13 +118,16 @@ impl<S: ObjectStore> Peer<S> {
     /// Who of `account` signed `bytes` in `block`. A key a contact verified is the only one
     /// that answers `Verified`, and an account with one is never taken on the server's word,
     /// so the server cannot sign as a contact. Any other account's key comes from the server and
-    /// is pinned the first time (trust on first use).
+    /// is pinned the first time (trust on first use). `arrived` is when the server took the
+    /// record, if it carries that stamp: one signed with a contact's replaced key that arrived
+    /// after this device learned of the new key is `Bad`, not `Changed`.
     pub async fn verify_authored(
         &self,
         account: Uuid,
         block: Uuid,
         bytes: &[u8],
         signature: &[u8],
+        arrived: Option<i64>,
     ) -> Result<Signer, ClientError> {
         let made = |key: [u8; 32]| {
             SigningPublic(key).verifies_authored(block.into_bytes(), bytes, signature)
@@ -106,11 +137,8 @@ impl<S: ObjectStore> Peer<S> {
         // what it signed, but is shown as changed, since someone holding the old phrase can
         // sign with it too.
         let verified: Vec<_> = known.iter().filter(|known| known.verified).collect();
-        if verified.last().is_some_and(|current| made(current.key)) {
-            return Ok(Signer::Verified);
-        }
-        if verified.iter().any(|old| made(old.key)) {
-            return Ok(Signer::Changed);
+        if let Some(signer) = by_verified(&verified, made, arrived) {
+            return Ok(signer);
         }
         let contact = !verified.is_empty();
         if !contact && known.iter().any(|known| made(known.key)) {
@@ -127,7 +155,7 @@ impl<S: ObjectStore> Peer<S> {
             ));
         }
         let found = self
-            .ask_about(account, block, bytes, signature, contact)
+            .ask_about(account, block, bytes, signature, contact, arrived)
             .await?;
         let mut forged = self.forged.lock().unwrap();
         // A key learned while asking (a contact's new phrase, a key pinned) may have made a
@@ -150,6 +178,7 @@ impl<S: ObjectStore> Peer<S> {
         bytes: &[u8],
         signature: &[u8],
         contact: bool,
+        arrived: Option<i64>,
     ) -> Result<Signer, ClientError> {
         let made = |key: [u8; 32]| {
             SigningPublic(key).verifies_authored(block.into_bytes(), bytes, signature)
@@ -160,13 +189,7 @@ impl<S: ObjectStore> Peer<S> {
             self.refresh_contacts().await?;
             let known = self.refs.signers(account);
             let verified: Vec<_> = known.iter().filter(|known| known.verified).collect();
-            return Ok(if verified.last().is_some_and(|key| made(key.key)) {
-                Signer::Verified
-            } else if verified.iter().any(|old| made(old.key)) {
-                Signer::Changed
-            } else {
-                Signer::Bad
-            });
+            return Ok(by_verified(&verified, made, arrived).unwrap_or(Signer::Bad));
         }
         let served = client::keys::get_signing_keys(&self.connection(), vec![account])
             .await??
@@ -178,7 +201,7 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(Signer::Bad);
         };
         if known.is_empty() {
-            self.refs.add_signer(account, served, false)?;
+            self.refs.add_signer(account, served, false, self.server_now())?;
             return Ok(match made(served) {
                 true => Signer::Unverified,
                 false => Signer::Bad,
