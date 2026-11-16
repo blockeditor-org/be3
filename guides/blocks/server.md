@@ -625,7 +625,12 @@ browser portal (`/auth`, `portal.rs` and be-server-portal-ui), so no client
 needs code of its own for any method.
 
 - **Emailed codes** (`store/codes.rs`) sign in, register and recover ("I can't
-  sign in", which ends every other session): eight letters with no look-alikes,
+  sign in"). Recovering takes the account back from whoever else may hold it
+  (`recover_account`, then `delete_agents_created_by`): it ends every other
+  session and pending email change, removes every way to sign in but the email
+  it proved, and deletes every agent the account made, then tells the account
+  in one mail and one notice what went. Grants signed to a deleted agent are
+  left for a device of someone who manages the block to revoke. Codes are eight letters with no look-alikes,
   good for ten minutes and five wrong tries, belonging to one attempt whose
   secret the asking browser holds in the `be3-attempt` cookie, so it works
   nowhere else; a new request for the attempt ends its older code. The mail's
