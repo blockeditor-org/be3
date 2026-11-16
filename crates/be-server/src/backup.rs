@@ -259,22 +259,28 @@ impl BackupKey {
             .ok_or(BackupError::Key)
     }
 
-    /// `plain` sealed for a backup (`be_block_keys::aead`): `SEALED_MAGIC`, a random nonce,
-    /// then the ciphertext, which authenticates the magic too.
-    fn seal(&self, plain: &[u8]) -> Vec<u8> {
+    /// The snapshot `name`d by its time, sealed for a backup (`be_block_keys::aead`):
+    /// `SEALED_MAGIC`, a random nonce, then the ciphertext, which authenticates the magic and
+    /// the name, so an older snapshot renamed to look newer opens nothing.
+    fn seal(&self, name: &str, plain: &[u8]) -> Vec<u8> {
         let nonce = aead::random_nonce();
-        let ciphertext = aead::seal(&self.0, &nonce, SEALED_MAGIC, plain);
+        let ciphertext = aead::seal(&self.0, &nonce, &associated(name), plain);
         [SEALED_MAGIC, &nonce, &ciphertext].concat()
     }
 
-    fn open(&self, sealed: &[u8]) -> Result<Vec<u8>, BackupError> {
+    fn open(&self, name: &str, sealed: &[u8]) -> Result<Vec<u8>, BackupError> {
         let rest = sealed.strip_prefix(SEALED_MAGIC).ok_or(BackupError::Key)?;
         let (nonce, ciphertext) = rest
             .split_at_checked(aead::NONCE_LEN)
             .ok_or(BackupError::Key)?;
         let nonce: aead::Nonce = nonce.try_into().map_err(|_| BackupError::Key)?;
-        aead::open(&self.0, &nonce, SEALED_MAGIC, ciphertext).map_err(|_| BackupError::Key)
+        aead::open(&self.0, &nonce, &associated(name), ciphertext).map_err(|_| BackupError::Key)
     }
+}
+
+/// What a snapshot's seal binds beside its bytes: the magic and the snapshot's name, its time.
+fn associated(name: &str) -> Vec<u8> {
+    [SEALED_MAGIC, name.as_bytes()].concat()
 }
 
 #[derive(Debug, Default, Eq, PartialEq)]
@@ -335,7 +341,7 @@ pub fn backup(
 
     let seconds = now.duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
     let name = format!("{}.sealed", timestamp(seconds));
-    target.put(&format!("{DATABASES}/{name}"), &key.seal(&snapshot))?;
+    target.put(&format!("{DATABASES}/{name}"), &key.seal(&name, &snapshot))?;
     let pruned = prune(target, seconds)?;
     Ok(BackupReport {
         snapshot: name,
@@ -417,7 +423,7 @@ pub fn restore(
     let sealed = target
         .get(&format!("{DATABASES}/{name}"))?
         .ok_or_else(|| BackupError::Missing(format!("snapshot {name}")))?;
-    let database = key.open(&sealed)?;
+    let database = key.open(&name, &sealed)?;
     fs::create_dir_all(data_dir)?;
     let objects = Objects::open(data_dir, bucket)?;
     let staging = data_dir.join("restoring.sqlite");
