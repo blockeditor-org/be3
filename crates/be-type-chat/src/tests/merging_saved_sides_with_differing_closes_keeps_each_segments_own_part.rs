@@ -16,7 +16,7 @@ fn merging_saved_sides_with_differing_closes_keeps_each_segments_own_part() {
     let theirs = closed(&other);
 
     let keys = Keyring::new();
-    keys.insert(CHAT, ContentKey::from_bytes([7; 32]));
+    keys.insert(CHAT, ContentKey::from_bytes([7; 32]), uuid::Uuid::nil());
     let vault = Rc::new(Vault::new(MemoryStore::new(), keys).with_chunker(ChunkerConfig::SMALL));
     let load = |chat: &ChatContent| {
         let manifest = vault

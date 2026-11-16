@@ -26,7 +26,7 @@ fn a_saved_chat_loads_back_from_its_parts() {
     assert_eq!(unsaved, chat);
 
     let keys = Keyring::new();
-    keys.insert(CHAT, ContentKey::from_bytes([7; 32]));
+    keys.insert(CHAT, ContentKey::from_bytes([7; 32]), uuid::Uuid::nil());
     let vault = Vault::new(MemoryStore::new(), keys).with_chunker(ChunkerConfig::SMALL);
     let manifest = vault
         .write(CHAT, ChatContent::CONTENT_TYPE, chat.parts())
