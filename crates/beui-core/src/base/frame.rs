@@ -305,7 +305,13 @@ impl Element for FrameNode {
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
+        // A collapsed child is still laid out, at no size, so what it holds in layers of
+        // its own (a carried row's floating preview) is placed and shown.
         if self.collapsed {
+            if let Some(child) = self.child {
+                let none = Rect::from_min_size(rect.min, Vec2::ZERO);
+                crate::layout::layout(doc, painter, child, none, out);
+            }
             return;
         }
         if let Some(child) = self.child {
