@@ -178,7 +178,14 @@ mod web {
         // job after from it. A worker that drops the port unanswered drops `answer`.
         let (answer, answered) = oneshot::channel::<Vec<u8>>();
         let answer = Rc::new(RefCell::new(Some(answer)));
-        let (mut port, theirs) = be_host_stack::Port::pair();
+        let start = Start {
+            data_dir,
+            report: report.across(),
+        };
+        let mut port = be_host_stack::start_in_worker(
+            ENTRY,
+            postcard::to_stdvec(&start).expect("what the host's worker starts from encodes"),
+        );
         port.listen(
             {
                 let answer = Rc::clone(&answer);
@@ -192,15 +199,6 @@ mod web {
         );
         let (jobs, mut taken) = mpsc::unbounded_channel::<Vec<u8>>();
         let jobs = Jobs(jobs);
-        let start = Start {
-            data_dir,
-            report: report.across(),
-        };
-        be_host_stack::start_in_worker(
-            ENTRY,
-            theirs,
-            postcard::to_stdvec(&start).expect("what the host's worker starts from encodes"),
-        );
         // Each job goes to the worker as it is sent, for as long as the page sends them.
         wasm_bindgen_futures::spawn_local(async move {
             while let Some(job) = taken.recv().await {

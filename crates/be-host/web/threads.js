@@ -103,30 +103,65 @@ export { threadSpawn as "thread-spawn" };
 // block stacks, started with the first work handed to it and kept for the
 // page's life: what a stack opened there, such as its sockets, belongs to that
 // worker's JavaScript. Each work is a named entry, the bytes it starts from,
-// copied out of the page's memory here, and the port the page and the entry
-// talk through after (be_host_stack::start_in_worker, which calls this as the
-// global beWorkerStart).
+// copied out of the page's memory here, and a port the page and the entry talk
+// through after, whose other end this answers (be_host_stack::start_in_worker,
+// which calls this as the global beWorkerStart).
 /** @type {Worker | null} */
 let stackWorker = null;
 
-function stackWorkerStart(entry, port, bytes) {
+/** @type {{worker: Worker, channel: object} | null} */
+let hostFiles = null;
+
+/**
+ * Hands the shim files.js's worker and the channel to it, which the page binds no call to:
+ * the host's worker makes the host's file calls, in a memory of its own.
+ */
+export function bindHostFiles(files) {
+    hostFiles = files;
+}
+
+// The page's ends of the ports it started work with, held weakly: a worker that fails (a trap)
+// drops none of its own ends, so each of these is told the worker went as an empty message
+// would tell it (be_host_stack::Port).
+const pagePorts = new Set();
+
+function workerFailed() {
+    for (const held of pagePorts) {
+        held.deref()?.dispatchEvent(new MessageEvent("message", { data: new Uint8Array(0) }));
+    }
+    pagePorts.clear();
+}
+
+function stackWorkerStart(entry, bytes) {
+    const channel = new MessageChannel();
     if (context === null) {
         console.error("the block stack was started before bindThreads was called");
-        return;
+        return channel.port1;
     }
     if (stackWorker === null) {
         stackWorker = new Worker(new URL("./be-worker.js", import.meta.url), { type: "module" });
         stackWorker.onerror = (event) => {
             console.error("the block stack's worker failed", event.message ?? event);
+            workerFailed();
+        };
+        // Its file calls go to files.js, in the memory it makes, which it names once it has.
+        stackWorker.onmessage = (event) => {
+            if (event.data?.filesMemory) {
+                hostFiles?.worker.postMessage({ memory: event.data.filesMemory });
+            }
         };
         stackWorker.postMessage({
             module: context.module,
-            memory: context.memory,
-            files: filesChannel(),
+            files: hostFiles?.channel ?? null,
             letters: lettersChannel(),
         });
     }
-    stackWorker.postMessage({ entry, port, bytes: bytes.slice() }, [port]);
+    stackWorker.postMessage({ entry, port: channel.port2, bytes: bytes.slice() }, [channel.port2]);
+    for (const held of pagePorts) {
+        if (!held.deref()) pagePorts.delete(held);
+    }
+    pagePorts.add(new WeakRef(channel.port1));
+    return channel.port1;
 }
 
 globalThis.beWorkerStart = stackWorkerStart;

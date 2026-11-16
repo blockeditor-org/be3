@@ -14,7 +14,7 @@ use be_wasm_threads::Mutex;
 
 use be_block_store::FileStore;
 use wasm_bindgen::{JsCast, prelude::*};
-use web_sys::{MessageChannel, MessageEvent, MessagePort};
+use web_sys::{MessageEvent, MessagePort};
 
 use super::{
     seen::Handover,
@@ -23,40 +23,36 @@ use super::{
 
 #[wasm_bindgen]
 extern "C" {
-    /// `web/threads.js`'s: posts `entry`, `port` and a copy of `bytes` to the host's worker,
-    /// which starts it (be-host's `be_worker_run`).
+    /// `web/threads.js`'s: posts `entry`, a copy of `bytes` and one end of a new message
+    /// channel to the host's worker, which starts it (be-host's `be_worker_run`), and answers
+    /// the other end.
     #[wasm_bindgen(js_name = beWorkerStart)]
-    fn be_worker_start(entry: &str, port: MessagePort, bytes: &[u8]);
+    fn be_worker_start(entry: &str, bytes: &[u8]) -> MessagePort;
 }
 
 /// Starts the work named `entry` in the host's worker (`web/be-worker.js`), as a future beside
 /// the block stacks it runs, from `bytes`: what it needs, as a worker whose memory the page does
-/// not share is sent it. `port` is the worker's end of the channel the page and the entry talk
-/// through after (`Port::pair`). be-host's `be_worker_run` starts the entry by its name. What
-/// reads files, which the page may not, runs this way: the stacks (`STACK_ENTRY`) and be-host's
-/// `host_files`.
-pub fn start_in_worker(entry: &str, port: MessagePort, bytes: Vec<u8>) {
-    be_worker_start(entry, port, &bytes);
+/// not share is sent it. Answers the page's end of the port the two talk through after. be-host's
+/// `be_worker_run` starts the entry by its name. What reads files, which the page may not, runs
+/// this way: the stacks (`STACK_ENTRY`) and be-host's `host_files`.
+pub fn start_in_worker(entry: &str, bytes: Vec<u8>) -> Port {
+    Port::new(be_worker_start(entry, &bytes))
 }
 
 /// One end of a message channel between the page and an entry in the host's worker
 /// (`start_in_worker`): each message is bytes, copied out of the memory of the side that posts
 /// it. A port never posts empty bytes but as it is dropped, which tells the other end it went
 /// (`listen`'s `ended`): an entry the worker does not know drops its port, so what the page
-/// waits on hears the worker stopped. A worker that ends by a trap tells nothing.
+/// waits on hears the worker stopped. A worker that fails (a trap) drops nothing, so
+/// `web/threads.js` tells each of the page's ends instead, as it hears the worker's `error`.
 pub struct Port {
     port: MessagePort,
     heard: Option<Closure<dyn FnMut(MessageEvent)>>,
 }
 
 impl Port {
-    /// A channel's two ends: the page keeps the first and sends the second with the entry.
-    pub fn pair() -> (Port, MessagePort) {
-        let channel = MessageChannel::new().expect("a message channel can be made");
-        (Port::new(channel.port1()), channel.port2())
-    }
-
-    /// The end the page sent (`start_in_worker`), in the worker.
+    /// An end of a channel to the other side: the page's that `start_in_worker` answers, or
+    /// the worker's that came with the entry.
     pub fn new(port: MessagePort) -> Self {
         Self { port, heard: None }
     }
@@ -155,8 +151,10 @@ pub(super) fn wait_for_stopped() {}
 /// channels: a task copies what the page sends on them to the stack's port, and what the worker
 /// hands over arrives on the page's handover (`Handover::put`), which wakes the host.
 pub(super) fn spawn(start: Start, inbox: Inbox) -> Running {
-    let (mut port, theirs) = Port::pair();
+    let bytes = postcard::to_stdvec(&start).expect("what a stack starts from encodes");
+    let mut port = start_in_worker(STACK_ENTRY, bytes);
     let handover = Arc::clone(&inbox.handover);
+    let gone = Arc::clone(&inbox.handover);
     port.listen(
         move |bytes| {
             match decode(&bytes) {
@@ -166,10 +164,19 @@ pub(super) fn spawn(start: Start, inbox: Inbox) -> Running {
             }
             be_host_base::host::wake();
         },
-        || {},
+        // The worker's end went while the page still runs the stack: it failed, or ended by
+        // itself. What the page reads says so (`Handover::gone`), from an update that tells
+        // every watcher.
+        move || {
+            gone.worker_gone();
+            let told = crate::seen::Told {
+                changes: crate::Changes::everything(),
+                ..Default::default()
+            };
+            gone.put(postcard::to_stdvec(&told.handed()).expect("an update encodes"));
+            be_host_base::host::wake();
+        },
     );
-    let bytes = postcard::to_stdvec(&start).expect("what a stack starts from encodes");
-    start_in_worker(STACK_ENTRY, theirs, bytes);
     spawn_local(to_worker(port, inbox));
     Running
 }
