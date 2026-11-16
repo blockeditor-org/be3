@@ -37,6 +37,9 @@ fn a_copy_put_in_a_childs_place_is_made_before_the_answer() {
 
     let (copy, answer) = replace_with_copy(notes, TextContent::CONTENT_TYPE, source)
         .expect("the text and the source are known");
+    // The copy is asked for, so the mirror keeps it once made: a detached block nothing asks
+    // for leaves the mirror as its creation settles, which the page may take before it reads.
+    ask_for(vec![Query::Block(copy)]);
     assert!(made(Some(answer)), "the text takes the copy");
     assert!(
         node(copy).is_some(),
