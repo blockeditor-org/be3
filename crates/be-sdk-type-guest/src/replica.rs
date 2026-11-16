@@ -552,6 +552,10 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// Editors attached that wait for `resent` before they are sent their snapshot, and
     /// nothing of the content until then.
     holding: BTreeSet<EditorId>,
+    /// The snapshot each editor was told last, encoded, while nothing told it since changed
+    /// what it shows: a replica opened again in this one's place (`carry`) does not tell an
+    /// editor a snapshot it holds already.
+    snapshots_shown: BTreeMap<EditorId, Vec<u8>>,
     projected: Settling<C>,
     landed: Vec<(Landed<C::Op>, Option<EditorId>)>,
     resnapshot: bool,
@@ -773,10 +777,14 @@ where
     }
 
     fn carry(&mut self) -> Carried {
-        self.lacking.carry()
+        Carried {
+            snapshots_shown: std::mem::take(&mut self.snapshots_shown),
+            ..self.lacking.carry()
+        }
     }
 
-    fn adopt(&mut self, carried: Carried) {
+    fn adopt(&mut self, mut carried: Carried) {
+        self.snapshots_shown = std::mem::take(&mut carried.snapshots_shown);
         self.lacking.adopt(carried);
         self.lacking
             .opened_with(self.commits_kept, &self.refused_commits);
@@ -837,6 +845,7 @@ where
             editors: BTreeMap::new(),
             acknowledged: BTreeMap::new(),
             holding: BTreeSet::new(),
+            snapshots_shown: BTreeMap::new(),
             landed: Vec::new(),
             resnapshot: false,
             described: false,
@@ -1443,6 +1452,7 @@ where
                 self.editors.remove(&editor);
                 self.acknowledged.remove(&editor);
                 self.holding.remove(&editor);
+                self.snapshots_shown.remove(&editor);
                 self.lacking.unfollow(editor);
             }
             Input::Head(HeadEvent::Moved { head }) => self.moved(head),
@@ -3390,13 +3400,24 @@ where
     /// The host gave this replica again what `editor` sent before it was opened (`resent`):
     /// the editor's snapshot holds all of it now, as `applied` counts.
     fn resent(&mut self, editor: EditorId) {
-        if self.holding.remove(&editor) && self.editors.contains_key(&editor) {
-            self.snapshot_to(editor);
+        if !self.holding.remove(&editor) || !self.editors.contains_key(&editor) {
+            return;
+        }
+        // Opened again in place of a replica that told the editor this snapshot (its block's
+        // session joined once its creation was sent), it shows it already.
+        let snapshot = ToEditor::Snapshot(self.snapshot_for(editor));
+        if self.snapshots_shown.get(&editor) != Some(&snapshot.encode()) {
+            self.tell_editor(editor, &snapshot);
         }
     }
 
     fn snapshot_to(&mut self, editor: EditorId) {
         self.holding.remove(&editor);
+        let snapshot = self.snapshot_for(editor);
+        self.tell_editor(editor, &ToEditor::Snapshot(snapshot));
+    }
+
+    fn snapshot_for(&self, editor: EditorId) -> Snapshot {
         let applied = self.acknowledged.get(&editor).copied().unwrap_or_default();
         let settled = self.projected.settled();
         let bytes = settled.encode();
@@ -3404,7 +3425,7 @@ where
             be_block_content::Loads::Whole => bytes.len() as u64,
             be_block_content::Loads::FirstPart => settled.parts().length(),
         };
-        let snapshot = Snapshot {
+        Snapshot {
             content_type: self.content_type,
             length,
             bytes,
@@ -3416,8 +3437,7 @@ where
                 .map(C::encode_operation)
                 .collect(),
             applied,
-        };
-        self.tell_editor(editor, &ToEditor::Snapshot(snapshot));
+        }
     }
 
     /// Tells the editors following `ToEditor::Lacking` what changed: edits the order numbered,
@@ -3431,11 +3451,21 @@ where
     }
 
     fn tell_editor(&mut self, editor: EditorId, message: &ToEditor) {
+        let bytes = message.encode();
+        match message {
+            ToEditor::Snapshot(_) => {
+                self.snapshots_shown.insert(editor, bytes.clone());
+            }
+            ToEditor::Operations(_) => {
+                self.snapshots_shown.remove(&editor);
+            }
+            _ => {}
+        }
         self.out.push(Effect::Send {
             replica: self.id,
             to: Recipients::One(Endpoint::Editor(editor)),
             kind: RelayKind::Peer,
-            bytes: message.encode(),
+            bytes,
         });
     }
 
