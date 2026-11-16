@@ -397,6 +397,26 @@ pub(crate) fn append_grant(
     if access > Access::None && identity_of(connection, grantee)? != Some(grant.identity) {
         return Err(refused("a grant names the keys its grantee holds now"));
     }
+    // Authority is named as of the other log's head now: a demotion or revocation there before
+    // this grant is never stepped round by naming an older entry.
+    let head = |kind, log| {
+        entries(connection, kind, organization, log)
+            .map(|entries| entries.last().map(Entry::hash))
+    };
+    let current = match grant.authority {
+        Authority::Log => true,
+        Authority::Organization(at) => {
+            head(LogKind::Organization, organization)? == Some(at)
+        }
+        Authority::Inherited { block: above, head: at } => {
+            head(LogKind::Block, Uuid::from_bytes(above))? == Some(at)
+        }
+    };
+    if !current {
+        return Err(refused(
+            "a grant names its signer's authority as of the head of the log it is in",
+        ));
+    }
     let mut entries = entries(connection, LogKind::Block, organization, block)?;
     if entries.is_empty() {
         return Err(refused("the block has no access log"));
