@@ -243,13 +243,15 @@ the apps staged as be-host stages them, so `be` serves be-host-stack's
 discovery from it through `use_assets` (a reader in place of the bundle beside
 the executable, as Android's assets are) and the runtime reads only what it
 needs: `apps.json`, the manifests, then the one app's module, type module and
-libraries. Each file must hash to what the release lists in its
-`app-hashes.json` (be-host's `app-hashes`, a `bundle_hashes` over its `:apps`,
-which the web bundle carries), and is kept in `be`'s cache under that hash; a
-missing file, a mismatch or a release with no `app-hashes.json` fails, naming
-the file and the app. `BE_BUNDLE` points `be` at a local bundle instead, which
-it reads as be-host does with nothing downloaded: be-tool-cli's tests stage the
-counter example that way (`test-host-apps`).
+libraries. Each file must hash to what `be` carries for it: be-host's
+`app-hashes` (a `bundle_hashes` over its `:apps`, built from the same commit),
+which `be` embeds, so a mirror can fail to serve an app but not substitute one,
+and `BE3_MIRROR` may point elsewhere safely. A checked file is kept in `be`'s
+cache under its hash; a missing file or a mismatch fails, naming the file and
+the app. The reader blocks on downloads, so the runtime it serves runs off any
+async runtime's workers. `BE_BUNDLE` points `be` at a local bundle instead,
+which it reads as be-host does with nothing downloaded: be-tool-cli's tests
+stage the counter example that way (`test-host-apps`).
 
 ## When an app stops
 

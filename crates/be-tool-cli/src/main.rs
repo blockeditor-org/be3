@@ -10,6 +10,7 @@ use be_tool_cli::tracker::Tracker;
 #[tokio::main]
 async fn main() -> ExitCode {
     apps();
+    be_tool_cli::host_apps::install_hashes(APP_HASHES);
     match run().await {
         Ok(output) => {
             if !output.is_empty() {
@@ -104,6 +105,10 @@ async fn run() -> Result<String, String> {
 }
 
 const APP_TYPES: &[u8] = include_bytes!(env!("APP_TYPES"));
+
+/// The SHA-256 of every app file of this build's release, built from the same commit: the only
+/// hashes a host app `be` downloads is checked against (host_apps.rs).
+const APP_HASHES: &[u8] = include_bytes!(env!("APP_HASHES"));
 
 fn apps() -> &'static [be_tool_cli::apps::App] {
     if be_tool_cli::apps::installed().is_empty() {

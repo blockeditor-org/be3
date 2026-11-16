@@ -70,12 +70,13 @@ program(
     modules = ["//{}:module".format(package) for package in app_packages()],
 )
 
-# Every app file's SHA-256 (app-hashes.json), which the web bundle carries, so a
-# deployed release lists them beside its apps: `be` checks each app it downloads
-# from data/BUILD/web/ against it (guides/apps/runtime.md, "Headless").
+# Every app file's SHA-256 (app-hashes.json), which `be` embeds and checks each app
+# it downloads from its release's data/BUILD/web/ against (guides/apps/runtime.md,
+# "Headless").
 bundle_hashes(
     name = "app-hashes",
     dir = ":apps",
+    visibility = ["//crates/be-tool-cli:"],
 )
 
 # What CI ships per platform: be-host under cargo's name; the apps ship
@@ -126,7 +127,7 @@ program(
     app_types = ["//{}:types".format(package) for package in app_packages()],
     bindgen = [":web-module", "//crates/be-wasm-gpu-shim:module"],
     data = ["//{}:data".format(package) for package in app_packages()],
-    files = web_files + [":app-hashes"],
+    files = web_files,
     index = True,
     manifests = ["//{}:manifest".format(package) for package in app_packages()],
     modules = ["//{}:module".format(package) for package in app_packages()],

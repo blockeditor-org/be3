@@ -1,7 +1,7 @@
 //! Writes OUT, the SHA-256 of every file under DIR as JSON, an object from each file's path
 //! relative to DIR to its hash in lower-case hex: a program's `app-hashes.json`
-//! (buck/program/defs.bzl's bundle_hashes), which a release publishes beside its apps so
-//! `be` can check each app file it downloads (guides/apps/runtime.md, "Headless").
+//! (buck/program/defs.bzl's bundle_hashes), which `be` embeds to check each app file it
+//! downloads from its release (guides/apps/runtime.md, "Headless").
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

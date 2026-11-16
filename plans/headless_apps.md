@@ -20,8 +20,8 @@ graphics. One runtime, not a second one for `be`.
   component never needs one.
 - `be` hosts with the build it was made with, but carries no app wasm: it
   downloads the app it runs from its own release, checked against the hashes
-  the release lists and cached by them (guides/apps/runtime.md, "Headless"),
-  so `be` stays one small download.
+  it carries of that release's apps and cached by them (guides/apps/runtime.md,
+  "Headless"), so `be` stays one small download.
 - Whatever be-host's headless `:dev` needs that this provides, it shares
   rather than keeping its own.
 - plans/host_as_platform_adapter.md moves be-host-runtime's orchestration into
@@ -40,8 +40,7 @@ graphics. One runtime, not a second one for `be`.
    - c. `be` wiring (be-host-stack and be-host-runtime, the host app
      downloaded from `be`'s release) and a small example app with a host
      component: done (guides/apps/runtime.md, "Headless"; be-tool-cli's
-     `be_runs_an_apps_host_component_with_no_display`). A deployed `be` finds
-     its apps only in releases deployed with `app-hashes.json`.
+     `be_runs_an_apps_host_component_with_no_display`).
 2. **`be BLOCK host`.** Signs in (as an agent, or a block's agent, as the
    terminal host does), opens the block and runs its type's host component
    while it holds the lease, standing by otherwise. Done: plans/hosted_blocks.md

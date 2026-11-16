@@ -57,8 +57,8 @@ type_bundle = rule(
 )
 
 # The SHA-256 of every file of a program's directory, as app-hashes.json
-# (crates/be-tool-buck's hashes): what a release publishes beside its apps, so
-# `be` can check each app file it downloads from it.
+# (crates/be-tool-buck's hashes): what `be` embeds to check each app file it
+# downloads from its release.
 def _bundle_hashes_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output("app-hashes.json")
     ctx.actions.run(

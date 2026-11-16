@@ -3,30 +3,23 @@ use super::*;
 mod a_release_file_is_downloaded_once_then_read_from_the_cache;
 mod a_release_file_that_does_not_match_its_hash_fails_naming_it;
 mod a_file_the_release_does_not_list_fails;
+mod a_mirror_that_serves_other_apps_with_their_own_hashes_is_refused;
 
-/// A release at `https://mirror.test/data/build/web` holding `files`, which counts the fetches
-/// of each URL, its hashes listed as `listed` gives them.
+const BASE: &str = "https://mirror.test/data/build/web";
+
+/// A mirror at `BASE` serving `files`, which counts the fetches of each URL.
 struct Fake {
     files: HashMap<String, Vec<u8>>,
     fetched: Mutex<Vec<String>>,
 }
 
-const BASE: &str = "https://mirror.test/data/build/web";
-
 impl Fake {
-    fn new(files: &[(&str, &[u8])], listed: &[(&str, &[u8])]) -> Self {
-        let mut held: HashMap<String, Vec<u8>> = files
-            .iter()
-            .map(|(path, bytes)| (format!("{BASE}/{path}"), bytes.to_vec()))
-            .collect();
-        let hashes: HashMap<&str, String> =
-            listed.iter().map(|(path, bytes)| (*path, sha256(bytes))).collect();
-        held.insert(
-            format!("{BASE}/{HASHES}"),
-            serde_json::to_vec(&hashes).expect("the hashes serialize"),
-        );
+    fn new(files: &[(&str, &[u8])]) -> Self {
         Self {
-            files: held,
+            files: files
+                .iter()
+                .map(|(path, bytes)| (format!("{BASE}/{path}"), bytes.to_vec()))
+                .collect(),
             fetched: Mutex::default(),
         }
     }
@@ -48,6 +41,14 @@ impl Fake {
             .filter(|fetched| **fetched == url)
             .count()
     }
+}
+
+/// The hashes `be` carries: each path's file as its release built it.
+fn carried(files: &[(&str, &[u8])]) -> HashMap<String, String> {
+    files
+        .iter()
+        .map(|(path, bytes)| ((*path).to_owned(), sha256(bytes)))
+        .collect()
 }
 
 fn cache() -> PathBuf {
