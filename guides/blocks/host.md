@@ -103,9 +103,11 @@ a flush's too) are held thread-locally and go in the update a task publishes onc
 yields, which then wakes the host. The host takes the updates once a frame, as be-host's
 frame starts (`take_updates_in_frame` in `frame.rs`), so every read in a frame, be-host's and
 the app runtimes', reads one snapshot; then its watchers hear the changes and the replies'
-callbacks run with their answers, reading what the worker did before answering. Answers that
-land after the stack stopped are lost with it. A test that runs no frames has a thread take
-each update as it lands under `testing` (`start`), until a frame takes them. What answers
+callbacks run with their answers, reading what the worker did before answering. An editor's
+frames are messages to it, not state: they go as soon as they are handed over, not at the
+next frame (`take_editor_frames` decodes what came since into `Stack::fetched`, which the next
+take applies). Answers that land after the stack stopped are lost with it. A test that runs
+no frames has a thread take each update as it lands under `testing` (`start`), until a frame takes them. What answers
 outside a frame awaits its reply taking updates as they land (`taking_updates`): a hidden
 tab runs no frames, and a push the service worker asks the page to open must still be
 answered (`web_push.rs`). What must block on the worker natively (a flush as the window

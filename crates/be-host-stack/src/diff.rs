@@ -63,8 +63,8 @@ whole!(
 /// The entries of a map that were added or changed, and the keys removed.
 #[derive(Deserialize, Serialize)]
 pub(crate) struct MapDelta<K, V> {
-    put: Vec<(K, V)>,
-    removed: Vec<K>,
+    pub(crate) put: Vec<(K, V)>,
+    pub(crate) removed: Vec<K>,
 }
 
 impl<K, V> Diff for imbl::OrdMap<K, V>
@@ -179,7 +179,7 @@ macro_rules! diffed {
         /// What changed in each field since the last one handed over (`diff::Diff`).
         #[derive(Default, serde::Deserialize, serde::Serialize)]
         $vis struct $delta {
-            $( $field: Option<<$ty as $crate::diff::Diff>::Delta> ),*
+            $( pub(crate) $field: Option<<$ty as $crate::diff::Diff>::Delta> ),*
         }
 
         impl $crate::diff::Diff for $name {
