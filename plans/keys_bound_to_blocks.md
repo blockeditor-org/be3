@@ -117,8 +117,9 @@ reads, and a second administrator writes, the policies block under settings).
   (guides/type_modules.md, What a replica reaches). Not the plan's first
   framing (a reused part naming its block): a module that serves a block can
   copy its bytes anyway, and `read-part` was the wider reach.
-- **Escrow secrets leave the content keyring**, where an object whose header
-  named one would open with it; they are X25519 secrets, never AEAD keys.
+- **Escrow secrets leave the content keyring.** Built: `KeyBook` holds them
+  apart (guides/blocks/keys.md, Escrow), so no object whose header names one
+  opens with it; they are X25519 secrets, never AEAD keys.
 - **The nonce.** With the format changing anyway: XChaCha20-Poly1305, its
   192-bit nonce derived from a nonce key (HKDF of the content key,
   `be3.vault.nonce.v1`) over the block id and the plaintext, so collisions
@@ -140,8 +141,8 @@ reads, and a second administrator writes, the policies block under settings).
 
 Order, each piece landing on its own with its tests: section 1 (built); the
 current key (built); the pointer reads naming their block (built); a
-replica's reach (built); escrow secrets moving out of the keyring; then
-section 2 with the associated data, nonce and one
+replica's reach (built); escrow secrets moving out of the keyring (built);
+then section 2 with the associated data, nonce and one
 seal format (whose `seal_with` part waits for signed access 3b and 3a, which
 build on it).
 

@@ -90,9 +90,7 @@ async fn a_root_an_administrator_reaches_only_through_escrow_is_never_passed_on(
         "and sealed the new scope key to the member"
     );
 
-    let secret = be_block_keys::EscrowSecret::from_bytes(
-        *admin.keys().ring().get(escrow.id).unwrap().as_bytes(),
-    );
+    let secret = admin.keys().escrow_secret(escrow.id).unwrap();
     for row in &rotated {
         let sealed: Vec<u8> = harness
             .database()
