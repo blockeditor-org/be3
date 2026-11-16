@@ -724,14 +724,20 @@ impl<S: ObjectStore> Peer<S> {
     /// themselves (plans/signed_access.md, "Accepted limits"); the server, which is no member,
     /// cannot. Others wait: a grant may come.
     pub(crate) async fn settle_escrowed(&self) {
+        // Again while a pass takes a key: a root it pinned may settle, or conflict with, a wrap
+        // a pass looked at before.
+        while self.settle_escrowed_once().await > 0 {}
+    }
+
+    async fn settle_escrowed_once(&self) -> usize {
         let mut taken = 0;
         for escrowed in self.keys.escrowed() {
             let pinned = match (self.keys.root_pin(escrowed.block), escrowed.root) {
-                (crate::keys::RootPin::Pinned(root), carried)
-                    if carried.is_none_or(|carried| carried == root) =>
-                {
-                    root
+                (crate::keys::RootPin::Pinned(root), Some(carried)) if carried != root => {
+                    self.keys.conflicting_escrowed(escrowed.key, carried);
+                    continue;
                 }
+                (crate::keys::RootPin::Pinned(root), _) => root,
                 (crate::keys::RootPin::Unknown, Some(carried)) => carried,
                 _ => continue,
             };
@@ -759,6 +765,7 @@ impl<S: ObjectStore> Peer<S> {
             self.keys.absorb(KeySet::default());
             self.tried.lock().unwrap().clear();
         }
+        taken
     }
 
     pub(crate) fn adopt_pinned(&self, pinned: crate::contacts::Pinned) {

@@ -375,6 +375,16 @@ impl KeyBook {
         found
     }
 
+    /// Drops a key opened from an escrow wrap whose carried root disagrees with the root this
+    /// device pinned for its block, and marks the block's root conflicting (`RootPin::Conflicting`),
+    /// so a planted root shows rather than quietly holding back the genuine wraps.
+    pub fn conflicting_escrowed(&self, key: Uuid, root: EntryHash) {
+        let Some((escrowed, _)) = self.escrowed.lock().unwrap().remove(&key) else {
+            return;
+        };
+        self.roots.lock().unwrap().pin(escrowed.block, root);
+    }
+
     /// Takes a key opened from an escrow wrap once its sender is found granted Edit or above in
     /// the block's log rooted at `root`, which is pinned.
     pub fn take_escrowed(&self, key: Uuid, root: EntryHash) {
