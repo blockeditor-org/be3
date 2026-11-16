@@ -3435,7 +3435,7 @@ async fn serve_command(
             reply,
         } => {
             let read = async {
-                let commit = peer.load_commit(commit).await?;
+                let commit = peer.load_head(block, commit).await?;
                 peer.read_manifest(&commit.manifest).await
             }
             .await;
@@ -4084,7 +4084,7 @@ async fn stored(peer: &Peer<Store>, block: Uuid) -> Result<Option<Vec<u8>>, Clie
     let Some(head) = peer.newest_head(block).await? else {
         return Ok(None);
     };
-    let commit = peer.load_commit(head).await?;
+    let commit = peer.load_head(block, head).await?;
     Ok(Some(peer.read_manifest(&commit.manifest).await?))
 }
 
@@ -4093,7 +4093,7 @@ pub(super) async fn has_later_parts(peer: &Peer<Store>, block: Uuid) -> Result<b
     let Some(head) = peer.newest_head(block).await? else {
         return Ok(false);
     };
-    let commit = peer.load_commit(head).await?;
+    let commit = peer.load_head(block, head).await?;
     let first = peer.load_first_part(&commit.manifest).await?;
     Ok((first.bytes.len() as u64) < commit.manifest.length())
 }

@@ -1221,7 +1221,7 @@ impl<H: Host> Replicas<H> {
                 let (client, session, journal) = peer.connection().join_session(block, tag).await?;
                 // Reading the head lists the block, so `changes` tells its next ones.
                 let head = peer.remote_head(block).await?;
-                let journal = journal.and_then(|journal| peer.open_journal(journal).ok());
+                let journal = journal.and_then(|journal| peer.open_journal(block, journal).ok());
                 Ok::<_, ClientError>((client, session, head, false, journal))
             }
             .await
@@ -2439,7 +2439,7 @@ impl<H: Host> Replicas<H> {
             let mut manifests = Vec::new();
             for commit in [base, Some(ours), Some(theirs)] {
                 manifests.push(match commit {
-                    Some(commit) => Some(peer.load_commit(commit).await?.manifest),
+                    Some(commit) => Some(peer.load_head(block, commit).await?.manifest),
                     None => None,
                 });
             }
@@ -2670,7 +2670,7 @@ impl<H: Host> Replicas<H> {
                 let Some(replica) = self.blocks.get(block).copied() else {
                     return;
                 };
-                let bytes = match peer.unseal(payload) {
+                let bytes = match peer.unseal(*block, payload) {
                     Ok(bytes) => bytes,
                     Err(ClientError::Locked(key)) if !self.searched.contains(&key) => {
                         self.unsealing
@@ -2747,7 +2747,7 @@ impl<H: Host> Replicas<H> {
                 if let Err(error) = peer.heard_entry(*block, tag, entry.clone()) {
                     H::record(shared, error);
                 }
-                let entry = match peer.open_entry(entry.clone()) {
+                let entry = match peer.open_entry(*block, entry.clone()) {
                     Ok(entry) => api_entry(entry),
                     Err(ClientError::Locked(key)) if !self.searched.contains(&key) => {
                         self.unsealing
@@ -3138,6 +3138,7 @@ impl<H: Host> Replicas<H> {
             let joined = async {
                 let (client, session, journal) = peer.connection().join_session(block, tag).await?;
                 let head = peer.remote_head(block).await?;
+<<<<<<< HEAD
                 // The head may be a seal of the journal (`journal_for`), which needs the commit.
                 if let Some(head) = head {
                     fetched_for_join(&peer, head).await?;
@@ -3147,6 +3148,11 @@ impl<H: Host> Replicas<H> {
                     None => started_from_mirror(&peer, block, tag, client, &session, head).await,
                 };
                 let journal = opened(&peer, journal);
+||||||| parent of 46cb4c406 (fix: pointer reads the server chooses name their block)
+                let journal = opened(&peer, journal);
+=======
+                let journal = opened(&peer, block, journal);
+>>>>>>> 46cb4c406 (fix: pointer reads the server chooses name their block)
                 Ok::<_, ClientError>((client, session, head, kept_commits(&peer, block), journal))
             }
             .await;
@@ -3816,7 +3822,7 @@ impl<H: Host> Replicas<H> {
                 self.answer_later(replica, module, async move {
                     let arrivals = peer.arrivals();
                     let read = async {
-                        let loaded = peer.load_commit(commit).await?;
+                        let loaded = peer.load_head(block, commit).await?;
                         let read = match first_part {
                             true => peer.load_first_part(&loaded.manifest).await,
                             false => peer.load_manifest(&loaded.manifest).await,
@@ -4171,7 +4177,7 @@ fn joining<S: be_block_store::ObjectStore + 'static>(
             session,
             head,
             ahead(&peer, block),
-            opened(&peer, journal),
+            opened(&peer, block, journal),
         ))
     })
 }
@@ -4547,10 +4553,11 @@ fn api_change(kept: be_block_client::KeptChange) -> Change {
 /// Opens the server's journal as joining answered it, keeping it sealed too.
 fn opened<S: be_block_store::ObjectStore>(
     peer: &Peer<S>,
+    block: Uuid,
     journal: Option<be_block_protocol::Journal>,
 ) -> Option<ServerJournal> {
     let journal = journal?;
-    let opened = peer.open_journal(journal.clone()).ok()?;
+    let opened = peer.open_journal(block, journal.clone()).ok()?;
     Some((journal, opened))
 }
 

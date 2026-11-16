@@ -55,7 +55,7 @@ async fn a_submission_reaches_every_participant_numbered_and_sealed() {
             "the entry crossed the server sealed"
         );
         peer.heard_entry(block, BUILD, entry.clone()).unwrap();
-        assert_eq!(peer.open_entry(entry).unwrap().payload, b"an edit");
+        assert_eq!(peer.open_entry(block, entry).unwrap().payload, b"an edit");
     }
 
     let offline = Submission {
