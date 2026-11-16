@@ -211,7 +211,7 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
 
 ## Steps
 
-1. **The engine**, in slices, with the old API beside it until step 2:
+1. **The engine**, in slices, with the old API beside it until step 9:
    - **1a (done):** the types and pure evaluation, with plain asserts on spec evaluation.
    - **1b (done):** drop sites, the board's carry choosing among them, `carrying`/`is_carried`,
      `slots_in`, and `Interactive`'s `drag` on both cores (it reaches the board through
@@ -234,10 +234,10 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      (`closest(slots).when_far(free(area))`), and a switch dragged between its two states. An
      inspector tool, a dock tab like the others (guides/beui/programs.md, The inspector), that
      draws every candidate, its zone and the chosen one.
-2. **Lists and trees.** `slots_in`; `Reorder` rewritten on the primitives, or removed if callers are
-   as short without it (decide by the line counts). `styled::Tree`'s `reorder`, database lists and
-   kanban (each column a site, nothing kanban-specific), the canvas's layers panel and the files
-   pane follow; the files pane's folder rows are `Into` candidates zoned to their middle.
+2. **Lists (done).** `slots_in` gives places among a list's rows, and one from another list at
+   each gap; `Reorder` is built on the primitives and stays
+   (decisions/beui_reorder_stays_over_drop_sites.md), and the database lists, kanban, schema,
+   canvas layers and presentation slides use it. The files pane's tree moves to step 6.
 3. **Dock tabs, fluid.** The drop highlight goes; the dock moves aside for a carried tab, the way a
    list opens a gap.
    - **Candidates:** for a lifted tab or pane grip, each `DockState` drop is a candidate: group with
@@ -300,7 +300,11 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
    app runs the same engine over its own candidates, draws its own preview, and answers what it
    accepts and the rect it chose, so the host glides the item there on release. The events carry
    only points, rects and opaque ids (guides/apps/host_services.md). `Editor::drag` and
-   `accept_drag` become this handoff. The dock has no app boundary, so it stays one level.
+   `accept_drag` become this handoff.
+   - **The files pane's tree.** Its row drag is the host's block drag, which leaves the app
+     for other editors, so it moves here rather than in step 2: `styled::Tree`'s `reorder`
+     becomes a drop site whose folder rows are `Into` candidates zoned to their middle, and
+     `Reorder`'s tree-only `hover`, `part`, `shut` and `resting` go. The dock has no app boundary, so it stays one level.
 7. **Several carries at once.** Allow more than one carry, one per pointer, when the VR layer's two
    controllers (or touch) need it; steps 1 to 6 key carries by pointer but carry one at a time.
 8. **Continuous drags.** Sliders, scrollbars, splitters and the colour area as `free` along an axis,
@@ -321,8 +325,9 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
   `Carry` has no `moved_away` callback. Within one tree, a row could move without being rebuilt
   by being a `Kept` under its key inside one `KeepAlive` around both lists, which moves a subtree
   between parents (guides/beui/core.md); decide when a caller rebuilding rows is too slow.
-- **A carried item far from every site:** does its home keep the gap (no jump when it comes back)
-  or close it (today a flicked-out row leaves at once)? Decide in step 2.
+- **A carried item far from every site** (decided in step 2): a `Reorder` row that another
+  site takes collapses as its slot closes, and its slot opens again if it is let go where
+  nothing takes it; a row nothing else takes stays on its own list's places.
 - **A site that comes or changes mid-carry.** Specs, and what decides them (a `Reorder`
   asking `Board::takers` whether anything else takes its row), are read at the lift: a site
   mounted mid-carry gains no places until the next one. Decide when a caller needs it.
