@@ -60,6 +60,13 @@ interface keys {
         next: option<key-id>,
     }
 
+    /// A grant a block's log names that the server revoked on its own
+    /// (remove-contact, remove-member), until a device signs the revocation.
+    record revocation {
+        block: block-id,
+        account: account-id,
+    }
+
     /// What an organization's keys wait for that the caller may do: blocks
     /// whose keys to rotate, whether to rotate the escrow key, keys to seal
     /// to accounts, scope keys not yet wrapped under the escrow key, the
@@ -74,6 +81,9 @@ interface keys {
         unescrowed: list<key-id>,
         escrows: list<escrow-key>,
         unsigned-members: list<account-id>,
+        /// Revocations the server made on its own in blocks the caller
+        /// manages, for it to sign into their logs.
+        unsigned-revocations: list<revocation>,
     }
 
     /// One page of the keys of `blocks`, or of every key the caller holds

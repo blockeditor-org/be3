@@ -478,6 +478,11 @@ pub(crate) fn append_grant(
         position,
         &entry,
     )?;
+    connection.execute(
+        "DELETE FROM unsigned_revocations
+         WHERE organization_id = ?1 AND block_id = ?2 AND account_id = ?3",
+        params![organization.to_string(), block.to_string(), grantee.to_string()],
+    )?;
     Ok(())
 }
 

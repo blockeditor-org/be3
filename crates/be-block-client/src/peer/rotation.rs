@@ -48,6 +48,15 @@ impl<S: ObjectStore> Peer<S> {
                 failed.get_or_insert(error);
             }
         }
+        // Revocations the server made on its own go in the blocks' logs, signed here.
+        for revoked in &work.unsigned_revocations {
+            if let Err(error) = self
+                .grant_as(revoked.block, revoked.account, Access::None, None)
+                .await
+            {
+                failed.get_or_insert(error);
+            }
+        }
         *self.unsigned.lock().unwrap() = work.unsigned_members.clone();
         if let Err(error) = self.tend_agents(&work.unsigned_members).await {
             failed.get_or_insert(error);
