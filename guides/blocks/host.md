@@ -106,7 +106,9 @@ the app runtimes', reads one snapshot; then its watchers hear the changes and th
 callbacks run with their answers, reading what the worker did before answering. An editor's
 frames are messages to it, not state: they go as soon as they are handed over, not at the
 next frame (`take_editor_frames` decodes what came since into `Stack::fetched`, which the next
-take applies). Answers that land after the stack stopped are lost with it. A test that runs
+take applies). So within a frame an editor can hold a frame whose effects (a new child, a
+moved head) its host's reads don't show until the next frame's take: frames and reads agree
+only from the next frame. Answers that land after the stack stopped are lost with it. A test that runs
 no frames has a thread take each update as it lands under `testing` (`start`), until a frame takes them. What answers
 outside a frame awaits its reply taking updates as they land (`taking_updates`): a hidden
 tab runs no frames, and a push the service worker asks the page to open must still be
