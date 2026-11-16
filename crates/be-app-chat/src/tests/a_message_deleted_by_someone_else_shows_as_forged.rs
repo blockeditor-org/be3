@@ -19,7 +19,12 @@ fn a_message_deleted_by_someone_else_shows_as_forged() {
 
     // Sam signs a deletion of Rosa's message as himself: his signature is good, but it is not
     // his message.
-    chat.arrive(deleted_by(&chat.content(), lunch, sam, MORNING + 30 * MINUTE));
+    chat.arrive(deleted_by(
+        &chat.content(),
+        lunch,
+        sam,
+        MORNING + 30 * MINUTE,
+    ));
     assert_eq!(chat.row(lunch), "Member 5a30 09:30 forged Message deleted");
 
     // Sam keeps a message of his own making, signed by himself, in place of Rosa's: the reply

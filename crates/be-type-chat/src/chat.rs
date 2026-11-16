@@ -329,7 +329,12 @@ impl Deletion {
     /// Whether what it keeps of a recent message is that message (`ChatContent::cited`): false
     /// when a later message cites it by another hash, true when every one cites this one, none
     /// when nothing cites it yet (it was the latest) or it keeps nothing.
-    pub fn kept_matches(&self, chat: Uuid, message: ObjectId, cited: &[MessageHash]) -> Option<bool> {
+    pub fn kept_matches(
+        &self,
+        chat: Uuid,
+        message: ObjectId,
+        cited: &[MessageHash],
+    ) -> Option<bool> {
         let kept = self.message.as_ref()?.hash(chat, message);
         match cited.is_empty() {
             true => None,
