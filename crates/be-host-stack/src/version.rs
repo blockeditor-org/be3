@@ -173,7 +173,10 @@ fn count_read(what: &'static str, commit: CommitId) {
 #[cfg(test)]
 pub(crate) fn forget_counts() {
     *READS.lock().unwrap_or_else(PoisonError::into_inner) = None;
-    WALKED.lock().unwrap_or_else(PoisonError::into_inner).clear();
+    WALKED
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clear();
 }
 
 /// How many trees and commits version control read from the peer, and which more than once.
