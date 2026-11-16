@@ -26,7 +26,10 @@ broken until a V8 for it is pinned (plans/wasm_on_v8.md).
 - be-host is larger: the release binary went from 123 MB to 176 MB of loaded sections
   (162 MB to 232 MB on disk), most of it V8.
 - Cold code runs slower until TurboFan reaches it, and there is no code cache on disk, so each
-  start compiles again.
+  start compiles again, function by function as each first runs (a module itself compiles in
+  milliseconds: the 22 MB base library in 33 ms). The host tests show it: all 139 took 831 s of
+  CPU against 397 s on wasmtime's precompiled modules, and the median test's host ran 5.9 s
+  against 2.6 (November 2026). Where that time goes is not profiled yet.
 - The app host has no fuel and no canonical NaNs; a guest that must be deterministic stays on
   wasmi (plans/host_as_platform_adapter.md).
 - `--wasm-unsafe-fast-api-wrapper`, which the fast imports need (crates/be-wasm-host/src/engine.rs
@@ -46,4 +49,4 @@ broken until a V8 for it is pinned (plans/wasm_on_v8.md).
 - A code cache on disk: V8 compiles fast enough that the cache's invalidation and its files were
   not worth having back.
 
-Not measured yet: host start to the Files pane, and the host tests' CPU, before and after.
+Not measured yet: host start to the Files pane on its own.
