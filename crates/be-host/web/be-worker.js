@@ -4,8 +4,9 @@
 // Unlike a thread (thread.js), this worker has the module's JavaScript glue
 // beside it: it instantiates the module again against the page's shared memory
 // through the wasm-bindgen glue, which gives this instance a stack and
-// thread-local storage of its own, and then runs each stack the page starts,
-// as a future on this worker's own event loop. Its sockets, timers and fetches
+// thread-local storage of its own, and then runs each work the page starts, a
+// named entry and the bytes it starts from (be-host's be_worker_run), as a
+// future on this worker's own event loop. Its sockets, timers and fetches
 // are its own, and its file calls wait for files.js rather than spin.
 //
 // A worker sees no import map, so the glue is loaded from a copy whose bare
@@ -57,8 +58,8 @@ self.onmessage = async (event) => {
     }
     const loaded = await started;
     try {
-        await loaded.be_worker_run(event.data.entry);
+        await loaded.be_worker_run(event.data.entry, event.data.bytes);
     } catch (error) {
-        console.error("the block stack stopped", error);
+        console.error(`the host's worker's ${event.data.entry} stopped`, error);
     }
 };

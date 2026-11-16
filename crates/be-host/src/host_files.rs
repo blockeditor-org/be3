@@ -107,7 +107,7 @@ impl WorkspaceCache {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(crate) use web::{Unkept, open};
+pub(crate) use web::{ENTRY, Unkept, keep, open};
 
 #[cfg(target_arch = "wasm32")]
 mod web {
@@ -179,8 +179,15 @@ mod web {
         let (answer, answered) = oneshot::channel::<Vec<u8>>();
         let (jobs, taken) = mpsc::unbounded_channel();
         let jobs = Jobs(jobs);
-        let report = report.across();
-        be_host_stack::run_in_worker(move || Box::pin(keep(data_dir, answer, taken, report)));
+        let start = Start {
+            data_dir,
+            report: report.across(),
+            transports: be_host_stack::Transports::leave(KeepTransports { answer, taken }),
+        };
+        be_host_stack::start_in_worker(
+            ENTRY,
+            postcard::to_stdvec(&start).expect("what the host's worker starts from encodes"),
+        );
         let answered = answered
             .await
             .map_err(|_| "the host's worker stopped before it read the host's files".to_owned())?;
@@ -201,6 +208,25 @@ mod web {
         HostStateStore::kept_elsewhere(held, move |write| {
             let _ = jobs.send(Job::State(write));
         })
+    }
+
+    /// The name the host's worker keeps the host's files under (`keep`).
+    pub(crate) const ENTRY: &str = "host-files";
+
+    /// What the host's worker starts keeping the host's files from, as its bytes.
+    #[derive(serde::Deserialize, serde::Serialize)]
+    struct Start {
+        data_dir: PathBuf,
+        report: be_host_base::host::Across<Unkept>,
+        transports: be_host_stack::Transports,
+    }
+
+    /// What the host's worker and the page talk through (`be_host_stack::Transports`): the
+    /// worker answers what the files hold in bytes on `answer` and takes each job's bytes from
+    /// `taken`.
+    struct KeepTransports {
+        answer: oneshot::Sender<Vec<u8>>,
+        taken: mpsc::UnboundedReceiver<Vec<u8>>,
     }
 
     /// What the host's worker keeps the host's files with.
@@ -258,15 +284,17 @@ mod web {
         postcard::from_bytes(job).expect("a host job decodes")
     }
 
-    /// In the host's worker: opens the files, answers what they hold, then keeps each change
+    /// In the host's worker, started as `ENTRY` from the bytes `open` sent: opens the files, answers what they hold, then keeps each change
     /// when the worker next yields or starts a stack's pass (`be_host_stack::run_first`),
     /// whichever comes first: a change waits at most for the synchronous stretch it arrived in.
-    async fn keep(
-        data_dir: PathBuf,
-        answer: oneshot::Sender<Vec<u8>>,
-        taken: mpsc::UnboundedReceiver<Vec<u8>>,
-        report: be_host_base::host::Across<Unkept>,
-    ) {
+    pub(crate) async fn keep(bytes: Vec<u8>) {
+        // The page encoded them from a `Start`: bytes that do not decode are a bug.
+        let Start {
+            data_dir,
+            report,
+            transports,
+        } = postcard::from_bytes(&bytes).expect("what the host's worker starts from decodes");
+        let KeepTransports { answer, taken } = transports.take();
         let opened = (|| {
             std::fs::create_dir_all(&data_dir).map_err(|error| error.to_string())?;
             let keeper =

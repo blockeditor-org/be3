@@ -69,13 +69,22 @@ fn jitter() -> f64 {
     (Uuid::new_v4().as_u128() as u64 >> 11) as f64 / (1u64 << 53) as f64
 }
 
+/// What a stack's worker starts from as data: on the web it travels as bytes (`web::spawn`).
+#[derive(serde::Deserialize, serde::Serialize)]
+pub(super) struct Start {
+    pub(super) config: Config,
+    /// The modules' clock as the host held it when the stack started (`hold_clock`).
+    #[serde(with = "crate::seen::moment::option")]
+    pub(super) held_clock: Option<Instant>,
+}
+
+/// How a stack's worker and the page talk: on the web these stay in the shared heap for now,
+/// left for the worker by number (`web::Transports`).
 pub(super) struct Inbox {
     pub(super) commands: Commands,
     pub(super) nudged: super::nudge::Nudged,
     /// Where the worker hands over each `Seen` it publishes for the page (`seen::Handover`).
     pub(super) handover: Arc<crate::seen::Handover>,
-    /// The modules' clock as the host held it when the stack started (`hold_clock`).
-    pub(super) held_clock: Option<Instant>,
     /// Ends when the page stops the stack (`crate::stop`), which drops its sender: the worker
     /// then closes its connection, so whatever it waits on from the server fails at once.
     pub(super) stopped: tokio::sync::oneshot::Receiver<()>,
@@ -1016,13 +1025,12 @@ pub struct History {
 }
 
 pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
-    config: Config,
+    Start { config, held_clock }: Start,
     make_store: S,
     Inbox {
         mut commands,
         mut nudged,
         handover,
-        held_clock,
         stopped,
     }: Inbox,
     shared: Arc<Mutex<Shared>>,

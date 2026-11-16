@@ -42,8 +42,10 @@ pub(super) fn post(to: ThreadId, letter: Letter) {
     eprintln!("be-host: a worker posted a letter as a value; it posts across threads in bytes");
 }
 
-pub(super) fn post_bytes(to: ThreadId, mailbox: u64, bytes: Vec<u8>) {
-    if to == thread::current().id() {
+/// Posts a letter in bytes to the page's mailbox `mailbox`: only the page makes mailboxes, so
+/// the page posting one has it arrive at once, and a worker posts it to the page.
+pub(super) fn post_bytes(mailbox: u64, bytes: Vec<u8>) {
+    if !be_wasm_threads::may_wait() {
         arrived((mailbox, Box::new(Encoded(bytes))));
         return;
     }

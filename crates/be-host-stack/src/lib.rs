@@ -45,7 +45,7 @@ use native as platform;
 #[cfg(target_arch = "wasm32")]
 use web as platform;
 #[cfg(target_arch = "wasm32")]
-pub use web::{run_first, run_in_worker};
+pub use web::{STACK_ENTRY, Transports, run_first, run_stack, start_in_worker};
 
 pub use changes::{ChangeWatch, Changes};
 pub use graph::{Graph, Node, Owner, Query, Scope};
@@ -114,6 +114,9 @@ fn lock_data_dir(_: &std::path::Path) -> Result<Option<std::fs::File>, String> {
     Ok(None)
 }
 
+/// What a stack starts from. On the web it travels to the host's worker as bytes
+/// (`web::spawn`), which carry no manual clock: only native tests hold one.
+#[derive(serde::Deserialize, serde::Serialize)]
 pub struct Config {
     /// A local account's, which has no server (guides/blocks/client.md, Saving and the outbox): its stack runs on a
     /// peer of its own (`Peer::local`) and `server_url` is unused. Said outright, not read
@@ -128,6 +131,7 @@ pub struct Config {
     pub display_name: String,
     pub email: String,
     pub data_dir: PathBuf,
+    #[serde(skip)]
     pub clock: be_block_client::Clock,
 }
 
@@ -591,12 +595,14 @@ pub fn start(config: Config) {
         });
     }
     let running = platform::spawn(
-        config,
+        worker::Start {
+            config,
+            held_clock: held_clock(),
+        },
         worker::Inbox {
             commands: receiver,
             nudged,
             handover: Arc::clone(&handover),
-            held_clock: held_clock(),
             stopped,
         },
         Arc::clone(&shared),
@@ -1033,7 +1039,8 @@ pub fn from_editor(block: Uuid, editor: u64, frame: &[u8]) {
 }
 
 /// The modules' clock as the host holds it (`hold_clock`): only the page reads and writes it,
-/// and a stack is handed it as it starts (`Inbox::held_clock`), then each change as a command.
+/// and a stack is handed it as it starts (`worker::Start::held_clock`), then each change as a
+/// command.
 static HELD_CLOCK: Mutex<Option<std::time::Instant>> = Mutex::new(None);
 
 fn held_clock() -> Option<std::time::Instant> {
