@@ -106,12 +106,12 @@ survives a reload. Traps that shape this code:
   stack it starts waits for the previous one's end (a oneshot, `web.rs`), never polls for it.
   The same worker keeps the host's own files from start-up (be-host's `host_files`):
   `host.sqlite3` and the organizations each account last listed. The page starts each work
-  there by a name and the bytes it starts from (`be_host_stack::start_in_worker`; be-host's
-  `be_worker_run` names every entry), never a closure: what is data travels encoded (a stack's
-  `Config`, `host_files`' data directory and its report's `Across`, which is its mailbox's
-  number), and the channels the two sides talk through are left in a table
-  (`be_host_stack::Transports`), sent by their number, until each becomes a message port; an
-  entry the worker does not know drops them, so the page hears it stopped. `run_web` waits for
+  there by a name, the bytes it starts from and a `MessagePort` (`be_host_stack::start_in_worker`,
+  `Port`; be-host's `be_worker_run` names every entry), never a closure: what is data travels
+  encoded (a stack's `Config`, `host_files`' data directory and its report's `Across`, which is
+  its mailbox's number), and everything after goes over the port as bytes (guides/blocks/host.md,
+  "What the page reads"). A port dropped tells the other end (an empty message), so an entry the
+  worker does not know drops its port and the page hears it stopped. `run_web` waits for
   what the host's files hold while the page's start-up look (`#status`) stays up, then hides
   it and shows the first screen; the page reads its copy and sends the worker each change
   (decisions/web_host_state_in_a_worker.md).

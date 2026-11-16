@@ -134,8 +134,21 @@ unanswered, which drops what waits on it; what still waits when the stack stops 
 can say is worked out into `Seen` too: offline, which blocks are out of reach
 (`Seen::out_of_reach`, worked out again only for the nodes that moved and the blocks the worker let go of, `Shared::refresh_reach`), so the host holds neither
 the `Peer` nor the connection; stopping drops a oneshot (`Inbox::stopped`) on which the
-worker closes its connection. The modules' held clock is
-handed to a stack as it starts (`worker::Start::held_clock`), then as `Command::HoldClock`.
+worker closes its connection. The modules' held clock and the offline choices
+(`offline_choice`) are handed to a stack as it starts (`worker::Start`), then as
+`Command::HoldClock` and `Command::OfflineChoices`. The page reads which block types the
+worker's modules know from `Seen::kinds` (`be_host_stack::is_known`, `kind_of`), never from
+be-block-type-host's registry, which only the worker reads; what the worker shows through
+be-host-base's notices goes in an update too (`seen::notice`), as answers do.
+
+On the web the page and the worker each hold their own ends of these channels and their own
+`Handover`, and a `MessagePort` joins them (`web.rs`): the page posts its commands, nudges and
+how much it took (`ToWorker`), and the worker posts each update, marked when it goes in place
+of those before (`ToPage`, which the page's handover takes in with `seen::put_in_place`), and
+a wake asked for with none (`Handover::wake_page`). The worker counts `held` as what it posted
+that the page has not said it took (`Handover::acknowledge`). The page dropping its port ends
+the stack, as dropping its ends of the channels does natively. Natively they are one process's
+channels and one `Handover`.
 
 Tests wait on the stack with `be_host_stack::wait_until(what, read)`, which
 fails at the caller, naming `what` ("opened the note"), after `WAIT_LIMIT`

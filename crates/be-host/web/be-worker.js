@@ -58,7 +58,7 @@ self.onmessage = async (event) => {
     }
     const loaded = await started;
     try {
-        await loaded.be_worker_run(event.data.entry, event.data.transports, event.data.bytes);
+        await loaded.be_worker_run(event.data.entry, event.data.port, event.data.bytes);
     } catch (error) {
         console.error(`the host's worker's ${event.data.entry} stopped`, error);
     }

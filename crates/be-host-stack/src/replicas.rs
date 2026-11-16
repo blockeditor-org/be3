@@ -67,10 +67,10 @@ impl be_block_type_host::Host for Shared {
     }
 
     fn reset_notice() {
-        be_host_base::notices::report(
+        crate::seen::notice(crate::seen::Notice::Report(
             "Some of this device's settings were saved by another build of be-host, so they were reset."
                 .to_owned(),
-        );
+        ));
     }
 
     fn known_head(shared: &Arc<Mutex<Self>>, block: Uuid) -> Option<CommitId> {

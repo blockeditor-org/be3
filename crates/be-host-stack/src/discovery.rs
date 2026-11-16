@@ -169,6 +169,14 @@ pub fn apps() -> Arc<Apps> {
     Arc::clone(held.get_or_insert_with(|| Arc::new(scan())))
 }
 
+/// Whether `load` installed the apps in this memory.
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn loaded() -> bool {
+    APPS.read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .is_some()
+}
+
 #[cfg(target_arch = "wasm32")]
 fn install(apps: Apps) {
     *APPS

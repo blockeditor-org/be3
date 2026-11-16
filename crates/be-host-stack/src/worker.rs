@@ -76,6 +76,9 @@ pub(super) struct Start {
     /// The modules' clock as the host held it when the stack started (`hold_clock`).
     #[serde(with = "crate::seen::moment::option")]
     pub(super) held_clock: Option<Instant>,
+    /// What the settings choose to keep offline as the stack started, then each change as a
+    /// command (`offline_choice::publish`).
+    pub(super) offline_choices: Option<crate::offline_choice::Choices>,
 }
 
 /// How a stack's worker and the page talk: on the web these stay in the shared heap for now,
@@ -171,6 +174,8 @@ pub(super) enum Command {
         at: Instant,
     },
     HoldClock(#[serde(with = "crate::seen::moment::option")] Option<Instant>),
+    /// What the organization's settings choose to keep offline (`offline_choice::publish`).
+    OfflineChoices(Option<crate::offline_choice::Choices>),
     Duplicate {
         from: Uuid,
         to: Uuid,
@@ -341,7 +346,7 @@ impl AgentChange {
 
 /// Where the page sends its commands, each as its bytes (`Command::encode`), as a page whose
 /// memory the worker does not share sends them.
-pub(super) struct CommandPost(tokio::sync::mpsc::UnboundedSender<Vec<u8>>);
+pub(super) struct CommandPost(pub(super) tokio::sync::mpsc::UnboundedSender<Vec<u8>>);
 
 impl CommandPost {
     pub(super) fn send(&self, command: Command) -> Result<(), ()> {
@@ -355,7 +360,7 @@ impl CommandPost {
 }
 
 /// The page's commands as the worker takes them, decoded from their bytes.
-pub(super) struct Commands(UnboundedReceiver<Vec<u8>>);
+pub(super) struct Commands(pub(super) UnboundedReceiver<Vec<u8>>);
 
 impl Commands {
     async fn recv(&mut self) -> Option<Command> {
@@ -412,6 +417,7 @@ impl Command {
             Command::Detach { .. } => "detach",
             Command::FromEditor { .. } => "from editor",
             Command::HoldClock(..) => "hold clock",
+            Command::OfflineChoices(..) => "offline choices",
             Command::Duplicate { .. } => "duplicate",
             Command::Seed { .. } => "seed",
 
@@ -482,6 +488,7 @@ impl Command {
             Command::Operate(..)
                 | Command::FromEditor { .. }
                 | Command::HoldClock(_)
+                | Command::OfflineChoices(_)
                 | Command::Attach { .. }
                 | Command::Detach { .. }
                 | Command::Open { .. }
@@ -510,6 +517,7 @@ impl Command {
             Command::Operate(..)
                 | Command::FromEditor { .. }
                 | Command::HoldClock(_)
+                | Command::OfflineChoices(_)
                 | Command::Attach { .. }
                 | Command::Detach { .. }
                 | Command::Open { .. }
@@ -589,7 +597,8 @@ impl Command {
             | Command::Storage(_)
             | Command::WantSearches(..)
             | Command::Edit(..)
-            | Command::HoldClock(_) => None,
+            | Command::HoldClock(_)
+            | Command::OfflineChoices(_) => None,
         }
     }
 
@@ -782,6 +791,8 @@ pub struct Shared {
     pub search: super::search::Searching,
     /// The `Searching::shown_revision` that `Seen::searched` was made at.
     pub(crate) searched_at: Option<u64>,
+    /// The `be_block_type_host::known_revision` that `Seen::kinds` was made at.
+    pub(crate) kinds_at: Option<u64>,
 }
 
 impl std::ops::Deref for Shared {
@@ -916,6 +927,16 @@ impl Shared {
             self.searched_at = Some(revision);
             self.seen.searched = crate::seen::Part::new(self.search.shown());
         }
+        let known = be_block_type_host::known_revision();
+        if self.kinds_at != Some(known) {
+            self.kinds_at = Some(known);
+            self.seen.kinds = be_block_type_host::known()
+                .into_iter()
+                .map(|(content_type, kind)| {
+                    (content_type, kind.as_ref().map(crate::seen::KnownKind::of))
+                })
+                .collect();
+        }
         self.seen.search_indexed = self.search.indexed();
         self.seen.search_busy = self
             .search
@@ -1025,7 +1046,11 @@ pub struct History {
 }
 
 pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
-    Start { config, held_clock }: Start,
+    Start {
+        config,
+        held_clock,
+        offline_choices,
+    }: Start,
     make_store: S,
     Inbox {
         mut commands,
@@ -1036,6 +1061,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
     shared: Arc<Mutex<Shared>>,
     changed: Arc<Condvar>,
 ) {
+    crate::offline_choice::set(offline_choices);
     let _worker = crate::seen::Worker::enter(&shared, &handover);
     let closing = Arc::clone(&shared);
     platform::spawn_local(async move {
@@ -3725,6 +3751,10 @@ async fn apply(
             replicas.relay_from_editor(block, editor, bytes, at);
             false
         }
+        Command::OfflineChoices(choices) => {
+            crate::offline_choice::set(choices);
+            false
+        }
         Command::HoldClock(at) => {
             replicas.modules.hold_clock(at);
             // A clock moved on may have reached timers that are now due.
@@ -3835,7 +3865,7 @@ async fn apply(
             content_type,
             metadata,
         } => {
-            if !super::is_known(content_type) {
+            if !be_block_type_host::is_known(content_type) {
                 shared
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
@@ -4122,7 +4152,7 @@ async fn seed(
     content_type: Uuid,
     bytes: Vec<u8>,
 ) -> Result<(), ClientError> {
-    if !super::is_known(content_type) {
+    if !be_block_type_host::is_known(content_type) {
         return Ok(());
     }
     peer.ensure_type(block, content_type, BlockParent::Detached)
@@ -4614,12 +4644,12 @@ impl Tasks {
             )
             .await
             {
-                be_host_base::notices::account_notices(
+                crate::seen::notice(crate::seen::Notice::Account(
                     listed
                         .into_iter()
                         .map(|notice| (notice.id, notice.text))
                         .collect(),
-                );
+                ));
             }
         });
     }

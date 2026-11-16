@@ -200,19 +200,23 @@ fn hand_over(
 }
 
 /// In the host's worker (`web/be-worker.js`): runs the work the page started there under the
-/// name `entry`, from the transports and bytes it sent (`be_host_stack::start_in_worker`).
+/// name `entry`, from the port and bytes it sent (`be_host_stack::start_in_worker`).
 /// Every entry is named here.
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen]
-pub fn be_worker_run(entry: String, transports: f64, bytes: Vec<u8>) -> web_sys::js_sys::Promise {
+pub fn be_worker_run(
+    entry: String,
+    port: web_sys::MessagePort,
+    bytes: Vec<u8>,
+) -> web_sys::js_sys::Promise {
     be_wasm_threads::initialize_worker();
-    let transports = be_host_stack::Transports::arrived(transports);
+    let port = be_host_stack::Port::new(port);
     let work: std::pin::Pin<Box<dyn std::future::Future<Output = ()>>> = match entry.as_str() {
-        be_host_stack::STACK_ENTRY => Box::pin(be_host_stack::run_stack(transports, bytes)),
-        host_files::ENTRY => Box::pin(host_files::keep(transports, bytes)),
+        be_host_stack::STACK_ENTRY => Box::pin(be_host_stack::run_stack(port, bytes)),
+        host_files::ENTRY => Box::pin(host_files::keep(port, bytes)),
         _ => {
-            // Dropped, so what waits on them on the page hears the worker stopped.
-            drop(transports);
+            // Dropped, so what waits on it on the page hears the worker stopped.
+            drop(port);
             return web_sys::js_sys::Promise::reject(&wasm_bindgen::JsValue::from_str(&format!(
                 "the host's worker has no entry named {entry}"
             )));

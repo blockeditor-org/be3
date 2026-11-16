@@ -64,6 +64,34 @@ pub fn kind_of(content_type: Uuid) -> Option<Kind> {
 static DECLARED: be_wasm_threads::Mutex<BTreeSet<Uuid>> =
     be_wasm_threads::Mutex::new(BTreeSet::new());
 
+/// Moves on each time `REGISTRY` or `DECLARED` changes (`known`).
+static KNOWN_REVISION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// How many times what is known changed: `known` answers something new only once this moved.
+pub fn known_revision() -> u64 {
+    KNOWN_REVISION.load(std::sync::atomic::Ordering::Acquire)
+}
+
+/// Every content type known here: each declared one, with its kind once a module described it.
+pub fn known() -> Vec<(Uuid, Option<Kind>)> {
+    let registry = REGISTRY
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
+    let declared = DECLARED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
+    let mut known: BTreeMap<Uuid, Option<Kind>> =
+        declared.into_iter().map(|content_type| (content_type, None)).collect();
+    known.extend(registry.into_iter().map(|(content_type, kind)| (content_type, Some(kind))));
+    known.into_iter().collect()
+}
+
+fn known_changed() {
+    KNOWN_REVISION.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+}
+
 pub fn is_known(content_type: Uuid) -> bool {
     DECLARED
         .lock()
@@ -80,6 +108,7 @@ pub fn register(kind: Kind) {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .insert(kind.content_type, kind);
+    known_changed();
 }
 
 pub type Boxed = Box<dyn Channel<Presented = Infallible>>;
@@ -416,6 +445,7 @@ impl Modules {
                             .lock()
                             .unwrap_or_else(std::sync::PoisonError::into_inner)
                             .insert(content_type);
+                        known_changed();
                     }
                 }
                 None => modules.launch(module),

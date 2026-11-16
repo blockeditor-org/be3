@@ -96,7 +96,7 @@ pub(super) async fn load_child(
             .read_manifest(&commit.manifest)
             .await
             .map_err(|error| error.to_string())?;
-        super::is_known(content_type)
+        be_block_type_host::is_known(content_type)
             .then(|| Content::new(content_type, bytes))
             .ok_or("This file cannot be previewed.".to_owned())
     }
@@ -309,7 +309,7 @@ async fn perform(
         .await
         .map_err(|error| error.to_string())?;
     if !restore {
-        let content = super::is_known(summary.content_type)
+        let content = be_block_type_host::is_known(summary.content_type)
             .then(|| Content::new(summary.content_type, bytes))
             .ok_or("This revision cannot be previewed.")?;
         let id = Uuid::new_v4();
