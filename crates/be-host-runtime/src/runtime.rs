@@ -1844,7 +1844,16 @@ pub fn place_screens(
 }
 
 pub fn install(setup: &beui::native::Setup) {
-    let availability = presenter::install(setup);
+    install_with(presenter::install(setup));
+}
+
+/// Installs the runtime with no beui setup: no presenter and no gpu, so an app that asks for
+/// the device is told there is none (plans/headless_apps.md; `Headless`).
+pub fn install_headless() {
+    install_with(Availability(Ok(())));
+}
+
+fn install_with(availability: Availability) {
     super::backend::hand_over_device();
     HOST.with(|host| {
         let mut host = host.borrow_mut();

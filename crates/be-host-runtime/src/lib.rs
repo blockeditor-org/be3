@@ -15,9 +15,11 @@ mod description;
 mod docks;
 mod events;
 mod fonts;
+mod headless;
 mod heads;
 mod input;
 mod instances;
+pub use headless::{Headless, begin_host_frame};
 mod palette;
 mod pieces;
 mod presenter;
@@ -65,6 +67,7 @@ pub use runtime::{
 pub use runtime::{
     artifact, artifact_draft, assigned_size, begin_frame, busy, card, close, commit_creation,
     content_delivered, content_moved, content_view, crash, creation, dialog_status, dismiss, host,
+    install_headless,
     docked_placer, drawing, flush, forget_dialog_answer, frame_child, frame_rects, frames_answered,
     hold, in_use, install, intrinsic_size, kill, menu, menu_pick, pass_child_focus, picked, poll,
     present, presenting, preview_image, record_pacing, regenerate_artifact, render_clip,

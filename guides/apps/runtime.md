@@ -184,6 +184,18 @@ instances something touched, so an idle instance costs nothing. Work off the
 frame (the PDF editor renders pages on its own thread) asks for a frame
 through `request_repaint` or a `be_sdk_beui::native::Waker`.
 
+## Headless
+
+`be_host_runtime::Headless` runs the same runtime with no beui: no window, no
+presenter and no gpu (`install_headless`, so an app that asks for the device
+is told there is none). It steps when something wakes the host, or when the
+runtime asked to step again, rather than when a display wants a frame: a step
+starts the host frame (`begin_host_frame`, which be-host's beui frame calls
+too), then `begin_frame`, `poll`, `flush` and `settle`, as be-host's frame
+does. Nothing in it is laid out or painted, so it runs only instances with no
+screen, host components (guides/apps/host_services.md, "Host components").
+`be` runs them this way (plans/headless_apps.md).
+
 ## When an app stops
 
 An app that panics stops alone. be-wasm-guest-abi's panic hook hands the

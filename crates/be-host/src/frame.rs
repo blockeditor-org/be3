@@ -204,8 +204,6 @@ pub(crate) fn begin(context: &beui::native::Context) {
     for (deliver, save) in saved {
         deliver(save);
     }
-    // What the worker handed over since the last frame, read by everything this frame does.
-    be_host_stack::take_updates_in_frame();
     be_host_stack::hold_clock(context.clock_stopped().then(|| context.now()));
     be_host_stack::pin_wall_clock(
         beui::reactive::wall_clock_is_pinned().then(beui::reactive::wall_clock),
@@ -228,7 +226,7 @@ pub(crate) fn begin(context: &beui::native::Context) {
     frame.screen_scale = context.screen_scale();
     frame.pixels_per_point = context.pixels_per_point() * frame.screen_scale;
     frame.opens_windows = context.opens_windows();
-    host::start(frame);
+    be_host_runtime::begin_host_frame(frame);
 }
 
 pub(crate) fn end(context: &beui::native::Context) {
