@@ -328,6 +328,10 @@ pub struct Seen, delta SeenDelta {
     pub notify_modes: Part<Option<HashMap<Uuid, be_block_protocol::NotifyMode>>>,
     /// Blocks an open replica found locked, until keys arrive (`Replicas::unlock`).
     pub locked: Part<HashSet<Uuid>>,
+    /// Blocks whose local edits were discarded and that no join has said since this account may
+    /// edit (`Host::set_marked`): their editors are attached read-only, and `crate::access`
+    /// answers at most `View` for them until the replica a join opens attaches them editable.
+    pub marked: Part<HashSet<Uuid>>,
     pub versions: Part<imbl::OrdMap<Uuid, VersionState>>,
     /// How many commands the worker has finished: those the page sent and it has not finished
     /// are pending (`Shared::pending`).

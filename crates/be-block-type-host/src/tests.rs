@@ -80,6 +80,8 @@ impl Host for Quiet {
 
     fn set_locked(_: &Arc<Mutex<Self>>, _: Uuid, _: bool) {}
 
+    fn set_marked(_: &Arc<Mutex<Self>>, _: Uuid, _: bool) {}
+
     fn owned(_: &Arc<Mutex<Self>>, _: Uuid) -> bool {
         false
     }

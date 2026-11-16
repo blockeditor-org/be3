@@ -44,6 +44,12 @@ pub trait Host: Sized + 'static {
     /// cleared by `Replicas::unlock` as keys arrive.
     fn set_locked(shared: &Arc<Mutex<Self>>, block: Uuid, locked: bool);
 
+    /// Whether `block`'s editors are attached read-only because its local edits were discarded
+    /// and no join has said since that this account may edit it (`Peer::discarded`): told as a
+    /// replica opens, and as each join answers once the replica it opens has its editors
+    /// attached, so a `false` means its editors' edits are taken.
+    fn set_marked(shared: &Arc<Mutex<Self>>, block: Uuid, marked: bool);
+
     fn owned(shared: &Arc<Mutex<Self>>, block: Uuid) -> bool;
 
     fn reshaped(shared: &Arc<Mutex<Self>>, block: Uuid, schema: &str) -> bool;

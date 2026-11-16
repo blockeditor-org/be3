@@ -1834,6 +1834,7 @@ impl Session<'_> {
             );
             for block in discarded {
                 self.replicas.stop_keeping(block);
+                set_marked(shared, block, peer.discarded(block));
             }
             let typing = !self.replicas.modules.settled();
             // A held clock is moved to a module's timer only when nothing but that timer can
@@ -3388,6 +3389,21 @@ pub(super) fn set_locked(shared: &Arc<Mutex<Shared>>, block: Uuid, locked: bool)
     }
 }
 
+pub(super) fn set_marked(shared: &Arc<Mutex<Shared>>, block: Uuid, marked: bool) {
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    let changed = match marked {
+        true => held.marked.insert(block),
+        false => held.marked.remove(&block),
+    };
+    if changed {
+        crate::changes::stale();
+        held.progressed += 1;
+        held.touch(block);
+        drop(held);
+        crate::changes::wake();
+    }
+}
+
 pub(super) fn set_unreadable(shared: &Arc<Mutex<Shared>>, block: Uuid, error: Option<String>) {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     let changed = match error {
@@ -3633,6 +3649,7 @@ async fn apply(
                         replicas.stop_keeping(block);
                         let _ = peer.forget_cached(block);
                     }
+                    set_marked(shared, block, peer.discarded(block));
                     (discarded, Vec::new())
                 }
             };
