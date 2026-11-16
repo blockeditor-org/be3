@@ -16,7 +16,7 @@ use be_sdk_api::{
         ChildCreation, ChildMenuChoice, ClipOffer, DragStart, MenuSet, ShellMessage, ViewEnd,
     },
 };
-use be_sdk_type_guest::editor::{FromEditor, Gesture};
+use be_sdk_type_guest::editor::{FromEditor, Gesture, ToEditor};
 use beui::native::accessibility::Embedded;
 use beui::{ImeArea, Pos2, Rect, Vec2, pos2, vec2};
 use std::{
@@ -567,9 +567,15 @@ impl Instance {
         if !send(replica, frame) {
             return false;
         }
+        // Only a snapshot gives the editor its content: operations or presence the replica sent
+        // before it heard the editor ask again reach an editor that ignores them until it has it.
         if let Some(link) = self.link_mut(block)
-            && !std::mem::replace(&mut link.delivered, true)
+            && !link.delivered
+            && be_host_stack::unframe(frame)
+                .and_then(|bytes| ToEditor::decode(&bytes))
+                .is_some_and(|message| matches!(message, ToEditor::Snapshot(_)))
         {
+            link.delivered = true;
             link.deliveries += 1;
         }
         true
