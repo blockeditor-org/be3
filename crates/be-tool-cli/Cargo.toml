@@ -20,6 +20,10 @@ be-block-protocol = { path = "../be-block-protocol" }
 be-block-store = { path = "../be-block-store" }
 be-block-sync = { path = "../be-block-sync" }
 be-block-type-host = { path = "../be-block-type-host" }
+# Runs apps' host components headless (plans/headless_apps.md).
+be-host-runtime = { path = "../be-host-runtime" }
+be-host-stack = { path = "../be-host-stack" }
+be-sdk-api = { path = "../be-sdk-api" }
 beui-components-unstyled = { path = "../beui-components-unstyled" }
 be-sdk-manifest = { path = "../be-sdk-manifest" }
 be-sdk-type-api = { path = "../be-sdk-type-api" }
@@ -37,6 +41,8 @@ tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "signal"
 uuid = { version = "1", features = ["v4", "v7"] }
 
 [dev-dependencies]
+be-host-testing = { path = "../be-host-testing" }
+be-type-example-counter = { path = "../be-type-example-counter" }
 be-type-bundle = { path = "../be-type-bundle" }
 be-server = { path = "../be-server" }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync"] }

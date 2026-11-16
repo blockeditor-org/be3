@@ -7,8 +7,25 @@ cargo_library()
 
 # The tests name block types from the editors' manifests, as be does from the
 # bundle it carries.
+# The apps that declare host components, which be runs headless (plans/headless_apps.md):
+# staged beside be as be-host stages its apps, with the libraries they link against.
+HOST_APPS = ["//crates/be-app-example-counter"]
+
+program(
+    name = "hosts",
+    app_types = ["{}:types".format(app) for app in HOST_APPS],
+    index = True,
+    manifests = ["{}:manifest".format(app) for app in HOST_APPS],
+    modules = ["{}:module".format(app) for app in HOST_APPS],
+)
+
 cargo_test(
-    env = {"EDITOR_MANIFESTS": "$(location //crates/be-sdk-manifest:editor-manifests)"},
+    env = {
+        "BE_BUNDLE": "$(location :hosts)",
+        # be-host-runtime links ALSA for apps' audio, from the sysroot it was linked against.
+        "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
+        "EDITOR_MANIFESTS": "$(location //crates/be-sdk-manifest:editor-manifests)",
+    },
 )
 
 # be carries every app's manifest and type module in its executable, so a
@@ -30,9 +47,11 @@ cargo_binary(
 program(
     name = "native",
     binary = ":bin",
+    app_types = ["{}:types".format(app) for app in HOST_APPS],
     executable_name = "be",
     files = ["//buck/program:build-info.json"],
-    manifests = [],
-    modules = [],
+    index = True,
+    manifests = ["{}:manifest".format(app) for app in HOST_APPS],
+    modules = ["{}:module".format(app) for app in HOST_APPS],
     visibility = ["//crates/be-tool-local:"],
 )
