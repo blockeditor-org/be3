@@ -85,7 +85,10 @@ pub(crate) fn AppDialog(
 }
 
 #[component]
-pub(crate) fn SettingsDialog(artifacts: Artifacts, #[prop(children)] content: Build<NodeId>) -> NodeId {
+pub(crate) fn SettingsDialog(
+    artifacts: Artifacts,
+    #[prop(children)] content: Build<NodeId>,
+) -> NodeId {
     let settings = artifacts.settings();
     let saved = artifacts.saved_settings();
     let unchanged =

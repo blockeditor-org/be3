@@ -7,8 +7,8 @@ use std::rc::Weak;
 
 use beui_tree::reactive::LazyChild;
 use beui_tree::reactive::{
-    ComponentContext, Get, IntoSlotHost, Prop, Reader, ScopeContext, Set, Signal,
-    SlotHost, SlotId, create_effect, create_memo, create_signal, current_component, on_cleanup,
+    ComponentContext, Get, IntoSlotHost, Prop, Reader, ScopeContext, Set, Signal, SlotHost, SlotId,
+    create_effect, create_memo, create_signal, current_component, on_cleanup,
 };
 use beui_types::node::{CoreHooks, NodeCell, install_core_hooks};
 

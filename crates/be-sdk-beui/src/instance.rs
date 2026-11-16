@@ -11,7 +11,7 @@ use be_sdk::{
 use be_sdk_beui_platform_api::{Report, View};
 use beui::WindowId;
 use beui::native::Document;
-use beui::reactive::{RenderFn, NodeId};
+use beui::reactive::{NodeId, RenderFn};
 use beui::styled::WindowHandle;
 use uuid::Uuid;
 

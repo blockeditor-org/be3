@@ -96,7 +96,10 @@ pub struct KeyCapHandle {
 }
 
 #[component]
-pub fn SoftwareKeyboard(cap: RenderFn<KeyCapHandle, NodeId>, emoji: RenderFn<KeyboardHandle, NodeId>) -> NodeId {
+pub fn SoftwareKeyboard(
+    cap: RenderFn<KeyCapHandle, NodeId>,
+    emoji: RenderFn<KeyboardHandle, NodeId>,
+) -> NodeId {
     let engine = store(RefCell::new(Engine::default()));
     let changed = create_trigger();
     let keyboard = KeyboardHandle { engine, changed };

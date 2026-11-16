@@ -532,7 +532,10 @@ pub fn Script(kind: &'static str, source: String) -> Node {
     }
 }
 
-pub fn flag<M>(node: Node, (name, value): (&'static str, impl IntoPropValue<Prop<bool>, M>)) -> Node {
+pub fn flag<M>(
+    node: Node,
+    (name, value): (&'static str, impl IntoPropValue<Prop<bool>, M>),
+) -> Node {
     bind_flag(&node, name, value.into_prop_value());
     node
 }
