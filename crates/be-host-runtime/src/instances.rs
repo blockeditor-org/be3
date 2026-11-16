@@ -2045,6 +2045,12 @@ impl Instances {
     }
 
     pub(super) fn next_screens(&mut self, pass: u64) -> NextScreens {
+        // be-host's frame takes the stack's updates before the runtime's pass; a test that runs
+        // passes with no host takes them here as that frame would. Otherwise the test's stack
+        // takes them on a thread of its own, which applies what the worker did before it tells
+        // the watchers of it, and a pass between the two reads it without hearing of it.
+        #[cfg(test)]
+        be_host_stack::take_updates_in_frame();
         let client = self
             .connection
             .as_ref()
