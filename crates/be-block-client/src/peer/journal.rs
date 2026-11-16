@@ -228,7 +228,11 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// Opens the payload of an entry of `block`, sealed under one of its keys (`open_for`).
-    pub fn open_entry(&self, block: Uuid, entry: JournalEntry) -> Result<JournalEntry, ClientError> {
+    pub fn open_entry(
+        &self,
+        block: Uuid,
+        entry: JournalEntry,
+    ) -> Result<JournalEntry, ClientError> {
         Ok(JournalEntry {
             payload: self.open_for(block, &entry.payload).map_err(locked)?,
             ..entry

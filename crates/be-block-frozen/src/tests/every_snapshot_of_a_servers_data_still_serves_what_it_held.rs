@@ -281,7 +281,10 @@ async fn check(snapshot: &Snapshot) {
     assert_eq!(history.len(), 3);
     assert!(history[0].pinned);
     assert_eq!(history[0].parents, [history[1].commit]);
-    let first: TextContent = owner.open_commit(id(snapshot.shopping), history[2].commit).await.unwrap();
+    let first: TextContent = owner
+        .open_commit(id(snapshot.shopping), history[2].commit)
+        .await
+        .unwrap();
     assert_eq!(TextBlock::text(&first), scene::SHOPPING[0]);
 
     let program: TextContent = owner.open(id(snapshot.program)).await.unwrap().unwrap();
@@ -329,7 +332,10 @@ async fn check(snapshot: &Snapshot) {
     assert_eq!(text(&owner, snapshot.plan).await, scene::PLAN[1]);
     let plan_history = owner.history(id(snapshot.plan)).await.unwrap();
     assert_eq!(plan_history.len(), 2);
-    let before: TextContent = owner.open_commit(id(snapshot.plan), plan_history[1].commit).await.unwrap();
+    let before: TextContent = owner
+        .open_commit(id(snapshot.plan), plan_history[1].commit)
+        .await
+        .unwrap();
     assert_eq!(
         TextBlock::text(&before),
         scene::PLAN[0],
