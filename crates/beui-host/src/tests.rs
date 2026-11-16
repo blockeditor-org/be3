@@ -3192,7 +3192,7 @@ pub(crate) fn reorder_lists(state: ReorderLists) -> Document {
                         payload={Func::new(|key: u32| Some(key))}
                         accepts={Func::new(move |_: u32| refuses != Some(column))}
                         disabled={disabled}
-                        long_press=true
+                        lifts_on_long_press=true
                         text={|key: u32| format!("Row {key}")}
                         preview={|key: u32| view! {
                             <Frame
