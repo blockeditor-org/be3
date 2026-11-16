@@ -317,8 +317,15 @@ impl Board {
                 placing.velocity.sample(now(), point.pos);
             }
             placing.last = Some(point);
+            // Outside every window no place is under the pointer: a release there is the
+            // source's to hear (`Carry::outside`).
+            let nowhere = DragSpec::Floating;
+            let spec = match self.outside.get() {
+                true => &nowhere,
+                false => &placing.spec,
+            };
             let evaluated = evaluate(
-                &placing.spec,
+                spec,
                 &Evaluation {
                     point,
                     velocity: match placing.pointer {

@@ -68,6 +68,7 @@ struct State<K: 'static, P: 'static> {
     text: Callback<K, String>,
     on_move: Callback<ReorderMove<K, P>>,
     on_drag_change: Callback<Option<K>>,
+    on_outside: Callback<(P, DragPoint)>,
     preview: RenderFn<P, NodeId>,
     /// The row of this list that is carried.
     carried: Signal<Option<K>>,
@@ -618,8 +619,14 @@ where
         state.raised.set(Some(key.clone()));
         state.on_drag_change.call(Some(key.clone()));
         let preview = state.preview;
+        let on_outside = state.on_outside;
         let shown = payload.clone();
-        Some(Carry::new(payload).preview(move || preview.call(shown.clone())))
+        let outside = payload.clone();
+        Some(
+            Carry::new(payload)
+                .preview(move || preview.call(shown.clone()))
+                .outside(move |point| on_outside.call((outside.clone(), point))),
+        )
     })
 }
 
@@ -640,6 +647,8 @@ pub fn Reorder<K, P>(
     text: Callback<K, String>,
     on_move: Callback<ReorderMove<K, P>>,
     on_drag_change: Callback<Option<K>>,
+    /// Heard when a carried row is let go outside every window (a dock floats a tab there).
+    on_outside: Callback<(P, DragPoint)>,
     preview: RenderFn<P, NodeId>,
     #[prop(children)] content: Render<ReorderHandle<K, P>, NodeId>,
 ) -> NodeId
@@ -666,6 +675,7 @@ where
         text,
         on_move,
         on_drag_change,
+        on_outside,
         preview,
         carried,
         over_here,
