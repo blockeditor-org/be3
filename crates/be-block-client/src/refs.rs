@@ -1541,6 +1541,7 @@ impl Refs {
     }
 
     pub fn push_all(&self, ops: Vec<Op>) -> Result<Vec<u64>, StoreError> {
+        eprintln!("SCRATCH push_all {:?}", ops.iter().map(|op| (op.block(), matches!(op, Op::Publish(_)))).collect::<Vec<_>>());
         let mut sequences = Vec::with_capacity(ops.len());
         let rows = {
             let mut state = self.state.lock().unwrap();
@@ -1561,6 +1562,7 @@ impl Refs {
     /// Keeps a sealed commit in the outbox. With `sealing`, the last sequence of the block's
     /// journal the commit holds, the journal notes the seal in the same write.
     pub fn push_publish(&self, pending: Pending) -> Result<u64, StoreError> {
+        eprintln!("SCRATCH push_publish block={} commit={:?} expected={:?} dropped={} bt={}", pending.block, pending.commit, pending.expected, self.state.lock().unwrap().dropped.contains(&pending.block), std::backtrace::Backtrace::force_capture().to_string().lines().filter(|l| l.contains("be_block_type_host") || l.contains("be_host_stack")).take(6).collect::<Vec<_>>().join(" | "));
         let (block, head) = (pending.block, pending.commit);
         let op = Op::Publish(pending);
         let (sequence, rows) = {

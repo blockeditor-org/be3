@@ -374,10 +374,13 @@ impl crate::store::ServerStore {
         submission: Submission,
     ) -> Result<Submitted, ServerError> {
         let received = be_block_commit::now_milliseconds();
-        self.with_database(move |_, database| {
+        let id = (submission.id.origin, submission.id.counter, submission.payload.len());
+        let result = self.with_database(move |_, database| {
             submit(database, organization, block, tag, submission, received)
         })
-        .await
+        .await;
+        eprintln!("SCRATCH server submit block={block} id={id:?} ok={}", result.is_ok());
+        result
     }
 
     pub async fn rebase_journal(
