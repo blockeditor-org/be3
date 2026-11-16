@@ -50,10 +50,7 @@ fn an_editor_reads_no_part_of_another_block_its_replica_was_not_handed() {
 
         // Every other section is empty, so section 1 starts right after the header.
         let header = (sections::SECTIONS * 4) as u64;
-        for (token, offset, part) in [
-            (1, header, foreign),
-            (2, header + foreign.length(), own),
-        ] {
+        for (token, offset, part) in [(1, header, foreign), (2, header + foreign.length(), own)] {
             replicas.relay_from_editor(
                 mine,
                 editor,
@@ -82,7 +79,11 @@ fn an_editor_reads_no_part_of_another_block_its_replica_was_not_handed() {
                 }
             }
         }
-        assert_eq!(ranges[&2], Ok(b"this block's".to_vec()), "a part of its block reads");
+        assert_eq!(
+            ranges[&2],
+            Ok(b"this block's".to_vec()),
+            "a part of its block reads"
+        );
         assert!(
             matches!(&ranges[&1], Err(error) if error.contains(crate::replicas::OUTSIDE_REACH)),
             "a part of another block is refused: {:?}",

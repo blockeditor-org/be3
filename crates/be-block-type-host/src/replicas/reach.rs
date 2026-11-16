@@ -48,13 +48,24 @@ pub async fn reaches<S: ObjectStore>(
     block: Uuid,
     part: PartRef,
 ) -> Result<bool, ClientError> {
-    if reach.lock().unwrap_or_else(PoisonError::into_inner).handed.contains(&part) {
+    if reach
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .handed
+        .contains(&part)
+    {
         return Ok(true);
     }
     let Some(of) = peer.block_of_part(part).await? else {
         return Ok(false);
     };
-    if of == block || reach.lock().unwrap_or_else(PoisonError::into_inner).sources.contains(&of) {
+    if of == block
+        || reach
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .sources
+            .contains(&of)
+    {
         return Ok(true);
     }
     // Only now: the blocks of what it was handed, which a part never reached before needs.

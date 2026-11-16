@@ -4008,22 +4008,22 @@ impl<H: Host> Replicas<H> {
                 }
                 let peer = Arc::clone(peer);
                 self.answer_later(replica, module, async move {
-                    let stashed = match reach::reaches_all(&reach, &peer, block, &content.parts).await
-                    {
-                        Ok(true) => {
-                            let write = Write::encoded(
-                                content_type,
-                                be_sdk_type_api::written_parts(&content.bytes, &content.parts),
-                                parent,
-                            )
-                            .described(content.references, content.derived);
-                            peer.stash(block, write)
-                                .await
-                                .map_err(|error| error.to_string())
-                        }
-                        Ok(false) => Err(OUTSIDE_REACH.to_owned()),
-                        Err(error) => Err(error.to_string()),
-                    };
+                    let stashed =
+                        match reach::reaches_all(&reach, &peer, block, &content.parts).await {
+                            Ok(true) => {
+                                let write = Write::encoded(
+                                    content_type,
+                                    be_sdk_type_api::written_parts(&content.bytes, &content.parts),
+                                    parent,
+                                )
+                                .described(content.references, content.derived);
+                                peer.stash(block, write)
+                                    .await
+                                    .map_err(|error| error.to_string())
+                            }
+                            Ok(false) => Err(OUTSIDE_REACH.to_owned()),
+                            Err(error) => Err(error.to_string()),
+                        };
                     (Answered::Stash(reply, stashed), None)
                 });
                 false
