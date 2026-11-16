@@ -224,6 +224,7 @@ fn insert_entry(
         Record::Root(root) => root.creator,
         Record::Grant(grant) => grant.grantee,
         Record::Administrator(administrator) => administrator.account,
+        Record::Member(member) => member.account,
         Record::Retirement(retirement) => retirement.account,
     };
     let accounts = [entry.signer, named];

@@ -2,7 +2,7 @@ use std::fmt;
 
 mod access;
 pub use access::{
-    Administrator, Authority, CarriedKey, Checked, Entry, EntryHash, Grant, Level, LogKind, Logs,
+    Administrator, Authority, CarriedKey, Checked, Entry, EntryHash, Grant, Level, LogKind, Member, Named, Logs,
     Record, Retirement, Root, answer, check_log, check_log_as_of,
 };
 
