@@ -53,6 +53,24 @@ fn a_host_component_reaches_only_its_own_block_and_asks_no_one() {
         denied,
         "a block made at the root"
     );
+    let act = |command: be_sdk_api::BlockCommand| Call::Act {
+        reply: reply(1),
+        block: own.into_bytes(),
+        command,
+    };
+    assert_eq!(
+        graph(&mut instances, act(be_sdk_api::BlockCommand::Leave)),
+        denied,
+        "leaving its own block, which would change the account's membership"
+    );
+    assert_eq!(
+        graph(
+            &mut instances,
+            act(be_sdk_api::BlockCommand::Version(be_sdk_api::VersionCommand::Fork)),
+        ),
+        denied,
+        "a fork, placed where the service picks"
+    );
     assert_ne!(
         graph(&mut instances, delete(own)),
         denied,

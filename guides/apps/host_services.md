@@ -287,10 +287,16 @@ out and paints nothing. It is attached to its block's replica as an editor is
 and calls host services the same way, within a narrower reach, since it runs
 unattended with the account's access. The runtime enforces it, whatever the
 app asks (`Instances::hosting`):
-- the graph only at its own block and the blocks below it: a blocks call that
-  names any other existing block, or a place that is no block (the roots,
-  Unfiled, what is shared, a search of everything), or opens or shares a
-  block, is refused (`blocks::Call::reaches_past_blocks`);
+- the graph only at its own block and the blocks below it: every block a
+  blocks call names must be one of those, and the call must be one a host may
+  make (`blocks::Call::may_be_made_by_a_host`, an exhaustive allowlist):
+  writing and replicating content, watching and searching within its reach,
+  making blocks under a block, and on a block in reach undo, redo, history,
+  unlink, delete, move, reorder, place, restore, define and set-parent to a
+  block, and the version commands that stay in its checkout (adopt, resolve,
+  finish, update, switch, merge, undo). Opening, sharing or leaving a block,
+  closing an editor, artifacts, and a fork, checkout, branch, pull or push
+  (which find or place blocks of their own) are not;
 - of the host services, only signing and checking (`sign`, `verify`,
   `signing-block`) and its app's own data (`list-data`, `read-data`);
 - no shell message but a failure report, no web view, no `open-url`, and no

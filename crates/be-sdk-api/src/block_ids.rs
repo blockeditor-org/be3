@@ -239,7 +239,51 @@ impl BlockCommand {
     }
 }
 
+impl BlockCommand {
+    /// Whether a host component may act so on a block in its reach
+    /// (`Call::may_be_made_by_a_host`): never to leave or share it, close an editor, regenerate
+    /// artifacts, or reach anything the command finds or places itself.
+    fn may_be_made_by_a_host(&self) -> bool {
+        let block = |location: &BlockLocation| matches!(location, BlockLocation::Block(_));
+        match self {
+            Self::Undo
+            | Self::Redo
+            | Self::History(_)
+            | Self::Unlink { .. }
+            | Self::Reorder { .. }
+            | Self::Place { .. }
+            | Self::Restore
+            | Self::Define { .. } => true,
+            Self::Delete { source, .. } | Self::Move { source, .. } => block(source),
+            Self::SetParent(parent) => block(parent),
+            Self::Version(command) => command.may_be_made_by_a_host(),
+            // An account-wide membership change, a person's dialog or editor, and artifacts
+            // made where the service places them.
+            Self::Leave | Self::Share | Self::CloseEditor | Self::Artifact { .. } => false,
+        }
+    }
+}
+
 impl VersionCommand {
+    /// Within a checkout the host reaches; never a new block the service places (a fork, a
+    /// checkout, a branch) nor the upstream repository.
+    fn may_be_made_by_a_host(&self) -> bool {
+        match self {
+            Self::Adopt { .. }
+            | Self::Resolve { .. }
+            | Self::Finish { .. }
+            | Self::Update
+            | Self::Switch { .. }
+            | Self::Merge { .. }
+            | Self::Undo { .. } => true,
+            Self::CreateBranch { .. }
+            | Self::NewCheckout { .. }
+            | Self::Fork
+            | Self::PullUpstream
+            | Self::PushUpstream => false,
+        }
+    }
+
     pub fn visit_block_ids(&mut self, visit: &mut Ids<'_>) {
         match self {
             Self::Adopt { block_id } | Self::Resolve { block_id, .. } => {
@@ -296,31 +340,44 @@ impl crate::embed::blocks::Call {
         }
     }
 
-    /// Whether the call names a place that is no block (the roots, Unfiled, what is shared,
-    /// a search of everything) or asks a person (opening or sharing a block): what a host
-    /// component, which reaches only its own block and the blocks below it, may not do.
-    pub fn reaches_past_blocks(&self) -> bool {
-        let place = |location: &BlockLocation| !matches!(location, BlockLocation::Block(_));
+    /// Whether a host component, which reaches only its own block and the blocks below it and
+    /// has no person before it, may make the call (guides/apps/host_services.md, "Host
+    /// components"); the block ids it names are checked against that reach apart. Every variant
+    /// is decided here, with no wildcard, so a new one is refused until someone decides.
+    pub fn may_be_made_by_a_host(&self) -> bool {
+        let block = |location: &BlockLocation| matches!(location, BlockLocation::Block(_));
         match self {
-            Self::CreateBlock { parent, .. } => place(parent),
-            Self::Act { command, .. } => match command {
-                BlockCommand::SetParent(parent) => place(parent),
-                BlockCommand::Delete { source, .. } | BlockCommand::Move { source, .. } => {
-                    place(source)
-                }
-                BlockCommand::Share | BlockCommand::CloseEditor => true,
-                _ => false,
+            Self::CreateBlock { parent, .. } => block(parent),
+            Self::Act { command, .. } => command.may_be_made_by_a_host(),
+            Self::BlockWatchNew { subject, .. } => match subject {
+                crate::blocks::BlockSubject::Blocks(query) => match query {
+                    BlockQuery::Children(_)
+                    | BlockQuery::References(_)
+                    | BlockQuery::Backrefs(_)
+                    | BlockQuery::Parents(_)
+                    | BlockQuery::Block(_)
+                    | BlockQuery::OpenSettings(_) => true,
+                    BlockQuery::Roots
+                    | BlockQuery::Detached
+                    | BlockQuery::Shared
+                    | BlockQuery::Unfiled => false,
+                },
+                crate::blocks::BlockSubject::History(_)
+                | crate::blocks::BlockSubject::Head(_)
+                | crate::blocks::BlockSubject::Artifact(_)
+                | crate::blocks::BlockSubject::Version => true,
             },
-            Self::OpenBlock { .. } => true,
-            Self::BlockWatchNew {
-                subject: crate::blocks::BlockSubject::Blocks(query),
-                ..
-            } => matches!(
-                query,
-                BlockQuery::Roots | BlockQuery::Detached | BlockQuery::Shared | BlockQuery::Unfiled
-            ),
-            Self::SearchWatchNew { within, .. } => within.is_none(),
-            _ => false,
+            Self::SearchWatchNew { within, .. } => within.is_some(),
+            Self::WriteContent { .. }
+            | Self::ReplicaNew { .. }
+            | Self::ReplicaFrames { .. }
+            | Self::ReplicaSend { .. }
+            | Self::BlockWatchNext { .. }
+            | Self::SearchWatchNext { .. }
+            | Self::ShowRequestsNew { .. }
+            | Self::ShowRequestsNext { .. } => true,
+            // Shows a block to a person.
+            Self::OpenBlock { .. } => false,
         }
     }
 

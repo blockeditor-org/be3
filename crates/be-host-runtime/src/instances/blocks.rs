@@ -180,7 +180,7 @@ impl Instances {
         if let Some(own) = self.hosting(instance) {
             // A host component runs unattended: it reaches only its own block and the blocks
             // below it, and shows nothing (guides/apps/host_services.md, "Host components").
-            let mut outside = call.reaches_past_blocks();
+            let mut outside = !call.may_be_made_by_a_host();
             call.visit_block_ids(&mut |role, id| {
                 let block = Uuid::from_bytes(*id);
                 outside |= role == BlockIdRole::Existing
