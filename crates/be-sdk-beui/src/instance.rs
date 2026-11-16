@@ -605,6 +605,17 @@ impl<A: BeuiRoot> Instance for BeuiInstance<A> {
         self.hosting = Some(scope);
     }
 
+    fn pass(&mut self) {
+        let Some(scope) = &self.hosting else {
+            return;
+        };
+        let Some(editor) = self.parts.views.borrow().editor.as_deref().copied() else {
+            return;
+        };
+        // Inside an entry, so the effects woken by what arrived run as it ends, as in a frame.
+        scope.run(|| editor.begin_frame());
+    }
+
     fn connect_creation(&mut self, template: String) {
         let mut views = self.parts.views.borrow_mut();
         views.creating = true;

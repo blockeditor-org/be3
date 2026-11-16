@@ -40,6 +40,8 @@ pub struct EditorSession {
     views: HashMap<ViewId, ViewState>,
     host: EditorHost,
     own_block: Option<Uuid>,
+    /// Opened as a host component: given no frames, so `outbound` passes it instead.
+    hosting: bool,
     dragged: Option<(ViewId, Dragged)>,
     intrinsic: Option<Vec2>,
     artifact: Option<ArtifactState>,
@@ -158,6 +160,7 @@ impl EditorSession {
             views: HashMap::default(),
             host,
             own_block: None,
+            hosting: false,
             dragged: None,
             intrinsic: None,
             artifact: None,
@@ -365,8 +368,13 @@ impl EditorSession {
     pub(crate) fn connect_host(&mut self, block_id: Uuid, block_type: Uuid) {
         self.host.set_block_type(block_type);
         self.own_block = Some(block_id);
+        self.hosting = true;
         self.link.connect(block_id, block_type);
         self.editor.connect_host(block_id);
+    }
+
+    pub(crate) fn hosting(&self) -> bool {
+        self.hosting
     }
 
     pub(crate) fn connect_picker(&mut self, picker: crate::host::PickerRequest) {
@@ -465,6 +473,9 @@ impl EditorSession {
 
     pub fn outbound(&mut self) {
         let instance = self.instance;
+        if self.hosting {
+            self.editor.pass();
+        }
         self.link.exchange(instance, &self.host);
         self.watch_docks();
         crate::asked::asking(Some(instance), || {

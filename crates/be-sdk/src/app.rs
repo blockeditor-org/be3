@@ -25,6 +25,10 @@ pub trait Instance: std::any::Any {
         self.connect(block_id);
     }
 
+    /// Runs for a host component each time it is woken, in place of the frame it is never
+    /// given: it takes in what changed (its content first) as `begin_frame` does for an editor.
+    fn pass(&mut self) {}
+
     fn connect_creation(&mut self, _template: String) {}
 
     fn create_block(&mut self) -> Result<Uuid, String> {
