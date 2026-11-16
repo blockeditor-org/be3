@@ -214,6 +214,26 @@ fn spans<K: Clone + PartialEq, P>(state: &State<K, P>) -> Vec<(f32, f32)> {
     spans
 }
 
+/// Where a row held at `item` is drawn: along the list no further than its ends, as a row
+/// that has nowhere else to go never leaves its list.
+fn clamped<K, P>(state: &State<K, P>, item: Rect) -> Pos2 {
+    let Some(area) = state
+        .area
+        .try_get()
+        .and_then(|area| measure(area).get_untracked())
+        .map(|measured| measured.rect)
+    else {
+        return item.min;
+    };
+    let direction = state.direction.get_untracked();
+    let low = along(direction, area.min);
+    let high = (along(direction, area.max) - direction.main(item.size())).max(low);
+    match direction {
+        Direction::Horizontal => Pos2::new(item.min.x.clamp(low, high), item.min.y),
+        Direction::Vertical => Pos2::new(item.min.x, item.min.y.clamp(low, high)),
+    }
+}
+
 /// The space between two rows, the least of any pair shown.
 fn spacing<K: Clone + PartialEq, P>(state: &State<K, P>) -> f32 {
     spans(state)
@@ -671,7 +691,7 @@ where
     let anchor = create_memo(move || {
         OverlayAnchor::Point(drag_board().frame().map_or(Pos2::ZERO, |frame| frame.item.min))
     });
-    view! {
+    let shown = view! {
         <Layers @node_ref=&area>
             {face}
             <ReorderStatus announcement={announcement.read_only()} />
@@ -693,7 +713,10 @@ where
                 }</Dynamic>
             </Overlay>
         </Layers>
-    }
+    };
+    // Measured from the start, so a held row is kept within the list from its first frame.
+    measure(shown);
+    shown
 }
 
 #[component]
@@ -953,8 +976,8 @@ where
         holding.set(frame.is_some());
         let along = Some(direction.get_untracked());
         untrack(|| {
-            api.get()
-                .hold(frame.map(|frame| GlideHold { at: frame.item.min, along }))
+            let at = frame.map(|frame| state.with(|state| clamped(state, frame.item)));
+            api.get().hold(at.map(|at| GlideHold { at, along }))
         });
     });
     let folded = NodeRef::new();
