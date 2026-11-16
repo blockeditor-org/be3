@@ -102,9 +102,10 @@ pub fn is_carried<K: Clone + PartialEq + 'static>(key: K) -> Memo<bool> {
 }
 
 /// A place that is the whole of `node`, chosen while the pointer is on it (a slot, a folder,
-/// a button that takes what is dropped on it): `None` while `node` is not laid out. Of
-/// several that overlap, the first in a `closest` wins, so list a nested one before the one
-/// around it.
+/// a button that takes what is dropped on it): `None` while `node` is not laid out. A zone
+/// holds no stickiness: of several that hold the pointer, one inside another, the first
+/// listed in a `closest` wins whatever was chosen before, so list a nested one before the
+/// one around it.
 pub fn place_on<D>(node: NodeRef, drop: D) -> Option<Candidate<D>> {
     let (rect, scale) = node.try_get().and_then(|id| beui_view::drag::space().placed(id))?;
     let whole = Rect::from_min_size(Pos2::ZERO, rect.size() / scale);
