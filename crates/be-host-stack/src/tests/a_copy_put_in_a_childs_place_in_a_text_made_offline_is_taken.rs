@@ -7,9 +7,12 @@ use be_type_text::{TextBlock, TextContent};
 /// edits replacing a child are refused: unlinking a reference in it puts the copy in its place.
 #[test]
 fn a_copy_put_in_a_childs_place_in_a_text_made_offline_is_taken() {
-    let _harness = Harness::start();
+    let mut harness = Harness::start();
+    harness.connect();
     let (notes, source) = (Uuid::new_v4(), Uuid::new_v4());
     wait_until("knew text", |_| is_known(TextContent::CONTENT_TYPE));
+    harness.stop_server();
+    wait_until("noticed the server was gone", |shared| !shared.connected);
     let link = be_block_content::block_url::block_url("", Uuid::nil(), source);
     for (block, name, body) in [
         (source, "Source", "source"),

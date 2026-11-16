@@ -201,6 +201,14 @@ Depends on #686 (session catch-ups replaced by server ordering).
   not hung. None failed in 120 runs under `stress` on a 4-core VM. A wait now names such a
   stop (guides/testing_a_gui.md, 6). Done: the build server runs host tests no more at once
   than its memory holds, and a full verify passes with none of them stopped.
+- **A copy put in a child's place, not yet a node when the answer is heard.**
+  `a_copy_put_in_a_childs_place_is_made_before_the_answer` (be-host-stack) failed
+  at its `node(copy).is_some()` assert ("the copy is made by the time the answer
+  is heard") in the drag builder's first verify on a25ff619d, and again after
+  the test fix 58eee7b6a, in a whole-crate run of be-host-stack (passing alone
+  and in the runs after). Done: the cause found, which is either the copy
+  reaching the graph after the answer or the test reading the graph too early,
+  and fixed at its source.
 
 - **A reopened canvas writes its default bars over its saved ones.**
   `the_canvas_zoom_bar_floats_at_any_corner_and_stays_there` failed 2 in 40
