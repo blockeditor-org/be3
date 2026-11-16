@@ -7,7 +7,7 @@ use super::*;
 fn two_closed_chats_merge_by_parts_without_reading_a_segment() {
     let base = closed(&long(120));
     let keys = Keyring::new();
-    keys.insert(CHAT, ContentKey::from_bytes([7; 32]));
+    keys.insert(CHAT, ContentKey::from_bytes([7; 32]), uuid::Uuid::nil());
     let vault = Vault::new(MemoryStore::new(), keys).with_chunker(ChunkerConfig::SMALL);
     let load = |chat: &ChatContent| -> ChatContent {
         let manifest = vault

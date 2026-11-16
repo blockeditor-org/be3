@@ -17,8 +17,8 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-lib-cbor:be-lib-cbor",
-                "//third-party/rust:chacha20poly1305-0.10.1",
                 "//third-party/rust:ciborium-0.2.2",
                 "//third-party/rust:libc-0.2.186",
                 "//third-party/rust:rand-0.9.4",
@@ -40,8 +40,8 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-lib-cbor:be-lib-cbor",
-                "//third-party/rust:chacha20poly1305-0.10.1",
                 "//third-party/rust:ciborium-0.2.2",
                 "//third-party/rust:libc-0.2.186",
                 "//third-party/rust:rand-0.9.4",
@@ -63,8 +63,8 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-lib-cbor:be-lib-cbor",
-                "//third-party/rust:chacha20poly1305-0.10.1",
                 "//third-party/rust:ciborium-0.2.2",
                 "//third-party/rust:libc-0.2.186",
                 "//third-party/rust:rand-0.9.4",
@@ -86,8 +86,8 @@ write_package_value("be3.cargo", {
         "linux-x86_64-html": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-lib-cbor:be-lib-cbor",
-                "//third-party/rust:chacha20poly1305-0.10.1",
                 "//third-party/rust:ciborium-0.2.2",
                 "//third-party/rust:libc-0.2.186",
                 "//third-party/rust:rand-0.9.4",
@@ -106,8 +106,8 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-lib-cbor:be-lib-cbor",
-                "//third-party/rust:chacha20poly1305-0.10.1",
                 "//third-party/rust:ciborium-0.2.2",
                 "//third-party/rust:rand-0.9.4",
                 "//third-party/rust:serde-1.0.228",
@@ -128,8 +128,8 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-lib-cbor:be-lib-cbor",
-                "//third-party/rust:chacha20poly1305-0.10.1",
                 "//third-party/rust:ciborium-0.2.2",
                 "//third-party/rust:rand-0.9.4",
                 "//third-party/rust:serde-1.0.228",
@@ -150,8 +150,8 @@ write_package_value("be3.cargo", {
         "wasi": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-lib-cbor:be-lib-cbor",
-                "//third-party/rust:chacha20poly1305-0.10.1",
                 "//third-party/rust:ciborium-0.2.2",
                 "//third-party/rust:rand-0.9.4",
                 "//third-party/rust:serde-1.0.228",
@@ -169,8 +169,8 @@ write_package_value("be3.cargo", {
         "wasi-guest": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-lib-cbor:be-lib-cbor",
-                "//third-party/rust:chacha20poly1305-0.10.1",
                 "//third-party/rust:ciborium-0.2.2",
                 "//third-party/rust:rand-0.9.4",
                 "//third-party/rust:serde-1.0.228",
@@ -202,8 +202,8 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-lib-cbor:be-lib-cbor",
-                "//third-party/rust:chacha20poly1305-0.10.1",
                 "//third-party/rust:ciborium-0.2.2",
                 "//third-party/rust:rand-0.9.4",
                 "//third-party/rust:serde-1.0.228",
@@ -224,8 +224,8 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-keys:be-block-keys",
                 "//crates/be-lib-cbor:be-lib-cbor",
-                "//third-party/rust:chacha20poly1305-0.10.1",
                 "//third-party/rust:ciborium-0.2.2",
                 "//third-party/rust:rand-0.9.4",
                 "//third-party/rust:serde-1.0.228",
