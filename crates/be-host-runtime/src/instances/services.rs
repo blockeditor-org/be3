@@ -662,6 +662,7 @@ impl Instances {
                 account,
                 bytes,
                 signature,
+                arrived,
             } => {
                 let answering = self.answering(instance, reply);
                 let Some(block) = self.signed_in(instance) else {
@@ -672,9 +673,16 @@ impl Instances {
                 }
                 let account = Uuid::from_bytes(account);
                 let bytes = by_app(&self.app_id, &bytes);
-                be_host_stack::authorship::verify(account, block, bytes, signature, move |found| {
-                    answering.send(found.map(signer).map_err(|_| Failure::Unavailable))
-                });
+                be_host_stack::authorship::verify(
+                    account,
+                    block,
+                    bytes,
+                    signature,
+                    arrived,
+                    move |found| {
+                        answering.send(found.map(signer).map_err(|_| Failure::Unavailable))
+                    },
+                );
             }
             Call::ListData { reply } => {
                 let answering = self.answering(instance, reply);

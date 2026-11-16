@@ -122,6 +122,7 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
                 block,
                 b"after",
                 &owner.sign_authored(block, b"after"),
+                None,
             )
             .await
             .unwrap(),
@@ -131,11 +132,34 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
     watcher.refresh_contacts().await.unwrap();
     assert_eq!(
         watcher
-            .verify_authored(owner.account(), block, b"before", &before)
+            .verify_authored(owner.account(), block, b"before", &before, None)
             .await
             .unwrap(),
         Signer::Changed,
         "what the old key signed still verifies, but the old key is no longer the owner's"
+    );
+    let now = watcher.server_now().expect("the watcher measured the server's clock");
+    assert_eq!(
+        watcher
+            .verify_authored(owner.account(), block, b"before", &before, Some(0))
+            .await
+            .unwrap(),
+        Signer::Changed,
+        "a record the server took before the watcher learned of the new key is the old key's"
+    );
+    assert_eq!(
+        watcher
+            .verify_authored(
+                owner.account(),
+                block,
+                b"before",
+                &before,
+                Some(now + 2 * 60 * 1000),
+            )
+            .await
+            .unwrap(),
+        Signer::Bad,
+        "one the server took after is someone holding the old phrase"
     );
     assert_eq!(text(&guest, from_owner).await, "from the owner");
     assert_eq!(text(&owner, from_guest).await, "from the guest");

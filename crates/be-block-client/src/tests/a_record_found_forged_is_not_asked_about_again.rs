@@ -12,7 +12,7 @@ async fn a_record_found_forged_is_not_asked_about_again() {
     let forged = liar.sign_authored(block.into_bytes(), b"hello");
     let verify = async |bytes: &[u8], signature: &[u8]| {
         other
-            .verify_authored(guest.account(), block, bytes, signature)
+            .verify_authored(guest.account(), block, bytes, signature, None)
             .await
             .unwrap()
     };
