@@ -111,11 +111,12 @@ reads, and a second administrator writes, the policies block under settings).
   uses the key's own block, so reads along hashes across blocks still open,
   and a header whose key id was relabelled fails. The layout stays; old
   objects no longer open, and no format is frozen.
-- **Reused parts name where they are from.** `Vault::write` reseals a
-  `Part::Reused` under the writing block's key whatever key it was under, so a
-  type module's `Publish` or `Stash` can reseal another block's part into its
-  own. A reused part names the block it is from, and the vault refuses one from
-  a block the writer was not given (its own, or a merge's sides).
+- **A replica reaches only what it was handed.** Built: a replica's
+  `read-part`, and the parts its `publish` and `stash` reuse, are confined to
+  the parts it loaded and put and to blocks those are sealed in
+  (guides/type_modules.md, What a replica reaches). Not the plan's first
+  framing (a reused part naming its block): a module that serves a block can
+  copy its bytes anyway, and `read-part` was the wider reach.
 - **Escrow secrets leave the content keyring**, where an object whose header
   named one would open with it; they are X25519 secrets, never AEAD keys.
 - **The nonce.** With the format changing anyway: XChaCha20-Poly1305, its
@@ -138,9 +139,9 @@ reads, and a second administrator writes, the policies block under settings).
   three callers that differ only in what they bind.
 
 Order, each piece landing on its own with its tests: section 1 (built); the
-current key (built); the pointer reads naming their block, with the keyring
-knowing each key's block and escrow secrets moving out of it; reused parts
-naming their source; then section 2 with the associated data, nonce and one
+current key (built); the pointer reads naming their block (built); a
+replica's reach (built); escrow secrets moving out of the keyring; then
+section 2 with the associated data, nonce and one
 seal format (whose `seal_with` part waits for signed access 3b and 3a, which
 build on it).
 
@@ -173,17 +174,15 @@ be-block-client, with the harness's server database playing the attacker:
    server as an unsealed account, and as an administrator due an escrow).
 2. `a_key_wrapped_under_the_settings_key_seals_no_other_block` and
    `members_and_administrators_read_and_write_the_policies` (section 2).
-3. `a_block_shows_nothing_sealed_under_another_blocks_key`: the server serves
-   block A's sealed metadata and head as block B's; reading B fails as forged.
-4. `a_relay_of_one_block_is_not_applied_to_another`: a relay sealed in A's
-   session delivered as B's is refused.
-5. `a_notification_sealed_under_another_blocks_key_is_dropped`.
+3. Built: `another_blocks_commit_served_as_a_head_is_refused` (a head, its
+   metadata, a listed revision).
+4. Built: `a_relay_sealed_under_another_blocks_key_is_refused`.
+5. Built: `a_notification_sealed_under_another_blocks_key_is_refused`.
 6. Built: `another_blocks_key_named_as_current_is_refused`.
-7. `a_type_module_reuses_no_part_of_a_block_it_was_not_given`: a module's
-   `Publish` naming another block's part as reused is refused.
-8. `a_snapshot_still_reads_what_it_points_at_across_blocks`: a repository's
-   snapshot, history and merge keep reading entries sealed under other blocks'
-   keys (the crossings the rule keeps).
+7. Built: `a_replica_reaches_no_part_of_a_block_it_was_not_handed`
+   (be-block-type-host).
+8. Built, as be-host-stack's `a_fork_pulls_and_pushes_through_its_upstream`:
+   the crossings the rule keeps still read.
 
 ## Docs
 
