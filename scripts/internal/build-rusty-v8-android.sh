@@ -2,9 +2,8 @@
 # Builds the V8 that be-wasm-host runs guests on, for Android (arm64), which
 # rusty_v8 publishes no prebuilt of: librusty_v8 and the Rust bindings to it,
 # for third-party/v8/BUCK's android_arm64 and android_arm64_binding to pin.
-# A person runs it on their own
-# machine, never a worker: it fetches from Chromium's servers and takes about
-# an hour on 16 cores and 30 GB of disk.
+# A person runs it on their own machine, never a worker: it fetches from
+# Chromium's servers and takes about an hour on 16 cores and 30 GB of disk.
 #
 # Needs: Linux on x86_64 (the NDK V8 downloads is linux-x86_64's); git, curl,
 # unzip, python3; Rust with the aarch64-linux-android target (rustup adds it
