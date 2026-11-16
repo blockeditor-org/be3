@@ -29,7 +29,6 @@ def _host_with(name, apps, libraries = "exclude"):
 def _code_cache(name):
     native.genrule(
         name = name + "-code-cache",
-        out = "code-cache",
         cmd = " ".join([
             "mkdir -p $OUT $TMP/data && cache=`realpath $OUT` && here=$PWD &&",
             "env BE_BUNDLE=$here/$(location :{}):$here/$(location :host-libraries)".format(name),
@@ -42,6 +41,7 @@ def _code_cache(name):
             "timeout -s INT 25 $here/$(location //crates/be-host:bin) --dev-workspace < /dev/null > $TMP/log 2>&1 || echo exit $? >> $TMP/log;",
             "find $cache -name '*.v8' | grep -q . || { tail -60 $TMP/log >&2; exit 1; }",
         ]),
+        out = "code-cache",
     )
 
 # Defines the apps each test's host stages, one :host-with-<apps> for each
@@ -64,9 +64,9 @@ def host_test_apps(apps):
         name = "host-with-" + ("+".join(extra) if extra else "base")
         hosts[name] = sorted(BASE + extra)
         apart_env[test] = {
-            "BE_BUNDLE": "$(location :{}):$(location :host-libraries)".format(name),
             "BE3_CODE_CACHE": "$(location :{}-code-cache)".format(name),
             "BE3_CODE_CACHE_READ_ONLY": "1",
+            "BE_BUNDLE": "$(location :{}):$(location :host-libraries)".format(name),
             "HOST_TEST_APPS": ",".join(hosts[name]),
             "HOST_TEST_MANIFESTS": ":".join(["$(location //crates/be-app-{}:manifest)".format(app) for app in every]),
         }
