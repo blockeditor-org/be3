@@ -250,6 +250,13 @@ did not sign.
   managing any block, can make a grant naming `Inherited` authority over an
   unrelated block check. 3c therefore seals to no grantee whose grant (or
   whose granter's) rests on `Inherited` authority until step 4 lands.
+- **A member roots a block an administrator never pinned.** An escrow wrap
+  pins the root it carries when its sender is a member with Edit or above in
+  the log rooted there, so a real member can root a block id the
+  administrator has not pinned (one only ever reached through escrow) at
+  themselves and show forged content as that block. Only a member can, never
+  the server; the block's own members, who pinned its real root, are not
+  fooled.
 - **Authorship** is the root's (and later owner records'): no grant names or
   lowers a block's creator.
 - **A new phrase grows with the account.** `set-recovery-key` carries one
@@ -315,7 +322,20 @@ instead.
      makes on its own stay server rows, signed after by a device (built with
      3c, which is what seals by the records); see "Grants the server changes
      first".
-   - **3a. Authenticated escrow wraps**, after 3b, whose records name the
+   - **3a-members. Members in the organization's log.** A Member record
+     (account and keys, member or not) signed by an administrator: an
+     administrator's device signs one when it finishes an invitation, as
+     `finish_links` finishes a link, and an agent's maker signs its agent's at
+     `create-agent`; removing a member signs it out. This anchors an escrow
+     wrap's sender (3a) where the server cannot: an administrator reaching a
+     block only through escrow has pinned no root for it, so a log rooted at
+     the root the wrap carries proves nothing about a sender alone. Until an
+     administrator's device signs a joiner in, that member's escrow wraps wait
+     unopened; key work lists such members to administrators, and a device
+     whose wraps wait is told, so a stuck invitation shows. Done: a test
+     where the server adds a member no administrator signed and their wrap
+     stays unopened, listed as waiting.
+   - **3a. Authenticated escrow wraps**, after 3a-members, whose records name the
      keys an administrator checks a sender by: an escrow wrap is sealed by its
      sender to the escrow key, as `seal_for` seals to an account, not
      anonymously, so the server cannot make one (an anonymous wrap lets
@@ -324,8 +344,10 @@ instead.
      block is under the organization's settings does the same, since a key
      the server holds reads there, plans/keys_bound_to_blocks.md), and is
      opened only from a
-     sender the checked logs name with Edit or above, with the keys they name;
-     a root it carries is taken only from such a sender (3c). Sealing it from
+     sender the organization's log names a member, with the keys it names,
+     who the block's log (rooted at the root this device pinned, or else the
+     one the wrap carries) names with Edit or above; the root it carries is
+     then pinned. Sealing it from
      the sender sooner would prove nothing, as a sender who is not a contact
      has only keys the server names. Done: a test where a wrap the
      server seals to the escrow carries no root anyone trusts.
