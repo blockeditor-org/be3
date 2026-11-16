@@ -49,6 +49,12 @@ fn a_grant_or_administrator_checks_only_as_one_who_may_make_it_signed_it() {
             .is_ok(),
         "anyone revokes their own grant"
     );
+    let manager = grant(&creator, creator_id, pinned, member_id, member.identity(), Level::Manage);
+    let unmade = grant(&member, member_id, manager.hash(), creator_id, creator.identity(), Level::None);
+    assert!(
+        check_log(LogKind::Block, block, pinned, &[root.clone(), manager, unmade], &none).is_err(),
+        "no grant lowers the creator, whose Manage is the root's"
+    );
     let stranger = grant(&other, other_id, pinned, other_id, other.identity(), Level::Manage);
     assert!(
         check_log(LogKind::Block, block, pinned, &[root.clone(), stranger], &none).is_err(),

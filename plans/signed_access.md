@@ -235,7 +235,12 @@ did not sign.
   as of the organization log's head it holds.
 - **Ancestors' roots** are taken from the server when this device pinned none
   (a grant on a child, from a manager above), as the tree they hang in is the
-  server's until parents are signed (step 4).
+  server's until parents are signed (step 4). So the server, with anyone
+  managing any block, can make a grant naming `Inherited` authority over an
+  unrelated block check. 3c therefore seals to no grantee whose grant (or
+  whose granter's) rests on `Inherited` authority until step 4 lands.
+- **Authorship** is the root's (and later owner records'): no grant names or
+  lowers a block's creator.
 - **A new phrase grows with the account.** `set-recovery-key` carries one
   retirement (about 300 to 400 bytes) per log the account signed in, which is
   every block it ever made, beside the resealed keys that already grow the same

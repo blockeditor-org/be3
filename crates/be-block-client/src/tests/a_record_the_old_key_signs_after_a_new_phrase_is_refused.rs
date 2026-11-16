@@ -67,14 +67,9 @@ async fn a_record_the_old_key_signs_after_a_new_phrase_is_refused() {
     );
     database
         .execute(
-            "INSERT INTO access_log (organization_id, block_id, position, entry, signer)
-             VALUES (?1, ?2, 3, ?3, ?4)",
-            rusqlite::params![
-                organization.to_string(),
-                team.to_string(),
-                again.encode(),
-                owner.account().to_string()
-            ],
+            "INSERT INTO access_log (organization_id, block_id, position, entry)
+             VALUES (?1, ?2, 3, ?3)",
+            rusqlite::params![organization.to_string(), team.to_string(), again.encode()],
         )
         .unwrap();
     let head = laptop.organization_log().await.unwrap()[1].hash();
@@ -87,13 +82,9 @@ async fn a_record_the_old_key_signs_after_a_new_phrase_is_refused() {
     );
     database
         .execute(
-            "INSERT INTO organization_log (organization_id, position, entry, signer)
-             VALUES (?1, 2, ?2, ?3)",
-            rusqlite::params![
-                organization.to_string(),
-                again.encode(),
-                owner.account().to_string()
-            ],
+            "INSERT INTO organization_log (organization_id, position, entry)
+             VALUES (?1, 2, ?2)",
+            rusqlite::params![organization.to_string(), again.encode()],
         )
         .unwrap();
     drop(database);
