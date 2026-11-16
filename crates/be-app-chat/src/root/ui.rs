@@ -84,6 +84,9 @@ enum Record {
     /// A record removed outright or a chain's latest record cut (`Head::cut`), which no
     /// signature can cover.
     Removed,
+    /// A record forged whatever its signature: a recent message's deletion that keeps nothing
+    /// of it (`Deletion::message`).
+    Forged,
 }
 
 impl Record {
@@ -95,7 +98,7 @@ impl Record {
             Self::Edit(id, edit, sent) => Some(edit.signed_bytes(chat, *id, sent.hash(chat, *id))),
             Self::Deletion(id, deletion) => Some(deletion.signed_bytes(chat, *id)),
             Self::Reaction(key, reaction) => Some(key.signed_bytes(chat, reaction)),
-            Self::Removed => None,
+            Self::Removed | Self::Forged => None,
         }
     }
 }
@@ -793,6 +796,22 @@ impl Older {
                         .collect();
                     let messages = ChatContent::weave(&read_in_order);
                     let order: Vec<ObjectId> = messages.iter().map(|(id, _)| *id).collect();
+                    // The segment still holds a deleted message: a deletion by anyone but its
+                    // author is forged, whatever it signed.
+                    let mut forged = forged;
+                    for (id, message) in &messages {
+                        if let Some(deletion) = content.deletion_of(*id)
+                            && !deletion.by_author(Some(message))
+                            && !forged.iter().any(|(held, _)| held == id)
+                        {
+                            // Its row's proof is checked against the message's author.
+                            let deletion = Deletion {
+                                message: Some(message.sent()),
+                                ..deletion
+                            };
+                            forged.push((*id, deletion));
+                        }
+                    }
                     row_list(
                         content,
                         &content.shown_of(messages),
@@ -954,7 +973,11 @@ fn row_list(
                 .map(|at| at + 1),
         };
         if let Some(at) = at {
-            rows.insert(at, (*message, deleted_row(*message, deletion, me, today)));
+            let kept_none = deletion.message.is_none() && !content.may_be_closed(*message);
+            rows.insert(
+                at,
+                (*message, deleted_row(*message, deletion, kept_none, me, today)),
+            );
         }
     }
     rows
@@ -1298,8 +1321,21 @@ fn proofs(content: &ChatContent, message: &Shown) -> Vec<Proof> {
     proofs
 }
 
-/// The row of a message whose deletion is forged.
-fn deleted_row(message: ObjectId, deletion: &Deletion, me: Uuid, today: i64) -> Row {
+/// The row of a message whose deletion is forged. Its proof is checked against the deleted
+/// message's author, whom the deletion keeps (`Deletion::message`), so a deletion someone else
+/// signed as themselves shows as forged; one of a recent message that keeps none of it
+/// (`kept_none`) is forged outright.
+fn deleted_row(
+    message: ObjectId,
+    deletion: &Deletion,
+    kept_none: bool,
+    me: Uuid,
+    today: i64,
+) -> Row {
+    let wrote = deletion
+        .message
+        .as_ref()
+        .map_or(deletion.author, |sent| sent.author);
     Row {
         author: author(deletion.author, me),
         mine: false,
@@ -1311,17 +1347,24 @@ fn deleted_row(message: ObjectId, deletion: &Deletion, me: Uuid, today: i64) -> 
         reactions: Vec::new(),
         attachments: Vec::new(),
         proofs: vec![Proof {
-            author: deletion.author,
+            author: wrote,
             signature: deletion.signature.0.clone(),
-            record: Record::Deletion(message, deletion.clone()),
+            record: match kept_none {
+                true => Record::Forged,
+                false => Record::Deletion(message, deletion.clone()),
+            },
         }],
         deleted: true,
         missing: false,
     }
 }
 
-/// The deletions the host says are forged, each with the message it deleted: each deletion is
-/// asked about once, when it first shows in the content, and only a forged one gets a row.
+/// The forged deletions, each with the message it deleted: one the host says its author did not
+/// sign, one that keeps a message by someone else or one whose own signature is forged
+/// (only a message's author deletes it), and one of a recent message that keeps none of it.
+/// Each deletion is asked about once, when it first shows in the content, and only a forged
+/// one gets a row; a closed message's deletion is checked against the segment's copy when it
+/// is read (`Older`).
 fn forged_deletions(
     editor: Editor,
     chat: Chat,
@@ -1344,14 +1387,53 @@ fn forged_deletions(
             if asked {
                 continue;
             }
+            let kept_none_of_a_recent = deletion.message.is_none()
+                && chat
+                    .read(|content| !content.may_be_closed(message))
+                    .unwrap_or(false);
+            if !deletion.by_author(None) || kept_none_of_a_recent {
+                verdicts.update(|verdicts| {
+                    verdicts.insert(message, (deletion, Some(Signer::Bad)));
+                });
+                continue;
+            }
             verdicts.update(|verdicts| {
                 verdicts.insert(message, (deletion.clone(), None));
             });
-            let asking = editor.host().verify(
-                deletion.author,
-                deletion.signed_bytes(block, message),
-                deletion.signature.0.clone(),
-            );
+            let host = editor.host();
+            let checked = deletion.clone();
+            let asking = async move {
+                let signer = match host
+                    .verify(
+                        checked.author,
+                        checked.signed_bytes(block, message),
+                        checked.signature.0.clone(),
+                    )
+                    .await?
+                {
+                    Ok(signer) => signer,
+                    Err(failure) => return Some(Err(failure)),
+                };
+                let Some(sent) = &checked.message else {
+                    return Some(Ok(signer));
+                };
+                let wrote = match host
+                    .verify(
+                        sent.author,
+                        sent.signed_bytes(block, message),
+                        sent.signature.0.clone(),
+                    )
+                    .await?
+                {
+                    Ok(wrote) => wrote,
+                    Err(failure) => return Some(Err(failure)),
+                };
+                // Kept by a deletion, a message its author did not sign proves no author.
+                Some(Ok(match wrote {
+                    Signer::Bad => Signer::Bad,
+                    _ => signer,
+                }))
+            };
             editor.then(asking, move |found| {
                 let Ok(signer) = found else {
                     return;
@@ -1583,6 +1665,10 @@ fn MessageRow(
             // The least a row's records are trusted: one forged record makes it forged.
             let mut least = Trust::Verified;
             for proof in proofs {
+                if matches!(proof.record, Record::Forged) {
+                    least = least.max(Trust::Forged);
+                    continue;
+                }
                 let Some(bytes) = proof.record.signed_bytes(chat) else {
                     least = least.max(Trust::Altered);
                     continue;

@@ -5,7 +5,7 @@ mod signed;
 
 pub use chat::{
     Carried, ChatContent, ChatHeader, ChatOp, Closing, Deletion, Draft, EditSlot, Gap, Head,
-    Message, MessageEdit, OFFLINE_AFTER, Reaction, ReactionKey, Segment, Shown, Signature,
+    Message, MessageEdit, OFFLINE_AFTER, Reaction, ReactionKey, Segment, Sent, Shown, Signature,
 };
 pub use reads::{ChatReads, ChatReadsContent, ReadPlace};
 pub use signed::{MessageHash, Prior};
