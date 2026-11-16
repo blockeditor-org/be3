@@ -397,6 +397,25 @@ pub(crate) fn checked_block_log(
     .map_err(|_| refused("the record does not follow the log it goes in"))
 }
 
+/// The level `block`'s log grants `account`, if it names them.
+pub(crate) fn granted_level(
+    connection: &Connection,
+    graph: &BlockGraph,
+    organization: Uuid,
+    block: Uuid,
+    account: Uuid,
+) -> Result<Option<Level>, ServerError> {
+    let entries = entries(connection, LogKind::Block, organization, block)?;
+    if entries.is_empty() {
+        return Ok(None);
+    }
+    let checked = checked_block_log(connection, graph, organization, block, &entries)?;
+    Ok(checked
+        .grants
+        .get(&account.into_bytes())
+        .map(|(level, _)| *level))
+}
+
 /// Whether `block`'s log names a grant to `account` above none: one a revocation must then be
 /// signed for.
 pub(crate) fn names_grant(
@@ -406,15 +425,8 @@ pub(crate) fn names_grant(
     block: Uuid,
     account: Uuid,
 ) -> Result<bool, ServerError> {
-    let entries = entries(connection, LogKind::Block, organization, block)?;
-    if entries.is_empty() {
-        return Ok(false);
-    }
-    let checked = checked_block_log(connection, graph, organization, block, &entries)?;
-    Ok(checked
-        .grants
-        .get(&account.into_bytes())
-        .is_some_and(|(level, _)| *level > Level::None))
+    Ok(granted_level(connection, graph, organization, block, account)?
+        .is_some_and(|level| level > Level::None))
 }
 
 /// Appends `record`, signed by `signer`, to `block`'s log once it checks at its head: a grant of

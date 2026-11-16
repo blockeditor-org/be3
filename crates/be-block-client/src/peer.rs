@@ -732,7 +732,8 @@ impl<S: ObjectStore> Peer<S> {
     async fn settle_escrowed_once(&self) -> usize {
         let mut taken = 0;
         for escrowed in self.keys.escrowed() {
-            let administrator = self.keys.is_administrator(escrowed.sender);
+            // An administrator's word stands for escrow wraps alone (it holds the escrow key).
+            let administrator = escrowed.escrow && self.keys.is_administrator(escrowed.sender);
             let (pinned, weak) = match (self.keys.root_pin(escrowed.block), escrowed.root) {
                 (
                     crate::keys::RootPin::Pinned(root) | crate::keys::RootPin::Weak(root),

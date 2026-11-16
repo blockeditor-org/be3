@@ -145,6 +145,9 @@ pub struct Escrowed {
     pub block: Uuid,
     pub sender: Uuid,
     pub root: Option<EntryHash>,
+    /// From an escrow wrap; else sealed to this account by a member who is not a contact
+    /// (signed access 3c), which is never trusted.
+    pub escrow: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -379,7 +382,11 @@ impl KeyBook {
                     && self.escrow_secret(by).is_some()
                     && !escrow.members.contains_key(&wrap.sender)
             }
-            WrappedBy::Account(_) => false,
+            WrappedBy::Account(account) => {
+                account == self.account
+                    && !escrow.members.contains_key(&wrap.sender)
+                    && self.sender(wrap.sender).is_none()
+            }
         })
     }
 
@@ -416,11 +423,18 @@ impl KeyBook {
         self.roots.lock().unwrap().pin(escrowed.block, root);
     }
 
-    /// Takes a key opened from an escrow wrap once its sender is found granted Edit or above in
-    /// the block's log rooted at `root`. `weak` when that root came from the wrap alone, from a
-    /// member: it is taken weakly (`Roots::weak`) and the key untrusted, so it vouches for
-    /// nothing, pins nothing it opens, and is handed on by no one.
+    /// Takes a key opened from an escrow wrap, or sealed by a member who is not a contact, once
+    /// its sender is found granted Edit or above in the block's log rooted at `root`. `weak`
+    /// when that root came from the wrap alone, from a member: it is taken weakly
+    /// (`Roots::weak`) and the key untrusted, so it vouches for nothing, pins nothing it opens,
+    /// and is handed on by no one; a key a non-contact sealed directly is untrusted always.
     pub fn take_escrowed(&self, key: Uuid, root: EntryHash, weak: bool) {
+        let escrow = self
+            .escrowed
+            .lock()
+            .unwrap()
+            .get(&key)
+            .is_some_and(|(escrowed, _)| escrowed.escrow);
         let Some((escrowed, secret)) = self.escrowed.lock().unwrap().remove(&key) else {
             return;
         };
@@ -433,7 +447,8 @@ impl KeyBook {
             }
         }
         self.ring.insert(key, ContentKey::from_bytes(secret));
-        if !weak {
+        // A key a member who is no contact sealed to this account is read, never vouched by.
+        if !weak && escrow {
             self.trusted.lock().unwrap().insert(key);
         }
     }
@@ -794,6 +809,30 @@ impl KeyBook {
         }
     }
 
+    /// Holds a key opened from `wrap` for `Peer::settle_escrowed`, when what it opened to is a
+    /// key of the block `row` names.
+    fn hold_escrowed(&self, wrap: &WrappedKey, row: KeyRow, plain: &[u8], escrow: bool) {
+        let Ok(carried) = CarriedKey::decode(plain) else {
+            return;
+        };
+        if carried.block != row.block.into_bytes() {
+            return;
+        }
+        self.escrowed.lock().unwrap().insert(
+            wrap.key,
+            (
+                Escrowed {
+                    key: wrap.key,
+                    block: row.block,
+                    sender: wrap.sender,
+                    root: carried.root,
+                    escrow,
+                },
+                carried.key,
+            ),
+        );
+    }
+
     fn unwrap(&self, wrap: &WrappedKey, row: Option<KeyRow>, vouched: bool) -> Option<Opened> {
         let block = row.map(|row| row.block);
         let bytes = match wrap.wrapped_by {
@@ -801,9 +840,28 @@ impl KeyBook {
                 if !self.accepts(wrap.sender, block, vouched) {
                     return None;
                 }
+                let Some(public) = self.sender(wrap.sender) else {
+                    // A member the organization's log names who is not a contact: opened with
+                    // the keys the log names, then held for `Peer::settle_escrowed`, as an
+                    // escrow wrap is.
+                    if vouched {
+                        return None;
+                    }
+                    let public = self.escrow.lock().unwrap().members.get(&wrap.sender)?.public;
+                    let from = Party {
+                        account: wrap.sender.into_bytes(),
+                        public,
+                    };
+                    let plain = self
+                        .identity
+                        .open_from(&from, self.account.into_bytes(), wrap.key.as_bytes(), &wrap.sealed)
+                        .ok()?;
+                    self.hold_escrowed(wrap, row?, &plain, false);
+                    return None;
+                };
                 let sender = Party {
                     account: wrap.sender.into_bytes(),
-                    public: self.sender(wrap.sender)?,
+                    public,
                 };
                 self.identity
                     .open_from(
@@ -831,22 +889,7 @@ impl KeyBook {
                     .escrow_secret(by)?
                     .open_from(&from, by.into_bytes(), wrap.key.as_bytes(), &wrap.sealed)
                     .ok()?;
-                let carried = CarriedKey::decode(&plain).ok()?;
-                if carried.block != row.block.into_bytes() {
-                    return None;
-                }
-                self.escrowed.lock().unwrap().insert(
-                    wrap.key,
-                    (
-                        Escrowed {
-                            key: wrap.key,
-                            block: row.block,
-                            sender: wrap.sender,
-                            root: carried.root,
-                        },
-                        carried.key,
-                    ),
-                );
+                self.hold_escrowed(wrap, row, &plain, true);
                 return None;
             }
             WrappedBy::Key(by) => {
