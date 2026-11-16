@@ -391,7 +391,8 @@ impl Stack {
         let mut view = self.base.clone();
         #[cfg(target_arch = "wasm32")]
         if self.handover.gone() && view.error.is_none() {
-            view.error = Some("be-host's worker stopped. Reload the page to start it again.".to_owned());
+            view.error =
+                Some("be-host's worker stopped. Reload the page to start it again.".to_owned());
         }
         // The page heard of these edits as it made them: laying them over a newer `Seen` tells
         // it nothing again.
