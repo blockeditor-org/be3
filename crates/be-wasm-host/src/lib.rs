@@ -229,6 +229,9 @@ impl Host {
         kept.extend(app.shape.imports.iter().map(|import| import.name.clone()));
         let mut trimmed = Vec::with_capacity(identities.len());
         for index in (0..identities.len()).rev() {
+            // A library's own imports too: dylink resolves its GOT.func and GOT.mem entries
+            // against its own exports first.
+            kept.extend(sources[index].1.imports.iter().map(|import| import.name.clone()));
             let mut names: Vec<&str> = kept.iter().map(String::as_str).collect();
             names.sort_unstable();
             let key = format!(
@@ -246,7 +249,6 @@ impl Host {
                 false => engine::trimmed(&sources[index].0, |name| kept.contains(name)),
             };
             trimmed.push((key, bytes));
-            kept.extend(sources[index].1.imports.iter().map(|import| import.name.clone()));
         }
         trimmed.reverse();
         let mut modules = Vec::with_capacity(identities.len() + 1);
