@@ -23,7 +23,7 @@ async fn a_block_whose_root_the_server_swaps_is_refused() {
         .unwrap();
 
     let made = owner.access_log(team).await.unwrap();
-    assert_eq!(made.len(), 1, "a new block's log is its root");
+    assert_eq!(made.len(), 2, "a new block's log is its root, then the grant sharing it");
     let reopened = harness.second(&member).await;
     assert_eq!(
         reopened.access_log(team).await.unwrap(),
