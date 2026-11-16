@@ -2,11 +2,12 @@
 // its block stacks (crates/be-host-stack/src/web.rs).
 //
 // Unlike a thread (thread.js), this worker has the module's JavaScript glue
-// beside it: it instantiates the module again against the page's shared memory
-// through the wasm-bindgen glue, which gives this instance a stack and
-// thread-local storage of its own, and then runs each work the page starts, a
-// named entry and the bytes it starts from (be-host's be_worker_run), as a
-// future on this worker's own event loop. Its sockets, timers and fetches
+// beside it and a memory of its own: it instantiates the module through the
+// wasm-bindgen glue (start, below), and then runs each work the page starts, a
+// named entry, the bytes it starts from and the port it talks to the page
+// through (be-host's be_worker_run), as a future on this worker's own event
+// loop. It shares no memory with the page: everything between them is a
+// message. Its sockets, timers and fetches
 // are its own, and its file calls wait for files.js rather than spin.
 //
 // A worker sees no import map, so the glue is loaded from a copy whose bare
@@ -40,12 +41,20 @@ async function glue() {
 
 let started = null;
 
-async function start({ module, memory, files, letters }) {
+// The worker's memory is its own, not the page's (plans/web_page_never_waits.md). A first
+// instance makes it, and is its main thread, which runs nothing after its start function; a
+// second on the same memory runs the work, on a stack of STACK_SIZE, as a thread's, where
+// wasm-bindgen's main thread has the linker's 1 MiB. A copy of the glue holds one instance, so
+// each is loaded on its own.
+async function start({ module, files, letters }) {
+    const memory = (await glue()).initSync({ module }).memory;
     wasi.bindMemory(memory);
     environment.bindMemory(memory);
     threads.bindThreads(module, memory);
     threads.bindLetters(letters);
     wasi.bindFiles(files);
+    // files.js answers this worker's file calls, in this memory (threads.js hands it on).
+    self.postMessage({ filesMemory: memory });
     const loaded = await glue();
     loaded.initSync({ module, memory, thread_stack_size: STACK_SIZE });
     return loaded;

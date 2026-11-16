@@ -16,8 +16,8 @@ and reads them at once.
 
 ## Why
 
-- The page must make no file call (plans/web_page_never_waits.md): a file call on the page
-  spins until `web/files.js` answers.
+- The page must make no file call (plans/web_page_never_waits.md): it shares no memory with
+  `web/files.js`'s callers and may not wait, so a file call on the page fails.
 - One copy the host reads and one file it is kept in: there is one way to read and change the
   host state, the same on every host, and the native host tests cover it.
 - The first screen depends on the saved accounts, so the page needs them before it shows one:

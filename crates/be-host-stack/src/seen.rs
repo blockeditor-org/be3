@@ -895,6 +895,9 @@ pub(crate) struct Handover {
     taken: (AtomicUsize, AtomicUsize),
     #[cfg(target_arch = "wasm32")]
     took: futures_util::task::AtomicWaker,
+    /// In the page's: the worker's end of the port went while the stack ran (`worker_gone`).
+    #[cfg(target_arch = "wasm32")]
+    gone: std::sync::atomic::AtomicBool,
 }
 
 /// How many updates the handover holds before the worker gathers them into one (`Handover`).
@@ -1144,6 +1147,18 @@ impl Handover {
         less(&self.held_bytes, bytes);
     }
 
+    /// On the page: the worker's end of the stack's port went while the stack ran.
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn worker_gone(&self) {
+        self.gone.store(true, Ordering::Release);
+    }
+
+    /// On the page: whether the worker went (`worker_gone`).
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn gone(&self) -> bool {
+        self.gone.load(Ordering::Acquire)
+    }
+
     /// In the worker: whether the page is to be woken (`wake_page`), once.
     #[cfg(target_arch = "wasm32")]
     pub(crate) fn take_wake(&self) -> bool {
@@ -1203,7 +1218,7 @@ impl Told {
         self.notices.extend(handed.notices);
     }
 
-    fn handed(self) -> Handed {
+    pub(crate) fn handed(self) -> Handed {
         Handed {
             update: None,
             changes: self.changes,

@@ -96,14 +96,21 @@ hands workers canvases instead (crates/be-host-runtime/src/web):
 The web build keeps the same files as native be-host, under `/be-host` in the origin private file
 system. WASI file calls go from `web/wasi.js` to `web/files.js`, a worker that owns the sync
 access handles; without OPFS (some private windows) it answers from memory and nothing
-survives a reload. Traps that shape this code:
+survives a reload. Only the host's worker (below) and the threads it starts make file calls,
+in its memory, which it names to `files.js` (`filesMemory`, `web/threads.js`). The page binds
+no channel (`refuseFiles`): a file call on it fails at once and says so on the console, naming
+the call (`own-memory-web-host-test`). Traps that shape this code:
 
 - SQLite's WASI build locks with a `NAME.lock` directory, which a reload mid-transaction leaves
   behind, so `be_block_sqlite_schema::open` uses the `unix-none` VFS on WASI; the `block-files`
   Web Lock keeps one tab as owner (a second tab waits for it).
-- The block stack (`be_host_stack::start`) runs in its own worker, `web/be-worker.js`: a second
-  instance of the module on the page's shared memory, with its own sockets and timers. Each
-  stack it starts waits for the previous one's end (a oneshot, `web.rs`), never polls for it.
+- The block stack (`be_host_stack::start`) runs in its own worker, `web/be-worker.js`: the
+  module instantiated again on a memory of the worker's own, which shares nothing with the
+  page's, with its own sockets and timers. A first instance makes that memory and stays idle as
+  its main thread; a second on it runs the work on an 8 MiB stack, since wasm-bindgen's main
+  thread gets the linker's 1 MiB and the stack runs SQLite and deep futures. Each stack it
+  starts waits for the previous one's end (a oneshot, `web.rs`), never polls for it, and reads
+  the app list itself (`discovery::load`).
   The same worker keeps the host's own files from start-up (be-host's `host_files`):
   `host.sqlite3` and the organizations each account last listed. The page starts each work
   there by a name, the bytes it starts from and a `MessagePort` (`be_host_stack::start_in_worker`,
@@ -111,7 +118,9 @@ survives a reload. Traps that shape this code:
   encoded (a stack's `Config`, `host_files`' data directory and its report's `Across`, which is
   its mailbox's number), and everything after goes over the port as bytes (guides/blocks/host.md,
   "What the page reads"). A port dropped tells the other end (an empty message), so an entry the
-  worker does not know drops its port and the page hears it stopped. `run_web` waits for
+  worker does not know drops its port and the page hears it stopped; a worker that fails (a
+  trap) drops nothing, so `web/threads.js` tells the page's ends itself on the worker's `error`,
+  and the page shows the stack's error (`Handover::gone`). `run_web` waits for
   what the host's files hold while the page's start-up look (`#status`) stays up, then hides
   it and shows the first screen; the page reads its copy and sends the worker each change
   (decisions/web_host_state_in_a_worker.md).
@@ -119,16 +128,13 @@ survives a reload. Traps that shape this code:
   `Condvar`, `web/wasi.js`'s file calls, `web/dylink.js`'s lock), woken by the side that
   changed the state. A browser traps `memory.atomic.wait` on the page's thread, so the page
   may never wait at all. A module's page entry calls `be_wasm_threads::initialize_page` and a
-  worker's `initialize_worker`; `be_wasm_threads::may_wait` tells them apart. Two waits on the
-  page remain until plans/web_page_never_waits.md lands: `be_wasm_threads::Mutex::lock`, for
-  the locks the page still shares with the stack's worker, spins on the page (and waits for
-  real everywhere else), and the page's file calls spin until `files.js` answers. Don't add a
-  third: a page that needs something another thread holds asks for it with a message. The
-  stack's state is not one of those locks: the page reads the `Seen` the worker hands over
-  in bytes through a lock-free stack (guides/blocks/host.md, "What the page reads").
+  worker's `initialize_worker`; `be_wasm_threads::may_wait` tells them apart. The page shares
+  no memory with a thread, so no lock it takes is ever held elsewhere; what is left of
+  plans/web_page_never_waits.md is dropping `be_wasm_threads::Mutex`, which still spins on the
+  page where std's would wait. A page that needs something another thread holds asks for it
+  with a message.
 - A letter a worker posts to one of the page's mailboxes (`be_host_base::host::Across::send`,
-  guides/desktop.md) takes no lock the page takes and is bytes, not a value in the shared heap:
-  the worker posts a copy of the letter's bytes on a `BroadcastChannel` whose name only the
+  guides/desktop.md) takes no lock the page takes and is bytes: the worker posts a copy of the letter's bytes on a `BroadcastChannel` whose name only the
   page's workers are given (`web/threads.js`, "be-letter-post"), and the page's handler hands
   them to `be_letter_arrived`, which puts the letter on the page's own list and wakes the
   host; the mailbox decodes it as it delivers it. One thread's letters arrive in the order it posted
