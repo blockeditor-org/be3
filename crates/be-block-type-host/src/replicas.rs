@@ -543,6 +543,11 @@ struct Open {
     epoch: u64,
     joining: bool,
     rejoining: Option<u64>,
+    /// Whether its made-up session held nothing past its head as its join began: what it took
+    /// while the join was on its way is then sealed before the answer is taken (`rejoined`).
+    joined_settled: bool,
+    /// A seal its join's answer waits for, of what its made-up session took meanwhile.
+    sealed_joining: bool,
     made_up: bool,
     early: Vec<Replayed>,
     /// How many local edits (`Replayed::local_edit`) were sent its module since the replica
@@ -1446,6 +1451,8 @@ impl<H: Host> Replicas<H> {
                 epoch: 0,
                 joining,
                 rejoining: None,
+                joined_settled: false,
+                sealed_joining: false,
                 made_up: joining,
                 early: Vec::new(),
                 sent,
@@ -3116,6 +3123,11 @@ impl<H: Host> Replicas<H> {
         };
         open.joining = true;
         open.rejoining = Some(rejoin);
+        open.joined_settled = open.made_up
+            && open.status.clean
+            && !open.unreported()
+            && peer.pending_commits(open.block).is_empty();
+        open.sealed_joining = false;
         open.held = None;
         open.early.clear();
         let block = open.block;
@@ -3167,8 +3179,9 @@ impl<H: Host> Replicas<H> {
         }
         // What its made-up session took while the join was on its way, after `created` asked a
         // seal of what it held, is committed here first: reopened on its head, it would be lost.
-        let unsealed = open.made_up && (!open.status.clean || open.unreported());
+        let unsealed = open.joined_settled && (!open.status.clean || open.unreported());
         if unsealed {
+            open.sealed_joining = true;
             self.seal_later(block, false);
         }
         if self.settling(replica) {
@@ -3188,10 +3201,11 @@ impl<H: Host> Replicas<H> {
         open.joining = false;
         open.rejoining = None;
         let early = std::mem::take(&mut open.early);
-        // What its made-up session sealed meanwhile is a commit the server lacks, which the
-        // server's journal does not reach: as `created` asks, it joins once a drain sent that,
-        // and lets go of this join meanwhile.
-        if open.made_up && !peer.pending_commits(block).is_empty() {
+        // What its made-up session sealed while the join was on its way is a commit the server
+        // lacks, which the server's journal does not reach: as `created` asks, it joins once a
+        // drain sent that, and lets go of this join meanwhile. Commits it held before joining
+        // are its head, which the replica reconciles with on reopening.
+        if open.made_up && open.sealed_joining && !peer.pending_commits(block).is_empty() {
             // The connection joined: it leaves, so it holds no lease nor hears the session.
             self.leave(shared, peer, block);
             self.uncreated.insert(block);
