@@ -18,6 +18,13 @@ pub trait App: 'static {
 pub trait Instance: std::any::Any {
     fn connect(&mut self, block_id: Uuid);
 
+    /// Opens as a host component on `block_id` (guides/apps/host_services.md, "Host
+    /// components"): connected as `connect` does, but never shown, so whatever it runs it runs
+    /// here.
+    fn connect_host(&mut self, block_id: Uuid) {
+        self.connect(block_id);
+    }
+
     fn connect_creation(&mut self, _template: String) {}
 
     fn create_block(&mut self) -> Result<Uuid, String> {
