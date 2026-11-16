@@ -139,6 +139,22 @@ pub(super) fn spawn(
     start(app, &module, host)
 }
 
+/// Tells be-wasm-host what every staged app imports, once, so the libraries they link are
+/// trimmed to that and compiled once for all of them (be_wasm_host::keep_exports).
+fn keep_staged_exports() {
+    static KEPT: std::sync::Once = std::sync::Once::new();
+    KEPT.call_once(|| {
+        let mut names = std::collections::HashSet::new();
+        for manifest in discovery::manifests() {
+            match discovery::open(&manifest.entry_point).and_then(be_wasm_host::imported_names) {
+                Ok(imported) => names.extend(imported),
+                Err(error) => eprintln!("{}: {error}", manifest.entry_point),
+            }
+        }
+        be_wasm_host::keep_exports(names);
+    });
+}
+
 fn start(
     app: &AppManifest,
     module: &str,
@@ -149,7 +165,10 @@ fn start(
     let mailbox = host.imports();
     let channel = host.spawn(
         format!("app {}", app.identity.id),
-        move |host| host.load_from(&module, discovery::open).map(Editor),
+        move |host| {
+            keep_staged_exports();
+            host.load_from(&module, discovery::open).map(Editor)
+        },
         Arc::new(be_host_base::host::wake),
         Arc::clone(&waiting),
         |run| be_host_base::panic_guard::contain(run),
