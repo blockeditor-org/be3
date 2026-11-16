@@ -69,7 +69,10 @@ pub(crate) enum Output {
     Inherited,
     Kept(Arc<Mutex<Vec<u8>>>),
     /// Kept, and written to the host's standard error unless held.
-    Tee { kept: Arc<Mutex<Vec<u8>>>, held: bool },
+    Tee {
+        kept: Arc<Mutex<Vec<u8>>>,
+        held: bool,
+    },
 }
 
 impl Output {
@@ -689,7 +692,11 @@ fn fd_readdir(call: &Call) -> Answer {
                 _ => 0,
             };
             let inode = entry.metadata().map_or(0, |metadata| identity(&metadata).1);
-            (entry.file_name().to_string_lossy().into_owned(), kind, inode)
+            (
+                entry.file_name().to_string_lossy().into_owned(),
+                kind,
+                inode,
+            )
         })
         .collect();
     listed.sort();
@@ -826,7 +833,10 @@ fn poll_oneoff(call: &Call) -> Answer {
         }
         let clock = call.read_u32(at.wrapping_add(16))?;
         let timeout = call.read_u64(at.wrapping_add(24))?;
-        let flags = u16::from_le_bytes([view.read(at.wrapping_add(40), 1)?[0], view.read(at.wrapping_add(41), 1)?[0]]);
+        let flags = u16::from_le_bytes([
+            view.read(at.wrapping_add(40), 1)?[0],
+            view.read(at.wrapping_add(41), 1)?[0],
+        ]);
         let wait = match flags & ABSOLUTE {
             0 => timeout,
             _ => timeout.saturating_sub(now(clock)),

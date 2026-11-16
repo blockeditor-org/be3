@@ -31,5 +31,12 @@ pub(crate) fn define<'s>(
     defined: &mut Defined<'s>,
     data: v8::Local<'s, v8::Value>,
 ) -> Result<(), String> {
-    crate::engine::function(scope, defined, abi::HOST_MODULE, abi::HOST_PANIC, data, host_panic)
+    crate::engine::function(
+        scope,
+        defined,
+        abi::HOST_MODULE,
+        abi::HOST_PANIC,
+        data,
+        host_panic,
+    )
 }
