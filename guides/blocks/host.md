@@ -98,8 +98,8 @@ reaching a `Part` mutably copies it, so hot paths ask first (`Graph::reports`, `
 `derives`, `wanted`) and write only on a change.
 
 The worker publishes at the end of each pass and before the host hears anything from it:
-change notices (`changes::post`) and the answers to the host's replies (`seen::hold_answer`,
-a flush's too) are held in the handover (`Handover::told`) and go in the next update that hands
+change notices (`changes::post`), the answers to the host's replies (`seen::hold_answer`,
+a flush's too) and the notices shown to the person (`seen::notice`) are held in the handover (`Handover::told`) and go in the next update that hands
 over the worker's `Seen`, whoever makes it: the one a task publishes once the worker yields,
 which then wakes the host, an edit the worker makes itself (`here_mut`), or a test's
 (`wait_until`, `with_shared_mut`), so the page never reads what the worker did without

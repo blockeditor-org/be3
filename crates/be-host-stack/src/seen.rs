@@ -888,7 +888,8 @@ pub(crate) struct Handover {
     /// `hold_answer`, `notice`), for whichever update hands over its `Seen` next: one the worker
     /// hands over as an edit of its own lands (`here_mut`), or a test's (`wait_until`), carries
     /// it as much as the one at the end of the worker's pass, so the page never reads what the
-    /// worker did without hearing of it. Only threads that may wait take it, never the page.
+    /// worker did without hearing of it. Only threads that may wait take it, never the page: on
+    /// the web only the worker's handover holds anything here.
     told: std::sync::Mutex<Told>,
     /// On the web, where the page and the worker each hold a handover of their own and the
     /// updates travel between them by message (`web.rs`): in the worker's, that the page is to
