@@ -208,7 +208,8 @@ struct Unanswered {
 /// A submission refused for a key this device does not hold yet (`ClientError::Locked`): its
 /// replica keeps waiting for the answer, and it is submitted again once keys arrive (`unlock`).
 /// A replica opened again since gives its edits again itself, so one held for an earlier
-/// opening is let go unanswered.
+/// opening is dropped: its reply answers `Unanswered`, which the reopened replica ignores as from
+/// an earlier opening (its epoch).
 struct Refused {
     replica: ReplicaId,
     module: usize,
@@ -3830,8 +3831,9 @@ impl<H: Host> Replicas<H> {
             if self.modules.generation(refused.module) != refused.generation {
                 continue;
             }
-            // One whose replica opened again is let go unanswered: the reopened replica has the
-            // same id, so an answer would land on it as if its own submission had failed.
+            // One whose replica opened again is dropped: the reopening gave its edits again, and
+            // the dropped reply answers `Unanswered`, which the reopened replica ignores as from
+            // an earlier opening (its epoch).
             if self.open.get(&refused.replica).map(|open| open.epoch) == Some(refused.epoch) {
                 self.submit(
                     ctx,

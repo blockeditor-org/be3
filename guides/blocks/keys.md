@@ -115,8 +115,9 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   refused for a missing key (by `sealing_key` or `keep_open_edits`) is held
   unanswered, its block locked, and submitted again by `unlock`. The session is
   fine, so nothing would reopen the replica to give it again. One whose replica
-  reopened meanwhile is let go unanswered, since the reopening gave its edits
-  again. So a grant may reach
+  reopened meanwhile is dropped, since the reopening gave its edits again: its
+  reply answers `Unanswered`, which the reopened replica ignores as from an
+  earlier opening. So a grant may reach
   a device before its key: a share's seal, a pending grant sealed later, or a
   seal key work asks of another editor all unlock it.
 - **Moving and sharing.** `Peer::set_parent` into another scope rewraps the
