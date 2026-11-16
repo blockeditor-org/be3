@@ -45,6 +45,22 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   holds but seals, wraps or hands over (`seal_to`, `wrap`, `escrow_wrap`,
   `Peer::sealing_key`, `Peer::offer`) only with trusted ones, so a key the
   server made up never protects anything new.
+- **Keys are bound to blocks where the server points.** Every key a device
+  holds has a block (`KeyBook::block_of`, filled by `mint` and `opened` alone).
+  What the server chooses for a block is opened only under one of that block's
+  keys, or fails with `ClientError::Forged(block)`. That covers the current key
+  (`Peer::sealing_key`), a head and its metadata (`Peer::load_head`,
+  `metadata_of`), a journal, a relay and a notification (`Peer::open_for`). A
+  key the device lacks still fails as missing. Otherwise a server could serve
+  what was sealed in an open block as a secret block's, and a reader of both
+  would show it there and write back under the secret block's key. Whatever is
+  reached by hash from a checked object inherits its binding and is read with
+  any held key, which is how version control crosses blocks: snapshot entries,
+  history pulled from an upstream, merge sides and reused parts
+  (a_fork_pulls_and_pushes_through_its_upstream in be-host-stack). So a new read
+  of a commit or a sealed payload by a hash or key the server named takes the
+  block it is for and goes through `load_head` or `open_for`, never through
+  `load_commit` or the vault directly.
 - **On the server**: tables `keys` (id, block, kind `data`/`scope`/`escrow`,
   epoch) and `wrapped_keys` (key, `wrapped_by`: a key id or `account:{uuid}`,
   sender set by the server to the storing account). `GetKeys` serves rows of
