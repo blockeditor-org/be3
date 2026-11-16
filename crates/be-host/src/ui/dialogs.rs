@@ -417,10 +417,14 @@ fn ContactsPanel(view: HostUiStore) -> NodeId {
                     let name = create_memo(move || row.get().name);
                     let detail = create_memo(move || {
                         let row = row.get();
-                        match row.verified {
-                            true => row.email,
-                            false if row.email.is_empty() => "Not confirmed yet".to_owned(),
-                            false => format!("{}, not confirmed yet", row.email),
+                        match (row.verified, row.rolled_back) {
+                            (true, true) => format!(
+                                "{}. The server sent an older key for them than this device has; it keeps the newer one.",
+                                row.email
+                            ),
+                            (true, false) => row.email,
+                            (false, _) if row.email.is_empty() => "Not confirmed yet".to_owned(),
+                            (false, _) => format!("{}, not confirmed yet", row.email),
                         }
                     });
                     view! {

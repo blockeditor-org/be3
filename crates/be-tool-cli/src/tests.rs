@@ -150,13 +150,16 @@ async fn agent(
             "Claude".into(),
             public.0,
             phrase.secret().signing().0,
-            be_block_client::contacts::card(
-                peer.account(),
-                peer.keys().identity(),
-                "Owner",
-                "owner@example.com",
+            be_block_client::contacts::OwnContact::new(
+                be_block_client::contacts::card(
+                    peer.account(),
+                    peer.keys().identity(),
+                    "Owner",
+                    "owner@example.com",
+                ),
+                0,
             )
-            .seal_own(&phrase.secret()),
+            .seal(&phrase.secret()),
             be_block_client::contacts::seal_pin(
                 &phrase.secret(),
                 organization,

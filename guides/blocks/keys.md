@@ -306,6 +306,23 @@ device seals a key only to a contact's public key verified that way.
   account keeps for itself (cards, link codes) is sealed with a key derived
   from its identity secret (`RecoverySecret::seal_own`): sealing to the public
   key would let the server forge a row the owner trusts.
+- **A contact's record** (`contacts::OwnContact`) is the card the account
+  verified and `verified`, a sequence set when it verified the card or
+  followed a key change, sealed to itself. The server cannot make one, but it
+  could serve an older one to bring back a key the contact replaced, so each
+  device pins the newest record of each contact it has seen (refs'
+  `Contacts`), refuses an older one, keeps sealing to the pinned key and
+  lists the contact as rolled back while the server serves it. Key changes are
+  followed from the record kept, since the server keeps them
+  (`key_changes`) until the contact is removed. A contact who connects again
+  by a new link, as one who lost their phrase must, gets a newer record, so a
+  new key needs no signed change.
+- **A contact's name and email** are the card's, as verified, never the
+  server's account row, which could name one contact as another so a share to
+  "Bob" sealed to Mallory. They are as the contact gave them in their link;
+  a contact who renames later keeps the old name until they connect again
+  (plans/backlog.md, 18). A contact whose card has not opened shows the row's,
+  marked as not confirmed, and nothing is sealed to it.
 - **Links** are one family (`contacts.wit`): a card sealed with the code, a
   lookup id derived from it, and an accept that makes the two accounts
   contacts. Its `link-kind` says what else accepting does: a `contact` link may
@@ -342,7 +359,8 @@ rows, refuse requests, and see who shares with whom, block shapes, sizes and
 timing. It cannot read content or metadata, and it cannot choose a key a device
 will seal with: keys sealed to an account are sender-authenticated and taken
 only from verified contacts; a contact's key changes only by a change sealed
-with the verified key; cards, codes, pending grants and invitation escrow keys
+with the verified key or a newer record of the account's own, never back to
+an older one, and a contact's name is the one it verified; cards, codes, pending grants and invitation escrow keys
 are sealed with codes it never sees; a device wraps only under keys it trusts;
 escrow keys are used only when pinned or signed down from a pinned one. It
 cannot sign as a contact: a contact's signing key comes from its card or a key

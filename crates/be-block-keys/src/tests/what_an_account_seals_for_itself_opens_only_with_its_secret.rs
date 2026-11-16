@@ -10,15 +10,15 @@ fn what_an_account_seals_for_itself_opens_only_with_its_secret() {
         display_name: "Grace".into(),
         email: "grace@example.com".into(),
     };
-    let sealed = card.seal_own(&mine);
-    assert_eq!(ContactCard::open_own(&mine, &sealed).unwrap(), card);
+    let sealed = mine.seal_own(&card.encode());
+    assert_eq!(mine.open_own(&sealed).unwrap(), card.encode());
     let other = RecoveryPhrase::generate().secret();
     assert_eq!(
-        ContactCard::open_own(&other, &sealed),
+        other.open_own(&sealed),
         Err(KeyError::Corrupt)
     );
     assert_eq!(
-        ContactCard::open_own(&mine, &mine.public().seal_anonymous(&card.encode())),
+        mine.open_own(&mine.public().seal_anonymous(&card.encode())),
         Err(KeyError::Corrupt),
         "anyone who knows the public key could seal a contact the owner would trust"
     );

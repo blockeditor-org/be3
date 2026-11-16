@@ -73,6 +73,7 @@ fn an_invite_link_joins_the_organization_and_makes_the_two_contacts() {
             &peer.connection(),
             peer.account(),
             &guest.phrase.secret(),
+            &Default::default(),
         ))
         .expect("the guest lists its contacts");
     assert_eq!(

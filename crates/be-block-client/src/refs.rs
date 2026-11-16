@@ -369,7 +369,7 @@ struct State {
     placed: HashMap<BlockParent, HashSet<Uuid>>,
     keys: HashMap<Uuid, KeyRow>,
     wraps: HashMap<(Uuid, WrappedBy), (u64, WrappedKey)>,
-    contacts: Vec<(Uuid, [u8; 32])>,
+    contacts: Vec<(Uuid, crate::contacts::OwnContact)>,
     /// Every contact's name as the server last listed it, so a push opened with no connection
     /// names its sender (`Peer::contact_name`).
     contact_names: Vec<(Uuid, String)>,
@@ -1296,12 +1296,17 @@ impl Refs {
         self.write(rows)
     }
 
-    pub fn contacts(&self) -> Vec<(Uuid, [u8; 32])> {
+    /// The newest record of each verified contact this device has seen, which a record the
+    /// server serves must not be older than (`contacts::contacts`).
+    pub fn contacts(&self) -> Vec<(Uuid, crate::contacts::OwnContact)> {
         self.state.lock().unwrap().contacts.clone()
     }
 
-    pub fn set_contacts(&self, mut contacts: Vec<(Uuid, [u8; 32])>) -> Result<(), StoreError> {
-        contacts.sort();
+    pub fn set_contacts(
+        &self,
+        mut contacts: Vec<(Uuid, crate::contacts::OwnContact)>,
+    ) -> Result<(), StoreError> {
+        contacts.sort_by_key(|(account, _)| *account);
         {
             let mut state = self.state.lock().unwrap();
             if state.contacts == contacts {
