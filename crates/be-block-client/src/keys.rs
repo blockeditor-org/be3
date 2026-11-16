@@ -15,6 +15,9 @@ pub struct KeyBook {
     organization: Uuid,
     identity: RecoverySecret,
     ring: Keyring,
+    /// The escrow secrets this device holds, by escrow key id: X25519 secrets, never content
+    /// keys, so kept out of `ring`, where an object whose header named one would open with it.
+    escrow_secrets: Mutex<HashMap<Uuid, [u8; 32]>>,
     rows: Mutex<Rows>,
     contacts: Mutex<HashMap<Uuid, RecoveryPublic>>,
     trusted: Mutex<HashSet<Uuid>>,
@@ -183,6 +186,7 @@ impl KeyBook {
             organization,
             identity,
             ring,
+            escrow_secrets: Mutex::default(),
             rows: Mutex::new(Rows::default()),
             contacts: Mutex::new(HashMap::new()),
             trusted: Mutex::new(HashSet::new()),
@@ -321,8 +325,7 @@ impl KeyBook {
         if !self.trusted.lock().unwrap().contains(&escrow.id) {
             return false;
         }
-        self.ring.get(escrow.id).is_some_and(|secret| {
-            let secret = EscrowSecret::from_bytes(*secret.as_bytes());
+        self.escrow_secret(escrow.id).is_some_and(|secret| {
             secret.public().0 == escrow.public && secret.signing() == escrow.signing
         })
     }
@@ -431,8 +434,10 @@ impl KeyBook {
         escrow.signature = self
             .identity
             .sign_escrow(&escrow.chained(self.organization, previous));
-        self.ring
-            .insert(escrow.id, ContentKey::from_bytes(secret.to_bytes()));
+        self.escrow_secrets
+            .lock()
+            .unwrap()
+            .insert(escrow.id, secret.to_bytes());
         self.trusted.lock().unwrap().insert(escrow.id);
         self.roots
             .lock()
@@ -483,12 +488,18 @@ impl KeyBook {
         &self.ring
     }
 
+    /// Whether this device holds `key`: a content key in `ring`, or an escrow secret.
     pub fn has(&self, key: Uuid) -> bool {
-        self.ring.contains(key)
+        self.ring.contains(key) || self.escrow_secrets.lock().unwrap().contains_key(&key)
     }
 
     pub fn trusted(&self, key: Uuid) -> bool {
-        self.trusted.lock().unwrap().contains(&key) && self.ring.contains(key)
+        self.trusted.lock().unwrap().contains(&key) && self.has(key)
+    }
+
+    fn escrow_secret(&self, escrow: Uuid) -> Option<EscrowSecret> {
+        let secret = *self.escrow_secrets.lock().unwrap().get(&escrow)?;
+        Some(EscrowSecret::from_bytes(secret))
     }
 
     pub fn trusted_plain(&self, key: Uuid) -> Result<ContentKey, StoreError> {
@@ -529,11 +540,14 @@ impl KeyBook {
     /// it pinned, so a root it took from nowhere trusted is never passed on as one it vouches
     /// for. A key this device cannot place is not handed on.
     pub fn carried_plain(&self, key: Uuid) -> Result<Vec<u8>, StoreError> {
-        let plain = self.trusted_plain(key)?;
+        let plain = match self.escrow_secrets.lock().unwrap().get(&key) {
+            Some(secret) if self.trusted(key) => *secret,
+            _ => *self.trusted_plain(key)?.as_bytes(),
+        };
         let roots = self.roots.lock().unwrap();
         let block = roots.blocks.get(&key).ok_or(StoreError::MissingKey(key))?;
         Ok(CarriedKey {
-            key: *plain.as_bytes(),
+            key: plain,
             block: block.into_bytes(),
             root: roots.pinned.get(block).copied(),
         }
@@ -582,20 +596,20 @@ impl KeyBook {
                     .iter()
                     .find_map(|wrap| self.unwrap(wrap, row, &escrows, true));
                 if let Some(bytes) = vouched {
-                    self.ring.insert(*key, ContentKey::from_bytes(bytes));
+                    self.hold(*key, bytes, &escrows);
                     self.trusted.lock().unwrap().insert(*key);
                     changed += 1;
                     progress = true;
                     continue;
                 }
-                if self.ring.contains(*key) {
+                if self.has(*key) {
                     continue;
                 }
                 if let Some(bytes) = wraps
                     .iter()
                     .find_map(|wrap| self.unwrap(wrap, row, &escrows, false))
                 {
-                    self.ring.insert(*key, ContentKey::from_bytes(bytes));
+                    self.hold(*key, bytes, &escrows);
                     changed += 1;
                     progress = true;
                 }
@@ -607,6 +621,16 @@ impl KeyBook {
         drop(rows);
         self.settle_escrow();
         changed
+    }
+
+    /// Keeps `bytes` as `key`: an escrow's secret apart from the content keys.
+    fn hold(&self, key: Uuid, bytes: [u8; 32], escrows: &HashSet<Uuid>) {
+        match escrows.contains(&key) {
+            true => {
+                self.escrow_secrets.lock().unwrap().insert(key, bytes);
+            }
+            false => self.ring.insert(key, ContentKey::from_bytes(bytes)),
+        }
     }
 
     fn unwrap(
@@ -640,10 +664,7 @@ impl KeyBook {
                 if vouched {
                     return None;
                 }
-                let secret = self.ring.get(by)?;
-                EscrowSecret::from_bytes(*secret.as_bytes())
-                    .open(&wrap.sealed)
-                    .ok()?
+                self.escrow_secret(by)?.open(&wrap.sealed).ok()?
             }
             WrappedBy::Key(by) => {
                 if be_block_store::sealed_key(&wrap.sealed).ok()? != by || !self.ring.contains(by) {
@@ -823,7 +844,7 @@ impl KeyBook {
 
     pub fn missing(&self, keys: impl IntoIterator<Item = Uuid>) -> HashSet<Uuid> {
         keys.into_iter()
-            .filter(|key| !self.ring.contains(*key))
+            .filter(|key| !self.has(*key))
             .collect()
     }
 }
