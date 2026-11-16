@@ -552,10 +552,10 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// Editors attached that wait for `resent` before they are sent their snapshot, and
     /// nothing of the content until then.
     holding: BTreeSet<EditorId>,
-    /// The snapshot each editor was told last, encoded, while nothing told it since changed
-    /// what it shows: a replica opened again in this one's place (`carry`) does not tell an
-    /// editor a snapshot it holds already.
-    snapshots_shown: BTreeMap<EditorId, Vec<u8>>,
+    /// The hash of the snapshot each editor was told last, encoded, while nothing told it
+    /// since changed what it shows: a replica opened again in this one's place (`carry`) does
+    /// not tell an editor a snapshot it holds already.
+    snapshots_shown: BTreeMap<EditorId, be_block_store::Hash>,
     projected: Settling<C>,
     landed: Vec<(Landed<C::Op>, Option<EditorId>)>,
     resnapshot: bool,
@@ -3417,8 +3417,9 @@ where
         // Opened again in place of a replica that told the editor this snapshot (its block's
         // session joined once its creation was sent), it shows it already.
         let snapshot = ToEditor::Snapshot(self.snapshot_for(editor));
-        if self.snapshots_shown.get(&editor) != Some(&snapshot.encode()) {
-            self.tell_editor(editor, &snapshot);
+        let bytes = snapshot.encode();
+        if self.snapshots_shown.get(&editor) != Some(&be_block_store::Hash::of(&bytes)) {
+            self.send_editor(editor, &snapshot, bytes);
         }
     }
 
@@ -3467,9 +3468,15 @@ where
 
     fn tell_editor(&mut self, editor: EditorId, message: &ToEditor) {
         let bytes = message.encode();
+        self.send_editor(editor, message, bytes);
+    }
+
+    /// Sends `message`, encoded as `bytes`, to `editor`.
+    fn send_editor(&mut self, editor: EditorId, message: &ToEditor, bytes: Vec<u8>) {
         match message {
             ToEditor::Snapshot(_) => {
-                self.snapshots_shown.insert(editor, bytes.clone());
+                self.snapshots_shown
+                    .insert(editor, be_block_store::Hash::of(&bytes));
             }
             ToEditor::Operations(_) => {
                 self.snapshots_shown.remove(&editor);
