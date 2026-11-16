@@ -771,7 +771,10 @@ impl<S: ObjectStore> Peer<S> {
             self.refs.contacts().into_iter().collect();
         for record in contacts.iter().filter_map(crate::Contact::record) {
             let account = Uuid::from_bytes(record.card.account);
-            if pinned.get(&account).is_none_or(|pin| pin.verified <= record.verified) {
+            if pinned
+                .get(&account)
+                .is_none_or(|pin| pin.verified <= record.verified)
+            {
                 pinned.insert(account, record);
             }
         }

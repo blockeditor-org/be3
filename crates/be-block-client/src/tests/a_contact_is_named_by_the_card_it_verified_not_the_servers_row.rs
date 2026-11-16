@@ -17,12 +17,18 @@ async fn a_contact_is_named_by_the_card_it_verified_not_the_servers_row() {
         .unwrap();
     let listed = owner.refresh_contacts().await.unwrap();
     let named = |account: Uuid| {
-        let contact = listed.iter().find(|contact| contact.account == account).unwrap();
+        let contact = listed
+            .iter()
+            .find(|contact| contact.account == account)
+            .unwrap();
         (contact.display_name.clone(), contact.email.clone())
     };
     assert_eq!(
         named(mallory.account()),
-        ("mallory@example.com".to_owned(), "mallory@example.com".to_owned()),
+        (
+            "mallory@example.com".to_owned(),
+            "mallory@example.com".to_owned()
+        ),
         "the server's row named Mallory as Bob"
     );
     assert_eq!(

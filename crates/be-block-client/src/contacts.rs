@@ -249,7 +249,9 @@ pub async fn contacts(
         let mismatch = match (&served, pin) {
             (_, None) => None,
             (None, Some(_)) => Some(Mismatch::Unreadable),
-            (Some(served), Some(pin)) => (served.verified < pin.verified).then_some(Mismatch::Older),
+            (Some(served), Some(pin)) => {
+                (served.verified < pin.verified).then_some(Mismatch::Older)
+            }
         };
         let mut record = match mismatch {
             Some(_) => pin.cloned(),
@@ -277,8 +279,7 @@ pub async fn contacts(
             put = true;
         }
         if let Some(record) = record.as_ref().filter(|_| put) {
-            client::contacts::put_contact(connection, row.account, record.seal(identity))
-                .await??;
+            client::contacts::put_contact(connection, row.account, record.seal(identity)).await??;
         }
         listed.push(match record {
             Some(record) => Contact {
@@ -634,8 +635,11 @@ pub async fn finish_links(
             let put = crate::ask(client::contacts::put_contact(
                 connection,
                 accepter,
-                OwnContact::new(card.clone(), served.get(&accepter).copied().unwrap_or_default())
-                    .seal(identity),
+                OwnContact::new(
+                    card.clone(),
+                    served.get(&accepter).copied().unwrap_or_default(),
+                )
+                .seal(identity),
             ))
             .await;
             match put {

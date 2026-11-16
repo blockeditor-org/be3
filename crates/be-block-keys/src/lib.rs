@@ -499,7 +499,6 @@ impl ContactCard {
             .map_err(|_| KeyError::Card)?;
         Self::decode(&plain)
     }
-
 }
 
 impl fmt::Display for InviteCode {

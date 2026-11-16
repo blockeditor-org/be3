@@ -57,7 +57,11 @@ async fn a_contacts_key_the_server_rolls_back_stays_the_newest_one_seen() {
     database
         .execute(
             "UPDATE contacts SET sealed = ?3 WHERE account_id = ?1 AND contact_id = ?2",
-            rusqlite::params![guest.account().to_string(), owner.account().to_string(), stale],
+            rusqlite::params![
+                guest.account().to_string(),
+                owner.account().to_string(),
+                stale
+            ],
         )
         .unwrap();
     database

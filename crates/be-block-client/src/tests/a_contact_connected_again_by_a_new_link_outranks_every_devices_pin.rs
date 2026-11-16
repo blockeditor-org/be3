@@ -39,7 +39,12 @@ async fn a_contact_connected_again_by_a_new_link_outranks_every_devices_pin() {
     let code = crate::contacts::make_link(
         &rosa.connection(),
         rosa.keys().identity(),
-        &crate::contacts::card(rosa.account(), rosa.keys().identity(), "Rosa", "rosa@example.com"),
+        &crate::contacts::card(
+            rosa.account(),
+            rosa.keys().identity(),
+            "Rosa",
+            "rosa@example.com",
+        ),
         None,
     )
     .await
@@ -65,9 +70,15 @@ async fn a_contact_connected_again_by_a_new_link_outranks_every_devices_pin() {
         .iter()
         .find(|contact| contact.account == rosa.account())
         .unwrap();
-    assert_eq!(contact.mismatch, None, "the new link's record read as a rollback");
+    assert_eq!(
+        contact.mismatch, None,
+        "the new link's record read as a rollback"
+    );
     assert!(contact.verified > dated_ahead.verified);
-    assert_eq!(contact.display_name, "Rosa", "the new link's card is the one kept");
+    assert_eq!(
+        contact.display_name, "Rosa",
+        "the new link's card is the one kept"
+    );
 
     harness.stop().await;
 }

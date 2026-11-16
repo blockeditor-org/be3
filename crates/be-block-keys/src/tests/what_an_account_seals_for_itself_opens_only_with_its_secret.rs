@@ -13,10 +13,7 @@ fn what_an_account_seals_for_itself_opens_only_with_its_secret() {
     let sealed = mine.seal_own(&card.encode());
     assert_eq!(mine.open_own(&sealed).unwrap(), card.encode());
     let other = RecoveryPhrase::generate().secret();
-    assert_eq!(
-        other.open_own(&sealed),
-        Err(KeyError::Corrupt)
-    );
+    assert_eq!(other.open_own(&sealed), Err(KeyError::Corrupt));
     assert_eq!(
         mine.open_own(&mine.public().seal_anonymous(&card.encode())),
         Err(KeyError::Corrupt),

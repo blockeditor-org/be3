@@ -110,7 +110,9 @@ impl Server {
         self.inner
             .runtime
             .block_on(self.inner.store.put_contact(of.id, contact.id, vec![7; 64]))
-            .unwrap_or_else(|error| panic!("the test server could not change the contact: {error}"));
+            .unwrap_or_else(|error| {
+                panic!("the test server could not change the contact: {error}")
+            });
     }
 
     /// A network of its own for one device, carrying its connections to the server.
