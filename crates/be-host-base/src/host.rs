@@ -124,6 +124,7 @@ impl<T: Send + serde::Serialize + serde::de::DeserializeOwned + 'static> Post<T>
         });
         Across {
             mailbox: self.mailbox,
+            #[cfg(not(target_arch = "wasm32"))]
             thread: self.thread,
             kind: PhantomData,
         }
@@ -132,9 +133,13 @@ impl<T: Send + serde::Serialize + serde::de::DeserializeOwned + 'static> Post<T>
 
 /// A post another thread sends to a mailbox with (`Post::across`): each letter goes as its
 /// bytes, and the mailbox decodes it as it delivers it. On the web this is the only way a
-/// worker's letter reaches the page.
+/// worker's letter reaches the page, and since only the page makes mailboxes there, an `Across`
+/// is its mailbox's number alone: it travels to a worker as bytes too (its serde form), in
+/// what the worker starts from (`be_host_stack::start_in_worker`).
 pub struct Across<T> {
     mailbox: u64,
+    /// Natively, the thread whose letters the mailbox is among.
+    #[cfg(not(target_arch = "wasm32"))]
     thread: ThreadId,
     kind: PhantomData<fn(T)>,
 }
@@ -143,6 +148,7 @@ impl<T> Clone for Across<T> {
     fn clone(&self) -> Self {
         Self {
             mailbox: self.mailbox,
+            #[cfg(not(target_arch = "wasm32"))]
             thread: self.thread,
             kind: PhantomData,
         }
@@ -152,7 +158,27 @@ impl<T> Clone for Across<T> {
 impl<T: serde::Serialize> Across<T> {
     pub fn send(&self, value: T) {
         let bytes = postcard::to_stdvec(&value).expect("a letter encodes");
+        #[cfg(not(target_arch = "wasm32"))]
         letters::post_bytes(self.thread, self.mailbox, bytes);
+        #[cfg(target_arch = "wasm32")]
+        letters::post_bytes(self.mailbox, bytes);
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl<T> serde::Serialize for Across<T> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_u64(self.mailbox)
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl<'de, T> serde::Deserialize<'de> for Across<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(Self {
+            mailbox: <u64 as serde::Deserialize>::deserialize(deserializer)?,
+            kind: PhantomData,
+        })
     }
 }
 

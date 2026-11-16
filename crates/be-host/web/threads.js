@@ -102,11 +102,13 @@ export { threadSpawn as "thread-spawn" };
 // The host's worker (be-worker.js), which keeps the host's files and runs its
 // block stacks, started with the first work handed to it and kept for the
 // page's life: what a stack opened there, such as its sockets, belongs to that
-// worker's JavaScript.
+// worker's JavaScript. Each work is a named entry and the bytes it starts from
+// (be_host_stack::start_in_worker), copied out of the page's memory here, as
+// they would be for a worker with a memory of its own.
 /** @type {Worker | null} */
 let stackWorker = null;
 
-function stackWorkerStart(entry) {
+function stackWorkerStart(entryPointer, entryLength, pointer, length) {
     if (context === null) {
         console.error("the block stack was started before bindThreads was called");
         return;
@@ -123,7 +125,12 @@ function stackWorkerStart(entry) {
             letters: lettersChannel(),
         });
     }
-    stackWorker.postMessage({ entry: entry >>> 0 });
+    const copy = (at, length) =>
+        new Uint8Array(context.memory.buffer).slice(at >>> 0, (at >>> 0) + (length >>> 0));
+    stackWorker.postMessage({
+        entry: new TextDecoder().decode(copy(entryPointer, entryLength)),
+        bytes: copy(pointer, length),
+    });
 }
 
 export { stackWorkerStart as "be-worker-start" };

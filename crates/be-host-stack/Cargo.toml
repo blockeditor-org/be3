@@ -48,8 +48,6 @@ be-wasm-host = { path = "../be-wasm-host" }
 tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "time"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-js-sys = "0.3"
-wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]

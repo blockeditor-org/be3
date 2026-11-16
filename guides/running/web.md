@@ -104,9 +104,13 @@ survives a reload. Traps that shape this code:
 - The block stack (`be_host_stack::start`) runs in its own worker, `web/be-worker.js`: a second
   instance of the module on the page's shared memory, with its own sockets and timers. Each
   stack it starts waits for the previous one's end (a oneshot, `web.rs`), never polls for it.
-  The same worker keeps the host's own files from start-up (be-host's `host_files`,
-  `be_host_stack::run_in_worker`): `host.sqlite3` and the organizations each account last
-  listed. `run_web` waits for what they hold while the page's start-up look (`#status`) stays
+  The same worker keeps the host's own files from start-up (be-host's `host_files`):
+  `host.sqlite3` and the organizations each account last listed. The page starts each work
+  there by a name and the bytes it starts from (`be_host_stack::start_in_worker`; be-host's
+  `be_worker_run` names every entry), never a closure: what is data travels encoded (a stack's
+  `Config`, `host_files`' data directory and its report's `Across`, which is its mailbox's
+  number), and the channels the two sides talk through are left by number in a table
+  (`be_host_stack::Transports`) until each becomes a message port. `run_web` waits for what they hold while the page's start-up look (`#status`) stays
   up, then hides it and shows the first screen; the page reads its copy and sends the worker
   each change (decisions/web_host_state_in_a_worker.md).
 - Nothing may spin or poll while it waits; a worker waits with `Atomics.wait` (std's locks and

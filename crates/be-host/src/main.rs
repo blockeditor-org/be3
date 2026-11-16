@@ -199,6 +199,28 @@ fn hand_over(
     Ok(())
 }
 
+/// In the host's worker (`web/be-worker.js`): runs the work the page started there under the
+/// name `entry`, from the bytes it sent (`be_host_stack::start_in_worker`). Every entry is
+/// named here.
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen::prelude::wasm_bindgen]
+pub fn be_worker_run(entry: String, bytes: Vec<u8>) -> web_sys::js_sys::Promise {
+    be_wasm_threads::initialize_worker();
+    let work: std::pin::Pin<Box<dyn std::future::Future<Output = ()>>> = match entry.as_str() {
+        be_host_stack::STACK_ENTRY => Box::pin(be_host_stack::run_stack(bytes)),
+        host_files::ENTRY => Box::pin(host_files::keep(bytes)),
+        _ => {
+            return web_sys::js_sys::Promise::reject(&wasm_bindgen::JsValue::from_str(&format!(
+                "the host's worker has no entry named {entry}"
+            )));
+        }
+    };
+    wasm_bindgen_futures::future_to_promise(async move {
+        work.await;
+        Ok(wasm_bindgen::JsValue::UNDEFINED)
+    })
+}
+
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
