@@ -561,8 +561,16 @@ impl EscrowSecret {
         self.signing_key().sign(message).to_bytes().to_vec()
     }
 
-    pub fn open(&self, sealed: &[u8]) -> Result<Vec<u8>, KeyError> {
-        RecoverySecret::from_bytes(self.0).open_anonymous(sealed)
+    /// Opens what `from` sealed to this escrow key, named `escrow` (its id), with
+    /// `RecoverySecret::seal_for`: a wrap only a sender holding `from`'s identity key made.
+    pub fn open_from(
+        &self,
+        from: &Party,
+        escrow: [u8; 16],
+        context: &[u8],
+        sealed: &[u8],
+    ) -> Result<Vec<u8>, KeyError> {
+        RecoverySecret::from_bytes(self.0).open_from(from, escrow, context, sealed)
     }
 }
 
