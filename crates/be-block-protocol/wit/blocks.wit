@@ -309,7 +309,13 @@ interface blocks {
     /// Deletes the detached blocks nothing reaches any more.
     collect-detached: async func() -> result<collected, error>;
 
-    set-access: async func(block: block-id, account: account-id, access: access-level) -> result<_, error>;
+    /// Sets `account`'s access to `block`. `signed` is the signed grant
+    /// (be_block_keys::Grant) the server appends to the block's access log
+    /// once it checks there: needed for any access above none, and to revoke
+    /// a grant the log names. Grants to anyone inside and to the server's own
+    /// account are standing exceptions that no device seals to by grant, and
+    /// take none.
+    set-access: async func(block: block-id, account: account-id, access: access-level, signed: option<list<u8>>) -> result<_, error>;
 
     list-access: async func(block: block-id) -> result<access-list, error>;
 }

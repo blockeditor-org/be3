@@ -41,9 +41,7 @@ pub(super) async fn join(
 }
 
 async fn grant(owner: &mut TestClient, block: Uuid, account: Uuid, access: Access) {
-    let response = owner
-        .call(|peer| client::blocks::set_access(peer, block, account, access))
-        .await;
+    let response = owner.grant(block, account, access).await;
     assert!(matches!(response, Ok(())), "{response:?}");
 }
 

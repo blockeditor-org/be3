@@ -71,9 +71,7 @@ async fn a_block_shared_from_a_hidden_folder_is_listed_as_shared() {
     assert_eq!(listed(&mut guest, false).await, [own]);
     assert!(listed(&mut guest, true).await.is_empty());
 
-    let response = owner
-        .call(|peer| client::blocks::set_access(peer, inside, account, Access::View))
-        .await;
+    let response = owner.grant(inside, account, Access::View).await;
     assert!(matches!(response, Ok(())), "{response:?}");
     assert_eq!(
         listed(&mut guest, true).await,
@@ -82,9 +80,7 @@ async fn a_block_shared_from_a_hidden_folder_is_listed_as_shared() {
     );
     assert_eq!(listed(&mut guest, false).await, [own]);
 
-    let response = owner
-        .call(|peer| client::blocks::set_access(peer, folder, account, Access::View))
-        .await;
+    let response = owner.grant(folder, account, Access::View).await;
     assert!(matches!(response, Ok(())), "{response:?}");
     assert!(
         listed(&mut guest, true).await.is_empty(),

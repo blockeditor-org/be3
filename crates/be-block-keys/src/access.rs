@@ -103,7 +103,7 @@ fn endorsed(account: [u8; 16], new: &PublicIdentity) -> Vec<u8> {
 
 /// What a log is the log of, so a block's records never verify as an organization's, nor the
 /// other way round.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum LogKind {
     Block,
     Organization,
@@ -476,4 +476,37 @@ impl Checked {
         };
         manages.then(|| self.signers.get(&account).copied()).flatten()
     }
+}
+
+/// The logs `answer` reads another log's grants from, and the tree it trusts for which block is
+/// above which (the server's until parents are signed).
+pub struct Logs<'a> {
+    pub organization: [u8; 16],
+    /// A log's pinned root and its entries, root first, as far as the reader holds it.
+    pub log: &'a dyn Fn(LogKind, [u8; 16]) -> Option<(EntryHash, Vec<Entry>)>,
+    /// Whether the first block is above the second.
+    pub above: &'a dyn Fn([u8; 16], [u8; 16]) -> bool,
+}
+
+/// `check_log`'s `outside` for the log of `block`, from `logs`: the signer's key in the log a
+/// grant names its authority in, checked as of the entry it names, if they managed there then.
+pub fn answer(
+    logs: &Logs,
+    block: [u8; 16],
+    signer: [u8; 16],
+    authority: &Authority,
+) -> Option<SigningPublic> {
+    let (kind, log, head) = match *authority {
+        Authority::Log => return None,
+        Authority::Organization(head) => (LogKind::Organization, logs.organization, head),
+        Authority::Inherited { block: above, head } if (logs.above)(above, block) => {
+            (LogKind::Block, above, head)
+        }
+        Authority::Inherited { .. } => return None,
+    };
+    let (pinned, entries) = (logs.log)(kind, log)?;
+    let outside = |signer: [u8; 16], authority: &Authority| answer(logs, log, signer, authority);
+    check_log_as_of(kind, log, pinned, &entries, head, &outside)
+        .ok()?
+        .manager(kind, signer)
 }

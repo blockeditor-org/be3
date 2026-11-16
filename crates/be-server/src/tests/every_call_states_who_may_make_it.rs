@@ -332,7 +332,7 @@ impl TestClient {
             ),
             (
                 "set-access",
-                answered(client::blocks::set_access(peer, block, other, Access::Manage).await),
+                answered(client::blocks::set_access(peer, block, other, Access::Manage, None).await),
             ),
             (
                 "list-access",

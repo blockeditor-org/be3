@@ -1,7 +1,11 @@
 //! Access logs (plans/signed_access.md): each block's signed records, root first, kept in the
 //! clear and checked here as devices check them, so a good server and a device never disagree.
 
-use be_block_keys::{Entry, LogKind, PublicIdentity, Record, RecoveryPublic, SigningPublic};
+use be_block_keys::{
+    Authority, Checked, Entry, EntryHash, Level, LogKind, Logs, PublicIdentity, Record,
+    RecoveryPublic, SigningPublic,
+};
+use be_block_graph::{Access, BlockGraph};
 use be_block_protocol::ErrorCode;
 use be_block_protocol::{Retirement, SignedLog};
 use rusqlite::{Connection, OptionalExtension, params};
@@ -289,5 +293,127 @@ pub(crate) fn append_retirements(
             )?,
         };
     }
+    Ok(())
+}
+
+/// `access` as an access log's level.
+pub(crate) fn level(access: Access) -> Level {
+    match access {
+        Access::None => Level::None,
+        Access::KnowExists => Level::KnowExists,
+        Access::View => Level::View,
+        Access::Edit => Level::Edit,
+        Access::Manage => Level::Manage,
+    }
+}
+
+/// A log's root, as the server stored it once it checked, and its entries.
+fn held(
+    connection: &Connection,
+    kind: LogKind,
+    organization: Uuid,
+    log: Uuid,
+) -> Option<(EntryHash, Vec<Entry>)> {
+    let entries = entries(connection, kind, organization, log).ok()?;
+    Some((entries.first()?.hash(), entries))
+}
+
+/// The log of `block` checked to its head, as a device checks it, with the authority each grant
+/// names read from the server's logs and its tree.
+pub(crate) fn checked_block_log(
+    connection: &Connection,
+    graph: &BlockGraph,
+    organization: Uuid,
+    block: Uuid,
+    entries: &[Entry],
+) -> Result<Checked, ServerError> {
+    let log = |kind: LogKind, log: [u8; 16]| {
+        held(connection, kind, organization, Uuid::from_bytes(log))
+    };
+    let above = |above: [u8; 16], below: [u8; 16]| {
+        let above = Uuid::from_bytes(above);
+        graph
+            .ancestors(Uuid::from_bytes(below))
+            .any(|ancestor| ancestor == above)
+    };
+    let logs = Logs {
+        organization: organization.into_bytes(),
+        log: &log,
+        above: &above,
+    };
+    let pinned = entries.first().map(Entry::hash).ok_or(ServerError::Corrupt)?;
+    let outside = |signer: [u8; 16], authority: &Authority| {
+        be_block_keys::answer(&logs, block.into_bytes(), signer, authority)
+    };
+    be_block_keys::check_log(LogKind::Block, block.into_bytes(), pinned, entries, &outside)
+        .map_err(|_| refused("the record does not follow the log it goes in"))
+}
+
+/// Whether `block`'s log names a grant to `account` above none: one a revocation must then be
+/// signed for.
+pub(crate) fn names_grant(
+    connection: &Connection,
+    graph: &BlockGraph,
+    organization: Uuid,
+    block: Uuid,
+    account: Uuid,
+) -> Result<bool, ServerError> {
+    let entries = entries(connection, LogKind::Block, organization, block)?;
+    if entries.is_empty() {
+        return Ok(false);
+    }
+    let checked = checked_block_log(connection, graph, organization, block, &entries)?;
+    Ok(checked
+        .grants
+        .get(&account.into_bytes())
+        .is_some_and(|(level, _)| *level > Level::None))
+}
+
+/// Appends `record`, signed by `signer`, to `block`'s log once it checks at its head: a grant of
+/// `access` to `grantee` naming the keys the server holds for them (or any, revoking).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn append_grant(
+    connection: &Connection,
+    graph: &BlockGraph,
+    organization: Uuid,
+    block: Uuid,
+    signer: Uuid,
+    grantee: Uuid,
+    access: Access,
+    record: &[u8],
+) -> Result<(), ServerError> {
+    let entry = Entry::decode(record).map_err(|_| refused("the record does not read"))?;
+    let Record::Grant(grant) = &entry.record else {
+        return Err(refused("access is set by a grant record"));
+    };
+    if entry.signer != signer.into_bytes()
+        || grant.grantee != grantee.into_bytes()
+        || grant.level != level(access)
+    {
+        return Err(refused(
+            "the grant record is signed by its caller and grants what the call sets",
+        ));
+    }
+    if access > Access::None && identity_of(connection, grantee)? != Some(grant.identity) {
+        return Err(refused("a grant names the keys its grantee holds now"));
+    }
+    let mut entries = entries(connection, LogKind::Block, organization, block)?;
+    if entries.is_empty() {
+        return Err(refused("the block has no access log"));
+    }
+    let position = entries.len();
+    entries.push(entry.clone());
+    checked_block_log(connection, graph, organization, block, &entries)?;
+    connection.execute(
+        "INSERT INTO access_log (organization_id, block_id, position, entry, signer)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![
+            organization.to_string(),
+            block.to_string(),
+            position,
+            entry.encode(),
+            signer.to_string()
+        ],
+    )?;
     Ok(())
 }
