@@ -10,7 +10,11 @@ fn a_copy_put_in_a_childs_place_in_a_text_made_offline_is_taken() {
     let mut harness = Harness::start();
     harness.connect();
     let (notes, source) = (Uuid::new_v4(), Uuid::new_v4());
-    wait_until("knew text", |_| is_known(TextContent::CONTENT_TYPE));
+    // A device that never reached its organization cannot work offline, so the server goes
+    // once the device has joined, not as soon as text is known: the registry of types is the
+    // process's, which an earlier test may have filled before this stack connected.
+    wait_until("connected", |shared| shared.connected);
+    assert!(is_known(TextContent::CONTENT_TYPE), "text is known once connected");
     harness.stop_server();
     wait_until("noticed the server was gone", |shared| !shared.connected);
     let link = be_block_content::block_url::block_url("", Uuid::nil(), source);
