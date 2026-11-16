@@ -31,9 +31,19 @@ pub struct Contact {
     /// When this account verified the card or last followed a key change (`OwnContact`); 0
     /// while unverified.
     pub verified: u64,
-    /// Whether the server served an older record of this contact than this device had seen,
-    /// as it would to bring back a key the contact replaced: the device kept its own.
-    pub rolled_back: bool,
+    /// How the server's record of this contact differed from the newest this device had
+    /// seen, which it kept and seals to; `None` when it served that one or a newer one.
+    pub mismatch: Option<Mismatch>,
+}
+
+/// What was wrong with the record the server served for a contact this device had pinned.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub enum Mismatch {
+    /// An older record, as a server bringing back a key the contact replaced would serve.
+    Older,
+    /// One that does not open: changed, or sealed under a new phrase this account took on
+    /// another device, which this one then needs too.
+    Unreadable,
 }
 
 impl Contact {
@@ -221,7 +231,7 @@ fn tampered() -> ClientError {
 
 /// The account's contacts as the server lists them, each checked against `pinned`, the newest
 /// record of it this device has seen: an older record the server serves is refused for the
-/// pinned one, and the contact listed as rolled back for as long as the server serves it (only
+/// pinned one, and the contact listed with the mismatch for as long as the server serves it (only
 /// a server that misbehaves does, so writing the pinned one back would change nothing). Key
 /// changes are followed from the record kept.
 pub async fn contacts(
@@ -236,14 +246,14 @@ pub async fn contacts(
     for row in contacts {
         let served = OwnContact::open(identity, &row.sealed, row.account);
         let pin = pinned.get(&row.account);
-        let rolled_back = pin.is_some_and(|pin| {
-            served
-                .as_ref()
-                .is_none_or(|served| served.verified < pin.verified)
-        });
-        let mut record = match rolled_back {
-            true => pin.cloned(),
-            false => served,
+        let mismatch = match (&served, pin) {
+            (_, None) => None,
+            (None, Some(_)) => Some(Mismatch::Unreadable),
+            (Some(served), Some(pin)) => (served.verified < pin.verified).then_some(Mismatch::Older),
+        };
+        let mut record = match mismatch {
+            Some(_) => pin.cloned(),
+            None => served,
         };
         let mut put = false;
         if let Some(record) = &mut record
@@ -278,7 +288,7 @@ pub async fn contacts(
                 public: Some(record.card.public),
                 signing: Some(record.card.signing),
                 verified: record.verified,
-                rolled_back,
+                mismatch,
             },
             None => Contact {
                 account: row.account,
@@ -287,7 +297,7 @@ pub async fn contacts(
                 public: None,
                 signing: None,
                 verified: 0,
-                rolled_back: false,
+                mismatch: None,
             },
         });
     }
@@ -532,6 +542,24 @@ pub async fn open_link(
     Ok((link, card))
 }
 
+/// The `verified` of each contact's record the server holds, by contact. A record a link
+/// makes follows it, so a contact verified again by a new link outranks every record of it any
+/// device of this account pinned, whatever the devices' clocks say: each pinned one was served
+/// or written back there (`contacts`).
+async fn served_verified(
+    connection: &Arc<Connection>,
+    identity: &RecoverySecret,
+) -> Result<HashMap<Uuid, u64>, ClientError> {
+    Ok(client::contacts::list_contacts(connection)
+        .await??
+        .into_iter()
+        .filter_map(|row| {
+            let record = OwnContact::open(identity, &row.sealed, row.account)?;
+            Some((row.account, record.verified))
+        })
+        .collect())
+}
+
 /// Accepts a link of the kind `expected`: a contact link's grant, or an invitation's escrow
 /// key, is sealed to `identity` as it is taken.
 pub async fn accept_link(
@@ -542,6 +570,11 @@ pub async fn accept_link(
     expected: Expected,
 ) -> Result<(Link, ContactCard), ClientError> {
     let (link, card) = open_link(connection, code, expected).await?;
+    let after = served_verified(connection, identity)
+        .await?
+        .get(&Uuid::from_bytes(card.account))
+        .copied()
+        .unwrap_or_default();
     let key = match &link.kind {
         LinkKind::Contact(Some(grant)) => {
             let secret = code
@@ -568,7 +601,7 @@ pub async fn accept_link(
         connection,
         link.id,
         me.seal(code, CardRole::Accepter),
-        OwnContact::new(card.clone(), 0).seal(identity),
+        OwnContact::new(card.clone(), after).seal(identity),
         key,
     )
     .await??;
@@ -581,6 +614,10 @@ pub async fn finish_links(
     organization: Uuid,
 ) -> Result<Vec<Finished>, ClientError> {
     let links = client::contacts::list_links(connection).await??;
+    let served = match links.iter().any(|link| link.accepter.is_some()) {
+        true => served_verified(connection, identity).await?,
+        false => HashMap::new(),
+    };
     let mut finished = Vec::new();
     for link in links {
         let Some(accepter) = link.accepter else {
@@ -597,7 +634,8 @@ pub async fn finish_links(
             let put = crate::ask(client::contacts::put_contact(
                 connection,
                 accepter,
-                OwnContact::new(card.clone(), 0).seal(identity),
+                OwnContact::new(card.clone(), served.get(&accepter).copied().unwrap_or_default())
+                    .seal(identity),
             ))
             .await;
             match put {

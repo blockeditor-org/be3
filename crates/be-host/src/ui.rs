@@ -275,8 +275,8 @@ pub(crate) struct ContactRow {
     pub(crate) name: String,
     pub(crate) email: String,
     pub(crate) verified: bool,
-    /// The server served an older record of this contact than this device had seen.
-    pub(crate) rolled_back: bool,
+    /// How the server's record of this contact differed from the one this device kept.
+    pub(crate) mismatch: Option<be_block_client::contacts::Mismatch>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]

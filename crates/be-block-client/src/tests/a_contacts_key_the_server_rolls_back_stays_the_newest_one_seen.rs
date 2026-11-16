@@ -76,7 +76,11 @@ async fn a_contacts_key_the_server_rolls_back_stays_the_newest_one_seen() {
         .iter()
         .find(|contact| contact.account == owner.account())
         .unwrap();
-    assert!(contact.rolled_back, "the list says the server served an older key");
+    assert_eq!(
+        contact.mismatch,
+        Some(crate::contacts::Mismatch::Older),
+        "the list says the server served an older key"
+    );
 
     harness.stop().await;
 }
