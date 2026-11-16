@@ -265,7 +265,24 @@ impl HostTest {
             return;
         }
         self.check_editors();
+        self.check_stopped();
         self.run(&["wait", target]);
+    }
+
+    /// Fails at once, naming the app, when one has stopped (it panicked, trapped or stopped
+    /// responding, guides/apps/runtime.md, When an app stops), rather than when a wait for what
+    /// it would have shown runs out: the host says so in a toast, `NAME stopped: REASON`.
+    fn check_stopped(&mut self) {
+        let tree = self.tree();
+        let Some(toast) = tree.lines().find_map(|line| {
+            let said = line.trim().strip_prefix("Alert \"")?.split('"').next()?;
+            said.contains(" stopped: ").then_some(said)
+        }) else {
+            return;
+        };
+        self.fail(&format!(
+            "an app stopped while this test waited: {toast}. \"The app stopped responding\" is a step that ran past STEP_TIMEOUT, which a crowded build server can cause."
+        ));
     }
 
     fn within(&mut self, timeout: Duration, words: &[&str]) -> Result<Reply, String> {
