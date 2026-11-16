@@ -354,11 +354,6 @@ fn build(apps: Option<&[String]>) -> Result<Built, String> {
     })
 }
 
-/// One run of the tests named, which fails with what went wrong: the panic's message, how the
-/// harness ended when it did not panic, that it ran past `limit` and was killed, or that a
-/// painting differs from the accepted one. The run writes its paintings into `paintings`/made
-/// (MADE_PAINTINGS) rather than comparing them itself, so that every run keeps its own: those
-/// that differ stay in `paintings`/changed with a `.why` beside each, and the rest is removed.
 /// How many of the harness's tests have names containing `name`, as libtest lists them.
 fn matching(built: &Built, name: &str) -> Result<usize, String> {
     let output = Command::new(&built.harness)
@@ -382,6 +377,11 @@ fn listed_tests(listing: &str) -> usize {
         .count()
 }
 
+/// One run of the tests named, which fails with what went wrong: the panic's message, how the
+/// harness ended when it did not panic, that it ran past `limit` and was killed, or that a
+/// painting differs from the accepted one. The run writes its paintings into `paintings`/made
+/// (MADE_PAINTINGS) rather than comparing them itself, so that every run keeps its own: those
+/// that differ stay in `paintings`/changed with a `.why` beside each, and the rest is removed.
 fn once(built: &Built, options: &Options, log: &Path, paintings: &Path) -> Result<(), String> {
     let limit = options.limit;
     let made = paintings.join("made");
