@@ -14,5 +14,5 @@ An editor's tests, and those of beui-demo and the other crates that paint as app
 ## Since
 
 November 2026: every guest, the app tests included, now runs on V8 instead of wasmtime
-(plans/wasm_on_v8.md); crates/be-sdk-test-runner is still the same runtime be-host opens an app
+(decisions/guests_run_on_v8.md); crates/be-sdk-test-runner is still the same runtime be-host opens an app
 with, so the decision stands.

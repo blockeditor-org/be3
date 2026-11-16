@@ -17,6 +17,6 @@ change.
 
 ## Since
 
-November 2026: every guest now runs on V8 and precompilation was removed (plans/wasm_on_v8.md),
+November 2026: every guest now runs on V8 and precompilation was removed (decisions/guests_run_on_v8.md),
 so test modules are no longer precompiled and `--quick` is gone; V8 compiles each module as it
 loads. The opt levels still stand.

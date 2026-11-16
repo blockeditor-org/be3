@@ -22,6 +22,6 @@ So the saving would cost a change to how everything links, for a minority of eac
 
 ## Since
 
-November 2026: guests now run on V8 (plans/wasm_on_v8.md), so wasmtime and Cranelift are no
+November 2026: guests now run on V8 (decisions/guests_run_on_v8.md), so wasmtime and Cranelift are no
 longer among the crates a test binary links; be-host links rusty_v8's prebuilt static library
 instead. The decision stands.
