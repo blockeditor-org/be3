@@ -78,7 +78,7 @@ fn blocks_moved_renamed_and_deleted_offline_reach_the_server_on_reconnect() {
             .expect("the deleted block exists");
         let note = peer.summary(note).await.expect("the renamed block exists");
         let name = peer
-            .metadata_of(note.head.expect("the note has content"))
+            .metadata_of(note.id, note.head.expect("the note has content"))
             .await
             .expect("the note's metadata opens")
             .name();

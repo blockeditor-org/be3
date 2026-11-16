@@ -665,12 +665,12 @@ impl<S: ObjectStore> Pass<'_, S> {
             let name = plan.tree.entries.get(&id).map(name_in).unwrap_or_default();
             let base_head = self.index.records.get(&id).and_then(|record| record.head);
             let base = match base_head {
-                Some(head) => remote::at_commit(self.peer, head).await.ok(),
+                Some(head) => remote::at_commit(self.peer, id, head).await.ok(),
                 None => None,
             };
             let heads = [base_head, self.remote.get(&id).and_then(|block| block.head)];
             let bytes = match self
-                .merge(block_type, base, theirs, heads, &name, local)
+                .merge(id, block_type, base, theirs, heads, &name, local)
                 .await
             {
                 Ok((bytes, false)) => bytes,
@@ -771,6 +771,7 @@ impl<S: ObjectStore> Pass<'_, S> {
     /// first parts of their commits (`heads`) and reads the rest it needs.
     async fn merge(
         &mut self,
+        block: Uuid,
         block_type: Uuid,
         base: Option<Vec<u8>>,
         theirs: Option<Vec<u8>>,
@@ -790,7 +791,7 @@ impl<S: ObjectStore> Pass<'_, S> {
         let merges_parts =
             be_block_type_host::kind_of(block_type).is_some_and(|kind| kind.merges_parts);
         let (merged, conflicts) = match merges_parts {
-            true => self.merge_parts(block_type, heads, ours).await?,
+            true => self.merge_parts(block, block_type, heads, ours).await?,
             false => {
                 self.types
                     .merge3(block_type, base, Some(ours), theirs)
@@ -813,6 +814,7 @@ impl<S: ObjectStore> Pass<'_, S> {
     /// becomes a file.
     async fn merge_parts(
         &mut self,
+        block: Uuid,
         block_type: Uuid,
         [base, theirs]: [Option<CommitId>; 2],
         ours: Vec<u8>,
@@ -821,7 +823,7 @@ impl<S: ObjectStore> Pass<'_, S> {
         let kind = be_block_type_host::kind_of(block_type).ok_or("its type is not known")?;
         let first_part = async |head: Option<CommitId>| match head {
             Some(head) => {
-                let commit = peer.load_commit(head).await.map_err(explain)?;
+                let commit = peer.load_head(block, head).await.map_err(explain)?;
                 let loaded = kind.load(peer, &commit.manifest).await.map_err(explain)?;
                 Ok::<_, String>(Some(loaded))
             }

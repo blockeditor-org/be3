@@ -64,7 +64,7 @@ fn cut(text: &str, bytes: usize) -> &str {
 }
 
 impl Notification {
-    fn encode(&self) -> Vec<u8> {
+    pub(crate) fn encode(&self) -> Vec<u8> {
         let cut = Notification {
             text: cut(&self.text, MAX_NOTIFICATION_TEXT).to_owned(),
             ..self.clone()
@@ -232,7 +232,7 @@ impl<S: ObjectStore> Peer<S> {
         message: &PushMessage,
         now: i64,
     ) -> Result<OpenedNotification, ClientError> {
-        let notification = Notification::decode(&self.commits.vault().open(&message.sealed)?)?;
+        let notification = Notification::decode(&self.open_for(message.block, &message.sealed)?)?;
         if notification.organization != message.organization {
             return Err(ClientError::Encoding(
                 "the notification was sealed about another organization".into(),

@@ -18,19 +18,15 @@ fn a_key_searched_for_in_vain_is_searched_for_again_after_reconnecting() {
             replicas.pump((&peer, &shared)).await;
         }
 
-        // Its creation waits on the phone, so the server does not have its key yet.
-        let key = phone
-            .keep_creation(
-                Uuid::new_v4(),
-                Sections::CONTENT_TYPE,
-                BlockParent::Root,
-                &be_block_content::BlockMetadata::default(),
-                false,
-            )
-            .await
-            .expect("the phone keeps a block")
-            .key
-            .expect("the block has a key");
+        // A key of the block the phone mints and keeps to itself, so the server does not have
+        // it yet.
+        let summary = phone.summary(block).await.expect("the phone reads the block");
+        phone.learn(&[summary]).await.expect("the phone learns its keys");
+        let scope = phone.keys().scope_key(block).expect("the phone holds its scope key");
+        let (key, minted) = phone
+            .keys()
+            .mint_data(block, scope)
+            .expect("the phone mints a key");
         let relayed = |text: &[u8]| Event::Relayed {
             block,
             from: 2,
@@ -50,7 +46,10 @@ fn a_key_searched_for_in_vain_is_searched_for_again_after_reconnecting() {
         assert_eq!(replicas.key_searches(), 1);
         assert!(replicas.heard_from_peers().is_empty(), "let go: no key yet");
 
-        phone.drain(|_| false).await.expect("the creation is sent");
+        be_block_protocol::client::keys::put_keys(&phone.connection(), minted)
+            .await
+            .expect("the server answers")
+            .expect("the server takes the key");
         replicas.resynchronize((&peer, &shared));
         replicas.heard((&peer, &shared), &relayed(b"after"));
         assert!(

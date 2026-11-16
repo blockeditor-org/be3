@@ -1374,7 +1374,7 @@ impl<S: ObjectStore> Peer<S> {
         };
         let head = self.local_head(block).or(summary.head);
         let current = match head {
-            Some(head) => self.metadata_of(head).await?,
+            Some(head) => self.metadata_of(block, head).await?,
             None => self.metadata_of_summary(&summary).await?,
         };
         let mut next = current.clone();
@@ -1388,7 +1388,7 @@ impl<S: ObjectStore> Peer<S> {
             let references = bounded(deduplicated(self.resolve(block, next.references())))?;
             return self.define_locally(summary, sealed, references);
         };
-        let commit = self.load_commit(head).await?;
+        let commit = self.load_head(block, head).await?;
         let described = self.resolve(block, current.references());
         let mut references = commit.references;
         references.retain(|reference| !described.contains(reference));
@@ -1411,7 +1411,7 @@ impl<S: ObjectStore> Peer<S> {
                 false => self.local_head(block).or(summary.head),
             };
             let current = match head {
-                Some(head) => self.metadata_of(head).await?,
+                Some(head) => self.metadata_of(block, head).await?,
                 None => self.metadata_of_summary(&summary).await?,
             };
             let mut next = current.clone();
@@ -1442,7 +1442,7 @@ impl<S: ObjectStore> Peer<S> {
                     Err(error) => return Err(error),
                 }
             };
-            let commit = self.load_commit(head).await?;
+            let commit = self.load_head(block, head).await?;
             let described = self.resolve(block, current.references());
             let mut references = commit.references;
             references.retain(|reference| !described.contains(reference));
@@ -1465,9 +1465,14 @@ impl<S: ObjectStore> Peer<S> {
         Err(ClientError::Contended)
     }
 
-    pub async fn metadata_of(&self, commit: CommitId) -> Result<BlockMetadata, ClientError> {
+    /// The metadata of `block`'s head `commit` (`load_head`).
+    pub async fn metadata_of(
+        &self,
+        block: Uuid,
+        commit: CommitId,
+    ) -> Result<BlockMetadata, ClientError> {
         Ok(BlockMetadata::decode(
-            &self.load_commit(commit).await?.metadata,
+            &self.load_head(block, commit).await?.metadata,
         )?)
     }
 
@@ -1500,6 +1505,7 @@ impl<S: ObjectStore> Peer<S> {
         head: CommitId,
     ) -> Result<BlockMetadata, ClientError> {
         if let Some(commit) = self.commits.try_get(head)? {
+            self.sealed_in(block, head)?;
             return Ok(BlockMetadata::decode(&commit.metadata)?);
         }
         if self.pending_commits(block).is_empty()
@@ -1509,18 +1515,20 @@ impl<S: ObjectStore> Peer<S> {
         {
             return Ok(metadata);
         }
-        self.metadata_of(head).await
+        self.metadata_of(block, head).await
     }
 
     pub fn metadata(&self, summary: &BlockSummary) -> Result<BlockMetadata, ClientError> {
         self.open_metadata(summary).map_err(locked)
     }
 
+    /// A summary's metadata, which the server names: refused unless one of the summary's
+    /// block's keys sealed it, as for a head (`load_head`).
     fn open_metadata(&self, summary: &BlockSummary) -> Result<BlockMetadata, ClientError> {
         if summary.metadata.is_empty() {
             return Ok(BlockMetadata::default());
         }
-        let plain = self.commits.vault().open(&summary.metadata)?;
+        let plain = self.open_for(summary.id, &summary.metadata)?;
         Ok(BlockMetadata::decode(&plain)?)
     }
 
@@ -1857,9 +1865,31 @@ impl<S: ObjectStore> Peer<S> {
         Ok(())
     }
 
+    /// A commit reached by hash from one already checked (a parent, a repository's history):
+    /// bound by that hash, whichever key sealed it. A block's head, which the server names,
+    /// goes through `load_head`.
     pub async fn load_commit(&self, commit: CommitId) -> Result<Commit, ClientError> {
         self.fetch(&[commit.hash()]).await?;
         self.retrying(|| Ok(self.commits.get(commit)?)).await
+    }
+
+    /// `commit` as `block`'s head, which the server names: refused unless one of `block`'s keys
+    /// sealed it (`sealed_in`), since the server could name another block's commit, which a
+    /// device would show as this block's and write back under this block's key.
+    pub async fn load_head(&self, block: Uuid, commit: CommitId) -> Result<Commit, ClientError> {
+        let loaded = self.load_commit(commit).await?;
+        self.sealed_in(block, commit)?;
+        Ok(loaded)
+    }
+
+    /// Whether `commit`, held, was sealed under one of `block`'s keys, as this device placed
+    /// them (`KeyBook::block_of`); a commit's subtree is sealed under its key.
+    pub fn sealed_in(&self, block: Uuid, commit: CommitId) -> Result<(), ClientError> {
+        let key = self.commits.vault().sealed_under(commit.hash())?;
+        match self.keys.block_of(key) == Some(block) {
+            true => Ok(()),
+            false => Err(ClientError::Forged(block)),
+        }
     }
 
     /// Each block's summary, the content of its head and its journal: what its session's owner
@@ -1937,14 +1967,15 @@ impl<S: ObjectStore> Peer<S> {
             |(summary, journal)| async move {
                 let stored = match summary.head {
                     Some(head) => {
-                        let commit = self.load_commit(head).await?;
+                        let commit = self.load_head(summary.id, head).await?;
                         let stored = self.load_manifest(&commit.manifest).await?;
                         self.read_whole(summary.id, head);
                         Some(stored)
                     }
                     None => None,
                 };
-                let journal = journal.and_then(|journal| self.open_journal(journal).ok());
+                let journal =
+                    journal.and_then(|journal| self.open_journal(summary.id, journal).ok());
                 Ok(BlockRead {
                     summary,
                     stored,
@@ -2101,7 +2132,7 @@ impl<S: ObjectStore> Peer<S> {
             let mut sides = Vec::new();
             for commit in [base, Some(ours), write.expected] {
                 sides.push(match commit {
-                    Some(commit) => self.metadata_of(commit).await?,
+                    Some(commit) => self.metadata_of(block, commit).await?,
                     None => BlockMetadata::default(),
                 });
             }
@@ -2433,7 +2464,7 @@ impl<S: ObjectStore> Peer<S> {
         let Some(head) = self.remote_head(block).await? else {
             return Ok(None);
         };
-        Ok(Some(self.load_commit(head).await?.manifest))
+        Ok(Some(self.load_head(block, head).await?.manifest))
     }
 
     pub async fn stream_header<C: Streamed>(
@@ -2822,8 +2853,21 @@ impl<S: ObjectStore> Peer<S> {
         Ok(self.connection().relay(block, to, kind, sealed))
     }
 
-    pub fn unseal(&self, payload: &[u8]) -> Result<Vec<u8>, ClientError> {
-        self.commits.vault().open(payload).map_err(locked)
+    /// A relay of `block`'s session (`Peer::open_for`).
+    pub fn unseal(&self, block: Uuid, payload: &[u8]) -> Result<Vec<u8>, ClientError> {
+        self.open_for(block, payload).map_err(locked)
+    }
+
+    /// `sealed` bytes the server hands over as `block`'s (its metadata, a relay of its session,
+    /// its journal, a notification about it): refused unless one of `block`'s keys sealed them,
+    /// since the server could hand over another block's, which a device would show as this
+    /// block's.
+    pub fn open_for(&self, block: Uuid, sealed: &[u8]) -> Result<Vec<u8>, ClientError> {
+        let key = be_block_store::sealed_key(sealed)?;
+        if self.keys.has(key) && self.keys.block_of(key) != Some(block) {
+            return Err(ClientError::Forged(block));
+        }
+        Ok(self.commits.vault().open(sealed)?)
     }
 
     pub fn first_search_for(&self, key: Uuid) -> bool {

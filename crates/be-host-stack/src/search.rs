@@ -1222,7 +1222,7 @@ async fn index(
         // it answered before and which parts' text is held. An index that cannot be loaded
         // gives no entries, so each block is read whole and removes nothing.
         let content = match head_of(peer, index).await {
-            Some(head) => load(peer, head).await.ok(),
+            Some(head) => load(peer, index, head).await.ok(),
             None => None,
         };
         for block in &blocks {
@@ -1512,7 +1512,7 @@ async fn puts_of(
     if failed_read(block) {
         return None;
     }
-    let Ok(commit) = peer.load_commit(head).await else {
+    let Ok(commit) = peer.load_head(block, head).await else {
         return None;
     };
     // The commit's own time, which the server cannot read: stored as it is, and compared as
@@ -1719,7 +1719,7 @@ async fn text_of(
     key: &str,
 ) -> Option<String> {
     let head = peer.newest_head(block).await.ok().flatten()?;
-    let commit = peer.load_commit(head).await.ok()?;
+    let commit = peer.load_head(block, head).await.ok()?;
     let keys = Some(vec![key.to_owned()]);
     documents_of(peer, shared, replicas, content_type, &commit, keys, &[])
         .await??
@@ -1943,7 +1943,7 @@ async fn catch_up(
     let Some(head) = head_of(peer, index).await else {
         return Ok(false);
     };
-    let Ok(content) = load(peer, head).await else {
+    let Ok(content) = load(peer, index, head).await else {
         return Ok(false);
     };
     let since = content.index().watermark();
@@ -2084,7 +2084,7 @@ async fn held_blocks(peer: &Peer<Store>, index: Uuid, blocks: &[Uuid]) -> Vec<Uu
     let Some(head) = head_of(peer, index).await else {
         return Vec::new();
     };
-    let Ok(content) = load(peer, head).await else {
+    let Ok(content) = load(peer, index, head).await else {
         return Vec::new();
     };
     let mut held = Vec::new();
@@ -2175,10 +2175,11 @@ async fn head_of<S: ObjectStore>(peer: &Peer<S>, index: Uuid) -> Option<CommitId
 
 async fn load<S: ObjectStore>(
     peer: &Peer<S>,
+    index: Uuid,
     head: CommitId,
 ) -> Result<SearchIndexContent, String> {
     let commit = peer
-        .load_commit(head)
+        .load_head(index, head)
         .await
         .map_err(|error| error.to_string())?;
     let stored = peer
@@ -2217,7 +2218,7 @@ pub(crate) async fn entries<S: ObjectStore>(
     let Some(head) = head_of(peer, index).await else {
         return Vec::new();
     };
-    let Ok(content) = load(peer, head).await else {
+    let Ok(content) = load(peer, index, head).await else {
         return Vec::new();
     };
     content
@@ -2230,7 +2231,7 @@ pub(crate) async fn entries<S: ObjectStore>(
 #[cfg(test)]
 pub(crate) async fn segment_count<S: ObjectStore>(peer: &Peer<S>, index: Uuid) -> usize {
     let head = head_of(peer, index).await.expect("the index has a head");
-    let content = load(peer, head).await.expect("the index loads");
+    let content = load(peer, index, head).await.expect("the index loads");
     content.index().segment_count()
 }
 
@@ -2316,7 +2317,7 @@ pub async fn compact_past<S: ObjectStore>(
     head: CommitId,
     cap: u64,
 ) -> Result<bool, Unwritten> {
-    let commit = peer.load_commit(head).await?;
+    let commit = peer.load_head(index, head).await?;
     let stored = peer.load_first_part(&commit.manifest).await?;
     let mut content = SearchIndexContent::from_stored(&stored)
         .map_err(|error| Unwritten::Failed(error.to_string()))?;
@@ -2399,7 +2400,7 @@ async fn write_at<S: ObjectStore>(
     mut batch: Batch,
     compact_at: Option<(i64, u64)>,
 ) -> Result<Vec<DocId>, Unwritten> {
-    let commit = peer.load_commit(head).await?;
+    let commit = peer.load_head(index, head).await?;
     let stored = peer.load_first_part(&commit.manifest).await?;
     let mut content = SearchIndexContent::from_stored(&stored)
         .map_err(|error| Unwritten::Failed(error.to_string()))?;
@@ -2565,7 +2566,7 @@ pub async fn search_index<S: ObjectStore>(
     let (Some(head), _) = search_head(peer, index, listed).await else {
         return Ok(Vec::new());
     };
-    load(peer, head)
+    load(peer, index, head)
         .await?
         .search(&PeerParts(peer), query, limit, peer.latest_believed())
         .await
@@ -2707,7 +2708,7 @@ async fn run(
         let Some(head) = head else {
             continue;
         };
-        let hits = match load(peer, head).await {
+        let hits = match load(peer, *index, head).await {
             Ok(content) => content
                 .search(&PeerParts(peer), &query, HITS, peer.latest_believed())
                 .await
