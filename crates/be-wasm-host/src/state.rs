@@ -58,7 +58,9 @@ impl Memory {
     }
 }
 
-/// Where a memory's bytes are, for one call.
+/// Where a memory's bytes are, for one call. Copying a shared memory's bytes races with the
+/// guest's other threads, as under any engine: what the host reads or leaves may be torn by a
+/// thread writing at once, which only the guest's own data suffers.
 #[derive(Clone, Copy)]
 pub(crate) struct View {
     base: *mut u8,
@@ -82,6 +84,11 @@ impl View {
 
     pub(crate) fn size(&self) -> usize {
         self.size
+    }
+
+    /// Whether `length` bytes at `pointer` lie inside the memory.
+    pub(crate) fn check(&self, pointer: u32, length: usize) -> Result<(), String> {
+        self.range(pointer, length).map(|_| ())
     }
 
     fn range(&self, pointer: u32, length: usize) -> Result<std::ops::Range<usize>, String> {
@@ -238,9 +245,10 @@ impl State {
 ///
 /// # Safety
 ///
-/// The State outlives the isolate's functions (App and the thread that runs an app thread free it
-/// only after their isolate), and V8 runs one call of an isolate at a time, so nothing else holds
-/// it while an import runs.
+/// The State outlives every call of the isolate's functions: Running frees it only after its
+/// isolate, and an app thread once its guest has returned, after which nothing runs on its
+/// isolate (an External has no finalizer). V8 runs one call of an isolate at a time, so nothing
+/// else holds the State while an import runs.
 pub(crate) unsafe fn state_of<'a>(data: v8::Local<v8::Value>) -> &'a mut State {
     let external: v8::Local<v8::External> = data
         .try_into()
