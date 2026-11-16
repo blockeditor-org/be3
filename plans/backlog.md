@@ -201,12 +201,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   not hung. None failed in 120 runs under `stress` on a 4-core VM. A wait now names such a
   stop (guides/testing_a_gui.md, 6). Done: the build server runs host tests no more at once
   than its memory holds, and a full verify passes with none of them stopped.
-- **A peer's edit during a gesture, not yet beneath it.**
-  `a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it` (be-host-stack)
-  failed at line 44 in one whole-crate run of be-host-stack on
-  feat/authorship-c (on 4514dfc9f) and passed alone after. Done: the cause found
-  and fixed at its source.
-
 - **A reopened canvas writes its default bars over its saved ones.**
   `the_canvas_zoom_bar_floats_at_any_corner_and_stays_there` failed 2 in 40
   under `stress` while editor frames reached the editor a host frame late; each
@@ -217,22 +211,18 @@ Depends on #686 (session catch-ups replaced by server ordering).
   `ready` (be-sdk-beui `src/layered_settings.rs`) counts a layer block it
   doesn't know yet as loaded. Done: the race found and fixed in the app, with
   frames delayed a frame in a test to show it.
-- **Two stack tests, under a full suite's load.**
-  `a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it` failed twice
-  (in 0.22 s and 0.37 s) and
+- **A stack test, under a full suite's load.**
   `discarding_the_unsent_edits_of_a_block_demoted_mid_edit_leaves_nothing_of_it_kept`
-  once, each in a full `./scripts/test //crates/be-host-stack:test`, and each
-  passed alone and 40 of 40 under `stress` at 4 at a time. Done: the cause
+  failed once in a full `./scripts/test //crates/be-host-stack:test`, and once in
+  8 runs of the whole test binary (the server refused an edit: "not editable by
+  this account"); it fails 1 in 40 alone. Done: the cause
   found (under the suite's load, or `stress` at more at a time) and fixed at
   its source, with a test that shows it.
 
 - **An edit landing twice across a crash, once in a whole-binary run.**
   `an_edit_to_a_block_made_editable_again_after_its_edits_were_discarded_lands_once_across_a_crash`
   (be-host-stack) failed at line 106 ("the edit landed once": 21, not 11) in one of 8 runs of
-  the whole test binary, 4 at a time on a 4-core VM. In those runs
-  `a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it` also failed twice and
-  `discarding_the_unsent_edits_of_a_block_demoted_mid_edit_leaves_nothing_of_it_kept` once
-  (the server refused an edit: "not editable by this account"), as the items above say. Done:
+  the whole test binary, 4 at a time on a 4-core VM. Done:
   each run under `stress` or as a whole binary until it fails, and the cause fixed at its
   source, with a test that shows it.
 
