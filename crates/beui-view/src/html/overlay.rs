@@ -8,7 +8,7 @@ use crate::reactive::NodeId;
 use crate::reactive::NodeRef;
 use crate::reactive::OverlayAnchor;
 use crate::reactive::Prop;
-use crate::reactive::RenderFn;
+use crate::reactive::BuildFn;
 use crate::reactive::Scope;
 use crate::reactive::Set;
 use crate::reactive::create_effect;
@@ -105,7 +105,7 @@ pub(crate) fn overlay(
                     let scope = owner.run(Scope::detached);
                     let built = scope.context().run(|| {
                         presence.provide();
-                        content.call(())
+                        content.call()
                     });
                     layered.fill(slot, vec![built]);
                     *held = Some(Mounted { _scope: scope });
