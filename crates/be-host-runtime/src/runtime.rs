@@ -773,7 +773,7 @@ impl Runtime {
     }
 
     fn ask(&mut self, pass: u64) -> bool {
-        if self.placed == pass || self.instances.has_mounted() {
+        if self.placed == pass || self.instances.has_mounted() || self.instances.has_hosts() {
             self.begin_pass(pass);
         }
         self.detect_error();
