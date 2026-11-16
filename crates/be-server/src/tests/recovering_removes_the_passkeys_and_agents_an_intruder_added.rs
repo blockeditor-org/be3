@@ -22,6 +22,7 @@ async fn recovering_removes_the_passkeys_and_agents_an_intruder_added() {
         .create_agent(
             account,
             organization,
+            Uuid::new_v4(),
             "Helper",
             [7; 32],
             [7; 32],
