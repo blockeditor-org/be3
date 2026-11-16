@@ -111,9 +111,10 @@ impl View {
     pub(crate) fn read(&self, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
         let range = self.range(pointer, length as usize)?;
         let mut bytes = vec![0u8; range.len()];
-        // unsafe(ffi): the range lies inside the memory, checked above, and the memory stays where
+        // the range lies inside the memory, checked above, and the memory stays where
         // it is for the call. Another guest thread may write it meanwhile, as it may under any
         // engine; the bytes read are then whatever it wrote.
+        // unsafe(ffi)
         unsafe {
             std::ptr::copy_nonoverlapping(self.base.add(range.start), bytes.as_mut_ptr(), range.len())
         };
@@ -122,7 +123,8 @@ impl View {
 
     pub(crate) fn write(&self, pointer: u32, bytes: &[u8]) -> Result<(), String> {
         let range = self.range(pointer, bytes.len())?;
-        // unsafe(ffi): as in read.
+        // as in read.
+        // unsafe(ffi)
         unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), self.base.add(range.start), bytes.len()) };
         Ok(())
     }
@@ -243,6 +245,7 @@ impl State {
     }
 }
 
+// unsafe(memory)
 /// The State behind an import's data, which is the `v8::External` every host function of an
 /// isolate is made with.
 ///
@@ -256,7 +259,8 @@ pub(crate) unsafe fn state_of<'a>(data: v8::Local<v8::Value>) -> &'a mut State {
     let external: v8::Local<v8::External> = data
         .try_into()
         .unwrap_or_else(|_| unreachable!("every host function is made with its State"));
-    // unsafe(ffi): as the function's contract says.
+    // as the function's contract says.
+    // unsafe(memory)
     unsafe { &mut *external.value().cast::<State>() }
 }
 
