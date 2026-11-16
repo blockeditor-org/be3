@@ -212,3 +212,15 @@ Depends on #686 (session catch-ups replaced by server ordering).
   server refuses one sealed under a superseded key (plans/signed_access.md's
   key epochs), shown by a client test where a member is removed while another
   device writes offline and the removed member cannot open what it sends.
+
+## 19. Local accounts
+
+- **Share and Access offered with no server.** A local account's block menus
+  still offer Share and Access, which it refuses. Done: a local account's
+  menus offer neither, shown by a host test of a local account's block menu.
+- **Keeping a web local account.** On the web a local account lives only in the
+  origin's storage, which the browser may evict. Done: making one asks the
+  browser to keep it (`navigator.storage.persist()`), and says so when refused.
+- **A server for a local account.** Done: a local account can be given a
+  server, sending everything it holds there as a push to a new remote, and goes
+  on as that server's account.

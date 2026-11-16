@@ -288,7 +288,7 @@ sends it. `Peer::write` does both.
   the server has since pruned, where online it lists only what the server keeps.
   Sharing, access, members, invites, agents, contacts and pairing need the
   server.
-- **A local account** (`Peer::local`, plans/local_accounts.md) has no server:
+- **A local account** (`Peer::local`; guides/hosting.md, Local accounts and the default server) has no server:
   its refs scope has an empty server, and the session row is made on the device
   the first time (role editor, kind personal, no escrows). It runs every change
   through the offline paths above, then settles the outbox on the device as a

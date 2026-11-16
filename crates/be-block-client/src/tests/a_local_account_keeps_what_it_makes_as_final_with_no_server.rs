@@ -19,7 +19,7 @@ fn local(
     .unwrap()
 }
 
-/// A local account's peer has no server (plans/local_accounts.md): a commit is the head once it
+/// A local account's peer has no server (guides/blocks/client.md, Saving and the outbox): a commit is the head once it
 /// is sealed, what it makes is listed from what it holds, nothing waits to be sent, and all of
 /// it is there when the device starts again.
 #[tokio::test]

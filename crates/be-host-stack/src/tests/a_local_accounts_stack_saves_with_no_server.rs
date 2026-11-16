@@ -1,6 +1,6 @@
 use super::*;
 
-/// A local account's stack runs with no server (plans/local_accounts.md): an edit is saved as
+/// A local account's stack runs with no server (guides/blocks/client.md, Saving and the outbox): an edit is saved as
 /// it is made, nothing waits to be sent, it is never offline, and what it made is there when
 /// it starts again.
 #[test]

@@ -188,16 +188,15 @@ counts and records nothing: `upload-urls` did before it signed.
   dispatcher (`Client::admit`) applies it before the handler runs, which then
   checks only what a rule cannot say, under the graph lock. Only `ping` and the
   sign-in calls (`begin-browser-login`, `poll-browser-login`,
-  `authenticate`, `create-local-profile`) need no sign-in, and every stream
+  `authenticate`) need no sign-in, and every stream
   needs it, so a client opens its streams once signed in.
 - **Signing in.** A connection's first call (after a ping) must sign it in:
-  `authenticate`, or `create-local-profile` where local profiles are on
-  (`client::signs_in`); any other closes it, as does none within
+  `authenticate` (`client::signs_in`); any other closes it, as does none within
   `sign_in_timeout` (`ServerConfig`, `HANDSHAKE_TIMEOUT` by default), and so
   does `logout` (`Connection::closing`). Signing in through the browser
   follows RFC 8628's device flow over one-shot calls (`http::one_shot`):
   `POST .../call` carries a greeting and one frame, `begin-browser-login`,
-  `poll-browser-login` or (local only) `create-local-profile`, and is answered
+  or `poll-browser-login`, and is answered
   and closed with no session, so nothing is held while a person approves it.
   `begin-browser-login` answers a code, a secret, the poll interval and the
   lifetime; a poll sooner than the interval fails `SlowDown` and grows it by
@@ -620,7 +619,7 @@ email, providers (`oidc`) and passkeys (`passkey`). Proving any one signs in
 (decisions/accounts_sign_in_with_identities_the_operator_configures.md); the
 last one that still signs in (`providers::signs_in`) can't be removed. `accounts.email` is the account's verified email, if it
 has one; an account made through a provider may have none, and then the
-protocol's `email` is the empty string, as it is for a local profile
+protocol's `email` is the empty string
 (decisions/an_account_with_no_email_has_an_empty_one.md). Sign-in stays in the
 browser portal (`/auth`, `portal.rs` and be-server-portal-ui), so no client
 needs code of its own for any method.

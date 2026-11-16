@@ -383,7 +383,7 @@ impl<S: ObjectStore> Peer<S> {
         Ok(peer)
     }
 
-    /// A local account's peer, which has no server (plans/local_accounts.md): its organization
+    /// A local account's peer, which has no server (guides/blocks/client.md, Saving and the outbox): its organization
     /// is made on this device the first time, with this account its one member, and what it
     /// makes is final as it is made. A commit is the block's head once it is sealed, as the
     /// server would take it, compared with the head it went on (`send_pending`), and creations,

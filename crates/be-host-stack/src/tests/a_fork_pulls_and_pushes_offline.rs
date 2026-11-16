@@ -20,8 +20,7 @@ fn repositories(shared: &Shared) -> Vec<Uuid> {
         .collect()
 }
 
-/// Forking, pulling and pushing run against the device's store offline (plans/local_accounts.md,
-/// gap 2), and what they made reaches the server once the device reconnects.
+/// Forking, pulling and pushing run against the device's store offline (guides/blocks/version_control.md, Operations), and what they made reaches the server once the device reconnects.
 #[test]
 fn a_fork_pulls_and_pushes_offline() {
     let mut harness = Harness::start();

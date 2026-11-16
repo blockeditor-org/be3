@@ -7,7 +7,7 @@ fn saved(shared: &Shared, block: Uuid) -> Option<usize> {
 }
 
 /// Starting to keep versions, a second checkout and undo run against the device's store
-/// offline (plans/local_accounts.md, gap 2), and what they made reaches the server once the
+/// offline (guides/blocks/version_control.md, Operations), and what they made reaches the server once the
 /// device reconnects.
 #[test]
 fn a_folder_is_versioned_copied_and_undone_offline() {

@@ -62,7 +62,6 @@ pub fn start_embedded_server_at(
                     listener,
                     data_dir,
                     be_server::ServerConfig {
-                        local_profiles: true,
                         lease,
                         account_quota: None,
                         push,

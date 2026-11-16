@@ -15,10 +15,10 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
     let store = ServerStore::open(&directory).unwrap();
     let long = "x".repeat(MAX_NAME_BYTES + 1);
     refused(
-        store.create_local_profile(&long).await,
+        store.register("long@example.com", &long).await,
         ErrorCode::InvalidRequest,
     );
-    let (profile, _) = store.create_local_profile("Owner").await.unwrap();
+    let (profile, _) = store.register("owner@example.com", "Owner").await.unwrap();
     let account = profile.account;
     refused(
         signed_organization(&store, account, &long).await,

@@ -142,7 +142,6 @@ impl From<tokio_tungstenite::tungstenite::Error> for ServerError {
 pub struct ServerConfig {
     pub allow_registration: bool,
     pub allow_login: bool,
-    pub local_profiles: bool,
     pub auth_origin: Option<String>,
     pub lease: Duration,
     pub portal: Option<be_server_portal::Portal>,
@@ -187,7 +186,6 @@ impl ServerConfig {
     const CLOSED: Self = Self {
         allow_registration: false,
         allow_login: false,
-        local_profiles: false,
         auth_origin: None,
         lease: Duration::from_millis(be_block_session::LEASE_MILLISECONDS.unsigned_abs()),
         portal: None,

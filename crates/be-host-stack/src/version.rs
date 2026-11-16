@@ -2197,11 +2197,15 @@ async fn refresh_heads(context: &mut Context<'_>) -> Result<(), String> {
 /// edits are sent before the command writes over them, or offline the newest this device holds,
 /// whose write waits in the outbox behind them.
 async fn head_here(peer: &Peer<Store>, block: Uuid) -> Result<Option<CommitId>, String> {
-    match peer.is_attached() {
-        true => peer.remote_head(block).await,
-        false => peer.newest_head(block).await,
+    if peer.is_attached() {
+        return peer.remote_head(block).await.map_err(failed);
     }
-    .map_err(failed)
+    // This device's head: what it wrote, whether sent or waiting, which a cached summary,
+    // moved only by listings, can lag.
+    match peer.local_head(block).or_else(|| peer.known_remote_head(block)) {
+        Some(head) => Ok(Some(head)),
+        None => peer.newest_head(block).await.map_err(failed),
+    }
 }
 
 async fn read<R: Root + Model + Default>(
