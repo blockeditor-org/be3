@@ -388,7 +388,9 @@ struct State {
     open_edits: HashMap<Uuid, OpenEdits>,
     set_aside: HashMap<Uuid, Vec<SetAside>>,
     /// Blocks whose local edits were discarded with their unsent edits (`discard_unsent`):
-    /// none are kept for them until this account may edit them again or they are forgotten.
+    /// none are kept or sealed for them until a join says this account may edit them again
+    /// (`may_edit_again`). Forgetting a block keeps its mark: its replica may still be open,
+    /// and a block forgotten comes back marked.
     dropped: HashSet<Uuid>,
     next: u64,
 }
@@ -1539,12 +1541,18 @@ impl Refs {
 
     /// Keeps a sealed commit in the outbox. With `sealing`, the last sequence of the block's
     /// journal the commit holds, the journal notes the seal in the same write.
-    pub fn push_publish(&self, pending: Pending) -> Result<u64, StoreError> {
-        eprintln!("SCRATCH push_publish block={} commit={:?} expected={:?} dropped={} bt={}", pending.block, pending.commit, pending.expected, self.state.lock().unwrap().dropped.contains(&pending.block), std::backtrace::Backtrace::force_capture().to_string().lines().filter(|l| l.contains("be_block_type_host") || l.contains("be_host_stack")).take(6).collect::<Vec<_>>().join(" | "));
+    /// Keeps a sealed commit in the outbox as the block's local head, answering its sequence:
+    /// none for a block whose local edits were discarded (`discard_unsent`), checked as the
+    /// discard checks, so a seal under way as the discard runs never reaches the outbox.
+    pub fn push_publish(&self, pending: Pending) -> Result<Option<u64>, StoreError> {
+        eprintln!("SCRATCH push_publish refs={:p} org={} block={} commit={:?} expected={:?} dropped={} bt={}", self, self.scope.organization, pending.block, pending.commit, pending.expected, self.state.lock().unwrap().dropped.contains(&pending.block), std::backtrace::Backtrace::force_capture().to_string().lines().filter(|l| l.contains("be_block_type_host") || l.contains("be_host_stack")).take(6).collect::<Vec<_>>().join(" | "));
         let (block, head) = (pending.block, pending.commit);
         let op = Op::Publish(pending);
         let (sequence, rows) = {
             let mut state = self.state.lock().unwrap();
+            if state.dropped.contains(&block) {
+                return Ok(None);
+            }
             let sequence = state.take();
             let rows = vec![
                 row(Table::Outbox, sequence.to_be_bytes().to_vec(), &op),
@@ -1555,7 +1563,7 @@ impl Refs {
             (sequence, rows)
         };
         self.write(rows)?;
-        Ok(sequence)
+        Ok(Some(sequence))
     }
 
     /// The block's journal on this device, sealed.
@@ -1913,7 +1921,6 @@ impl Refs {
                 for (table, gone_too) in [
                     (Table::OpenEdits, state.open_edits.remove(block).is_some()),
                     (Table::SetAside, state.set_aside.remove(block).is_some()),
-                    (Table::Dropped, state.dropped.remove(block)),
                 ] {
                     if gone_too {
                         rows.push(Row {
@@ -2159,10 +2166,11 @@ impl Refs {
                 key: block.as_bytes().to_vec(),
                 value: None,
             });
-            eprintln!("SCRATCH discard_unsent refused={:?}", unsent.refused);
+            eprintln!("SCRATCH discard_unsent refs={:p} org={} refused={:?}", self, self.scope.organization, unsent.refused);
             if unsent.refused.is_none() {
                 Self::dropping_local_edits(&mut state, block, &mut rows);
             }
+            eprintln!("SCRATCH discard_unsent after dropped={} outbox_for_block={}", state.dropped.contains(&block), state.outbox.values().filter(|op| op.block() == block).count());
             unsent
         };
         self.write(rows)?;

@@ -2224,7 +2224,7 @@ impl<S: ObjectStore> Peer<S> {
         let id = self.commits.put(key, &commit)?;
         let sealed = self.commits.vault().seal(key, &metadata.encode())?;
         self.commits.vault().store().sync()?;
-        self.refs.push_publish(Pending {
+        let queued = self.refs.push_publish(Pending {
             block,
             commit: id,
             expected,
@@ -2235,6 +2235,13 @@ impl<S: ObjectStore> Peer<S> {
             references: listed.clone(),
             metadata: sealed.clone(),
         })?;
+        // Discarded while it was sealed: as if the discard had come first.
+        if queued.is_none() {
+            return match expected {
+                Some(head) => Ok(Sealed::Unchanged(head)),
+                None => Err(ClientError::Discarded(block)),
+            };
+        }
         if !self.is_attached()
             && let Some(mut summary) = self.refs.summary(block)
         {
@@ -2286,6 +2293,7 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     async fn send_pending(&self, pending: &Pending) -> Result<PublishOutcome, ClientError> {
+        eprintln!("SCRATCH send_pending refs={:p} commit={:?} holds_in_outbox={} dropped={} bt={}", &*self.refs, pending.commit, self.pending_publish(pending.block, pending.commit).is_some(), self.refs.discarded(pending.block), std::backtrace::Backtrace::force_capture().to_string().lines().filter(|l| l.contains("be_block") || l.contains("be_host_stack")).map(|l| l.trim()).take(8).collect::<Vec<_>>().join(" | "));
         if self.local {
             return self.publish_locally(pending);
         }
