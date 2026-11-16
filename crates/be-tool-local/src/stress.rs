@@ -139,6 +139,12 @@ struct Failure {
 fn run(arguments: Vec<String>) -> Result<usize, String> {
     let options = options(arguments, default_parallel())?;
     let built = build(options.apps.as_deref())?;
+    if matching(&built, &options.name)? == 0 {
+        return Err(format!(
+            "No host test's name contains {}: stress runs only the host tests (crates/be-host-tests).",
+            options.name
+        ));
+    }
     let output = PathBuf::from(OUTPUT).join(file_name(&options.name));
     let _ = fs::remove_dir_all(&output);
     fs::create_dir_all(&output)
@@ -353,6 +359,29 @@ fn build(apps: Option<&[String]>) -> Result<Built, String> {
 /// painting differs from the accepted one. The run writes its paintings into `paintings`/made
 /// (MADE_PAINTINGS) rather than comparing them itself, so that every run keeps its own: those
 /// that differ stay in `paintings`/changed with a `.why` beside each, and the rest is removed.
+/// How many of the harness's tests have names containing `name`, as libtest lists them.
+fn matching(built: &Built, name: &str) -> Result<usize, String> {
+    let output = Command::new(&built.harness)
+        .args([name, "--list"])
+        .envs(built.environment.iter().map(|(key, value)| (key, value)))
+        .stdin(Stdio::null())
+        .stderr(Stdio::inherit())
+        .output()
+        .map_err(|error| format!("could not run the harness: {error}"))?;
+    if !output.status.success() {
+        return Err("The harness could not list its tests.".to_owned());
+    }
+    Ok(listed_tests(&String::from_utf8_lossy(&output.stdout)))
+}
+
+/// The number of tests in libtest's `--list` output: one `NAME: test` line each.
+fn listed_tests(listing: &str) -> usize {
+    listing
+        .lines()
+        .filter(|line| line.ends_with(": test"))
+        .count()
+}
+
 fn once(built: &Built, options: &Options, log: &Path, paintings: &Path) -> Result<(), String> {
     let limit = options.limit;
     let made = paintings.join("made");
