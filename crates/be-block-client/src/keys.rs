@@ -549,13 +549,14 @@ impl KeyBook {
         }
     }
 
-    /// `key` wrapped under `escrow`, unless it is owner-only or already wrapped under it.
+    /// `key` wrapped under `escrow`, unless an owner-only scope covers it or it is already
+    /// wrapped under it.
     pub fn escrow_wrap_under(
         &self,
         key: Uuid,
         escrow: &EscrowKey,
     ) -> Result<Option<WrappedKey>, StoreError> {
-        if self.owner_only(key) {
+        if self.owner_only_covers(key) {
             return Ok(None);
         }
         if self.wrapped_by(key).contains(&WrappedBy::Key(escrow.id)) {
