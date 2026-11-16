@@ -326,7 +326,10 @@ pub(crate) async fn decide(
 
 /// Whether `code` may still be approved, and if so, where the device asking connected from and
 /// how long ago it asked.
-pub(crate) fn code_status(services: &Services, code: &str) -> Result<(IpAddr, Duration), ServerError> {
+pub(crate) fn code_status(
+    services: &Services,
+    code: &str,
+) -> Result<(IpAddr, Duration), ServerError> {
     let pending = services.browser_auth.pending.lock().unwrap();
     match pending.get(&code.trim().to_ascii_lowercase()) {
         None => Err(invalid(

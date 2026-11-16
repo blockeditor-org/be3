@@ -8,9 +8,15 @@ async fn recovering_removes_the_passkeys_and_agents_an_intruder_added() {
     harness.member("owner@example.com").await;
     let store = ServerStore::open(&harness.directory).unwrap();
     let mut intruder = Browser::at_localhost(&harness);
-    intruder.sign_in_by_code(&harness, "owner@example.com").await;
+    intruder
+        .sign_in_by_code(&harness, "owner@example.com")
+        .await;
     intruder.add_passkey(&harness).await;
-    let account = store.browser_profile(&intruder.cookie).await.unwrap().account;
+    let account = store
+        .browser_profile(&intruder.cookie)
+        .await
+        .unwrap()
+        .account;
     let organization = store.personal_organization().await.unwrap();
     let (_, agent_token, _) = store
         .create_agent(
@@ -66,7 +72,10 @@ async fn recovering_removes_the_passkeys_and_agents_an_intruder_added() {
         .map(|message| message.body.clone())
         .collect();
     assert_eq!(told.len(), 1, "{told:?}");
-    assert!(told[0].contains("Passkey") && told[0].contains("the agent Helper"), "{told:?}");
+    assert!(
+        told[0].contains("Passkey") && told[0].contains("the agent Helper"),
+        "{told:?}"
+    );
     let history = page_of(&owner.get(&harness, "/auth/settings").await).identity_changes;
     assert!(
         history.iter().any(|change| change.text.contains("Passkey")),

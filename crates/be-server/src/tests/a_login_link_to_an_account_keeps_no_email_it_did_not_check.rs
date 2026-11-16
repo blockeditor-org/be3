@@ -28,7 +28,10 @@ async fn a_login_link_to_an_account_keeps_no_email_it_did_not_check() {
         .unwrap();
 
     let link = login_links::create(&harness.directory, LinkFor::Account(account)).unwrap();
-    assert_eq!(link.email, "intruder@example.com", "the operator is shown it");
+    assert_eq!(
+        link.email, "intruder@example.com",
+        "the operator is shown it"
+    );
     assert!(!link.vouches);
     let mut browser = Browser::default();
     let (status, response) = browser
@@ -42,7 +45,10 @@ async fn a_login_link_to_an_account_keeps_no_email_it_did_not_check() {
     assert_eq!(status, 303, "{response}");
     assert!(store.identities(account).await.unwrap().is_empty());
     let profile = store.browser_profile(&browser.cookie).await.unwrap();
-    assert_eq!(profile.email, "", "the intruder's address is no longer the account's");
+    assert_eq!(
+        profile.email, "",
+        "the intruder's address is no longer the account's"
+    );
     assert_eq!(harness.mails_to("intruder@example.com"), 0);
     // A code to that address now signs nobody in.
     let mut intruder = Browser::default();

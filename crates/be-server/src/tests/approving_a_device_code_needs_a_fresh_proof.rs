@@ -19,7 +19,9 @@ async fn approving_a_device_code_needs_a_fresh_proof() {
     assert_eq!(page.screen, be_server_portal::Screen::Approve);
     // It names where the device asking connected from, as the server saw it.
     assert!(
-        page.requester.ends_with("the same network as this browser.") && !page.requester_elsewhere,
+        page.requester
+            .ends_with("the same network as this browser.")
+            && !page.requester_elsewhere,
         "{:?}",
         page.requester
     );

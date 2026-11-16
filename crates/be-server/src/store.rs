@@ -865,8 +865,10 @@ impl ServerStore {
                 Ok(made)
             })
             .await?;
-        let organizations: std::collections::BTreeSet<Uuid> =
-            made.iter().map(|(_, organization, _)| *organization).collect();
+        let organizations: std::collections::BTreeSet<Uuid> = made
+            .iter()
+            .map(|(_, organization, _)| *organization)
+            .collect();
         for organization in organizations {
             let agents: Vec<Uuid> = made
                 .iter()

@@ -68,15 +68,16 @@ impl ServerStore {
         .await
     }
 
-    /// A browser session for the account with no sign-in and no proof, for tests and benches
-    /// that start signed in, as `register` makes an account with no code. The portal never
-    /// calls it: a browser signs in by a code or an operator's login link.
+    /// A browser session for the account with no sign-in, for tests and benches that start
+    /// signed in, as `register` makes an account with no code. It counts as a fresh proof, as
+    /// signing in does. The portal never calls it: a browser signs in by a code or an
+    /// operator's login link.
     pub async fn browser_session(&self, account: Uuid) -> Result<String, ServerError> {
         self.with_database(move |_, database| {
             let token = issue_token(&database, account)?;
             database.execute(
-                "UPDATE sessions SET kind = 'browser', expires = ?2 WHERE token_hash = ?1",
-                params![hash_token(&token), now() + 30 * 86400],
+                "UPDATE sessions SET kind = 'browser', expires = ?2, proved = ?3 WHERE token_hash = ?1",
+                params![hash_token(&token), now() + 30 * 86400, now()],
             )?;
             Ok(token)
         })

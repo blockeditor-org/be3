@@ -636,7 +636,8 @@ fn Approve(page: Shown) -> NodeId {
             </Card>
         };
     }
-    let (requester, elsewhere) = page.read(|page| (page.requester.clone(), page.requester_elsewhere));
+    let (requester, elsewhere) =
+        page.read(|page| (page.requester.clone(), page.requester_elsewhere));
     view! {
         <Card>
             <List spacing=Space::Xl>

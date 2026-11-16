@@ -465,7 +465,9 @@ fn login_link(
     let using = match (link.registers, link.vouches, link.email.as_str()) {
         (true, _, _) => "; using it makes the account".to_owned(),
         (false, true, _) => "; using it removes every other way into the account".to_owned(),
-        (false, false, "") => "; using it removes every way into the account, and its owner adds one again".to_owned(),
+        (false, false, "") => {
+            "; using it removes every way into the account, and its owner adds one again".to_owned()
+        }
         (false, false, email) => format!(
             "; using it removes every way into the account, its email {email} too, and its owner adds one again (use --email to keep an address you have checked)"
         ),

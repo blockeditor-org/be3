@@ -112,7 +112,11 @@ pub struct UsedLink {
 impl ServerStore {
     /// Uses a login link, once: makes the account first for a link made for a new email, then
     /// takes it back as a recovery does (`recover_account`) and answers a new browser session.
-    pub async fn use_login_link(&self, token: &str, address: &str) -> Result<UsedLink, ServerError> {
+    pub async fn use_login_link(
+        &self,
+        token: &str,
+        address: &str,
+    ) -> Result<UsedLink, ServerError> {
         let token_hash = hash_token(token);
         let used = self
             .with_database(move |store, database| {
@@ -150,7 +154,8 @@ impl ServerStore {
             })
             .await?;
         if !used.email.is_empty() {
-            self.remembered.remember(&used.email, address, Instant::now());
+            self.remembered
+                .remember(&used.email, address, Instant::now());
         }
         Ok(used)
     }

@@ -91,7 +91,17 @@ async fn tell_identity(
             ),
         ),
     };
-    tell(services, account, email, subject, text, kind, vec![label.to_owned()], recorded).await;
+    tell(
+        services,
+        account,
+        email,
+        subject,
+        text,
+        kind,
+        vec![label.to_owned()],
+        recorded,
+    )
+    .await;
 }
 
 /// Finishes taking an account back once its recovery signed in (`codes::recover_account`):
@@ -107,14 +117,27 @@ async fn finish_recovery(
     if removed.is_empty() && agents.is_empty() {
         return Ok(());
     }
-    let labels: Vec<String> = removed.iter().map(|identity| identity_label(&services.config, identity)).collect();
+    let labels: Vec<String> = removed
+        .iter()
+        .map(|identity| identity_label(&services.config, identity))
+        .collect();
     let mut went = labels.clone();
     went.extend(agents.iter().map(|name| format!("the agent {name}")));
     let text = format!(
         "Recovering your account removed every way to sign in but your email, and every agent you made, since someone else may have added them: {}. Add back the ones you trust.",
         went.join(", ")
     );
-    tell(services, account, email, "Recovering your be3 account removed ways in", text, ChangeKind::Removed, labels, false).await;
+    tell(
+        services,
+        account,
+        email,
+        "Recovering your be3 account removed ways in",
+        text,
+        ChangeKind::Removed,
+        labels,
+        false,
+    )
+    .await;
     Ok(())
 }
 
@@ -497,10 +520,15 @@ pub(crate) async fn handle(
         match browser_auth::code_status(services, &code) {
             Ok((asking, age)) => {
                 let when = session_age(crate::store::portal::now() - age.as_secs() as i64);
-                requester_elsewhere = crate::address::address_key(asking) != crate::address::address_key(client);
+                requester_elsewhere =
+                    crate::address::address_key(asking) != crate::address::address_key(client);
                 requester = match requester_elsewhere {
-                    false => format!("Asked {when} from {asking}, the same network as this browser."),
-                    true => format!("Asked {when} from {asking}, not this browser's network. Deny unless you just started signing in on another device."),
+                    false => {
+                        format!("Asked {when} from {asking}, the same network as this browser.")
+                    }
+                    true => format!(
+                        "Asked {when} from {asking}, not this browser's network. Deny unless you just started signing in on another device."
+                    ),
                 };
             }
             Err(error) => code_problem = error.to_string(),

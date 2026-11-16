@@ -7,7 +7,10 @@ use crate::store::APP_SESSION_IDLE;
 async fn an_app_token_left_unused_expires_and_one_in_use_is_renewed() {
     let harness = Harness::start().await;
     let store = ServerStore::open(&harness.directory).unwrap();
-    let (_, unused) = store.register("unused@example.com", "Unused").await.unwrap();
+    let (_, unused) = store
+        .register("unused@example.com", "Unused")
+        .await
+        .unwrap();
     let (_, used) = store.register("used@example.com", "Used").await.unwrap();
     let expires = |token: &str| -> i64 {
         metadata_database(&harness.directory)
