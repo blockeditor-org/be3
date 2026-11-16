@@ -1128,7 +1128,11 @@ impl Handover {
         self.links()
     }
 
-    /// In the worker: the page took `updates` more updates of `bytes` in all.
+    /// In the worker: the page took `updates` more updates of `bytes` in all. An ack names no
+    /// update, so one for updates posted before a whole `Seen` went in their place (`replace`,
+    /// which counts `held` from one again) takes off what the newer ones hold: `held` floors at
+    /// nought and undercounts by up to `HELD_UPDATES` until the next replace. That only lets the
+    /// page hold that many more before the worker gathers them, so it stays bounded.
     #[cfg(target_arch = "wasm32")]
     pub(crate) fn acknowledge(&self, updates: usize, bytes: usize) {
         let less = |count: &AtomicUsize, by: usize| {
