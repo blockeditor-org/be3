@@ -10,11 +10,8 @@ fn the_gap_a_row_leaves_closes_over_frames() {
     let grab = harness.center(harness.find("row.2"));
     harness.down(grab, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(grab + vec2(0.0, 6.0))]);
-    harness.frame(vec![Input::PointerMoved(pos2(
-        REORDER_COLUMN + 10.0,
-        grab.y,
-    ))]);
-    assert_eq!(harness.document().find_test_id("row.2"), None);
+    let over = harness.center(harness.find("list.1")).x;
+    harness.frame(vec![Input::PointerMoved(pos2(over, grab.y))]);
     assert_eq!(
         top_of(&harness, "row.3"),
         2.0 * REORDER_ROW,

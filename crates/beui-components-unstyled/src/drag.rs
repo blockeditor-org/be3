@@ -19,7 +19,7 @@ use beui_view::types::TOUCH_DRAG_THRESHOLD;
 use beui_view::types::TouchDrags;
 use beui_view::types::{Pos2, Vec2};
 
-pub const DRAG_THRESHOLD: f32 = 4.0;
+pub use beui_view::types::DRAG_THRESHOLD;
 pub const DRAG_PREVIEW_OFFSET: Vec2 = Vec2::new(12.0, 14.0);
 const TOUCH_PREVIEW_OFFSET: Vec2 = Vec2::new(16.0, -64.0);
 

@@ -3146,7 +3146,6 @@ pub(crate) struct ReorderLists {
     pub(crate) lists: crate::reactive::Signal<Vec<Vec<u32>>>,
     pub(crate) moves: crate::reactive::Signal<Vec<(usize, unstyled::ReorderMove<u32, u32>)>>,
     pub(crate) disabled: crate::reactive::Signal<bool>,
-    pub(crate) long_press: bool,
     pub(crate) refuses: Option<usize>,
 }
 
@@ -3157,7 +3156,6 @@ impl ReorderLists {
             lists: create_signal(lists),
             moves: create_signal(Vec::new()),
             disabled: create_signal(false),
-            long_press: false,
             refuses: None,
         }
     }
@@ -3178,7 +3176,6 @@ pub(crate) fn reorder_lists(state: ReorderLists) -> Document {
         lists,
         moves,
         disabled,
-        long_press,
         refuses,
     } = state;
     build_node(move || {
@@ -3191,7 +3188,6 @@ pub(crate) fn reorder_lists(state: ReorderLists) -> Document {
                         payload={Func::new(|key: u32| Some(key))}
                         accepts={Func::new(move |_: u32| refuses != Some(column))}
                         disabled={disabled}
-                        long_press
                         text={|key: u32| format!("Row {key}")}
                         preview={|key: u32| view! {
                             <Frame

@@ -199,6 +199,13 @@ Depends on #686 (session catch-ups replaced by server ordering).
   `Reorder` for its tab bars (crates/beui-dock-host/src/unstyled/tab_strip.rs),
   a second way to reorder until the dock moves onto drop sites. Done:
   plans/declarative_dragging.md step 3 deletes it, right after step 5.
+- **A folded row's spacing.** A `Reorder` row carried off its list folds to
+  nothing, but its `List` still puts spacing on its far side, so the list stays
+  one spacing longer until the row is taken or comes back; it was removed
+  outright before, which put its carry down. Done: the folded row takes no
+  spacing (a `ListItem` of zero length could take none, or the row could be a
+  `Kept` out of the list), shown by beui-tests' reorder screen closing the
+  shelf to its two rows exactly.
 - **A keyboard step reveals the place it chose.** Edge scrolling follows only a
   pointer, so a keyboard carry stepped to a place in the hidden part of a scroll
   leaves it out of sight. Done: after each keyboard step the board scrolls the

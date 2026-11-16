@@ -102,20 +102,20 @@ pub fn is_carried<K: Clone + PartialEq + 'static>(key: K) -> Memo<bool> {
 }
 
 /// The places a carried row can land among `rows`, along `direction`, each named by the
-/// row it would come after: read now from where the rows are laid out, relative to `list`
+/// row it would come after (`carried` is its key, or `None` for an item from elsewhere): read now from where the rows are laid out, relative to `list`
 /// (the node they sit in), so a scroll or a moving window carries them along. A row lands at
 /// the start of a row it passes going up, and at the end of one it passes going down, as the
 /// rows between close up behind it; rows of any length rest exactly, and a row of several
 /// children rests where all of them do.
 ///
-/// A key from another list (a move between sites) gets a place at each gap between the rows
+/// An item from elsewhere, or a key not among the rows (a move between sites), gets a place at each gap between the rows
 /// and one past the last, the size of the item carried, as the rows would part for it: the
 /// list's `commit` takes it in (decisions/beui_a_move_between_drop_sites_is_the_apps.md). A
 /// key shown more than once is carried as its first row; its other rows are left out.
 pub fn slots_in<K>(
     list: NodeRef,
     rows: ForEachRef<K, NodeId>,
-    carried: &K,
+    carried: Option<&K>,
     direction: Direction,
 ) -> Vec<Candidate<After<K>>>
 where
@@ -129,7 +129,7 @@ pub(crate) fn slots_with<K>(
     space: &dyn Space,
     list: NodeRef,
     rows: ForEachRef<K, NodeId>,
-    carried: &K,
+    carried: Option<&K>,
     direction: Direction,
     item: Option<Vec2>,
 ) -> Vec<Candidate<After<K>>>
@@ -153,7 +153,9 @@ where
             window.size() / scale,
         )
     };
-    let Some(home) = keys.iter().position(|key| key == carried) else {
+    let Some((home, carried)) =
+        carried.and_then(|carried| Some((keys.iter().position(|key| key == carried)?, carried)))
+    else {
         let Some(item) = item else {
             return Vec::new();
         };

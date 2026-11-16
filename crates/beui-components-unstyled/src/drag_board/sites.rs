@@ -140,6 +140,16 @@ impl Board {
         Some(id)
     }
 
+    /// How many sites take `payload`: a site that is the only one has nowhere else to let
+    /// it go.
+    pub(crate) fn takers(&self, payload: &dyn std::any::Any) -> usize {
+        self.sites
+            .borrow()
+            .iter()
+            .filter(|site| (site.accepts)(payload))
+            .count()
+    }
+
     /// The rect of the item carried, or being lifted while the sites give their places,
     /// relative to the pointer; untracked.
     pub(crate) fn carried_item(&self) -> Option<Rect> {

@@ -46,7 +46,7 @@ pub use image::{CursorImage, Image, ImageFit, ImageId, Thumbhash};
 pub use input::{
     AutoscrollGesture, BackEdge, BackGesture, CursorIcon, DragGesture, ImeEvent, ImeText, Key,
     KeyPhase, KeyPress, Modifiers, PointerButton, PointerId, PointerInput, PointerPress,
-    PointerSample, PointerStage, ScrollGesture, SecondaryDrag, SoftKeyboard, TOUCH_DRAG_THRESHOLD,
+    PointerSample, PointerStage, ScrollGesture, SecondaryDrag, SoftKeyboard, TOUCH_DRAG_THRESHOLD, DRAG_THRESHOLD,
     TouchDrags, WHEEL_LATCH_TIMEOUT, WheelInput, ZoomGesture,
 };
 pub use input::{

@@ -198,7 +198,6 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
             disabled={read_only}
             fixed={sorted}
             slot={slot}
-            long_press=true
             text={name}
             preview={ghost}
             on_move={moved}

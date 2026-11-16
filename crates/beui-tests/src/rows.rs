@@ -243,7 +243,9 @@ pub fn ReorderFixture() -> NodeId {
         let length = height.get().map_or(0.0, |rect| rect.height());
         let spacing = SHELF_GAP.px();
         let full = 3.0 * SHELF_ROW + 2.0 * spacing;
-        let closed = 2.0 * SHELF_ROW + spacing;
+        // A row carried off its list folds to nothing, and the list keeps the spacing on
+        // its far side until the row is taken (plans/backlog.md, Dragging).
+        let closed = 2.0 * SHELF_ROW + 2.0 * spacing;
         match length {
             length if length >= full - 0.5 => "Shelf full".to_owned(),
             length if length <= closed + 0.5 => "Shelf closed".to_owned(),

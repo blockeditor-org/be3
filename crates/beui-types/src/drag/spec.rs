@@ -7,7 +7,7 @@ mod tests;
 
 use std::rc::Rc;
 
-use be_lib_geometry::{Pos2, Rect, Vec2};
+use be_lib_geometry::{Direction, Pos2, Rect, Vec2};
 
 use super::DragPoint;
 use crate::node::{NodeId, NodeRef};
@@ -96,6 +96,12 @@ pub enum DragSpec<D> {
     },
     /// A release faster than `speed` carries on along its path before choosing.
     Thrown { spec: Box<DragSpec<D>>, speed: f32 },
+    /// `spec`'s place, with the item drawn under the pointer along `along` and at the place
+    /// across it, as a list's row follows the finger while the rows part around it.
+    Following {
+        spec: Box<DragSpec<D>>,
+        along: Direction,
+    },
     /// A nested site: chosen while the pointer is in `region`, which chooses from there on.
     Into { region: NodeRef, drop: D },
     /// Anything else, from the point and the last frame. For now it only draws: it chooses
@@ -163,6 +169,14 @@ impl<D> DragSpec<D> {
         DragSpec::Thrown {
             spec: Box::new(self),
             speed: THROW_SPEED,
+        }
+    }
+
+    /// The place this chooses, with the item drawn under the pointer along `along`.
+    pub fn following(self, along: Direction) -> Self {
+        DragSpec::Following {
+            spec: Box::new(self),
+            along,
         }
     }
 
@@ -245,6 +259,10 @@ impl<D: 'static> DragSpec<D> {
             DragSpec::Thrown { spec, speed } => DragSpec::Thrown {
                 spec: Box::new(spec.map(drop)),
                 speed,
+            },
+            DragSpec::Following { spec, along } => DragSpec::Following {
+                spec: Box::new(spec.map(drop)),
+                along,
             },
             DragSpec::Into { region, drop: into } => DragSpec::Into {
                 region,
@@ -374,7 +392,7 @@ pub fn evaluate<D: Clone>(
 ) -> Evaluated<D> {
     let carried = evaluation.carried();
     let mut next = 0;
-    let found = walk(spec, evaluation, last, carried, &mut next);
+    let found = walk(spec, evaluation, last, carried, &mut next, None);
     match found {
         Some(found) => Evaluated {
             frame: DragFrame {
@@ -453,6 +471,7 @@ fn walk<'s, D: Clone>(
     last: &DragFrame,
     carried: Rect,
     next: &mut usize,
+    along: Option<Direction>,
 ) -> Option<Found<'s, D>> {
     let id = CandidateId(*next);
     *next += 1;
@@ -467,7 +486,10 @@ fn walk<'s, D: Clone>(
                         false => f32::INFINITY,
                     }
                 }
-                None => distance(carried, rest),
+                None => match along {
+                    Some(along) => along.main(carried.center() - rest.center()).abs(),
+                    None => distance(carried, rest),
+                },
             };
             Some(Found {
                 item: rest,
@@ -487,7 +509,7 @@ fn walk<'s, D: Clone>(
             let mut nearest: Option<Found<D>> = None;
             let mut floats: Option<Found<D>> = None;
             for spec in of {
-                let Some(found) = walk(spec, evaluation, last, carried, next) else {
+                let Some(found) = walk(spec, evaluation, last, carried, next, along) else {
                     continue;
                 };
                 if !found.placed() {
@@ -533,9 +555,9 @@ fn walk<'s, D: Clone>(
             })
         }
         DragSpec::WhenFar { near, far, reach } => {
-            let near = walk(near, evaluation, last, carried, next);
+            let near = walk(near, evaluation, last, carried, next, along);
             // Ids stay the same whichever side is chosen, so count `far`'s even when unused.
-            let far = walk(far, evaluation, last, carried, next);
+            let far = walk(far, evaluation, last, carried, next, along);
             match near {
                 Some(near) if near.distance <= *reach => Some(near),
                 _ => far,
@@ -547,7 +569,7 @@ fn walk<'s, D: Clone>(
             radius,
             chain,
         } => {
-            let found = walk(spec, evaluation, last, carried, next)?;
+            let found = walk(spec, evaluation, last, carried, next, along)?;
             match found.distance <= *radius {
                 true => {
                     let entered = found.chosen.is_some() && found.chosen != last.chosen;
@@ -562,7 +584,7 @@ fn walk<'s, D: Clone>(
         DragSpec::Thrown { spec, speed } => {
             let thrown = evaluation.released && evaluation.velocity.length() >= *speed;
             if !thrown {
-                return walk(spec, evaluation, last, carried, next);
+                return walk(spec, evaluation, last, carried, next, along);
             }
             let ahead = evaluation.velocity * THROW_SECONDS;
             let point = DragPoint {
@@ -575,7 +597,28 @@ fn walk<'s, D: Clone>(
                 released: true,
                 placed: evaluation.placed,
             };
-            walk(spec, &projected, last, carried.translate(ahead), next)
+            walk(spec, &projected, last, carried.translate(ahead), next, along)
+        }
+        DragSpec::Following { spec, along: axis } => {
+            // Its own places are chosen by how far along the line they are, as a list's row
+            // passes its neighbours however far across it the pointer strays; against other
+            // sites' places it counts the whole distance to the one it chose.
+            let found = walk(spec, evaluation, last, carried, next, Some(*axis))?;
+            if !found.placed() {
+                return Some(found);
+            }
+            let found = Found {
+                distance: match found.distance.is_finite() {
+                    true => distance(carried, found.item),
+                    false => found.distance,
+                },
+                ..found
+            };
+            let item = match axis {
+                Direction::Vertical => found.item.translate(Vec2::new(0.0, carried.min.y - found.item.min.y)),
+                Direction::Horizontal => found.item.translate(Vec2::new(carried.min.x - found.item.min.x, 0.0)),
+            };
+            Some(Found { item, ..found })
         }
         DragSpec::Into { region, drop } => {
             let node = region.try_get()?;
@@ -661,9 +704,9 @@ pub fn rests<D>(spec: &DragSpec<D>, placed: &dyn Fn(NodeId) -> Option<(Rect, f32
                 walk(near, placed, next, into);
                 walk(far, placed, next, into);
             }
-            DragSpec::SnapRadius { spec, .. } | DragSpec::Thrown { spec, .. } => {
-                walk(spec, placed, next, into)
-            }
+            DragSpec::SnapRadius { spec, .. }
+            | DragSpec::Thrown { spec, .. }
+            | DragSpec::Following { spec, .. } => walk(spec, placed, next, into),
             DragSpec::Free { .. }
             | DragSpec::Floating
             | DragSpec::Into { .. }
