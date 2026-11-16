@@ -52,12 +52,28 @@ pub enum Level {
     Manage,
 }
 
-/// `grantee`'s access, with the keys the granter verified for them, which a device seals to.
+/// `grantee`'s access, with the keys the granter verified for them, which a device seals to,
+/// and where the granter's own right to grant it comes from.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Grant {
     pub grantee: [u8; 16],
     pub identity: PublicIdentity,
     pub level: Level,
+    pub authority: Authority,
+}
+
+/// Where a signer's Manage comes from. Named in the record, as of an entry of another log, so a
+/// log checks the same however later entries of that log change: a grant an administrator
+/// signed still checks after they are demoted, and one signed after it does not.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum Authority {
+    /// This log's own grants (or a signer revoking their own grant).
+    Log,
+    /// Administering the organization, as of this entry of its log.
+    Organization(EntryHash),
+    /// Manage on a block above, as of this entry of its log. That the block is above comes from
+    /// the server's tree until parents are signed (plans/signed_access.md, step 4).
+    Inherited { block: [u8; 16], head: EntryHash },
 }
 
 /// Whether `account`, with the keys the administrator signing verified, administers the
@@ -67,14 +83,6 @@ pub struct Administrator {
     pub account: [u8; 16],
     pub identity: PublicIdentity,
     pub administrator: bool,
-}
-
-/// What a signer holds from outside the log being checked: administering the organization (its
-/// log checked), or Manage inherited from a block above.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Outside {
-    pub level: Level,
-    pub signing: SigningPublic,
 }
 
 /// An account's move to new keys, endorsed by the key it retires and signed (as an entry) by
@@ -320,14 +328,15 @@ pub struct Checked {
 /// the key it retires; a grant to another account only by a signer with Manage (from the log or
 /// from `outside`), and anyone's revocation of their own grant; an administrator record only by
 /// an administrator. Anything else makes the whole log refused, since a device acts only on a
-/// log it checked to its head. A signer the log names no keys for signs with the keys `outside`
-/// gives.
+/// log it checked to its head. A grant names where its signer's Manage comes from
+/// (`Authority`); `outside` answers for another log, as of the entry the grant names, with the
+/// signer's key there if they held Manage then.
 pub fn check_log(
     kind: LogKind,
     log: [u8; 16],
     pinned: EntryHash,
     entries: &[Entry],
-    outside: &dyn Fn([u8; 16]) -> Option<Outside>,
+    outside: &dyn Fn([u8; 16], &Authority) -> Option<SigningPublic>,
 ) -> Result<Checked, KeyError> {
     let (root, rest) = entries.split_first().ok_or(KeyError::Record)?;
     let checked = root.checked_root(kind, log)?;
@@ -352,24 +361,14 @@ pub fn check_log(
         }
     }
     for entry in rest {
-        let from_outside = outside(entry.signer);
-        let current = state
-            .signers
-            .get(&entry.signer)
-            .copied()
-            .or(from_outside.map(|outside| outside.signing))
-            .ok_or(KeyError::Record)?;
         if entry.log != log || entry.previous != Some(state.head) {
             return Err(KeyError::Record);
         }
-        let level = state
-            .grants
-            .get(&entry.signer)
-            .map_or(Level::None, |(level, _)| *level)
-            .max(from_outside.map_or(Level::None, |outside| outside.level));
+        let own = state.signers.get(&entry.signer).copied();
         match &entry.record {
             Record::Root(_) => return Err(KeyError::Record),
             Record::Retirement(retirement) => {
+                let current = own.ok_or(KeyError::Record)?;
                 let endorsed_by_current = retirement.account == entry.signer
                     && retirement.old == current
                     && verify_signature(
@@ -381,12 +380,39 @@ pub fn check_log(
                     return Err(KeyError::Record);
                 }
                 state.signers.insert(entry.signer, retirement.new.signing);
+                for (account, identity) in state
+                    .grants
+                    .iter_mut()
+                    .map(|(account, (_, identity))| (account, identity))
+                    .chain(state.administrators.iter_mut())
+                {
+                    if *account == entry.signer {
+                        *identity = retirement.new;
+                    }
+                }
             }
             Record::Grant(grant) => {
+                let level = state
+                    .grants
+                    .get(&entry.signer)
+                    .map_or(Level::None, |(level, _)| *level);
                 let own_revocation = grant.grantee == entry.signer && grant.level == Level::None;
-                let may = kind == LogKind::Block && (own_revocation || level == Level::Manage);
-                if !may || !entry.signed_by(&current) {
+                let signing = match grant.authority {
+                    Authority::Log if own_revocation || level == Level::Manage => own,
+                    Authority::Log => None,
+                    // Signed with the key this log names for them when it names one: a key
+                    // retired here signs nothing after, whatever the other log was as of then.
+                    ref other => outside(entry.signer, other).map(|signing| own.unwrap_or(signing)),
+                };
+                let may = kind == LogKind::Block
+                    && signing.is_some_and(|signing| entry.signed_by(&signing));
+                if !may {
                     return Err(KeyError::Record);
+                }
+                // One who grants from outside the log holds a record in it now, retired here as
+                // in any log they signed in.
+                if let Some(signing) = signing {
+                    state.signers.entry(entry.signer).or_insert(signing);
                 }
                 state.signers.insert(grant.grantee, grant.identity.signing);
                 state
@@ -395,8 +421,9 @@ pub fn check_log(
             }
             Record::Administrator(administrator) => {
                 let may = kind == LogKind::Organization
-                    && state.administrators.contains_key(&entry.signer);
-                if !may || !entry.signed_by(&current) {
+                    && state.administrators.contains_key(&entry.signer)
+                    && own.is_some_and(|signing| entry.signed_by(&signing));
+                if !may {
                     return Err(KeyError::Record);
                 }
                 state
@@ -417,4 +444,36 @@ pub fn check_log(
         state.head = entry.hash();
     }
     Ok(state)
+}
+
+/// The log as `check_log` checks it up to `as_of`, one of its entries, which a grant names as
+/// where its signer's Manage comes from (`Authority`). Refused when the log has no such entry.
+pub fn check_log_as_of(
+    kind: LogKind,
+    log: [u8; 16],
+    pinned: EntryHash,
+    entries: &[Entry],
+    as_of: EntryHash,
+    outside: &dyn Fn([u8; 16], &Authority) -> Option<SigningPublic>,
+) -> Result<Checked, KeyError> {
+    let end = entries
+        .iter()
+        .position(|entry| entry.hash() == as_of)
+        .ok_or(KeyError::Record)?;
+    check_log(kind, log, pinned, &entries[..=end], outside)
+}
+
+impl Checked {
+    /// `account`'s signing key, if it manages what the log is of: Manage on a block, or
+    /// administering an organization.
+    pub fn manager(&self, kind: LogKind, account: [u8; 16]) -> Option<SigningPublic> {
+        let manages = match kind {
+            LogKind::Block => self
+                .grants
+                .get(&account)
+                .is_some_and(|(level, _)| *level == Level::Manage),
+            LogKind::Organization => self.administrators.contains_key(&account),
+        };
+        manages.then(|| self.signers.get(&account).copied()).flatten()
+    }
 }

@@ -60,7 +60,7 @@ fn a_placeless_key_types_its_text_or_the_layouts_key_for_a_shortcut() {
         }]
     );
     assert_eq!(
-        keystroke(&placeless(Key::C, None, true), &|_| None),
+        keystroke(&placeless(Key::C, None, true), &|_, _| None),
         [Synth::Key {
             vk: u16::from(b'C'),
             scan: 0,
