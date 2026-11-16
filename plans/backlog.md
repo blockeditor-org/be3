@@ -241,25 +241,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   moves. Done: the cause found from a failing run's output and fixed at its
   source, with a test that shows it.
 
-- **An edit ordered twice across a crash.**
-  `an_edit_to_a_block_made_editable_again_after_its_edits_were_discarded_lands_once_across_a_crash`
-  (be-host-stack) counted 21, not 11, in 2 of 200 runs: before the crash the replica submitted
-  the +10 (`through` 3); the old process's submission reached the order after the restarted one
-  joined, and the restarted replica gave the edit again under a new counter with the same
-  `through`, so the order took both. A replica's join waiting for its own submissions
-  (`Open::submitting`) cannot see the old process's. Passing over an operation whose `through`
-  its origin reached was tried and set aside: a reload or keep of the same origin notes a
-  `through` that counts edits still unsent, so the operation holding one would be dropped, and
-  replicas do not share the origins table it reads (a long-lived one keeps every origin, one
-  opened from a base only `BaseState::KEPT_ORIGINS`; the replay paths would differ again).
-  Instead keep the submission's identity: the write-ahead keeps each submission's counter,
-  `through` and sealed payload beside `OpenEdits`, and a reopened replica gives a kept edit up
-  to `submitted_through` back as exactly the op it submitted, so the server's id check
-  (`journal::submit`'s `held`) answers `Held` rather than numbering a second copy. Related:
-  the same over-count reaches `own_through` through reloads, so after a crash an edit still
-  unsent when a reload went out may be taken as ordered. Done: that crash test with no double
-  in 200 runs under `stress`, and a guest test where a reload of the same origin precedes its
-  unsent operation and the edit lands.
 - **A take that returns before another's notices are told.** In a test that runs no frames,
   be-host-stack's pump thread (`start`) applies an update under the stack's lock and tells the
   watchers after it lets go (`take_updates`), so a `take_updates` on the test's thread meanwhile

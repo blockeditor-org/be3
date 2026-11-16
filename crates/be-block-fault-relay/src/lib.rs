@@ -121,7 +121,7 @@ impl Relay {
     }
 
     /// Holds back what the connections open now send the server, unlike `stall`, which drops it:
-    /// delivered in order once let go.
+    /// delivered in order once let go, even when its client went away meanwhile.
     pub fn hold_requests(&self, holding: bool) {
         for link in self.state.links() {
             link.holding_requests.send_replace(holding);
@@ -268,7 +268,8 @@ async fn carry(client: TcpStream, link: Link, state: Arc<State>, holding: bool) 
         tokio::select! {
             () = &mut up => {}
             () = down => {
-                if *link.stalled.borrow() {
+                // What is held for the server still goes once let go.
+                if *link.stalled.borrow() || *link.holding_requests.borrow() {
                     up.await;
                 }
             }
@@ -339,6 +340,15 @@ async fn pump(
         };
         let read = match read {
             Ok(0) | Err(_) => {
+                // Requests held when the client went away were sent before it did: they reach
+                // the server once let go, as bytes already on their way would.
+                if heard.is_some() && !held.is_empty() {
+                    let _ = let_go.wait_for(|holding| !*holding).await;
+                    if let Some(to) = &mut to {
+                        let _ = to.write_all(&held).await;
+                    }
+                    return;
+                }
                 for (due, bytes) in delayed {
                     tokio::time::sleep_until(due).await;
                     if let Some(to) = &mut to

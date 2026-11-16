@@ -95,6 +95,7 @@ fn every_record_reads_back_with_each_option_none_and_some() {
                 submitted_through: 3,
                 restarts: 4,
                 edits: vec![vec![5]],
+                submissions: vec![vec![6]],
             }),
         });
         reads_back(&Unsent {
