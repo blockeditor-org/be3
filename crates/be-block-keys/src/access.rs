@@ -404,7 +404,10 @@ pub fn check_log(
                     // retired here signs nothing after, whatever the other log was as of then.
                     ref other => outside(entry.signer, other).map(|signing| own.unwrap_or(signing)),
                 };
+                // Authorship is Manage from the root (and, later, owner records) alone: no grant
+                // lowers or names the creator.
                 let may = kind == LogKind::Block
+                    && grant.grantee != checked.creator
                     && signing.is_some_and(|signing| entry.signed_by(&signing));
                 if !may {
                     return Err(KeyError::Record);
