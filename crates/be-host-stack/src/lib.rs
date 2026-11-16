@@ -1589,7 +1589,7 @@ pub fn wait_until<T>(what: &str, read: impl Fn(&Shared) -> Option<T>) -> T {
     loop {
         // What `read` asks of the page (`is_known`, say) reads what the worker handed over:
         // hand over what it holds now and take it first, so the page is not behind it.
-        if seen::publish(&mut held, &handover, seen::Told::default()) {
+        if seen::publish(&mut held, &handover) {
             drop(held);
             take_updates();
             held = shared.lock().unwrap_or_else(PoisonError::into_inner);
