@@ -911,7 +911,7 @@ impl Shared {
         self.seen.search_busy = self
             .search
             .busy_with(super::search::wants_index(self))
-            .map(crate::seen::Words::Borrowed);
+            .map(str::to_owned);
         self.refresh_reach();
     }
 
@@ -2070,8 +2070,7 @@ impl Session<'_> {
 }
 
 fn step(shared: &Arc<Mutex<Shared>>, step: Option<&'static str>) {
-    shared.lock().unwrap_or_else(PoisonError::into_inner).step =
-        step.map(crate::seen::Words::Borrowed);
+    shared.lock().unwrap_or_else(PoisonError::into_inner).step = step.map(str::to_owned);
 }
 
 /// The device has asked for everything it missed while away (`Shared::arriving`).
@@ -2372,16 +2371,11 @@ fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
     held.waiting = counts.operations;
     held.outbox = outbox
         .into_iter()
-        .map(|(kind, block)| (crate::seen::Words::Borrowed(kind), block))
+        .map(|(kind, block)| (kind.to_owned(), block))
         .collect();
     held.recounting = false;
     if held.unsent.len() != counts.unsent {
-        held.unsent = crate::Part::new(
-            peer.unsent()
-                .iter()
-                .map(crate::seen::Unsent::from)
-                .collect(),
-        );
+        held.unsent = crate::Part::new(peer.unsent().to_vec());
         changed = true;
     }
     // What went wrong sending stops being news once the device is connected and in step: nothing
@@ -2868,9 +2862,9 @@ impl Ran<'_> {
             let (owing, undurable);
             (held.unsealed, owing, undurable) = self.replicas.counts();
             held.owing = owing.len();
-            held.owing_blocks = owing.iter().map(crate::seen::Owed::from).collect();
+            held.owing_blocks = owing;
             held.undurable = undurable.len();
-            held.undurable_blocks = undurable.iter().map(crate::seen::Owed::from).collect();
+            held.undurable_blocks = undurable;
             held.seals_owed += u64::from(sealed_owed);
             held.recounting = true;
             held.typing = !self.replicas.modules.settled();
@@ -3005,7 +2999,7 @@ async fn tend_with(
         .keys()
         .escrow_warning()
         .map(be_block_client::EscrowWarning::message)
-        .map(crate::seen::Words::Borrowed);
+        .map(str::to_owned);
     crate::changes::wake();
 }
 
@@ -3593,12 +3587,7 @@ async fn apply(
                     held.graph.relist_around(block, parent);
                 }
             }
-            held.unsent = crate::Part::new(
-                peer.unsent()
-                    .iter()
-                    .map(crate::seen::Unsent::from)
-                    .collect(),
-            );
+            held.unsent = crate::Part::new(peer.unsent().to_vec());
             crate::changes::stale();
             held.progressed += 1;
             drop(held);
