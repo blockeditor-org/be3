@@ -912,7 +912,10 @@ is heard. Any other child placed hidden is unavailable. A placement's
 person asked to close it, which closes a program window and does nothing yet for
 any other child, and `focus-child` (or `focus-block-child`, for the child that will show a
 block) or the keyboard the host gives the view that
-shows the child gives a program window the keyboard. A program window placed
+shows the child gives a program window the keyboard. A `focus-child` for a child the
+host took away in a recent change of children (the editor had not heard yet of the
+child placed in its stead) is answered `gift-missed`, and the editor may ask again for
+the child it places now. A program window placed
 nowhere, or only hidden, is suspended. A block
 already open above the instance is refused, so an editor cannot be nested inside
 itself. The host bounds how many children of one view it will run as editors and

@@ -309,23 +309,17 @@ fn follow_tab_keyboard(
                 )
             })
     });
-    // What was asked for, and of which child: a child registered anew in the tab's place (its
-    // body built again, as a joined editor's is when its group is shown) is asked again for a
-    // keyboard the child it replaced was asked for, which went to a placement already going.
-    let asked = StoredCell::new((None::<ChildId>, Vec::<(bool, u64)>::new()));
+    let asked = StoredCell::new(Vec::<(bool, u64)>::new());
     create_effect(move || {
         let given = given.get();
         let (Some(child), true) = (child.get(), interactive.get()) else {
             return;
         };
-        let (asked_of, held) = asked.replace((Some(child), given.clone()));
-        let replaced = asked_of.is_some_and(|asked_of| asked_of != child);
+        let held = asked.replace(given.clone());
         let trapped = editor.popped().with_untracked(Option::is_some)
             || beui::native::try_with_document(|document| document.layers().takes_keyboard())
                 .unwrap_or(false);
-        let fresh = given.iter().any(|given| !held.contains(given));
-        let owed = replaced && !given.is_empty() && held == given;
-        if !trapped && (fresh || owed) {
+        if !trapped && given.iter().any(|given| !held.contains(given)) {
             untrack(|| editor.host().focus_child(child));
         }
     });

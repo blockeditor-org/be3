@@ -107,10 +107,13 @@ tab when it hears this (`DockTabControl::content_focused`, so a dock that stops
 showing the tab hands the keyboard to the one shown in its place), and one in an
 empty pane's view focuses that pane, so a press in a child (a joined dock's tab
 body or empty pane included) focuses what holds it and brings its window in
-front; `on_focus` is for anything more. Content following its tab's keyboard
-(`DockTabControl::keyboard`) asks again for a child registered in place of the
-one it asked for (a joined editor's tab body shown again), whose placement was
-already going. A child that takes a press without the
+front; `on_focus` is for anything more. An editor can ask to give the keyboard
+to a child the host already took away, since it hears of the child placed in
+its stead only after the commit that placed it (a joined editor's tab body shown
+again). The host answers `gift-missed` for a child its latest changes took away
+(`Instance::departed`), and the slot that placed it gives the keyboard to the
+child it places now (`EditorHost::missed_gift`, `Slot::before`), so a gift is
+asked again only when one missed. A child that takes a press without the
 keyboard (one being presented) brings nothing forward. The other way,
 `EditorHost::focus_child` gives a child the keyboard, but only while the
 keyboard is already inside the editor's views and no popover or keyboard-taking

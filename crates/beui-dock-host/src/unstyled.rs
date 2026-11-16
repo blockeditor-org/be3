@@ -4501,16 +4501,22 @@ fn tab_actions(dock: State, keys: Prop<DockTabKeys>, area: NodeRef) {
 
 /// The tab `leaf` shows: its active tab, or for a joined editor's group, the tab its stage shows.
 fn shown_tab(state: &DockState, leaf: LeafId) -> Option<TabId> {
-    let mut leaf = leaf;
+    entry_shown_tab(state, state.active_entry(leaf)?)
+}
+
+/// The tab `entry` shows when it is shown: itself, or for a group, the tab its stage shows.
+pub(super) fn entry_shown_tab(state: &DockState, entry: Entry) -> Option<TabId> {
+    let mut entry = entry;
     for _ in 0..16 {
-        match state.active_entry(leaf)? {
+        match entry {
             Entry::Tab(tab) => return Some(tab),
             Entry::Group(group) => {
                 let tree = Tree::Group(group);
-                leaf = match state.tree_leaves(tree)[..] {
+                let leaf = match state.tree_leaves(tree)[..] {
                     [only] => only,
                     _ => state.stage_of(tree)?,
                 };
+                entry = state.active_entry(leaf)?;
             }
         }
     }
