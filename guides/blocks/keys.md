@@ -285,7 +285,13 @@ Edit can write as someone else.
   never forgotten, so what was signed before a new phrase still verifies). A
   contact's key, from its card or a key change, and the account's own are
   verified, the newest being current: an older verified key answers `Changed`,
-  since someone holding the old phrase can sign with it. An account with one is checked only against verified keys, after
+  since someone holding the old phrase can sign with it. A newer verified key
+  marks the older ones replaced as of the server's clock as the device estimates
+  it (`KnownSigner::replaced`, `Peer::server_now`); a record that keeps when the
+  server took it (`verify`'s `arrived`, chat's `Message::arrival`) and arrived
+  more than a minute after that answers `Bad`, since only someone holding the
+  old phrase signs with it then. A record with no stamp, or arriving between the
+  new phrase and this device learning of it, stays `Changed`. An account with one is checked only against verified keys, after
   rereading the contacts once, so the server cannot sign as a contact. Any other
   member's key comes from the server (`get-signing-keys`: the caller, its
   contacts and the members of the organization open, which in the personal

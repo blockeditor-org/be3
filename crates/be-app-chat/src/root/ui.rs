@@ -89,6 +89,16 @@ enum Record {
 }
 
 impl Record {
+    /// When the server took it, for a message that keeps that stamp (`Message::arrival`): a
+    /// message signed with a key its author has since replaced is forged if it arrived after
+    /// this device learned of the new key.
+    fn arrival(&self) -> Option<i64> {
+        match self {
+            Self::Message(_, message) => message.arrival,
+            _ => None,
+        }
+    }
+
     /// The bytes its author signed, or none for a removal, which no signature covers
     /// (`Trust::Altered`).
     fn signed_bytes(&self, chat: Uuid) -> Option<Vec<u8>> {
@@ -1022,6 +1032,7 @@ fn missing_messages(
                     message.author,
                     message.signed_bytes(block, naming),
                     message.signature.0.clone(),
+                    message.arrival,
                 );
                 editor.then(asking, move |found| {
                     let Ok(signer) = found else {
@@ -1391,6 +1402,7 @@ fn forged_deletions(
                         checked.author,
                         checked.signed_bytes(block, message),
                         checked.signature.0.clone(),
+                        None,
                     )
                     .await?
                 {
@@ -1405,6 +1417,7 @@ fn forged_deletions(
                         sent.author,
                         sent.signed_bytes(block, message),
                         sent.signature.0.clone(),
+                        None,
                     )
                     .await?
                 {
@@ -1656,7 +1669,10 @@ fn MessageRow(
                     least = least.max(Trust::Altered);
                     continue;
                 };
-                let verified = host.verify(proof.author, bytes, proof.signature).await;
+                let arrival = proof.record.arrival();
+                let verified = host
+                    .verify(proof.author, bytes, proof.signature, arrival)
+                    .await;
                 let signer = verified
                     .and_then(Result::ok)
                     .ok_or(be_sdk_beui::beui::reactive::Pending::Loading)?;

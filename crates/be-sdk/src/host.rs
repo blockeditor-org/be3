@@ -2022,14 +2022,19 @@ impl EditorHost {
     }
 
     /// Whether `account` signed `bytes` in the block the editor shows, and how far its key is
-    /// trusted.
+    /// trusted. `arrived` is when the server took the record, for one that keeps that stamp: a
+    /// record signed with a replaced key that arrived after this device learned of the new one
+    /// is `Bad`.
     pub fn verify(
         &self,
         account: Uuid,
         bytes: Vec<u8>,
         signature: Vec<u8>,
+        arrived: Option<i64>,
     ) -> Asked<Result<Signer, Failure>> {
-        Asked::of(self.ask(|| host_services::verify(account.into_bytes(), bytes, signature)))
+        Asked::of(self.ask(|| {
+            host_services::verify(account.into_bytes(), bytes, signature, arrived)
+        }))
     }
 
     /// Fails with the message to show where the person shared when the server could not take

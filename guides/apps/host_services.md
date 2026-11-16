@@ -96,9 +96,10 @@ Notes on particular calls:
   refuses to rotate or remove anything but a block's agent the person made
   (`member.bound-to` and `created-by`); removing one no longer listed answers
   success without asking the server.
-- `sign(bytes)` signs as the person and `verify(account, bytes, signature)`
-  answers a `Signer` (verified, unverified, changed or bad), both in the block
-  the editor shows, with a key the app never holds (guides/blocks/keys.md,
+- `sign(bytes)` signs as the person and `verify(account, bytes, signature,
+  arrived)` answers a `Signer` (verified, unverified, changed or bad), both in
+  the block the editor shows; `arrived` is when the server took the record, for
+  a record that keeps that stamp, with a key the app never holds (guides/blocks/keys.md,
   Signing what a person writes). Sign what a record means, not its encoding: a
   type defines the bytes (be-type-chat's `signed.rs`). `verify` is
   `unavailable` while its answer needs the server and it is out of reach.

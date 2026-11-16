@@ -23,6 +23,7 @@ pub(crate) enum AuthorshipCommand {
         block: Uuid,
         bytes: Vec<u8>,
         signature: Vec<u8>,
+        arrived: Option<i64>,
         reply: Reply<crate::replies::Signed>,
     },
 }
@@ -40,12 +41,14 @@ pub fn sign(
     }));
 }
 
-/// Who of `account` signed `bytes` in `block` (`Peer::verify_authored`).
+/// Who of `account` signed `bytes` in `block`, which the server took at `arrived` if the
+/// record carries that stamp (`Peer::verify_authored`).
 pub fn verify(
     account: Uuid,
     block: Uuid,
     bytes: Vec<u8>,
     signature: Vec<u8>,
+    arrived: Option<i64>,
     reply: impl FnOnce(Result<Signer, String>) + Send + 'static,
 ) {
     crate::send(Command::Authorship(AuthorshipCommand::Verify {
@@ -53,6 +56,7 @@ pub fn verify(
         block,
         bytes,
         signature,
+        arrived,
         reply: crate::replies::expect(move |signer: Result<crate::replies::Signed, String>| {
             reply(signer.map(|crate::replies::Signed(signer)| signer));
         }),
@@ -71,12 +75,13 @@ pub(crate) fn run(peer: &Arc<Peer<Store>>, tasks: &Tasks, command: AuthorshipCom
             block,
             bytes,
             signature,
+            arrived,
             reply,
         } => {
             let peer = Arc::clone(peer);
             tasks.spawn(async move {
                 let verified = peer
-                    .verify_authored(account, block, &bytes, &signature)
+                    .verify_authored(account, block, &bytes, &signature, arrived)
                     .await;
                 reply.send(
                     verified
