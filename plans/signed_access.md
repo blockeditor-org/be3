@@ -253,16 +253,6 @@ instead.
    parents, and a block's agent keeps reading its organization's log
    (`bound_may`), since a terminal host opens its organization as
    `Peer::attach` does.
-   - **3a. Authenticated escrow wraps.** An escrow wrap is sealed by its
-     sender to the escrow key, as `seal_for` seals to an account, not
-     anonymously, so the server cannot make one (an anonymous wrap lets
-     anyone, the server included, seal a made-up key of a block to the escrow
-     key and show administrators forged content of it; the server claiming a
-     block is under the organization's settings does the same, since a key
-     the server holds reads there, plans/keys_bound_to_blocks.md); a root it
-     carries is taken
-     only from a sender the log entitles (3c). Done: a test where a wrap the
-     server seals to the escrow carries no root anyone trusts.
    - **3b. Grant and administrator records.** Grants (revocation is a grant
      to `None`) in a block's log and administrators in the organization's,
      each checked at its place in the log (`check_log`) by the server and by
@@ -273,6 +263,20 @@ instead.
      test where the server lists a contact as granted with no record and no
      key reaches them; one where a forged administrator record is refused;
      one where a demoted administrator's escrow epoch is refused.
+   - **3a. Authenticated escrow wraps**, after 3b, whose records name the
+     keys an administrator checks a sender by: an escrow wrap is sealed by its
+     sender to the escrow key, as `seal_for` seals to an account, not
+     anonymously, so the server cannot make one (an anonymous wrap lets
+     anyone, the server included, seal a made-up key of a block to the escrow
+     key and show administrators forged content of it; the server claiming a
+     block is under the organization's settings does the same, since a key
+     the server holds reads there, plans/keys_bound_to_blocks.md), and is
+     opened only from a
+     sender the checked logs name with Edit or above, with the keys they name;
+     a root it carries is taken only from such a sender (3c). Sealing it from
+     the sender sooner would prove nothing, as a sender who is not a contact
+     has only keys the server names. Done: a test where a wrap the
+     server seals to the escrow carries no root anyone trusts.
    - **3c. Sealing to whom the log names.** `tend` seals a scope key only to
      grantees checked in the logs up the ancestry, with the keys their grant
      names, contacts or not, and never an owner-only block's keys to anyone
