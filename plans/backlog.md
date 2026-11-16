@@ -229,6 +229,17 @@ Depends on #686 (session catch-ups replaced by server ordering).
   fails, and fix the cause its output shows at its source, with a test that
   shows it.
 
+- **A shared block's first edit before its key arrives.**
+  `an_edit_to_a_block_made_editable_again_after_its_edits_were_discarded_lands_once_across_a_crash`
+  (be-host-stack) failed once in 200 runs (12 at a time) at its first `flush_and_send`, line 61,
+  before any demotion: the stack recorded "an edit did not reach the session: this block is
+  locked: its key has not been shared with this account yet" and the flush never settled (no
+  edits owed, nothing undurable, no drain under way). The sharer had shared the block, and this
+  account listed it as editable, but the block's key had not reached it when the replica
+  submitted the first edit, and nothing submitted it again once the key came. Done: the cause
+  found under `stress` (where the key arrives, and why the refused submission is not given
+  again once it does) and fixed at its source, with a test that shows it.
+
 ## 16. Host test tools
 
 - **Stepping an app's present apart from the poll.** With the clock stopped,
