@@ -1161,7 +1161,9 @@ impl Instances {
 
     pub(super) fn has_mounted(&self) -> bool {
         self.entries.iter().any(|(instance, entry)| {
-            entry.screens.values().any(|screen| screen.mounted > 0)
+            // A host component has no screen to mount, and runs for as long as it is open.
+            matches!(entry.role, InstanceRole::Host(..))
+                || entry.screens.values().any(|screen| screen.mounted > 0)
                 || entry
                     .screens
                     .get(&ViewId::MAIN)
