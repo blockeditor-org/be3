@@ -17,7 +17,7 @@ Each item is marked when it is taken and when it lands (the fixing commit).
 
 - 1, 2, 3: session_01UbiTY1dyaLgrBaJHjjZcSE, designed in
   plans/keys_bound_to_blocks.md.
-- 7: session_01UbiTY1dyaLgrBaJHjjZcSE, after 1-3.
+- 7: session_01UbiTY1dyaLgrBaJHjjZcSE, fixed on fix/chat-deletion-author (94c58f0e6), in review.
 - 10, and the overlapping parts of 6 and 9: the signed access builder
   (session_01UbiTY168uiE6R7Qo8b581U).
 - 4, 5, 8, 9: to be assigned.
