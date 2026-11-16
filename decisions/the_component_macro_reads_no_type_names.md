@@ -20,6 +20,12 @@ The macro reads a type in three places, all structural or syntactic:
 - `Render<(), C>` and `RenderFn<(), C>` are rejected: a render handed nothing is a `Build<C>` or
   `BuildFn<C>`.
 
+The macro reads exactly two type names: `Option`, so an exact prop works inside one, and
+`()` as the handle of `Render`/`RenderFn`, to reject it. Each one is here only because no trait
+can express it: whether a type argument is one of the component's own parameters is decided
+before traits are resolved, and a rejected type has no trait to fail. Before adding a third name,
+look for a trait that answers the question instead, and record the new name here if none can.
+
 ## Why
 
 - A new prop type, in any crate, works in a tag by implementing traits, not by teaching the
