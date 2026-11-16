@@ -64,7 +64,7 @@ struct State<K: 'static, P: 'static> {
     disabled: Prop<bool>,
     fixed: Prop<bool>,
     slot: Option<Func<P, Option<usize>>>,
-    long_press: bool,
+    lifts_on_long_press: bool,
     text: Callback<K, String>,
     on_move: Callback<ReorderMove<K, P>>,
     on_drag_change: Callback<Option<K>>,
@@ -636,7 +636,7 @@ pub fn Reorder<K, P>(
     /// Whether a finger's long press lifts a row; off, the long press is the row's menu, and
     /// a finger lifts a row by dragging it across the list.
     #[prop(default = false)]
-    long_press: bool,
+    lifts_on_long_press: bool,
     text: Callback<K, String>,
     on_move: Callback<ReorderMove<K, P>>,
     on_drag_change: Callback<Option<K>>,
@@ -662,7 +662,7 @@ where
         disabled,
         fixed,
         slot,
-        long_press,
+        lifts_on_long_press,
         text,
         on_move,
         on_drag_change,
@@ -1017,7 +1017,7 @@ where
         on_click.call(());
     };
     let drag = Func::new(move |_: PointerPress| lift(state, key.get_untracked()));
-    let (spring, long_press) = state.with(|state| (state.spring, state.long_press));
+    let (spring, lifts_on_long_press) = state.with(|state| (state.spring, state.lifts_on_long_press));
     let inner = view! {
         <Glide spring on={arm} within={Some(api)}>
             <Interactive
@@ -1031,7 +1031,7 @@ where
                     false => TouchDrags::None,
                 }}
                 drag={Some(drag)}
-                lifts_on_long_press={long_press}
+                lifts_on_long_press
                 on_click_at={clicked}
             >
                 {face}
