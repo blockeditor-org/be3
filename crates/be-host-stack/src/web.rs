@@ -77,9 +77,7 @@ impl Transports {
     /// Takes what was left under this number, which the page left as a `T`: anything else is
     /// a bug.
     pub fn take<T: 'static>(self) -> T {
-        let transports = self
-            .remove()
-            .expect("a worker's transports are taken once");
+        let transports = self.remove().expect("a worker's transports are taken once");
         *transports
             .downcast()
             .expect("a worker's transports are what its page left")
