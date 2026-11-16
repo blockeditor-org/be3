@@ -403,7 +403,8 @@ fn maintain(command: &str, options: Options) -> Result<(), Box<dyn Error + Send 
             tracing::info!(
                 snapshot = report.snapshot,
                 objects = report.objects,
-                "restored"
+                "restored the server as it was at the snapshot's time: check it is the newest \
+                 backup, since an older one would undo what changed after it"
             );
         }
         _ => {
