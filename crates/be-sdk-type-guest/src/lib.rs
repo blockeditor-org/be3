@@ -455,6 +455,7 @@ impl Module {
                 kept_restart: opening.kept_restart,
                 kept_through: opening.kept_through,
                 kept_submitted: opening.kept_submitted,
+                kept_submissions: opening.kept_submissions.clone(),
                 head: opening.head,
                 session: opening.session.clone(),
                 journal: opening.journal.clone(),

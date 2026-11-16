@@ -28,7 +28,7 @@ fn an_edit_the_server_ordered_before_a_crash_lands_once_after_another_device_sea
             .peer
             .as_ref()
             .and_then(|peer| peer.open_edits(block))
-            .is_some_and(|(_, edits)| edits.is_ok_and(|edits| edits.len() >= 2))
+            .is_some_and(|(_, edits)| edits.is_ok_and(|(edits, _)| edits.len() >= 2))
     });
     outside.claim();
     outside.seal();
