@@ -35,6 +35,20 @@ pub struct AppManifest {
     pub network: Vec<String>,
     pub extensions: Vec<String>,
     pub block_agents: bool,
+    /// The app's host components (guides/apps/host_services.md, "Host components").
+    pub hosts: Vec<HostManifest>,
+}
+
+/// A host component: a component of the app's wasm with no frame, which the host opens on a
+/// block of the type it `edits`, attached to the replica as an editor with Edit is, with no
+/// view and no input. It is how a hosted block's host runs (plans/hosted_blocks.md), in
+/// be-host or headless in `be` (plans/headless_apps.md).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HostManifest {
+    pub id: [u8; 16],
+    pub name: String,
+    /// The block type it runs on.
+    pub edits: [u8; 16],
 }
 
 pub const EXTENSIONS: &[&str] = &["be3:desktop"];
@@ -175,6 +189,7 @@ pub enum ManifestError {
     DuplicateTemplate,
     TemplateWithoutBlockType,
     ServiceWithTemplates,
+    DuplicateHost,
 }
 
 impl fmt::Display for ManifestError {
@@ -198,6 +213,9 @@ impl fmt::Display for ManifestError {
             Self::NoEditors => {
                 formatter.write_str("the app declares no editors and no block types")
             }
+            Self::DuplicateHost => formatter.write_str(
+                "a host component shares an id or name with an editor or another host, or two run on one type",
+            ),
             Self::DuplicateBlockType => {
                 formatter.write_str("two block types are declared with the same id or name")
             }
@@ -258,6 +276,20 @@ impl AppManifest {
                 return Err(ManifestError::DuplicateEditor);
             }
             editor.validate()?;
+        }
+        for (index, host) in self.hosts.iter().enumerate() {
+            manifest_string("host name", &host.name)?;
+            // One registry of components, so a host shares no id or name with an editor or
+            // another host, and one host per type, which a hosted block's lease names.
+            if self.hosts[..index].iter().any(|other| {
+                other.id == host.id || other.name == host.name || other.edits == host.edits
+            }) || self
+                .editors
+                .iter()
+                .any(|editor| editor.id == host.id || editor.name == host.name)
+            {
+                return Err(ManifestError::DuplicateHost);
+            }
         }
         manifest_string("entry point", &self.entry_point)?;
         for host in &self.network {
