@@ -134,7 +134,8 @@ render prop takes a closure taking its handle (`|_| ..` when it ignores it), and
 `Build<C>` or `BuildFn<C>` one taking nothing. A plain type takes only itself, so
 a `From` conversion a caller wants into a prop type of its own crate is an
 `IntoPropValue<ThatType, M>` impl for the value's type, with a marker of its own
-as `M`. `beui-tree`'s own prop types instead have one `IntoPropValue` impl each,
+as `M`; for an `Option<ThatType>` prop to take that value too, add an
+`OptionalTakes<Value, M>` impl on `ThatType` (`reactive::macro_support`). `beui-tree`'s own prop types instead have one `IntoPropValue` impl each,
 keyed on the type and asking the type what it takes (`Takes`, implemented on the
 prop's type), so a value a prop does not take is reported against the prop
 rather than with a list of every type `IntoPropValue` knows. Every builder
