@@ -14,9 +14,16 @@ fn signed(block: Uuid, bytes: &[u8]) -> Vec<u8> {
 
 fn verified(account: Uuid, block: Uuid, bytes: &[u8], signature: Vec<u8>) -> Signer {
     let (sender, receiver) = std::sync::mpsc::channel();
-    authorship::verify(account, block, bytes.to_vec(), signature, None, move |found| {
-        let _ = sender.send(found);
-    });
+    authorship::verify(
+        account,
+        block,
+        bytes.to_vec(),
+        signature,
+        None,
+        move |found| {
+            let _ = sender.send(found);
+        },
+    );
     receiver
         .recv()
         .expect("the worker answered")

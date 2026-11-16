@@ -758,7 +758,9 @@ impl<S: ObjectStore> Peer<S> {
     pub(crate) fn adopt_contacts(&self, contacts: &[crate::Contact]) {
         for contact in contacts {
             if let Some(signing) = contact.signing {
-                let _ = self.refs.add_signer(contact.account, signing.0, true, self.server_now());
+                let _ = self
+                    .refs
+                    .add_signer(contact.account, signing.0, true, self.server_now());
             }
         }
         let verified: Vec<(Uuid, RecoveryPublic)> = contacts

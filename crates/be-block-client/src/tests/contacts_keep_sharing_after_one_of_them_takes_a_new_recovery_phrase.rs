@@ -139,7 +139,9 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
         Signer::Changed,
         "what the old key signed still verifies, but the old key is no longer the owner's"
     );
-    let now = watcher.server_now().expect("the watcher measured the server's clock");
+    let now = watcher
+        .server_now()
+        .expect("the watcher measured the server's clock");
     assert_eq!(
         watcher
             .verify_authored(owner.account(), block, b"before", &before, Some(0))
