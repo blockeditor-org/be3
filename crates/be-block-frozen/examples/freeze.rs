@@ -400,7 +400,10 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     .map_err(text)?;
 
     let agent_phrase = RecoveryPhrase::generate();
-    let agent_account = Uuid::new_v4();
+    let agent_account = Uuid::from_bytes(be_block_keys::agent_account(
+        owner.account().into_bytes(),
+        &agent_phrase.secret().identity(),
+    ));
     let agent_public = agent_phrase.secret().public();
     let be_block_protocol::CreatedAgent {
         agent,

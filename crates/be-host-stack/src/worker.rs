@@ -3136,7 +3136,10 @@ async fn create_agent(
     let phrase = be_block_keys::RecoveryPhrase::generate();
     let secret = phrase.secret();
     let public = secret.public();
-    let account = Uuid::new_v4();
+    let account = Uuid::from_bytes(be_block_keys::agent_account(
+        peer.account().into_bytes(),
+        &secret.identity(),
+    ));
     let bound = match bound_to {
         Some(block) => Some(be_block_protocol::BoundAgent {
             block,

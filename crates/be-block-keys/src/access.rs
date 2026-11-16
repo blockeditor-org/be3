@@ -98,6 +98,21 @@ pub struct Member {
     pub agent: bool,
 }
 
+/// The account id of the agent `maker` makes with `identity`: derived from both, so a member
+/// record signing in an agent can claim no account but one made for those keys by its signer,
+/// never a person's.
+pub fn agent_account(maker: [u8; 16], identity: &PublicIdentity) -> [u8; 16] {
+    let hash = Sha256::new()
+        .chain_update(b"be3.agent.v1")
+        .chain_update(maker)
+        .chain_update(identity.public.0)
+        .chain_update(identity.signing.0)
+        .finalize();
+    let mut account = [0; 16];
+    account.copy_from_slice(&hash[..16]);
+    account
+}
+
 /// A member as the organization's log names them: their keys, and for an agent, its maker.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Named {
@@ -484,12 +499,16 @@ pub fn check_log(
                     .members
                     .get(&entry.signer)
                     .is_some_and(|named| named.maker.is_none());
+                // No one already named is signed in again: their keys change only by their own
+                // retirement, or by signing them out and in, both in the log.
+                let named = state.members.contains_key(&member.account)
+                    || state.administrators.contains_key(&member.account);
                 let may = match (member.member, member.agent) {
-                    (true, false) => administrator,
+                    (true, false) => administrator && !named,
                     (true, true) => {
                         (administrator || person)
-                            && !state.members.contains_key(&member.account)
-                            && !state.administrators.contains_key(&member.account)
+                            && !named
+                            && member.account == agent_account(entry.signer, &member.identity)
                     }
                     (false, _) => administrator || maker == Some(entry.signer),
                 };
