@@ -116,7 +116,11 @@ impl View {
         // engine; the bytes read are then whatever it wrote.
         // unsafe(ffi)
         unsafe {
-            std::ptr::copy_nonoverlapping(self.base.add(range.start), bytes.as_mut_ptr(), range.len())
+            std::ptr::copy_nonoverlapping(
+                self.base.add(range.start),
+                bytes.as_mut_ptr(),
+                range.len(),
+            )
         };
         Ok(bytes)
     }
@@ -125,7 +129,9 @@ impl View {
         let range = self.range(pointer, bytes.len())?;
         // as in read.
         // unsafe(ffi)
-        unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), self.base.add(range.start), bytes.len()) };
+        unsafe {
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), self.base.add(range.start), bytes.len())
+        };
         Ok(())
     }
 }
@@ -154,7 +160,9 @@ pub struct State {
 impl State {
     /// The memory as it is now, when it is shared.
     pub(crate) fn view(&self) -> View {
-        self.memory.shared().map_or(View::EMPTY, |store| View::of(store))
+        self.memory
+            .shared()
+            .map_or(View::EMPTY, |store| View::of(store))
     }
 
     /// The memory as it is now, whichever it is.

@@ -1,6 +1,5 @@
 load("@root//buck/android:defs.bzl", "android_apk")
 load("@root//buck/cargo:defs.bzl", "app_packages", "cargo_binary", "cargo_package", "cargo_test")
-load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 load("@root//buck/program:defs.bzl", "program")
 load("@root//buck/program:drive.bzl", "headless", "page_test", "web_host_test")
 load("@root//buck/wasm:defs.bzl", "wasi_program_module", "web_library")

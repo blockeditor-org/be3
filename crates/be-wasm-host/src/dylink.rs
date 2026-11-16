@@ -192,9 +192,8 @@ fn fill_slots(
             )
         })?;
         let index = engine::number(scope, slot.slot as f64);
-        engine::call(scope, table, "set", &[index, function.into()]).ok_or_else(|| {
-            format!("{} could not be put in the function table", slot.name)
-        })?;
+        engine::call(scope, table, "set", &[index, function.into()])
+            .ok_or_else(|| format!("{} could not be put in the function table", slot.name))?;
     }
     Ok(())
 }
@@ -287,8 +286,8 @@ pub(crate) fn link<'s>(
                 0 => thread.root_block,
                 _ => exported_i32(scope, instances[definer], TLS_BASE).unwrap_or(0) as u32,
             };
-            let offset = exported_i32(scope, instances[definer], &name)
-                .ok_or_else(|| unexported(&name))?;
+            let offset =
+                exported_i32(scope, instances[definer], &name).ok_or_else(|| unexported(&name))?;
             let slot =
                 be_wasm_dylink::thread_local_slot(base.wrapping_add_signed(offset), own_base);
             engine::set_global_value(scope, entry, slot)

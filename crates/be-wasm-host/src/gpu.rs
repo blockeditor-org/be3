@@ -93,8 +93,12 @@ impl Wasm for f64 {
 }
 
 macro_rules! returns {
-    () => { () };
-    ($result:ty) => { $result };
+    () => {
+        ()
+    };
+    ($result:ty) => {
+        $result
+    };
 }
 
 /// Runs a host call's body so that a panic in it (in the gpu glue, say) stops the one guest rather

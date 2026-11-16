@@ -89,7 +89,10 @@ impl Share {
     }
 
     /// The memory, as a `WebAssembly.Memory` of this isolate.
-    fn take<'s>(&self, scope: &mut v8::PinScope<'s, '_>) -> Result<v8::Local<'s, v8::Object>, String> {
+    fn take<'s>(
+        &self,
+        scope: &mut v8::PinScope<'s, '_>,
+    ) -> Result<v8::Local<'s, v8::Object>, String> {
         let deserializer = v8::ValueDeserializer::new(
             scope,
             Box::new(Deserializing(self.store.clone())),
@@ -454,7 +457,10 @@ fn thread_spawn(
     let state = unsafe { state_of(arguments.data()) };
     let argument = arguments.get(0).int32_value(scope).unwrap_or(0);
     let spawner = Arc::clone(&state.threads);
-    let memory = state.memory_object.as_ref().map(|memory| v8::Local::new(scope, memory));
+    let memory = state
+        .memory_object
+        .as_ref()
+        .map(|memory| v8::Local::new(scope, memory));
     let mut grow = |pages: u32| match memory {
         Some(memory) => grow(scope, memory, pages),
         None => Err(UNSHARED.to_owned()),

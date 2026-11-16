@@ -92,8 +92,8 @@ pub(super) fn frame(textures: Vec<PresentedTexture>, presents: u64) -> SurfaceFr
 pub(super) fn prepare(app: &AppManifest, module: String) {
     let device = Arc::<Handover>::default();
     let handover = Arc::clone(&device);
-    let started = Host::awaiting(move || handover.wait())
-        .and_then(|host| start(app, &module, host));
+    let started =
+        Host::awaiting(move || handover.wait()).and_then(|host| start(app, &module, host));
     PREPARED.with(|prepared| {
         prepared.borrow_mut().push(Prepared {
             app_id: app.identity.id.clone(),

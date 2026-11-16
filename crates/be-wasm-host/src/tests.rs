@@ -221,9 +221,9 @@ fn echo_frames(
 
 mod a_dropped_app_ends_its_threads;
 mod a_guest_creates_a_buffer_and_reports_its_handle;
-mod a_guest_that_declares_garbage_collected_types_is_refused;
 mod a_guest_pointer_past_its_memory_is_refused;
 mod a_guest_reads_a_frame_the_host_queued;
+mod a_guest_that_declares_garbage_collected_types_is_refused;
 mod a_guest_that_never_reaches_the_gpu_opens_no_device;
 mod a_guest_that_reaches_the_gpu_without_a_device_is_told_why;
 mod a_library_that_is_not_what_it_is_named_is_refused;
