@@ -519,6 +519,18 @@ impl ServerStore {
             escrow.len(),
             crate::limits::MAX_SEALED_BYTES,
         )?;
+        // An agent's id is its maker's and its keys' (`be_block_keys::agent_account`), so no
+        // record signing it in can claim a person's.
+        let identity = be_block_keys::PublicIdentity {
+            public: be_block_keys::RecoveryPublic(recovery),
+            signing: be_block_keys::SigningPublic(signing),
+        };
+        if account.into_bytes() != be_block_keys::agent_account(caller.into_bytes(), &identity) {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                "an agent's account id is derived from its maker and its keys".into(),
+            ));
+        }
         let email = format!("agent-{}@agents.invalid", account.simple());
         self.with_graph(organization, move |_, graph, database| {
             let mut before = std::collections::BTreeSet::new();
@@ -904,7 +916,29 @@ impl ServerStore {
                 ));
             };
             let account = Uuid::from_bytes(named.account);
-            crate::contacts::role_in(database, account, organization)?.ok_or_else(not_a_member)?;
+            let member = crate::contacts::role_in(database, account, organization)?.is_some();
+            // A member is signed in; one the server removed on its own (an agent collected with
+            // its block, or deleted on taking an account back) is signed out, by its maker.
+            if named.member != member || (!named.member && !named.agent) {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "a member is signed in, and an agent no longer one signed out".into(),
+                ));
+            }
+            if !named.member {
+                let transaction = be_block_sqlite_schema::write_transaction(database)?;
+                crate::access::append_member(
+                    &transaction,
+                    organization,
+                    identity.account,
+                    account,
+                    false,
+                    true,
+                    &signed,
+                )?;
+                transaction.commit()?;
+                return Ok(());
+            }
             let made_by_caller = database
                 .query_row(
                     "SELECT created_by FROM agents WHERE account_id = ?1",

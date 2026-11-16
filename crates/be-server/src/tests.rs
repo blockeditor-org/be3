@@ -1481,7 +1481,7 @@ impl TestClient {
     ) -> Result<(Uuid, String), Error> {
         let secret = be_block_keys::RecoveryPhrase::generate().secret();
         let identity = secret.identity();
-        let account = Uuid::new_v4();
+        let account = agent_id(self.account.expect("a client makes agents once signed in"), &identity);
         remember_secret(account, secret.clone());
         let signed = self
             .signed_grant(block, account, be_block_graph::Access::Edit)
@@ -1628,8 +1628,10 @@ impl TestClient {
     /// a device does (`create_agent` in be-host-stack): signed in by a member record in a
     /// company organization. Answers it.
     async fn agent(&mut self, organization: Uuid, name: &str) -> Result<be_block_protocol::CreatedAgent, Error> {
-        let account = Uuid::new_v4();
-        let identity = test_secret(account).identity();
+        let secret = be_block_keys::RecoveryPhrase::generate().secret();
+        let identity = secret.identity();
+        let account = agent_id(self.account.expect("a client makes agents once signed in"), &identity);
+        remember_secret(account, secret);
         let member = self.member_record(account, identity, true, true).await;
         let name = name.to_owned();
         self.call(|peer| {
@@ -2499,5 +2501,19 @@ fn pushing_locally() -> ServerConfig {
             hosts: vec!["127.0.0.1".to_owned()].into(),
         },
         ..ServerConfig::OPEN
+    }
+}
+
+/// The account id of the agent `maker` makes with `identity` (`be_block_keys::agent_account`).
+fn agent_id(maker: Uuid, identity: &be_block_keys::PublicIdentity) -> Uuid {
+    Uuid::from_bytes(be_block_keys::agent_account(maker.into_bytes(), identity))
+}
+
+/// Keys tests give an agent whose keys they never use: `seed` throughout, so agents made with
+/// other seeds get other ids.
+fn unused_keys(seed: u8) -> be_block_keys::PublicIdentity {
+    be_block_keys::PublicIdentity {
+        public: be_block_keys::RecoveryPublic([seed; 32]),
+        signing: be_block_keys::SigningPublic([seed; 32]),
     }
 }

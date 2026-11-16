@@ -6,7 +6,8 @@ fn a_member_is_signed_in_by_an_administrator_and_an_agent_by_its_maker() {
     let person = RecoveryPhrase::generate().secret();
     let agent = RecoveryPhrase::generate().secret();
     let stranger = RecoveryPhrase::generate().secret();
-    let (admin_id, person_id, agent_id, stranger_id) = ([1; 16], [2; 16], [3; 16], [4; 16]);
+    let (admin_id, person_id, stranger_id) = ([1; 16], [2; 16], [4; 16]);
+    let agent_id = agent_account(person_id, &agent.identity());
     let organization = [9; 16];
     let none = |_: [u8; 16], _: &Authority| None;
     let root = Entry::root(&admin, admin_id, LogKind::Organization, organization);
@@ -41,7 +42,15 @@ fn a_member_is_signed_in_by_an_administrator_and_an_agent_by_its_maker() {
     let checked = check(&[root.clone(), joined.clone(), made.clone()]).unwrap();
     assert_eq!(checked.members.get(&agent_id).and_then(|named| named.maker), Some(person_id));
 
-    let onward = member(&agent, agent_id, made.hash(), stranger_id, stranger.identity(), true, true);
+    let onward = member(
+        &agent,
+        agent_id,
+        made.hash(),
+        agent_account(agent_id, &stranger.identity()),
+        stranger.identity(),
+        true,
+        true,
+    );
     assert!(
         check(&[root.clone(), joined.clone(), made.clone(), onward]).is_err(),
         "an agent makes no agent"
@@ -58,6 +67,29 @@ fn a_member_is_signed_in_by_an_administrator_and_an_agent_by_its_maker() {
     assert!(
         check(&[root.clone(), joined.clone(), made.clone(), ousted]).is_err(),
         "a member signs out no one but their agents"
+    );
+    let claimed = member(&person, person_id, joined.hash(), stranger_id, person.identity(), true, true);
+    assert!(
+        check(&[root.clone(), joined.clone(), claimed]).is_err(),
+        "a member claims no account as its agent but one made for the agent's keys by it"
+    );
+    let stolen = member(
+        &person,
+        person_id,
+        joined.hash(),
+        agent_account(person_id, &stranger.identity()),
+        person.identity(),
+        true,
+        true,
+    );
+    assert!(
+        check(&[root.clone(), joined.clone(), stolen]).is_err(),
+        "nor one made for other keys than those it names"
+    );
+    let swapped = member(&admin, admin_id, joined.hash(), person_id, stranger.identity(), true, false);
+    assert!(
+        check(&[root.clone(), joined.clone(), swapped]).is_err(),
+        "a member already signed in is not signed in again with other keys"
     );
     let forged = member(&stranger, stranger_id, pinned, stranger_id, stranger.identity(), true, false);
     assert!(check(&[root, forged]).is_err(), "no one signs themselves in");

@@ -21,7 +21,10 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
     let identity = phrase.secret().identity();
     let public = identity.public;
     let organization = owner.peer().organization();
-    let account = Uuid::new_v4();
+    let account = Uuid::from_bytes(be_block_keys::agent_account(
+        owner.peer().account().into_bytes(),
+        &identity,
+    ));
     let CreatedAgent { agent, token } = be_block_client::ask(client::members::create_agent(
         &owner.peer().connection(),
         organization,

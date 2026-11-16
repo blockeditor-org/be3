@@ -48,7 +48,7 @@ impl<S: ObjectStore> Peer<S> {
             }
         }
         *self.unsigned.lock().unwrap() = work.unsigned_members.clone();
-        if let Err(error) = self.sign_in_unsigned(&work.unsigned_members).await {
+        if let Err(error) = self.tend_agents(&work.unsigned_members).await {
             failed.get_or_insert(error);
         }
         if escrow_rotation || !work.rotations.is_empty() {
@@ -404,25 +404,45 @@ impl<S: ObjectStore> Peer<S> {
         Ok(())
     }
 
-    /// Signs in the members key work lists as signed in by no record that this device can
-    /// vouch for: as an administrator, a person it verified as a contact; as an agent's maker,
-    /// the agent. The rest wait for a device that can.
-    async fn sign_in_unsigned(&self, unsigned: &[Uuid]) -> Result<(), ClientError> {
-        if unsigned.iter().all(|account| *account == self.account) {
+    /// Keeps the organization's log in step with the agents this account made: signs in those
+    /// key work lists as signed in by no record, and signs out those the log names that the
+    /// server removed on its own (collected with their block, or deleted on taking an account
+    /// back). A person is signed in only from an invitation this device made
+    /// (`finish_links`): that someone is a member is the server's word alone, so other unsigned
+    /// members wait, listed, for an administrator to act (`unsigned_members`).
+    async fn tend_agents(&self, unsigned: &[Uuid]) -> Result<(), ClientError> {
+        let Some(checked) = self.checked_organization().await? else {
+            return Ok(());
+        };
+        let me = self.account.into_bytes();
+        let made: Vec<([u8; 16], be_block_keys::PublicIdentity)> = checked
+            .members
+            .iter()
+            .filter(|(_, named)| named.maker == Some(me))
+            .map(|(account, named)| (*account, named.identity))
+            .collect();
+        let mine_unsigned = unsigned.iter().any(|account| *account != self.account);
+        if made.is_empty() && !mine_unsigned {
             return Ok(());
         }
-        let administrator = self.role() == OrganizationRole::Administrator;
-        for member in self.members().await? {
-            if !unsigned.contains(&member.account) || member.account == self.account {
+        let members = self.members().await?;
+        for member in &members {
+            if member.created_by == Some(self.account)
+                && unsigned.contains(&member.account)
+                && let Some(identity) = self.verified_identity(member.account)
+            {
+                self.sign_in(member.account, identity, true).await?;
+            }
+        }
+        for (account, identity) in made {
+            let account = Uuid::from_bytes(account);
+            if members.iter().any(|member| member.account == account) {
                 continue;
             }
-            let agent = member.created_by.is_some();
-            let vouches = match member.created_by {
-                Some(maker) => maker == self.account,
-                None => administrator,
-            };
-            if vouches && let Some(identity) = self.verified_identity(member.account) {
-                self.sign_in(member.account, identity, agent).await?;
+            let checked = self.checked_organization().await?;
+            if let Some(signed) = self.member_record(checked.as_ref(), account, identity, false, true)
+            {
+                client::members::sign_member(&self.connection(), signed).await??;
             }
         }
         Ok(())

@@ -114,9 +114,9 @@ interface members {
     remove-member: async func(account: account-id, signed: option<list<u8>>) -> result<_, error>;
 
     /// Appends `signed`, a member record (be_block_keys::Member) signing a
-    /// member of the organization open in: a person, by an administrator
-    /// (from the invitation it made, or a verified contact); an agent, by
-    /// its maker.
+    /// member of the organization open in (a person, by an administrator,
+    /// from the invitation it made; an agent, by its maker), or signing out
+    /// an agent the server removed on its own, by its maker.
     sign-member: async func(signed: list<u8>) -> result<_, error>;
 
     /// A block's agent's block, and the grant of Edit on it to the agent
@@ -126,8 +126,8 @@ interface members {
         signed: list<u8>,
     }
 
-    /// Makes the agent account `account`, an id the caller chose and no
-    /// account has, in `organization` with the recovery key
+    /// Makes the agent account `account`, the id derived from the caller and
+    /// the agent's keys (be_block_keys::agent_account), in `organization` with the recovery key
     /// `recovery` and the signing key `signing` derived with it, a contact card for the caller, and its escrow key sealed
     /// for it. With `bound-to`, which needs Manage on that block, the agent
     /// is granted Edit on it by the signed grant and reaches nothing else: it

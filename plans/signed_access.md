@@ -323,22 +323,30 @@ instead.
      3c, which is what seals by the records); see "Grants the server changes
      first".
    - **3a-members. Members in the organization's log.** A Member record
-     (account and keys, member or not) signed by an administrator: an
-     administrator's device signs one when it finishes an invitation, as
-     `finish_links` finishes a link, and an agent's maker signs its agent's at
-     `create-agent`; removing a member signs it out. This anchors an escrow
-     wrap's sender (3a) where the server cannot: an administrator reaching a
-     block only through escrow has pinned no root for it, so a log rooted at
-     the root the wrap carries proves nothing about a sender alone. Until an
-     administrator's device signs a joiner in, that member's escrow wraps wait
-     unopened; key work lists such members to administrators, and a device
-     whose wraps wait is told, so a stuck invitation shows. Members the
-     server removes on its own (an agent collected with its block, or
-     deleted on taking an account back) stay in the log until a device
-     signs them out. Done: a test where the server adds a member no
-     administrator signed, and key work lists them, to administrators and to
-     themselves, and no administrator's device signs them in (3a adds that
-     their wrap stays unopened).
+     (account and keys, member or not, person or agent) signed by an
+     administrator: an administrator's device signs a person in when it
+     finishes the invitation it made, as `finish_links` finishes a link (the
+     code is the evidence; that someone else is a member is the server's
+     word alone, so other unsigned members wait, listed, for an
+     administrator to act). An agent is signed in by its maker, a member,
+     at `create-agent`; its account id is derived from its maker and its
+     keys (`agent_account`), so no member can claim a person's account as an
+     agent. No one already named is signed in again: keys change by the
+     member's own retirement, or by signing out and in. Removing a member
+     signs them out, and a maker's `tend` signs out its agents the server
+     removed on its own (collected with their block, or deleted on taking
+     an account back), so those stay named one `tend` at most. This anchors
+     an escrow wrap's sender (3a) where the server cannot: an administrator
+     reaching a block only through escrow has pinned no root for it, so a
+     log rooted at the root the wrap carries proves nothing about a sender
+     alone. Until an administrator's device signs a joiner in, that member's
+     escrow wraps wait unopened; key work lists such members to
+     administrators, and to the member, so a stuck invitation shows. Done: a
+     test where the server adds a member no administrator signed, and key
+     work lists them, to administrators and to themselves, and no
+     administrator's device signs them in (3a adds that their wrap stays
+     unopened); a unit test where a member claiming a person's account as
+     its agent is refused.
    - **3a. Authenticated escrow wraps**, after 3a-members, whose records name the
      keys an administrator checks a sender by: an escrow wrap is sealed by its
      sender to the escrow key, as `seal_for` seals to an account, not

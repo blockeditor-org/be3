@@ -126,7 +126,10 @@ async fn agent(
     let public = phrase.secret().public();
     let peer = owner.peer();
     let organization = peer.organization();
-    let account = Uuid::new_v4();
+    let account = Uuid::from_bytes(be_block_keys::agent_account(
+        peer.account().into_bytes(),
+        &phrase.secret().identity(),
+    ));
     let bound = match bound_to {
         Some(block) => Some(be_block_protocol::BoundAgent {
             block,
