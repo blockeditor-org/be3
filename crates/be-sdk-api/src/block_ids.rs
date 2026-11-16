@@ -78,6 +78,7 @@ impl Opening {
                 location(&mut open.parent, &mut existing);
             }
             OpeningKind::Rename(open) => existing(&mut open.block_id),
+            OpeningKind::Host(open) => existing(&mut open.block_id),
             OpeningKind::Creation(_) => {}
         }
     }

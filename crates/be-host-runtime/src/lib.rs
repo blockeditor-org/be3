@@ -64,7 +64,7 @@ pub use runtime::{
 };
 pub use runtime::{
     artifact, artifact_draft, assigned_size, begin_frame, busy, card, close, commit_creation,
-    content_delivered, content_moved, content_view, crash, creation, dialog_status, dismiss,
+    content_delivered, content_moved, content_view, crash, creation, dialog_status, dismiss, host,
     docked_placer, drawing, flush, forget_dialog_answer, frame_child, frame_rects, frames_answered,
     hold, in_use, install, intrinsic_size, kill, menu, menu_pick, pass_child_focus, picked, poll,
     present, presenting, preview_image, record_pacing, regenerate_artifact, render_clip,
@@ -443,12 +443,17 @@ pub enum InstanceRole {
     Artifact(Uuid, EditorBlock, Uuid),
     Picker(Uuid),
     Rename(Uuid, Uuid, bool),
+    /// A host component (the manifest's `hosts`) on a block: no frame, no view, no input
+    /// (guides/apps/host_services.md, "Host components").
+    Host(Uuid, EditorBlock),
 }
 
 impl InstanceRole {
     pub fn block(self) -> Option<EditorBlock> {
         match self {
-            Self::Editor(_, block) | Self::Artifact(_, block, _) => Some(block),
+            Self::Editor(_, block) | Self::Artifact(_, block, _) | Self::Host(_, block) => {
+                Some(block)
+            }
             Self::Creation(..) | Self::Picker(..) | Self::Rename(..) => None,
         }
     }

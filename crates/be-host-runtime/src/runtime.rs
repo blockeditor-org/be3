@@ -2186,6 +2186,26 @@ pub fn creation(slot: CreationSlot<'_>) -> CreationState {
     })
 }
 
+/// Starts a host component (the manifest's `hosts`, guides/apps/host_services.md, "Host
+/// components") on `block`: an instance with no view, which opens once its app is up and runs
+/// until `close`.
+pub fn host(
+    app: &AppManifest,
+    block_types: &Arc<crate::AppCatalog>,
+    client_id: Uuid,
+    instance: EditorInstanceId,
+    host: Uuid,
+    block: crate::EditorBlock,
+) -> CreationState {
+    creation(CreationSlot {
+        app,
+        block_types,
+        client_id,
+        instance,
+        role: InstanceRole::Host(host, block),
+    })
+}
+
 pub fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
     let ArtifactSlot {
         app,
@@ -2984,7 +3004,8 @@ pub fn mount_view(slot: ViewSlot<'_>) {
                     InstanceRole::Creation(..)
                     | InstanceRole::Artifact(..)
                     | InstanceRole::Picker(_)
-                    | InstanceRole::Rename(..) => None,
+                    | InstanceRole::Rename(..)
+                    | InstanceRole::Host(..) => None,
                 },
             );
             runtime
