@@ -101,6 +101,16 @@ pub fn is_carried<K: Clone + PartialEq + 'static>(key: K) -> Memo<bool> {
     create_memo(move || carrying::<K>().is_some_and(|carried| carried == key))
 }
 
+/// A place that is the whole of `node`, chosen while the pointer is on it (a slot, a folder,
+/// a button that takes what is dropped on it): `None` while `node` is not laid out. Of
+/// several that overlap, the first in a `closest` wins, so list a nested one before the one
+/// around it.
+pub fn place_on<D>(node: NodeRef, drop: D) -> Option<Candidate<D>> {
+    let (rect, scale) = node.try_get().and_then(|id| beui_view::drag::space().placed(id))?;
+    let whole = Rect::from_min_size(Pos2::ZERO, rect.size() / scale);
+    Some(Candidate::new(drop, whole, node).zoned(whole))
+}
+
 /// The places a carried row can land among `rows`, along `direction`, each named by the
 /// row it would come after (`carried` is its key, or `None` for an item from elsewhere): read now from where the rows are laid out, relative to `list`
 /// (the node they sit in), so a scroll or a moving window carries them along. A row lands at
