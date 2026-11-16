@@ -33,7 +33,7 @@ edit, measured in buck/platforms/profile.bzl.
 
 ## Since
 
-November 2026: every guest now runs on V8 and precompilation was removed (plans/wasm_on_v8.md),
+November 2026: every guest now runs on V8 and precompilation was removed (decisions/guests_run_on_v8.md),
 so the bundle ships no `.cwasm` and V8 compiles each module as it loads. Shipping precompiled code
 is superseded, with the rejection of shipping without it; the LTO, mangling, opt-level and
 symbol settings still stand.
