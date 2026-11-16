@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn a_part_kept_across_a_rotation_is_resealed_under_the_new_key() {
     let keys = Keyring::new();
-    keys.insert(id(1), ContentKey::from_bytes([1; 32]));
+    keys.insert(id(1), ContentKey::from_bytes([1; 32]), uuid::Uuid::nil());
     let vault = Vault::new(MemoryStore::new(), keys.clone()).with_chunker(ChunkerConfig::SMALL);
     let header = pseudorandom(40, 1);
     let payload = pseudorandom(20_000, 2);
@@ -28,7 +28,7 @@ fn a_part_kept_across_a_rotation_is_resealed_under_the_new_key() {
         "under the same key a kept part is reused as it is"
     );
 
-    keys.insert(id(2), ContentKey::from_bytes([2; 32]));
+    keys.insert(id(2), ContentKey::from_bytes([2; 32]), uuid::Uuid::nil());
     assert_eq!(
         vault.stale_parts(id(2), &kept()).unwrap(),
         [loaded.children[1].reference]
@@ -47,7 +47,7 @@ fn a_part_kept_across_a_rotation_is_resealed_under_the_new_key() {
     );
 
     let without_old = Keyring::new();
-    without_old.insert(id(2), ContentKey::from_bytes([2; 32]));
+    without_old.insert(id(2), ContentKey::from_bytes([2; 32]), uuid::Uuid::nil());
     let reader = Vault::new(vault.store().clone(), without_old);
     assert_eq!(reader.read(&rekeyed).unwrap(), [header, payload].concat());
 }

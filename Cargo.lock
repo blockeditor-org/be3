@@ -1405,8 +1405,8 @@ dependencies = [
 name = "be-block-store"
 version = "0.1.0"
 dependencies = [
+ "be-block-keys",
  "be-lib-cbor",
- "chacha20poly1305",
  "ciborium",
  "libc",
  "rand 0.9.4",
@@ -2337,7 +2337,6 @@ dependencies = [
  "be-server-portal",
  "be-wasm-ops",
  "bytes",
- "chacha20poly1305",
  "futures-util",
  "http",
  "httparse",

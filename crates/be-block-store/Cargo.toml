@@ -7,11 +7,11 @@ license.workspace = true
 [features]
 default = ["vault"]
 # Sealing and opening content, which a pure guest does without.
-vault = ["dep:chacha20poly1305", "dep:rand"]
+vault = ["dep:be-block-keys", "dep:rand"]
 
 [dependencies]
+be-block-keys = { path = "../be-block-keys", optional = true }
 be-lib-cbor = { path = "../be-lib-cbor" }
-chacha20poly1305 = { version = "0.10", optional = true }
 ciborium = "0.2"
 rand = { version = "0.9", optional = true }
 serde = { version = "1", features = ["derive"] }

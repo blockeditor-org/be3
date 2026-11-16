@@ -21,7 +21,7 @@ const KEY: Uuid = Uuid::from_u128(0x6b65);
 fn vault() -> Vault<MemoryStore> {
     Vault::new(MemoryStore::new(), {
         let keys = Keyring::new();
-        keys.insert(KEY, ContentKey::from_bytes([3; 32]));
+        keys.insert(KEY, ContentKey::from_bytes([3; 32]), uuid::Uuid::nil());
         keys
     })
     .with_chunker(ChunkerConfig::SMALL)

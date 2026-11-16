@@ -1302,7 +1302,7 @@ impl Author {
             commits: CommitStore::new(
                 Vault::new(store.clone(), {
                     let keys = Keyring::new();
-                    keys.insert(KEY, ContentKey::from_bytes([5; 32]));
+                    keys.insert(KEY, ContentKey::from_bytes([5; 32]), uuid::Uuid::nil());
                     keys
                 })
                 .with_chunker(ChunkerConfig::SMALL),

@@ -8,7 +8,6 @@ license.workspace = true
 base64 = "0.22"
 be-server-portal = { path = "../be-server-portal" }
 async-trait = "0.1"
-chacha20poly1305 = "0.10"
 be-block = { path = "../be-block" }
 be-block-search-index = { path = "../be-block-search-index" }
 be-block-content = { path = "../be-block-content" }

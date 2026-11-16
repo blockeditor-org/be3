@@ -28,7 +28,7 @@ fn a_different_key_produces_different_objects() {
     ));
 
     let impostor = Keyring::new();
-    impostor.insert(id(4), ContentKey::from_bytes([5; 32]));
+    impostor.insert(id(4), ContentKey::from_bytes([5; 32]), uuid::Uuid::nil());
     let reader = Vault::new(writer.store().clone(), impostor);
     assert!(matches!(reader.read(&manifest), Err(StoreError::Corrupt)));
 }

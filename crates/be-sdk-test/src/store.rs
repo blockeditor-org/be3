@@ -163,7 +163,7 @@ impl Default for Inner {
             manifests: BTreeMap::new(),
             vault: {
                 let keys = Keyring::new();
-                keys.insert(SEALING, ContentKey::from_bytes([7; 32]));
+                keys.insert(SEALING, ContentKey::from_bytes([7; 32]), Uuid::nil());
                 Vault::new(MemoryStore::new(), keys).with_chunker(ChunkerConfig::SMALL)
             },
             next_commit: 0,
