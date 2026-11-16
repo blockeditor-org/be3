@@ -530,6 +530,10 @@ struct Open {
     session: SessionState,
     reader: bool,
     publishing: usize,
+    /// Submissions sent to the server and not yet answered: a join's answer waits for them
+    /// (`settling`), so the entries they make reach the replica it opens before its edits are
+    /// given again.
+    submitting: usize,
     moved: Vec<CommitId>,
     published: Vec<CommitId>,
     /// The head the replica opened at or was last told moved to: news of a block whose head is
@@ -1450,6 +1454,7 @@ impl<H: Host> Replicas<H> {
                 session,
                 reader,
                 publishing: 0,
+                submitting: 0,
                 moved: Vec::new(),
                 published: Vec::new(),
                 heard: head,
@@ -1591,7 +1596,10 @@ impl<H: Host> Replicas<H> {
             true => (be_sdk_type_api::KeptCommits::Outbox, Vec::new()),
             false => (be_sdk_type_api::KeptCommits::None, Vec::new()),
         };
-        self.reopen_joined(replica, client, session, head, loads, commits_kept);
+        let (ordered, early): (Vec<Replayed>, Vec<Replayed>) = early
+            .into_iter()
+            .partition(|replayed| matches!(replayed, Replayed::Sequenced { .. }));
+        self.reopen_joined(replica, client, session, head, loads, commits_kept, ordered);
         for replayed in early {
             self.replay(replica, replayed);
         }
@@ -1613,6 +1621,7 @@ impl<H: Host> Replicas<H> {
         server_head: Option<CommitId>,
         (journal, journal_kept, head, sealed_head): Loads,
         commits_kept: Kept,
+        ordered: Vec<Replayed>,
     ) {
         let Some(open) = self.open.get_mut(&replica) else {
             return;
@@ -1693,6 +1702,11 @@ impl<H: Host> Replicas<H> {
             handle.reopen(connection, opening);
             for &(editor, editable, held) in &editors {
                 handle.attach(connection, editor, editable, held);
+            }
+            // What the order numbered while the join was on its way, its own submissions among
+            // it, before its edits are given again: those it holds are not made twice.
+            for entries in &ordered {
+                entries.send(handle, connection);
             }
             resend(
                 handle,
@@ -2884,6 +2898,7 @@ impl<H: Host> Replicas<H> {
                 published,
             } => {
                 let heads = answer.heads();
+                let submitted = matches!(*answer, Answered::Submit(..));
                 let delivered = self.modules.generation(module) == generation;
                 if delivered {
                     self.modules
@@ -2892,6 +2907,9 @@ impl<H: Host> Replicas<H> {
                 let Some(open) = self.open.get_mut(&replica) else {
                     return;
                 };
+                if submitted {
+                    open.submitting = open.submitting.saturating_sub(1);
+                }
                 if open.epoch != epoch {
                     return;
                 }
@@ -3055,7 +3073,9 @@ impl<H: Host> Replicas<H> {
     fn settling(&self, replica: ReplicaId) -> bool {
         self.open
             .get(&replica)
-            .is_some_and(|open| open.publishing > 0 || open.reporting.is_some())
+            .is_some_and(|open| {
+                open.publishing > 0 || open.submitting > 0 || open.reporting.is_some()
+            })
             || self
                 .asked
                 .values()
@@ -3254,7 +3274,10 @@ impl<H: Host> Replicas<H> {
         open.marked = peer.discarded(block);
         let loads = reopening(open, peer, journal, true, open.status.head);
         let known = loads.2;
-        self.reopen_joined(replica, client, session, head, loads, commits_kept);
+        let (ordered, early): (Vec<Replayed>, Vec<Replayed>) = early
+            .into_iter()
+            .partition(|replayed| matches!(replayed, Replayed::Sequenced { .. }));
+        self.reopen_joined(replica, client, session, head, loads, commits_kept, ordered);
         for replayed in early {
             self.replay(replica, replayed);
         }
@@ -3742,6 +3765,9 @@ impl<H: Host> Replicas<H> {
                 match submitted {
                     Ok(be_block_client::peer::Submitted::Server(answer)) => {
                         self.relaying += 1;
+                        if let Some(open) = self.open.get_mut(&replica) {
+                            open.submitting += 1;
+                        }
                         let (shared, io) = (Arc::clone(shared), self.io.clone());
                         let peer = Arc::clone(peer);
                         self.answer_later(replica, module, async move {
