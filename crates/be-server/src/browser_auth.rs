@@ -149,6 +149,8 @@ struct Pending {
     /// The fewest seconds between two polls; polling sooner adds `SLOW_DOWN` to it.
     interval: Duration,
     polled: Option<Instant>,
+    /// Where the device asking connected from, which the approve page shows.
+    address: IpAddr,
 }
 
 /// Where a pending sign-in stands, as a poll finds it.
@@ -192,6 +194,7 @@ impl Sessions {
                 approved_by: String::new(),
                 interval: self.interval,
                 polled: None,
+                address,
             },
             address,
         );
@@ -321,7 +324,8 @@ pub(crate) async fn decide(
     Ok(())
 }
 
-pub(crate) fn code_status(services: &Services, code: &str) -> Result<(), ServerError> {
+/// Whether `code` may still be approved, and if so, where the device asking connected from.
+pub(crate) fn code_status(services: &Services, code: &str) -> Result<IpAddr, ServerError> {
     let pending = services.browser_auth.pending.lock().unwrap();
     match pending.get(&code.trim().to_ascii_lowercase()) {
         None => Err(invalid(
@@ -336,7 +340,7 @@ pub(crate) fn code_status(services: &Services, code: &str) -> Result<(), ServerE
         Some(entry) if entry.account.is_some() => Err(invalid(
             "This sign-in was already approved. Return to be-host.",
         )),
-        Some(_) => Ok(()),
+        Some(entry) => Ok(entry.address),
     }
 }
 

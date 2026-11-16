@@ -91,6 +91,46 @@ async fn tell_identity(
             ),
         ),
     };
+    tell(services, account, email, subject, text, kind, vec![label.to_owned()], recorded).await;
+}
+
+/// Finishes taking an account back once its recovery signed in (`codes::recover_account`):
+/// deletes every agent it made, then tells it in one mail and one notice what went, every way
+/// to sign in but its email and those agents (plans/crypto_audit.md, 9).
+async fn finish_recovery(
+    services: &Services,
+    account: uuid::Uuid,
+    email: &str,
+    removed: &[codes::Identity],
+) -> Result<(), ServerError> {
+    let agents = services.store.delete_agents_created_by(account).await?;
+    if removed.is_empty() && agents.is_empty() {
+        return Ok(());
+    }
+    let labels: Vec<String> = removed.iter().map(|identity| identity_label(&services.config, identity)).collect();
+    let mut went = labels.clone();
+    went.extend(agents.iter().map(|name| format!("the agent {name}")));
+    let text = format!(
+        "Recovering your account removed every way to sign in but your email, and every agent you made, since someone else may have added them: {}. Add back the ones you trust.",
+        went.join(", ")
+    );
+    tell(services, account, email, "Recovering your be3 account removed ways in", text, ChangeKind::Removed, labels, false).await;
+    Ok(())
+}
+
+/// Mails `email` when it is not empty, and records the change for the settings page's history
+/// and the account's devices, whose connections are told.
+#[allow(clippy::too_many_arguments)]
+async fn tell(
+    services: &Services,
+    account: uuid::Uuid,
+    email: &str,
+    subject: &str,
+    text: String,
+    kind: ChangeKind,
+    labels: Vec<String>,
+    recorded: bool,
+) {
     if !email.is_empty() {
         services.mail.send(Email {
             recipient: email.into(),
@@ -100,7 +140,7 @@ async fn tell_identity(
     }
     if services
         .store
-        .identity_changed(account, kind, label.to_owned(), text, recorded)
+        .identity_changed(account, kind, labels, text, recorded)
         .await
         .is_ok()
     {
@@ -253,6 +293,7 @@ pub(crate) async fn handle(
                 }, services.config.clone()).await?;
                 response.attempt = Some(String::new());
                 if let Some(linked) = &entered.linked { tell_identity(services, entered.account, &entered.email, ChangeKind::Added, &provider_identity_label(&services.config, linked), false).await; }
+                if entered.purpose == CodePurpose::Recover { finish_recovery(services, entered.account, &entered.email, &entered.removed).await?; }
                 match entered.session {
                     Some(session) => {
                         if !token.is_empty() { services.store.logout(token).await?; }
@@ -308,9 +349,10 @@ pub(crate) async fn handle(
                 response.location = Some("/auth/settings?saved=1".into());
             },
             "/auth/link" => {
-                let session = services.store.use_login_link(value("token"), address).await?;
+                let used = services.store.use_login_link(value("token"), address).await?;
+                finish_recovery(services, used.account, &used.email, &used.removed).await?;
                 if !token.is_empty() { services.store.logout(token).await?; }
-                response.cookie = Some(session);
+                response.cookie = Some(used.session);
                 response.location = Some("/auth".into());
             },
             "/auth/verify" => {
@@ -449,10 +491,18 @@ pub(crate) async fn handle(
         Vec::new()
     };
     let mut code_problem = String::new();
-    if !code.is_empty()
-        && let Err(error) = browser_auth::code_status(services, &code)
-    {
-        code_problem = error.to_string();
+    let mut requester = String::new();
+    if !code.is_empty() {
+        match browser_auth::code_status(services, &code) {
+            Ok(asking) => {
+                let same = crate::address::address_key(asking) == crate::address::address_key(client);
+                requester = match same {
+                    true => format!("{asking}, the same network as this browser"),
+                    false => asking.to_string(),
+                };
+            }
+            Err(error) => code_problem = error.to_string(),
+        }
     }
     let config = &services.config;
     let signed_in = profile.is_some();
@@ -576,6 +626,7 @@ pub(crate) async fn handle(
         }),
         code: code.clone(),
         code_problem,
+        requester,
         csrf: services.browser_auth.form(token, client, ceremony),
         problem: (!error.is_empty()).then(|| Problem::from_message(&error)),
         mail_token: value("token").into(),

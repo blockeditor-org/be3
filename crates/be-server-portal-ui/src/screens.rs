@@ -636,6 +636,7 @@ fn Approve(page: Shown) -> NodeId {
             </Card>
         };
     }
+    let requester = page.read(|page| page.requester.clone());
     view! {
         <Card>
             <List spacing=Space::Xl>
@@ -654,6 +655,9 @@ fn Approve(page: Shown) -> NodeId {
                         {page.code()}
                     </Text>
                 </Frame>
+                {(!requester.is_empty()).then(|| view! {
+                    <Text style=TextStyle::CAPTION>{format!("Asked from {requester}.")}</Text>
+                })}
                 <Notice text={page.general()} />
                 <PortalForm action="/auth/approve" csrf={page.csrf()} code={page.code()}>
                     <Submit label="Approve sign-in" />
