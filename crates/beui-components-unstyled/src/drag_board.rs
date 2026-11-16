@@ -103,16 +103,19 @@ impl Board {
             .iter()
             .map(|target| target.node)
             .chain(self.scrollers.borrow().iter().map(|scroller| scroller.node))
+            .chain(self.placing_nodes())
             .filter_map(|node| node.try_get())
             .collect();
         *self.orders.borrow_mut() = nodes.into_iter().map(|node| (node, order(node))).collect();
     }
 
     fn window(&self, node: NodeId) -> WindowId {
-        self.orders
-            .borrow()
-            .get(&node)
-            .map_or(WindowId::MAIN, |(_, window)| *window)
+        self.known_window(node).unwrap_or(WindowId::MAIN)
+    }
+
+    /// The window `node` was in at the last point the core tracked, if it was noted.
+    fn known_window(&self, node: NodeId) -> Option<WindowId> {
+        self.orders.borrow().get(&node).map(|(_, window)| *window)
     }
 
     fn painted(&self, node: NodeId) -> Option<Vec<usize>> {
