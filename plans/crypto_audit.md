@@ -15,22 +15,24 @@ plans/signed_access.md's and is not repeated here.
 
 Each item is marked when it is taken and when it lands (the fixing commit).
 
-- 1: session_01UbiTY1dyaLgrBaJHjjZcSE, fixed on fix/never-seal-to-the-server
-  (948703c94), ready to land.
-- 2, 3: session_01UbiTY1dyaLgrBaJHjjZcSE, designed in
-  plans/keys_bound_to_blocks.md. Of 3, the current key (8f2ea3f9e) and the
-  pointer reads (46cb4c406) are on fix/keys-bound-to-blocks, in review; reused
-  parts, escrow out of the keyring, and 2 follow.
-- 7: session_01UbiTY1dyaLgrBaJHjjZcSE, fixed on fix/chat-deletion-author
-  (46b45f634), ready to land.
-- 10, and the overlapping parts of 6 and 9: the signed access builder
+- 1: session_01UbiTY1dyaLgrBaJHjjZcSE, landed (948703c94).
+- 2: session_01UbiTY1dyaLgrBaJHjjZcSE, the server-held mark
+  (plans/keys_bound_to_blocks.md, section 2), landing with this tracker.
+- 3: session_01UbiTY1dyaLgrBaJHjjZcSE, landed piece by piece: the current
+  key, the pointer reads, a replica's reach and escrow secrets out of the
+  keyring; the one symmetric seal, its associated data and nonce land with
+  this tracker.
+- 4, 5: session_01UbiTY4vhzKmTTZzb4YSfzd, landed (claude/audit-4-5).
+- 6: its owner-only half (an owner-only block's data keys escrowed or sealed
+  as key work lists) lands with this tracker (`KeyBook::owner_only_covers`);
+  the rest is the signed access builder's.
+- 7: session_01UbiTY1dyaLgrBaJHjjZcSE, landed (46b45f634).
+- 8, 9: session_01UbiTY4vhzKmTTZzb4YSfzd, landed (4b0e9de7); 9's revoking of
+  an agent's signed Grant records is the signed access builder's.
+- 10, and the overlapping parts of 9: the signed access builder
   (session_01UbiTY168uiE6R7Qo8b581U).
-- 8, 9: session_01UbiTY4vhzKmTTZzb4YSfzd, on claude/audit-8-9; 9's revoking
-  of an agent's signed Grant records (after signed access step 3b) is the
-  signed access builder's.
-- 4, 5: to be assigned.
-- 14: session_01UbiTY1dyaLgrBaJHjjZcSE, fixed on fix/server-held-mark: a
-  backup's seal binds its snapshot's name, its time, which restore logs.
+- 14: session_01UbiTY1dyaLgrBaJHjjZcSE, landing with this tracker: a backup's
+  seal binds its snapshot's name, its time, which restore logs.
 
 ## Security issues
 
