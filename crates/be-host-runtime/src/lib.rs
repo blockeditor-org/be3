@@ -64,10 +64,10 @@ pub use runtime::{
 };
 pub use runtime::{
     artifact, artifact_draft, assigned_size, begin_frame, busy, card, close, commit_creation,
-    content_delivered, content_moved, content_view, crash, creation, dialog_status, dismiss, host,
+    content_delivered, content_moved, content_view, crash, creation, dialog_status, dismiss,
     docked_placer, drawing, flush, forget_dialog_answer, frame_child, frame_rects, frames_answered,
-    hold, in_use, install, intrinsic_size, kill, menu, menu_pick, pass_child_focus, picked, poll,
-    present, presenting, preview_image, record_pacing, regenerate_artifact, render_clip,
+    hold, host, in_use, install, intrinsic_size, kill, menu, menu_pick, pass_child_focus, picked,
+    poll, present, presenting, preview_image, record_pacing, regenerate_artifact, render_clip,
     replace_gpu, report_child_details, report_child_focus, report_children, request_painting,
     resized, restart_app, reveal, revoke_frame_child, running, set_artifact_states, set_focus,
     set_presence_visible, set_presented, set_shell, settle, show_block, show_dialog, show_history,

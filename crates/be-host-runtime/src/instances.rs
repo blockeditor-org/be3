@@ -4,9 +4,9 @@ use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, ArtifactDescription, AudioCommand, BlockPick, ChildContent,
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus,
     EditorInstanceId, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock,
-    OpenCreation, OpenHost, OpenPicker, OpenRename, Opening, OpeningKind, PerformanceMeasurement, ScreenId,
-    ScreenLayout, ScreenRequest, ScreenWindow, Stopped, View, ViewAnchor, ViewId, ViewPlacement,
-    ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
+    OpenCreation, OpenHost, OpenPicker, OpenRename, Opening, OpeningKind, PerformanceMeasurement,
+    ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, Stopped, View, ViewAnchor, ViewId,
+    ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
 };
 use be_sdk_api::{
     DescribedAction, HostView, WindowOpen, WindowRequests,

@@ -36,7 +36,10 @@ fn a_host_component_opens_with_no_view_and_tells_the_shell_nothing() {
                 && open.block_type == block.block_type.into_bytes()
     ));
     assert!(
-        !tell(&mut instances, ShellMessage::IntrinsicSize(Some(vec2(10.0, 10.0)))),
+        !tell(
+            &mut instances,
+            ShellMessage::IntrinsicSize(Some(vec2(10.0, 10.0)))
+        ),
         "a size it reports for a frame it has not changes nothing"
     );
 }

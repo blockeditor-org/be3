@@ -7,8 +7,8 @@ use uuid::Uuid;
 
 use crate::{
     AppIdentity, AppManifest, BlockTypeDescriptor, BlockTypeManifest, ChildOperations,
-    EditorCapabilities, EditorManifest, Edits, HostManifest, InteractionMode, ManifestError, ParentView, Press,
-    ResizeMode, ShellRequest, TemplateCategory, TemplateManifest,
+    EditorCapabilities, EditorManifest, Edits, HostManifest, InteractionMode, ManifestError,
+    ParentView, Press, ResizeMode, ShellRequest, TemplateCategory, TemplateManifest,
 };
 
 #[cfg(test)]
