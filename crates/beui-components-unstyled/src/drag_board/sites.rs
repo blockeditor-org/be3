@@ -311,6 +311,7 @@ impl Board {
                 },
                 &placing.frame,
             );
+            let made = evaluated.made;
             placing.frame = evaluated.frame;
             placing.chosen = evaluated.drop;
             let now = placing
@@ -321,7 +322,11 @@ impl Board {
             let left = was
                 .map(|(site, _)| site)
                 .filter(|site| now.map(|(now, _)| now) != Some(*site));
-            let entered = (now != was).then(|| placing.chosen.clone()).flatten();
+            // A drop worked out from the point is told again each time: it can change while the
+            // same place stays chosen (the site hears only a change of value).
+            let entered = (now != was || made)
+                .then(|| placing.chosen.clone())
+                .flatten();
             (left, entered, placing.frame)
         };
         if self.shown.get_untracked() != Some(frame) {
