@@ -86,22 +86,38 @@ reads, and a second administrator writes, the policies block under settings).
   and the `CarriedKey` sealed to each administrator); the server's seal of the
   settings key carries the settings block, which `opened` checks; own-sealed
   pins and recovery material are not ring keys.
-- **Every read names its block.** The reads that cross blocks today, and how
-  each names its block, are listed in "Reads across blocks" below. `Keyring::open(block, sealed)` refuses a key
-  that is not that block's (`StoreError::WrongBlock`, which reads as
-  `ClientError::Forged`). The vault's reads (`read`, `load`, `read_range`,
-  `get_value`, manifests and nodes) and `CommitStore` take the block they read;
-  `Peer::open_metadata`, `Peer::unseal` (relays, taking the session's block),
-  the journal and `open_notification` (the notification's block) pass theirs.
-  Scope keys never seal content, so only data keys open objects.
-- **A block's current key is one of its keys.** `Peer::sealing_key(block)`
-  refuses a `summary.key` whose row is not `block`'s data key (today the
-  server can name block A's key as B's, and the device writes B under a key A's
-  viewers hold).
+- **Checked where the server points, inherited along hashes.** The server
+  chooses only what it points at: a block's head (the commit its summary
+  names), its metadata, relays, notifications, journal entries and the current
+  key. Each of those reads names its block and refuses a key that is not that
+  block's (`Keyring::open(block, sealed)`, `StoreError::WrongBlock`, read as
+  `ClientError::Forged`): `Peer::open_metadata` the summary's block, the head
+  commit `CommitStore::get` its block, `Peer::unseal` the session's block,
+  the journal its block, and `open_notification` the notification's block,
+  checked before decrypting. Everything reached from a checked object by hash
+  (a commit's parents and manifest, nodes, chunks, a repository's tree entries
+  and its upstream history) is bound by that hash, the hash of its sealed
+  bytes, so the server can't swap it, and opens with whichever key sealed it.
+  Version control keeps reading snapshot entries sealed under the working
+  blocks' keys, and fork, pull and push history under the upstream's, as it
+  does today: those are access questions (a repository's reader needs those
+  keys), not forgery, and need no change.
+- **A block's current key is one of its keys.** Built (fix/keys-bound-to-blocks,
+  8f2ea3f9e): `Peer::sealing_key(block)` refuses a `summary.key` that
+  `KeyBook::block_of` does not place in `block` (the server could name block
+  A's key as B's, and the device wrote B under a key A's viewers hold).
 - **Associated data.** Each seal authenticates the header (`be3K` and key id)
-  and the block id as associated data, so a sealed object belongs to one block
-  by construction as well as by the key check. The layout stays; what changes
-  is that old objects no longer open, and no format is frozen.
+  and the block of the key that sealed it, which the keyring records; opening
+  uses the key's own block, so reads along hashes across blocks still open,
+  and a header whose key id was relabelled fails. The layout stays; old
+  objects no longer open, and no format is frozen.
+- **Reused parts name where they are from.** `Vault::write` reseals a
+  `Part::Reused` under the writing block's key whatever key it was under, so a
+  type module's `Publish` or `Stash` can reseal another block's part into its
+  own. A reused part names the block it is from, and the vault refuses one from
+  a block the writer was not given (its own, or a merge's sides).
+- **Escrow secrets leave the content keyring**, where an object whose header
+  named one would open with it; they are X25519 secrets, never AEAD keys.
 - **The nonce.** With the format changing anyway: XChaCha20-Poly1305, its
   192-bit nonce derived from a nonce key (HKDF of the content key,
   `be3.vault.nonce.v1`) over the block id and the plaintext, so collisions
@@ -121,12 +137,12 @@ reads, and a second administrator writes, the policies block under settings).
   and be-server's backups draw it and bind their context there. One format,
   three callers that differ only in what they bind.
 
-Order: section 1 (built). Then the per-block check of section 3, in two
-pieces: first the current key (`sealing_key`) and every read naming its block,
-with version control's crossings fixed as above (the larger part: resealing
-snapshots, the upstream chain, reused parts naming their block); then section 2
-with the associated data, nonce and one seal format, since both change what
-trust and opening mean.
+Order, each piece landing on its own with its tests: section 1 (built); the
+current key (built); the pointer reads naming their block, with the keyring
+knowing each key's block and escrow secrets moving out of it; reused parts
+naming their source; then section 2 with the associated data, nonce and one
+seal format (whose `seal_with` part waits for signed access 3b and 3a, which
+build on it).
 
 What stays open: keys a device opens without trust (through escrow, whose
 seals are anonymous, or the server's seal of the settings key) still read
@@ -137,55 +153,17 @@ key) closes it; that goes with plans/signed_access.md's administrator records.
 
 ## Reads across blocks
 
-Every read of sealed objects, from the Peer entry points (`read_manifest`,
-`load_manifest`, `load_first_part`, `read_part`, `read_span`, `load_commit`,
-`open_commit`, `objects_of`, `fetch_history`, `descends`, `merge_base`,
-`holds`, `behind`, `metadata_of`, `unseal`, `open_journal`), takes the block it
-reads; nearly every caller has it at hand. Those that don't cross blocks:
-metadata, relays, the journal, notifications (whose block check moves before
-decrypting), revisions (old epochs of the same block), search (an index reads
-only its own parts; indexed hashes are identifiers), be-block-sync, the tracker
-tools, the server's reads of settings and policies, import (fresh keys),
-export, and `duplicate`, which reads the source's plaintext and publishes it
-under the copy. Rotation keeps a block's old data keys, so `Vault::reseal`
-stays within the block.
-
-What crosses today, all through version control and resealing:
-
-1. **Tree entries** (`be_block_vcs::Entry.content`): a repository's tree is
-   sealed under its key, but each entry's manifest under the working block's
-   key (version.rs `working`) or a checkout's (`merge_content`), and
-   `merge_content`, `Reach::merge`, `merge_over`, `materialize`/`publish`,
-   `version_block`, `tree_objects` and `reachable` read them. Fix: reseal the
-   changed entries under the repository's key when a snapshot is written
-   (`write_snapshot`, which already finds them through `tree_objects`), and
-   write merge results under it, so a repository reads only its own key. A
-   checkout publishing a snapshot already downloads and reseals across keys
-   (guides/blocks/version_control.md's "without downloading" holds only for
-   one key, and is corrected).
-2. **History across fork, pull and push**: a repository's commits name
-   upstream's or a fork's, whose ids are hashes of their sealed bytes, so they
-   can't be resealed. Fix: a repository's commit reads accept the keys of the
-   repository and its upstream chain (the walks, `CommitStore::get`,
-   `is_ancestor`, `common_ancestor` and `MergeBaseWalk`, take the blocks
-   allowed), and a repository keeps the upstreams it took commits from even
-   after `upstream` changes.
-3. **Reused parts** (`Part::Reused`, resealed by `Vault::write` whatever key
-   they were under): a part names the block it is from, and the vault refuses
-   one from a block not allowed. This also stops a type module's `Publish` or
-   `Stash` from resealing another block's part into its own, which it can
-   today.
-4. **Merge sides** (be-block-type-host `merge`, modules.rs `Kind::load`,
-   `Scope`/`PartRead`, version's `Reach::merge`): sides are bare manifests;
-   they become `(block, manifest)`, and `Scope` records the block of each part
-   it admits.
-
-Keys that are not a block's data keys stay off the per-block open: scope keys
-wrap through their own path (`KeyBook::wrap`/`unwrap`), and escrow secrets,
-which live in the same keyring as content keys today and so would open an
-object whose header names one, move out of it. Caches of opened values keyed
-by hash alone (`Peer.whole`, version's commit and tree cache, `Vault.sealed`)
-become keyed by block and hash, or they would bypass the check.
+An inventory of every read of sealed objects found that nearly every caller
+has its block at hand, and that only version control crosses blocks: snapshot
+tree entries name manifests sealed under the working blocks' or a checkout's
+key, fork, pull and push history is sealed under the upstream's key, merges
+read sides from several blocks, and reused parts are resealed from wherever
+they were. All of those are reached by hash from an object the server could
+not choose, so the rule above leaves them as they are; resealing snapshots
+instead would double what version-controlled content stores and make the
+"publishes without downloading" of guides/blocks/version_control.md false.
+Caches of opened values keyed by hash alone stay as they are; only a cache of
+a pointer read (`Peer.whole`, keyed by head) needs the block in its key.
 
 ## Tests (each fails today)
 
@@ -200,8 +178,12 @@ be-block-client, with the harness's server database playing the attacker:
 4. `a_relay_of_one_block_is_not_applied_to_another`: a relay sealed in A's
    session delivered as B's is refused.
 5. `a_notification_sealed_under_another_blocks_key_is_dropped`.
-6. `another_blocks_key_named_as_current_is_refused`: the server names A's key
-   as B's current key; saving B refuses rather than sealing under A's.
+6. Built: `another_blocks_key_named_as_current_is_refused`.
+7. `a_type_module_reuses_no_part_of_a_block_it_was_not_given`: a module's
+   `Publish` naming another block's part as reused is refused.
+8. `a_snapshot_still_reads_what_it_points_at_across_blocks`: a repository's
+   snapshot, history and merge keep reading entries sealed under other blocks'
+   keys (the crossings the rule keeps).
 
 ## Docs
 
