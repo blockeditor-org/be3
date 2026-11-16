@@ -10,7 +10,7 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{KeyError, PublicIdentity, RecoverySecret, SigningPublic, verify_signature};
 
@@ -357,6 +357,10 @@ pub struct Checked {
     pub administrators: HashMap<[u8; 16], PublicIdentity>,
     /// For an organization's log: its members other than through administering it.
     pub members: HashMap<[u8; 16], Named>,
+    /// For a block's log: grantees whose grant rests on `Authority::Inherited`, directly or
+    /// through whoever granted it, so on the server's tree until parents are signed: no device
+    /// seals to them by it (plans/signed_access.md, 3c).
+    pub tainted: HashSet<[u8; 16]>,
 }
 
 /// Checks the `kind` log of `log` from its root, which must be the one `pinned`, to its head:
@@ -460,6 +464,15 @@ pub fn check_log(
                 if let Some(signing) = signing {
                     state.signers.entry(entry.signer).or_insert(signing);
                 }
+                let tainted = match grant.authority {
+                    Authority::Inherited { .. } => true,
+                    Authority::Log => state.tainted.contains(&entry.signer),
+                    Authority::Organization(_) => false,
+                };
+                match tainted && grant.level > Level::None {
+                    true => state.tainted.insert(grant.grantee),
+                    false => state.tainted.remove(&grant.grantee),
+                };
                 state.signers.insert(grant.grantee, grant.identity.signing);
                 state
                     .grants

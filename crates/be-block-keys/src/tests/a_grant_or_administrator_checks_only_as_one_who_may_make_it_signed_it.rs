@@ -169,6 +169,46 @@ fn a_grant_or_administrator_checks_only_as_one_who_may_make_it_signed_it() {
         .is_ok(),
         "one who manages it from above grants it, as of where the grant names"
     );
+    let onward = grant(
+        &other,
+        other_id,
+        from_above.hash(),
+        member_id,
+        member.identity(),
+        Level::View,
+    );
+    let checked = check_log(
+        LogKind::Block,
+        block,
+        pinned,
+        &[root.clone(), from_above.clone(), onward.clone()],
+        &managing,
+    )
+    .unwrap();
+    assert!(
+        checked.tainted.contains(&other_id) && checked.tainted.contains(&member_id),
+        "a grant resting on the server's tree, directly or through its granter, is marked"
+    );
+    let regranted = grant(
+        &creator,
+        creator_id,
+        onward.hash(),
+        member_id,
+        member.identity(),
+        Level::View,
+    );
+    let checked = check_log(
+        LogKind::Block,
+        block,
+        pinned,
+        &[root.clone(), from_above.clone(), onward, regranted],
+        &managing,
+    )
+    .unwrap();
+    assert!(
+        !checked.tainted.contains(&member_id),
+        "a grant the block's own manager makes again rests on the log alone"
+    );
     assert!(
         check_log(
             LogKind::Block,
