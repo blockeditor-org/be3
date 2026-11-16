@@ -35,6 +35,46 @@ pub enum Record {
     /// An account took a new recovery phrase: its records after this are signed with `new`
     /// (plans/signed_access.md, "A new recovery phrase").
     Retirement(Retirement),
+    /// A member's access to the block, as a member who may give it gave it; revoking is a grant
+    /// of `Level::None`.
+    Grant(Grant),
+    /// Who administers the organization, in its log.
+    Administrator(Administrator),
+}
+
+/// A member's access to a block, from least to most (`be_block_graph::Access`).
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+pub enum Level {
+    None,
+    KnowExists,
+    View,
+    Edit,
+    Manage,
+}
+
+/// `grantee`'s access, with the keys the granter verified for them, which a device seals to.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Grant {
+    pub grantee: [u8; 16],
+    pub identity: PublicIdentity,
+    pub level: Level,
+}
+
+/// Whether `account`, with the keys the administrator signing verified, administers the
+/// organization.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Administrator {
+    pub account: [u8; 16],
+    pub identity: PublicIdentity,
+    pub administrator: bool,
+}
+
+/// What a signer holds from outside the log being checked: administering the organization (its
+/// log checked), or Manage inherited from a block above.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Outside {
+    pub level: Level,
+    pub signing: SigningPublic,
 }
 
 /// An account's move to new keys, endorsed by the key it retires and signed (as an entry) by
@@ -261,41 +301,77 @@ impl CarriedKey {
     }
 }
 
-/// A log checked from its root to its head (`check_log`): the hash of its head, and the signing
-/// key each account that holds a record in it signs with now.
-#[derive(Clone, Debug, Eq, PartialEq)]
+/// A log checked from its root to its head (`check_log`): the hash of its head, the signing key
+/// each account that holds a record in it signs with now, and what the records give.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Checked {
     pub head: EntryHash,
     pub signers: HashMap<[u8; 16], SigningPublic>,
+    /// For a block's log: each account's access as its records give it (the creator's is
+    /// Manage), with the keys last named for it.
+    pub grants: HashMap<[u8; 16], (Level, PublicIdentity)>,
+    /// For an organization's log: its administrators, with their keys.
+    pub administrators: HashMap<[u8; 16], PublicIdentity>,
 }
 
 /// Checks the `kind` log of `log` from its root, which must be the one `pinned`, to its head:
-/// every entry names the hash of the one before and is signed by its signer's current key, and a
-/// retirement moves an account to new keys only as endorsed by the key it retires. Anything else
-/// makes the whole log refused, since a device acts only on a log it checked to its head.
+/// every entry names the hash of the one before and is signed by its signer's current key, and is
+/// one its signer may make at its place: a retirement only of the signer's own keys, endorsed by
+/// the key it retires; a grant to another account only by a signer with Manage (from the log or
+/// from `outside`), and anyone's revocation of their own grant; an administrator record only by
+/// an administrator. Anything else makes the whole log refused, since a device acts only on a
+/// log it checked to its head. A signer the log names no keys for signs with the keys `outside`
+/// gives.
 pub fn check_log(
     kind: LogKind,
     log: [u8; 16],
     pinned: EntryHash,
     entries: &[Entry],
+    outside: &dyn Fn([u8; 16]) -> Option<Outside>,
 ) -> Result<Checked, KeyError> {
     let (root, rest) = entries.split_first().ok_or(KeyError::Record)?;
     let checked = root.checked_root(kind, log)?;
     if root.hash() != pinned {
         return Err(KeyError::Record);
     }
-    let mut signers = HashMap::from([(checked.creator, checked.identity.signing)]);
-    let mut head = pinned;
+    let mut state = Checked {
+        head: pinned,
+        signers: HashMap::from([(checked.creator, checked.identity.signing)]),
+        ..Checked::default()
+    };
+    match kind {
+        LogKind::Block => {
+            state
+                .grants
+                .insert(checked.creator, (Level::Manage, checked.identity));
+        }
+        LogKind::Organization => {
+            state
+                .administrators
+                .insert(checked.creator, checked.identity);
+        }
+    }
     for entry in rest {
-        let current = signers.get(&entry.signer).ok_or(KeyError::Record)?;
-        if entry.log != log || entry.previous != Some(head) {
+        let from_outside = outside(entry.signer);
+        let current = state
+            .signers
+            .get(&entry.signer)
+            .copied()
+            .or(from_outside.map(|outside| outside.signing))
+            .ok_or(KeyError::Record)?;
+        if entry.log != log || entry.previous != Some(state.head) {
             return Err(KeyError::Record);
         }
+        let level = state
+            .grants
+            .get(&entry.signer)
+            .map_or(Level::None, |(level, _)| *level)
+            .max(from_outside.map_or(Level::None, |outside| outside.level));
         match &entry.record {
             Record::Root(_) => return Err(KeyError::Record),
             Record::Retirement(retirement) => {
                 let endorsed_by_current = retirement.account == entry.signer
-                    && retirement.old == *current
+                    && retirement.old == current
                     && verify_signature(
                         &current.0,
                         &endorsed(retirement.account, &retirement.new),
@@ -304,10 +380,41 @@ pub fn check_log(
                 if !endorsed_by_current || !entry.signed_by(&retirement.new.signing) {
                     return Err(KeyError::Record);
                 }
-                signers.insert(entry.signer, retirement.new.signing);
+                state.signers.insert(entry.signer, retirement.new.signing);
+            }
+            Record::Grant(grant) => {
+                let own_revocation = grant.grantee == entry.signer && grant.level == Level::None;
+                let may = kind == LogKind::Block && (own_revocation || level == Level::Manage);
+                if !may || !entry.signed_by(&current) {
+                    return Err(KeyError::Record);
+                }
+                state.signers.insert(grant.grantee, grant.identity.signing);
+                state
+                    .grants
+                    .insert(grant.grantee, (grant.level, grant.identity));
+            }
+            Record::Administrator(administrator) => {
+                let may = kind == LogKind::Organization
+                    && state.administrators.contains_key(&entry.signer);
+                if !may || !entry.signed_by(&current) {
+                    return Err(KeyError::Record);
+                }
+                state
+                    .signers
+                    .insert(administrator.account, administrator.identity.signing);
+                match administrator.administrator {
+                    true => {
+                        state
+                            .administrators
+                            .insert(administrator.account, administrator.identity);
+                    }
+                    false => {
+                        state.administrators.remove(&administrator.account);
+                    }
+                }
             }
         }
-        head = entry.hash();
+        state.head = entry.hash();
     }
-    Ok(Checked { head, signers })
+    Ok(state)
 }

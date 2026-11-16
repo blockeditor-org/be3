@@ -2,6 +2,7 @@ use super::*;
 
 mod a_contact_card_opens_only_with_its_code_in_its_role;
 mod a_contact_verifies_what_another_signed_with_the_key_on_its_card;
+mod a_grant_or_administrator_checks_only_as_one_who_may_make_it_signed_it;
 mod a_key_change_carries_the_new_signing_key;
 mod a_recovery_phrase_round_trips_through_its_words;
 mod a_retired_key_signs_nothing_after_its_retirement;
