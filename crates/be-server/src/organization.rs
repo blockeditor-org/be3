@@ -144,7 +144,11 @@ impl ServerKey {
             if let Some(carried) =
                 plain.and_then(|plain| be_block_keys::CarriedKey::decode(&plain).ok())
             {
-                ring.insert(key, ContentKey::from_bytes(carried.key));
+                ring.insert(
+                    key,
+                    ContentKey::from_bytes(carried.key),
+                    Uuid::from_bytes(carried.block),
+                );
                 return Ok(true);
             }
         }

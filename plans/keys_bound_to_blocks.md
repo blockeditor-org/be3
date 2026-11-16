@@ -106,7 +106,7 @@ reads, and a second administrator writes, the policies block under settings).
   8f2ea3f9e): `Peer::sealing_key(block)` refuses a `summary.key` that
   `KeyBook::block_of` does not place in `block` (the server could name block
   A's key as B's, and the device wrote B under a key A's viewers hold).
-- **Associated data.** Each seal authenticates the header (`be3K` and key id)
+- **Associated data.** Built. Each seal authenticates the header (`be3K` and key id)
   and the block of the key that sealed it, which the keyring records; opening
   uses the key's own block, so reads along hashes across blocks still open,
   and a header whose key id was relabelled fails. The layout stays; old
@@ -120,7 +120,7 @@ reads, and a second administrator writes, the policies block under settings).
 - **Escrow secrets leave the content keyring.** Built: `KeyBook` holds them
   apart (guides/blocks/keys.md, Escrow), so no object whose header names one
   opens with it; they are X25519 secrets, never AEAD keys.
-- **The nonce.** With the format changing anyway: XChaCha20-Poly1305, its
+- **The nonce.** Built. With the format changing anyway: XChaCha20-Poly1305, its
   192-bit nonce derived from a nonce key (HKDF of the content key,
   `be3.vault.nonce.v1`) over the block id and the plaintext, so collisions
   stop mattering and the content key is no longer hashed directly. Objects that
@@ -129,7 +129,7 @@ reads, and a second administrator writes, the policies block under settings).
   (crypto_audit, simplicity 5). Associated data per block also scopes
   deduplication to a block, which keys already did; decisions/deterministic_seal_nonce.md
   is updated to say which seal which.
-- **One symmetric seal.** The audit found three formats (the vault's, the
+- **One symmetric seal.** Built (decisions/one_symmetric_seal.md). The audit found three formats (the vault's, the
   random-nonce `seal_with` in be-block-keys, backups'). This ends with one:
   `be_block_keys::aead`, XChaCha20-Poly1305 with a 24-byte nonce and associated
   data, `seal(key, nonce, associated, plain)` and `open`. The vault (which
@@ -142,9 +142,7 @@ reads, and a second administrator writes, the policies block under settings).
 Order, each piece landing on its own with its tests: section 1 (built); the
 current key (built); the pointer reads naming their block (built); a
 replica's reach (built); escrow secrets moving out of the keyring (built);
-then section 2 with the associated data, nonce and one
-seal format (whose `seal_with` part waits for signed access 3b and 3a, which
-build on it).
+the associated data, nonce and one seal format (built); then section 2.
 
 What stays open: keys a device opens without trust (through escrow, whose
 seals are anonymous, or the server's seal of the settings key) still read

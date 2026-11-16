@@ -9,15 +9,11 @@ use std::{
 use be_block_store::{Hash, ObjectStore};
 
 use crate::objects::{BucketConfig, Objects};
-use chacha20poly1305::{
-    ChaCha20Poly1305, Key, Nonce,
-    aead::{Aead, KeyInit},
-};
+use be_block_keys::aead;
 use rand::TryRngCore;
 use rusqlite::Connection;
 
-const SEALED_MAGIC: &[u8] = b"be3-backup-v1";
-const NONCE_LEN: usize = 12;
+const SEALED_MAGIC: &[u8] = b"be3-backup-v2";
 const DATABASES: &str = "databases";
 const OBJECTS: &str = "objects";
 /// Objects read from the server's store in one `Objects::get_many`.
@@ -263,28 +259,21 @@ impl BackupKey {
             .ok_or(BackupError::Key)
     }
 
-    fn cipher(&self) -> ChaCha20Poly1305 {
-        ChaCha20Poly1305::new(Key::from_slice(&self.0))
-    }
-
+    /// `plain` sealed for a backup (`be_block_keys::aead`): `SEALED_MAGIC`, a random nonce,
+    /// then the ciphertext, which authenticates the magic too.
     fn seal(&self, plain: &[u8]) -> Vec<u8> {
-        let mut nonce = [0u8; NONCE_LEN];
-        rand::rngs::OsRng
-            .try_fill_bytes(&mut nonce)
-            .expect("the operating system has entropy");
-        let ciphertext = self
-            .cipher()
-            .encrypt(Nonce::from_slice(&nonce), plain)
-            .expect("chacha20poly1305 never fails on a valid key and nonce");
+        let nonce = aead::random_nonce();
+        let ciphertext = aead::seal(&self.0, &nonce, SEALED_MAGIC, plain);
         [SEALED_MAGIC, &nonce, &ciphertext].concat()
     }
 
     fn open(&self, sealed: &[u8]) -> Result<Vec<u8>, BackupError> {
         let rest = sealed.strip_prefix(SEALED_MAGIC).ok_or(BackupError::Key)?;
-        let (nonce, ciphertext) = rest.split_at_checked(NONCE_LEN).ok_or(BackupError::Key)?;
-        self.cipher()
-            .decrypt(Nonce::from_slice(nonce), ciphertext)
-            .map_err(|_| BackupError::Key)
+        let (nonce, ciphertext) = rest
+            .split_at_checked(aead::NONCE_LEN)
+            .ok_or(BackupError::Key)?;
+        let nonce: aead::Nonce = nonce.try_into().map_err(|_| BackupError::Key)?;
+        aead::open(&self.0, &nonce, SEALED_MAGIC, ciphertext).map_err(|_| BackupError::Key)
     }
 }
 
