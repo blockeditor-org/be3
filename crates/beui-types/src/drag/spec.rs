@@ -439,6 +439,9 @@ struct Found<'s, D> {
     chain: bool,
     /// How far the place is from the carried item: what `closest` and `when_far` compare.
     distance: f32,
+    /// Chosen by the pointer being in a zone, not by the nearest rest: held with no
+    /// stickiness, since the zone itself says where it starts and ends.
+    zoned: bool,
 }
 
 impl<D> Found<'_, D> {
@@ -456,6 +459,7 @@ fn floated<'s, D>(carried: Rect) -> Found<'s, D> {
         floating: true,
         chain: false,
         distance: 0.0,
+        zoned: false,
     }
 }
 
@@ -498,6 +502,7 @@ fn walk<'s, D: Clone>(
                 floating: false,
                 chain: false,
                 distance,
+                zoned: candidate.zone.is_some(),
             })
         }
         DragSpec::Closest { of, sticky } => {
@@ -505,10 +510,10 @@ fn walk<'s, D: Clone>(
             // found: a place always beats floating, so a far site floating never takes the
             // item from a near site's place; it floats only when no place is in reach. A
             // place infinitely far (a zone the pointer left) is let go.
-            let mut held: Option<Found<D>> = None;
-            let mut nearest: Option<Found<D>> = None;
+            let mut held: Option<(usize, Found<D>)> = None;
+            let mut nearest: Option<(usize, Found<D>)> = None;
             let mut floats: Option<Found<D>> = None;
-            for spec in of {
+            for (at, spec) in of.iter().enumerate() {
                 let Some(found) = walk(spec, evaluation, last, carried, next, along) else {
                     continue;
                 };
@@ -520,21 +525,34 @@ fn walk<'s, D: Clone>(
                     continue;
                 }
                 if found.chosen == last.chosen {
-                    held = Some(found);
+                    held = Some((at, found));
                 } else if nearest
                     .as_ref()
-                    .is_none_or(|nearest| found.distance < nearest.distance)
+                    .is_none_or(|(_, nearest)| found.distance < nearest.distance)
                 {
-                    nearest = Some(found);
+                    nearest = Some((at, found));
                 }
             }
             match (held, nearest) {
-                (Some(held), Some(nearest)) => match nearest.distance + sticky >= held.distance {
-                    true => Some(held),
-                    false => Some(nearest),
-                },
-                (Some(held), None) => Some(held),
-                (None, Some(nearest)) => Some(nearest),
+                // A zone held gives way to a nearer place at once, and among places as near
+                // (zones that both hold the pointer, one inside the other) to the one listed
+                // first: a zone needs no stickiness, as it says itself where it ends.
+                (Some((held_at, held)), Some((nearest_at, nearest))) if held.zoned => {
+                    let first = nearest.distance < held.distance
+                        || (nearest.distance == held.distance && nearest_at < held_at);
+                    match first {
+                        true => Some(nearest),
+                        false => Some(held),
+                    }
+                }
+                (Some((_, held)), Some((_, nearest))) => {
+                    match nearest.distance + sticky >= held.distance {
+                        true => Some(held),
+                        false => Some(nearest),
+                    }
+                }
+                (Some((_, held)), None) => Some(held),
+                (None, Some((_, nearest))) => Some(nearest),
                 (None, None) => floats,
             }
         }
@@ -552,6 +570,7 @@ fn walk<'s, D: Clone>(
                 floating: false,
                 chain: false,
                 distance: distance(carried, item),
+                zoned: false,
             })
         }
         DragSpec::WhenFar { near, far, reach } => {
@@ -645,6 +664,7 @@ fn walk<'s, D: Clone>(
                     true => 0.0,
                     false => f32::INFINITY,
                 },
+                zoned: true,
             })
         }
         DragSpec::Custom(frame) => {
@@ -656,6 +676,7 @@ fn walk<'s, D: Clone>(
                 floating: frame.floating,
                 chain: frame.chain,
                 distance: distance(carried, frame.item),
+                zoned: false,
             })
         }
     }
