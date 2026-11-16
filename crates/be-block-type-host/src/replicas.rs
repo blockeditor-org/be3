@@ -2706,6 +2706,15 @@ impl<H: Host> Replicas<H> {
                 let Some(replica) = self.blocks.get(block).copied() else {
                     return;
                 };
+                // A made-up session takes only its own order: what a join it let go of was sent
+                // before the leave reached the server is not its.
+                if self
+                    .open
+                    .get(&replica)
+                    .is_some_and(|open| open.made_up && !open.joining)
+                {
+                    return;
+                }
                 if let Some(open) = self.open.get_mut(&replica)
                     && !open.joining
                 {
@@ -3180,8 +3189,11 @@ impl<H: Host> Replicas<H> {
         open.rejoining = None;
         let early = std::mem::take(&mut open.early);
         // What its made-up session sealed meanwhile is a commit the server lacks, which the
-        // server's journal does not reach: as `created` asks, it joins once a drain sent that.
+        // server's journal does not reach: as `created` asks, it joins once a drain sent that,
+        // and lets go of this join meanwhile.
         if open.made_up && !peer.pending_commits(block).is_empty() {
+            // The connection joined: it leaves, so it holds no lease nor hears the session.
+            self.leave(shared, peer, block);
             self.uncreated.insert(block);
             for replayed in early {
                 self.replay(replica, replayed);
