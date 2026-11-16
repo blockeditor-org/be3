@@ -920,6 +920,7 @@ impl ServerStore {
             let mut work = KeyWork {
                 escrows,
                 unsigned_members: unsigned_members(database, organization, identity)?,
+                unsigned_revocations: unsigned_revocations(database, graph, organization, &seen)?,
                 ..KeyWork::default()
             };
             let pending = pending_rotations(database, organization)?;
@@ -1517,4 +1518,32 @@ fn unsigned_members(
         }
     }
     Ok(unsigned)
+}
+
+/// Revocations the server made on its own of grants blocks' logs name, in blocks `seen` may
+/// manage, for a device to sign (`blocks::write_grant`).
+fn unsigned_revocations(
+    connection: &Connection,
+    graph: &BlockGraph,
+    organization: Uuid,
+    seen: &crate::blocks::Visibility,
+) -> Result<Vec<be_block_protocol::Revocation>, ServerError> {
+    let mut statement = connection.prepare_cached(
+        "SELECT block_id, account_id FROM unsigned_revocations WHERE organization_id = ?1
+         ORDER BY block_id, account_id",
+    )?;
+    let rows: Vec<(String, String)> = statement
+        .query_map([organization.to_string()], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<Result<_, _>>()?;
+    let mut found = Vec::new();
+    for (block, account) in rows {
+        let block = parse_uuid(&block)?;
+        if graph.contains(block) && seen.can_manage(graph, block) {
+            found.push(be_block_protocol::Revocation {
+                block,
+                account: parse_uuid(&account)?,
+            });
+        }
+    }
+    Ok(found)
 }

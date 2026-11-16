@@ -254,6 +254,17 @@ const SCHEMA: &str = "
 
     CREATE INDEX access_log_names_account ON access_log_names (account_id);
 
+    -- Grants a block's log names that the server revoked on its own (remove-contact,
+    -- remove-member), until a device's signed revocation goes in the log.
+    CREATE TABLE unsigned_revocations (
+        organization_id TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        account_id      TEXT NOT NULL,
+        PRIMARY KEY (organization_id, block_id, account_id),
+        FOREIGN KEY (organization_id, block_id)
+            REFERENCES blocks(organization_id, id) ON DELETE CASCADE
+    );
+
     CREATE INDEX blocks_changed
         ON blocks (organization_id, changed, id);
 
