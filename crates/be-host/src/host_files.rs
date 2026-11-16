@@ -182,10 +182,10 @@ mod web {
         let start = Start {
             data_dir,
             report: report.across(),
-            transports: be_host_stack::Transports::leave(KeepTransports { answer, taken }),
         };
         be_host_stack::start_in_worker(
             ENTRY,
+            be_host_stack::Transports::leave(KeepTransports { answer, taken }),
             postcard::to_stdvec(&start).expect("what the host's worker starts from encodes"),
         );
         let answered = answered
@@ -218,7 +218,6 @@ mod web {
     struct Start {
         data_dir: PathBuf,
         report: be_host_base::host::Across<Unkept>,
-        transports: be_host_stack::Transports,
     }
 
     /// What the host's worker and the page talk through (`be_host_stack::Transports`): the
@@ -287,13 +286,10 @@ mod web {
     /// In the host's worker, started as `ENTRY` from the bytes `open` sent: opens the files, answers what they hold, then keeps each change
     /// when the worker next yields or starts a stack's pass (`be_host_stack::run_first`),
     /// whichever comes first: a change waits at most for the synchronous stretch it arrived in.
-    pub(crate) async fn keep(bytes: Vec<u8>) {
+    pub(crate) async fn keep(transports: be_host_stack::Transports, bytes: Vec<u8>) {
         // The page encoded them from a `Start`: bytes that do not decode are a bug.
-        let Start {
-            data_dir,
-            report,
-            transports,
-        } = postcard::from_bytes(&bytes).expect("what the host's worker starts from decodes");
+        let Start { data_dir, report } =
+            postcard::from_bytes(&bytes).expect("what the host's worker starts from decodes");
         let KeepTransports { answer, taken } = transports.take();
         let opened = (|| {
             std::fs::create_dir_all(&data_dir).map_err(|error| error.to_string())?;

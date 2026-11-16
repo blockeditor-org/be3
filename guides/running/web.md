@@ -109,10 +109,12 @@ survives a reload. Traps that shape this code:
   there by a name and the bytes it starts from (`be_host_stack::start_in_worker`; be-host's
   `be_worker_run` names every entry), never a closure: what is data travels encoded (a stack's
   `Config`, `host_files`' data directory and its report's `Across`, which is its mailbox's
-  number), and the channels the two sides talk through are left by number in a table
-  (`be_host_stack::Transports`) until each becomes a message port. `run_web` waits for what they hold while the page's start-up look (`#status`) stays
-  up, then hides it and shows the first screen; the page reads its copy and sends the worker
-  each change (decisions/web_host_state_in_a_worker.md).
+  number), and the channels the two sides talk through are left in a table
+  (`be_host_stack::Transports`), sent by their number, until each becomes a message port; an
+  entry the worker does not know drops them, so the page hears it stopped. `run_web` waits for
+  what the host's files hold while the page's start-up look (`#status`) stays up, then hides
+  it and shows the first screen; the page reads its copy and sends the worker each change
+  (decisions/web_host_state_in_a_worker.md).
 - Nothing may spin or poll while it waits; a worker waits with `Atomics.wait` (std's locks and
   `Condvar`, `web/wasi.js`'s file calls, `web/dylink.js`'s lock), woken by the side that
   changed the state. A browser traps `memory.atomic.wait` on the page's thread, so the page
