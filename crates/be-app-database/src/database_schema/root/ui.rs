@@ -130,7 +130,7 @@ pub fn SchemaView(editor: Editor) -> NodeId {
                                 value={keys}
                                 payload={Func::new(|id: Uuid| Some(id))}
                                 disabled={read_only}
-                                long_press=true
+                                lifts_on_long_press=true
                                 text={name}
                                 preview={preview}
                                 on_move={moved}

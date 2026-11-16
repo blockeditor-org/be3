@@ -67,10 +67,11 @@ pub fn Interactive(
     on_long_press_drag: Callback<PointerPress>,
     on_drag: Callback<PointerPress>,
     drag: Option<Func<PointerPress, Option<crate::drag::Carry>>>,
-    /// Whether a finger's long press lifts `drag`'s carry. Off for a source whose long press
-    /// is its menu (a file in a tree): the held finger is then a secondary press, and only
-    /// a finger dragged along `touch_drags` lifts it.
-    #[prop(default = true)]
+    /// Whether a finger's long press lifts `drag`'s carry. Off by default: a held finger is
+    /// a secondary press, the platform's way to a menu, and a finger lifts the carry by
+    /// dragging along `touch_drags`. On for a source with no menu that a finger moves by
+    /// holding it first (a card on a board, a row in a list that scrolls the other way).
+    #[prop(default = false)]
     lifts_on_long_press: bool,
     on_pointer: Callback<PointerInput, bool>,
     on_wheel: Callback<WheelInput, bool>,
