@@ -25,10 +25,10 @@ Each item is marked when it is taken and when it lands (the fixing commit).
   (46b45f634), ready to land.
 - 10, and the overlapping parts of 6 and 9: the signed access builder
   (session_01UbiTY168uiE6R7Qo8b581U).
-- 8, 9: session_01UbiTY4vhzKmTTZzb4YSfzd, on claude/audit-8-9; 9's revoking
+- 8, 9: session_01UbiTY4vhzKmTTZzb4YSfzd, landed (4b0e9de7); 9's revoking
   of an agent's signed Grant records (after signed access step 3b) is the
   signed access builder's.
-- 4, 5: to be assigned.
+- 4, 5: session_01UbiTY4vhzKmTTZzb4YSfzd, on claude/audit-4-5.
 
 ## Security issues
 
