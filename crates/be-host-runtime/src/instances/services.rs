@@ -9,6 +9,7 @@ use be_sdk_api::{
 use uuid::Uuid;
 
 use super::Instances;
+use crate::InstanceRole;
 use crate::wire::Service;
 use be_host_base::{
     host,
@@ -248,11 +249,34 @@ impl Instances {
             .is_some_and(|block| revisions::source(block.id).is_some())
     }
 
+    /// The block a host component runs on, when `instance` is one: what it may reach of the
+    /// graph is that block and the blocks below it.
+    pub(super) fn hosting(&self, instance: EditorInstanceId) -> Option<Uuid> {
+        match self.entries.get(&instance)?.role {
+            InstanceRole::Host(_, block) => Some(block.id),
+            _ => None,
+        }
+    }
+
     pub fn serve(&mut self, service: Service) {
         let Service { instance, mut call } = service;
         self.scoped(instance, true, &mut |visit| {
             call.visit_block_ids(&mut |id| visit(id))
         });
+        // A host component, unattended, signs and checks what it writes and reads its app's
+        // data; everything that would ask a person, or reach past its block, is refused.
+        if self.hosting(instance).is_some()
+            && !matches!(
+                call,
+                Call::ReadData { .. }
+                    | Call::ListData { .. }
+                    | Call::Verify { .. }
+                    | Call::Sign { .. }
+                    | Call::SigningBlock { .. }
+            )
+        {
+            return self.refuse(call, OpError::Denied);
+        }
         if self.previewing(instance)
             && !matches!(
                 call,

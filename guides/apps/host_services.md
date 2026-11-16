@@ -284,9 +284,17 @@ and hosts together. The host opens it with `opening-kind.host` (block, type,
 whether it may edit) through `be_host_runtime::host` and stops it with
 `close`, and it never gets a screen: no frame, no view, no input, so it lays
 out and paints nothing. It is attached to its block's replica as an editor is
-and calls host services the same way. What needs a person or a screen is
-refused or dropped: the runtime drops every shell message it sends but a
-failure report, and refuses it a web view. It gets no gpu. It is how a
+and calls host services the same way, within a narrower reach, since it runs
+unattended with the account's access. The runtime enforces it, whatever the
+app asks (`Instances::hosting`):
+- the graph only at its own block and the blocks below it: a blocks call that
+  names any other existing block, or a place that is no block (the roots,
+  Unfiled, what is shared, a search of everything), or opens or shares a
+  block, is refused (`blocks::Call::reaches_past_blocks`);
+- of the host services, only signing and checking (`sign`, `verify`,
+  `signing-block`) and its app's own data (`list-data`, `read-data`);
+- no shell message but a failure report, no web view, no `open-url`, and no
+  gpu. A fetch is the manifest's `network` as for any instance. It is how a
 hosted block's host runs (plans/hosted_blocks.md), in be-host or headless in
 `be` (plans/headless_apps.md); members, the channel and the lease are
 hosted_blocks' to add.
