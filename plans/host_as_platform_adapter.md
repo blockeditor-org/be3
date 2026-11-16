@@ -236,7 +236,7 @@ A new WIT interface the host serves to the root guest, and later to apps
   as the other end.
 - On the web, spawning makes a Web Worker from the page.
 - Guests run on V8 natively and in the browser, neither of which offers fuel or canonical NaNs
-  (plans/wasm_on_v8.md), so a guest that must be deterministic stays on wasmi; a hung guest is
+  (decisions/guests_run_on_v8.md), so a guest that must be deterministic stays on wasmi; a hung guest is
   stopped by terminating its isolate.
 - It is one async interface for every caller, its calls async ops like every other guest call
   (decisions/guest_calls_are_async_ops_except_local_ones.md). The root guest awaits them from its
