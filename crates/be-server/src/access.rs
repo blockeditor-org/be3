@@ -263,7 +263,7 @@ pub(crate) fn append_retirements(
         }
         let position = entries.len();
         entries.push(entry.clone());
-        be_block_keys::check_log(kind, log.log.into_bytes(), pinned, &entries)
+        be_block_keys::check_log(kind, log.log.into_bytes(), pinned, &entries, &|_| None)
             .map_err(|_| refused("the retirement does not follow the log it goes in"))?;
         match kind {
             LogKind::Block => connection.execute(

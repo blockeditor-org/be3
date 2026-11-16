@@ -2,7 +2,8 @@ use std::fmt;
 
 mod access;
 pub use access::{
-    CarriedKey, Checked, Entry, EntryHash, LogKind, Record, Retirement, Root, check_log,
+    Administrator, CarriedKey, Checked, Entry, EntryHash, Grant, Level, LogKind, Outside, Record,
+    Retirement, Root, check_log,
 };
 
 use chacha20poly1305::{
