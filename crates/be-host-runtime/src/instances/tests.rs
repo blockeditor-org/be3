@@ -551,7 +551,7 @@ fn press() -> beui::Forwarded {
 fn progress(frames: (u64, u64), content: bool, typing: bool) -> gift::KeyProgress {
     gift::KeyProgress {
         frames,
-        content,
+        content: content.then_some(1),
         typing,
     }
 }
@@ -685,6 +685,7 @@ mod host_calls_are_taken_by_kind_in_the_order_they_came;
 mod input_for_a_screen_the_app_does_not_have_yet_reaches_it_once_announced;
 mod input_is_withheld_from_screens_the_app_no_longer_has;
 mod input_on_an_anchored_view_reaches_its_own_screen_in_its_own_points;
+mod keys_owed_to_a_child_wait_again_when_it_asks_for_its_content_again;
 mod keys_owed_to_a_child_wait_again_when_its_content_is_replaced;
 mod keys_owed_to_a_view_that_lost_the_keyboard_before_seeing_it_are_not_replayed;
 mod keys_reach_a_child_whose_app_takes_longer_than_the_wait_to_start;

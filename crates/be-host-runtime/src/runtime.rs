@@ -2116,12 +2116,13 @@ pub fn content_moved(app_id: &str, instance: EditorInstanceId, from: ViewId) -> 
     .flatten()
 }
 
-/// Whether the instance's block content, if it edits one, has reached it.
-pub fn content_delivered(app_id: &str, instance: EditorInstanceId) -> bool {
+/// Whether the instance's block content, if it edits one, has reached it, and how many times
+/// it has after the editor lacked it (`KeyProgress::content`).
+pub fn content_delivered(app_id: &str, instance: EditorInstanceId) -> Option<u64> {
     with(app_id, |runtime| {
         runtime.instances.content_delivered(instance)
     })
-    .unwrap_or(true)
+    .unwrap_or(Some(0))
 }
 
 /// The frames asked of the app and the frames it answered: input sent while `asked` was `n`

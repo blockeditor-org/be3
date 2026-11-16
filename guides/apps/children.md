@@ -142,7 +142,9 @@ view they were typed into. It moves pending → given → ready → done, and
   method in a frame its app answered after the focus, so an input method left
   from before does not count), or, for a child with none, its app drew two
   frames after it had its block's content and the focus (the count starts
-  again if the content is replaced). The child's app hears the held keys, in
+  again if the content is replaced, or relayed again for an editor that asked
+  for it with `Resend`, as an app that starts does even when the host relayed
+  it already). The child's app hears the held keys, in
   order and ahead of its own.
 - Ended before that: when the person presses in the editor or takes the
   keyboard elsewhere, when the child stops being placed in a mode that runs
