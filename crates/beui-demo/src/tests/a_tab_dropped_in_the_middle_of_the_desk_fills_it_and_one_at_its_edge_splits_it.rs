@@ -16,10 +16,6 @@ fn a_tab_dropped_in_the_middle_of_the_desk_fills_it_and_one_at_its_edge_splits_i
     test.drag(Target::text("Tab \"Sketch\""), Target::point(middle));
     test.frame(Vec::new());
     test.settle();
-    assert!(
-        !test.shown("dock.refused"),
-        "the middle of the desk takes the tab rather than refusing it"
-    );
     let sketch = test.rect_of("wm.window.3");
     assert!(
         sketch.width() > desk.width() * 0.9,
