@@ -1218,7 +1218,7 @@ impl<H: Host> Replicas<H> {
                     reset::<H>(peer, block, &kind).await?;
                 }
                 let tag = tag.ok_or(ClientError::Unexpected)?;
-                let (client, session, journal) = peer.connection().join_session(block, tag).await?;
+                let (client, session, journal) = peer.join_session(block, tag).await?;
                 // Reading the head lists the block, so `changes` tells its next ones.
                 let head = peer.remote_head(block).await?;
                 let journal = journal.and_then(|journal| peer.open_journal(journal).ok());
@@ -3136,7 +3136,7 @@ impl<H: Host> Replicas<H> {
         let io = self.io.clone();
         H::spawn(async move {
             let joined = async {
-                let (client, session, journal) = peer.connection().join_session(block, tag).await?;
+                let (client, session, journal) = peer.join_session(block, tag).await?;
                 let head = peer.remote_head(block).await?;
                 // The head may be a seal of the journal (`journal_for`), which needs the commit.
                 if let Some(head) = head {
@@ -4156,7 +4156,7 @@ fn joining<S: be_block_store::ObjectStore + 'static>(
         peer.ensure_type(block, content_type, BlockParent::Detached)
             .await?;
         let tag = tag.ok_or(ClientError::Unexpected)?;
-        let (client, session, journal) = peer.connection().join_session(block, tag).await?;
+        let (client, session, journal) = peer.join_session(block, tag).await?;
         let head = peer.remote_head(block).await?;
         // The head may be a seal of the journal (`journal_for`), which needs the commit here.
         if let Some(head) = head {

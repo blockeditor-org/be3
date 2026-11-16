@@ -1382,37 +1382,34 @@ impl Refs {
 
     /// Keeps `edits` as `block`'s: kept with none too, for its origin and count, which every
     /// later replica of the block on this device goes on with.
-    /// Whether `block`'s local edits were discarded and this account may not edit it: none are
-    /// kept for it (`keep_open_edits`).
+    /// Whether `block`'s local edits were discarded and the server has not said since that this
+    /// account may edit it: none are kept for it (`keep_open_edits`).
     pub fn discarded(&self, block: Uuid) -> bool {
-        let state = self.state.lock().unwrap();
-        state.dropped.contains(&block)
-            && !state
-                .summaries
-                .get(&block)
-                .is_some_and(|summary| summary.access.can_edit())
+        self.state.lock().unwrap().dropped.contains(&block)
+    }
+
+    /// The server answered that this account may edit `block` (a join's `may-edit`): its edits
+    /// are kept again where they were discarded (`drop_local_edits`). A listing that says so is
+    /// not enough, as it may be older than the access that lost it.
+    pub fn may_edit_again(&self, block: Uuid) -> Result<(), StoreError> {
+        if !self.state.lock().unwrap().dropped.remove(&block) {
+            return Ok(());
+        }
+        self.write(vec![Row {
+            table: Table::Dropped,
+            key: block.as_bytes().to_vec(),
+            value: None,
+        }])
     }
 
     /// Keeps `edits` as `block`'s, answering whether it did: not for a block whose local edits
-    /// were discarded (`drop_local_edits`) while this account may not edit it, as kept they
-    /// would keep it from being forgotten. Once it may edit it again, they are kept again.
+    /// were discarded (`drop_local_edits`) until the server says this account may edit it again
+    /// (`may_edit_again`), as kept they would keep it from being forgotten.
     pub fn keep_open_edits(&self, block: Uuid, edits: OpenEdits) -> Result<bool, StoreError> {
         let mut state = self.state.lock().unwrap();
         let mut rows = Vec::new();
         if state.dropped.contains(&block) {
-            let may_edit = state
-                .summaries
-                .get(&block)
-                .is_some_and(|summary| summary.access.can_edit());
-            if !may_edit {
-                return Ok(false);
-            }
-            state.dropped.remove(&block);
-            rows.push(Row {
-                table: Table::Dropped,
-                key: block.as_bytes().to_vec(),
-                value: None,
-            });
+            return Ok(false);
         }
         if state.open_edits.get(&block) != Some(&edits) {
             state.open_edits.insert(block, edits.clone());

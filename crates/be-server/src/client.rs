@@ -2014,7 +2014,7 @@ impl Client {
                         .store
                         .read_journal(place.organization, place.block)
                         .await?;
-                    Ok::<_, ServerError>(((state, journal), place))
+                    Ok::<_, ServerError>(((state, journal, may_edit), place))
                 }
                 .await;
                 let op = stream.op();
@@ -2048,10 +2048,11 @@ impl Client {
                         }
                 };
                 let event = match joined {
-                    Ok(((state, journal), _)) => SessionEvent::Joined {
+                    Ok(((state, journal, may_edit), _)) => SessionEvent::Joined {
                         client: self.connection.client,
                         state,
                         journal,
+                        may_edit,
                     },
                     Err(error) => {
                         let _ = streams.send(&mut lock, SessionEvent::Refused(wire(error)), only);
