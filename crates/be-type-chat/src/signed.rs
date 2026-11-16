@@ -34,6 +34,22 @@ pub(crate) fn body_hash(body: &str) -> [u8; 32] {
     Sha256::digest(body.as_bytes()).into()
 }
 
+/// What a message's signature covers of what it says (`Message::content`): a commitment to its
+/// body, what it replies to and its attachments under a salt of its own, so what a deletion
+/// keeps of it (`Sent`) proves who wrote it and tells nothing of what it said.
+pub(crate) fn content(
+    salt: &[u8; 16],
+    body: &str,
+    reply: Option<ObjectId>,
+    attachments: &[BlockRef],
+) -> [u8; 32] {
+    let mut signed = Signed(Vec::new());
+    signed.text("be3.chat.content.v1");
+    signed.0.extend_from_slice(salt);
+    signed.text(body).reply(reply).blocks(attachments);
+    Sha256::digest(signed.finish()).into()
+}
+
 pub(crate) struct Signed(Vec<u8>);
 
 impl Signed {
@@ -64,12 +80,13 @@ impl Signed {
     /// A body is signed by its hash, so a signature over a long message stays small to check
     /// against a body read elsewhere.
     pub(crate) fn body(&mut self, body: &str) -> &mut Self {
-        self.body_hash(&body_hash(body))
+        self.digest(&body_hash(body))
     }
 
-    /// A body by its hash (`body_hash`), as `body` signs it.
-    pub(crate) fn body_hash(&mut self, hash: &[u8; 32]) -> &mut Self {
-        self.0.extend_from_slice(hash);
+    /// A 32-byte digest as it is: a body's hash (`body_hash`), or a message's content
+    /// (`content`).
+    pub(crate) fn digest(&mut self, digest: &[u8; 32]) -> &mut Self {
+        self.0.extend_from_slice(digest);
         self
     }
 

@@ -70,6 +70,10 @@ pub struct Message {
     /// gap shows even when nobody else saw that message (`ChatContent::gaps`).
     pub own_previous: Option<Prior>,
     pub signature: Signature,
+    /// Random, set as it is drafted (`ChatContent::draft`): what its signature covers of what
+    /// it says is a commitment under it (`Message::content`), which nobody can guess back from
+    /// once the message is deleted.
+    pub salt: [u8; 16],
     /// When the server took the operation that sent it, in milliseconds since the Unix epoch
     /// by the server's clock, as the session owner stamped it (`LiveEdit::arrival`); none when
     /// that is unknown. Not signed, and written only through that stamp: a change that sets it
@@ -136,17 +140,16 @@ pub struct Deletion {
     pub message: Option<Sent>,
 }
 
-/// What a message's author signed of it (`Message::signed_bytes`), its body by its hash: what
-/// a deletion keeps of the message it removed.
+/// What a message's author signed of it (`Message::signed_bytes`), what it says by its
+/// salted commitment (`Message::content`): what a deletion keeps of the message it removed,
+/// which proves who wrote it and tells nothing of what it said.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(default)]
 pub struct Sent {
     pub author: Uuid,
     pub time: i64,
     #[serde(with = "serde_bytes")]
-    pub body: [u8; 32],
-    pub reply_to: Option<ObjectId>,
-    pub attachments: Vec<BlockRef>,
+    pub content: [u8; 32],
     pub seen: Option<Prior>,
     pub own_previous: Option<Prior>,
     pub signature: Signature,
@@ -158,9 +161,7 @@ impl Sent {
         Signed::new("be3.chat.message", chat, id)
             .uuid(self.author)
             .time(self.time)
-            .body_hash(&self.body)
-            .reply(self.reply_to)
-            .blocks(&self.attachments)
+            .digest(&self.content)
             .prior(self.seen)
             .prior(self.own_previous)
             .finish()
@@ -244,9 +245,9 @@ impl Message {
         }
     }
 
-    /// What its author's signature covers: the chat, the message, author, claimed time, the
-    /// body's hash, what it replies to, its attachments, the last message its author saw and
-    /// its author's own message before it.
+    /// What its author's signature covers: the chat, the message, author, claimed time, what
+    /// it says (`content`: its body, what it replies to and its attachments, under its salt),
+    /// the last message its author saw and its author's own message before it.
     pub fn signed_bytes(&self, chat: Uuid, id: ObjectId) -> Vec<u8> {
         self.sent().signed_bytes(chat, id)
     }
@@ -256,13 +257,17 @@ impl Message {
         Sent {
             author: self.author,
             time: self.time,
-            body: crate::signed::body_hash(&self.body),
-            reply_to: self.reply_to,
-            attachments: self.attachments.clone(),
+            content: self.content(),
             seen: self.seen,
             own_previous: self.own_previous,
             signature: self.signature.clone(),
         }
+    }
+
+    /// The commitment its signature covers to what it says: its body, what it replies to and
+    /// its attachments, under its salt.
+    pub fn content(&self) -> [u8; 32] {
+        crate::signed::content(&self.salt, &self.body, self.reply_to, &self.attachments)
     }
 
     pub fn hash(&self, chat: Uuid, id: ObjectId) -> MessageHash {
@@ -319,6 +324,17 @@ impl Deletion {
             .reply(self.after)
             .seen(self.message.as_ref().map(|sent| sent.hash(chat, message)))
             .finish()
+    }
+
+    /// Whether what it keeps of a recent message is that message (`ChatContent::cited`): false
+    /// when a later message cites it by another hash, true when every one cites this one, none
+    /// when nothing cites it yet (it was the latest) or it keeps nothing.
+    pub fn kept_matches(&self, chat: Uuid, message: ObjectId, cited: &[MessageHash]) -> Option<bool> {
+        let kept = self.message.as_ref()?.hash(chat, message);
+        match cited.is_empty() {
+            true => None,
+            false => Some(cited.iter().all(|hash| *hash == kept)),
+        }
     }
 
     /// Whether its author may have deleted `message`, which `deleted` is (none when this
@@ -788,6 +804,7 @@ impl ChatContent {
             Message {
                 seen,
                 own_previous,
+                salt: Uuid::new_v4().into_bytes(),
                 ..message
             },
         )
@@ -1374,6 +1391,20 @@ impl ChatContent {
     }
 
     /// Whether `message` may be in a closed segment, rather than recent or unknown here.
+    /// The hashes the recent messages cite `message` by (`Message::seen`,
+    /// `Message::own_previous`): what it was, signed by whoever cited it, which the server or a
+    /// member with Edit cannot change.
+    pub fn cited(&self, message: ObjectId) -> Vec<MessageHash> {
+        self.messages()
+            .into_iter()
+            .filter_map(|id| self.message(id))
+            .flat_map(|cites| [cites.seen, cites.own_previous])
+            .flatten()
+            .filter(|prior| prior.id == message)
+            .map(|prior| prior.hash)
+            .collect()
+    }
+
     pub fn may_be_closed(&self, message: ObjectId) -> bool {
         self.segments()
             .iter()
