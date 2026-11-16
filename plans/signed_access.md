@@ -45,7 +45,15 @@ is granted what).
   `None`; a member revoking their own grant (as anyone may today) signs it
   themselves. A block's agent is granted by its creator, who holds `Manage`
   (`create-agent`'s `bound-to` needs it) and names the agent's keys from
-  making them, so no contact check is needed.
+  making them, so no contact check is needed; the creator picks the agent's
+  account id so the grant can name it, and `create-agent` carries the grant.
+  A grant also names where its signer's `Manage` comes from (`Authority`):
+  the log itself, the organization's log as of one of its entries
+  (administering it), or a block above as of an entry of its log. A log then
+  checks the same however the other log changes later: a grant an
+  administrator signed still checks after they are demoted.
+  Grants to anyone inside and to the server's own account are standing
+  exceptions, server rows with no record: no device seals to either by grant.
 - **Parent.** New parent and the hash of the parent's log root, signed by the
   member who moved it. Inherited access is checked only through signed parent
   records, so the server cannot place a block under an ancestor someone else
@@ -202,6 +210,17 @@ signed").
   owner is locked out, as with a stolen phrase today. A retirement's
   endorsement is bound to no time or epoch, so whoever holds an old phrase can
   retire it, at any later moment, in any log where it is still current.
+- **A stale authority.** A grant names the organization's or an ancestor's
+  log as of an entry of the signer's choosing. The server checks it is that
+  log's head when it appends the grant, but a server colluding with a demoted
+  administrator (or a manager since revoked above) can append one naming an
+  entry from before the demotion, and devices take it. A retired key still
+  signs nothing after its retirement in the log the grant goes in. Escrow
+  epochs are not open to this: a device takes one only from an administrator
+  as of the organization log's head it holds.
+- **Ancestors' roots** are taken from the server when this device pinned none
+  (a grant on a child, from a manager above), as the tree they hang in is the
+  server's until parents are signed (step 4).
 - **A new phrase grows with the account.** `set-recovery-key` carries one
   retirement (about 300 to 400 bytes) per log the account signed in, which is
   every block it ever made, beside the resealed keys that already grow the same
@@ -260,9 +279,11 @@ instead.
      access comes only from a grant its creator signed (crypto audit 9, the
      agents part). Escrow epochs are bound to the administrator records, so a
      demoted administrator cannot sign the next one (crypto audit 10). Done: a
-     test where the server lists a contact as granted with no record and no
-     key reaches them; one where a forged administrator record is refused;
-     one where a demoted administrator's escrow epoch is refused.
+     test where a forged administrator record is refused; one where a
+     demoted administrator's escrow epoch is refused. Grant changes the server
+     makes on its own (a contact link's grant on accepting, `remove-contact`,
+     `remove-member`) are still unsigned rows: a device signs them after,
+     decided with 3c, which is what seals by the records.
    - **3a. Authenticated escrow wraps**, after 3b, whose records name the
      keys an administrator checks a sender by: an escrow wrap is sealed by its
      sender to the escrow key, as `seal_for` seals to an account, not
@@ -283,7 +304,8 @@ instead.
      but its author (crypto audit 6, the `unsealed` part); a pin is taken only
      from a sender holding Edit or above as of the log's head, and a key from
      any such sender. Done: a test where a grantee who is not a contact gets
-     the key and a contact with no grant does not.
+     the key and a contact with no grant does not; one where the server lists
+     a contact as granted with no record and no key reaches them.
    - **3d. Key epochs bound to log heads.** Each new epoch names the log head
      it was made under, signed by its maker; a device seals or wraps it only
      to members granted as of that head and must hold the log up to it. Done:
