@@ -257,6 +257,12 @@ did not sign.
   themselves and show forged content as that block. Only a member can, never
   the server; the block's own members, who pinned its real root, are not
   fooled.
+- **An administrator roots a block other administrators never pinned.** An
+  administrator's escrow wrap is taken without checking the block's log
+  (administrators re-wrap every key under each new escrow epoch), so a
+  malicious administrator can root a block id another administrator reaches
+  only through escrow at themselves. An administrator reads everything
+  through escrow anyway.
 - **Authorship** is the root's (and later owner records'): no grant names or
   lowers a block's creator.
 - **A new phrase grows with the account.** `set-recovery-key` carries one
