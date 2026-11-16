@@ -170,6 +170,9 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
             });
         }
         session.settle().await;
+        if let Some(failure) = session.mirror.failure() {
+            return Err(format!("block {block}: {failure}"));
+        }
         Ok(session)
     }
 

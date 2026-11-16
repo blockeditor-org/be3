@@ -1123,7 +1123,7 @@ impl<H: Host> Replicas<H> {
     }
 
     /// Opens `block`'s replica, or says why it gave up: no module serves the type, or opening
-    /// failed. A block waiting for its key, or opening offline with nothing to read yet, has not
+    /// failed. A block waiting for a key, or out of reach with nothing here to read yet, has not
     /// given up.
     pub async fn open(
         &mut self,
@@ -1276,6 +1276,12 @@ impl<H: Host> Replicas<H> {
             Err(ClientError::Locked(_)) => {
                 return Box::pin(self.open((peer, shared), block, content_type, reader)).await;
             }
+            // Out of reach with nothing kept here to open from: it opens once the host
+            // reconnects, and is loading till then.
+            Err(error) if unreachable(&error) => {
+                H::record(shared, error);
+                return Ok(());
+            }
             Err(error) => {
                 let reason = error.to_string();
                 H::record(shared, error);
@@ -1305,7 +1311,8 @@ impl<H: Host> Replicas<H> {
             sealed_head,
             offline,
         ) else {
-            return Err(NO_MODULE.to_owned());
+            // Its kept edits stopped opening since they were checked: it waits for their keys.
+            return Ok(());
         };
         if offline {
             return Ok(());
@@ -3631,9 +3638,26 @@ impl<H: Host> Replicas<H> {
             self.leave(shared, peer, open.block);
         }
         if open.reopen {
-            self.open((peer, shared), open.block, open.content_type, open.reader)
-                .await
-                .expect("the block opens");
+            let block = open.block;
+            // The editors it had follow the replica opened in its place, or hear why none did.
+            let editors = open
+                .editors
+                .iter()
+                .filter(|(editor, _)| **editor != HOST_EDITOR)
+                .map(|(editor, editable)| (*editor, *editable));
+            match self.open((peer, shared), block, open.content_type, open.reader).await {
+                Ok(()) => {
+                    for (editor, editable) in editors {
+                        self.attach(block, editor, editable);
+                    }
+                }
+                Err(reason) => {
+                    let failed = be_sdk_type_guest::editor::ToEditor::Failed(reason).encode();
+                    for (editor, _) in editors {
+                        H::to_editor(shared, block, editor, failed.clone());
+                    }
+                }
+            }
             return true;
         }
         H::released(shared, open.block);
