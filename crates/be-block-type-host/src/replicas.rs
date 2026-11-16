@@ -1208,6 +1208,7 @@ impl<H: Host> Replicas<H> {
                         None,
                         false,
                     ) {
+                        self.tell_marked(shared, replica);
                         self.join_later(replica, block, joining, arrivals);
                     }
                     return;
@@ -1299,6 +1300,7 @@ impl<H: Host> Replicas<H> {
         ) else {
             return;
         };
+        self.tell_marked(shared, replica);
         if offline {
             return;
         }
@@ -1600,6 +1602,7 @@ impl<H: Host> Replicas<H> {
             .into_iter()
             .partition(|replayed| matches!(replayed, Replayed::Sequenced { .. }));
         self.reopen_joined(replica, client, session, head, loads, commits_kept, ordered);
+        self.tell_marked(shared, replica);
         for replayed in early {
             self.replay(replica, replayed);
         }
@@ -1724,6 +1727,14 @@ impl<H: Host> Replicas<H> {
                 handle.resent(connection, editor);
             }
         });
+    }
+
+    /// Tells the host whether the replica's editors are attached read-only as its block is
+    /// marked (`H::set_marked`), once they are attached as it says.
+    fn tell_marked(&self, shared: &Arc<Mutex<H>>, replica: ReplicaId) {
+        if let Some(open) = self.open.get(&replica) {
+            H::set_marked(shared, open.block, open.marked);
+        }
     }
 
     fn make_up_session(&mut self, replica: ReplicaId) {
@@ -3275,6 +3286,7 @@ impl<H: Host> Replicas<H> {
             .into_iter()
             .partition(|replayed| matches!(replayed, Replayed::Sequenced { .. }));
         self.reopen_joined(replica, client, session, head, loads, commits_kept, ordered);
+        self.tell_marked(shared, replica);
         for replayed in early {
             self.replay(replica, replayed);
         }

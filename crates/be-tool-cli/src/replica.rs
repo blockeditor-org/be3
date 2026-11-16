@@ -71,6 +71,8 @@ impl<S: ObjectStore + 'static> be_block_type_host::Host for Held<S> {
         }
     }
 
+    fn set_marked(_: &Arc<Mutex<Self>>, _: Uuid, _: bool) {}
+
     fn owned(_: &Arc<Mutex<Self>>, _: Uuid) -> bool {
         false
     }

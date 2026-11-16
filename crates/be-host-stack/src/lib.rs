@@ -1888,8 +1888,15 @@ pub fn may_load(block: Uuid) -> bool {
         && with_seen(|shared| !shared.unreadable.contains_key(&block)).unwrap_or_default()
 }
 
+/// What this account may do with `block`'s content now: the graph's access, but at most `View`
+/// while its editors are attached read-only because its local edits were discarded
+/// (`Seen::marked`). Editors are attached, and told whether they may edit, by this.
 pub fn access(block: Uuid) -> be_block_graph::Access {
-    node(block).map_or(be_block_graph::Access::None, |node| node.access)
+    let access = node(block).map_or(be_block_graph::Access::None, |node| node.access);
+    match with_seen(|seen| seen.marked.contains(&block)).unwrap_or_default() {
+        true => access.min(be_block_graph::Access::View),
+        false => access,
+    }
 }
 
 thread_local! {
