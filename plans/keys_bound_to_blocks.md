@@ -70,11 +70,14 @@ read a block" (plans/signed_access.md), whose signed roots and records bind
 which key may wrap which; the graph's scope relation would buy nothing here,
 since the server tells it. keys.md says so.
 
-Tests: `a_key_wrapped_under_the_settings_key_seals_no_other_block` (an
-administrator who did not mint the settings key, a data key of block X with a
-high epoch wrapped under the settings scope key: X is still written under its
-own key); `members_and_administrators_read_and_write_the_policies` (a member
-reads, and a second administrator writes, the policies block under settings).
+Built (`KeyBook::server_held`, `Peer::in_settings`). Tests:
+`a_key_wrapped_under_the_settings_key_seals_no_other_block` (the
+administrator who minted the settings key, a data key of a note with a high
+epoch wrapped under the settings scope key by the server: the note is still
+written under its own key); the settings' existing tests
+(`an_organizations_policies_are_read_by_its_members_and_enforced_by_the_server`,
+`a_second_administrator_edits_the_organizations_settings`) show members still
+read, and a second administrator still writes, the settings.
 
 ## 3. Objects are opened only with a key of their block
 
@@ -142,7 +145,7 @@ reads, and a second administrator writes, the policies block under settings).
 Order, each piece landing on its own with its tests: section 1 (built); the
 current key (built); the pointer reads naming their block (built); a
 replica's reach (built); escrow secrets moving out of the keyring (built);
-the associated data, nonce and one seal format (built); then section 2.
+the associated data, nonce and one seal format (built); section 2 (built).
 
 What stays open: keys a device opens without trust (through escrow, whose
 seals are anonymous, or the server's seal of the settings key) still read
