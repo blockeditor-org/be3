@@ -325,7 +325,10 @@ pub(crate) async fn handle(
                 response.location = Some(link("/auth", &code));
             },
             "/auth/approve" => {
-                browser_auth::decide(services, &code, Some(account()?), token).await?;
+                let account = account()?;
+                // A cookie alone, however old, mints no token (plans/crypto_audit.md, 8).
+                services.store.require_fresh(token).await?;
+                browser_auth::decide(services, &code, Some(account), token).await?;
                 response.location = Some("/auth/approved".into());
             },
             "/auth/deny" => {
@@ -417,6 +420,8 @@ pub(crate) async fn handle(
         "/auth/settings" | "/auth/sessions" if profile.is_some() => {
             services.store.is_fresh(token).await?
         }
+        // An approval needs the same proof (plans/crypto_audit.md, 8).
+        "/auth" if profile.is_some() && !code.is_empty() => services.store.is_fresh(token).await?,
         _ => false,
     };
     // A code from the mail's link: filled in where its attempt began, only shown anywhere else.

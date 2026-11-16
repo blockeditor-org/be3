@@ -106,7 +106,7 @@ impl ServerStore {
     ) -> Result<Vec<AccountSession>, ServerError> {
         let current = current.to_owned();
         self.with_database(move |_, database| {
-            let mut query = database.prepare("SELECT public_id, kind, created, token_hash FROM sessions WHERE account_id = ?1 AND (kind = 'app' OR (kind = 'browser' AND expires > ?2)) ORDER BY created DESC, public_id")?;
+            let mut query = database.prepare("SELECT public_id, kind, created, token_hash FROM sessions WHERE account_id = ?1 AND kind IN ('app', 'browser') AND expires > ?2 ORDER BY created DESC, public_id")?;
             let sessions = query
                 .query_map(params![account.to_string(), now()], |row| {
                     Ok(AccountSession {

@@ -23,10 +23,17 @@ fn the_portal_captures_account_management_and_approval() {
     painting(settings, [390, 1600]).snapshot("portal_settings_phone.browser");
     let approval = Page {
         code: "abcd-1234-5678".into(),
+        fresh: true,
         ..signed_in(Screen::Approve)
     };
     painting(approval.clone(), [390, 900]).snapshot("portal_approval.browser");
-    dark(approval, [1100, 900]).snapshot("portal_approval_dark.browser");
+    dark(approval.clone(), [1100, 900]).snapshot("portal_approval_dark.browser");
+    // Signed in a while ago: sign in again before approving.
+    let stale = Page {
+        fresh: false,
+        ..approval
+    };
+    painting(stale, [390, 900]).snapshot("portal_approval_stale.browser");
     let sessions = Page {
         sessions: vec![
             Session {

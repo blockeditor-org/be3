@@ -312,24 +312,34 @@ impl ServerStore {
         .await
     }
 
+    /// The account an app token is for. A token expires `APP_SESSION_IDLE` after it was last
+    /// used, and each use renews it, writing at most once a day (plans/crypto_audit.md, 8).
     pub async fn resolve_token(&self, token: &str) -> Result<Profile, ServerError> {
         let token = token.to_owned();
         self.with_database(move |_, database| {
-            let row: Option<(String, String, String)> = database
+            let token_hash = hash_token(&token);
+            let now = portal::now();
+            let row: Option<(String, String, String, i64)> = database
                 .query_row(
-                    "SELECT accounts.id, COALESCE(accounts.email, ''), accounts.display_name FROM sessions
+                    "SELECT accounts.id, COALESCE(accounts.email, ''), accounts.display_name, sessions.expires FROM sessions
                      JOIN accounts ON accounts.id = sessions.account_id
-                     WHERE sessions.token_hash = ?1 AND sessions.kind = 'app'",
-                    [hash_token(&token)],
-                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                     WHERE sessions.token_hash = ?1 AND sessions.kind = 'app' AND sessions.expires > ?2",
+                    params![token_hash, now],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
                 )
                 .optional()?;
-            let Some((id, email, display_name)) = row else {
+            let Some((id, email, display_name, expires)) = row else {
                 return Err(ServerError::Refused(
                     ErrorCode::InvalidCredentials,
                     "that session token is not valid".into(),
                 ));
             };
+            if expires < now + APP_SESSION_IDLE - 86400 {
+                database.execute(
+                    "UPDATE sessions SET expires = ?2 WHERE token_hash = ?1",
+                    params![token_hash, now + APP_SESSION_IDLE],
+                )?;
+            }
             Ok(Profile {
                 account: parse_uuid(&id)?,
                 email,
@@ -999,6 +1009,9 @@ pub fn normalize_email(email: &str) -> Result<String, ServerError> {
     Ok(email)
 }
 
+/// How long an app token lasts unused: a device or agent left alone this long signs in again.
+pub const APP_SESSION_IDLE: i64 = 90 * 86400;
+
 fn issue_token(database: &Connection, account: Uuid) -> Result<String, ServerError> {
     let mut bytes = [0u8; 32];
     rand::rngs::OsRng
@@ -1006,13 +1019,13 @@ fn issue_token(database: &Connection, account: Uuid) -> Result<String, ServerErr
         .expect("the operating system has entropy");
     let token = Hash::from_bytes(bytes).to_hex();
     database.execute(
-        "INSERT INTO sessions (token_hash, account_id, kind, public_id, created) VALUES (?1, ?2, 'app', ?3, ?4)",
-        params![hash_token(&token), account.to_string(), Uuid::new_v4().to_string(), portal::now()],
+        "INSERT INTO sessions (token_hash, account_id, kind, public_id, created, expires) VALUES (?1, ?2, 'app', ?3, ?4, ?5)",
+        params![hash_token(&token), account.to_string(), Uuid::new_v4().to_string(), portal::now(), portal::now() + APP_SESSION_IDLE],
     )?;
     Ok(token)
 }
 
-fn hash_token(token: &str) -> String {
+pub(crate) fn hash_token(token: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
     Hash::from_bytes(hasher.finalize().into()).to_hex()
