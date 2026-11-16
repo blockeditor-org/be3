@@ -1,8 +1,8 @@
 use super::*;
 
-/// Once two accounts are contacts, the server serves one a record of the other this device
-/// never wrote, as it would to bring back a key the contact replaced; the device keeps the
-/// record it pinned and says so in the contacts (plans/crypto_audit.md, 4).
+/// Once two accounts are contacts, the server serves one a record of the other that does not
+/// open, as a server tampering with it would; the device keeps the record it pinned and says so
+/// in the contacts (plans/crypto_audit.md, 4).
 #[test]
 fn a_contact_the_server_rolls_back_keeps_the_key_this_device_saw() {
     let server = Server::start();
@@ -48,7 +48,7 @@ fn a_contact_the_server_rolls_back_keeps_the_key_this_device_saw() {
     host.click("#file-tree.host-menu");
     host.click("#host.menu.contacts");
     host.wait("Label value=\"Dev\"");
-    host.wait("The server sent an older key for them");
+    host.wait("The server's copy of this contact can't be read here");
     host.crop("Dialog \"Contacts\"");
     host.snapshot("a_contact_the_server_rolls_back_keeps_the_key_this_device_saw");
     host.close();

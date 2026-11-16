@@ -417,12 +417,17 @@ fn ContactsPanel(view: HostUiStore) -> NodeId {
                     let name = create_memo(move || row.get().name);
                     let detail = create_memo(move || {
                         let row = row.get();
-                        match (row.verified, row.rolled_back) {
-                            (true, true) => format!(
+                        use be_block_client::contacts::Mismatch;
+                        match (row.verified, row.mismatch) {
+                            (true, Some(Mismatch::Older)) => format!(
                                 "{}. The server sent an older key for them than this device has; it keeps the newer one.",
                                 row.email
                             ),
-                            (true, false) => row.email,
+                            (true, Some(Mismatch::Unreadable)) => format!(
+                                "{}. The server's copy of this contact can't be read here, so this device keeps the one it had. If you took a new recovery phrase on another device, this one needs it too.",
+                                row.email
+                            ),
+                            (true, None) => row.email,
                             (false, _) if row.email.is_empty() => "Not confirmed yet".to_owned(),
                             (false, _) => format!("{}, not confirmed yet", row.email),
                         }
