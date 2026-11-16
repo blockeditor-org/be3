@@ -62,7 +62,10 @@ impl Port {
     }
 
     pub fn post(&self, bytes: &[u8]) {
-        debug_assert!(!bytes.is_empty(), "a port posts no empty message but its end");
+        debug_assert!(
+            !bytes.is_empty(),
+            "a port posts no empty message but its end"
+        );
         self.post_bytes(bytes);
     }
 
@@ -75,7 +78,11 @@ impl Port {
 
     /// Hands each message that arrives to `heard`, in the order posted, and calls `ended` once
     /// the other end is dropped. Messages arrive as tasks of this thread's event loop.
-    pub fn listen(&mut self, mut heard: impl FnMut(Vec<u8>) + 'static, ended: impl FnOnce() + 'static) {
+    pub fn listen(
+        &mut self,
+        mut heard: impl FnMut(Vec<u8>) + 'static,
+        ended: impl FnOnce() + 'static,
+    ) {
         let mut ended = Some(ended);
         let closure = Closure::<dyn FnMut(MessageEvent)>::new(move |event: MessageEvent| {
             let bytes = js_sys::Uint8Array::new(&event.data()).to_vec();
@@ -88,7 +95,8 @@ impl Port {
                 false => heard(bytes),
             }
         });
-        self.port.set_onmessage(Some(closure.as_ref().unchecked_ref()));
+        self.port
+            .set_onmessage(Some(closure.as_ref().unchecked_ref()));
         self.heard = Some(closure);
     }
 }
@@ -125,7 +133,9 @@ enum ToPage {
 }
 
 fn post<T: serde::Serialize>(port: &Port, message: &T) {
-    port.post(&postcard::to_stdvec(message).expect("a message between the page and its worker encodes"));
+    port.post(
+        &postcard::to_stdvec(message).expect("a message between the page and its worker encodes"),
+    );
 }
 
 fn decode<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> T {
@@ -231,8 +241,11 @@ pub async fn run_stack(port: Port, bytes: Vec<u8>) {
     let from_page = Rc::new(RefCell::new(Some((commands_post, nudges, stopping))));
     port.listen(
         {
-            let (from_page, handover, sent) =
-                (Rc::clone(&from_page), Arc::clone(&handover), Arc::clone(&sent));
+            let (from_page, handover, sent) = (
+                Rc::clone(&from_page),
+                Arc::clone(&handover),
+                Arc::clone(&sent),
+            );
             move |bytes| match decode(&bytes) {
                 ToWorker::Command(bytes) => {
                     if let Some((commands, ..)) = from_page.borrow().as_ref() {

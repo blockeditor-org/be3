@@ -82,9 +82,15 @@ pub fn known() -> Vec<(Uuid, Option<Kind>)> {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .clone();
-    let mut known: BTreeMap<Uuid, Option<Kind>> =
-        declared.into_iter().map(|content_type| (content_type, None)).collect();
-    known.extend(registry.into_iter().map(|(content_type, kind)| (content_type, Some(kind))));
+    let mut known: BTreeMap<Uuid, Option<Kind>> = declared
+        .into_iter()
+        .map(|content_type| (content_type, None))
+        .collect();
+    known.extend(
+        registry
+            .into_iter()
+            .map(|(content_type, kind)| (content_type, Some(kind))),
+    );
     known.into_iter().collect()
 }
 

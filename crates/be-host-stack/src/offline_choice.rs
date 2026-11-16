@@ -62,7 +62,10 @@ fn tell(choices: Option<Choices>) {
 
 /// What `publish` chose last, for a stack that starts.
 pub(crate) fn current() -> Option<Choices> {
-    CHOICES.lock().unwrap_or_else(PoisonError::into_inner).clone()
+    CHOICES
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone()
 }
 
 /// In the stack's worker: keeps what the page chose (`tell`).
