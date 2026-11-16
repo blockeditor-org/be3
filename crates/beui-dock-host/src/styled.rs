@@ -177,9 +177,6 @@ pub fn DockHost(
             bar_band={move |handle: DockBarBandHandle| view! {
                 <DockBarBandFace handle />
             }}
-            refused={move || view! {
-                <DockDropRefused />
-            }}
             preview={move |handle: DockPreviewHandle| {
                 let DockPreviewHandle { dragged, title, icon } = handle;
                 let grouped = !matches!(dragged, DockDragged::Entry(Entry::Tab(_)));
@@ -1000,29 +997,11 @@ fn DockDropHighlight(handle: DockHighlightHandle) -> NodeId {
 }
 
 #[component]
-fn DockDropRefused() -> NodeId {
-    view! {
-        <Layers>
-            <Frame fill=ColorRole::Surface radius=Radius::Md opacity=DROP_OPACITY />
-            <Frame
-                @test_id={"dock.refused"}
-                border={Border::DEFAULT}
-                radius=Radius::Md
-                align=Align::Center
-            >
-                <Text size=TextSize::Lg color=TextColor::Muted>
-                    <Icon glyph=ICON_LOCK />
-                </Text>
-            </Frame>
-        </Layers>
-    }
-}
-
-#[component]
 fn DockDragPreview(title: Prop<String>, icon: Memo<Option<Glyph>>, grouped: bool) -> NodeId {
     let pictured_color = TextColor::Default;
     view! {
         <Frame
+            @test_id={"dock.preview"}
             opacity=PREVIEW_OPACITY
             fill=ColorRole::Control
             border={Border::FOCUS}

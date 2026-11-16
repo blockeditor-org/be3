@@ -22,7 +22,7 @@ fn a_press_on_a_window_tab_still_gliding_in_carries_the_tab_not_the_window() {
     let origin = harness.rect(dock).min + rect.min.to_vec2();
     let floated = harness.rect(dock_tab(harness.document(), dock, "Tab 2"));
     let carried = harness.rect(dock_tab(harness.document(), dock, "Tab 3"));
-    // Dropped from below the strip, the tab glides up into it.
+    // Dropped past the end of the strip, the tab glides back along it to its place.
     harness.drag(
         pos2(carried.left() + 2.0, carried.center().y),
         pos2(floated.right() + 20.0, origin.y + 10.0),
@@ -31,8 +31,8 @@ fn a_press_on_a_window_tab_still_gliding_in_carries_the_tab_not_the_window() {
     let row = harness.rect(dock_tab(harness.document(), dock, "Tab 2"));
     let drawn = harness.rect(dock_tab(harness.document(), dock, "Tab 3"));
     assert!(
-        drawn.top() + 2.0 < row.top(),
-        "the tab is still gliding, drawn above its place in the strip: {drawn:?} against {row:?}"
+        drawn.left() > row.right() + 10.0,
+        "the tab is still gliding, drawn past its place after Tab 2: {drawn:?} against {row:?}"
     );
 
     let placed = harness
@@ -41,7 +41,7 @@ fn a_press_on_a_window_tab_still_gliding_in_carries_the_tab_not_the_window() {
         .state()
         .window_rect(window);
     harness.drag(
-        pos2(drawn.center().x, drawn.top() + 1.0),
+        pos2(drawn.center().x, drawn.center().y),
         pos2(WIDE_VIEWPORT.x - 20.0, WIDE_VIEWPORT.y - 40.0),
     );
     harness.frame(Vec::new());

@@ -8,7 +8,6 @@ mod keyboard;
 mod modifier_drag;
 mod reveal;
 mod switch;
-mod tab_strip;
 #[cfg(test)]
 mod tests;
 
@@ -25,8 +24,6 @@ use beui_components_unstyled::ChoiceItem;
 use beui_components_unstyled::ChoiceKind;
 use beui_components_unstyled::ChoiceOption;
 use beui_components_unstyled::ChoiceOptionHandle;
-use beui_components_unstyled::DragHandle;
-use beui_components_unstyled::Draggable;
 use beui_components_unstyled::DropHandle;
 use beui_components_unstyled::DropTarget;
 use beui_components_unstyled::Scroll;
@@ -37,7 +34,11 @@ use beui_components_unstyled::drawn_child;
 use beui_components_unstyled::menu::{MenuItem, MenuNodes};
 use beui_components_unstyled::menu_popup::MenuStyle;
 use beui_components_unstyled::rubber_band::Band;
-use beui_components_unstyled::{DragPoint, Take};
+use beui_components_unstyled::DragPoint;
+use beui_components_unstyled::{
+    Reorder, ReorderHandle, ReorderItem, ReorderItemHandle, ReorderMove, carrying, use_drop_site,
+};
+use beui_view::drag::{Carry, DragSpec, closest, custom};
 use beui_view::components::overlay::Overlay;
 use beui_view::components::root::Root;
 use beui_view::primitives::*;
@@ -57,7 +58,6 @@ use beui_view::types::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_view::window::{
     Window, WindowHandle, opens_windows, set_work_area, use_window, window_origin,
 };
-use tab_strip::{TabMove, TabStrip, TabStripHandle, TabStripItem, TabStripItemHandle};
 
 pub use bars::DockBarBandHandle;
 pub(crate) use bars::{BarCovers, BarFloats};
@@ -220,17 +220,13 @@ thread_local! {
 struct TabBar {
     strip: NodeRef,
     tabs: NodeRef,
-    reorder: TabStripHandle<Entry, DockDragged>,
 }
 
+/// A tool bar carried by its grip, on the old drag board until its bands become places
+/// (plans/declarative_dragging.md, step 4).
 #[derive(Clone, Copy, PartialEq)]
 struct Drag {
     dragged: DockDragged,
-    target: Option<DockDrop>,
-    highlight: Option<Rect>,
-    refused: Option<(LeafId, Rect)>,
-    group_with: Option<Entry>,
-    bar: Option<LeafId>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -244,6 +240,8 @@ struct State {
     state: Binding<DockState>,
     on_close: Callback<TabId>,
     drag: Signal<Option<Drag>>,
+    /// Where a carried tab or pane would land, as the dock's drop site chose it.
+    dropping: Signal<Option<DockDrop>>,
     title: Func<TabId, String>,
     group_title: Func<GroupId, Option<String>>,
     group_host: Func<GroupId, Option<TabId>>,
@@ -299,7 +297,6 @@ struct State {
     strip: RenderFn<DockStripHandle, NodeId>,
     grip: RenderFn<DockGripHandle, NodeId>,
     highlight: RenderFn<DockHighlightHandle, NodeId>,
-    refused: BuildFn<NodeId>,
     preview: RenderFn<DockPreviewHandle, NodeId>,
     stack: Option<RenderFn<DockStackHandle, NodeId>>,
     switcher: Option<RenderFn<DockSwitcherHandle, NodeId>>,
@@ -1261,99 +1258,109 @@ impl State {
     }
 
     fn begin_drag(&self, dragged: DockDragged) {
-        self.drag.set(Some(Drag {
-            dragged,
-            target: None,
-            highlight: None,
-            refused: None,
-            group_with: None,
-            bar: None,
-        }));
+        self.drag.set(Some(Drag { dragged }));
     }
 
+    /// A tool bar carried over the dock (the old drag board's `on_over`).
     fn drag_over(&self, point: Option<DragPoint>) {
-        let Some(mut drag) = self.drag.get_untracked() else {
+        let Some(drag) = self.drag.get_untracked() else {
             return;
         };
-        if let DockDragged::Bar(_) = drag.dragged {
-            if let Some(point) = point {
-                self.move_lift(point);
-            }
-            return;
+        if let (DockDragged::Bar(_), Some(point)) = (drag.dragged, point) {
+            self.move_lift(point);
         }
-        let (aim, refused) = match point {
-            Some(point) => self.judged(point, drag.dragged),
-            None => (None, None),
-        };
-        let (target, highlight, bar) = match aim {
-            Some(Aim::Drop(target, highlight)) => (Some(target), Some(highlight), None),
-            Some(Aim::Bar(leaf)) => (None, None, Some(leaf)),
-            None => (None, None, None),
-        };
-        if let Some(left) = drag.bar.filter(|left| Some(*left) != bar) {
-            self.hover_bar(left, None);
-        }
-        if let Some(leaf) = bar {
-            self.hover_bar(leaf, point);
-        }
-        drag.target = target;
-        drag.highlight = highlight;
-        drag.refused = refused;
-        drag.bar = bar;
-        drag.group_with = target.and_then(|target| self.groups_with(drag.dragged, target));
-        self.drag.set(Some(drag));
     }
 
     fn end_drag(&self) {
-        if let Some(leaf) = self.drag.get_untracked().and_then(|drag| drag.bar) {
-            self.hover_bar(leaf, None);
-        }
         self.drop_lift();
         self.drag.set(None);
-    }
-
-    fn tab_bar(&self, leaf: LeafId) -> Option<TabBar> {
-        self.bars.value().borrow().get(&leaf).copied()
-    }
-
-    fn hover_bar(&self, leaf: LeafId, point: Option<DragPoint>) {
-        if let Some(bar) = self.tab_bar(leaf) {
-            bar.reorder.hover(point);
-        }
-    }
-
-    fn takes(&self, point: DragPoint) -> Take {
-        let Some(drag) = self.drag.get_untracked() else {
-            return Take::Drop;
-        };
-        if let DockDragged::Bar(_) = drag.dragged {
-            return Take::Drop;
-        }
-        match self.admitted(point, drag.dragged) {
-            Some(_) => Take::Drop,
-            None if self.resolve(point).is_some() => Take::Refuse,
-            None => Take::Pass,
-        }
     }
 
     fn drop_at(&self, dragged: DockDragged, point: DragPoint) {
         if let DockDragged::Bar(bar) = dragged {
             self.drop_bar(bar, point);
-            return;
         }
-        match self.admitted(point, dragged) {
-            Some(Aim::Drop(target, _)) => self.edit(|state| match dragged {
-                DockDragged::Entry(entry) => state.drop_entry(entry, target),
-                DockDragged::Pane(leaf) => state.drop_leaf(leaf, target),
-                DockDragged::Bar(_) => {}
-            }),
-            Some(Aim::Bar(leaf)) => {
-                if let Some(bar) = self.tab_bar(leaf) {
-                    bar.reorder.drop_at(dragged, point);
-                }
+    }
+
+    /// Where a carried tab or pane can land: the drop the dock's layout gives for the point
+    /// (`resolve`), where the state admits it, in the home window and in each window the host
+    /// opens; with Alt held, floating in a window of its own at the pointer. A tab bar under
+    /// the pointer is left to the bar, a `Reorder` that parts for it.
+    fn spec(&self, dragged: DockDragged, tiles: NodeRef) -> DragSpec<DockDrop> {
+        let dock = *self;
+        let origin = |node: NodeRef| {
+            node.try_get()
+                .and_then(|node| measure(node).get_untracked())
+                .map_or(Pos2::ZERO, |measured| measured.rect.min)
+        };
+        let mut places = vec![custom(tiles, move |local: Pos2| {
+            let pos = origin(tiles) + local.to_vec2();
+            dock.place_at(dragged, dock.resolve(dock.home(), pos, false))
+        })];
+        if self.opens.get_untracked() {
+            let windows: Vec<(SurfaceId, NodeRef)> = self
+                .windows
+                .value()
+                .borrow()
+                .iter()
+                .map(|(surface, node)| (*surface, *node))
+                .collect();
+            for (surface, node) in windows {
+                places.push(custom(node, move |local: Pos2| {
+                    let pos = origin(node) + local.to_vec2();
+                    let state = dock.state.get_untracked();
+                    let aim = dock.resolve_in(&state, Tree::Surface(surface), pos, false);
+                    dock.place_at(dragged, aim)
+                }));
             }
-            None => {}
         }
+        let floated = custom(tiles, move |local: Pos2| {
+            let pos = origin(tiles) + local.to_vec2();
+            dock.place_at(dragged, dock.resolve(dock.home(), pos, true))
+        });
+        closest(places).when_held(Modifiers::ALT, floated)
+    }
+
+    /// The drop `aim` names, if the state admits `dragged` there.
+    fn place_at(&self, dragged: DockDragged, aim: Option<Aim>) -> Option<DockDrop> {
+        let Some(Aim::Drop(target, _)) = aim else {
+            return None;
+        };
+        let admitted = self.state.with_untracked(|state| match dragged {
+            DockDragged::Entry(entry) => state.admits(entry, target),
+            DockDragged::Pane(leaf) => state.admits_leaf(leaf, target),
+            DockDragged::Bar(_) => false,
+        });
+        admitted.then_some(target)
+    }
+
+    fn commit_drop(&self, dragged: DockDragged, target: DockDrop) {
+        self.edit(|state| match dragged {
+            DockDragged::Entry(entry) => state.drop_entry(entry, target),
+            DockDragged::Pane(leaf) => state.drop_leaf(leaf, target),
+            DockDragged::Bar(_) => {}
+        });
+    }
+
+    /// Where the drop chosen draws its highlight, in its window's points.
+    fn highlight_of(&self, target: DockDrop) -> Option<Rect> {
+        let leaf = match target {
+            DockDrop::Window { pos } => {
+                let dock = self.rect.get();
+                return Some(Rect::from_min_size(dock.min + pos.to_vec2(), FLOATING_SIZE));
+            }
+            DockDrop::Tab { leaf, .. }
+            | DockDrop::Group { leaf, .. }
+            | DockDrop::Split { leaf, .. } => leaf,
+        };
+        let state = self.state.get_untracked();
+        let tree = state.tree_of(leaf)?;
+        let area = self.pane_rect(tree)?;
+        let rect = layout_tree(&state, tree, area, self.thickness).leaf_rect(leaf)?;
+        Some(match target {
+            DockDrop::Split { side, .. } => side_rect(rect, side),
+            _ => rect,
+        })
     }
 
     fn bar_admits(&self, leaf: LeafId, dragged: DockDragged) -> bool {
@@ -1376,7 +1383,7 @@ impl State {
         })
     }
 
-    fn move_into_bar(&self, leaf: LeafId, moved: TabMove<Entry, DockDragged>) {
+    fn move_into_bar(&self, leaf: LeafId, moved: ReorderMove<Entry, DockDragged>) {
         self.edit(|state| {
             let entries = state.entries(leaf);
             match moved.payload {
@@ -1399,47 +1406,12 @@ impl State {
         });
     }
 
-    fn admitted(&self, point: DragPoint, dragged: DockDragged) -> Option<Aim> {
-        self.judged(point, dragged).0
-    }
-
-    fn judged(
-        &self,
-        point: DragPoint,
-        dragged: DockDragged,
-    ) -> (Option<Aim>, Option<(LeafId, Rect)>) {
-        let Some(aim) = self.resolve(point) else {
-            return (None, None);
-        };
+    /// The drop the dock's layout gives for `pos` in `window`: the topmost surface under it,
+    /// else (in the home window, or with `floats`) a window of its own at the pointer.
+    fn resolve(&self, window: WindowId, pos: Pos2, floats: bool) -> Option<Aim> {
         let state = self.state.get_untracked();
-        let (admitted, leaf) = match aim {
-            Aim::Bar(leaf) => (self.bar_admits(leaf, dragged), Some(leaf)),
-            Aim::Drop(target, _) => {
-                let admitted = match dragged {
-                    DockDragged::Entry(entry) => state.admits(entry, target),
-                    DockDragged::Pane(leaf) => state.admits_leaf(leaf, target),
-                    DockDragged::Bar(_) => false,
-                };
-                (admitted, target.leaf())
-            }
-        };
-        if admitted {
-            return (Some(aim), None);
-        }
-        let refused = leaf.and_then(|leaf| {
-            let tree = state.tree_of(leaf)?;
-            let area = self.pane_rect(tree)?;
-            let rect = layout_tree(&state, tree, area, self.thickness).leaf_rect(leaf)?;
-            Some((leaf, rect))
-        });
-        (None, refused)
-    }
-
-    fn resolve(&self, point: DragPoint) -> Option<Aim> {
-        let pos = point.pos;
-        let state = self.state.get_untracked();
-        if !point.modifiers.alt {
-            for surface in self.surfaces_at(&state, point.window, pos) {
+        if !floats {
+            for surface in self.surfaces_at(&state, window, pos) {
                 let Some(within) = self.surface_rect(surface) else {
                     continue;
                 };
@@ -1452,7 +1424,7 @@ impl State {
                 }
             }
         }
-        if point.window != self.home() {
+        if window != self.home() {
             return None;
         }
         let dock = self.rect.get_untracked();
@@ -1531,7 +1503,8 @@ impl State {
     fn highlight_handle(&self) -> DockHighlightHandle {
         let dock = *self;
         let group_with = create_memo(move || {
-            let onto = dock.drag.get()?.group_with?;
+            let dragged = carrying::<DockDragged>()?;
+            let onto = dock.groups_with(dragged, dock.dropping.get()?)?;
             Some(dock.entry_title(onto))
         });
         DockHighlightHandle { group_with }
@@ -1794,7 +1767,6 @@ pub(crate) struct DockConfig {
     pub(crate) strip: Option<RenderFn<DockStripHandle, NodeId>>,
     pub(crate) grip: Option<RenderFn<DockGripHandle, NodeId>>,
     pub(crate) highlight: Option<RenderFn<DockHighlightHandle, NodeId>>,
-    pub(crate) refused: Option<BuildFn<NodeId>>,
     pub(crate) preview: Option<RenderFn<DockPreviewHandle, NodeId>>,
     pub(crate) stack: Option<RenderFn<DockStackHandle, NodeId>>,
     pub(crate) switcher: Option<RenderFn<DockSwitcherHandle, NodeId>>,
@@ -1858,7 +1830,6 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         strip,
         grip,
         highlight,
-        refused,
         preview,
         stack,
         switcher,
@@ -1923,6 +1894,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         owner: store(owner_scope()),
         on_close,
         drag,
+        dropping: create_signal(None),
         title,
         group_title,
         group_host,
@@ -2039,13 +2011,6 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         }),
         highlight: highlight.unwrap_or_else(|| {
             RenderFn::new(|_| {
-                view! {
-                    <Frame />
-                }
-            })
-        }),
-        refused: refused.unwrap_or_else(|| {
-            BuildFn::new(|| {
                 view! {
                     <Frame />
                 }
@@ -2554,9 +2519,25 @@ fn DockTiles(dock: State) -> NodeId {
         windows.sort();
         windows
     });
+    // A carried tab or pane lands where the dock's layout puts it (`State::spec`); the old
+    // drag board's target below carries only tool bars.
+    let tiles = NodeRef::new();
+    let site = use_drop_site(
+        Func::new(|dragged: DockDragged| !matches!(dragged, DockDragged::Bar(_))),
+        Func::new(move |dragged: DockDragged| dock.spec(dragged, tiles)),
+        Callback::new(move |(dragged, target): (DockDragged, DockDrop)| {
+            dock.commit_drop(dragged, target)
+        }),
+    );
+    let over = site.over;
+    create_effect(move || {
+        let target = over.get();
+        if dock.dropping.get_untracked() != target {
+            dock.dropping.set(target);
+        }
+    });
     view! {
         <DropTarget
-            takes={move |point: DragPoint| dock.takes(point)}
             on_over={move |point: Option<(DockDragged, DragPoint)>| dock.drag_over(point.map(|(_, point)| point))}
             on_drop={move |(dragged, point): (DockDragged, DragPoint)| dock.drop_at(dragged, point)}
         >|handle: DropHandle| {
@@ -2573,7 +2554,7 @@ fn DockTiles(dock: State) -> NodeId {
                 }
             });
             view! {
-                <List spacing=0.0>
+                <List @node_ref=&tiles spacing=0.0>
                     <Dynamic value={move || current.with(DockState::main)}>|surface: SurfaceId| {
                         let dock = dock;
                         view! {
@@ -2795,8 +2776,7 @@ fn DockTreeCanvas(
                 }
             }</ForEach>
             {marked_surface.map(|surface| view! {
-                <DockDropMarker dock={dock} surface origin={pane_origin} refused=false />
-                <DockDropMarker dock={dock} surface origin={pane_origin} refused=true />
+                <DockDropMarker dock={dock} surface origin={pane_origin} />
             })}
         </Canvas>
     };
@@ -2838,18 +2818,14 @@ fn DockDropMarker(
     dock: State,
     surface: SurfaceId,
     origin: Memo<Pos2>,
-    refused: bool,
 ) -> DynamicSegment<CanvasItem> {
     let marker = create_memo(move || {
-        let state = dock.state.get_untracked();
-        let drag = dock.drag.get()?;
-        let (leaf, rect) = match refused {
-            true => drag.refused?,
-            false => (drag.target?.leaf()?, drag.highlight?),
-        };
-        if state.surface_of(leaf) != Some(surface) {
+        let target = dock.dropping.get()?;
+        let leaf = target.leaf()?;
+        if dock.state.with_untracked(|state| state.surface_of(leaf)) != Some(surface) {
             return None;
         }
+        let rect = dock.highlight_of(target)?;
         Some(Rect::from_min_size(
             rect.min - origin.get().to_vec2(),
             rect.size(),
@@ -2864,10 +2840,7 @@ fn DockDropMarker(
     view! {
         <Show value={shown}>
             <CanvasItem x={x} y={y} width={width} height={height}>
-                {match refused {
-                    true => dock.refused.call(),
-                    false => dock.highlight.call(dock.highlight_handle()),
-                }}
+                {dock.highlight.call(dock.highlight_handle())}
             </CanvasItem>
         </Show>
     }
@@ -3001,23 +2974,25 @@ fn DockPaneGrip(
     let title = create_memo(move || dock.dragged_title(DockDragged::Pane(leaf)));
     let icon = create_memo(move || dock.dragged_icon(DockDragged::Pane(leaf)));
     let preview = dock.preview;
+    let dragged = DockDragged::Pane(leaf);
+    let drag = Func::new(move |_: PointerPress| {
+        Some(
+            Carry::new(dragged)
+                .preview(move || preview.call(DockPreviewHandle {
+                    dragged,
+                    title,
+                    icon,
+                }))
+                .outside(move |_| dock.drop_outside(dragged)),
+        )
+    });
     view! {
-        <Draggable
+        <Interactive
             @test_id={dock.pane_test_id("dock.grip", leaf)}
-            payload={DockDragged::Pane(leaf)}
             cursor=CursorIcon::Grab
-            touch_drags=true
-            preview={move |dragged: DockDragged| preview.call(DockPreviewHandle {
-                dragged,
-                title,
-                icon,
-            })}
-            on_drag_change={move |dragging: bool| match dragging {
-                true => dock.begin_drag(DockDragged::Pane(leaf)),
-                false => dock.end_drag(),
-            }}
-            on_drop_outside={move |_: DragPoint| dock.drop_outside(DockDragged::Pane(leaf))}
-        >|_: DragHandle|
+            touch_drags=TouchDrags::All
+            drag={Some(drag)}
+        >
             <GripMenu
                 menu
                 vertical
@@ -3030,7 +3005,7 @@ fn DockPaneGrip(
             >
                 {face}
             </GripMenu>
-        </Draggable>
+        </Interactive>
     }
 }
 
@@ -3209,33 +3184,24 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
     let entries = create_memo(move || state.with(|state| state.entries(leaf)));
     let preview = dock.preview;
     view! {
-        <TabStrip
+        <Reorder
             value={entries}
             spring={dock.curves.settle}
             direction
             payload={Func::new(|entry: Entry| Some(DockDragged::Entry(entry)))}
-            accepts={move |dragged: DockDragged| dock.bar_admits(leaf, dragged)}
-            takes={|point: DragPoint| match point.modifiers.alt {
-                true => Take::Pass,
-                false => Take::Drop,
-            }}
+            accepts={Func::new(move |dragged: DockDragged| dock.bar_admits(leaf, dragged))}
             text={move |entry: Entry| dock.entry_title(entry)}
-            on_move={move |moved: TabMove<Entry, DockDragged>| dock.move_into_bar(leaf, moved)}
-            on_drag_change={move |entry: Option<Entry>| match entry {
-                Some(entry) => dock.begin_drag(DockDragged::Entry(entry)),
-                None => dock.end_drag(),
-            }}
-            on_drop_outside={move |(entry, _): (Entry, DragPoint)| dock.drop_outside(DockDragged::Entry(entry))}
+            on_move={move |moved: ReorderMove<Entry, DockDragged>| dock.move_into_bar(leaf, moved)}
+            on_outside={move |(dragged, _): (DockDragged, DragPoint)| dock.drop_outside(dragged)}
             preview={move |dragged: DockDragged| preview.call(DockPreviewHandle {
                 dragged,
                 title: create_memo(move || dock.dragged_title(dragged)),
                 icon: create_memo(move || dock.dragged_icon(dragged)),
             })}
-        >|reorder: TabStripHandle<Entry, DockDragged>| {
+        >|reorder: ReorderHandle<Entry, DockDragged>| {
             dock.bars.value().borrow_mut().insert(leaf, TabBar {
                 strip,
                 tabs: tab_list,
-                reorder,
             });
             let order = reorder.order;
             let selected = create_memo(move || state.with(|state| state.active_entry(leaf)));
@@ -3274,9 +3240,9 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                     item={move |item: ChoiceItem<Entry>| {
                         let ChoiceItem { value, button } = item;
                         view! {
-                            <TabStripItem reorder item=value>|_: TabStripItemHandle| {
+                            <ReorderItem reorder item=value>|_: ReorderItemHandle| {
                                 button
-                            }</TabStripItem>
+                            }</ReorderItem>
                         }
                     }}
                     handle={reorder.rows}
@@ -3296,7 +3262,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
             let scroll = dock.strip.call(DockStripHandle { direction, tabs });
             strip.fill(scroll);
             scroll
-        }</TabStrip>
+        }</Reorder>
     }
 }
 
@@ -3329,12 +3295,7 @@ fn DockTabView(
                 .is_some_and(|index| index + 1 < entries.len())
         })
     });
-    let dragged = create_memo(move || {
-        dock.drag.with(|drag| {
-            drag.as_ref()
-                .is_some_and(|drag| drag.dragged == DockDragged::Entry(entry))
-        })
-    });
+    let dragged = create_memo(move || carrying::<DockDragged>() == Some(DockDragged::Entry(entry)));
     let close = Callback::new(move |()| dock.close_entry(entry));
     let float = Callback::new(move |()| dock.float_entry(entry));
     let group = Callback::new(move |()| {
@@ -4057,7 +4018,6 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             view! {
                 <Root clear_color=Color::TRANSPARENT>
                     <DropTarget
-                        takes={move |point: DragPoint| dock.takes(point)}
                         on_over={move |point: Option<(DockDragged, DragPoint)>| dock.drag_over(point.map(|(_, point)| point))}
                         on_drop={move |(dragged, point): (DockDragged, DragPoint)| dock.drop_at(dragged, point)}
                     >|_: DropHandle|
@@ -4239,18 +4199,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                     </List>
                                                 </Interactive>
                                             </CanvasItem>
-                                            <DockDropMarker
-                                                dock={dock}
-                                                surface
-                                                origin={origin}
-                                                refused=false
-                                            />
-                                            <DockDropMarker
-                                                dock={dock}
-                                                surface
-                                                origin={origin}
-                                                refused=true
-                                            />
+                                            <DockDropMarker dock={dock} surface origin={origin} />
                                         </Canvas>
                                     </Frame>
                                 </CanvasItem>
@@ -4324,13 +4273,9 @@ fn grip_reach(frame: &NodeRef, grip: &NodeRef) -> f32 {
 
 #[component]
 fn DockDragLayer(dock: State) -> NodeId {
-    let drag = dock.drag;
-    let marked = create_memo(move || {
-        drag.with(|drag| {
-            let drag = drag.as_ref()?;
-            let floats = matches!(drag.target, Some(DockDrop::Window { .. }));
-            floats.then_some(drag.highlight).flatten()
-        })
+    let marked = create_memo(move || match dock.dropping.get()? {
+        target @ DockDrop::Window { .. } => dock.highlight_of(target),
+        _ => None,
     });
     let marking = create_memo(move || marked.with(Option::is_some));
     let highlight = create_memo(move || marked.get().unwrap_or(Rect::ZERO));

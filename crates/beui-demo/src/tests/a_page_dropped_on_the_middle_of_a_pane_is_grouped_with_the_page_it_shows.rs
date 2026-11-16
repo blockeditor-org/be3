@@ -25,8 +25,8 @@ fn a_page_dropped_on_the_middle_of_a_pane_is_grouped_with_the_page_it_shows() {
     test.frame(vec![Input::PointerMoved(alone)]);
     test.frame(Vec::new());
     assert!(
-        test.shown("dock.refused") && !test.shown("dock.drop.label"),
-        "over the locked catalog the page is refused, so nothing is named"
+        !test.shown("dock.drop") && !test.shown("dock.drop.label"),
+        "over the locked catalog the page has no drop, so nothing is named"
     );
     test.frame(vec![Input::PointerMoved(to)]);
     test.frame(Vec::new());
