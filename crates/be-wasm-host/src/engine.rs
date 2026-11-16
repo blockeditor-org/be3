@@ -76,9 +76,14 @@ unsafe extern "C" fn near_heap_limit(
 ) -> usize {
     // unsafe(ffi): data is the Exhausted the isolate's owner keeps until the isolate is gone.
     let exhausted = unsafe { &*data.cast::<Exhausted>() };
-    exhausted
+    // The grace is given once: should a guest fill the heap all the same, V8 then ends the
+    // process near the limit rather than letting one isolate take the machine.
+    if exhausted
         .reached
-        .store(true, std::sync::atomic::Ordering::SeqCst);
+        .swap(true, std::sync::atomic::Ordering::SeqCst)
+    {
+        return current;
+    }
     exhausted.isolate.terminate_execution();
     current + HEAP_GRACE
 }
