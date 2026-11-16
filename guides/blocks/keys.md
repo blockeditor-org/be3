@@ -83,16 +83,20 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   block may not open it; a device attaching again reads every row anyway.
   `Peer::keys_changed` forgets what was
   found missing, and a `learn` or read asking as keys arrive asks once more.
-  A key a contact sealed before this device verified them (a link it has not
-  finished yet) opens once `Peer::refresh_contacts` verifies them, which counts
-  as keys arriving: it calls `keys_changed` and tells `Event::KeysChanged`
-  itself. The worker then reads its locked nodes again with one `learn`, and
+  A key that opens on the device by any path counts as keys arriving too, with
+  no word from the server: a fetch, a contact verified after sealing it (a link
+  not finished yet, opened by `Peer::refresh_contacts`), the organization's
+  administrators learned, or an escrow wrap taken (`settle_escrowed`). Each
+  opening goes through `KeyBook::on_opened`, which does what `keys_changed` does
+  and tells `Event::KeysChanged` on the connection. The worker then reads its locked nodes again with one `learn`, and
   `Replicas::unlock` opens again each replica found locked that loses nothing by
   it (one with unsealed edits reads again on its next read); a read that keys
   arrived during (`Peer::arrivals`) reads again rather than lock. A submission
-  refused for a missing key (`sealing_key`) is held unanswered, its block
-  locked, and submitted again by `unlock`. The session is fine, so nothing
-  would reopen the replica to give it again. So a grant may reach
+  refused for a missing key (by `sealing_key` or `keep_open_edits`) is held
+  unanswered, its block locked, and submitted again by `unlock`. The session is
+  fine, so nothing would reopen the replica to give it again. One whose replica
+  reopened meanwhile is let go unanswered, since the reopening gave its edits
+  again. So a grant may reach
   a device before its key: a share's seal, a pending grant sealed later, or a
   seal key work asks of another editor all unlock it.
 - **Moving and sharing.** `Peer::set_parent` into another scope rewraps the

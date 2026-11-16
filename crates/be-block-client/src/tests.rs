@@ -72,6 +72,7 @@ mod a_folder_listed_again_answers_offline_as_of_the_newer_listing;
 mod a_folder_of_blocks_with_large_metadata_reads_in_answers_that_fit_a_frame;
 mod a_folder_shared_with_a_contact_opens_for_them_alone;
 mod a_grantee_who_never_signed_retires_its_old_key_too;
+mod a_key_opened_from_escrow_arrives_and_unlocks_its_block;
 mod a_key_sealed_after_the_block_was_listed_unlocks_it;
 mod a_key_sealed_by_a_contact_verified_later_arrives_as_it_is_verified;
 mod a_key_the_server_labels_as_the_organizations_settings_never_seals_another_block;
@@ -314,6 +315,18 @@ impl Harness {
 
     async fn stop(self) {
         self.server.stop().await;
+    }
+}
+
+/// Whether `events` already holds `Event::KeysChanged`, without waiting: a key that opens here
+/// is told before the call that opened it returns (`KeyBook::on_opened`).
+fn told_keys_changed(events: &mut tokio::sync::broadcast::Receiver<crate::Event>) -> bool {
+    loop {
+        match events.try_recv() {
+            Ok(crate::Event::KeysChanged) => return true,
+            Ok(_) | Err(tokio::sync::broadcast::error::TryRecvError::Lagged(_)) => {}
+            Err(_) => return false,
+        }
     }
 }
 

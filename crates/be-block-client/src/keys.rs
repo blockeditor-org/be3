@@ -34,6 +34,9 @@ pub struct KeyBook {
     /// The hash of the organization's access log root, pinned from making it or an
     /// invitation (`crate::contacts::Pinned`).
     organization_root: Mutex<Option<EntryHash>>,
+    /// What a key opening here tells (`on_opened`): the one place every path that opens a key
+    /// (a fetch, a contact verified, escrow) signals that keys arrived.
+    on_opened: Mutex<Option<Box<dyn Fn() + Send + Sync>>>,
 }
 
 /// A key opened from what was sealed or wrapped, and whether it is an escrow's secret.
@@ -252,6 +255,19 @@ impl KeyBook {
             roots: Mutex::new(Roots::default()),
             escrowed: Mutex::new(HashMap::new()),
             organization_root: Mutex::new(None),
+            on_opened: Mutex::new(None),
+        }
+    }
+
+    /// Has `told` run whenever a key from elsewhere opens here (`absorb`, `take_escrowed`), once
+    /// the book lets go of its locks: what was waiting on a key reads or submits again.
+    pub(crate) fn on_opened(&self, told: impl Fn() + Send + Sync + 'static) {
+        *self.on_opened.lock().unwrap() = Some(Box::new(told));
+    }
+
+    fn told_opened(&self) {
+        if let Some(told) = &*self.on_opened.lock().unwrap() {
+            told();
         }
     }
 
@@ -436,6 +452,7 @@ impl KeyBook {
         if !weak {
             self.trusted.lock().unwrap().insert(key);
         }
+        self.told_opened();
     }
 
     /// What this account pinned for the organization: the escrow key, and the root of the
@@ -778,6 +795,9 @@ impl KeyBook {
         }
         drop(rows);
         self.settle_escrow();
+        if changed > 0 {
+            self.told_opened();
+        }
         changed
     }
 

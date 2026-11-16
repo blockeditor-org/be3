@@ -208,7 +208,7 @@ struct Unanswered {
 /// A submission refused for a key this device does not hold yet (`ClientError::Locked`): its
 /// replica keeps waiting for the answer, and it is submitted again once keys arrive (`unlock`).
 /// A replica opened again since gives its edits again itself, so one held for an earlier
-/// opening is answered failed instead.
+/// opening is let go unanswered.
 struct Refused {
     replica: ReplicaId,
     module: usize,
@@ -3823,33 +3823,25 @@ impl<H: Host> Replicas<H> {
     }
 
     /// Submits again what was refused for a missing key (`Refused`), once keys arrived. One
-    /// whose replica opened again since is answered failed, as that opening gave its edits
+    /// whose replica opened again since is let go unanswered, as that opening gave its edits
     /// again; one whose replica or module is gone is dropped with it.
     async fn resubmit(&mut self, ctx: Ctx<'_, H>) {
         for refused in std::mem::take(&mut self.refused) {
             if self.modules.generation(refused.module) != refused.generation {
                 continue;
             }
-            match self.open.get(&refused.replica).map(|open| open.epoch) {
-                Some(epoch) if epoch == refused.epoch => {
-                    self.submit(
-                        ctx,
-                        refused.module,
-                        refused.replica,
-                        refused.reply,
-                        refused.submission,
-                        refused.announcements,
-                    )
-                    .await;
-                }
-                Some(_) => {
-                    let failed = be_sdk_type_api::host::Submitted::Failed(
-                        "the replica opened again before the block's key arrived".to_owned(),
-                    );
-                    self.modules
-                        .call(refused.module, |connection| refused.reply.send(connection, &failed));
-                }
-                None => {}
+            // One whose replica opened again is let go unanswered: the reopened replica has the
+            // same id, so an answer would land on it as if its own submission had failed.
+            if self.open.get(&refused.replica).map(|open| open.epoch) == Some(refused.epoch) {
+                self.submit(
+                    ctx,
+                    refused.module,
+                    refused.replica,
+                    refused.reply,
+                    refused.submission,
+                    refused.announcements,
+                )
+                .await;
             }
         }
     }

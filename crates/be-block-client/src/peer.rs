@@ -282,8 +282,15 @@ pub enum Reconciled {
     },
 }
 
+/// Keys arrived: what was found missing is asked for again, and a search under way as they
+/// did asks once more (`Peer::arrivals`).
+fn keys_arrived(tried: &Mutex<HashSet<Uuid>>, arrived: &std::sync::atomic::AtomicU64) {
+    tried.lock().unwrap().clear();
+    arrived.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+}
+
 pub struct Peer<S: ObjectStore> {
-    connection: Mutex<Arc<Connection>>,
+    connection: Arc<Mutex<Arc<Connection>>>,
     commits: CommitStore<S>,
     token: Mutex<String>,
     account: Uuid,
@@ -295,13 +302,13 @@ pub struct Peer<S: ObjectStore> {
     current: Mutex<HashMap<Uuid, Uuid>>,
     /// Keys looked for and found missing, not asked for again until keys are stored
     /// (`keys_changed`) or a key opens.
-    tried: Mutex<HashSet<Uuid>>,
+    tried: Arc<Mutex<HashSet<Uuid>>>,
     /// The members key work last listed as signed into the organization's log by no record
     /// (`KeyWork::unsigned_members`).
     unsigned: Mutex<Vec<Uuid>>,
     /// How many times keys arrived (`keys_changed`): a search for keys under way as it changes
     /// asks once more, since what arrived may have come after the server answered.
-    keys_arrived: std::sync::atomic::AtomicU64,
+    keys_arrived: Arc<std::sync::atomic::AtomicU64>,
     /// How many outbox drains are under way: announcements wait for their end
     /// (`send_announcements`).
     draining: std::sync::atomic::AtomicUsize,
@@ -462,7 +469,7 @@ impl<S: ObjectStore> Peer<S> {
         }
         keys.absorb(refs.keys());
         let peer = Self {
-            connection: Mutex::new(connection),
+            connection: Arc::new(Mutex::new(connection)),
             commits: CommitStore::new(Vault::new(store, ring).with_chunker(config.chunker)),
             token: Mutex::new(String::new()),
             account,
@@ -475,9 +482,9 @@ impl<S: ObjectStore> Peer<S> {
             resolver: Mutex::new(None),
             keys,
             current: Mutex::new(HashMap::new()),
-            tried: Mutex::new(HashSet::new()),
+            tried: Arc::default(),
             unsigned: Mutex::new(Vec::new()),
-            keys_arrived: std::sync::atomic::AtomicU64::new(0),
+            keys_arrived: Arc::default(),
             draining: std::sync::atomic::AtomicUsize::new(0),
             whole: Mutex::new(HashSet::new()),
             forged: Mutex::new(authorship::Forged::default()),
@@ -493,6 +500,18 @@ impl<S: ObjectStore> Peer<S> {
                 peer.make_current(summary.id, key);
             }
         }
+        // Every key that opens from here on arrived, by whatever path opened it: it is told as
+        // keys the server says were stored are (`Event::KeysChanged`), and counted alike.
+        let (tried, arrived, connection) = (
+            Arc::clone(&peer.tried),
+            Arc::clone(&peer.keys_arrived),
+            Arc::clone(&peer.connection),
+        );
+        peer.keys.on_opened(move || {
+            keys_arrived(&tried, &arrived);
+            let connection = connection.lock().unwrap().clone();
+            connection.keys_opened();
+        });
         Ok(peer)
     }
 
@@ -768,7 +787,6 @@ impl<S: ObjectStore> Peer<S> {
         }
         if taken > 0 {
             self.keys.absorb(KeySet::default());
-            self.tried.lock().unwrap().clear();
         }
         taken
     }
@@ -884,9 +902,6 @@ impl<S: ObjectStore> Peer<S> {
             self.learn_administrators().await;
         }
         let opened = self.keys.absorb(keys);
-        if opened > 0 {
-            self.tried.lock().unwrap().clear();
-        }
         self.settle_escrowed().await;
         Ok(opened)
     }
@@ -937,9 +952,7 @@ impl<S: ObjectStore> Peer<S> {
     /// Keys this account may open were stored (`Event::KeysChanged`): a key looked for and
     /// missing is asked for again, by `learn` or a read, rather than taken for locked.
     pub fn keys_changed(&self) {
-        self.tried.lock().unwrap().clear();
-        self.keys_arrived
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        keys_arrived(&self.tried, &self.keys_arrived);
     }
 
     /// How many times keys arrived (`keys_changed`): a read that found a key missing, taken
