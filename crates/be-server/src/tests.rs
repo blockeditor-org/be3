@@ -1692,8 +1692,38 @@ impl TestClient {
             Some((identity, agent)) => self.member_record(account, identity, false, agent).await,
             None => None,
         };
-        self.call(|peer| client::members::remove_member(peer, account, signed.clone()))
+        let revocations = self.removal_revocations(account, false).await;
+        self.call(|peer| {
+            client::members::remove_member(peer, account, signed.clone(), revocations.clone())
+        })
+        .await
+    }
+
+    /// Removes `account` as this client's contact, with the revocations a device signs
+    /// (`Peer::remove_contact`).
+    async fn remove_contact(&mut self, account: Uuid) -> Result<(), Error> {
+        let revocations = self.removal_revocations(account, true).await;
+        self.call(|peer| client::contacts::remove_contact(peer, account, revocations.clone()))
             .await
+    }
+
+    /// The revocations removing `account` makes in the organization open's logs, signed with
+    /// this client's test keys; none when no organization is open.
+    async fn removal_revocations(&mut self, account: Uuid, contact: bool) -> Vec<Vec<u8>> {
+        let pairs = self
+            .call(|peer| client::keys::removal_revocations(peer, account, contact))
+            .await
+            .unwrap_or_default();
+        let mut signed = Vec::new();
+        for revoked in pairs {
+            if let Some(record) = self
+                .signed_grant(revoked.block, revoked.account, be_block_graph::Access::None)
+                .await
+            {
+                signed.push(record);
+            }
+        }
+        signed
     }
 
     /// Signs `account`, which joined the organization open (with its test keys), into its log

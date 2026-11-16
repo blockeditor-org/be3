@@ -3347,7 +3347,7 @@ async fn contact(
             reply.send(accepted.map_err(|error| error.to_string()));
         }
         ContactCommand::Remove(account) => {
-            match be_block_client::contacts::remove_contact(&peer.connection(), account).await {
+            match peer.remove_contact(account).await {
                 Ok(()) => tasks.sync_contacts(peer, shared).await,
                 Err(error) => record(shared, error),
             }

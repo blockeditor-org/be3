@@ -52,9 +52,7 @@ async fn a_block_agent_is_deleted_with_its_block_or_its_grant() {
 
     let uncontacted = owner.create_block(BlockParent::Root).await;
     let (account, token) = owner.block_agent(organization, uncontacted).await.unwrap();
-    let response = owner
-        .call(|peer| client::contacts::remove_contact(peer, account))
-        .await;
+    let response = owner.remove_contact(account).await;
     assert!(response.is_ok(), "{response:?}");
     assert!(
         !TestClient::signs_in(&harness, &token).await,
