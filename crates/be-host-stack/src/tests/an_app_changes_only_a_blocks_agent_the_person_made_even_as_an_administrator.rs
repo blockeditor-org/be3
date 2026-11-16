@@ -37,19 +37,24 @@ fn an_app_changes_only_a_blocks_agent_the_person_made_even_as_an_administrator()
     // One runtime for the member's peer, whose connection runs on it.
     let runtime = runtime();
     let peer = runtime.block_on(member.peer(&url, harness.organization));
+    let identity = be_block_keys::RecoveryPhrase::generate().secret().identity();
+    let account = Uuid::new_v4();
+    let signed = runtime
+        .block_on(peer.agent_record(account, identity))
+        .expect("the member signs its agent in");
     let theirs = runtime
         .block_on(be_block_client::ask(
             be_block_protocol::client::members::create_agent(
                 &peer.connection(),
                 harness.organization,
-                Uuid::new_v4(),
+                account,
                 "Theirs".into(),
-                [7; 32],
-                [7; 32],
+                identity.public.0,
+                identity.signing.0,
                 Vec::new(),
                 Vec::new(),
                 None,
-                None,
+                signed,
             ),
         ))
         .expect("the member makes an agent")

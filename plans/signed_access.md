@@ -332,9 +332,13 @@ instead.
      the root the wrap carries proves nothing about a sender alone. Until an
      administrator's device signs a joiner in, that member's escrow wraps wait
      unopened; key work lists such members to administrators, and a device
-     whose wraps wait is told, so a stuck invitation shows. Done: a test
-     where the server adds a member no administrator signed and their wrap
-     stays unopened, listed as waiting.
+     whose wraps wait is told, so a stuck invitation shows. Members the
+     server removes on its own (an agent collected with its block, or
+     deleted on taking an account back) stay in the log until a device
+     signs them out. Done: a test where the server adds a member no
+     administrator signed, and key work lists them, to administrators and to
+     themselves, and no administrator's device signs them in (3a adds that
+     their wrap stays unopened).
    - **3a. Authenticated escrow wraps**, after 3a-members, whose records name the
      keys an administrator checks a sender by: an escrow wrap is sealed by its
      sender to the escrow key, as `seal_for` seals to an account, not

@@ -2938,7 +2938,6 @@ async fn approve_pairing(
 }
 
 async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
-    let identity = peer.keys().identity();
     match peer.finish_links().await {
         Ok(finished) => {
             for done in finished {

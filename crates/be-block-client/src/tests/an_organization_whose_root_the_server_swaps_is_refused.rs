@@ -15,7 +15,11 @@ async fn an_organization_whose_root_the_server_swaps_is_refused() {
     let organization = owner.organization();
 
     let made = owner.organization_log().await.unwrap();
-    assert_eq!(made.len(), 1, "a new organization's log is its root");
+    assert_eq!(
+        made.len(),
+        3,
+        "an organization's log is its root, then the members its administrator signed in"
+    );
     assert_eq!(
         member.organization_log().await.unwrap(),
         made,

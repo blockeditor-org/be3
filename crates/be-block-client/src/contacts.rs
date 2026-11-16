@@ -573,6 +573,9 @@ pub async fn accept_link(
     code: &InviteCode,
     expected: Expected,
 ) -> Result<(Link, ContactCard), ClientError> {
+    // The card names these keys; the server holds them first, so a record the link's owner
+    // signs naming them (a member signed in, signed access 3a-members) checks.
+    register_identity(connection, identity).await?;
     let (link, card) = open_link(connection, code, expected).await?;
     let after = served_verified(connection, identity)
         .await?

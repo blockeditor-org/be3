@@ -53,7 +53,8 @@ async fn a_record_the_old_key_signs_after_a_new_phrase_is_refused() {
         3,
         "the workspace's log is its root, the grant sharing it and the retirement"
     );
-    assert_eq!(laptop.organization_log().await.unwrap().len(), 2);
+    let organization_log = laptop.organization_log().await.unwrap();
+    assert_eq!(organization_log.len(), 3, "the root, the member signed in, the retirement");
 
     // Whoever holds the old phrase retires the account again, to keys of their own.
     let thief = be_block_keys::RecoveryPhrase::generate().secret();
@@ -72,7 +73,7 @@ async fn a_record_the_old_key_signs_after_a_new_phrase_is_refused() {
             rusqlite::params![organization.to_string(), team.to_string(), again.encode()],
         )
         .unwrap();
-    let head = laptop.organization_log().await.unwrap()[1].hash();
+    let head = organization_log[2].hash();
     let again = Entry::retirement(
         &old,
         &thief,
@@ -83,7 +84,7 @@ async fn a_record_the_old_key_signs_after_a_new_phrase_is_refused() {
     database
         .execute(
             "INSERT INTO organization_log (organization_id, position, entry)
-             VALUES (?1, 2, ?2)",
+             VALUES (?1, 3, ?2)",
             rusqlite::params![organization.to_string(), again.encode()],
         )
         .unwrap();

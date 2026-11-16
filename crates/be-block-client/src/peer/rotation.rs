@@ -315,8 +315,10 @@ impl<S: ObjectStore> Peer<S> {
                     public: done.card.public,
                     signing: done.card.signing,
                 };
-                self.sign_in(Uuid::from_bytes(done.card.account), identity, false)
-                    .await?;
+                // One that fails waits in key work's unsigned members, which `tend` signs in.
+                let _ = self
+                    .sign_in(Uuid::from_bytes(done.card.account), identity, false)
+                    .await;
             }
         }
         Ok(finished)
@@ -324,7 +326,7 @@ impl<S: ObjectStore> Peer<S> {
 
     /// The organization's log checked from the root this account pinned; none when it has no
     /// log (the personal organization).
-    pub(crate) async fn checked_organization(
+    pub async fn checked_organization(
         &self,
     ) -> Result<Option<be_block_keys::Checked>, ClientError> {
         let Some(pinned) = self.keys.organization_root() else {
