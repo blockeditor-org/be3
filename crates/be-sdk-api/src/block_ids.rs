@@ -296,6 +296,34 @@ impl crate::embed::blocks::Call {
         }
     }
 
+    /// Whether the call names a place that is no block (the roots, Unfiled, what is shared,
+    /// a search of everything) or asks a person (opening or sharing a block): what a host
+    /// component, which reaches only its own block and the blocks below it, may not do.
+    pub fn reaches_past_blocks(&self) -> bool {
+        let place = |location: &BlockLocation| !matches!(location, BlockLocation::Block(_));
+        match self {
+            Self::CreateBlock { parent, .. } => place(parent),
+            Self::Act { command, .. } => match command {
+                BlockCommand::SetParent(parent) => place(parent),
+                BlockCommand::Delete { source, .. } | BlockCommand::Move { source, .. } => {
+                    place(source)
+                }
+                BlockCommand::Share | BlockCommand::CloseEditor => true,
+                _ => false,
+            },
+            Self::OpenBlock { .. } => true,
+            Self::BlockWatchNew {
+                subject: crate::blocks::BlockSubject::Blocks(query),
+                ..
+            } => matches!(
+                query,
+                BlockQuery::Roots | BlockQuery::Detached | BlockQuery::Shared | BlockQuery::Unfiled
+            ),
+            Self::SearchWatchNew { within, .. } => within.is_none(),
+            _ => false,
+        }
+    }
+
     pub fn changes(&self) -> bool {
         matches!(
             self,
