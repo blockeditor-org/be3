@@ -134,7 +134,11 @@ impl TestClient {
             ),
             (
                 "remove-member",
-                answered(client::members::remove_member(peer, other).await),
+                answered(client::members::remove_member(peer, other, None).await),
+            ),
+            (
+                "sign-member",
+                answered(client::members::sign_member(peer, sealed()).await),
             ),
             (
                 "create-agent",
@@ -148,6 +152,7 @@ impl TestClient {
                         [7; 32],
                         sealed(),
                         sealed(),
+                        None,
                         None,
                     )
                     .await,

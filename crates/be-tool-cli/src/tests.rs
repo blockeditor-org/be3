@@ -166,6 +166,9 @@ async fn agent(
                 &peer.keys().pins(),
             ),
             bound,
+            peer.agent_record(account, phrase.secret().identity())
+                .await
+                .expect("signing the agent in failed"),
         ))
         .await
         .expect("creating the agent failed");

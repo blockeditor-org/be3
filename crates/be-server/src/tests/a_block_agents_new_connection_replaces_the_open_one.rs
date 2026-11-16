@@ -20,21 +20,7 @@ async fn a_block_agents_new_connection_replaces_the_open_one() {
     );
     assert_eq!(second.read_block(terminal).await.id, terminal);
 
-    let response = owner
-        .call(|peer| {
-            client::members::create_agent(
-                peer,
-                organization,
-                Uuid::new_v4(),
-                "Helper".into(),
-                [7; 32],
-                [7; 32],
-                Vec::new(),
-                Vec::new(),
-                None,
-            )
-        })
-        .await;
+    let response = owner.agent(organization, "Helper").await;
     let Ok(created) = response else {
         panic!("creating an agent failed: {response:?}");
     };

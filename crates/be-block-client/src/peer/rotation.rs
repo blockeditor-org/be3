@@ -47,6 +47,10 @@ impl<S: ObjectStore> Peer<S> {
                 failed.get_or_insert(error);
             }
         }
+        *self.unsigned.lock().unwrap() = work.unsigned_members.clone();
+        if let Err(error) = self.sign_in_unsigned(&work.unsigned_members).await {
+            failed.get_or_insert(error);
+        }
         if escrow_rotation || !work.rotations.is_empty() {
             work = self.key_work().await?;
             if work.escrows != self.keys.escrows() {
@@ -275,8 +279,150 @@ impl<S: ObjectStore> Peer<S> {
         Ok(Some(entry.encode()))
     }
 
+    /// Removes a member, signing them out of the organization's log when it names them.
     pub async fn remove_member(&self, account: Uuid) -> Result<(), ClientError> {
-        client::members::remove_member(&self.connection(), account).await??;
+        let checked = self.checked_organization().await?;
+        let signed = match checked.as_ref().and_then(|checked| {
+            let identity = checked.member(account.into_bytes())?;
+            let agent = checked
+                .members
+                .get(&account.into_bytes())
+                .is_some_and(|named| named.maker.is_some());
+            Some((identity, agent))
+        }) {
+            Some((identity, agent)) => {
+                self.member_record(checked.as_ref(), account, identity, false, agent)
+            }
+            None => None,
+        };
+        client::members::remove_member(&self.connection(), account, signed).await??;
+        Ok(())
+    }
+
+    /// Finishes the links this account made that were accepted (`contacts::finish_links`), and
+    /// signs each who accepted an invitation into this organization into its log, with the
+    /// keys their card, opened with the invitation's code, names.
+    pub async fn finish_links(&self) -> Result<Vec<crate::contacts::Finished>, ClientError> {
+        let finished = crate::contacts::finish_links(
+            &self.connection(),
+            self.keys.identity(),
+            self.organization,
+        )
+        .await?;
+        for done in &finished {
+            if done.invited == Some(self.organization) {
+                let identity = be_block_keys::PublicIdentity {
+                    public: done.card.public,
+                    signing: done.card.signing,
+                };
+                self.sign_in(Uuid::from_bytes(done.card.account), identity, false)
+                    .await?;
+            }
+        }
+        Ok(finished)
+    }
+
+    /// The organization's log checked from the root this account pinned; none when it has no
+    /// log (the personal organization).
+    pub(crate) async fn checked_organization(
+        &self,
+    ) -> Result<Option<be_block_keys::Checked>, ClientError> {
+        let Some(pinned) = self.keys.organization_root() else {
+            return Ok(None);
+        };
+        let entries = self.organization_log().await?;
+        be_block_keys::check_log(
+            be_block_keys::LogKind::Organization,
+            self.organization.into_bytes(),
+            pinned,
+            &entries,
+            &|_, _| None,
+        )
+        .map(Some)
+        .map_err(|_| ClientError::Forged(self.organization))
+    }
+
+    /// A member record signing `account`, with `identity`, in or out of the organization's
+    /// log as it checks at its head: none when it has no log.
+    pub(crate) fn member_record(
+        &self,
+        checked: Option<&be_block_keys::Checked>,
+        account: Uuid,
+        identity: be_block_keys::PublicIdentity,
+        member: bool,
+        agent: bool,
+    ) -> Option<Vec<u8>> {
+        let checked = checked?;
+        let entry = be_block_keys::Entry::sign(
+            self.keys.identity(),
+            self.account.into_bytes(),
+            self.organization.into_bytes(),
+            Some(checked.head),
+            be_block_keys::Record::Member(be_block_keys::Member {
+                account: account.into_bytes(),
+                identity,
+                member,
+                agent,
+            }),
+        );
+        Some(entry.encode())
+    }
+
+    /// The member record signing in an agent this account makes, with the keys it made for it,
+    /// that `create-agent` carries: none in an organization with no log.
+    pub async fn agent_record(
+        &self,
+        account: Uuid,
+        identity: be_block_keys::PublicIdentity,
+    ) -> Result<Option<Vec<u8>>, ClientError> {
+        let checked = self.checked_organization().await?;
+        Ok(self.member_record(checked.as_ref(), account, identity, true, true))
+    }
+
+    /// Signs `account` into the organization's log with the keys this device verified for it:
+    /// a person, as an administrator; an agent, as its maker.
+    pub async fn sign_in(
+        &self,
+        account: Uuid,
+        identity: be_block_keys::PublicIdentity,
+        agent: bool,
+    ) -> Result<(), ClientError> {
+        let checked = self.checked_organization().await?;
+        if checked
+            .as_ref()
+            .is_some_and(|checked| checked.member(account.into_bytes()).is_some())
+        {
+            return Ok(());
+        }
+        let Some(signed) = self.member_record(checked.as_ref(), account, identity, true, agent)
+        else {
+            return Ok(());
+        };
+        client::members::sign_member(&self.connection(), signed).await??;
+        Ok(())
+    }
+
+    /// Signs in the members key work lists as signed in by no record that this device can
+    /// vouch for: as an administrator, a person it verified as a contact; as an agent's maker,
+    /// the agent. The rest wait for a device that can.
+    async fn sign_in_unsigned(&self, unsigned: &[Uuid]) -> Result<(), ClientError> {
+        if unsigned.iter().all(|account| *account == self.account) {
+            return Ok(());
+        }
+        let administrator = self.role() == OrganizationRole::Administrator;
+        for member in self.members().await? {
+            if !unsigned.contains(&member.account) || member.account == self.account {
+                continue;
+            }
+            let agent = member.created_by.is_some();
+            let vouches = match member.created_by {
+                Some(maker) => maker == self.account,
+                None => administrator,
+            };
+            if vouches && let Some(identity) = self.verified_identity(member.account) {
+                self.sign_in(member.account, identity, agent).await?;
+            }
+        }
         Ok(())
     }
 }

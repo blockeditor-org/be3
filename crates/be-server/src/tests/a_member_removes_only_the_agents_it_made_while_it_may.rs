@@ -22,10 +22,12 @@ async fn a_member_removes_only_the_agents_it_made_while_it_may() {
         assert!(matches!(joined, Ok(())), "{joined:?}");
         member.open(organization).await;
     }
+    for joined in [creator_id, colleague_id] {
+        let signed = admin.sign_in(joined).await;
+        assert!(matches!(signed, Ok(())), "{signed:?}");
+    }
 
-    let refused = creator
-        .call(|peer| client::members::remove_member(peer, colleague_id))
-        .await;
+    let refused = creator.remove_member(colleague_id).await;
     assert!(
         refused_as(&refused, ErrorCode::MemberNotFound),
         "an editor removed a person: {refused:?}"
@@ -43,9 +45,7 @@ async fn a_member_removes_only_the_agents_it_made_while_it_may() {
     assert!(matches!(trashed, Ok(())), "{trashed:?}");
     let lowered = admin.grant(block, creator_id, Access::View).await;
     assert!(matches!(lowered, Ok(())), "{lowered:?}");
-    let refused = creator
-        .call(|peer| client::members::remove_member(peer, agent))
-        .await;
+    let refused = creator.remove_member(agent).await;
     assert!(
         refused_as(&refused, ErrorCode::PermissionDenied),
         "a creator that no longer manages the block removed its agent: {refused:?}"

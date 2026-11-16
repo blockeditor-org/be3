@@ -2939,9 +2939,7 @@ async fn approve_pairing(
 
 async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
     let identity = peer.keys().identity();
-    match be_block_client::contacts::finish_links(&peer.connection(), identity, peer.organization())
-        .await
-    {
+    match peer.finish_links().await {
         Ok(finished) => {
             for done in finished {
                 let Some(grant) = done
@@ -3154,6 +3152,7 @@ async fn create_agent(
         }),
         None => None,
     };
+    let member = peer.agent_record(account, secret.identity()).await?;
     let be_block_protocol::CreatedAgent { agent, token } = ask(client::members::create_agent(
         &peer.connection(),
         organization,
@@ -3171,6 +3170,7 @@ async fn create_agent(
             },
         ),
         bound,
+        member,
     ))
     .await?;
     let card = be_block_keys::ContactCard {
@@ -3195,11 +3195,7 @@ async fn create_agent(
     .await;
     if let Err(error) = finished {
         // An agent the person never got the credentials of is of no use to anyone.
-        let _ = ask(client::members::remove_member(
-            &peer.connection(),
-            agent.account,
-        ))
-        .await;
+        let _ = peer.remove_member(agent.account).await;
         return Err(error);
     }
     Ok((
@@ -3245,7 +3241,7 @@ async fn change_block_agent(peer: &Peer<Store>, agent: Uuid, change: AgentChange
         // and is never sent to `remove-member`, which would remove whoever the id now names.
         AgentChange::Remove(reply) => reply.send(match own {
             None => Ok(()),
-            Some(_) => match ask(client::members::remove_member(&connection, agent)).await {
+            Some(_) => match peer.remove_member(agent).await {
                 Ok(_)
                 | Err(be_block_client::ClientError::Refused(
                     be_block_protocol::ErrorCode::MemberNotFound,

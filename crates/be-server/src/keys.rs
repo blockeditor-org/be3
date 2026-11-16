@@ -919,6 +919,7 @@ impl ServerStore {
             let escrow = escrows.last().map(|escrow| escrow.id);
             let mut work = KeyWork {
                 escrows,
+                unsigned_members: unsigned_members(database, organization, identity)?,
                 ..KeyWork::default()
             };
             let pending = pending_rotations(database, organization)?;
@@ -1486,4 +1487,35 @@ impl ServerStore {
         })
         .await
     }
+}
+
+/// The organization's members its log does not name (signed access 3a-members), whose escrow
+/// wraps administrators do not open until one is signed in: every such member, to an
+/// administrator; the caller alone, to a member, so its device shows that it waits. None in an
+/// organization with no log.
+fn unsigned_members(
+    connection: &Connection,
+    organization: Uuid,
+    identity: Identity,
+) -> Result<Vec<Uuid>, ServerError> {
+    let Some(checked) = crate::access::checked_organization_log(connection, organization)? else {
+        return Ok(Vec::new());
+    };
+    let mut statement = connection.prepare_cached(
+        "SELECT account_id FROM memberships WHERE organization_id = ?1 ORDER BY account_id",
+    )?;
+    let members: Vec<String> = statement
+        .query_map([organization.to_string()], |row| row.get(0))?
+        .collect::<Result<_, _>>()?;
+    let server = crate::organization::server_account(connection)?;
+    let mut unsigned = Vec::new();
+    for member in members {
+        let member = parse_uuid(&member)?;
+        let shown = member != server
+            && (identity.is_administrator() || member == identity.account);
+        if shown && checked.member(member.into_bytes()).is_none() {
+            unsigned.push(member);
+        }
+    }
+    Ok(unsigned)
 }

@@ -244,13 +244,7 @@ impl Harness {
         )
         .await
         .unwrap();
-        crate::contacts::finish_links(
-            &admin.connection(),
-            admin.keys().identity(),
-            admin.organization(),
-        )
-        .await
-        .unwrap();
+        admin.finish_links().await.unwrap();
         admin.refresh_contacts().await.unwrap();
         Peer::connect(
             PeerConfig::new(

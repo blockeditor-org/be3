@@ -15,22 +15,10 @@ async fn an_agents_creator_removes_it_as_a_member_and_key_work_is_told() {
     let joined = creator.accept(invitation, &[]).await;
     assert!(matches!(joined, Ok(())), "{joined:?}");
     creator.open(organization).await;
+    let signed = admin.sign_in(creator_id).await;
+    assert!(matches!(signed, Ok(())), "{signed:?}");
 
-    let response = creator
-        .call(|peer| {
-            client::members::create_agent(
-                peer,
-                organization,
-                Uuid::new_v4(),
-                "Helper".into(),
-                [7; 32],
-                [7; 32],
-                Vec::new(),
-                Vec::new(),
-                None,
-            )
-        })
-        .await;
+    let response = creator.agent(organization, "Helper").await;
     let Ok(be_block_protocol::CreatedAgent { agent, token }) = response else {
         panic!("creating an agent failed: {response:?}");
     };
@@ -49,9 +37,7 @@ async fn an_agents_creator_removes_it_as_a_member_and_key_work_is_told() {
     work.recv()
         .await
         .expect("the stream starts with the key work");
-    let removed = creator
-        .call(|peer| client::members::remove_member(peer, agent.account))
-        .await;
+    let removed = creator.remove_member(agent.account).await;
     assert!(matches!(removed, Ok(())), "{removed:?}");
     work.recv()
         .await

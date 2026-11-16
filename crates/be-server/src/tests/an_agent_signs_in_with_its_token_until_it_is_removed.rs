@@ -7,21 +7,7 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
     owner.register("owner@example.com").await;
     let organization = owner.organization("tracker").await;
 
-    let response = owner
-        .call(|peer| {
-            client::members::create_agent(
-                peer,
-                organization,
-                Uuid::new_v4(),
-                "Claude".into(),
-                [7; 32],
-                [7; 32],
-                Vec::new(),
-                Vec::new(),
-                None,
-            )
-        })
-        .await;
+    let response = owner.agent(organization, "Claude").await;
     let Ok(be_block_protocol::CreatedAgent { agent, token }) = response else {
         panic!("creating an agent failed: {response:?}");
     };
@@ -40,7 +26,7 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
     let Ok(be_block_protocol::RecoveryKey { public, sealed, .. }) = response else {
         panic!("reading the recovery key failed: {response:?}");
     };
-    assert_eq!(public, Some([7; 32]));
+    assert_eq!(public, Some(test_secret(agent.account).public().0));
     assert!(sealed.is_empty());
 
     let response = owner.call(|peer| client::members::list_members(peer)).await;
@@ -54,13 +40,9 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
         "the agent is a member its creator made: {members:?}"
     );
 
-    let response = owner
-        .call(|peer| client::members::remove_member(peer, agent.account))
-        .await;
+    let response = owner.remove_member(agent.account).await;
     assert!(matches!(response, Ok(())), "{response:?}");
-    let response = owner
-        .call(|peer| client::members::remove_member(peer, agent.account))
-        .await;
+    let response = owner.remove_member(agent.account).await;
     assert!(
         refused_as(&response, ErrorCode::MemberNotFound),
         "an agent removed already is not found: {response:?}"

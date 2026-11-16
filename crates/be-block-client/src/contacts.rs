@@ -109,6 +109,9 @@ pub struct GrantOffer {
 pub struct Finished {
     pub card: ContactCard,
     pub grant: Option<PendingGrant>,
+    /// For an invitation, the organization its accepter joined, which an administrator's device
+    /// signs them into (`Peer::finish_links`).
+    pub invited: Option<Uuid>,
 }
 
 pub fn card(
@@ -609,7 +612,7 @@ pub async fn accept_link(
     Ok((link, card))
 }
 
-pub async fn finish_links(
+pub(crate) async fn finish_links(
     connection: &Arc<Connection>,
     identity: &RecoverySecret,
     organization: Uuid,
@@ -648,19 +651,27 @@ pub async fn finish_links(
                 Err(error) => return Err(error),
             }
         }
-        let grant = match link.kind {
-            LinkKind::Contact(grant) => grant,
-            LinkKind::Invitation(_) => None,
+        let (grant, invited) = match link.kind {
+            LinkKind::Contact(grant) => (grant, None),
+            LinkKind::Invitation(invitation) => (None, Some(invitation.organization)),
         };
+        // Finished in the organization it is for: there its grant is sealed, or its accepter
+        // signed in.
         let elsewhere = grant
             .as_ref()
-            .is_some_and(|grant| grant.organization != organization);
+            .map(|grant| grant.organization)
+            .or(invited)
+            .is_some_and(|of| of != organization);
         if kept && elsewhere {
             continue;
         }
         client::contacts::delete_link(connection, link.id).await??;
         if let Some(card) = opened.filter(|_| kept) {
-            finished.push(Finished { card, grant });
+            finished.push(Finished {
+                card,
+                grant,
+                invited,
+            });
         }
     }
     Ok(finished)

@@ -296,6 +296,9 @@ pub struct Peer<S: ObjectStore> {
     /// Keys looked for and found missing, not asked for again until keys are stored
     /// (`keys_changed`) or a key opens.
     tried: Mutex<HashSet<Uuid>>,
+    /// The members key work last listed as signed into the organization's log by no record
+    /// (`KeyWork::unsigned_members`).
+    unsigned: Mutex<Vec<Uuid>>,
     /// How many times keys arrived (`keys_changed`): a search for keys under way as it changes
     /// asks once more, since what arrived may have come after the server answered.
     keys_arrived: std::sync::atomic::AtomicU64,
@@ -473,6 +476,7 @@ impl<S: ObjectStore> Peer<S> {
             keys,
             current: Mutex::new(HashMap::new()),
             tried: Mutex::new(HashSet::new()),
+            unsigned: Mutex::new(Vec::new()),
             keys_arrived: std::sync::atomic::AtomicU64::new(0),
             draining: std::sync::atomic::AtomicUsize::new(0),
             whole: Mutex::new(HashSet::new()),
@@ -1188,6 +1192,13 @@ impl<S: ObjectStore> Peer<S> {
 
     pub fn organization(&self) -> Uuid {
         self.organization
+    }
+
+    /// The members no record in the organization's log signed in yet, as key work last listed
+    /// them: every such member, to an administrator; this account alone, to a member it names,
+    /// whose escrow wraps administrators do not open until one is.
+    pub fn unsigned_members(&self) -> Vec<Uuid> {
+        self.unsigned.lock().unwrap().clone()
     }
 
     pub fn role(&self) -> OrganizationRole {

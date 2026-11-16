@@ -508,40 +508,46 @@ pub(crate) fn administrator_signing(
     Ok(checked.manager(LogKind::Organization, account.into_bytes()))
 }
 
-/// Appends `record`, signed by `signer`, to the organization's log once it checks at its head:
-/// an administrator record making `account` one or not, as `administrator` says, naming the
-/// keys the server holds for them.
-pub(crate) fn append_administrator(
+/// The organization's log checked to its head, or none for one with no log (the personal
+/// organization).
+pub(crate) fn checked_organization_log(
+    connection: &Connection,
+    organization: Uuid,
+) -> Result<Option<Checked>, ServerError> {
+    let entries = entries(connection, LogKind::Organization, organization, organization)?;
+    let Some(pinned) = entries.first().map(Entry::hash) else {
+        return Ok(None);
+    };
+    be_block_keys::check_log(
+        LogKind::Organization,
+        organization.into_bytes(),
+        pinned,
+        &entries,
+        &|_, _| None,
+    )
+    .map(Some)
+    .map_err(|_| ServerError::Corrupt)
+}
+
+/// Appends `record`, signed by `signer`, to the organization's log once it checks at its head,
+/// and once `expect` takes its record, answering the account it names and whether it signs
+/// them in (so must name the keys the server holds for them).
+fn append_organization(
     connection: &Connection,
     organization: Uuid,
     signer: Uuid,
-    account: Uuid,
-    administrator: bool,
     record: &[u8],
+    expect: impl FnOnce(&Record) -> Result<(Uuid, PublicIdentity, bool), ServerError>,
 ) -> Result<(), ServerError> {
     let entry = Entry::decode(record).map_err(|_| refused("the record does not read"))?;
-    let Record::Administrator(made) = &entry.record else {
-        return Err(refused("a role is set by an administrator record"));
-    };
-    if entry.signer != signer.into_bytes()
-        || made.account != account.into_bytes()
-        || made.administrator != administrator
-    {
-        return Err(refused(
-            "the administrator record is signed by its caller and makes what the call sets",
-        ));
+    if entry.signer != signer.into_bytes() {
+        return Err(refused("a record is signed by its caller"));
     }
-    if identity_of(connection, account)? != Some(made.identity) {
-        return Err(refused(
-            "an administrator record names the keys its account holds now",
-        ));
+    let (account, identity, signs_in) = expect(&entry.record)?;
+    if signs_in && identity_of(connection, account)? != Some(identity) {
+        return Err(refused("a record names the keys its account holds now"));
     }
-    let mut entries = entries(
-        connection,
-        LogKind::Organization,
-        organization,
-        organization,
-    )?;
+    let mut entries = entries(connection, LogKind::Organization, organization, organization)?;
     let pinned = entries
         .first()
         .map(Entry::hash)
@@ -563,6 +569,52 @@ pub(crate) fn append_administrator(
         organization,
         position,
         &entry,
-    )?;
-    Ok(())
+    )
+}
+
+/// Appends an administrator record making `account` one or not, as `administrator` says
+/// (`append_organization`).
+pub(crate) fn append_administrator(
+    connection: &Connection,
+    organization: Uuid,
+    signer: Uuid,
+    account: Uuid,
+    administrator: bool,
+    record: &[u8],
+) -> Result<(), ServerError> {
+    append_organization(connection, organization, signer, record, |record| match record {
+        Record::Administrator(made)
+            if made.account == account.into_bytes() && made.administrator == administrator =>
+        {
+            Ok((account, made.identity, true))
+        }
+        _ => Err(refused(
+            "a role is set by an administrator record making what the call sets",
+        )),
+    })
+}
+
+/// Appends a member record signing `account` in or out, as `member` says, as a person or an
+/// agent, as `agent` says (`append_organization`).
+pub(crate) fn append_member(
+    connection: &Connection,
+    organization: Uuid,
+    signer: Uuid,
+    account: Uuid,
+    member: bool,
+    agent: bool,
+    record: &[u8],
+) -> Result<(), ServerError> {
+    append_organization(connection, organization, signer, record, |record| match record {
+        Record::Member(named)
+            if named.account == account.into_bytes()
+                && named.member == member
+                && named.agent == agent =>
+        {
+            Ok((account, named.identity, member))
+        }
+        _ => Err(refused(
+            "a member is signed in or out by a member record naming what the call does",
+        )),
+    })
 }

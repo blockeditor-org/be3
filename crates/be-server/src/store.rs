@@ -504,6 +504,7 @@ impl ServerStore {
         contact: Vec<u8>,
         escrow: Vec<u8>,
         bound: Option<be_block_protocol::BoundAgent>,
+        member: Option<Vec<u8>>,
     ) -> Result<(Agent, String, std::collections::BTreeSet<Uuid>), ServerError> {
         let bound_to = bound.as_ref().map(|bound| bound.block);
         let role = self.membership(caller, organization).await?;
@@ -644,6 +645,32 @@ impl ServerStore {
                     account,
                     Access::Edit,
                 )?;
+            }
+            // In an organization with a log, its maker signs it in there.
+            let logged = !crate::access::organization_log(&transaction, organization)?.is_empty();
+            match (logged, &member) {
+                (true, Some(member)) => crate::access::append_member(
+                    &transaction,
+                    organization,
+                    caller,
+                    account,
+                    true,
+                    true,
+                    member,
+                )?,
+                (true, None) => {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "an agent is signed in by the member record its maker signs".into(),
+                    ));
+                }
+                (false, Some(_)) => {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "an organization with no log takes no member record".into(),
+                    ));
+                }
+                (false, None) => {}
             }
             let token = issue_token(&transaction, account)?;
             transaction.commit()?;
@@ -858,10 +885,61 @@ impl ServerStore {
     /// Removes a member of the organization open: any, by an administrator; an agent, by the
     /// account that made it (a block's agent, while it manages the block). An agent removed is
     /// deleted, and its connections close.
+    /// Appends `signed`, a member record signing a member of the organization in: a person, by
+    /// an administrator; an agent, by the account that made it (checked as devices check it).
+    pub async fn sign_member(
+        &self,
+        identity: Identity,
+        signed: Vec<u8>,
+    ) -> Result<(), ServerError> {
+        let organization = identity.organization;
+        self.with_graph(organization, move |_, _, database| {
+            let entry = be_block_keys::Entry::decode(&signed).map_err(|_| {
+                ServerError::Refused(ErrorCode::InvalidRequest, "the record does not read".into())
+            })?;
+            let be_block_keys::Record::Member(named) = entry.record else {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "a member is signed in by a member record".into(),
+                ));
+            };
+            let account = Uuid::from_bytes(named.account);
+            crate::contacts::role_in(database, account, organization)?.ok_or_else(not_a_member)?;
+            let made_by_caller = database
+                .query_row(
+                    "SELECT created_by FROM agents WHERE account_id = ?1",
+                    [account.to_string()],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?
+                .map(|maker| maker == identity.account.to_string());
+            if made_by_caller.is_some() != named.agent || made_by_caller == Some(false) {
+                return Err(ServerError::Refused(
+                    ErrorCode::PermissionDenied,
+                    "an agent is signed in by its maker, and a person as one".into(),
+                ));
+            }
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
+            crate::access::append_member(
+                &transaction,
+                organization,
+                identity.account,
+                account,
+                true,
+                named.agent,
+                &signed,
+            )?;
+            transaction.commit()?;
+            Ok(())
+        })
+        .await
+    }
+
     pub async fn remove_member(
         &self,
         identity: Identity,
         account: Uuid,
+        signed: Option<Vec<u8>>,
     ) -> Result<Vec<crate::contacts::Granted>, ServerError> {
         let organization = identity.organization;
         self.with_graph(organization, move |store, graph, database| {
@@ -879,7 +957,34 @@ impl ServerStore {
                 refuse_last_administrator(database, organization)?;
             }
             let agent = is_agent(database, account)?;
+            let named = crate::access::checked_organization_log(database, organization)?
+                .is_some_and(|checked| checked.member(account.into_bytes()).is_some());
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
+            match (named, signed) {
+                (true, Some(signed)) => crate::access::append_member(
+                    &transaction,
+                    organization,
+                    identity.account,
+                    account,
+                    false,
+                    agent,
+                    &signed,
+                )?,
+                (true, None) => {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "a member the organization's log names is signed out by a member record"
+                            .into(),
+                    ));
+                }
+                (false, Some(_)) => {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "only a member the organization's log names is signed out".into(),
+                    ));
+                }
+                (false, None) => {}
+            }
             let revoked = match agent {
                 true => delete_agent(graph, &transaction, organization, account)?,
                 false => remove_from(graph, &transaction, organization, account)?,
