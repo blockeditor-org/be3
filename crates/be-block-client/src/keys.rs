@@ -10,6 +10,9 @@ use be_block_protocol::{EscrowKey, KeyKind, KeyRow, KeySet, WrappedBy, WrappedKe
 use be_block_store::{ContentKey, Keyring, StoreError};
 use uuid::Uuid;
 
+/// Its locks are taken in one order, `rows`, then `roots` and `trusted`, then
+/// `escrow_secrets`, then `ring`'s own: `absorb` holds `rows` while it opens keys, so nothing
+/// that holds a later lock takes an earlier one.
 pub struct KeyBook {
     account: Uuid,
     organization: Uuid,
@@ -27,6 +30,12 @@ pub struct KeyBook {
     /// The hash of the organization's access log root, pinned from making it or an
     /// invitation (`crate::contacts::Pinned`).
     organization_root: Mutex<Option<EntryHash>>,
+}
+
+/// A key opened from what was sealed or wrapped, and whether it is an escrow's secret.
+struct Opened {
+    bytes: [u8; 32],
+    escrow: bool,
 }
 
 /// Which block each content key is a key of, and the access log root each block's keys carry
@@ -557,7 +566,7 @@ impl KeyBook {
 
     /// The key `bytes` opened to, when they carry the block `row` is a key of. A trusted key
     /// pins the root it carries; any other pins nothing.
-    fn opened(&self, row: Option<KeyRow>, bytes: &[u8], vouched: bool) -> Option<[u8; 32]> {
+    fn opened(&self, row: Option<KeyRow>, bytes: &[u8], vouched: bool) -> Option<Opened> {
         let row = row?;
         let carried = CarriedKey::decode(bytes).ok()?;
         if carried.block != row.block.into_bytes() {
@@ -568,7 +577,12 @@ impl KeyBook {
         if vouched && let Some(root) = carried.root {
             roots.pin(row.block, root);
         }
-        Some(carried.key)
+        Some(Opened {
+            bytes: carried.key,
+            // Bound inside the seal: an escrow key travels as the organization's, which no
+            // block is (its settings block has an id of its own).
+            escrow: carried.block == self.organization.into_bytes(),
+        })
     }
 
     pub fn absorb(&self, set: KeySet) -> usize {
@@ -579,12 +593,6 @@ impl KeyBook {
         for wrap in set.wrapped {
             rows.add_wrap(wrap);
         }
-        let escrows: HashSet<Uuid> = rows
-            .keys
-            .values()
-            .filter(|row| row.kind == KeyKind::Escrow)
-            .map(|row| row.id)
-            .collect();
         let mut changed = 0;
         loop {
             let mut progress = false;
@@ -595,9 +603,9 @@ impl KeyBook {
                 let row = rows.keys.get(key).copied();
                 let vouched = wraps
                     .iter()
-                    .find_map(|wrap| self.unwrap(wrap, row, &escrows, true));
-                if let Some(bytes) = vouched {
-                    self.hold(*key, bytes, &escrows);
+                    .find_map(|wrap| self.unwrap(wrap, row, true));
+                if let Some(opened) = vouched {
+                    self.hold(*key, opened);
                     self.trusted.lock().unwrap().insert(*key);
                     changed += 1;
                     progress = true;
@@ -608,9 +616,9 @@ impl KeyBook {
                 }
                 if let Some(bytes) = wraps
                     .iter()
-                    .find_map(|wrap| self.unwrap(wrap, row, &escrows, false))
+                    .find_map(|wrap| self.unwrap(wrap, row, false))
                 {
-                    self.hold(*key, bytes, &escrows);
+                    self.hold(*key, bytes);
                     changed += 1;
                     progress = true;
                 }
@@ -624,13 +632,13 @@ impl KeyBook {
         changed
     }
 
-    /// Keeps `bytes` as `key`: an escrow's secret apart from the content keys.
-    fn hold(&self, key: Uuid, bytes: [u8; 32], escrows: &HashSet<Uuid>) {
-        match escrows.contains(&key) {
+    /// Keeps an opened key: an escrow's secret apart from the content keys.
+    fn hold(&self, key: Uuid, opened: Opened) {
+        match opened.escrow {
             true => {
-                self.escrow_secrets.lock().unwrap().insert(key, bytes);
+                self.escrow_secrets.lock().unwrap().insert(key, opened.bytes);
             }
-            false => self.ring.insert(key, ContentKey::from_bytes(bytes)),
+            false => self.ring.insert(key, ContentKey::from_bytes(opened.bytes)),
         }
     }
 
@@ -638,9 +646,8 @@ impl KeyBook {
         &self,
         wrap: &WrappedKey,
         row: Option<KeyRow>,
-        escrows: &HashSet<Uuid>,
         vouched: bool,
-    ) -> Option<[u8; 32]> {
+    ) -> Option<Opened> {
         let block = row.map(|row| row.block);
         let bytes = match wrap.wrapped_by {
             WrappedBy::Account(account) if account == self.account => {
@@ -661,7 +668,7 @@ impl KeyBook {
                     .ok()?
             }
             WrappedBy::Account(_) => return None,
-            WrappedBy::Key(by) if escrows.contains(&by) => {
+            WrappedBy::Key(by) if self.escrow_secret(by).is_some() => {
                 if vouched {
                     return None;
                 }
