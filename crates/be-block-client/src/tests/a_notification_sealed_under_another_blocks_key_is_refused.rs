@@ -32,7 +32,11 @@ async fn a_notification_sealed_under_another_blocks_key_is_refused() {
     };
 
     let secret_key = owner.current_key(secret).expect("a key");
-    assert!(owner.open_notification(&pushed(secret_key), sent + 1).is_ok());
+    assert!(
+        owner
+            .open_notification(&pushed(secret_key), sent + 1)
+            .is_ok()
+    );
     let open_key = owner.current_key(open).expect("a key");
     let opened = owner.open_notification(&pushed(open_key), sent + 1);
     assert!(

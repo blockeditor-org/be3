@@ -84,6 +84,10 @@ fn a_branch_moved_elsewhere_while_offline_keeps_both_changes() {
         .branch("main-2")
         .expect("this device's change was kept beside main");
     assert_ne!(kept, started);
-    let kind = other.runtime.block_on(peer.load_reached(kept)).unwrap().kind;
+    let kind = other
+        .runtime
+        .block_on(peer.load_reached(kept))
+        .unwrap()
+        .kind;
     assert_eq!(kind, CommitKind::Snapshot("There".into()));
 }

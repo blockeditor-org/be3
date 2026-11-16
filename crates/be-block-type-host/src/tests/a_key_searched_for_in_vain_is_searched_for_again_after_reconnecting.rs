@@ -20,9 +20,18 @@ fn a_key_searched_for_in_vain_is_searched_for_again_after_reconnecting() {
 
         // A key of the block the phone mints and keeps to itself, so the server does not have
         // it yet.
-        let summary = phone.summary(block).await.expect("the phone reads the block");
-        phone.learn(&[summary]).await.expect("the phone learns its keys");
-        let scope = phone.keys().scope_key(block).expect("the phone holds its scope key");
+        let summary = phone
+            .summary(block)
+            .await
+            .expect("the phone reads the block");
+        phone
+            .learn(&[summary])
+            .await
+            .expect("the phone learns its keys");
+        let scope = phone
+            .keys()
+            .scope_key(block)
+            .expect("the phone holds its scope key");
         let (key, minted) = phone
             .keys()
             .mint_data(block, scope)
