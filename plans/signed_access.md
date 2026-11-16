@@ -242,7 +242,11 @@ instead.
    and key epochs bound to log heads. Before any decision acts on a pin:
    authenticate escrow wraps (sealed by their sender, as `seal_for` is,
    rather than anonymously) or give administrators another check of a root
-   they reach only through escrow, which today pins nothing; and take a pin
+   they reach only through escrow, which today pins nothing (an anonymous
+   wrap also lets anyone, the server included, seal a made-up key of a block
+   to the escrow key and show administrators forged content of it; the server
+   claiming a block is under the organization's settings does the same, since
+   a key the server holds reads there, plans/keys_bound_to_blocks.md); and take a pin
    only from a sender the log entitles to seal the key (today any verified
    contact can plant a block's first pin). Decide too whether a block's agent
    may read its organization's log: `bound_may` lets it today, since a

@@ -15,7 +15,9 @@ plans/signed_access.md's and is not repeated here.
 
 Each item is marked when it is taken and when it lands (the fixing commit).
 
-- 1, 2, 3: session_01UbiTY1dyaLgrBaJHjjZcSE, designed in
+- 1: session_01UbiTY1dyaLgrBaJHjjZcSE, fixed on fix/never-seal-to-the-server
+  (948703c94), in review.
+- 2, 3: session_01UbiTY1dyaLgrBaJHjjZcSE, designed in
   plans/keys_bound_to_blocks.md.
 - 7: session_01UbiTY1dyaLgrBaJHjjZcSE, fixed on fix/chat-deletion-author (94c58f0e6), in review.
 - 10, and the overlapping parts of 6 and 9: the signed access builder
