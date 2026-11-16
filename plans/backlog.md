@@ -169,3 +169,17 @@ Depends on #686 (session catch-ups replaced by server ordering).
   Done: a `drive` step that lets an app's present arrive before the next poll,
   and a host test at phone size that opens a document from the files and
   shows each frame between.
+
+## 17. Keyboard
+
+- **A view given the keyboard before it is ready.** When the host gives a
+  view the keyboard before its content is up (a joined text's dock tab view
+  given it the moment its group is shown again, before the app's subregion
+  hears of the child placed in its stead), the view takes the host's focus but
+  its app does not focus the field it would otherwise: the document's focus is
+  already on another node inside that view's window, so neither the window's
+  kept focus nor `focus_into` (which waits one layout) puts it on the text
+  input. Found while fixing Ctrl+Tab between texts, which asks again only
+  once the app knows the new child (`gift-missed`) and so avoids it. Done: a
+  view given the keyboard early focuses its field once it is up, shown by a
+  host test that gives a text's view the keyboard before its content arrives.
