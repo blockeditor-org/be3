@@ -1,6 +1,8 @@
 pub use be_block;
 pub use be_block_content;
 pub use be_lib_geometry as geometry;
+/// Workers: work off the app's thread, in a module of its own (guides/adding_an_app.md, Workers).
+pub use be_sdk_worker as worker;
 
 mod app;
 mod asked;
@@ -177,6 +179,7 @@ pub mod __private {
             })
             .collect();
         let identity = manifest.identity;
+        be_sdk_worker::install_app(&identity.id);
         let started = crate::wasm::Started {
             openers,
             id: identity.id,

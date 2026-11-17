@@ -8,6 +8,7 @@ mod pdfium_repositories_download_as_github_archives;
 mod plans_pick_crates_by_name_and_examples;
 mod stage_lists_every_file_beside_an_executable;
 mod stage_names_libraries_by_their_sha256_and_apps_by_their_id;
+mod stage_puts_an_apps_workers_under_its_id;
 mod stage_refuses_a_module_its_manifest_does_not_name;
 mod stage_stages_a_manifest_without_its_module;
 mod unpinned_compares_with_the_pins_lines;

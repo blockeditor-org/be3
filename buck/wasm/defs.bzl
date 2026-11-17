@@ -11,7 +11,7 @@ load(
 load("@root//buck/dev:test.bzl", "be_test")
 load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "RUST_LOCAL", "SYMBOL_FLAGS", "keep_profile", "opt_flags")
 load("@root//buck/program:defs.bzl", "app_data", "app_types", "program")
-load("@root//buck/wasm:libraries.bzl", "WasmLibrariesInfo")
+load("@root//buck/wasm:libraries.bzl", "AppWorkersInfo", "WasmLibrariesInfo")
 
 # rustc links a cdylib with --no-entry, which strips the symbols a host needs to
 # lay out a thread's storage and leaves nothing to run libc's constructors; the
@@ -96,9 +96,16 @@ def _wasm_module_impl(ctx: AnalysisContext) -> list[Provider]:
         for module in library[WasmLibrariesInfo].closure + [library[DefaultInfo].default_outputs[0]]:
             if module not in closure:
                 closure.append(module)
+    workers = []
+    for worker in ctx.attrs.workers:
+        for module in worker[WasmLibrariesInfo].closure:
+            if module not in closure:
+                closure.append(module)
+        workers.append(worker[DefaultInfo].default_outputs[0])
     libraries = WasmLibrariesInfo(closure = closure)
+    staged = AppWorkersInfo(modules = workers)
     if not ctx.attrs.optimize:
-        return [DefaultInfo(default_output = ctx.actions.copy_file(name, shared)), libraries]
+        return [DefaultInfo(default_output = ctx.actions.copy_file(name, shared)), libraries, staged]
     module = ctx.actions.declare_output(name)
     ctx.actions.run(
         cmd_args(
@@ -112,7 +119,7 @@ def _wasm_module_impl(ctx: AnalysisContext) -> list[Provider]:
         ),
         category = "wasm_opt",
     )
-    return [DefaultInfo(default_output = module), libraries]
+    return [DefaultInfo(default_output = module), libraries, staged]
 
 def _module_rule(cfg):
     return rule(
@@ -122,6 +129,10 @@ def _module_rule(cfg):
             "libraries": attrs.list(attrs.dep(providers = [WasmLibrariesInfo]), default = []),
             "library": attrs.transition_dep(cfg = cfg),
             "module": attrs.option(attrs.string(), default = None),
+            # An app's worker modules (worker), which the program stages
+            # under workers/<app id>/ beside it (AppWorkersInfo), with every
+            # library they need in its closure.
+            "workers": attrs.list(attrs.dep(providers = [WasmLibrariesInfo]), default = []),
             "optimize": attrs.default_only(
                 attrs.bool(
                     default = select({
@@ -332,7 +343,7 @@ def linked_app(module, libraries, rustc_flags = []):
 # against DEFAULT_LIBRARIES; a list names every library in its closure; [] links
 # every crate it uses into it, a standalone app (guides/app_libraries.md, "The
 # raw app interface"), a WASI reactor the host instantiates as it is.
-def app_module(name, module, libraries = None, extra_deps = [], visibility = None):
+def app_module(name, module, libraries = None, extra_deps = [], visibility = None, workers = []):
     kwargs = {"visibility": visibility} if visibility != None else {}
     facts = cargo_wasm_facts()
     if libraries == None:
@@ -352,11 +363,24 @@ def app_module(name, module, libraries = None, extra_deps = [], visibility = Non
         mapped_srcs = cargo_manifest_sources(),
         preferred_linkage = "shared",
         rustc_flags = _guest_exports + rustc_flags + opt_flags("app") + SYMBOL_FLAGS,
-        srcs = cargo_library_sources() + ["manifest.json"],
+        srcs = cargo_library_sources() + native.glob(["manifest.json"]),
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
         **(kwargs | RUST_LOCAL),
     )
-    wasi_module(name = name, libraries = libraries, library = ":" + library, module = module, **kwargs)
+    wasi_module(name = name, libraries = libraries, library = ":" + library, module = module, workers = workers, **kwargs)
+
+# A worker module (be_sdk_worker::worker!; guides/adding_an_app.md, Workers):
+# the package's crate linked as :module, named module.wasm, as app_module
+# links an app. An app stages it by naming it in app()'s workers and its
+# manifest's "workers".
+def worker(module, libraries = None, extra_deps = [], visibility = None):
+    app_module(
+        name = "module",
+        extra_deps = extra_deps,
+        libraries = libraries,
+        module = module,
+        visibility = visibility,
+    )
 
 # An app: the guest cdylib, :wasm (wasm32 only; an app is all behind
 # cfg(target_arch = "wasm32")), :module named after its manifest's entry point,
@@ -366,7 +390,8 @@ def app_module(name, module, libraries = None, extra_deps = [], visibility = Non
 # An app is linked against DEFAULT_LIBRARIES, or as libraries says
 # (app_module above). types is the app's type module
 # (a wasm32_module, such as checklist's //crates/be-type-checklist:module),
-# which :types names for the app to stage beside :module.
+# which :types names for the app to stage beside :module. workers are its
+# worker modules (worker), which :module carries for the program to stage.
 #
 # The app crate itself, its tests, its workspace dependencies and its
 # third-party ones are each compiled at their own opt level (OPT_LEVELS in
@@ -376,7 +401,7 @@ def app_module(name, module, libraries = None, extra_deps = [], visibility = Non
 # crates/be-tool-buck/src/plan.rs plans it there), as the library named after its package, and each
 # examples/NAME.rs is :example-NAME on the host, such as a benchmark that
 # drives the editor through be-sdk-test.
-def app(module, visibility = None, test_env = {}, data = {}, extra_deps = [], types = None, libraries = None):
+def app(module, visibility = None, test_env = {}, data = {}, extra_deps = [], types = None, libraries = None, workers = []):
     kwargs = {"visibility": visibility} if visibility != None else {}
     app_module(
         name = "module",
@@ -384,6 +409,7 @@ def app(module, visibility = None, test_env = {}, data = {}, extra_deps = [], ty
         libraries = libraries,
         module = module,
         visibility = visibility,
+        workers = workers,
     )
     native.export_file(name = "manifest", src = "manifest.json", **kwargs)
     app_data(name = "data", files = data, **kwargs)

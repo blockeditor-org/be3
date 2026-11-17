@@ -24,6 +24,8 @@ members = [
     "crates/be-wasm-ops",
     "crates/be-wasm-ops-bindgen",
     "crates/be-wasm-sandbox-api",
+    "crates/be-sdk-worker",
+    "crates/be-sdk-worker-echo",
     "crates/be-wasm-sandbox-host",
     "crates/be-block-protocol",
     "crates/be-server-portal",
