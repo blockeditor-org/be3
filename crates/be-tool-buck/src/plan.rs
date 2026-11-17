@@ -65,6 +65,7 @@ const HOST_EXCLUDES: &[Pick] = &[
     Named("be-server-bin"),
     Named("beui-demo-html"),
     Named("be-tool-paint-review-web"),
+    Named("be-wasm-root-web-testing"),
     // PDFium, which it links, is built only for the apps' platform.
     Named("be-worker-pdf-render"),
 ];
@@ -101,8 +102,8 @@ pub(crate) const PLANS: &[Plan] = &[
         html: false,
         lib: false,
     },
-    // be-host, beui's DOM demo, the paint review page and beui-html's live DOM
-    // for the web.
+    // be-host, beui's DOM demo, the paint review page, beui-html's live DOM
+    // and the page that tests the root entry for the web.
     Plan {
         name: "wasi",
         mode: Mode::Build,
@@ -112,6 +113,7 @@ pub(crate) const PLANS: &[Plan] = &[
             Named("beui-web-demo"),
             Named("be-tool-paint-review-web"),
             Named("beui-html"),
+            Named("be-wasm-root-web-testing"),
         ]),
         html: false,
         lib: true,

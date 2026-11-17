@@ -69,6 +69,17 @@ write_package_value("be3.cargo", {
             "test_deps": [],
             "test_features": [],
         },
+        "wasi": {
+            "binaries": {},
+            "deps": [
+                "//third-party/rust:serde-1.0.228",
+                "//third-party/rust:sha2-0.10.9",
+            ],
+            "examples": {},
+            "features": [],
+            "test_deps": [],
+            "test_features": [],
+        },
         "wasm32": {
             "binaries": {},
             "deps": [

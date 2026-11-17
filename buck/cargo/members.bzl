@@ -178,6 +178,7 @@ members = [
     "crates/be-wasm-root-api",
     "crates/be-wasm-root-host",
     "crates/be-wasm-root-testing",
+    "crates/be-wasm-root-web-testing",
     "crates/be-wasm-sandbox-api",
     "crates/be-wasm-sandbox-host",
     "crates/be-wasm-threads",

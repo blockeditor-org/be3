@@ -112,8 +112,15 @@ the ops it left open. `crates/be-wasm-root-host`'s `Root` runs the root on the c
 waits on a bell its instances, compiles and own wakes ring, up to the deadline, then up to
 `STEP_TIMEOUT` past it for the root itself. `frame-done` carries the layer list in be-lib-layers'
 encoding (`LayerList::encode`). `crates/be-wasm-root-testing` is the root its tests run, which
-settles one echo child. Nothing runs a root in be-host yet; there is no `input` export, and no web
-half.
+settles one echo child.
+
+Built on the web (step 4d): the same crate's `web` half instantiates the root on the page from a
+module compiled with `WebAssembly.compile`, and steps it inline with the stepping natively shares
+(`Core`). `Root::frame`, called from `requestAnimationFrame`, steps the root as far as it goes and
+returns; the root's `Pending` is a task the page queues whenever an instance's worker answers, a
+compile finishes or the root wakes itself, and a timer at the deadline and at the patience past
+it, and the drawn frame is handed to a callback. `crates/be-wasm-root-web-testing` runs 4a's root
+so in Chromium. Nothing runs a root in be-host yet, and there is no `input` export.
 
 Its rules:
 
@@ -303,8 +310,10 @@ and WASI but no display. Every app is served one already, for its workers, which
 own app's modules and compiles none (plans/single_threaded_guests.md, step 1).
 `crates/be-wasm-root-host` serves the root one that may spawn any staged app (step 4a). On the web
 the same `Server` spawns an app's workers, each in a web worker of its own
-(plans/single_threaded_guests.md, step 2), but compiles no module from bytes: that lands with the
-root guest on the web (step 4d).
+(plans/single_threaded_guests.md, step 2), and compiles a module from bytes on the page with
+`WebAssembly.compile`, once per page for the same bytes, refusing one that imports more than its
+transport; each instance of it is a plain worker the page posts the `WebAssembly.Module` to
+(step 4d). The browser holds no instance to a memory limit.
 
 An app's platform calls (clipboard, drag and drop, file dialogs, opening URLs) are served by the
 host directly for that app, and the compositor can turn them off for it.
@@ -485,7 +494,7 @@ Each step lands on its own.
      and gesture areas, scrims and popups, placers), and be-host's input goes through `Router`
      over the last committed `WindowLayers` rather than through beui's forwarding catchers, with
      the IME area, accessibility actions by node id and drive's presses on the same path.
-   - 4d. The web's half of the sandbox and of the root entry: the page compiles with
+   - 4d. Built: the web's half of the sandbox and of the root entry: the page compiles with
      `WebAssembly.compile` and spawns a worker per instance, and calls the root inline from
      `requestAnimationFrame`, resuming it as its workers answer; tested with 4a's root in
      Chromium.
