@@ -59,6 +59,9 @@ pub struct LineLook {
     pub depth: usize,
     pub continues: bool,
     pub quote: usize,
+    /// How many of the quote's levels have their `>` on this line (a lazy continuation line
+    /// has fewer, rich text none).
+    pub quote_marks: usize,
     pub code_block: bool,
     pub heading: u8,
     pub rule: bool,

@@ -75,4 +75,7 @@ pub struct BlockGeometry {
     pub table_space: f32,
     pub cell_padding: f32,
     pub delimiter_size: f32,
+    /// The span at the left of each quote level's column that its `>` owns, the bar drawn in
+    /// its middle; the space after the `>` owns the rest of the column.
+    pub quote_mark: f32,
 }

@@ -127,11 +127,13 @@ fn line_look(
         parent = held.parent();
     }
     let mut at = lead;
+    let mut quote_marks = 0;
     for _ in 0..quote {
         let next = skip_spaces(source, at, end);
         if next >= end || source[next] != b'>' {
             break;
         }
+        quote_marks += 1;
         at = next + 1;
         if at < end && source[at] == b' ' {
             at += 1;
@@ -172,6 +174,7 @@ fn line_look(
         },
         continues,
         quote,
+        quote_marks,
         code_block,
         heading: heading.map_or(0, heading_level),
         rule,

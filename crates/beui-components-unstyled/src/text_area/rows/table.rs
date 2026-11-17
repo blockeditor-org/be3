@@ -113,6 +113,13 @@ pub(super) fn text_width(text: &str, font: FontId) -> f32 {
     (with - bar).max(0.0)
 }
 
+/// The width of `text` laid out unseen in `UNSEEN_SIZE`, measured over many copies, since a
+/// laid-out size is rounded up to a whole pixel and one copy would round to nothing.
+pub(super) fn unseen_width(text: &str, font: FontId) -> f32 {
+    const COPIES: usize = 16;
+    text_width(&text.repeat(COPIES), font) / COPIES as f32
+}
+
 fn delimiter_font(inputs: &RowInputs) -> FontId {
     let size = inputs.options.geometry.blocks.delimiter_size * inputs.options.scale();
     FontId::monospace(size.max(1.0))
