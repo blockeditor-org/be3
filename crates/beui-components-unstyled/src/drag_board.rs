@@ -5,7 +5,7 @@ use std::rc::Rc;
 use be_lib_stable_hash::HashMap;
 use beui_view::drag::{CarryId, DragFrame};
 use beui_view::drag::{
-    DragPoint, DragSource, Driver, EdgeScroller, Order, Over, Pending, Space, Take, Target,
+    DragPoint, DragSource, Driver, EdgeScroller, Order, Over, Pending, Space, Target,
 };
 use beui_view::reactive::{Get, NodeId, OwnedSignal, tree_local};
 
@@ -28,7 +28,6 @@ pub fn drag_board() -> Rc<Board> {
 struct Carried {
     source: DragSource,
     over: Option<u64>,
-    refused: bool,
     last: Option<DragPoint>,
     floating: Option<bool>,
     /// The first pointer to move it: with several pressing, only it moves the carry.
@@ -42,7 +41,6 @@ struct Under {
     rect: (Rect, f32),
     over: Over,
     hides: bool,
-    take: Take,
 }
 
 pub struct Board {
@@ -177,7 +175,6 @@ impl Board {
         *self.carried.borrow_mut() = Some(Carried {
             source,
             over: None,
-            refused: false,
             last: None,
             floating: None,
             pointer: None,
@@ -323,12 +320,11 @@ impl Board {
     fn under(&self, point: DragPoint) -> Option<Under> {
         let carried = self.carried.borrow();
         let payload = carried.as_ref()?.source.payload.as_ref();
-        let under = |target: &Target, rect, take| Under {
+        let under = |target: &Target, rect| Under {
             id: target.id,
             rect,
             over: Rc::clone(&target.over),
             hides: (target.hides_preview)(),
-            take,
         };
         let targets = self.targets.borrow();
         let found = targets
@@ -342,20 +338,15 @@ impl Board {
             })
             .filter_map(|(node, target)| Some((node, self.rect_of(target)?, target)))
             .filter(|(.., target)| (target.accepts)(payload))
-            .filter_map(|(node, rect, target)| {
-                let take = (target.takes)(point.within(rect));
-                (take != Take::Pass).then_some((node, rect, target, take))
-            })
             .max_by_key(|(node, ..)| self.painted(*node))
-            .map(|(_, rect, target, take)| under(target, rect, take));
+            .map(|(_, rect, target)| under(target, rect));
         if found.is_some() {
             return found;
         }
         let holder = holder(&targets, payload)?;
         let target = targets.iter().find(|target| target.id == holder)?;
         let rect = self.rect_of(target)?;
-        let take = (target.takes)(point.within(rect));
-        (take != Take::Pass).then(|| under(target, rect, take))
+        Some(under(target, rect))
     }
 
     fn over(&self, id: u64) -> Option<Over> {
@@ -381,13 +372,11 @@ impl Board {
         let point = self.stamp(point);
         let under = self.under(point);
         let id = under.as_ref().map(|under| under.id);
-        let refused = under
-            .as_ref()
-            .is_some_and(|under| under.take == Take::Refuse);
-        let previous = self.carried.borrow_mut().as_mut().and_then(|carried| {
-            carried.refused = refused;
-            std::mem::replace(&mut carried.over, id)
-        });
+        let previous = self
+            .carried
+            .borrow_mut()
+            .as_mut()
+            .and_then(|carried| std::mem::replace(&mut carried.over, id));
         if previous.is_some()
             && previous != id
             && let Some(left) = previous.and_then(|id| self.over(id))
@@ -397,7 +386,7 @@ impl Board {
         self.float(
             !under
                 .as_ref()
-                .is_some_and(|under| under.hides && under.take == Take::Drop),
+                .is_some_and(|under| under.hides),
         );
         let payload = self
             .carried
@@ -440,7 +429,7 @@ impl Board {
             .collect::<Vec<_>>();
         let mut drop = None;
         for (id, carrying, over, dropped) in targets {
-            if carried.over == Some(id) && !carried.refused {
+            if carried.over == Some(id) {
                 drop = Some((dropped, self.placed(id)));
             }
             over(None);

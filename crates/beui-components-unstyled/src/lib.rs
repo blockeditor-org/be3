@@ -70,7 +70,7 @@ pub use action_bar::{ActionBar, ActionBarHandle, ActionLabels, title_action};
 pub use anchored::{Anchored, AnchoredHandle, AnchoredSheetHandle, AnchoredStyle, SheetWhen};
 pub use back_slide::{BackSlide, SlideCurves};
 pub use banner::Banner;
-pub use beui_view::drag::{DragPoint, DragSource, Take};
+pub use beui_view::drag::{DragPoint, DragSource};
 pub use button::{Button, ButtonApi, ButtonHandle};
 pub use calendar::{Calendar, CalendarApi, CalendarCellHandle, CalendarHeaderHandle, CalendarMode};
 pub use choice::{Choice, ChoiceApi, ChoiceItem, ChoiceKind, ChoiceOption, ChoiceOptionHandle};

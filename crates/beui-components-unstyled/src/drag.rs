@@ -6,7 +6,7 @@ use beui_macros::{component, view};
 
 use crate::drag_board::drag_board;
 use beui_view::components::overlay::Overlay;
-use beui_view::drag::{DragPoint, DragSource, Pending, Take, Target};
+use beui_view::drag::{DragPoint, DragSource, Pending, Target};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
@@ -210,7 +210,6 @@ where
 #[component]
 pub fn DropTarget<P>(
     accepts: Option<Func<P, bool>>,
-    takes: Option<Func<DragPoint, Take>>,
     #[prop(default = false)] hides_preview: Prop<bool>,
     holds: Option<Func<P, bool>>,
     on_over: Callback<Option<(P, DragPoint)>>,
@@ -232,7 +231,6 @@ where
                 .downcast_ref::<P>()
                 .is_some_and(|payload| accepts.call(payload.clone()))
         }),
-        takes: Rc::new(move |point| takes.map_or(Take::Drop, |takes| takes.call(point))),
         carrying: Rc::new(move |next| carrying.set(next)),
         over: Rc::new(move |over: Option<(&dyn Any, DragPoint)>| {
             let over = over.and_then(|(payload, point)| {
