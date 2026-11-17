@@ -240,7 +240,9 @@ the connection a stopping stack closed.
   journal reaches (`opening.sealed-head`): the head, or for the server's journal
   a seal the head descends from through seals, as when the server lost a seal's
   rebase and the outbox published it and those sealed offline on it since,
-  whose entries the head holds and merging it into the base would count again;
+  whose entries the head holds and merging it into the base would count again
+  (the walk stops at a merge, a seal of an earlier run, or one at or before the
+  base's number; plans/simpler_server_api.md step 1 removes it);
   offline, on this device's journal when
   it is on the head, entries included, `journal-kept` when this device numbered
   them. This device's journal keeps the server's as joining answered it. A

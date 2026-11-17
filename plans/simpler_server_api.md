@@ -165,6 +165,11 @@ the server, derives the lease holder from it with one function. `claim-lease`,
   too. A trim with no new commit (the last one out restarting for free, a new
   build starting the journal over) needs the head to be the base's commit and
   the sender to be the holder at the order's tip, by the server's derivation.
+  A seal the outbox publishes later (one whose publish the connection lost)
+  carries its journal base too, so the server trims to it then, and
+  `journal_for`'s walk down the head's seals for one made on a stale journal
+  base (guides/blocks/host.md, "Opening again") goes, with the backlog's
+  "A lost seal's rebase with a merge above it".
 
 **Why it is safe.**
 
