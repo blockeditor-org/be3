@@ -9,7 +9,6 @@ use be_tool_cli::tracker::Tracker;
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    apps();
     match run().await {
         Ok(output) => {
             if !output.is_empty() {
@@ -37,6 +36,7 @@ async fn run() -> Result<String, String> {
     }
     be_lib_build_id::current()?;
     let settings = Settings::from_env()?;
+    be_tool_cli::release::serve(&settings.cache)?;
     if invocation.verb == "terminal-host"
         && let Some(target) = &invocation.target
     {
@@ -103,34 +103,14 @@ async fn run() -> Result<String, String> {
     }
 }
 
-const APP_TYPES: &[u8] = include_bytes!(env!("APP_TYPES"));
-
-fn apps() -> &'static [be_tool_cli::apps::App] {
-    if be_tool_cli::apps::installed().is_empty() {
-        match be_tool_cli::apps::parse(APP_TYPES) {
-            Ok(apps) => return be_tool_cli::apps::install(apps),
-            Err(error) => eprintln!("be: {error}"),
-        }
-    }
-    be_tool_cli::apps::installed()
-}
-
+/// The apps' type modules, found as be-host finds them (`be_tool_cli::release`): read, and
+/// downloaded by a deployed `be`, only when a command first starts its types.
 fn sources() -> be_tool_cli::tracker::Sources {
-    let apps = apps();
-    Box::new(move || {
-        let mut sources = Vec::new();
-        for app in apps.iter().filter(|app| !app.module.is_empty()) {
-            let module = app.module;
-            sources.push(
-                be_block_type_host::modules::wasm(
-                    app.manifest.identity.id.clone(),
-                    Ok(be_block_type_host::tag_of(module)),
-                    move |host| host.load_bytes(module),
-                )
-                .declaring(app.declared()),
-            );
+    Box::new(|| {
+        for error in be_host_stack::discovery::apps().errors() {
+            eprintln!("be: {error}");
         }
-        sources
+        be_host_stack::types::app_sources()
     })
 }
 

@@ -11,7 +11,7 @@ use tokio::{
     sync::mpsc,
 };
 
-use super::{Frame, TUNNEL_WAIT, proxied_tls, proxy_for, tunnel};
+use super::{Frame, TUNNEL_WAIT, tls_config, proxy_for, tunnel};
 use crate::transport::{framed, frames};
 
 const SESSION_HEADER: &str = "be3-session";
@@ -260,7 +260,7 @@ impl Target {
         }
         let name = rustls::pki_types::ServerName::try_from(self.host.clone())
             .map_err(|_| format!("{} is not a valid server name", self.host))?;
-        let tls = tokio_rustls::TlsConnector::from(Arc::new(proxied_tls()?))
+        let tls = tokio_rustls::TlsConnector::from(Arc::new(tls_config()?))
             .connect(name, stream)
             .await
             .map_err(|error| format!("could not open TLS to {}: {error}", self.host))?;

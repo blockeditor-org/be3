@@ -236,20 +236,24 @@ The runtime keeps passing while one runs (`Instances::has_hosts`) without
 asking for frames.
 
 `be` runs them this way (`be_tool_cli::hosting::Hosting`, plans/headless_apps.md),
-and finds the apps it runs as be-host does (`be_tool_cli::host_apps`): no app's
-wasm, list or hash is compiled into it, so an app's module changing never relinks
-`be`. It still embeds every app's manifest and type module (be-tool-cli's
-`:app-types`, guides/type_modules.md), until plans/headless_apps.md's next step
-removes them. A build that was
-not deployed reads the apps staged beside it: `//crates/be-tool-cli:dev` stages
-the apps with a host component (`HOST_APPS` in its BUCK) and `-c be3.apps=NAME,...`
-adds more, as be-host's `:dev` takes them; the tests stage the same through
-`BE_BUNDLE`. A deployed `be` ships alone, so it reads its release's apps: the
+and finds its apps as be-host does (`be_tool_cli::release`), through
+`be_host_stack::discovery`: the manifests, the type modules it reads blocks through
+(`be_host_stack::types::app_sources`, guides/type_modules.md, "Hosts") and the apps whose
+host components it runs. No app's wasm, manifest, type module, list or hash is compiled
+into it, so an app changing never relinks `be`. A build that was
+not deployed reads the apps staged beside it: `//crates/be-tool-cli:dev` stages every
+app, and `-c be3.apps=NAME,...` only those and the apps with a host component (`HOST_APPS`
+in its BUCK), as be-host's `:dev` takes them; the tests stage the counter through
+`BE_BUNDLE` and install every editor's manifest. `:native`, `be` alone as a deploy ships it,
+finds none built here. A deployed `be` ships alone, so it reads its release's apps: the
 web bundle a deploy publishes at `data/BUILD/web/` on the mirror (guides/hosting.md,
 Deploying), staged as be-host stages them, served to be-host-stack's discovery
 through `use_assets` (a reader in place of the bundle beside the executable, as
-Android's assets are), so the runtime downloads only what it needs: `apps.json`,
-the manifests, then the one app's module, type module and libraries.
+Android's assets are). Serving it downloads nothing (`be` reads its own `build-info.json`,
+never the release's), so a command that needs no block type fetches nothing; the first that
+names a type reads `apps.json` and the manifests, and the first that reads a block's content
+starts the type modules (`Tracker::types`, every one, since `be sync` asks each type for its
+plain form), then a host component's module and libraries only when one runs.
 
 What it trusts is what it shipped with, as be-host trusts the apps it ships
 with. The deploy writes the release's `apps` into the `build-info.json` beside
@@ -258,10 +262,14 @@ every executable it ships, `be`'s too: the bundle's URL and the SHA-256 of its
 which the web bundle carries). `be` downloads that list and refuses it unless it
 hashes to what its `build-info.json` names, then refuses any file that does not
 hash to what the list says, so what the mirror serves later cannot change which
-apps a deployed `be` runs. Each file is kept in `be`'s cache under its hash; a
-missing file, a mismatch or a release with no list fails, naming the file. A
-terminal host's `be` gets the host's own `apps` (`Metadata::for_be`), and a `be`
-deployed with `--skip-web` names none, so it runs no host component.
+manifests, type modules or apps a deployed `be` reads. Each file is kept in `be`'s
+cache (`BE3_CACHE`'s `apps/`) under its hash, downloaded through `HTTPS_PROXY` with the
+certificates be-block-client trusts (`tls_config`, which takes `SSL_CERT_FILE`'s); a missing file, a mismatch or a release
+with no list fails, naming the file. A terminal host's `be` gets the host's own `apps`
+(`Metadata::for_be`). A `be` deployed with `--skip-web` names none, so it reads no block
+type and runs no host component, and says so when a command first starts its types. A
+development build's terminal host is `:native` uploaded alone (guides/terminal.md), so it
+finds no apps either.
 
 ## When an app stops
 

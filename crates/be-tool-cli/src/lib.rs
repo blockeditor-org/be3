@@ -2,7 +2,7 @@ pub mod apps;
 pub mod blocks;
 pub mod cli;
 pub mod csv;
-pub mod host_apps;
+pub mod release;
 pub mod hosting;
 pub mod replica;
 pub mod session;
