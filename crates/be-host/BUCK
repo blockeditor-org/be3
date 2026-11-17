@@ -307,7 +307,7 @@ web_host_test(
 )
 
 # Two pages share a chat with no memory shared between a page and its host's worker, and the
-# page makes no file call (plans/web_page_never_waits.md).
+# page makes no file call (decisions/the_web_page_never_waits.md).
 web_host_test(
     name = "own-memory-web-host-test",
     bundle = ":web",

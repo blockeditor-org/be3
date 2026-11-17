@@ -1,11 +1,11 @@
-//! On the web the page takes no lock another thread takes (plans/web_page_never_waits.md), so
-//! a letter waits in a list of the page's own. One the page posts to itself goes straight onto
-//! it. A worker posts its letters in bytes (`Across`): they are copied out of its memory and
-//! handed to the page by `postMessage` (`web/threads.js`, "be-letter-post"), and the page's
-//! handler copies them in and puts them on the list (`be_letter_arrived`) and wakes the host.
-//! A worker's letters reach the page in the order it posted them (each thread posts on one
-//! channel); letters from different threads arrive in no set order between them, and a
-//! worker's letter arrives a task after it was posted, not at once.
+//! On the web the page takes no lock another thread takes (decisions/the_web_page_never_waits.md),
+//! so a letter waits in a list of the page's own. One the page posts to itself goes straight onto
+//! it. A worker posts its letters in bytes (`Across`): they are copied out of its memory and handed
+//! to the page by `postMessage` (`web/threads.js`, "be-letter-post"), and the page's handler copies
+//! them in and puts them on the list (`be_letter_arrived`) and wakes the host. A worker's letters
+//! reach the page in the order it posted them (each thread posts on one channel); letters from
+//! different threads arrive in no set order between them, and a worker's letter arrives a task
+//! after it was posted, not at once.
 //!
 //! Only the page makes mailboxes: it is the one thread whose frames deliver them.
 

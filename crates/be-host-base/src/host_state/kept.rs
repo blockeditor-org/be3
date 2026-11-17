@@ -1,6 +1,6 @@
 //! Where the host state is kept: `host.sqlite3`, which only a `Keeper` reads and writes. In a
 //! native host the `HostStateStore` holds its keeper; on the web a worker of the host's own
-//! does, and the page's store sends it each `Write` (plans/web_page_never_waits.md).
+//! does, and the page's store sends it each `Write` (decisions/the_web_page_never_waits.md).
 
 use std::{collections::BTreeMap, path::Path};
 

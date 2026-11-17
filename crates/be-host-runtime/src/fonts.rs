@@ -98,7 +98,7 @@ fn candidates(_character: char) -> Vec<(PathBuf, u32)> {
     Vec::new()
 }
 
-/// The web's page reads no files (plans/web_page_never_waits.md), and has no candidates to.
+/// The web's page reads no files (decisions/the_web_page_never_waits.md), and has no candidates to.
 #[cfg(target_arch = "wasm32")]
 fn read(_path: &std::path::Path) -> Option<Vec<u8>> {
     None

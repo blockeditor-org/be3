@@ -41,7 +41,7 @@ async function glue() {
 
 let started = null;
 
-// The worker's memory is its own, not the page's (plans/web_page_never_waits.md). A first
+// The worker's memory is its own, not the page's (decisions/the_web_page_never_waits.md). A first
 // instance makes it, and is its main thread, which runs nothing after its start function; a
 // second on the same memory runs the work, on a stack of STACK_SIZE, as a thread's, where
 // wasm-bindgen's main thread has the linker's 1 MiB. A copy of the glue holds one instance, so

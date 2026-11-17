@@ -1,5 +1,5 @@
 //! What the page reads (`Seen`), and how the worker hands it over without the page ever
-//! taking a lock the worker holds (plans/web_page_never_waits.md).
+//! taking a lock the worker holds (decisions/the_web_page_never_waits.md).
 //!
 //! The worker keeps `Seen` inside its `Shared` and hands it over in bytes, as it will to a page
 //! whose memory it does not share: the whole `Seen` first, then each time what changed since the
@@ -418,7 +418,7 @@ impl Notice {
 
 impl Seen {
     /// The `Seen` in bytes, for a page whose memory the worker does not share
-    /// (plans/web_page_never_waits.md): postcard, the protocol crates' encoding.
+    /// (decisions/the_web_page_never_waits.md): postcard, the protocol crates' encoding.
     pub fn encode(&self) -> Vec<u8> {
         postcard::to_stdvec(self).expect("a Seen always encodes")
     }

@@ -1,9 +1,9 @@
-// The page shares no memory with the host's worker (plans/web_page_never_waits.md): two pages,
-// Dev's and Ada's, each with its own browser context and host's worker, share a chat and each
-// sees what the other writes in it, which travels page to worker to server and back by
-// messages alone. Neither page makes a file call or starts a thread (which would share its
-// memory) as it starts or runs, and one made on the page fails at once, naming itself, rather
-// than spinning.
+// The page shares no memory with the host's worker (decisions/the_web_page_never_waits.md): two
+// pages, Dev's and Ada's, each with its own browser context and host's worker, share a chat and
+// each sees what the other writes in it, which travels page to worker to server and back by
+// messages alone. Neither page makes a file call or starts a thread (which would share its memory)
+// as it starts or runs, and one made on the page fails at once, naming itself, rather than
+// spinning.
 export default async function (test) {
     const refusal = "the page made a file call";
     const refused = [];

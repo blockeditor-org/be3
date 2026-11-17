@@ -1,5 +1,5 @@
 //! What changed in a `Seen` since the last one the worker handed over, as data
-//! (plans/web_page_never_waits.md): the page applies it to its copy of that last one.
+//! (decisions/the_web_page_never_waits.md): the page applies it to its copy of that last one.
 //!
 //! A persistent map or set sends the entries added, changed and removed, by key. Its diff walks
 //! the two versions' shared trees (`imbl::OrdMap::diff`), skipping every subtree they still

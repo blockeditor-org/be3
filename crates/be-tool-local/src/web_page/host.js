@@ -124,7 +124,7 @@ import { bindMemory, refuseFiles, CONTROL } from "./wasi.js";
                 receiveLetters(be_letter_arrived);
                 // The page makes no file call and starts no thread: files.js answers the host's
                 // worker, in its own memory, a thread would share the page's, and either fails
-                // loudly here (plans/web_page_never_waits.md).
+                // loudly here (decisions/the_web_page_never_waits.md).
                 refuseFiles();
                 refuseThreads();
                 bindHostFiles(files);

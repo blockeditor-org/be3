@@ -70,7 +70,8 @@ let refusing = false;
  * Has every thread the page spawns fail at once, naming itself on the console. A thread
  * shares the memory of the instance that spawned it, so one on be-host's page would share the
  * page's locks and malloc, and std's lock traps on the page if it ever finds one held
- * (plans/web_page_never_waits.md): what has to run beside the page runs in the host's worker.
+ * (decisions/the_web_page_never_waits.md): what has to run beside the page runs in the host's
+ * worker.
  */
 export function refuseThreads() {
     refusing = true;
@@ -79,7 +80,7 @@ export function refuseThreads() {
 function threadSpawn(startArgument) {
     if (refusing) {
         console.error(
-            "be-host: the page started a thread, which would share its memory (plans/web_page_never_waits.md)",
+            "be-host: the page started a thread, which would share its memory (decisions/the_web_page_never_waits.md)",
         );
         return -1;
     }
@@ -191,7 +192,7 @@ globalThis.beWorkerStart = stackWorkerStart;
 
 // Letters (be-host-base's host::Across::send) a worker posts to a mailbox the
 // page made. The page shares no lock with a worker for them
-// (plans/web_page_never_waits.md): the worker posts the letter's bytes, copied
+// (decisions/the_web_page_never_waits.md): the worker posts the letter's bytes, copied
 // out of its memory, on a channel only this page's workers know the name of,
 // and the page hands them to the module, which copies them in, puts the letter
 // in the page's own list and wakes the host. A channel delivers what one

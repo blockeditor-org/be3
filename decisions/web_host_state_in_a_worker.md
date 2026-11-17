@@ -16,7 +16,7 @@ and reads them at once.
 
 ## Why
 
-- The page must make no file call (plans/web_page_never_waits.md): it shares no memory with
+- The page must make no file call (decisions/the_web_page_never_waits.md): it shares no memory with
   `web/files.js`'s callers and may not wait, so a file call on the page fails.
 - One copy the host reads and one file it is kept in: there is one way to read and change the
   host state, the same on every host, and the native host tests cover it.

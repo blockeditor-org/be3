@@ -312,15 +312,15 @@ the compositor. Neither the compositor nor any app knows about VR.
 ## The block stack
 
 The block stack runs on its own thread, as it does natively today (`be-host-stack/src/worker.rs`,
-the peer's loop). The root guest spawns it through the sandbox API as an instance of its own,
-with its own memory, so nothing is shared between it and the compositor: they talk only through
-messages, the commands and change notices they use today (`ChangeWatch`). Neither ever spins. The
-block stack's thread waits with `memory.atomic.wait`, which a Web Worker allows, and the
-compositor's main thread never waits. plans/web_page_never_waits.md already gives the web's
-stack worker (`web/be-worker.js`) a memory of its own, talking to the page by messages, and the
-page takes only std's locks, which it never finds held; this step makes that worker an instance the root guest spawns, natively
-too. The host does not know what the instance is; it only serves the capabilities the root
-guest grants it. If it traps, the root guest ends the app, as a panic does today.
+the peer's loop). The root guest spawns it through the sandbox API as an instance of its own, with
+its own memory, so nothing is shared between it and the compositor: they talk only through messages,
+the commands and change notices they use today (`ChangeWatch`). Neither ever spins. The block
+stack's thread waits with `memory.atomic.wait`, which a Web Worker allows, and the compositor's main
+thread never waits. The web's stack worker (`web/be-worker.js`) already has a memory of its own and
+talks to the page by messages, and the page takes only std's locks, which it never finds held
+(decisions/the_web_page_never_waits.md); this step makes that worker an instance the root guest
+spawns, natively too. The host does not know what the instance is; it only serves the capabilities
+the root guest grants it. If it traps, the root guest ends the app, as a panic does today.
 
 be-block-client, be-host-base and be-host-stack already run as wasm on the web: SQLite on OPFS,
 and the browser's WebSocket and `fetch`. They gain a backend over the host's capabilities and drop
@@ -335,6 +335,13 @@ the native tokio, rustls and tungstenite path, so each has one transport.
 - **Local accounts** need no server (guides/hosting.md, Local accounts and the default server), so be-server leaves be-host.
 - **Without a UI:** for Android push and background sync the host starts the root guest through
   an entry point that spawns only the block stack and starts no UI. Measure its memory.
+- **Smaller updates:** the web's page gets the block stack's state today as a copy of the
+  worker's `Seen`, and an update sends whole what is not a persistent map, and a map's changed
+  entry whole: an open block's `Content` on each of its edits, the outbox and the owing lists
+  on each change, and an editor's queued frames. Whatever the root guest and the block stack
+  exchange instead, send content as its edit (the block's own operations or a byte delta), or
+  keep a value's `Arc` identity across updates so one the block stack did not replace is never
+  sent again.
 - **Native builds:** the crates stay portable, so their native tests, be-server and the CLIs keep
   building natively.
 
@@ -399,8 +406,8 @@ Each step lands on its own.
    host's current UI as their only producer, so nothing changes visibly.
 4. The synchronous, resumable root entry. The compositor takes over `src/compositor`,
    `src/ui`, the camera and the orchestration.
-5. The block stack as an instance the root guest spawns, behind capabilities, building on
-   plans/web_page_never_waits.md's worker with a memory of its own.
+5. The block stack as an instance the root guest spawns, behind capabilities, building on the
+   web's stack worker with a memory of its own, and sending smaller updates.
 6. Space as a guest, offscreen windows, and the host's OpenXR part, with late latching.
 7. Strip the host: drop beui's widgets, text and fonts, the block stack, be-server and audio
    decoding. Update guides/apps/runtime.md, guides/desktop.md, guides/running/web.md,

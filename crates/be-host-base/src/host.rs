@@ -109,7 +109,7 @@ impl<T: Send + 'static> Post<T> {
 impl<T: Send + serde::Serialize + serde::de::DeserializeOwned + 'static> Post<T> {
     /// The post for another thread to send to this mailbox: its letters travel as bytes, as
     /// they must to a page whose memory the thread does not share
-    /// (plans/web_page_never_waits.md). Made on the mailbox's own thread.
+    /// (decisions/the_web_page_never_waits.md). Made on the mailbox's own thread.
     pub fn across(&self) -> Across<T> {
         assert_eq!(
             self.thread,

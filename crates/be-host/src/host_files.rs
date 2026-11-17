@@ -4,7 +4,7 @@
 //!
 //! The host reads both from copies it holds (`HostStateStore`, `WorkspaceCache`), and each
 //! change goes to the copy at once and to where it is kept. A native host keeps them itself,
-//! in this process. On the web the page makes no file call (plans/web_page_never_waits.md):
+//! in this process. On the web the page makes no file call (decisions/the_web_page_never_waits.md):
 //! the host's worker (`web/be-worker.js`, which runs the block stacks too) opens them, hands
 //! the page what they hold once (`open`), and keeps each change the page sends after
 //! (decisions/web_host_state_in_a_worker.md).

@@ -79,7 +79,7 @@ worker hands `Seen` over in bytes (postcard), the whole of it first and then eac
 changed since the last (`seen::Update`, `diff.rs`), onto a lock-free stack (`Handover`) the
 host takes every update from at once (`take_updates`), and applies in order to its copy.
 Past 64 updates or 4 MiB the host has not taken (a hidden tab runs no frames), the worker
-swaps its whole `Seen` in for them (`Handover::replace`). Neither side waits on the other, as the web's page must not (plans/web_page_never_waits.md). The large
+swaps its whole `Seen` in for them (`Handover::replace`). Neither side waits on the other, as the web's page must not (decisions/the_web_page_never_waits.md). The large
 parts are `Part`s, an `Arc` the worker's last handed-over copy (`Shared::handed`) shares until
 the worker writes it. The maps in them are persistent and ordered (`imbl::OrdMap`), and the
 graph's nodes are `Arc<Node>`, so that write copies the path to what it changes, not the

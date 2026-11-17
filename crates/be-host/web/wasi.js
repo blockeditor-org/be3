@@ -72,7 +72,7 @@ let refusing = false;
 /**
  * Has every file call fail, naming itself on the console, rather than answer as if there were
  * no files: be-host's page binds no channel, since its host's worker makes the file calls
- * (plans/web_page_never_waits.md), so a call on the page is a bug worth hearing about.
+ * (decisions/the_web_page_never_waits.md), so a call on the page is a bug worth hearing about.
  */
 export function refuseFiles() {
     refusing = true;
@@ -341,7 +341,7 @@ function file(name, stream, none) {
         }
         if (refusing) {
             console.error(
-                `be-host: the page made a file call, ${name}, which only the host's worker makes (plans/web_page_never_waits.md)`,
+                `be-host: the page made a file call, ${name}, which only the host's worker makes (decisions/the_web_page_never_waits.md)`,
             );
             return name.startsWith("fd_") ? EBADF : ENOENT;
         }
