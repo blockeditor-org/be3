@@ -2375,6 +2375,8 @@ where
         // they were made on is gone.
         if self.restarts > self.kept_restart {
             self.stale_through = self.kept_through;
+            // And what earlier openings submitted went into the order before it restarted.
+            self.kept_submissions.clear();
         }
         // The order's base names only its most recent origins: one aged out of it may hold what
         // this origin submitted though no entry says so. Sent again, it could land twice.
