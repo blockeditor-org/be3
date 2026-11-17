@@ -25,7 +25,7 @@ const MANIFEST: &str = r#"{"id": "be3.echo", "name": "Echo", "version": "0.1.0",
         "display_name": "Echo", "icon": "x", "views": ["Main"]}}}"#;
 
 /// Stages the echo app and its worker as be-tool-buck stages them, in a directory of their own
-/// that BE_BUNDLE names (this test runs in a process of its own).
+/// that discovery reads the staged files from (this test runs in a process of its own).
 fn stage() -> std::path::PathBuf {
     let bundle = std::env::temp_dir().join(format!("be3-worker-bundle-{}", std::process::id()));
     let workers = bundle.join("workers/be3.echo");
@@ -36,9 +36,10 @@ fn stage() -> std::path::PathBuf {
     std::fs::write(bundle.join(library_name), library).unwrap();
     std::fs::write(bundle.join("echo.wasm"), module("ECHO_APP_WASM")).unwrap();
     std::fs::write(workers.join(MODULE), module("ECHO_WORKER_WASM")).unwrap();
-    // SAFETY: the test runs in a process of its own (run_apart), before any other thread reads
-    // the environment.
-    unsafe { std::env::set_var("BE_BUNDLE", &bundle) };
+    let staged = bundle.clone();
+    be_host_stack::discovery::use_assets(move |path| {
+        std::fs::read(staged.join(path)).map_err(|error| format!("{path}: {error}"))
+    });
     bundle
 }
 
@@ -73,12 +74,10 @@ fn an_apps_worker_answers_through_the_hosts_wire_and_stops_when_the_app_fails() 
         let mut worker = Worker::spawn(MODULE);
         worker.send(b"hello".to_vec());
         be_sdk_api::ops::guest::spawn(async move {
-            for _ in 0..2 {
+            for _ in 0..3 {
                 let message = worker.receive().await;
                 told.borrow_mut().push(message);
             }
-            // Keep the worker until the app fails.
-            std::future::pending::<()>().await;
         });
     });
     let mut heard = Vec::new();
@@ -107,6 +106,15 @@ fn an_apps_worker_answers_through_the_hosts_wire_and_stops_when_the_app_fails() 
     assert!(
         !backend.wire_mut().serves_sandbox(),
         "an app that fails takes its workers with it"
+    );
+    let mut from_guest = Vec::new();
+    guest
+        .step(backend.wire_mut().take_outbound(), &mut from_guest)
+        .expect("the host's frames decode");
+    assert_eq!(
+        received.borrow().get(2),
+        Some(&Err(crate::wire::WORKERS_STOPPED.to_owned())),
+        "the worker's app hears that it stopped"
     );
     assert_eq!(backend.take_error().as_deref(), Some("the app trapped"));
     let _ = std::fs::remove_dir_all(bundle);

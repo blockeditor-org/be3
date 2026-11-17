@@ -43,7 +43,8 @@ pub struct Worker {
 impl Worker {
     /// Starts `module`, one of the worker modules the app's manifest names under `workers`
     /// (such as `"tiles.wasm"`), as an instance of its own. One that cannot start, such as a
-    /// module the app does not stage, says why from `receive`.
+    /// module the app does not stage, says why from `receive`. Drop a `Worker` (and its
+    /// `Sender`s) once `receive` says it stopped: a stopped worker stays held until then.
     pub fn spawn(module: &str) -> Self {
         // The host serves an app the sandbox for its own workers, so no app id names them.
         let source = Source::App(StagedModule {

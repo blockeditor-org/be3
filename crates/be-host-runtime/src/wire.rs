@@ -27,6 +27,10 @@ use be_sdk_api::{
     },
 };
 
+/// What a worker's `receive` hears once its app stopped.
+#[cfg(not(target_arch = "wasm32"))]
+pub(super) const WORKERS_STOPPED: &str = "the app stopped, and its workers with it";
+
 #[derive(Default)]
 struct Held {
     owners: HashMap<OpId, EditorInstanceId>,
@@ -172,8 +176,8 @@ impl Wire {
     /// Stops every worker the app started.
     pub(super) fn stop_sandbox(&mut self) {
         #[cfg(not(target_arch = "wasm32"))]
-        {
-            self.sandbox = None;
+        if let Some(server) = self.sandbox.take() {
+            server.stop(WORKERS_STOPPED, &mut self.connection);
         }
     }
 
