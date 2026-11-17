@@ -220,10 +220,13 @@ maker through every sender (`KeyBook::heads`).
   it reads first, each once per key in a run). How far it checked each scope's
   log is kept with the refs (`refs::KeptLog`, `KeyBook::note_log`;
   `refresh_keys` reads each scope's log once as its keys arrive, and a block
-  made here is kept at its root): a log served later that does not reach the
-  kept head is withheld and not taken, and with it, a failed read or offline,
-  an epoch is judged by what was kept (only the kept head or lowering is
-  current). A scope neither kept nor readable makes a key opened through
+  made here is kept at its root, eight scopes read at a time): a log served
+  later that does not reach the kept head is withheld, and `checked_access`
+  refuses it (`Locked`), so nothing seals, settles an escrowed key or judges a
+  contact by it. With it, a failed read or offline, an epoch is current only
+  if it names one of the kept entries from the last lowering through the head
+  (`KeptLog::current`), and a contact's seal is judged by the levels kept at
+  that head (`KeptLog::levels`). A scope neither kept nor readable makes a key opened through
   another outdated. A rotation that cannot go through fails the save as
   `Locked`. A local account judges nothing (there is no server). An escrow epoch the organization's log outdates
   is wrapped under no more, so keys wait unescrowed for the next, with no
@@ -235,7 +238,8 @@ maker through every sender (`KeyBook::heads`).
   only from a contact the block's log gives Edit or above, or the
   organization's log has administer it, as of the head the key names, or as
   of the log's head here when this device's log does not reach that head or
-  the key names none; one the block's log names but not by then held nothing
+  the key names none (with no log read this run, as of the kept head); a data
+  key only from an administrator, as only the settings' are sealed to anyone; one the block's log names but not by then held nothing
   (`KeyBook::sender_may`). A contact the block's log never names (Edit from a
   block above) is taken, as is a key of a block whose log this device never
   checked; `refresh_keys` reads the log first for each block whose root it
