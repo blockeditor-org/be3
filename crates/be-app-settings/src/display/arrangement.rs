@@ -216,11 +216,10 @@ pub(super) fn ArrangementRow(
                 border={Border::DEFAULT}
                 radius=Radius::Sm
             >
-                <Scroll>
-                    <Frame
-                        width={Length::Size(Size::Custom(AREA.x))}
-                        height={Length::Size(Size::Custom(AREA.y))}
-                    >
+                // Clipped to the area, so a display carried past it never draws over the
+                // rows around it.
+                <Canvas width={AREA.x} height={AREA.y}>
+                    <CanvasItem x=0.0 y=0.0 width={AREA.x} height={AREA.y}>
                         <Layers>
                             <ForEach value={keys}>|id: String|
                                 <Frame align=Align2::START>
@@ -228,8 +227,8 @@ pub(super) fn ArrangementRow(
                                 </Frame>
                             </ForEach>
                         </Layers>
-                    </Frame>
-                </Scroll>
+                    </CanvasItem>
+                </Canvas>
             </Frame>
         </SettingsRow>
     }
