@@ -253,6 +253,21 @@ did not sign.
   sender, revoked above with the server's help, can so have a key they made up
   written under in a block whose own log has lowered no one, or naming its
   newest head.
+- **Offline, a device judges no epoch.** The logs a device checks live in
+  memory alone, and one that has not read a scope's log since it started
+  reads it before writing; offline it cannot, so it writes under the epoch the
+  server last named, even one a made-up key a revoked member wrapped under an
+  epoch they hold. Not fixed: keeping each scope's checked log (its places and
+  `last_lowering`) with the refs, as kept summaries are, would let a restarted
+  offline device refuse too. Left out as a new kept record whose only gain is
+  writes made offline, which no one reads until the device reconnects and
+  which a server bent on this could equally hold back.
+- **Demoting an administrator rotates only the escrow**, not the blocks'
+  scopes. The demoted one keeps every scope epoch they reached through escrow,
+  and since no block's log lowered anyone, those epochs stay current: with the
+  server's help they read what is written under them until each block rotates
+  for some other reason. The fix considered: a demotion makes every scope
+  under the escrow due a rotation.
 - **Stale heads on making.** A key minted on a device whose block or
   organization log is stale names those stale heads: for a new block, as for a
   rotation by a device withheld a revocation, its epoch is current only on
