@@ -1335,9 +1335,10 @@ impl<S: ObjectStore> Peer<S> {
     /// Whether `key` may seal and open `block` here: one this device trusts. A key the server
     /// holds (the settings' and those opened through them) seals only the settings block
     /// itself, which the server reads by design: never a block the server's graph places
-    /// there, since the server could place any block there.
+    /// there, since the server could place any block there. A key minted with a creation no
+    /// server took (`KeyBook::unmade`) opens what was set aside of it and seals nothing.
     fn usable_key(&self, block: Uuid, key: Uuid) -> bool {
-        self.keys.trusted(key)
+        (self.keys.trusted(key) && !self.keys.unmade(key))
             || (block == self.organization_settings() && self.keys.server_held(key))
     }
 

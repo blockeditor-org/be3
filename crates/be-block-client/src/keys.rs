@@ -855,6 +855,12 @@ impl KeyBook {
         self.ring.contains(key) || self.escrow_secrets.lock().unwrap().contains_key(&key)
     }
 
+    /// Whether `key` was minted with a creation no server took (`forget_made`): it opens what
+    /// was set aside of it, and is never sealed, wrapped or offered with.
+    pub fn unmade(&self, key: Uuid) -> bool {
+        self.roots.lock().unwrap().unmade.contains(&key)
+    }
+
     pub fn trusted(&self, key: Uuid) -> bool {
         self.trusted.lock().unwrap().contains(&key) && self.has(key)
     }
@@ -983,6 +989,9 @@ impl KeyBook {
     /// it pinned, so a root it took from nowhere trusted is never passed on as one it vouches
     /// for. A key this device cannot place is not handed on.
     pub fn carried_plain(&self, key: Uuid) -> Result<Vec<u8>, StoreError> {
+        if self.unmade(key) {
+            return Err(StoreError::MissingKey(key));
+        }
         let escrow = self.escrow_secrets.lock().unwrap().get(&key).copied();
         let plain = match escrow {
             Some(secret) if self.trusted(key) => secret,
