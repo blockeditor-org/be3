@@ -34,6 +34,7 @@ fn stops_of(pieces: &[(u32, &str)]) -> Vec<Stop<u32>> {
     stops
 }
 
+mod a_caret_at_a_lines_end_stands_past_its_gaps_but_not_an_icon;
 mod a_glyph_belongs_to_the_run_it_starts_in_and_is_cut_at_that_runs_end;
 mod a_glyph_ending_inside_a_character_stops_before_it;
 mod a_run_without_glyphs_is_one_plain_segment_even_when_empty;

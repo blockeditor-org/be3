@@ -5,11 +5,11 @@ use std::rc::Rc;
 use beui_html::Node;
 use beui_reactive::{Get, untrack};
 use beui_types::text::{FontId, LineBox, handle_shape};
-use beui_types::{Color, Rect, Vec2, pos2, vec2};
-use js_sys::{Array, Function, Reflect};
+use beui_types::{Rect, Vec2, pos2, vec2};
+use js_sys::{Function, Reflect};
 use wasm_bindgen::{JsCast, JsValue};
 
-use super::{Piece, Stop, TextModel, TextSlot, after, before, byte_at, model, text_stops};
+use super::{Piece, Stop, TextModel, TextSlot, after, byte_at, ending_at, model, text_stops};
 use crate::css;
 use crate::node::NodeId;
 
@@ -19,16 +19,6 @@ const CARET_FLAG: Vec2 = Vec2::new(6.0, 4.0);
 pub(crate) struct Shown {
     hang: Option<String>,
     boxes: Vec<(&'static str, String)>,
-    highlights: Vec<(String, web_sys::Range)>,
-    marked: Option<(Vec<beui_types::text::TextMark>, u64)>,
-}
-
-impl Drop for Shown {
-    fn drop(&mut self) {
-        for (name, range) in self.highlights.drain(..) {
-            unmark(&name, &range);
-        }
-    }
 }
 
 struct Frame {
@@ -149,11 +139,17 @@ fn stops(model: &TextModel) -> Stops {
             }
             Piece::Skip { newline } => {
                 if let Some(dom) = crate::dom::dom(node) {
-                    stops.push(Stop::Atom {
-                        byte: at,
-                        len: 0,
-                        node: dom,
-                        newline,
+                    stops.push(match newline {
+                        true => Stop::Atom {
+                            byte: at,
+                            len: 0,
+                            node: dom,
+                            newline,
+                        },
+                        false => Stop::Room {
+                            byte: at,
+                            node: dom,
+                        },
                     });
                 }
             }
@@ -172,23 +168,35 @@ fn stop_rect(stop: &Stop<web_sys::Node>) -> Option<web_sys::DomRect> {
             range.set_end(node, utf16 + ch.len_utf16() as u32).ok()?;
             range.get_bounding_client_rect()
         }
-        Stop::Atom { node, .. } => node
+        Stop::Atom { node, .. } | Stop::Room { node, .. } => node
             .dyn_ref::<web_sys::Element>()?
             .get_bounding_client_rect(),
     };
-    (rect.height() > 0.0).then_some(rect)
+    // An empty gap's inline block is no taller than nothing, but has its width.
+    (rect.height() > 0.0 || matches!(stop, Stop::Room { .. })).then_some(rect)
 }
 
+/// Where a caret at `index` stands, its x and line: before the character there, else (at the
+/// end of a line) after the one before it and the gaps right after that, as natively
+/// (`RichLine::x_of`). A mark is drawn between the spots of its ends.
 fn spot(frame: &Frame, stops: &Stops, index: usize) -> (f64, i64) {
     if let Some(stop) = after(stops, index).filter(|stop| !stop.breaks())
         && let Some(rect) = stop_rect(stop)
     {
         return (rect.left(), frame.line_of(&rect));
     }
-    if let Some(stop) = before(stops, index).filter(|stop| !stop.breaks())
+    let ending = ending_at(stops, index);
+    if let Some(stop) = ending.first().filter(|stop| !stop.breaks())
         && let Some(rect) = stop_rect(stop)
     {
-        return (rect.right(), frame.line_of(&rect));
+        let line = frame.line_of(&rect);
+        let right = ending[1..]
+            .iter()
+            .filter_map(|stop| stop_rect(stop))
+            .take_while(|room| frame.line_of(room) == line)
+            .last()
+            .map_or(rect.right(), |room| room.right());
+        return (right, line);
     }
     let mut breaks = 0;
     for stop in stops
@@ -434,7 +442,7 @@ fn boundary(stops: &Stops, index: usize, start: bool) -> Option<(web_sys::Node, 
             node,
             utf16,
         } => Some((*byte, *ch, node, *utf16)),
-        Stop::Atom { .. } => None,
+        Stop::Atom { .. } | Stop::Room { .. } => None,
     });
     if start {
         chars
@@ -456,73 +464,6 @@ fn dom_range(stops: &Stops, bytes: std::ops::Range<usize>) -> Option<web_sys::Ra
     range.set_start(&start, from).ok()?;
     range.set_end(&end, to).ok()?;
     (!range.collapsed()).then_some(range)
-}
-
-thread_local! {
-    static HIGHLIGHTS: RefCell<HashMap<String, JsValue>> = RefCell::default();
-    static HIGHLIGHT_STYLES: RefCell<Option<web_sys::Element>> = const { RefCell::new(None) };
-}
-
-fn registry() -> Option<JsValue> {
-    let css = Reflect::get(&js_sys::global(), &"CSS".into()).ok()?;
-    let registry = Reflect::get(&css, &"highlights".into()).ok()?;
-    (!registry.is_undefined() && !registry.is_null()).then_some(registry)
-}
-
-fn method(target: &JsValue, name: &str, argument: &JsValue) {
-    if let Ok(function) = Reflect::get(target, &name.into()).and_then(|f| f.dyn_into::<Function>())
-    {
-        let _ = function.call1(target, argument);
-    }
-}
-
-fn mark_name(color: Color) -> String {
-    use std::hash::{Hash, Hasher};
-
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    color.hash(&mut hasher);
-    format!("beui-mark-{:016x}", hasher.finish())
-}
-
-fn highlight(name: &str, color: Color) -> Option<JsValue> {
-    if let Some(held) = HIGHLIGHTS.with(|held| held.borrow().get(name).cloned()) {
-        return Some(held);
-    }
-    let registry = registry()?;
-    let constructor: Function = Reflect::get(&js_sys::global(), &"Highlight".into())
-        .ok()?
-        .dyn_into()
-        .ok()?;
-    let made = Reflect::construct(&constructor, &Array::new()).ok()?;
-    let set: Function = Reflect::get(&registry, &"set".into())
-        .ok()?
-        .dyn_into()
-        .ok()?;
-    set.call2(&registry, &name.into(), &made).ok()?;
-    HIGHLIGHT_STYLES.with(|styles| {
-        let mut styles = styles.borrow_mut();
-        if styles.is_none() {
-            let document = crate::dom::document()?;
-            let style = document.create_element("style").ok()?;
-            document.head()?.append_child(&style).ok()?;
-            *styles = Some(style);
-        }
-        let style = styles.as_ref()?;
-        let rules = style.text_content().unwrap_or_default();
-        style.set_text_content(Some(&format!(
-            "{rules}::highlight({name}) {{ background-color: {}; }}\n",
-            css::color(color)
-        )));
-        Some(())
-    });
-    HIGHLIGHTS.with(|held| held.borrow_mut().insert(name.to_owned(), made.clone()));
-    Some(made)
-}
-
-fn unmark(name: &str, range: &web_sys::Range) {
-    if let Some(held) = HIGHLIGHTS.with(|held| held.borrow().get(name).cloned()) {
-        method(&held, "delete", range);
-    }
 }
 
 fn apply_hang(model: &TextModel, frame: &Frame, stops: &Stops) -> bool {
@@ -547,42 +488,49 @@ fn apply_hang(model: &TextModel, frame: &Frame, stops: &Stops) -> bool {
     true
 }
 
-fn apply_marks(model: &TextModel, stops: &Stops) -> bool {
-    if registry().is_none() {
-        return false;
-    }
-    let marks = model.decor.borrow().all_marks();
-    let key = (marks.clone(), model.revision.get());
-    if model.decor.borrow().shown.marked.as_ref() == Some(&key) {
-        return true;
-    }
-    let held = std::mem::take(&mut model.decor.borrow_mut().shown.highlights);
-    for (name, range) in &held {
-        unmark(name, range);
-    }
-    let mut highlights = Vec::new();
-    for mark in &marks {
-        let name = mark_name(mark.color);
-        if let (Some(highlight), Some(range)) = (
-            highlight(&name, mark.color),
-            dom_range(stops, mark.range.clone()),
-        ) {
-            method(&highlight, "add", &range);
-            highlights.push((name, range));
-        }
-    }
-    let mut decor = model.decor.borrow_mut();
-    decor.shown.highlights = highlights;
-    decor.shown.marked = Some(key);
-    true
-}
-
-fn boxes(
-    model: &TextModel,
+/// The boxes a mark over `bytes` fills, as (left, line, right): from where a caret at its start
+/// stands to where one at its end does, a line at a time, so it covers a gap between its
+/// characters (which the browser's own highlights would leave bare) and is drawn where its
+/// carets are. A line between its first and last spans the characters on it.
+fn mark_boxes(
     frame: &Frame,
     stops: &Stops,
-    highlighted: bool,
-) -> Vec<(&'static str, String)> {
+    bytes: std::ops::Range<usize>,
+) -> Vec<(f64, i64, f64)> {
+    let (left, first) = spot(frame, stops, bytes.start);
+    let (right, last) = spot(frame, stops, bytes.end);
+    if first >= last {
+        return vec![(left, first, right.max(left + 1.0))];
+    }
+    let mut lines: HashMap<i64, (f64, f64)> = HashMap::default();
+    if let Some(rects) = dom_range(stops, bytes).and_then(|range| range.get_client_rects()) {
+        for index in 0..rects.length() {
+            let Some(rect) = rects.get(index).filter(|rect| rect.width() > 0.0) else {
+                continue;
+            };
+            let held = lines
+                .entry(frame.line_of(&rect))
+                .or_insert((rect.left(), rect.right()));
+            *held = (held.0.min(rect.left()), held.1.max(rect.right()));
+        }
+    }
+    (first..=last)
+        .filter_map(|line| {
+            let span = lines.get(&line).copied();
+            let from = match line == first {
+                true => left,
+                false => span.map_or(frame.start, |span| span.0),
+            };
+            let to = match line == last {
+                true => right,
+                false => span.map_or(from, |span| span.1),
+            };
+            (to > from).then_some((from, line, to))
+        })
+        .collect()
+}
+
+fn boxes(model: &TextModel, frame: &Frame, stops: &Stops) -> Vec<(&'static str, String)> {
     let decor = model.decor.borrow();
     let local = |left: f64, top: f64, width: f64, height: f64| {
         format!(
@@ -594,27 +542,19 @@ fn boxes(
         )
     };
     let mut boxes = Vec::new();
-    if !highlighted {
-        for mark in &decor.all_marks() {
-            let Some(range) = dom_range(stops, mark.range.clone()) else {
-                continue;
-            };
-            let Some(rects) = range.get_client_rects() else {
-                continue;
-            };
-            for index in 0..rects.length() {
-                let Some(rect) = rects.get(index) else {
-                    continue;
-                };
-                boxes.push((
-                    "beui-mark",
-                    format!(
-                        "{} background-color: {};",
-                        local(rect.left(), rect.top(), rect.width(), rect.height()),
-                        css::color(mark.color)
-                    ),
-                ));
-            }
+    for mark in &decor.all_marks() {
+        if mark.range.is_empty() {
+            continue;
+        }
+        for (left, line, right) in mark_boxes(frame, stops, mark.range.clone()) {
+            boxes.push((
+                "beui-mark",
+                format!(
+                    "{} background-color: {};",
+                    local(left, frame.line_top(line), right - left, frame.line),
+                    css::color(mark.color)
+                ),
+            ));
         }
     }
     for caret in decor.carets.iter().chain(&decor.handles) {
@@ -719,8 +659,7 @@ pub(crate) fn decorate(model: &Rc<TextModel>) -> bool {
     if apply_hang(model, &frame, &stops) {
         return true;
     }
-    let highlighted = apply_marks(model, &stops);
-    let wanted = boxes(model, &frame, &stops, highlighted);
+    let wanted = boxes(model, &frame, &stops);
     let mut decor = model.decor.borrow_mut();
     if decor.shown.boxes == wanted {
         return false;

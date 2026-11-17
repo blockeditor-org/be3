@@ -256,13 +256,14 @@ impl Builder<'_> {
             edge += padding * 2.0 + columns.widths.get(index).copied().unwrap_or(0.0);
         }
         edges.push(edge);
+        // Each pipe is laid out unseen right after what comes before it, with the room up to
+        // the next cell's content after it, so a caret before a pipe stands beside the content
+        // on its left and one after it beside the content on its right; the grid lines are
+        // drawn at `edges`, apart from the pipes.
         let hidden = Some(Color::TRANSPARENT);
         let mut x = 0.0;
         for (index, cell) in parsed.cells.iter().enumerate() {
-            let at = edges[index] - pipe / 2.0;
             if let Some(pipe_at) = cell.pipe {
-                self.table_gap(at - x, body);
-                x = x.max(at);
                 x += self.table_text(pipe_at..pipe_at + 1, table.row, hidden);
             }
             let shown = trimmed(bytes, &cell.range);
@@ -288,9 +289,8 @@ impl Builder<'_> {
         // A row that closes before the table's last column closes after its own last cell.
         let closes = parsed.cells.len();
         if let Some(closing) = parsed.closing {
-            let at = edges[closes] - pipe / 2.0;
-            self.table_gap(at - x, body);
-            self.table_text(closing..closing + 1, table.row, hidden);
+            x += self.table_text(closing..closing + 1, table.row, hidden);
+            self.table_gap(edges[closes] + pipe / 2.0 - x, body);
             tail = closing + 1;
         }
         self.table_text(tail..content.end, table.row, None);

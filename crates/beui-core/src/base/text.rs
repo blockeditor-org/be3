@@ -761,8 +761,8 @@ impl TextNode {
             }
             None => (doc.resolve_color(self.color), self.underline, false),
         };
-        let fill = |range: Range<usize>, background: SpanBackground| {
-            for area in layout.selection_rects(range) {
+        let fill = |areas: Vec<Rect>, background: SpanBackground| {
+            for area in areas {
                 painter.rect_filled(
                     area.expand2(background.outset).translate(origin),
                     background.radius,
@@ -784,12 +784,12 @@ impl TextNode {
                 continue;
             }
             if let Some((held, background)) = run.take() {
-                fill(held, background);
+                fill(layout.span_rects(held), background);
             }
             run = background.map(|background| (range.clone(), background));
         }
         if let Some((held, background)) = run {
-            fill(held, background);
+            fill(layout.span_rects(held), background);
         }
         let plain = |color: Color| SpanBackground {
             color,
@@ -797,10 +797,10 @@ impl TextNode {
             outset: Vec2::ZERO,
         };
         for mark in &self.marks {
-            fill(mark.range.clone(), plain(mark.color));
+            fill(layout.selection_rects(mark.range.clone()), plain(mark.color));
         }
         if let Some((range, color)) = &self.selection {
-            fill(range.clone(), plain(*color));
+            fill(layout.selection_rects(range.clone()), plain(*color));
         }
         layout.paint_runs(painter, origin, |run| paint_of(run.piece));
         for glyph in &self.glyphs {

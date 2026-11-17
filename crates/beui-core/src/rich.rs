@@ -149,10 +149,13 @@ pub struct RichLine {
 }
 
 impl RichLine {
+    /// Where a caret at `index` stands: before the character there, past any gap, icon or
+    /// break that holds no bytes before it; at the line's end, after its last character and the
+    /// gaps right after that (room the text keeps), but before an icon that ends the line. A
+    /// selection runs between the places of its ends, so it is drawn where its carets are.
     pub fn x_of(&self, index: usize) -> f32 {
         if index >= self.range.end {
-            let end = self.runs.last().map_or(0.0, |run| run.x + run.width);
-            return self.hang(index, self.left + end);
+            return self.hang(index, self.left + self.end_x());
         }
         let x = self.left
             + self
@@ -161,6 +164,18 @@ impl RichLine {
                 .find(|run| run.range.contains(&index))
                 .map_or(0.0, |run| run.x_of(index));
         self.hang(index, x)
+    }
+
+    fn end_x(&self) -> f32 {
+        let last = self.runs.iter().rposition(|run| !run.range.is_empty());
+        let mut end = last.map_or(0.0, |at| self.runs[at].x + self.runs[at].width);
+        for run in &self.runs[last.map_or(0, |at| at + 1)..] {
+            match run.kind {
+                SpanKind::Gap(_) => end = run.x + run.width,
+                _ => break,
+            }
+        }
+        end
     }
 
     /// `x` for a byte among the spaces that hang past the line's end, kept at the edge, but
@@ -1097,7 +1112,31 @@ impl RichLayout {
             .map_or(line.range.start, |(index, _)| index)
     }
 
+    /// The rectangles a selection or mark over `range` fills, a line at a time: from where a
+    /// caret at its start stands to where one at its end does (`RichLine::x_of`), so it covers a
+    /// gap between its characters, and one its end caret is drawn past, as the carets show.
     pub fn selection_rects(&self, range: Range<usize>) -> Vec<Rect> {
+        self.lines
+            .iter()
+            .filter_map(|line| {
+                let start = range.start.max(line.range.start);
+                let end = range.end.min(line.range.end);
+                if start >= end {
+                    return None;
+                }
+                let left = line.x_of(start);
+                let right = line.x_of(end).max(left + 1.0);
+                Some(Rect::from_min_max(
+                    pos2(left, line.top),
+                    pos2(right, line.top + line.height),
+                ))
+            })
+            .collect()
+    }
+
+    /// The rectangles a span's background fills: its own characters, not a gap or icon beside
+    /// them.
+    pub fn span_rects(&self, range: Range<usize>) -> Vec<Rect> {
         self.range_boxes(range)
             .into_iter()
             .map(|(rect, _)| {
