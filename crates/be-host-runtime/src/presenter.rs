@@ -190,6 +190,9 @@ impl Shared {
         self.kept = kept;
         // Pruned only here, against the layout just published: a surface's first present can
         // be heard before the layout that brought it is published (both arrive in one pump).
+        // A present is never held behind a layout older than its own (`Runtime::received` holds
+        // a frame with the layout it follows), so the layout published here is never older than
+        // a surface painted in it.
         let surfaces = self.surfaces();
         self.painted
             .retain(|surface, _| surfaces.contains(surface));

@@ -57,6 +57,17 @@ Fixed items are removed as they land.
   app worker's canvases and it keeps none. Done when the web keeps a hidden view's last canvas
   frame the same way, with a web test that shows it again before its app answers.
 
+- **The host's canvas when a page grows.** In headless Chromium, the first frame after the page
+  grows still shows be-host's own chrome at the old width, with the page background beyond,
+  although beui-platform-web runs a frame from its `ResizeObserver` (`resized` in web.rs). Next
+  step: log whether `runner.frame()` has something pending and whether `present()` runs inside
+  `resized`. Done when the first frame after a grow is drawn at the new size, shown by a web test.
+
+- **A live resize on macOS.** `CAMetalLayer`'s default `contentsGravity` (resize) may stretch
+  the last frame while a window is resized live, before beui draws the new size. Check it, and
+  set it to top left if so, as X11 keeps the last frame at the corner (beui-platform-winit's
+  `backdrop.rs`). Done when a live resize on a Mac shows the last frame unstretched.
+
 ## 7. Sessions
 
 - **A seal of its own during a join that holds kept edits.** `rejoined` seals

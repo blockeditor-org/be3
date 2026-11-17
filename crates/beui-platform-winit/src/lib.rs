@@ -617,6 +617,11 @@ impl ApplicationHandler for Runner {
         if let Ok(handle) = window.window_handle() {
             setup.provide(NativeWindow(handle.as_raw()));
         }
+        #[cfg(all(
+            unix,
+            not(any(target_os = "android", target_os = "macos", target_os = "ios"))
+        ))]
+        backdrop::fresh(&*window);
         self.surface = Some(Surface {
             window,
             touch_cursor,

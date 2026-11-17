@@ -4,7 +4,7 @@
 //! beside the last frame, which stays at the window's corner.
 //! Other systems keep the last frame or a colour of their own meanwhile.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 use beui_types::Color32;
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -13,11 +13,23 @@ use x11rb::protocol::xproto::{ChangeWindowAttributesAux, ConnectionExt as _, Gra
 use x11rb::rust_connection::RustConnection;
 
 thread_local! {
+    // A connection of its own: winit's is an Xlib or XCB pointer, which x11rb could only wrap
+    // through its unsafe XCB bindings. Any client may change another's window attributes.
     static CONNECTION: RefCell<Option<Option<RustConnection>>> = const { RefCell::new(None) };
+    /// The clear colour last set, for a window made after it (`fresh`).
+    static COLOR: Cell<Option<Color32>> = const { Cell::new(None) };
+}
+
+/// Gives a window just made the clear colour set last, if any.
+pub(crate) fn fresh(window: &dyn winit::window::Window) {
+    if let Some(color) = COLOR.get() {
+        set(window, color);
+    }
 }
 
 /// Sets `window`'s X11 background to `color`; does nothing on any other system.
 pub(crate) fn set(window: &dyn winit::window::Window, color: Color32) {
+    COLOR.set(Some(color));
     let Ok(handle) = window.window_handle() else {
         return;
     };
@@ -26,6 +38,8 @@ pub(crate) fn set(window: &dyn winit::window::Window, color: Color32) {
         RawWindowHandle::Xcb(handle) => handle.window.get(),
         _ => return,
     };
+    // The pixel of a TrueColor visual, 24 or 32 bits deep, as winit's windows use: red, green
+    // and blue bytes, with an opaque alpha that a 24-bit visual ignores.
     let [red, green, blue, _] = color.to_array();
     let pixel = 0xff00_0000 | (u32::from(red) << 16) | (u32::from(green) << 8) | u32::from(blue);
     CONNECTION.with(|connection| {
