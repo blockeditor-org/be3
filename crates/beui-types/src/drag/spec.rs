@@ -110,8 +110,12 @@ pub enum DragSpec<D> {
         radius: f32,
         chain: bool,
     },
-    /// A release faster than `speed` carries on along its path before choosing.
-    Thrown { spec: Box<DragSpec<D>>, speed: f32 },
+    /// A release faster than `speed` carries on along its path for `seconds` before choosing.
+    Thrown {
+        spec: Box<DragSpec<D>>,
+        speed: f32,
+        seconds: f32,
+    },
     /// `spec`'s place, with the item drawn under the pointer along `along` and at the place
     /// across it, as a list's row follows the finger while the rows part around it.
     Following {
@@ -225,6 +229,20 @@ impl<D> DragSpec<D> {
         DragSpec::Thrown {
             spec: Box::new(self),
             speed: THROW_SPEED,
+            seconds: THROW_SECONDS,
+        }
+    }
+
+    /// A `thrown` that carries a release on along its path for `seconds` rather than
+    /// `THROW_SECONDS`: a sheet's detents, flicked past from high up.
+    pub fn thrown_for(self, seconds: f32) -> Self {
+        match self {
+            DragSpec::Thrown { spec, speed, .. } => DragSpec::Thrown {
+                spec,
+                speed,
+                seconds,
+            },
+            other => other,
         }
     }
 
@@ -270,9 +288,10 @@ impl<D> DragSpec<D> {
                 radius: distance,
                 chain,
             },
-            DragSpec::Thrown { spec, .. } => DragSpec::Thrown {
+            DragSpec::Thrown { spec, seconds, .. } => DragSpec::Thrown {
                 spec,
                 speed: distance,
+                seconds,
             },
             other => other,
         }
@@ -339,9 +358,14 @@ impl<D: 'static> DragSpec<D> {
                 radius,
                 chain,
             },
-            DragSpec::Thrown { spec, speed } => DragSpec::Thrown {
+            DragSpec::Thrown {
+                spec,
+                speed,
+                seconds,
+            } => DragSpec::Thrown {
                 spec: Box::new(spec.map(drop)),
                 speed,
+                seconds,
             },
             DragSpec::Following { spec, along } => DragSpec::Following {
                 spec: Box::new(spec.map(drop)),
@@ -782,12 +806,16 @@ fn walk<'s, D: Clone>(
                 false => Some(floated(carried)),
             }
         }
-        DragSpec::Thrown { spec, speed } => {
+        DragSpec::Thrown {
+            spec,
+            speed,
+            seconds,
+        } => {
             let thrown = evaluation.released && evaluation.velocity.length() >= *speed;
             if !thrown {
                 return walk(spec, evaluation, last, carried, next, along);
             }
-            let ahead = evaluation.velocity * THROW_SECONDS;
+            let ahead = evaluation.velocity * *seconds;
             let point = DragPoint {
                 pos: evaluation.point.pos + ahead,
                 ..evaluation.point
