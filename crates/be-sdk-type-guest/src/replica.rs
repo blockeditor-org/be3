@@ -1370,14 +1370,18 @@ where
                 change: Change::Undo,
                 ..
             })
-        ) && took.settled
+        ) && took.undone
         {
             // Undo while the layer is held cancels all of it, as Escape would, and is spent.
+            // The open gestures stay open, voided, until their editors end them (`Holds::undo`).
             let _ = self.history.undo(&self.visible);
+            for gesture in self.holds.open() {
+                self.history.begin(*gesture, GestureKind::Tentative);
+            }
             self.undo_spent = true;
-            for (gesture, _) in &took.ended {
-                if !self.voided.remove(gesture) {
-                    self.gesture_ended(*gesture);
+            for gesture in took.voided {
+                if self.voided.insert(gesture) {
+                    self.gesture_ended(gesture);
                 }
             }
             if !std::mem::take(&mut self.tentative).is_empty() {

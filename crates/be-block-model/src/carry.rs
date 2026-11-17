@@ -13,7 +13,9 @@ impl<R: Model> crate::Document<R> {
     /// loaded afresh. A text or series operation is rebuilt from the visible splices it makes on
     /// `before` (what it shows inserted by `client`), a mark from the formats it leaves, and
     /// every other change names objects, which keep their ids, and travels unchanged unless the
-    /// object it changes is gone from `after`. None when nothing of it is left.
+    /// object it changes is gone from `after`. None when nothing of it is left. Such a change
+    /// is lost even if the object comes back after (a peer's undo of its removal): carried, it
+    /// would have landed then.
     pub fn carry_over(edit: &Edit, before: &Self, after: &Self, client: u64) -> Option<Edit> {
         let mut before = before.clone();
         let mut after = after.clone();

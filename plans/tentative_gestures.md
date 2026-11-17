@@ -174,10 +174,18 @@ a carry whose gesture ended, so the item glides home and the site stops previewi
    - `Document::carry_over` drops a change naming an object the content loaded afresh lacks, so
      a restart that removed the dragged item ends the drag.
    - A committed gesture waiting for the rest is lost with the layer by a crash, as one gesture.
-   - Left as is: an editor whose commit crosses the replica's `GestureEnded` commits a voided
-     gesture, whose operations then count though they were dropped; a replica opened again
-     from `replay` makes them ordinary edits. Step 3's editor never commits after
-     `GestureEnded`, which narrows it to that crossing.
+   - An undo while the layer is held voids the open gestures in `Holds` as well, since the host
+     sees it: they stay open, what their editors send before hearing is held, and none of it
+     counts however they end.
+   - Left for step 3: a gesture the replica voids itself (a replacement, an edit that does not
+     carry) is voided only in the replica, since the host cannot see it. Its editor ending it
+     with a commit counts its operations though they were dropped, and a replica opened again
+     from `replay` before a status covers them makes them ordinary edits. Step 3's editor must
+     answer `GestureEnded` with a cancel, which leaves only a commit that crosses it.
+   - Costs left as they are: an ordinary edit made while the layer is held rebuilds `visible`
+     and snapshots every editor, per keystroke (`Journaled::Beneath` with the layer as `local`
+     would tell them less); and since `unsettled` counts the layer, a peer's entry while it is
+     held may rebuild `visible` and snapshot the editors rather than land beneath it.
    - The audit: every content type names items by id. `be_block_model` changes name
      `ObjectId`s, anchors and sequence `Pos`es; blobs, the chat, the search index and the test
      fixtures set whole values or append. The one index, the `Sections` test fixture's

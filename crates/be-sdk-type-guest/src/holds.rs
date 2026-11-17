@@ -37,6 +37,9 @@ struct HeldMessage {
 pub struct Holds {
     /// Open, in the order they began.
     open: Vec<GestureId>,
+    /// Open ones an undo cancelled: their editors have yet to end them, and nothing of them
+    /// counts.
+    voided: Vec<GestureId>,
     /// The messages held, in the order they arrived.
     held: Vec<HeldMessage>,
     next: u64,
@@ -60,6 +63,11 @@ pub struct Took {
     pub this: This,
     /// The tentative gestures it ended, in order, and whether each committed.
     pub ended: Vec<(GestureId, bool)>,
+    /// The open tentative gestures an undo cancelled, which stay open until their editors end
+    /// them, holding what they send and counting none of it.
+    pub voided: Vec<GestureId>,
+    /// An undo found a tentative gesture open: it cancels the layer and does nothing else.
+    pub undone: bool,
     /// The tentative gesture it opened.
     pub opened: Option<GestureId>,
     /// Whether the layer settled: the last open tentative gesture ended.
@@ -111,21 +119,24 @@ impl Holds {
     }
 
     /// An undo while a layer is held cancels all of it, committed gestures waiting for the rest
-    /// too: nothing of it counts.
+    /// too: nothing of it counts. The open gestures stay open, voided, since their editors go on
+    /// sending until they hear: what they send is held, and released uncounted when they end.
     pub fn undo(&mut self) -> Took {
         let mut took = Took::default();
         if self.open.is_empty() {
             return took;
         }
-        took.ended = std::mem::take(&mut self.open)
-            .into_iter()
-            .map(|gesture| (gesture, false))
-            .collect();
+        took.undone = true;
+        for gesture in &self.open {
+            if !self.voided.contains(gesture) {
+                self.voided.push(*gesture);
+                took.voided.push(*gesture);
+            }
+        }
         took.released = std::mem::take(&mut self.held)
             .into_iter()
             .map(|held| held.serial)
             .collect();
-        took.settled = true;
         took
     }
 
@@ -162,7 +173,10 @@ impl Holds {
     fn end(&mut self, gesture: GestureId, committed: bool, took: &mut Took) {
         self.open.retain(|open| *open != gesture);
         took.ended.push((gesture, committed));
-        if !committed {
+        // A voided gesture keeps nothing, however it ends.
+        let voided = self.voided.contains(&gesture);
+        self.voided.retain(|open| *open != gesture);
+        if !committed || voided {
             self.held.retain(|held| {
                 let ours = held.gesture == gesture;
                 if ours {
