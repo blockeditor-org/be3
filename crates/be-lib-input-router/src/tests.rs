@@ -424,3 +424,164 @@ fn a_drag_goes_over_the_surfaces_under_the_pointer_and_drops_on_the_one_under_th
         }
     );
 }
+
+#[test]
+fn cancelled_pointers_end_the_press_the_pen_the_fingers_and_a_carry() {
+    let test = canvas_with_editor();
+    let mut router = Router::new(ROOT);
+    router.route(&test, touch(1, TouchPhase::Start, 150.0, 150.0));
+    router.route(&test, press(250.0, 250.0, true));
+    let cancelled = router.route(&test, Input::PointersCancelled);
+    assert_eq!(
+        cancelled,
+        vec![
+            Routed::Input {
+                target: EDITOR,
+                input: Input::PointersCancelled,
+            },
+            Routed::Input {
+                target: CANVAS,
+                input: Input::PointersCancelled,
+            },
+        ],
+        "each surface holding a press hears once that it ended"
+    );
+    assert_eq!(router.pressed(), None);
+    assert!(
+        router
+            .route(&test, touch(1, TouchPhase::Move, 160.0, 160.0))
+            .is_empty(),
+        "a cancelled finger goes nowhere"
+    );
+    router.route(&test, press(250.0, 250.0, true));
+    router.start_drag(&test, EDITOR);
+    let ended = router.route(&test, Input::PointersCancelled);
+    assert_eq!(
+        ended,
+        vec![Routed::Drag {
+            target: EDITOR,
+            drag: Drag::Left,
+        }],
+        "a carry ends where it was, dropped nowhere"
+    );
+    assert!(
+        router.route(&test, press(150.0, 150.0, false)).iter().all(
+            |routed| !matches!(routed, Routed::Drag { drag: Drag::Dropped { .. }, .. })
+        )
+    );
+}
+
+#[test]
+fn a_forgotten_surface_holds_nothing_and_hears_nothing() {
+    let test = canvas_with_editor();
+    let mut router = Router::new(ROOT);
+    router.route(&test, press(250.0, 250.0, true));
+    router.route(&test, key(Key::Tab, true));
+    assert!(router.lock(EDITOR));
+    router.forget(EDITOR);
+    assert_eq!(
+        (
+            router.pressed(),
+            router.focused(),
+            router.hovered(),
+            router.locked()
+        ),
+        (None, None, None, None)
+    );
+    assert!(router.route(&test, key(Key::Tab, false)).is_empty());
+    assert!(
+        router
+            .route(&test, Input::PointerMotion(be_lib_geometry::vec2(1.0, 0.0)))
+            .is_empty()
+    );
+    assert_eq!(
+        targets(&router.route(&test, Input::PointerMoved(pos2(150.0, 150.0)))),
+        vec![CANVAS],
+        "the pointer it held is free again"
+    );
+}
+
+#[test]
+fn a_keys_release_follows_its_press_after_the_focus_moves() {
+    let test = canvas_with_editor();
+    let mut router = Router::new(ROOT);
+    router.focus(Some(EDITOR));
+    router.route(&test, key(Key::A, true));
+    router.focus(Some(CANVAS));
+    assert_eq!(
+        targets(&router.route(&test, key(Key::A, false))),
+        vec![EDITOR]
+    );
+    assert_eq!(
+        targets(&router.route(&test, key(Key::A, true))),
+        vec![CANVAS],
+        "the next press goes to the new focus"
+    );
+}
+
+#[test]
+fn a_pen_down_holds_its_surface_until_it_lifts() {
+    let test = canvas_with_editor();
+    let mut router = Router::new(ROOT);
+    let pen = |phase: PenPhase, x: f32, y: f32| Input::Pen {
+        phase,
+        pos: pos2(x, y),
+        pen: be_lib_ui_types::input::Pen {
+            pressure: 0.5,
+            tilt: be_lib_geometry::vec2(0.0, 0.0),
+            eraser: false,
+        },
+    };
+    let down = router.route(&test, pen(PenPhase::Down(PointerButton::Primary), 250.0, 250.0));
+    assert_eq!(targets(&down), vec![EDITOR, EDITOR], "it focuses and hears the pen");
+    assert_eq!(
+        router.route(&test, pen(PenPhase::Move, 600.0, 600.0)),
+        vec![Routed::Input {
+            target: EDITOR,
+            input: pen(PenPhase::Move, 400.0, 400.0),
+        }]
+    );
+    assert_eq!(
+        targets(&router.route(&test, pen(PenPhase::Up(PointerButton::Primary), 600.0, 600.0))),
+        vec![EDITOR]
+    );
+    assert_eq!(
+        targets(&router.route(&test, pen(PenPhase::Move, 600.0, 600.0))),
+        vec![CANVAS],
+        "once lifted it hovers what is under it"
+    );
+}
+
+#[test]
+fn a_scroll_and_a_touchpad_gesture_stay_with_the_surface_they_began_on() {
+    let test = canvas_with_editor();
+    let mut router = Router::new(ROOT);
+    router.route(&test, Input::PointerMoved(pos2(250.0, 250.0)));
+    assert_eq!(targets(&router.route(&test, Input::ScrollStarted)), vec![EDITOR]);
+    router.route(&test, Input::PointerMoved(pos2(150.0, 150.0)));
+    assert_eq!(
+        targets(&router.route(
+            &test,
+            Input::Scroll(be_lib_ui_types::input::ScrollDelta::Pixels(
+                be_lib_geometry::vec2(0.0, 4.0)
+            ))
+        )),
+        vec![EDITOR],
+        "a scroll that began over the editor stays with it"
+    );
+    assert_eq!(targets(&router.route(&test, Input::ScrollEnded)), vec![EDITOR]);
+    assert_eq!(
+        targets(&router.route(&test, Input::Touchpad(TouchpadGesture::PinchBegan(2)))),
+        vec![CANVAS],
+        "the next gesture begins where the pointer is now"
+    );
+    router.route(&test, Input::PointerMoved(pos2(250.0, 250.0)));
+    assert_eq!(
+        targets(&router.route(&test, Input::Touchpad(TouchpadGesture::PinchEnded(false)))),
+        vec![CANVAS]
+    );
+    assert_eq!(
+        targets(&router.route(&test, Input::Touchpad(TouchpadGesture::HoldBegan(2)))),
+        vec![EDITOR]
+    );
+}

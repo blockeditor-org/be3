@@ -916,7 +916,8 @@ impl beui::native::Draw for AppDrawing {
                 return;
             };
             let mut placed = Vec::new();
-            for (index, blit) in blits.iter().enumerate() {
+            let mut pieces = crate::layers::Pieces::default();
+            for blit in blits.iter() {
                 let (frames, region, surfaces) = {
                     let mut shared = blit.shared.borrow_mut();
                     let frames = shared.take_frames();
@@ -941,10 +942,14 @@ impl beui::native::Draw for AppDrawing {
                 let layer = match blit.layer {
                     Some(anchored) => platform
                         .size(blit.surface, anchored.surface)
-                        .and_then(|size| blit.anchored_layer(anchored, size, index)),
+                        .and_then(|size| {
+                            let piece = pieces.next(blit.surface, u64::from(anchored.surface), true);
+                            blit.anchored_layer(anchored, size, piece)
+                        }),
                     None => region.and_then(|placement| {
                         let texture = platform.size(blit.surface, placement.surface);
-                        blit.screen_layer(&placement, texture, index)
+                        let piece = pieces.next(blit.surface, blit.screen.0, false);
+                        blit.screen_layer(&placement, texture, piece)
                     }),
                 };
                 blit.status.set(match failure {
@@ -956,7 +961,9 @@ impl beui::native::Draw for AppDrawing {
                         Surface::Screen { surface, .. } | Surface::Anchored { surface, .. } => {
                             surface
                         }
-                        Surface::Root(_) | Surface::Host(_) => continue,
+                        Surface::Root(_) | Surface::Host(_) => {
+                            unreachable!("a blit's layer is an app's surface")
+                        }
                     };
                     placed.push((
                         blit.surface,
