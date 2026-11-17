@@ -53,11 +53,8 @@ impl<S: ObjectStore> Peer<S> {
             moved.insert(pending.commit, again.commit);
             rewritten.push((sequence, again));
         }
-        let head = self
-            .local_head(block)
-            .map(|head| moved.get(&head).copied().unwrap_or(head));
         self.commits.vault().store().sync()?;
-        self.refs.replace_publishes(block, rewritten, head)?;
+        self.refs.replace_publishes(block, rewritten, &moved)?;
         let mut resealed = self.resealed.lock().unwrap();
         // A write a replica bases on a commit sealed again goes on the one in its place.
         for (before, after) in &moved {

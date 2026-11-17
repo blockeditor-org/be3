@@ -1937,13 +1937,15 @@ impl Refs {
         self.state.lock().unwrap().outbox.get(&sequence).cloned()
     }
 
-    /// Puts each publish in `rewritten` in the place of the one at its sequence, and makes
-    /// `head` the block's local head, in one write: what `Peer::reseal` sealed again.
+    /// Puts each publish in `rewritten` in the place of the one at its sequence, and moves the
+    /// block's local head to what `moved` put in its place, in one write: what `Peer::reseal`
+    /// sealed again. The head is read here, under the lock, so a commit made while the
+    /// commits were sealed again stays the head.
     pub fn replace_publishes(
         &self,
         block: Uuid,
         rewritten: Vec<(u64, Pending)>,
-        head: Option<CommitId>,
+        moved: &HashMap<CommitId, CommitId>,
     ) -> Result<(), StoreError> {
         let mut rows = Vec::with_capacity(rewritten.len() + 1);
         {
@@ -1955,7 +1957,8 @@ impl Refs {
                     *held = op;
                 }
             }
-            if let Some(head) = head {
+            if let Some(head) = state.heads.get(&block).and_then(|head| moved.get(head)) {
+                let head = *head;
                 rows.push(row(Table::Head, block.as_bytes().to_vec(), &head));
                 state.heads.insert(block, head);
             }

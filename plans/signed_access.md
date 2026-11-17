@@ -690,7 +690,9 @@ instead.
    now, or no epoch the logs do not outdate can be made. Done: a test where an
    edit sealed offline under a key a revoked member made up reaches the server
    under a key they never get; one where an author demoted meanwhile has their
-   edit set aside and makes no epoch.
+   edit set aside and makes no epoch; one where a merge holding a local commit
+   under the outdated key, outside the outbox, is set aside and that commit
+   never uploaded.
 8. **Demotions rotate scopes.** A demotion makes every scope under the escrow
    due a rotation, as a revocation does its block's, so a demoted
    administrator reads nothing written after it under epochs they reached
