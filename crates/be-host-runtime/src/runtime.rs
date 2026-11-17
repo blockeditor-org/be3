@@ -556,11 +556,20 @@ impl Presents {
         self.reported.push_back(presented);
     }
 
-    fn damage_through(&mut self, presents: u64) -> Option<Vec<ScreenDamage>> {
+    /// The damage of the presents since the last shown through `presents`, where every one of
+    /// them reported it, and the placements their surfaces were painted at, in order.
+    fn damage_through(
+        &mut self,
+        presents: u64,
+    ) -> (Option<Vec<ScreenDamage>>, Vec<be_sdk_api::ScreenPlacement>) {
         let since = std::mem::replace(&mut self.shown, presents);
         let mut damage = Vec::new();
+        let mut painted = Vec::new();
         let mut found = 0;
         for presented in &self.reported {
+            if presented.sequence <= presents {
+                painted.extend_from_slice(&presented.painted);
+            }
             if presented.sequence > since && presented.sequence <= presents {
                 damage.extend_from_slice(&presented.damage);
                 found += 1;
@@ -568,7 +577,10 @@ impl Presents {
         }
         self.reported
             .retain(|presented| presented.sequence > presents);
-        (presents > since && found == presents - since).then_some(damage)
+        (
+            (presents > since && found == presents - since).then_some(damage),
+            painted,
+        )
     }
 }
 
@@ -1143,7 +1155,9 @@ impl Runtime {
         let previewed = self.export_previews(&frame);
         let mut changed = true;
         if frame.composited() {
-            frame.set_damage(self.presents.damage_through(frame.presents()));
+            let (damage, painted) = self.presents.damage_through(frame.presents());
+            frame.set_damage(damage);
+            self.shared.borrow_mut().paint(&painted);
             changed = frame_changed(frame.damage());
             if !self.kept.is_empty() {
                 self.release_kept();
@@ -1683,6 +1697,10 @@ impl Runtime {
             }
         }
         if let Some(presented) = presented {
+            // The browser's worker shows a present on its canvases as it makes it, so what each
+            // surface holds changes now; natively it changes as the frame is shown (`show_frame`).
+            #[cfg(target_arch = "wasm32")]
+            self.shared.borrow_mut().paint(&presented.painted);
             self.presents.report(presented);
         }
         self.close_anchored();
@@ -1784,8 +1802,11 @@ impl Runtime {
             .publish(&self.layout, self.kept_placements(), None);
     }
 
-    fn template(&self, screen: ScreenId, drawn: Option<(u32, u32)>) -> Blit {
+    fn template(&self, screen: ScreenId) -> Blit {
         let placement = self.shown_placement(screen);
+        let zoom = placement
+            .and_then(|placement| self.placements.get(&(placement.instance, placement.view)))
+            .map_or(1.0, |placed| placed.zoom);
         Blit {
             surface: self.surface,
             status: self.status.clone(),
@@ -1793,8 +1814,8 @@ impl Runtime {
             screen,
             quad: Quad::upright(Rect::ZERO),
             source: UNIT,
-            drawn,
-            requested: self.requested_size(screen),
+            zoom,
+            picture: placement.is_some_and(|placement| placement.view == ViewId::PREVIEW),
             placed: placement
                 .map(|placement| [placement.surface, placement.width, placement.height]),
             layer: None,
@@ -3803,23 +3824,12 @@ pub fn view_drawing(
     }
     with(app_id, |runtime| {
         let screen = runtime.instances.screen_id(instance, region)?;
-        let mut template = runtime.template(screen, view.drawn);
+        let mut template = runtime.template(screen);
         template.quad.opacity = opacity;
         template.quad.corner_radius = corner_radius;
-        let shown_once = region != ViewId::PREVIEW
-            && runtime
-                .offers
-                .get(&(instance, region))
-                .is_some_and(|offers| offers.len() == 1);
-        let made_for = runtime
-            .placements
-            .get(&(instance, region))
-            .filter(|_| shown_once)
-            .map(|placed| placed.rect.size());
         let shared = Rc::new(RefCell::new(pieces.to_vec()));
         let drawing = beui::native::painted_drawing(ViewDrawing::new(
             template,
-            made_for,
             Rc::clone(&shared),
             view.held,
             rotation,
@@ -3831,7 +3841,7 @@ pub fn view_drawing(
 
 pub fn anchored_blits(app_id: &str, layer: &HostAnchored) -> Vec<Blit> {
     with(app_id, |runtime| {
-        let template = runtime.template(layer.screen, None);
+        let template = runtime.template(layer.screen);
         let pixels_per_point = layer.pixels_per_point;
         Some(
             layer
@@ -3845,8 +3855,6 @@ pub fn anchored_blits(app_id: &str, layer: &HostAnchored) -> Vec<Blit> {
                     Blit {
                         quad: Quad::upright(piece),
                         source: UNIT,
-                        drawn: None,
-                        requested: None,
                         layer: Some(AnchoredSource {
                             surface: layer.surface,
                             bounds: layer.bounds,
@@ -3898,7 +3906,9 @@ pub fn view_damage(
     }
     with(app_id, |runtime| {
         let screen = runtime.instances.screen_id(instance, region)?;
-        runtime.template(screen, view.drawn).damage(pieces, seen)
+        runtime
+            .template(screen)
+            .damage(pieces, view.rect.size(), seen)
     })
     .flatten()
 }
