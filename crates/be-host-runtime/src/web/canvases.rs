@@ -32,7 +32,7 @@ pub fn placement(blit: &Blit, order: usize, above: bool, scale: f32) -> Option<P
     if placement.width == 0 || placement.height == 0 {
         return None;
     }
-    let (quad, source) = blit.shown_at((placement.width, placement.height))?;
+    let (quad, source) = blit.shown_at(placement)?;
     if !source.is_positive() {
         return None;
     }
