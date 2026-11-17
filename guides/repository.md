@@ -14,6 +14,10 @@ library is `//crates/NAME:NAME`, abbreviated `//crates/NAME`, with its other tar
   the platform and aren't apps a person uses.
 - `be-type-*`: the block type module of the app of the same name; `be-type-bundle` holds every
   first-party type module by app id.
+- `be-worker-*`: apps' workers (guides/adding_an_app.md, Workers): `be-worker-<app>` the
+  messages the app and its workers exchange, which the app depends on, and each
+  `be-worker-<app>-<worker>` a worker's `Work` and module, which only the module and the app's
+  tests link.
 - `be-sdk-*`: what apps are written with: the protocol (`be-sdk-api`), the guest libraries
   (`be-sdk`, `be-sdk-beui`), the libraries apps link against and the test harness.
 - `be-host-*`: be-host, split into crates that build in parallel. `be-host-base`,

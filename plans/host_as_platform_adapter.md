@@ -293,9 +293,10 @@ different memory limits. A staged app's module, its entry point or one of its wo
 a loader the host gives the `Server` (be-host-runtime's `staged_app`), and runs with its libraries
 and WASI but no display. Every app is served one already, for its workers, which spawns only its
 own app's modules and compiles none (plans/single_threaded_guests.md, step 1).
-`crates/be-wasm-root-host` serves the root one that may spawn any staged app (step 4a). The web's
-half is not built: it lands with the first guest on the web that spawns (step 4d, or
-plans/single_threaded_guests.md).
+`crates/be-wasm-root-host` serves the root one that may spawn any staged app (step 4a). On the web
+the same `Server` spawns an app's workers, each in a web worker of its own
+(plans/single_threaded_guests.md, step 2), but compiles no module from bytes: that lands with the
+root guest on the web (step 4d).
 
 An app's platform calls (clipboard, drag and drop, file dialogs, opening URLs) are served by the
 host directly for that app, and the compositor can turn them off for it.

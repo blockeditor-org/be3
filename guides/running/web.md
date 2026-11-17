@@ -95,6 +95,10 @@ hands workers canvases instead (crates/be-host-runtime/src/web):
   layer's transform and clip (`layers::canvas_style`). An anchored view's pieces are its
   `Surface::Anchored` layers, kept to the view's bounds.
 
+An app's workers (guides/adding_an_app.md, Workers) are Web Workers too, one each, started by the
+page for the app (be-wasm-sandbox-host's `web`) from `workers/<app id>/` and linked by
+`web/worker.js` with no GPU device; their consoles go to `browser.log` with the page's.
+
 ## Files and offline
 
 The web build keeps the same files as native be-host, under `/be-host` in the origin private file
