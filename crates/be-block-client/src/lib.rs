@@ -19,7 +19,7 @@ pub use connection::{Answer, Connection, Event, ask};
 pub use contacts::{Contact, GrantOffer};
 pub use keys::{EscrowWarning, KeyBook};
 pub use peer::{
-    BlockRead, Credentials, Drained, MAX_NOTIFICATION_AGE_MILLISECONDS, MAX_NOTIFICATION_TEXT,
+    BlockRead, Credentials, Drained, Listed, MAX_NOTIFICATION_AGE_MILLISECONDS, MAX_NOTIFICATION_TEXT,
     Notification, OpenedNotification, Peer, PeerConfig, Reconciled, Resolver, Saved, Sealed,
     Signer, Write,
 };

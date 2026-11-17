@@ -27,6 +27,14 @@ use crate::{
     refs::{Creation, ListedBlock, Op, Pending, Refs, RefsDb, Scope, Session},
 };
 
+/// A listing's blocks, and the organization's change sequence the server read them at: a block
+/// that changes after it does so at a larger `changed`.
+#[derive(Clone, Debug, Default)]
+pub struct Listed {
+    pub sequence: u64,
+    pub blocks: Vec<BlockSummary>,
+}
+
 /// A block as `Peer::read_contents` read it.
 #[derive(Clone, Debug)]
 pub struct BlockRead {
@@ -608,11 +616,8 @@ impl<S: ObjectStore> Peer<S> {
             pinned,
             server,
             time,
-            client: opened,
             ..
         } = client::organizations::open_organization(&connection, organization).await??;
-        connection.opened(opened);
-        connection.hold_with(Arc::clone(&self.refs) as Arc<dyn crate::connection::Held>);
         self.measured_server(time, connection.clock());
         *self.session.lock().unwrap() = (role, kind);
         self.keys
@@ -979,9 +984,7 @@ impl<S: ObjectStore> Peer<S> {
             self.make_current(summary.id, key);
         }
         self.observe(std::slice::from_ref(summary));
-        let _ = self
-            .refs
-            .set_listing(Listing::Block(summary.id), std::slice::from_ref(summary));
+        let _ = self.refs.note(summary);
         if !summary.access.can_edit() && self.refs.has_pending(summary.id) {
             let _ = self.move_to_unsent(summary.id, None);
         }
@@ -1592,6 +1595,17 @@ impl<S: ObjectStore> Peer<S> {
         Ok(self.refs.forget_let_go(block)?)
     }
 
+    /// The head `summary` names, unless this device already knows a newer one the server took
+    /// (`behind`): an answer read before a publish of this device's and taken after it.
+    pub fn head_of(&self, summary: &BlockSummary) -> Option<CommitId> {
+        let head = summary.head?;
+        Some(
+            self.known_remote_head(summary.id)
+                .filter(|known| self.behind()(head, *known))
+                .unwrap_or(head),
+        )
+    }
+
     pub fn known_remote_head(&self, block: Uuid) -> Option<CommitId> {
         self.refs.remote(block)
     }
@@ -1935,7 +1949,7 @@ impl<S: ObjectStore> Peer<S> {
         edit: impl Fn(&mut BlockMetadata),
     ) -> Result<BlockSummary, ClientError> {
         let summary = match self.refs.summary(block) {
-            Some(summary) => self.refs.current(vec![summary]).remove(0),
+            Some(summary) => summary,
             None => self.summary(block).await?,
         };
         let head = self.local_head(block).or(summary.head);
@@ -2151,7 +2165,7 @@ impl<S: ObjectStore> Peer<S> {
         // server answers of a block it does not know.
         if self.local {
             return match self.refs.summary(block) {
-                Some(summary) => Ok(self.refs.current(vec![summary]).remove(0)),
+                Some(summary) => Ok(summary),
                 None => Err(ClientError::Refused(
                     ErrorCode::BlockNotFound,
                     format!("block {block} is not on this device"),
@@ -2162,25 +2176,26 @@ impl<S: ObjectStore> Peer<S> {
         if self.uncreated(block)
             && let Some(summary) = self.refs.summary(block)
         {
-            return Ok(self.refs.current(vec![summary]).remove(0));
+            return Ok(summary);
         }
         self.server_summary(block).await
     }
 
     /// What the server says of a block, or offline what this device last heard.
     pub(super) async fn server_summary(&self, block: Uuid) -> Result<BlockSummary, ClientError> {
-        let response = crate::ask(client::blocks::list_blocks(
+        // A block the caller may not know of reads as none, as one that is not there does.
+        let response = crate::ask(client::blocks::read_summaries(
             &self.connection(),
-            Listing::Block(block),
-            None,
+            vec![block],
         ))
         .await
-        .and_then(|listed| {
-            listed
-                .blocks
-                .into_iter()
-                .next()
-                .ok_or(ClientError::Unexpected)
+        .and_then(|mut read| match read.pop() {
+            Some(Some(summary)) if read.is_empty() => Ok(summary),
+            Some(None) => Err(ClientError::Refused(
+                ErrorCode::BlockNotFound,
+                format!("block {block} is not there for this account"),
+            )),
+            _ => Err(ClientError::Unexpected),
         });
         match response {
             Ok(block) => {
@@ -2188,7 +2203,7 @@ impl<S: ObjectStore> Peer<S> {
                 Ok(self.summary_with_outbox(block))
             }
             Err(error) if error.is_unreachable() => match self.refs.summary(block) {
-                Some(summary) => Ok(self.refs.current(vec![summary]).remove(0)),
+                Some(summary) => Ok(summary),
                 None => Err(error),
             },
             Err(ClientError::Refused(code, message)) => {
@@ -2205,30 +2220,41 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
-    /// The blocks of `listing`, which this connection follows from then on (`unlist` stops
-    /// it); offline, what this device last heard, and for a local account what it holds.
+    /// The blocks of `listing`; offline, what this device last heard, and for a local account
+    /// what it holds.
     pub async fn list(&self, listing: Listing) -> Result<Vec<BlockSummary>, ClientError> {
+        Ok(self.listing(listing).await?.blocks)
+    }
+
+    /// The blocks of `listing`, and the organization's sequence the server read them at
+    /// (`Listed::sequence`); offline, and for a local account, the newest sequence this device
+    /// knows.
+    pub async fn listing(&self, listing: Listing) -> Result<Listed, ClientError> {
+        let here = |blocks| Listed {
+            sequence: self.refs.newest_sequence(),
+            blocks,
+        };
         if self.local {
-            return Ok(self.refs.current(self.refs.local_listing(listing)));
+            return Ok(here(self.refs.local_listing(listing)));
         }
         if let Some(block) = about(listing)
             && self.refs.creating(block)
         {
-            return Ok(self.listed_here(listing, block));
+            return Ok(here(self.listed_here(listing, block)));
         }
         match self.list_online(listing).await {
-            Ok((revision, blocks)) => {
+            Ok((sequence, blocks)) => {
                 self.observe(&blocks);
                 let blocks = blocks
                     .into_iter()
                     .map(|summary| self.summary_with_outbox(summary))
                     .collect();
                 let blocks = self.with_outbox(listing, blocks);
-                let _ = self.refs.listed(listing, &blocks, revision);
-                Ok(blocks)
+                let _ = self.refs.listed(listing, &blocks, sequence);
+                Ok(Listed { sequence, blocks })
             }
             Err(error) if error.is_unreachable() => match self.refs.cached_listing(listing) {
-                Some(blocks) => Ok(self.refs.current(blocks)),
+                Some(blocks) => Ok(here(blocks)),
                 None => Err(error),
             },
             Err(error) => Err(error),
@@ -2236,12 +2262,12 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// The server's answer to `listing`, every page of it (in the order of block ids, each
-    /// after the last), with the summaries of each page's `rest` read after it. Summaries read
-    /// after the first page are newer than the listing's revision, so one the listing would no
-    /// longer hold is left out (`still_in`). A block's references are put in its own order.
+    /// after the last), with the summaries of each page's `rest` read after it, and the sequence
+    /// of the first page. Summaries read after the first page may be newer, so one the listing
+    /// would no longer hold is left out (`still_in`). A block's references are put in its own
+    /// order.
     async fn list_online(&self, listing: Listing) -> Result<(u64, Vec<BlockSummary>), ClientError> {
-        let mut first_revision = None;
-        let mut last_revision;
+        let mut first_sequence = None;
         let mut after = None;
         // The listing in order: a summary given, or an id whose summary is read below.
         let mut entries: Vec<Result<BlockSummary, Uuid>> = Vec::new();
@@ -2252,9 +2278,8 @@ impl<S: ObjectStore> Peer<S> {
                 after,
             ))
             .await?;
-            let later = first_revision.is_some();
-            first_revision.get_or_insert(page.revision);
-            last_revision = page.revision;
+            let later = first_sequence.is_some();
+            first_sequence.get_or_insert(page.sequence);
             entries.extend(
                 page.blocks
                     .into_iter()
@@ -2290,10 +2315,8 @@ impl<S: ObjectStore> Peer<S> {
             .filter(|summary| seen.insert(summary.id))
             .collect();
         // A block's references come in the order of their ids; the block's own summary, read
-        // without listing it, gives their order. Read after the pages, it is as new as any of
-        // them, so a block it no longer references has left the listing. (A summary older than
-        // the pages, as one kept offline would be, could miss a reference newly made: such
-        // blocks would go to the end rather than be dropped.)
+        // after the pages, gives their order, and as new as any of them, so a block it no longer
+        // references has left the listing.
         if let Listing::References(referrer) = listing
             && blocks.len() > 1
             && let Some(summary) = self.read_summaries(&[referrer]).await?.pop()
@@ -2304,18 +2327,16 @@ impl<S: ObjectStore> Peer<S> {
                 .enumerate()
                 .map(|(index, reference)| (*reference, index))
                 .collect();
-            if summary.revision >= last_revision {
-                blocks.retain(|block| order.contains_key(&block.id));
-            }
+            blocks.retain(|block| order.contains_key(&block.id));
             blocks.sort_by_key(|block| order.get(&block.id).copied().unwrap_or(usize::MAX));
         }
-        Ok((first_revision.unwrap_or_default(), blocks))
+        Ok((first_sequence.unwrap_or_default(), blocks))
     }
 
     /// The summaries of `blocks` the server still lets this device know of, read
     /// `MAX_SUMMARIES_ASKED` at a time with every group asked at once, and the rest of a group
     /// asked again when an answer holds only its first.
-    async fn read_summaries(&self, blocks: &[Uuid]) -> Result<Vec<BlockSummary>, ClientError> {
+    pub async fn read_summaries(&self, blocks: &[Uuid]) -> Result<Vec<BlockSummary>, ClientError> {
         let ask =
             |group: &[Uuid]| client::blocks::read_summaries(&self.connection(), group.to_vec());
         let asked: Vec<_> = blocks
@@ -2345,7 +2366,7 @@ impl<S: ObjectStore> Peer<S> {
     /// what is in force at its parent.
     fn listed_here(&self, listing: Listing, block: Uuid) -> Vec<BlockSummary> {
         if let Some(cached) = self.refs.cached_listing(listing) {
-            return self.refs.current(self.with_outbox(listing, cached));
+            return self.with_outbox(listing, cached);
         }
         let parent = self
             .refs
@@ -2353,17 +2374,13 @@ impl<S: ObjectStore> Peer<S> {
             .and_then(|summary| summary.parent)
             .and_then(|parent| parent.block());
         let blocks = match (listing, parent) {
-            (Listing::Block(_), _) => self.refs.summary(block).into_iter().collect(),
             (Listing::OpenSettings(_), Some(parent)) => self
                 .refs
                 .cached_listing(Listing::OpenSettings(parent))
-                .map(|cached| self.refs.current(cached))
                 .unwrap_or_default(),
             _ => Vec::new(),
         };
-        // As of the newest revision this device knows, as every offline answer is: a block
-        // made here has none of its own yet.
-        self.refs.current(self.with_outbox(listing, blocks))
+        self.with_outbox(listing, blocks)
     }
 
     /// A summary the server answered, as this device has it: where a move waiting in the
@@ -3120,24 +3137,31 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
-    /// One page of what changed after the sequence `since` in `root`'s tree, from `after`
-    /// (`ChangeCursor { changed: since, block: Uuid::max() }` starts): see `changed_pages`.
+    /// One page of what changed in the tree of `entry` (`block-summary.entry`) after `after`
+    /// (`ChangeCursor { changed: since, block: Uuid::max() }` starts): see `changed_since`.
+    /// With `follow`, this connection follows the entry from then on: `Event::TreeAdvanced`
+    /// tells as its tree changes, until `unfollow`.
     pub async fn changed_page(
         &self,
-        root: Uuid,
+        entry: Uuid,
         after: ChangeCursor,
         limit: u32,
+        follow: bool,
     ) -> Result<ChangedPage, ClientError> {
-        Ok(client::blocks::changed_since(&self.connection(), root, after, limit).await??)
+        Ok(
+            client::blocks::changed_since(&self.connection(), entry, after, limit, follow)
+                .await??,
+        )
     }
 
-    /// Everything that changed after the sequence `since` in `root`'s tree, every page of it:
-    /// the summaries of the blocks in the tree that changed, the blocks that left it, and the
-    /// sequence to continue from.
+    /// Everything that changed after the sequence `since` in the tree of `entry`, every page of
+    /// it: the summaries of the blocks in the tree that changed, the blocks that left it, and
+    /// the sequence to continue from. With `follow`, the connection follows the entry first.
     pub async fn changed_since(
         &self,
-        root: Uuid,
+        entry: Uuid,
         since: u64,
+        follow: bool,
     ) -> Result<(Vec<BlockSummary>, Vec<Uuid>, u64), ClientError> {
         const PAGE: u32 = 200;
         let (mut summaries, mut removed) = (Vec::new(), Vec::new());
@@ -3145,8 +3169,10 @@ impl<S: ObjectStore> Peer<S> {
             changed: since,
             block: Uuid::max(),
         };
+        let mut follow = follow;
         loop {
-            let page = self.changed_page(root, after, PAGE).await?;
+            let page = self.changed_page(entry, after, PAGE, follow).await?;
+            follow = false;
             self.learn(&page.summaries).await?;
             summaries.extend(page.summaries);
             removed.extend(page.removed);
@@ -3155,6 +3181,11 @@ impl<S: ObjectStore> Peer<S> {
                 None => return Ok((summaries, removed, page.sequence)),
             }
         }
+    }
+
+    /// Stops following `entry` (`changed_page`'s `follow`).
+    pub async fn unfollow(&self, entry: Uuid) -> Result<(), ClientError> {
+        Ok(client::blocks::unfollow(&self.connection(), entry).await??)
     }
 
     pub async fn set_parent(&self, block: Uuid, parent: BlockParent) -> Result<(), ClientError> {
@@ -3422,14 +3453,6 @@ impl<S: ObjectStore> Peer<S> {
         self.list(Listing::Children(parent)).await
     }
 
-    pub async fn unlist(&self, listing: Listing) -> Result<(), ClientError> {
-        match crate::ask(client::blocks::unlist(&self.connection(), listing)).await {
-            Ok(_) => Ok(()),
-            Err(error) if offline::unreachable(&error) => Ok(()),
-            Err(error) => Err(error),
-        }
-    }
-
     pub async fn collect_detached(&self) -> Result<Vec<Uuid>, ClientError> {
         Ok(client::blocks::collect_detached(&self.connection())
             .await??
@@ -3556,7 +3579,7 @@ fn deduplicated(references: Vec<Uuid>) -> Vec<Uuid> {
 }
 
 /// The block a listing is about, which the server must know to answer it.
-/// Whether a summary read after its listing's revision still belongs to it, as far as the
+/// Whether a summary read after its listing's first page still belongs to it, as far as the
 /// summary tells: a block the reader may only know exists carries no parent or references, so
 /// it is kept.
 fn still_in(listing: Listing, summary: &BlockSummary) -> bool {
@@ -3566,14 +3589,13 @@ fn still_in(listing: Listing, summary: &BlockSummary) -> bool {
         Listing::Deleted => !viewed || (summary.parent.is_some() && !summary.held),
         Listing::Backrefs(target) => !viewed || summary.references.contains(&target),
         Listing::Shared | Listing::OpenSettings(_) => viewed,
-        Listing::References(_) | Listing::Block(_) => true,
+        Listing::References(_) => true,
     }
 }
 
 fn about(listing: Listing) -> Option<Uuid> {
     match listing {
-        Listing::Block(block)
-        | Listing::OpenSettings(block)
+        Listing::OpenSettings(block)
         | Listing::References(block)
         | Listing::Backrefs(block)
         | Listing::Children(BlockParent::Block(block)) => Some(block),

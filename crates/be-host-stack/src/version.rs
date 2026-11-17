@@ -2407,7 +2407,7 @@ async fn create(
         .shared
         .lock()
         .unwrap_or_else(PoisonError::into_inner);
-    held.graph.put(node, summary.revision);
+    held.graph.put(node, summary.changed);
     if uncreated {
         held.graph.made(block);
     }
@@ -2431,7 +2431,7 @@ async fn set_parent(
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .graph
-        .put(node, summary.revision);
+        .put(node, summary.changed);
     Ok(())
 }
 
@@ -2491,7 +2491,7 @@ async fn publish(
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .graph
-            .put(node, summary.revision);
+            .put(node, summary.changed);
         return Ok(summary.head);
     };
     #[cfg(test)]
@@ -2579,7 +2579,7 @@ async fn publish(
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
                     .graph
-                    .put(node, summary.revision);
+                    .put(node, summary.changed);
                 return Ok(Some(head));
             }
             Saved::Rejected { head } => {

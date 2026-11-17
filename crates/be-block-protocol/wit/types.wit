@@ -86,14 +86,13 @@ interface types {
         block(block-id),
     }
 
-    /// A query whose blocks the server keeps a connection told of on its
-    /// `changes` stream once it listed them, until it unlists it.
+    /// A query for blocks (`list-blocks`), answered as of the sequence it was
+    /// read at.
     variant listing {
         children(block-parent),
         deleted,
         shared,
         backrefs(block-id),
-        block(block-id),
         references(block-id),
         open-settings(block-id),
     }
@@ -112,7 +111,16 @@ interface types {
         version: option<u64>,
         key: option<key-id>,
         scope: option<block-id>,
-        revision: u64,
+        /// The organization's change sequence at the block's last change to what it holds,
+        /// where it lies or who may view it (`organizations.change_sequence`): of two summaries
+        /// of one block, the one with the larger `changed` is the newer. Zero for a block the
+        /// reader only knows exists.
+        changed: u64,
+        /// The entry point whose tree a reader follows to hear of this block's changes
+        /// (`changed-since`): the top of its tree (a top-level block, or the block at the top
+        /// of what lies in the trash), or the block where the reader's view starts, below a
+        /// parent it may not view. None for a block the reader may not view.
+        entry: option<block-id>,
         held: bool,
         opens-inside: bool,
         sets-access: bool,

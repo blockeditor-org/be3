@@ -26,7 +26,7 @@ async fn granted_locked(owner: &Peer<MemoryStore>, guest: &Peer<MemoryStore>, na
 
 /// The guest's summary of `block`, learned.
 async fn listed(guest: &Peer<MemoryStore>, block: Uuid) -> BlockSummary {
-    let listed = guest.list(Listing::Block(block)).await.unwrap();
+    let listed = vec![guest.summary(block).await.unwrap()];
     guest.learn(&listed).await.unwrap();
     let [summary] = listed.as_slice() else {
         panic!("the guest lists {listed:?}");

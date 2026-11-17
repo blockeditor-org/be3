@@ -26,20 +26,14 @@ async fn a_member_who_loses_view_when_a_block_moves_somewhere_hidden_is_told_it_
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
-    loop {
-        let notification = guest.graph_change().await;
-        match notification {
-            Notice::BlockRemoved { block, .. } if block == note => break,
-            Notice::BlockChanged { block, .. } if block.id == note => assert!(
-                !block.access.can_view(),
-                "the guest may not view the note in the hidden folder: {block:?}"
-            ),
-            _ => {}
-        }
-    }
+    assert_eq!(
+        guest.heard_left(note).await,
+        shared,
+        "the shared folder's reader is told the note left it"
+    );
 
-    // Back where the guest may view it, its next head reaches the guest again: the note's own
-    // listing outlived the view.
+    // Back where the guest may view it, its next head reaches the guest again: the guest still
+    // follows the shared folder.
     let restored = owner.move_to(note, BlockParent::Block(shared)).await;
     assert!(matches!(restored, Ok(())), "{restored:?}");
     let author = Author::new(owner_id);

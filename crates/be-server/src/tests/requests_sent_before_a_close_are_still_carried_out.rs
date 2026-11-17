@@ -51,10 +51,13 @@ async fn requests_sent_before_a_close_are_still_carried_out() {
 
     let mut moved = Vec::new();
     while moved.len() < heads.len() {
-        if let Notice::BlockChanged { block, .. } = reader.graph_change().await
-            && let Some(head) = block.head
-        {
-            moved.push((block.id, head));
+        if let Notice::TreeAdvanced { entry, .. } = reader.graph_change().await {
+            let (summaries, _) = reader.read_changes(entry).await;
+            moved.extend(
+                summaries
+                    .into_iter()
+                    .filter_map(|block| Some((block.id, block.head?))),
+            );
         }
     }
     let expected: Vec<_> = heads

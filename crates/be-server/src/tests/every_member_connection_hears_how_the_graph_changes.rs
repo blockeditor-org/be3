@@ -1,5 +1,19 @@
 use super::*;
 
+/// Waits for the next `tree-advanced`, skipping what else is told.
+async fn advanced(client: &mut TestClient) -> Uuid {
+    loop {
+        if let Notice::TreeAdvanced { entry, .. } = client.graph_change().await {
+            return entry;
+        }
+    }
+}
+
+/// Waits for the next `roots`, skipping what else is told.
+async fn roots(client: &mut TestClient) {
+    while client.graph_change().await != Notice::Roots {}
+}
+
 #[tokio::test]
 async fn every_member_connection_hears_how_the_graph_changes() {
     let harness = Harness::start().await;
@@ -12,11 +26,16 @@ async fn every_member_connection_hears_how_the_graph_changes() {
     other.list(BlockParent::Root).await;
 
     let folder = author.create_block(BlockParent::Root).await;
-    let created = other.graph_change().await;
+    roots(&mut other).await;
     assert!(
-        matches!(&created, Notice::BlockChanged { block, .. } if block.id == folder),
-        "{created:?}"
+        other
+            .list(BlockParent::Root)
+            .await
+            .iter()
+            .any(|block| block.id == folder),
+        "a new top-level block is told as the roots changing"
     );
+    other.follow(folder).await;
 
     let response = author
         .call(|peer| {
@@ -24,28 +43,28 @@ async fn every_member_connection_hears_how_the_graph_changes() {
         })
         .await;
     assert!(matches!(response, Ok(_)), "{response:?}");
-    let renamed = other.graph_change().await;
+    assert_eq!(advanced(&mut other).await, folder);
+    let (renamed, _) = other.read_changes(folder).await;
     assert!(
-        matches!(&renamed, Notice::BlockChanged { block, .. }
-            if block.id == folder && block.metadata == b"sealed name"),
+        renamed
+            .iter()
+            .any(|block| block.id == folder && block.metadata == b"sealed name"),
         "{renamed:?}"
     );
 
-    other.list(BlockParent::Block(folder)).await;
     let child = author.create_block(BlockParent::Block(folder)).await;
-    other.graph_change().await;
+    assert_eq!(advanced(&mut other).await, folder);
+    let (made, _) = other.read_changes(folder).await;
+    assert!(made.iter().any(|block| block.id == child), "{made:?}");
     let response = author
         .call(|peer| {
             client::blocks::set_parent(peer, child, BlockParent::Detached, KeySet::default())
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
-    let detached = other.graph_change().await;
-    assert!(
-        matches!(&detached, Notice::BlockChanged { block, .. }
-            if block.id == child && block.parent == Some(BlockParent::Detached)),
-        "{detached:?}"
-    );
+    assert_eq!(advanced(&mut other).await, folder);
+    let (_, left) = other.read_changes(folder).await;
+    assert_eq!(left, [child], "a block trashed leaves its tree");
 
     let blocks = other.list(BlockParent::Detached).await;
     assert_eq!(
@@ -60,11 +79,8 @@ async fn every_member_connection_hears_how_the_graph_changes() {
         matches!(response, Ok(be_block_protocol::Collected { .. })),
         "{response:?}"
     );
-    let removed = other.graph_change().await;
-    assert!(
-        matches!(removed, Notice::BlockRemoved { block, .. } if block == child),
-        "{removed:?}"
-    );
+    roots(&mut other).await;
+    assert!(other.list(BlockParent::Detached).await.is_empty());
 
     harness.stop().await;
 }

@@ -40,6 +40,8 @@ fn a_keystroke_copies_no_more_of_a_large_graph_than_of_a_small_one() {
                 sets_access: false,
                 size: 0,
                 tree_size: 0,
+                changed: 0,
+                entry: None,
             })
             .collect();
         shared

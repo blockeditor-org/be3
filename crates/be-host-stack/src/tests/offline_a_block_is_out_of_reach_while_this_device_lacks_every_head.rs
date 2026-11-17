@@ -51,6 +51,8 @@ fn offline_a_block_is_out_of_reach_while_this_device_lacks_every_head() {
             sets_access: false,
             size: 0,
             tree_size: 0,
+            changed: 0,
+            entry: None,
         }],
         u64::MAX - 1,
     );

@@ -62,7 +62,7 @@ interface objects {
 /// The blocks of the organization this connection opened.
 interface blocks {
     use types.{
-        access-level, account-id, block-id, block-parent, block-summary, client-id, commit-id,
+        access-level, account-id, block-id, block-parent, block-summary, commit-id,
         content-type-id, error, hash, journal, key-id, key-set, listing, organization-role,
     };
 
@@ -137,18 +137,18 @@ interface blocks {
         journals: list<option<journal>>,
     }
 
-    /// A listing's blocks, and the revision the server read them at: a block
-    /// that changes after the answer does so at a later revision.
+    /// A listing's blocks, and the organization's change sequence when the server
+    /// read them: a block that changes after the answer does so at a larger
+    /// sequence (`block-summary.changed`).
     record listed {
-        revision: u64,
+        sequence: u64,
         /// The listing's first blocks in the order of their ids (after
         /// `after`), as many as fit in an eighth of a frame and at least one.
         blocks: list<block-summary>,
         /// The listing's next blocks after those, as many ids as fit in a
-        /// sixteenth of a frame: the ids are as of `revision`, and a client
+        /// sixteenth of a frame: the ids are as of `sequence`, and a client
         /// reads their summaries with `read-summaries`, which are as of when
-        /// it reads them. The connection is told of their changes as of
-        /// `blocks`'.
+        /// it reads them.
         rest: list<block-id>,
         /// The last block of the page when the listing goes on past it: a
         /// client lists again after it.
@@ -181,48 +181,24 @@ interface blocks {
         set-inside: u32,
     }
 
-    record block-removed {
-        block: block-id,
-        revision: u64,
+    /// The tree of an entry point the connection follows changed: its
+    /// changes up to `sequence` are there to read with `changed-since`. Only
+    /// the latest is sent, and none again for the entry until the connection
+    /// reads its changes to their end, so a burst of changes is one event.
+    record tree-advanced {
+        entry: block-id,
+        sequence: u64,
     }
 
-    /// A block as a change left it, and the connection whose call changed it
-    /// (its `organization-opened.client`), so a client tells its own
-    /// publishes from those of others. A block moved to the trash, or made
-    /// for one, has parent `detached`; once collected it is `removed`.
-    record block-changed {
-        /// Its `references` are always empty: a change tells them in
-        /// `references`.
-        block: block-summary,
-        references: changed-references,
-        %from: client-id,
-    }
-
-    /// A changed block's references, as its announcement tells them.
-    variant changed-references {
-        /// Every one, to a connection not yet told them.
-        whole(list<block-id>),
-        /// What the change did to them, to a connection already told them,
-        /// so a large folder's change sends what changed rather than every
-        /// entry.
-        moved(moved-references),
-    }
-
-    /// A connection applies `change` to the references it holds, which must
-    /// then hash to `digest` (`references_digest`); if they do not, it heard
-    /// a change out of order or never held them, and reads the block again.
-    record moved-references {
-        change: reference-change,
-        digest: hash,
-    }
-
-    /// What a connection's `changes` stream tells of the blocks it listed.
-    variant block-change {
-        /// A block it listed, or one that now matches a listing, changed: its
-        /// head, its metadata, where it lies or who may view it.
-        changed(block-changed),
-        /// A block it was told of matches none of its listings any more.
-        removed(block-removed),
+    /// What a connection's `changes` stream tells.
+    variant tree-change {
+        /// A tree it follows changed.
+        advanced(tree-advanced),
+        /// What lies at the top of the organization, in the trash or is shared
+        /// with this account (`listing.children(root)`, `listing.deleted`,
+        /// `listing.shared`) may have changed, by a move or a grant: a client
+        /// lists them again.
+        roots,
     }
 
     create-block: async func(
@@ -264,11 +240,15 @@ interface blocks {
         objects: list<list<u8>>,
     ) -> result<publish-outcome, error>;
 
-    /// What changed in the tree of `root`, a page at a time from the cursor
-    /// `after` (first `{ changed: watermark, block: ff..ff }`),
-    /// at most `limit` blocks of each kind (guides/blocks/server.md, "Changes since"). Needs View on
-    /// `root`.
-    changed-since: async func(root: block-id, after: change-cursor, limit: u32) -> result<changed-page, error>;
+    /// What changed in the tree of `entry`, a page at a time from the cursor
+    /// `after` (first `{ changed: watermark, block: ff..ff }`), at most `limit`
+    /// blocks of each kind (guides/blocks/server.md, "Changes since").
+    /// `entry` is an entry point of the caller's (`block-summary.entry`): a
+    /// top-level block, the top of what lies in the trash, or a block it may
+    /// view whose parent it may not. Needs View on `entry`. With `follow`, the
+    /// connection follows the entry first, until `unfollow`: its `changes`
+    /// stream tells it as the tree advances (`tree-advanced`).
+    changed-since: async func(entry: block-id, after: change-cursor, limit: u32, follow: bool) -> result<changed-page, error>;
 
     /// Summaries of the first of `blocks`, as many as fit in the answer and
     /// at least one, their journals, and the objects of their heads the
@@ -279,30 +259,25 @@ interface blocks {
     /// Moves a block, with the keys it needs under its new parent.
     set-parent: async func(block: block-id, parent: block-parent, keys: key-set) -> result<_, error>;
 
-    /// A page of the blocks of a listing, in the order of their ids, which
-    /// the connection's `changes` stream then follows until `unlist`: from
-    /// the first, or from the first id past `after` (a `listed.next`) as
-    /// the listing is now. A block that stays in the listing is on exactly
-    /// one page; one that joins or leaves between pages is told on
-    /// `changes`.
+    /// A page of the blocks of a listing, in the order of their ids: from the
+    /// first, or from the first id past `after` (a `listed.next`) as the
+    /// listing is now. A block that stays in the listing is on exactly one
+    /// page; one that joins or leaves between pages has a `changed` past the
+    /// first page's `sequence`.
     list-blocks: async func(listing: listing, after: option<block-id>) -> result<listed, error>;
 
     /// The summaries of the first of `blocks` (at most 4096 asked), as many
     /// as fit in a sixteenth of a frame and at least one, in order: none
     /// for a block the caller may not know of, or that no longer exists. A
-    /// client asks again for the rest. Lists nothing.
+    /// client asks again for the rest.
     read-summaries: async func(blocks: list<block-id>) -> result<list<option<block-summary>>, error>;
 
-    /// Stops following a listing.
-    unlist: async func(listing: listing) -> result<_, error>;
+    /// Stops following an entry point (`changed-since`'s `follow`).
+    unfollow: async func(entry: block-id) -> result<_, error>;
 
-    /// Changes to the blocks of everything this connection listed, each
-    /// block told once however many listings hold it, from the next listing
-    /// on; `open-organization` starts the listings over. A block listed on
-    /// its own (`listing.block`, as reading a block's summary does) is
-    /// followed for as long as the connection may view it: every head
-    /// another connection publishes reaches it here.
-    changes: func() -> stream<block-change>;
+    /// What changes in the trees this connection follows, and in the
+    /// account's roots; `open-organization` starts the following over.
+    changes: func() -> stream<tree-change>;
 
     list-history: async func(block: block-id) -> result<list<history-entry>, error>;
 

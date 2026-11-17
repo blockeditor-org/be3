@@ -173,22 +173,12 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
         "{stolen:?}"
     );
 
-    // The owner heard nothing of any of it, and its block is as it was.
+    // The owner was relayed nothing of any of it, and its block is as it was.
     owner.round_trip().await;
     let heard: Vec<&Notice> = owner
         .notifications
         .iter()
-        .filter(|notice| match notice {
-            // What the owner's own calls changed is not the attacker's doing.
-            Notice::BlockChanged {
-                block: changed,
-                from,
-                ..
-            } => changed.id == block && Some(*from) != owner.client,
-            Notice::BlockRemoved { block: gone, .. } => *gone == block,
-            Notice::Relayed { .. } => true,
-            _ => false,
-        })
+        .filter(|notice| matches!(notice, Notice::Relayed { .. }))
         .collect();
     assert!(heard.is_empty(), "the owner heard the attacker: {heard:?}");
     let after = owner.read_block(block).await;

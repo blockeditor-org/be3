@@ -13,6 +13,7 @@ mod a_head_change_copies_one_node_not_the_graph_a_seen_shares;
 mod a_head_change_hands_over_one_node_not_the_graph;
 mod a_listing_whose_request_got_no_answer_is_asked_for_again;
 mod a_placed_child_its_parent_drops_again_is_noted;
+mod a_tree_is_followed_while_the_mirror_holds_what_lies_in_it;
 mod an_older_announcement_never_undoes_a_newer_one;
 
 fn node(id: Uuid) -> Node {
@@ -30,6 +31,16 @@ fn node(id: Uuid) -> Node {
         sets_access: false,
         size: 0,
         tree_size: 0,
+        changed: 0,
+        entry: None,
+    }
+}
+
+/// `node` as changed at `sequence`.
+fn changed_at(node: Node, sequence: u64) -> Node {
+    Node {
+        changed: sequence,
+        ..node
     }
 }
 

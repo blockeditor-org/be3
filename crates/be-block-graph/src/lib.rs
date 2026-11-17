@@ -76,6 +76,10 @@ pub struct BlockNode {
     /// Readable by its author alone: a scope root of its own whose key is sealed only to the
     /// author, never escrowed (`KindVisibility::Owner`). Set when it is made and kept for life.
     pub owner_only: bool,
+    /// The organization's change sequence at the block's last change (`blocks.changed`), which
+    /// the server's `changes.rs` sets with every change it records.
+    #[serde(default)]
+    pub changed: u64,
 }
 
 /// The type of a workspace block (crates/be-type-workspace).
@@ -106,6 +110,7 @@ impl BlockNode {
             size: 0,
             tree_size: 0,
             owner_only: false,
+            changed: 0,
         }
     }
 }
@@ -157,7 +162,6 @@ pub struct BlockGraph {
     entries: HashMap<Uuid, BTreeSet<Uuid>>,
     loose: BTreeSet<Uuid>,
     authored: HashMap<Uuid, usize>,
-    revision: u64,
     changes: u64,
 }
 
@@ -288,16 +292,7 @@ impl BlockGraph {
         self.blocks.len()
     }
 
-    pub const fn revision(&self) -> u64 {
-        self.revision
-    }
-
-    pub fn advance_to(&mut self, revision: u64) {
-        self.revision = self.revision.max(revision);
-    }
-
-    /// Counts the calls that may have changed the graph (everything taking `&mut self` but
-    /// `advance_to`), so a caller can tell whether a failed action left it as it was.
+    /// Counts the calls that may have changed the graph (everything taking `&mut self`), so a caller can tell whether a failed action left it as it was.
     pub const fn changes(&self) -> u64 {
         self.changes
     }
@@ -381,6 +376,12 @@ impl BlockGraph {
         let node = self.node_mut(id)?;
         node.version += 1;
         Ok(node.version)
+    }
+
+    /// Records the organization's change sequence at the block's last change.
+    pub fn set_changed(&mut self, id: Uuid, sequence: u64) -> Result<(), GraphError> {
+        self.node_mut(id)?.changed = sequence;
+        Ok(())
     }
 
     pub fn set_head(&mut self, id: Uuid, head: CommitId) -> Result<(), GraphError> {
