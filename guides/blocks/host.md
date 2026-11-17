@@ -280,8 +280,10 @@ the connection a stopping stack closed.
   keeps of before the restart (`Replicas::take_status`) and keeps the new ones.
   It drops them only on a restart past the most it has seen (`Open::restarts`,
   which the edits are kept under too): a replica reports none before it loads.
-  A replica opened on an order that restarted since its edits were kept drops
-  the kept submissions it is given, as those edits are stale.
+  Every opening, after a stop or in the same process, is told that count as
+  the restart its edits and kept submissions were made under
+  (`opening.kept-restart`); a replica opened on an order that restarted since
+  drops those edits as stale and the kept submissions with them.
   A reload or a stash names as its `through` only what the order holds already
   (`Replica::entry_through`), never edits still unsent, which a replica opened
   again would take as ordered, except those a replacement from elsewhere

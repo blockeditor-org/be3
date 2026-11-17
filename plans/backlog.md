@@ -80,6 +80,17 @@ Fixed items are removed as they land.
   under its id, with a guest test where its first copy lands after the one given
   again.
 
+- **Kept edits across two crashes, end to end.** The tests of kept submissions
+  across a restart of the order (be-block-type-host's
+  `an_edit_carried_over_a_restart_keeps_the_identity_it_goes_again_under_across_a_crash`
+  and `a_replica_opened_again_after_a_restart_is_told_it_and_its_edit_lands_once`)
+  check what the host keeps and tells the replica, not a second copy landing
+  late: that harness has no relay to hold a crashed process's submission, and
+  cannot type into a reopened replica before it loads, so the sequence type,
+  keep, crash, reopen, crash again is untested end to end. Done: a harness that
+  holds a submission and controls when a replica loads, and a test of that
+  sequence counting exactly what was made.
+
 ## 9. Version control's caches
 
 - **Walks that read thinning as a root.** Depends on #686, which rewrites

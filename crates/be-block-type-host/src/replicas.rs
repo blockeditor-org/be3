@@ -611,9 +611,8 @@ struct Open {
     restarts: u64,
     /// Why keeping its edits last failed, until they are kept (`Owing::keep_error`).
     keep_error: Option<String>,
-    /// What was kept of its local edits when the host last stopped (`opening.kept-restart`,
-    /// `opening.kept-through`), told every opening.
-    kept_restart: u64,
+    /// The last of its local edits kept when the host last stopped (`opening.kept-through`),
+    /// told every opening with `restarts` (`opening.kept-restart`).
     kept_through: u64,
     /// The last number of the order this device heard for the block, from the journal it
     /// opened on and each entry since: an entry past the next means one was lost, and the
@@ -846,6 +845,9 @@ pub struct Replicas<H: Host> {
     /// submission and keeping its edits, as a crash there would.
     #[cfg(test)]
     pub(crate) hold_kept_edits: bool,
+    /// Each opening of a replica, as `(block, kept_restart, through of each kept submission)`.
+    #[cfg(test)]
+    pub(crate) openings: Vec<(Uuid, u64, Vec<u64>)>,
     /// What peers' relayed messages said, unsealed.
     #[cfg(test)]
     heard_from_peers: Vec<Vec<u8>>,
@@ -903,6 +905,8 @@ impl<H: Host> Replicas<H> {
             key_searches: 0,
             #[cfg(test)]
             hold_kept_edits: false,
+            #[cfg(test)]
+            openings: Vec::new(),
             #[cfg(test)]
             heard_from_peers: Vec::new(),
             leaving: Vec::new(),
@@ -1490,6 +1494,16 @@ impl<H: Host> Replicas<H> {
         let sent = replay.len() as u64;
         let replay_count = sent;
         let (replies, pending) = (&mut self.replies, &mut self.asked);
+        #[cfg(test)]
+        self.openings.push((
+            opening.block,
+            opening.kept_restart,
+            opening
+                .kept_submissions
+                .iter()
+                .map(|submission| submission.through)
+                .collect(),
+        ));
         let handle = self.modules.call(module, |connection| {
             let handle = Replica::new(connection, opening);
             resend(
@@ -1556,7 +1570,6 @@ impl<H: Host> Replicas<H> {
                 unkept_submissions: false,
                 restarts: kept_restart,
                 keep_error: None,
-                kept_restart,
                 kept_through: given_up + replay_count,
                 heard_through: journal_through(opening_journal.as_ref()),
                 // A block opened for the first time on this device keeps its origin at once.
@@ -1596,8 +1609,6 @@ impl<H: Host> Replicas<H> {
         self.open.values().any(|open| open.joining)
     }
 
-    /// Of `block`'s open replica: how many of its submissions are unanswered, the restarts of
-    /// the order it reported, and the `through` of each submission it keeps (`Open::submissions`).
     /// The restarts of the order `block`'s kept edits would be kept under now.
     #[cfg(test)]
     pub(crate) fn kept_restarts_of(&self, block: Uuid) -> Option<u64> {
@@ -1605,6 +1616,8 @@ impl<H: Host> Replicas<H> {
         Some(kept_edits(open).0.restarts)
     }
 
+    /// Of `block`'s open replica: how many of its submissions are unanswered, the restarts of
+    /// the order it reported, and the `through` of each submission it keeps (`Open::submissions`).
     #[cfg(test)]
     pub(crate) fn submissions_of(&self, block: Uuid) -> Option<(usize, u64, Vec<u64>)> {
         let open = self.open.get(self.blocks.get(&block)?)?;
@@ -1749,7 +1762,7 @@ impl<H: Host> Replicas<H> {
             origin: open.origin,
             taken_before: open.given_up,
             doubtful_through: 0,
-            kept_restart: open.kept_restart,
+            kept_restart: open.restarts,
             kept_through: open.kept_through,
             kept_submitted: open.submitted_through,
             kept_submissions: open.kept_submissions(),
@@ -1798,6 +1811,16 @@ impl<H: Host> Replicas<H> {
             &mut open.replay,
             &open.departed,
         );
+        #[cfg(test)]
+        self.openings.push((
+            opening.block,
+            opening.kept_restart,
+            opening
+                .kept_submissions
+                .iter()
+                .map(|submission| submission.through)
+                .collect(),
+        ));
         self.modules.call(module, |connection| {
             handle.reopen(connection, opening);
             for &(editor, editable, held) in &editors {
@@ -3468,7 +3491,7 @@ impl<H: Host> Replicas<H> {
                     true => 0,
                     false => open.submitted_through,
                 },
-                kept_restart: open.kept_restart,
+                kept_restart: open.restarts,
                 kept_through: open.kept_through,
                 kept_submitted: open.submitted_through,
                 kept_submissions: open.kept_submissions(),
@@ -3507,6 +3530,16 @@ impl<H: Host> Replicas<H> {
                 },
                 &open.departed,
             );
+            #[cfg(test)]
+            self.openings.push((
+                opening.block,
+                opening.kept_restart,
+                opening
+                    .kept_submissions
+                    .iter()
+                    .map(|submission| submission.through)
+                    .collect(),
+            ));
             let Some(handle) = self.modules.call(module, |connection| {
                 let handle = Replica::new(connection, opening);
                 for &(editor, editable, held) in &editors {
