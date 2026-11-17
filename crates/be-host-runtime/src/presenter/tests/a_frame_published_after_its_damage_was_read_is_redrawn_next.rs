@@ -30,6 +30,7 @@ fn a_frame_published_after_its_damage_was_read_is_redrawn_next() {
         local: whole,
         source: whole,
     }];
+    let laid = vec2(200.0, 100.0) / 3.0;
     let shared = Rc::new(RefCell::new(Shared::default()));
     let blit = Blit {
         surface: 1,
@@ -38,8 +39,8 @@ fn a_frame_published_after_its_damage_was_read_is_redrawn_next() {
         screen: ScreenId(1),
         quad: Quad::upright(whole),
         source: whole,
-        drawn: None,
-        requested: None,
+        zoom: 1.0,
+        picture: false,
         placed: None,
         layer: None,
     };
@@ -60,7 +61,7 @@ fn a_frame_published_after_its_damage_was_read_is_redrawn_next() {
         .borrow_mut()
         .publish(&layout, Vec::new(), Some(frame(1, left)));
     assert_eq!(
-        blit.damage(&pieces, 0),
+        blit.damage(&pieces, laid, 0),
         Some(vec![Rect::from_min_max(Pos2::ZERO, pos2(0.1, 0.1))]),
     );
     let seen = shared.borrow().published.count();
@@ -74,12 +75,12 @@ fn a_frame_published_after_its_damage_was_read_is_redrawn_next() {
     );
 
     assert_eq!(
-        blit.damage(&pieces, seen),
+        blit.damage(&pieces, laid, seen),
         Some(vec![Rect::from_min_max(pos2(0.9, 0.9), pos2(1.0, 1.0))]),
         "the shown frame's damage is redrawn although it was taken before it was read",
     );
     assert_eq!(
-        blit.damage(&pieces, shared.borrow().published.count()),
+        blit.damage(&pieces, laid, shared.borrow().published.count()),
         Some(Vec::new()),
         "nothing published since is nothing to redraw",
     );

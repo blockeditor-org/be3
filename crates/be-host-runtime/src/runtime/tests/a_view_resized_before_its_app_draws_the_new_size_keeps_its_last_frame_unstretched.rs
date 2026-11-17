@@ -92,23 +92,24 @@ fn a_view_resized_before_its_app_draws_the_new_size_keeps_its_last_frame_unstret
         });
     });
 
-    let wider = Rect::from_min_size(Pos2::ZERO, vec2(400.0, 200.0));
-    place(wider);
-    let template =
-        with(APP, |runtime| runtime.template(screen, None)).expect("the runtime is running");
-    let requested = template
-        .requested
-        .expect("the view asks for the size it is now laid out at");
-    assert_eq!(
-        requested,
-        (400, 200),
-        "the drawing knows the size the view was just given, before the app hears of it"
-    );
-    let (quad, _) = presenter::unstretched(Quad::upright(wider), UNIT, requested, (300, 200))
+    for laid in [vec2(400.0, 200.0), vec2(250.0, 260.0)] {
+        let rect = Rect::from_min_size(pos2(5.0, 7.0), laid);
+        place(rect);
+        let shown = with(APP, |runtime| {
+            let blit = Blit {
+                quad: Quad::upright(rect),
+                ..runtime.template(screen)
+            };
+            let placement = *runtime.shown_placement(screen)?;
+            blit.on_surface(&placement, Some((300, 200)))
+        })
+        .flatten()
         .expect("the last frame still shows");
-    assert_eq!(
-        quad.rect,
-        Rect::from_min_size(Pos2::ZERO, vec2(300.0, 200.0)),
-        "the last frame keeps its own size at the view's top left rather than stretching to the new width"
-    );
+        assert_eq!(
+            shown.1.rect,
+            Rect::from_min_size(rect.min, vec2(300.0, 200.0).min(laid)),
+            "a view laid out at {laid:?} keeps its last frame at its own size at the view's top \
+             left, cropped where it is smaller, rather than stretching it"
+        );
+    }
 }

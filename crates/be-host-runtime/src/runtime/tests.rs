@@ -72,6 +72,7 @@ fn presented(serial: u64, sequence: u64) -> Heard {
         presented: Some(PresentedFrame {
             sequence,
             damage: Vec::new(),
+            painted: Vec::new(),
         }),
     })
 }
