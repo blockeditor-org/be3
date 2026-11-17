@@ -8,6 +8,8 @@ use crate::calls::{AppCall, EditorAnswer, EditorCall, Heard};
 use be_sdk_api::{Encoded, Watch};
 use be_wasm_sandbox_api::embed::sandbox;
 
+use crate::sandbox::Sandbox;
+
 use be_sdk_api::{
     AudioStatus, Catalog, ChildStatus, DebugTemplate, DockUpdate, EditorInstanceId, Failure, Fonts,
     HelloAccepted, InputBatch, Opening, Preferences, WebViewEvent, WebViewId,
@@ -71,14 +73,15 @@ pub struct Wire {
     debug_templates: Watch<Vec<DebugTemplate>>,
     held: Held,
     /// Answers to the calls an app makes without waiting on them (`layout`,
-    /// `laid-out`, `frame-needed`, `missing-characters`). They go with the next
-    /// thing sent to the app rather than alone, since an answer alone would step
-    /// the app for nothing: each frame it draws sends `laid-out`.
-    acks: Vec<Reply<()>>,
+    /// `laid-out`, `frame-needed`, `missing-characters`, and whatever the host
+    /// `acknowledge`s). They go with the next thing sent to the app rather than
+    /// alone, since an answer alone would step the app for nothing: each frame it
+    /// draws sends `laid-out`.
+    acks: Vec<(OpId, Outcome)>,
     hearing: Vec<(EditorInstanceId, EditorEvent)>,
-    /// The sandbox API served to the app, which starts its workers (`Server::for_app`); none
-    /// where the host serves none to it: to a wire made for a test.
-    sandbox: Option<be_wasm_sandbox_host::Server>,
+    /// The sandbox API served to the app, which starts its workers; none where the host serves
+    /// none to it: to a wire made for a test.
+    sandbox: Option<Box<dyn Sandbox>>,
     /// Whether the host offers a published interface of an extension the app is granted
     /// (`offering`); none unless it says so.
     offered: fn(&str) -> bool,
@@ -165,16 +168,16 @@ impl Wire {
         self
     }
 
-    /// Serves the app the sandbox API through `server`.
-    pub fn with_sandbox(mut self, server: be_wasm_sandbox_host::Server) -> Self {
-        self.sandbox = Some(server);
+    /// Serves the app the sandbox API through `sandbox`.
+    pub fn with_sandbox(mut self, sandbox: impl Sandbox + 'static) -> Self {
+        self.sandbox = Some(Box::new(sandbox));
         self
     }
 
     /// Answers what the app's workers did since: they sent messages, started or stopped.
     pub fn poll_sandbox(&mut self) {
-        if let Some(server) = &mut self.sandbox {
-            server.poll(&mut self.connection);
+        if let Some(sandbox) = &mut self.sandbox {
+            sandbox.poll(&mut self.connection);
         }
     }
 
@@ -185,8 +188,8 @@ impl Wire {
 
     /// Stops every worker the app started.
     pub fn stop_sandbox(&mut self) {
-        if let Some(server) = self.sandbox.take() {
-            server.stop(WORKERS_STOPPED, &mut self.connection);
+        if let Some(sandbox) = self.sandbox.take() {
+            sandbox.stop(WORKERS_STOPPED, &mut self.connection);
         }
     }
 
@@ -194,8 +197,8 @@ impl Wire {
         let Some(call) = sandbox::Call::accept(&mut self.connection, started) else {
             return;
         };
-        if let Some(server) = &mut self.sandbox {
-            server.call(call, &mut self.connection);
+        if let Some(sandbox) = &mut self.sandbox {
+            sandbox.call(call, &mut self.connection);
             return;
         }
         let (op, outcome) = call.refuse(OpError::Unsupported);
@@ -731,11 +734,35 @@ impl Wire {
         // down, sends the app something. Nothing in the app waits on them; they
         // only close the ops it left open.
         if self.connection.has_outbound() {
-            for ack in self.acks.drain(..) {
-                ack.send(&mut self.connection, &());
-            }
+            self.send_acknowledged();
         }
         self.connection.take_outbound()
+    }
+
+    /// Answers the op `op` with `outcome` along with the next thing sent to the app, as the
+    /// answer to a call it does not wait on: alone it would step the app for nothing.
+    pub fn acknowledge(&mut self, op: OpId, outcome: Outcome) {
+        self.acks.push((op, outcome));
+    }
+
+    /// Sends every answer held for the next thing sent now: for a step the host has the app take
+    /// anyway, as an in-process host that steps the app itself does each frame.
+    pub fn send_acknowledged(&mut self) {
+        for (op, outcome) in self.acks.drain(..) {
+            self.connection.complete(op, outcome);
+        }
+    }
+
+    /// The connection, for answering the replies and streams the host was handed in `Heard`
+    /// (a fetch's body, a worker's `next`), which answer on it themselves. Answer anything else
+    /// through the wire's own calls, which keep its bookkeeping.
+    pub fn connection(&mut self) -> &mut Connection {
+        &mut self.connection
+    }
+
+    /// Whether the app holds a published watch open that `open` opens.
+    pub fn watching_published(&self, open: MethodId) -> bool {
+        self.published.values().any(|(_, watched, _)| *watched == open)
     }
 
     pub fn holds_input(&self) -> bool {
@@ -861,8 +888,8 @@ impl Wire {
                 return Ok(());
             }
             Incoming::Canceled { op } => {
-                if let Some(server) = &mut self.sandbox
-                    && server.canceled(op, &mut self.connection)
+                if let Some(sandbox) = &mut self.sandbox
+                    && sandbox.canceled(op, &mut self.connection)
                 {
                     return Ok(());
                 }
@@ -922,22 +949,22 @@ impl Wire {
                 heard.push(Heard::Hello(hello));
             }
             Call::Layout { reply, layout } => {
-                self.acks.push(reply);
+                self.acks.push(reply.answer(&()));
                 heard.push(Heard::Layout(layout));
             }
             Call::LaidOut { reply, commit } => {
-                self.acks.push(reply);
+                self.acks.push(reply.answer(&()));
                 commit
                     .validate()
                     .map_err(|error| format!("the app laid out a frame it may not: {error}"))?;
                 heard.push(Heard::LaidOut(Box::new(commit)));
             }
             Call::FrameNeeded { reply } => {
-                self.acks.push(reply);
+                self.acks.push(reply.answer(&()));
                 heard.push(Heard::FrameNeeded);
             }
             Call::MissingCharacters { reply, characters } => {
-                self.acks.push(reply);
+                self.acks.push(reply.answer(&()));
                 heard.push(Heard::MissingCharacters(characters));
             }
             Call::PreferencesWatchNew { resource } => self.preferences.opened(resource.op()),

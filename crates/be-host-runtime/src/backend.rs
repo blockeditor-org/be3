@@ -334,3 +334,32 @@ impl Availability {
         Self(Err(NOT_INSTALLED.to_owned()))
     }
 }
+
+/// The sandbox an app is served on its wire for its workers (`Server::for_app`).
+pub(super) struct AppSandbox(pub(super) be_wasm_sandbox_host::Server);
+
+impl be_sdk_app_host::sandbox::Sandbox for AppSandbox {
+    fn call(
+        &mut self,
+        call: be_wasm_sandbox_api::embed::sandbox::Call,
+        connection: &mut be_sdk_api::ops::Connection,
+    ) {
+        self.0.call(call, connection);
+    }
+
+    fn canceled(
+        &mut self,
+        op: be_sdk_api::ops::OpId,
+        connection: &mut be_sdk_api::ops::Connection,
+    ) -> bool {
+        self.0.canceled(op, connection)
+    }
+
+    fn poll(&mut self, connection: &mut be_sdk_api::ops::Connection) {
+        self.0.poll(connection);
+    }
+
+    fn stop(self: Box<Self>, why: &str, connection: &mut be_sdk_api::ops::Connection) {
+        self.0.stop(why, connection);
+    }
+}
