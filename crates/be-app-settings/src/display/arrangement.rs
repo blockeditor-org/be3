@@ -216,8 +216,6 @@ pub(super) fn ArrangementRow(
                 border={Border::DEFAULT}
                 radius=Radius::Sm
             >
-                // Clipped to the area, so a display carried past it never draws over the
-                // rows around it.
                 <Canvas width={AREA.x} height={AREA.y}>
                     <CanvasItem x=0.0 y=0.0 width={AREA.x} height={AREA.y}>
                         <Layers>
