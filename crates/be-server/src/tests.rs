@@ -99,6 +99,7 @@ mod a_push_service_refusing_the_server_or_redirecting_does_not_cost_the_right_en
 mod a_push_service_that_never_answers_delays_only_its_own_account;
 mod a_range_get_reads_part_of_an_s3_object;
 mod a_refused_call_keeps_the_cached_graph;
+mod a_refused_write_demotes_and_disconnects_nobody;
 mod a_relay_to_a_client_that_left_the_session_is_dropped_without_an_error;
 mod a_remembered_account_approves_a_manually_entered_code_and_can_switch_accounts;
 mod a_removed_agents_blocks_stay_charged_to_its_creator;
@@ -126,6 +127,7 @@ mod a_trim_from_other_than_the_holder_is_not_kept;
 mod a_trim_past_the_orders_last_entry_is_not_kept;
 mod a_type_with_a_short_retention_keeps_only_its_recent_states;
 mod a_viewer_neither_holds_nor_claims_the_lease_and_its_presence_still_reaches_the_others;
+mod a_write_let_go_of_midway_keeps_nothing_and_leaves_no_transaction_open;
 mod a_write_whose_second_op_is_refused_keeps_nothing_of_its_first;
 mod accepting_either_kind_of_link_makes_two_contacts;
 mod accounts_stranded_by_a_removed_provider_are_counted;
@@ -1922,6 +1924,13 @@ impl TestClient {
         account: Uuid,
         role: be_block_protocol::OrganizationRole,
     ) -> Result<(), Error> {
+        let op = self.role_op(account, role).await;
+        self.call(|peer| peer.write::<()>(op)).await
+    }
+
+    /// The op giving `account` `role`, with the administrator record the caller signs when it
+    /// makes or unmakes an administrator of an organization with a log.
+    async fn role_op(&mut self, account: Uuid, role: be_block_protocol::OrganizationRole) -> Op {
         use be_block_keys::{Administrator, Record};
         let administrator = role == be_block_protocol::OrganizationRole::Administrator;
         let checked = self.organization_log().await;
@@ -1944,8 +1953,11 @@ impl TestClient {
             }
             _ => None,
         };
-        self.call(|peer| peer.write::<()>(be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Role { account: account, role: role, signed: signed.clone() })))
-            .await
+        Op::AppendLog(be_block_protocol::LogRecord::Role {
+            account,
+            role,
+            signed,
+        })
     }
 
     /// A member record signing `account`, with `identity`, in or out of the organization open's

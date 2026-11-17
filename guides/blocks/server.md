@@ -179,16 +179,22 @@ counts and records nothing: `reserve-uploads` did before it signed.
 - **Writes are batches.** A `write`'s ops apply in order. More than one is
   applied in one SQLite transaction (`ServerStore::batch`): every store job its
   ops make runs on the database the batch holds (a task-local lends it to
-  `with_database` and `with_reader`, and `write_transaction` nested in it is a
-  savepoint), so a refused op rolls back every op before it, with the cached
-  graphs and object counts read again (`forget_cached`). The refusal names the
-  op (`write-error.index`). Each op's rule is applied as it comes, inside the
-  batch, so an op sees what the ops before it did (a block made, then
-  published), and an op's own checks (a rotation leaves no block below on its
-  old key) refuse the whole write. A single op takes
-  no batch: each op's store work is a transaction of its own, and a publish's
-  objects upload outside the database lock. Hub pushes an op makes are sent as
-  it runs, even in a batch later refused; they say only "read again". At most
+  `with_database` and `with_reader`, one job at a time, given back even when
+  the job panics or its caller is dropped, and `write_transaction` nested in it
+  is a savepoint), so a refused op rolls back every op before it, with the
+  cached graphs, policies and object counts read again (`forget_cached`). A
+  batch let go of before it ends (its connection closed) rolls back on the
+  blocking pool (`Ending`), and a transaction ever found open on the writer
+  outside a batch is rolled back and logged. While a batch runs, `read_graph`
+  answers nothing, so no access check reads a graph change not yet kept. The
+  refusal names the op (`write-error.index`). Each op's rule is applied as it
+  comes, inside the batch, so an op sees what the ops before it did (a block
+  made, then published), and an op's own checks (a rotation leaves no block
+  below on its old key) refuse the whole write. What an op does in memory
+  (pushes, session entries, the hub's roles, connections dropped: `After`)
+  waits for the batch to commit and is dropped if it rolls back; a single op
+  takes no batch and does it at once, its store work a transaction of its own
+  (and a publish's objects upload outside the database lock). At most
   `MAX_OPS_PER_WRITE` ops a write, and signing out (`revoke-token`) is a write
   of its own.
 - **Following.** What the server pushes goes on the connection's one `events`
@@ -214,7 +220,11 @@ counts and records nothing: `reserve-uploads` did before it signed.
   refused; the first one it may make there makes the connection one that works
   there (`WatchHub::join_organization`), which hears what the account's
   connections there hear (key work, keys, roots) and keeps a member from being
-  pushed to (`connected`). A block's agent is refused what reaches past its
+  pushed to (`connected`). The hub caches who each connection is in each
+  organization, so whatever changes it goes through the hub: a role through
+  `set_role` (the connection stays, admitted by the new role from its next
+  call), a removal through `drop_member` (its connections close), a sign-out
+  through `leave_account`. A block's agent is refused what reaches past its
   block before the rule (`bound_may_read`, `bound_may_write`,
   `bound_may_send`), and everything while its block is in the trash.
   `every_call_states_who_may_make_it` makes every case of `query`, `op` and

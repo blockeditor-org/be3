@@ -473,6 +473,40 @@ impl WatchHub {
         }
     }
 
+    /// `account`'s role in `organization` changed: every connection of it there is who it is
+    /// now, so the next call each makes is admitted by the new role.
+    pub async fn set_role(&self, organization: Uuid, account: Uuid, role: OrganizationRole) {
+        let mut joined = self.joined.lock().await;
+        let clients: Vec<u64> = joined
+            .by_member
+            .get(&(organization, account))
+            .into_iter()
+            .flatten()
+            .copied()
+            .collect();
+        for client in clients {
+            if let Some(identity) = joined
+                .organizations
+                .get_mut(&client)
+                .and_then(|organizations| organizations.get_mut(&organization))
+            {
+                identity.role = role;
+            }
+            match role {
+                OrganizationRole::Administrator => {
+                    joined
+                        .administrators
+                        .entry(organization)
+                        .or_default()
+                        .insert(client);
+                }
+                OrganizationRole::Editor => {
+                    unindex(&mut joined.administrators, organization, client);
+                }
+            }
+        }
+    }
+
     pub async fn audience(
         &self,
         organization: Uuid,

@@ -168,7 +168,7 @@ good while known that way no longer happens: 3a removed `collect-detached`.)
 
 ### 3. The calls merge
 
-In two pieces, each landing whole.
+In three pieces, each landing whole.
 
 - **3a. read, write, send and events, each naming its organization (done).**
   `be3:server` is one interface, `server` (crates/be-block-protocol/wit/
@@ -198,7 +198,7 @@ In two pieces, each landing whole.
   `OpenSettings` are its `Listing` cases); `blocks(blocks, contents, held)`
   answers summaries or contents; a signed-in `link` and the anonymous
   `invitation` are two queries; `set-metadata` stays an op beside `publish`,
-  and `create-block` and `move` still carry their keys; `append-log` takes a
+  and `create-block` and `move` still carry their keys, until 3c; `append-log` takes a
   grant or an owner record (`grant`, as `set-access` carried both), a role or
   a member record; `put-keys` is `rows`, `rotate`, `escrow` or `reseal`, each with its own
   rule; notices, contacts, links, `put-contact` and `pin-escrow` wait for step
@@ -218,6 +218,20 @@ In two pieces, each landing whole.
   (`Credentials::Token`). `logout` is `RevokeToken` from 3a. Done: a test
   where a greeting with a bad token is closed before any call; the web build
   signs in (its host test).
+- **3c. One form for keys and metadata.** `create-block` and `move` lose
+  their `keys`: a batch carries `put-keys` beside them (`[create-block,
+  put-keys(rows)]`, `[move, put-keys(rows)]`, a move out of a scope with
+  `put-keys(rotate)`), and the rules a batch must keep whole are checked once,
+  at its end, over everything it wrote: a block made names a key the batch
+  stored, a move leaves every moved key wrapped under the new scope's key.
+  `set-metadata` goes into `publish` with an optional commit (none sets the
+  metadata and the reference change alone). be-block-client sends the batches
+  (`Peer::create_with`, `Peer::set_parent`, its metadata saves and offline
+  outbox). Done: a test where `[create-block]` with no key in the batch is
+  refused; one where a move missing one block's wrap under its new scope is
+  refused whole; one where a `publish` with no commit changes the metadata and
+  leaves the head. Guides: guides/blocks/server.md ("Protocol"),
+  guides/blocks/keys.md.
 
 Guides: guides/blocks/server.md ("Protocol", "Organizations and access",
 "Accounts", "Notifications"), guides/blocks/client.md ("Connection"),

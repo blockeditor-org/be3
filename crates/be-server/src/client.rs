@@ -444,6 +444,8 @@ pub(crate) struct Connection {
     /// Set once the connection should be closed after what it has answered: its first call was
     /// not one that signs in, or it signed out.
     pub(crate) closing: bool,
+    /// While a batch runs, what its ops do once it commits (`After`).
+    deferred: Option<Vec<After>>,
 }
 
 pub(crate) struct Client {
@@ -457,6 +459,73 @@ pub(crate) struct Client {
     /// The storage usage last read or told, and whether a task follows the payer's.
     storage: Option<AccountStorage>,
     following_storage: bool,
+}
+
+/// What an op tells and changes in memory once what it wrote is kept: pushes, session entries,
+/// connections dropped, the hub's cache of who is who. An op of one op's write does it at once,
+/// as its store work is a transaction of its own; a batch's ops do theirs once the batch commits,
+/// and none of them if it rolls back (`Connection::after`).
+enum After {
+    Advance {
+        organization: Uuid,
+        blocks: Vec<Uuid>,
+        subtree: bool,
+        above: Vec<Uuid>,
+    },
+    Roots {
+        organization: Uuid,
+        blocks: Vec<Uuid>,
+        before: BTreeSet<Uuid>,
+    },
+    Sealed {
+        place: Place,
+        head: be_block_commit::CommitId,
+        told: Option<(u64, u64)>,
+        trimmed: crate::journal::Trimmed,
+    },
+    Moved {
+        organization: Uuid,
+        block: Uuid,
+        parent: BlockParent,
+        moved: crate::blocks::Moved,
+    },
+    Revoked {
+        revoked: Vec<contacts::Granted>,
+        accounts: Vec<Uuid>,
+    },
+    Recheck {
+        organization: Uuid,
+        account: Option<Uuid>,
+        within: Option<Uuid>,
+    },
+    RoleChanged {
+        organization: Uuid,
+        account: Uuid,
+        role: be_block_protocol::OrganizationRole,
+    },
+    DropMember {
+        organization: Uuid,
+        account: Uuid,
+    },
+    KeyWorkChanged {
+        organization: Uuid,
+        accounts: BTreeSet<Uuid>,
+    },
+    KeysChanged {
+        organization: Uuid,
+        accounts: BTreeSet<Uuid>,
+    },
+    ContactsChanged(Vec<Uuid>),
+    Regranted {
+        organization: Uuid,
+        block: Uuid,
+        before: BTreeSet<Uuid>,
+    },
+    /// A push to the account's other connections.
+    Tell {
+        account: Uuid,
+        push: Push,
+    },
 }
 
 /// A write refused at the op `index`.
@@ -508,6 +577,7 @@ impl Client {
                 eviction,
                 one_shot,
                 closing: false,
+                deferred: None,
             },
             peer: Peer::new(be_wasm_ops::Side::Host, sink),
             pushes,
@@ -1414,7 +1484,8 @@ impl Client {
             return Ok(done);
         }
         let store = Arc::clone(&self.connection.store);
-        store
+        self.connection.deferred = Some(Vec::new());
+        let written = store
             .batch(async {
                 let mut done = Vec::with_capacity(ops.len());
                 for (index, op) in ops.into_iter().enumerate() {
@@ -1427,7 +1498,15 @@ impl Client {
                 }
                 Ok(done)
             })
-            .await
+            .await;
+        // Only what was kept is told or changed in memory.
+        let deferred = self.connection.deferred.take().unwrap_or_default();
+        if written.is_ok() {
+            for after in deferred {
+                self.connection.run(after).await;
+            }
+        }
+        written
     }
 
     async fn apply(&mut self, organization: Option<Uuid>, op: Op) -> Result<Done, ServerError> {
@@ -1469,12 +1548,10 @@ impl Client {
                     .await?;
                 let mut changed = vec![block.id];
                 changed.extend(block.references.iter().copied());
-                connection
-                    .advance(identity.organization, changed, false, Vec::new())
+                connection.after(After::Advance { organization: identity.organization, blocks: changed, subtree: false, above: Vec::new() })
                     .await;
                 if matches!(parent, BlockParent::Root | BlockParent::Detached) {
-                    connection
-                        .roots(identity.organization, vec![block.id], BTreeSet::new())
+                    connection.after(After::Roots { organization: identity.organization, blocks: vec![block.id], before: BTreeSet::new() })
                         .await;
                 }
                 Ok(Done::Block(block))
@@ -1491,8 +1568,7 @@ impl Client {
                     .await?;
                 let mut changed = vec![block.id];
                 changed.extend(relinked);
-                connection
-                    .advance(identity.organization, changed, false, Vec::new())
+                connection.after(After::Advance { organization: identity.organization, blocks: changed, subtree: false, above: Vec::new() })
                     .await;
                 Ok(Done::Block(block))
             }
@@ -1541,10 +1617,20 @@ impl Client {
                         references, metadata, trim,
                     )
                     .await?;
-                if let PublishOutcome::Published(head, _, Some(trimmed)) = &outcome {
+                let (outcome, trimmed) = match outcome {
+                    PublishOutcome::Published(head, relinked, trimmed) => {
+                        (PublishOutcome::Published(head, relinked, None), trimmed)
+                    }
+                    rejected => (rejected, None),
+                };
+                if let (PublishOutcome::Published(head, ..), Some(trimmed)) = (&outcome, trimmed) {
                     connection
-                        .registry
-                        .sealed(place, *head, told, trimmed)
+                        .after(After::Sealed {
+                            place,
+                            head: *head,
+                            told,
+                            trimmed,
+                        })
                         .await;
                 }
                 // Its tree advanced, and so did those of the blocks it started or stopped
@@ -1555,8 +1641,7 @@ impl Client {
                 {
                     let mut changed = vec![block];
                     changed.extend(relinked.iter().copied());
-                    connection
-                        .advance(identity.organization, changed, false, Vec::new())
+                    connection.after(After::Advance { organization: identity.organization, blocks: changed, subtree: false, above: Vec::new() })
                         .await;
                 }
                 Ok(Done::Published(match outcome {
@@ -1575,41 +1660,17 @@ impl Client {
                 placement,
             } => {
                 let identity = admitted.identity()?;
-                let crate::blocks::Moved {
-                    before,
-                    lost,
-                    above,
-                } = connection
+                let moved = connection
                     .store
                     .set_parent(identity, block, parent, keys, placement)
                     .await?;
-                // Its roots change for whoever could know of it only when it leaves or reaches
-                // the top or the trash, or who may know of it changed.
-                let top =
-                    above.is_empty() || matches!(parent, BlockParent::Root | BlockParent::Detached);
                 connection
-                    .advance(identity.organization, vec![block], true, above)
-                    .await;
-                if let Ok(after) = connection
-                    .store
-                    .audience(identity.organization, vec![block])
-                    .await
-                    && (top || after != before)
-                {
-                    let mut accounts = after;
-                    accounts.extend(before.iter().copied());
-                    connection.hub.roots(identity.organization, &accounts).await;
-                }
-                if !lost.is_empty() {
-                    connection
-                        .key_work_changed(identity.organization, before.clone())
-                        .await;
-                }
-                // Whoever can no longer view the block leaves its sessions, and a change of
-                // edit access is written into each (trash is reversible, so no keys rotate for
-                // it).
-                connection
-                    .recheck_sessions(identity.organization, None, Some(block))
+                    .after(After::Moved {
+                        organization: identity.organization,
+                        block,
+                        parent,
+                        moved,
+                    })
                     .await;
                 Ok(Done::Nothing)
             }
@@ -1628,19 +1689,18 @@ impl Client {
                             .await?;
                         if let Some(before) = changed {
                             connection
-                                .revoked(
-                                    &[contacts::Granted {
+                                .after(After::Revoked {
+                                    revoked: vec![contacts::Granted {
                                         organization: identity.organization,
                                         block,
                                         before,
                                     }],
-                                    &[account],
-                                )
+                                    accounts: vec![account],
+                                })
                                 .await;
                         }
                         // A grant can give edit access as well as take it.
-                        connection
-                            .recheck_sessions(identity.organization, None, Some(block))
+                        connection.after(After::Recheck { organization: identity.organization, account: None, within: Some(block) })
                             .await;
                     }
                     LogRecord::Role {
@@ -1652,33 +1712,17 @@ impl Client {
                             .store
                             .set_role(identity, account, role, signed)
                             .await?;
-                        // A role changes edit access across the organization: each session the
-                        // account is in hears it, the caller's own connections included.
-                        // Another account's connections are dropped below, which leaves their
-                        // sessions as they close.
-                        if account == identity.account {
-                            connection
-                                .hub
-                                .join_organization(connection.client, Identity { role, ..identity })
-                                .await;
-                        }
                         connection
-                            .recheck_sessions(identity.organization, Some(account), None)
-                            .await;
-                        if account != identity.account {
-                            connection
-                                .hub
-                                .drop_member(identity.organization, account)
-                                .await;
-                        }
-                        connection
-                            .key_work_changed(identity.organization, BTreeSet::new())
+                            .after(After::RoleChanged {
+                                organization: identity.organization,
+                                account,
+                                role,
+                            })
                             .await;
                     }
                     LogRecord::Member(signed) => {
                         connection.store.sign_member(identity, signed).await?;
-                        connection
-                            .key_work_changed(identity.organization, BTreeSet::new())
+                        connection.after(After::KeyWorkChanged { organization: identity.organization, accounts: BTreeSet::new() })
                             .await;
                     }
                 }
@@ -1695,12 +1739,18 @@ impl Client {
                     .remove_member(identity, account, signed, revocations)
                     .await?;
                 connection
-                    .hub
-                    .drop_member(identity.organization, account)
+                    .after(After::DropMember {
+                        organization: identity.organization,
+                        account,
+                    })
                     .await;
-                connection.revoked(&revoked, &[account]).await;
                 connection
-                    .key_work_changed(identity.organization, BTreeSet::new())
+                    .after(After::Revoked {
+                        revoked,
+                        accounts: vec![account],
+                    })
+                    .await;
+                connection.after(After::KeyWorkChanged { organization: identity.organization, accounts: BTreeSet::new() })
                     .await;
                 Ok(Done::Nothing)
             }
@@ -1709,7 +1759,7 @@ impl Client {
                     PutKeys::Rows(keys) => {
                         let identity = admitted.identity()?;
                         if let Some(told) = connection.store.put_keys(identity, keys).await? {
-                            connection.keys_changed(identity.organization, told).await;
+                            connection.after(After::KeysChanged { organization: identity.organization, accounts: told }).await;
                         }
                     }
                     PutKeys::Rotate { roots, keys } => {
@@ -1718,8 +1768,7 @@ impl Client {
                             .store
                             .rotate(identity, roots.clone(), keys)
                             .await?;
-                        connection
-                            .advance(identity.organization, roots, true, Vec::new())
+                        connection.after(After::Advance { organization: identity.organization, blocks: roots, subtree: true, above: Vec::new() })
                             .await;
                     }
                     PutKeys::Escrow { escrow, keys } => {
@@ -1843,11 +1892,10 @@ impl Client {
                     )
                     .await?;
                 if let Some(block) = block {
-                    connection
-                        .regranted(identity.organization, block, before)
+                    connection.after(After::Regranted { organization: identity.organization, block: block, before: before })
                         .await;
                 }
-                connection.contacts_changed(&[identity.account]).await;
+                connection.after(After::ContactsChanged(vec![identity.account])).await;
                 Ok(Done::Agent(CreatedAgent { agent, token }))
             }
             Op::RotateAgentToken(account) => {
@@ -1892,12 +1940,10 @@ impl Client {
                     .accept_link(account, link, card, contact, key)
                     .await?;
                 if let Some(granted) = accepted.granted {
-                    connection
-                        .regranted(granted.organization, granted.block, granted.before)
+                    connection.after(After::Regranted { organization: granted.organization, block: granted.block, before: granted.before })
                         .await;
                 }
-                connection
-                    .contacts_changed(&[account, accepted.owner])
+                connection.after(After::ContactsChanged(vec![account, accepted.owner]))
                     .await;
                 Ok(Done::Nothing)
             }
@@ -1914,7 +1960,7 @@ impl Client {
                     .store
                     .put_contact(account, contact, sealed)
                     .await?;
-                connection.contacts_changed(&[account]).await;
+                connection.after(After::ContactsChanged(vec![account])).await;
                 Ok(Done::Nothing)
             }
             Op::RemoveContact {
@@ -1927,8 +1973,8 @@ impl Client {
                     .store
                     .remove_contact(caller, account, current, revocations)
                     .await?;
-                connection.revoked(&revoked, &[caller, account]).await;
-                connection.contacts_changed(&[caller, account]).await;
+                connection.after(After::Revoked { revoked: revoked, accounts: vec![caller, account] }).await;
+                connection.after(After::ContactsChanged(vec![caller, account])).await;
                 Ok(Done::Nothing)
             }
             Op::SetRecoveryKey {
@@ -1945,7 +1991,7 @@ impl Client {
                     .store
                     .set_recovery_key(account, public, signing, sealed, own, changes, retirements)
                     .await?;
-                connection.contacts_changed(&told).await;
+                connection.after(After::ContactsChanged(told)).await;
                 Ok(Done::Nothing)
             }
             Op::PinEscrow(sealed) => {
@@ -1980,31 +2026,15 @@ impl Client {
                     .store
                     .set_notify_mode(identity, block, mode)
                     .await?;
-                connection
-                    .hub
-                    .send_account(
-                        identity.account,
-                        connection.client,
-                        None,
-                        &Push::NotifyModesChanged {
+                connection.after(After::Tell { account: identity.account, push: Push::NotifyModesChanged {
                             organization: identity.organization,
-                        },
-                    )
-                    .await;
+                        } }).await;
                 Ok(Done::Nothing)
             }
             Op::DismissNotice(id) => {
                 let account = admitted.account()?;
                 if connection.store.dismiss_account_notice(account, id).await? {
-                    connection
-                        .hub
-                        .send_account(
-                            account,
-                            connection.client,
-                            None,
-                            &Push::AccountNoticesChanged,
-                        )
-                        .await;
+                    connection.after(After::Tell { account: account, push: Push::AccountNoticesChanged }).await;
                 }
                 Ok(Done::Nothing)
             }
@@ -2149,6 +2179,108 @@ impl Client {
 }
 
 impl Connection {
+    /// Does `after` now, or once the batch running commits.
+    async fn after(&mut self, after: After) {
+        match &mut self.deferred {
+            Some(deferred) => deferred.push(after),
+            None => self.run(after).await,
+        }
+    }
+
+    async fn run(&self, after: After) {
+        match after {
+            After::Advance {
+                organization,
+                blocks,
+                subtree,
+                above,
+            } => self.advance(organization, blocks, subtree, above).await,
+            After::Roots {
+                organization,
+                blocks,
+                before,
+            } => self.roots(organization, blocks, before).await,
+            After::Sealed {
+                place,
+                head,
+                told,
+                trimmed,
+            } => self.registry.sealed(place, head, told, &trimmed).await,
+            After::Moved {
+                organization,
+                block,
+                parent,
+                moved:
+                    crate::blocks::Moved {
+                        before,
+                        lost,
+                        above,
+                    },
+            } => {
+                // Its roots change for whoever could know of it only when it leaves or reaches
+                // the top or the trash, or who may know of it changed.
+                let top =
+                    above.is_empty() || matches!(parent, BlockParent::Root | BlockParent::Detached);
+                self.advance(organization, vec![block], true, above).await;
+                if let Ok(after) = self.store.audience(organization, vec![block]).await
+                    && (top || after != before)
+                {
+                    let mut accounts = after;
+                    accounts.extend(before.iter().copied());
+                    self.hub.roots(organization, &accounts).await;
+                }
+                if !lost.is_empty() {
+                    self.key_work_changed(organization, before.clone()).await;
+                }
+                // Whoever can no longer view the block leaves its sessions, and a change of
+                // edit access is written into each (trash is reversible, so no keys rotate for
+                // it).
+                self.recheck_sessions(organization, None, Some(block)).await;
+            }
+            After::Revoked { revoked, accounts } => self.revoked(&revoked, &accounts).await,
+            After::Recheck {
+                organization,
+                account,
+                within,
+            } => self.recheck_sessions(organization, account, within).await,
+            After::RoleChanged {
+                organization,
+                account,
+                role,
+            } => {
+                // A role changes edit access across the organization: the hub takes it for
+                // every connection of the account there, and each session it is in hears it.
+                self.hub.set_role(organization, account, role).await;
+                self.recheck_sessions(organization, Some(account), None)
+                    .await;
+                self.key_work_changed(organization, BTreeSet::new()).await;
+            }
+            After::DropMember {
+                organization,
+                account,
+            } => self.hub.drop_member(organization, account).await,
+            After::KeyWorkChanged {
+                organization,
+                accounts,
+            } => self.key_work_changed(organization, accounts).await,
+            After::KeysChanged {
+                organization,
+                accounts,
+            } => self.keys_changed(organization, accounts).await,
+            After::ContactsChanged(accounts) => self.contacts_changed(&accounts).await,
+            After::Regranted {
+                organization,
+                block,
+                before,
+            } => self.regranted(organization, block, before).await,
+            After::Tell { account, push } => {
+                self.hub
+                    .send_account(account, self.client, None, &push)
+                    .await;
+            }
+        }
+    }
+
     /// When the connection is closed unless it signs in first, or none once it has an account.
     /// One let go of to make room for a newer connection closes at once.
     pub(crate) fn sign_in_deadline(&self) -> Option<tokio::time::Instant> {
