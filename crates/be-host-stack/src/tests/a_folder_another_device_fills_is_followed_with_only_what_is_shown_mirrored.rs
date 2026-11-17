@@ -38,9 +38,10 @@ fn a_folder_another_device_fills_is_followed_with_only_what_is_shown_mirrored() 
     let elsewhere = make::<TextContent>(&other, BlockParent::Block(unshown));
     let first = make::<TextContent>(&other, BlockParent::Block(shown));
     let second = make::<TextContent>(&other, BlockParent::Block(shown));
-    wait_until("mirrored what the other device made in the shown folder", |shared| {
-        shared.graph.get(first).is_some() && shared.graph.get(second).is_some()
-    });
+    wait_until(
+        "mirrored what the other device made in the shown folder",
+        |shared| shared.graph.get(first).is_some() && shared.graph.get(second).is_some(),
+    );
     // What the other folder holds is read only if its tree is followed (the top level shown
     // here, say), and kept by no listing either way.
     let mirrored = with_shared_mut(|shared| shared.graph.get(elsewhere).is_some());

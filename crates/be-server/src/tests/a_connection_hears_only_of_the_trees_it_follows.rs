@@ -54,7 +54,11 @@ async fn a_connection_hears_only_of_the_trees_it_follows() {
     };
     assert_eq!(entry, followed);
     let (_, removed) = other.read_changes(followed).await;
-    assert_eq!(removed, [inside], "a block leaving a followed tree is named");
+    assert_eq!(
+        removed,
+        [inside],
+        "a block leaving a followed tree is named"
+    );
 
     let response = other
         .call(|peer| client::blocks::unfollow(peer, followed))

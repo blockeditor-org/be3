@@ -50,9 +50,7 @@ async fn a_change_made_while_a_follow_is_read_is_read_or_told() {
 
     // Read to its end, the tree is told of the next change.
     let next = writer.create_block(BlockParent::Block(folder)).await;
-    let told = reader
-        .heard_change(next, |_| true)
-        .await;
+    let told = reader.heard_change(next, |_| true).await;
     assert_eq!(told.id, next);
 
     harness.stop().await;

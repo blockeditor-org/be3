@@ -40,9 +40,14 @@ fn a_folder_whose_share_is_taken_back_leaves_the_mirror_with_what_is_in_it() {
             .create::<CounterContent>(BlockParent::Block(folder))
             .await
             .unwrap();
-        peer.share(folder, harness.account, be_block_graph::Access::View, &public)
-            .await
-            .unwrap();
+        peer.share(
+            folder,
+            harness.account,
+            be_block_graph::Access::View,
+            &public,
+        )
+        .await
+        .unwrap();
         (folder, inside)
     });
 

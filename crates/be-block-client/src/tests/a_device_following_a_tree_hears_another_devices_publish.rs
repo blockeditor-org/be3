@@ -46,8 +46,14 @@ async fn a_device_following_a_tree_hears_another_devices_publish() {
     let mut on_laptop = laptop.connection().subscribe();
     let summary = laptop.summary(block).await.unwrap();
     let entry = summary.entry.expect("the laptop views the block");
-    assert_eq!(entry, block, "a top-level block is its own tree's entry point");
-    let (_, _, since) = laptop.changed_since(entry, summary.changed, true).await.unwrap();
+    assert_eq!(
+        entry, block,
+        "a top-level block is its own tree's entry point"
+    );
+    let (_, _, since) = laptop
+        .changed_since(entry, summary.changed, true)
+        .await
+        .unwrap();
 
     let second = phone
         .save(block, &TextBlock::of("second"), Some(first))

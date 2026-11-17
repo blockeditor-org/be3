@@ -51,7 +51,7 @@ fn a_block_made_here_stays_listed_until_an_answer_from_after_the_drain_sent_it()
         [UnlistedHeld {
             listing: roots,
             blocks: vec![session],
-            sequence: Some(3),
+            sequence: 3,
             stale: false,
         }],
         "and the worker is told, to log what a list lost"

@@ -3011,7 +3011,9 @@ impl<H: Host> Replicas<H> {
         if let Some(open) = self.open.get_mut(&replica) {
             // A change that left the head as the replica has it, or as it published or was
             // already told it, is no news of the head.
-            if open.heard == Some(head) || open.published.contains(&head) || open.moved.contains(&head)
+            if open.heard == Some(head)
+                || open.published.contains(&head)
+                || open.moved.contains(&head)
             {
                 return;
             }
