@@ -211,8 +211,6 @@ struct Module {
     /// How often the module said each thing since it started, by call or kind of answer: what
     /// a module that never settles keeps saying (`Modules::unsettled`).
     said: BTreeMap<&'static str, u64>,
-    /// How often the host called each of the module's methods since it started (`said`).
-    asked: BTreeMap<&'static str, u64>,
 }
 
 #[derive(Debug)]
@@ -434,7 +432,6 @@ impl Modules {
                     generation: 0,
                     restarts: 0,
                     said: BTreeMap::new(),
-                    asked: BTreeMap::new(),
                 })
                 .collect(),
             notify: Arc::new(Notify::new()),
@@ -529,15 +526,6 @@ impl Modules {
     fn flush(&mut self, module: usize) {
         let held = &mut self.modules[module];
         let frames = held.connection.take_outbound();
-        for frame in &frames {
-            if let Ok(be_sdk_type_api::ops::Frame::Start { method, .. }) =
-                be_sdk_type_api::decode_frame(frame)
-            {
-                let asked = be_sdk_type_api::embed::exported_method_name(method)
-                    .unwrap_or("an unknown call");
-                *held.asked.entry(asked).or_default() += 1;
-            }
-        }
         let Some(worker) = held.worker.as_mut() else {
             return;
         };
@@ -565,22 +553,18 @@ impl Modules {
             .iter()
             .filter_map(|module| {
                 let why = module.worker.as_ref()?.unsettled()?;
-                let most = |counts: &BTreeMap<&'static str, u64>| {
-                    let mut counts: Vec<(&str, u64)> =
-                        counts.iter().map(|(what, times)| (*what, *times)).collect();
-                    counts.sort_by_key(|(_, times)| std::cmp::Reverse(*times));
-                    counts
-                        .iter()
-                        .take(4)
-                        .map(|(what, times)| format!("{what} {times} times"))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                };
+                let mut said: Vec<(&str, u64)> =
+                    module.said.iter().map(|(what, times)| (*what, *times)).collect();
+                said.sort_by_key(|(_, times)| std::cmp::Reverse(*times));
+                let said: Vec<String> = said
+                    .iter()
+                    .take(4)
+                    .map(|(what, times)| format!("{what} {times} times"))
+                    .collect();
                 Some(format!(
-                    "{}: {why}; it said most {}; the host asked it most {}",
+                    "{}: {why}; it said most {}",
                     module.source.name,
-                    most(&module.said),
-                    most(&module.asked)
+                    said.join(", ")
                 ))
             })
             .collect();
