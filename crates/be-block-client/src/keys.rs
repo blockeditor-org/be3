@@ -227,12 +227,14 @@ impl Rows {
 /// The latest escrow key this device trusts: the one it pinned, or a newer one it holds the
 /// secret of, or, epoch by epoch, a newer one signed by its maker chained to the one before,
 /// where the maker is one of `administrators` (the organization's log, checked to its head as
-/// this device holds it) and that log reaches the head the epoch names (`holds`). A demoted
+/// this device holds it) and that log reaches the head the epoch names (`holds`); an epoch this
+/// account made (`held`) is taken without. A demoted
 /// administrator, still holding the escrow keys of their time, signs no epoch a device takes,
 /// nor does the server; and an epoch made after a demotion is taken only by a device that
 /// holds the demotion, so a server that withholds it gets no epoch taken past it.
 pub fn verify_escrow(
     organization: Uuid,
+    account: Uuid,
     pinned: Option<&EscrowKey>,
     chain: &[EscrowKey],
     administrators: Option<&HashMap<Uuid, SigningPublic>>,
@@ -246,7 +248,12 @@ pub fn verify_escrow(
         let newer = verified
             .as_ref()
             .is_none_or(|known| next.epoch > known.epoch);
-        if held(next) && (newer || verified.as_ref().is_some_and(|known| known.id == next.id)) {
+        // An epoch this account made itself is taken as held; any other only through the signed
+        // chain, as a secret sealed by a demoted administrator proves nothing.
+        if next.maker == account
+            && held(next)
+            && (newer || verified.as_ref().is_some_and(|known| known.id == next.id))
+        {
             verified = Some(next.clone());
             continue;
         }
@@ -559,12 +566,16 @@ impl KeyBook {
         };
         let verified = verify_escrow(
             self.organization,
+            self.account,
             pinned.as_ref(),
             &chain,
             administrators.as_ref(),
             |head| log.as_ref().is_some_and(|log| log.holds(head)),
             |escrow| self.holds_escrow(escrow),
-        );
+        )
+        // An epoch made before a demotion this device holds is wrapped under no more: the
+        // demoted administrator may hold it. Keys wait, unescrowed, for the next epoch.
+        .filter(|escrow| !log.as_ref().is_some_and(|log| log.outdates(&escrow.head)));
         self.escrow.lock().unwrap().verified = verified;
     }
 
@@ -840,11 +851,15 @@ impl KeyBook {
     }
 
     /// Whether a key `sender`, a contact, sealed to this account, carried as `carried`, may be
-    /// taken: its sender held Edit or above in the block's log as of the head its epoch names,
-    /// or administered the organization as of the organization's (plans/signed_access.md, 3d),
-    /// as far as this device holds those logs. A sender the block's log names with less is
-    /// refused; one it does not name, who may have Edit from a block above (the server's tree
-    /// until parents are signed), is not.
+    /// taken (plans/signed_access.md, 3d). An escrow key only from an administrator the
+    /// organization's log names at its head as this device checked it: never as of a head the
+    /// sender names, since a demoted administrator would name one from before. Any other key
+    /// from a sender the block's log gives Edit or above, or the organization's log has
+    /// administer it, as of the head the key names, or as of the log's head here when this
+    /// device's log does not reach that head (or the key names none). A sender the block's log
+    /// names, but not as of that head, held nothing then. One it never names, who may have Edit
+    /// from a block above (the server's tree until parents are signed), is taken, as is any
+    /// key of a block whose log this device never checked (its first, which carries the root).
     fn sender_may(&self, sender: Uuid, carried: &CarriedKey) -> bool {
         if sender == self.account {
             return true;
@@ -852,28 +867,46 @@ impl KeyBook {
         let account = sender.into_bytes();
         let administered = {
             let escrow = self.escrow.lock().unwrap();
-            match (escrow.log.as_ref(), carried.heads.organization) {
-                (Some(log), Some(head)) if log.holds(&head) => {
-                    Some(log.level_as_of(account, &head) == Some(Level::Manage))
+            let escrow_key = carried.block == self.organization.into_bytes();
+            escrow.log.as_ref().is_some_and(|log| {
+                match carried.heads.organization.filter(|head| log.holds(head)) {
+                    Some(head) if !escrow_key => {
+                        log.level_as_of(account, &head) == Some(Level::Manage)
+                    }
+                    _ => log.administrators.contains_key(&account),
                 }
-                _ => None,
-            }
+            })
         };
-        if administered == Some(true) {
-            return true;
-        }
         // An escrow key travels as the organization's: only an administrator hands it on.
-        if carried.block == self.organization.into_bytes() {
-            return administered.is_none();
+        if administered || carried.block == self.organization.into_bytes() {
+            return administered;
         }
         let block = Uuid::from_bytes(carried.block);
         let roots = self.roots.lock().unwrap();
-        let (Some(log), Some(head)) = (roots.logs.get(&block), carried.heads.block) else {
+        let Some(log) = roots.logs.get(&block) else {
             return true;
         };
-        match log.level_as_of(account, &head) {
-            Some(level) => level >= Level::Edit,
-            None => true,
+        if !log.levels.contains_key(&account) {
+            return true;
+        }
+        let head = carried
+            .heads
+            .block
+            .filter(|head| log.holds(head))
+            .unwrap_or(log.head);
+        log.level_as_of(account, &head)
+            .is_some_and(|level| level >= Level::Edit)
+    }
+
+    /// Whether `block`'s log, as this device last checked it, outdates `key`'s epoch: the key
+    /// names a head of it before an entry that lowered someone's access, who may hold it
+    /// (`Checked::outdates`). A device writes and wraps under such a key no more: it rotates.
+    pub fn outdated(&self, key: Uuid, block: Uuid) -> bool {
+        let roots = self.roots.lock().unwrap();
+        let head = roots.heads.get(&key).and_then(|heads| heads.block);
+        match (roots.logs.get(&block), head) {
+            (Some(log), Some(head)) => log.outdates(&head),
+            _ => false,
         }
     }
 
@@ -1198,6 +1231,12 @@ impl KeyBook {
     pub fn mint_data(&self, block: Uuid, under: Uuid) -> Result<(Uuid, KeySet), StoreError> {
         self.trusted_plain(under)?;
         let row = self.mint(block, KeyKind::Data, false);
+        // A data key's epoch is its scope's: it names the heads of the log of the scope it is
+        // wrapped under, which grants who reads it.
+        if let Some(scope) = self.block_of(under) {
+            let heads = self.current_heads(scope);
+            self.roots.lock().unwrap().heads.insert(row.id, heads);
+        }
         if self.owner_only_covers(under) {
             self.under_owner_only.lock().unwrap().insert(row.id);
         }
