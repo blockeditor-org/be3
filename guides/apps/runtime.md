@@ -63,7 +63,7 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
     it on a thread of its own, once per process for the same bytes (by
     SHA-256, held while anything holds the `Module`, never in the code cache),
     with the memory it defines turned into an import
-    (`engine::importing_memory`), so each instance gets a memory of its own
+    (`be_wasm_dylink::importing_memory`), so each instance gets a memory of its own
     size; or
   - a staged app's module (`Staged`): the app's entry point or one of its
     workers, and an `Open` that reads it and its libraries, loaded as the host
@@ -99,7 +99,9 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   the same bytes, by the SHA-256 `crypto.subtle` takes, while anything holds
   the `Module`), with its memory imported as natively
   (`be_wasm_dylink::importing_memory`, which both share), and refused if it
-  imports anything else but its transport. Each instance of it is a worker the
+  imports anything else but its transport. The rewrite runs on the page,
+  synchronously, in one pass over the bytes; if modules from bytes grow large,
+  move it to a worker. Each instance of it is a worker the
   page posts the compiled `WebAssembly.Module` to (`WebGuest::start_module`),
   with the pages of a memory capped at the instance's `memory_limit`, which the
   worker makes and instantiates it with. The browser cannot cap a staged app's
