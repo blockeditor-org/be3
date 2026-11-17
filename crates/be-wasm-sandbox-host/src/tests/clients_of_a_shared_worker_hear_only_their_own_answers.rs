@@ -45,7 +45,9 @@ fn clients_of_a_shared_worker_hear_only_their_own_answers() {
             first.send(b"three"),
         ];
         assert!(
-            generations.iter().all(|generation| *generation == generations[0]),
+            generations
+                .iter()
+                .all(|generation| *generation == generations[0]),
             "every client talks to one instance"
         );
         [
