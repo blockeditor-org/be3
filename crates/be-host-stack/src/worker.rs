@@ -874,11 +874,14 @@ impl Shared {
     pub(crate) fn log_unlisted_held(&mut self) {
         for unlisted in self.graph.take_unlisted_held() {
             eprintln!(
-                "be-host: the answer to {listing:?} at sequence {sequence} left out {blocks:?}, \
+                "be-host: the answer to {listing:?} {at} left out {blocks:?}, \
                  which this device holds as listed there (an answer to a request from before a \
                  change asked again: {stale}), connected: {connected}",
                 listing = unlisted.listing,
-                sequence = unlisted.sequence,
+                at = match unlisted.sequence {
+                    Some(sequence) => format!("at sequence {sequence}"),
+                    None => "(refused)".to_owned(),
+                },
                 blocks = unlisted.blocks,
                 stale = unlisted.stale,
                 connected = self.connected,
@@ -1918,7 +1921,10 @@ impl Session<'_> {
         // Heads the server moved on to, by whatever read learned them (`Peer::take_moved_heads`):
         // an open block's replica takes each unless it has it.
         for (block, head) in peer.take_moved_heads() {
-            self.replicas.heard_head((peer, shared), block, head);
+            // One this device published past since is no news: the replica holds a descendant.
+            if !peer.superseded(block, head) {
+                self.replicas.heard_head((peer, shared), block, head);
+            }
         }
         // Only what was published drains: a seal kept since stays sending.
         for (block, head, refused) in self.tasks.0.take_published() {
@@ -4438,6 +4444,8 @@ async fn reread_known_only(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>,
                 let summary = peer.summary_with_outbox(summary.clone());
                 held.graph.put(node_of(peer, &summary), summary.changed);
             }
+            // Not one made or changed here that the server has yet to hear of.
+            None if held.graph.unsettled(block) => {}
             None => held.graph.forget(block),
         }
     }
