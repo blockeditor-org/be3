@@ -40,14 +40,14 @@ server it is.
 
 One Hetzner CPX62 (16 shared AMD EPYC Genoa vCPUs, 32 GB, 601 GB of local disk, in Helsinki, €111 a month) runs
 NativeLink's cache, scheduler and worker as one process, inside the image `worker_properties` names, so the worker
-hardlinks inputs from the same store clients upload to and nothing crosses a network between them. Everything it runs
-is in scripts/internal/nativelink/ (none of it is a secret); `bash setup.sh nl.be3.pfg.pw`, run as root on a new
-Ubuntu 24.04 server, installs it, and running it again updates it.
+hardlinks inputs from the same store clients upload to and nothing crosses a network between them. The machine is the
+NixOS configuration `build` in servers/ (`servers/build`, guides/servers.md), deployed like any other server; NativeLink
+is its release binary, pinned there, run in the action image by Docker. Its log is `journalctl -u nativelink`.
 
-- **The front door** is Caddy on port 443 (`Caddyfile`, `nl-caddy.service`), with a Let's Encrypt certificate it gets
+- **The front door** is Caddy on port 443 (`Caddyfile`), with a Let's Encrypt certificate it gets
   itself for nl.be3.pfg.pw. It answers 401 to any request without `Authorization: Bearer TOKEN` and forwards the rest
-  to NativeLink on 127.0.0.1 over cleartext HTTP/2. The token is `NL_TUNNEL_TOKEN` in `/etc/nl-caddy.env` on the
-  server, which `setup.sh` makes once.
+  to NativeLink on 127.0.0.1 over cleartext HTTP/2. The token is `NL_TUNNEL_TOKEN` in `/var/lib/nl-secrets/caddy.env` on
+  the server, made once when the server first starts and kept there.
 - **The key** is that token: `BE3_NL_TOKEN`, `.nl-token` at the checkout's root or `~/.config/be3/nl-token`, asked
   for at a terminal. CI has it as the secret `BE3_NL_TOKEN`. buck2 reaches the server directly over TLS; behind an HTTPS proxy, through the relay.
 - **Behind a proxy, through the tunnel.** A cloud session's proxy speaks only HTTP/1.1, handles about 240 requests a
@@ -95,9 +95,9 @@ Ubuntu 24.04 server, installs it, and running it again updates it.
 
 ### The dashboard
 
-https://nl.be3.pfg.pw/ is a Grafana dashboard of the server and of every build (`scripts/internal/nativelink/dashboard`,
-which `setup.sh` installs). Caddy lets a browser through when it holds the cookie `be3_dash=NL_DASH_TOKEN` (from
-`/etc/nl-caddy.env`); without it, the only page is `/gate`, which asks for the token and sets the cookie.
+https://nl.be3.pfg.pw/ is a Grafana dashboard of the server and of every build (`servers/build/dashboard`).
+Caddy lets a browser through when it holds the cookie `be3_dash=NL_DASH_TOKEN` (from
+`/var/lib/nl-secrets/caddy.env`); without it, the only page is `/gate`, which asks for the token and sets the cookie.
 
 - **The machine**: node_exporter's CPU by mode (steal is a shared vCPU given to another machine), pressure (the share of
   time something waited for a CPU, memory or the disk), memory and swap, disk and network.
@@ -114,7 +114,7 @@ which `setup.sh` installs). Caddy lets a browser through when it holds the cooki
   kind is the command (`verify`, `test`, `build`, `run`, `bxl`), with `-cloud` behind a proxy; in CI it is `ci-EVENT`
   for `./scripts/ci` and `ci-EVENT-COMMAND` for the rest. `target/build-record.json` is the last one sent. Ask it
   anything with `sqlite3 /var/lib/nl-stats/builds.db` on the server.
-- The dashboard is `build-server.json`; the UI cannot save changes to it, so change the file and run `setup.sh`.
+- The dashboard is `build-server.json`; the UI cannot save changes to it, so change the file and deploy.
 
 ## When a build keeps failing
 

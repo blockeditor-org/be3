@@ -67,8 +67,8 @@ header too, so a page on another origin that rebinds its name to 127.0.0.1 is no
   that address, not a hostname that resolves to it;
 - on a wildcard `--addr`, `http://:PORT`, any Host.
 
-The build server's Caddyfile (scripts/internal/nativelink) and the deployed servers' under
-servers/ (`servers/api/Caddyfile`) are front doors on the internet and bind every interface on
+The deployed servers' Caddyfiles under servers/ (`servers/api/Caddyfile`, and the build server's
+`servers/build/Caddyfile`) are front doors on the internet and bind every interface on
 purpose.
 
 `./scripts/verify` enforces this (crates/be-tool-verify, `binds.rs`). It fails on a Caddyfile

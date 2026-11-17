@@ -1,4 +1,4 @@
-# The dashboards in this directory, which the UI cannot change: edit the JSON here and run setup.sh.
+# The dashboards in this directory, which the UI cannot change: edit the JSON here and deploy (guides/servers.md).
 apiVersion: 1
 providers:
   - name: be3
