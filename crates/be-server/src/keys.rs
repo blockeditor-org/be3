@@ -1596,18 +1596,12 @@ impl ServerStore {
                 }
             }
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
-            for change in &changes {
-                transaction.execute(
-                    "INSERT INTO key_changes (account_id, contact_id, position, sealed)
-                     VALUES (?1, ?2,
-                        (SELECT COALESCE(MAX(position), -1) + 1 FROM key_changes
-                         WHERE account_id = ?1 AND contact_id = ?2),
-                        ?3)",
-                    params![
-                        account.to_string(),
-                        change.contact.to_string(),
-                        change.sealed
-                    ],
+            for change in changes {
+                crate::store::mailbox::leave(
+                    &transaction,
+                    change.contact,
+                    Some(account),
+                    &be_block_protocol::Letter::KeyChange(change.sealed),
                 )?;
             }
             for held in &held_own {

@@ -692,10 +692,13 @@ impl<S: ObjectStore> Peer<S> {
             if unreachable {
                 continue;
             }
-            let deleted = be_block_protocol::write::<(), _>(
+            let deleted = be_block_protocol::write_all::<(), _>(
                 &self.connection(),
                 None,
-                be_block_protocol::Op::DeleteLink(done.link),
+                vec![
+                    be_block_protocol::Op::DeleteLink(done.link),
+                    be_block_protocol::Op::DeleteMessage(done.letter),
+                ],
             )
             .await;
             if let Err(error) = deleted

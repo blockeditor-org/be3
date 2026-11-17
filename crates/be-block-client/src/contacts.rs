@@ -113,8 +113,10 @@ pub struct Finished {
     /// signs them into (`Peer::finish_links`).
     pub invited: Option<Uuid>,
     /// The link, which `Peer::finish_links` deletes once it signed the grant or the member in,
-    /// so a device that stops before then finishes it again.
+    /// with the mailbox message that brought its accepter's card (`letter`), so a device that
+    /// stops before then finishes it again.
     pub(crate) link: Uuid,
+    pub(crate) letter: u64,
 }
 
 pub fn card(
@@ -251,11 +253,26 @@ fn tampered() -> ClientError {
     )
 }
 
+/// The account's mailbox (`query.mailbox`), oldest first.
+pub async fn mailbox(
+    connection: &Arc<Connection>,
+) -> Result<Vec<be_block_protocol::Message>, ClientError> {
+    crate::ask(be_block_protocol::read::<Vec<be_block_protocol::Message>, _>(
+        connection,
+        None,
+        be_block_protocol::Query::Mailbox,
+    ))
+    .await
+}
+
 /// The account's contacts as the server lists them, each checked against `pinned`, the newest
 /// record of it this device has seen: an older record the server serves is refused for the
 /// pinned one, and the contact listed with the mismatch for as long as the server serves it (only
 /// a server that misbehaves does, so writing the pinned one back would change nothing). Key
-/// changes are followed from the record kept.
+/// changes in the mailbox are followed from the record kept, in order, and deleted once the
+/// record that follows them is written; one that does not open from it (followed already, or
+/// not the contact's) goes too, unless this device could not read the served record, as after a
+/// new phrase taken on another device, whose identity those changes may be sealed to.
 pub async fn contacts(
     connection: &Arc<Connection>,
     account: Uuid,
@@ -268,6 +285,14 @@ pub async fn contacts(
         be_block_protocol::Query::Contacts,
     )
     .await??;
+    let mut changes: HashMap<Uuid, Vec<(u64, Vec<u8>)>> = HashMap::new();
+    for message in mailbox(connection).await? {
+        if let (Some(from), be_block_protocol::Letter::KeyChange(sealed)) =
+            (message.from, message.letter)
+        {
+            changes.entry(from).or_default().push((message.id, sealed));
+        }
+    }
     let mut held = None;
     let mut listed = Vec::with_capacity(contacts.len());
     for row in contacts {
@@ -284,9 +309,11 @@ pub async fn contacts(
             Some(_) => pin.cloned(),
             None => served,
         };
+        let letters = changes.remove(&row.account).unwrap_or_default();
+        let sealed: Vec<Vec<u8>> = letters.iter().map(|(_, sealed)| sealed.clone()).collect();
         let mut put = false;
         if let Some(record) = &mut record
-            && let Some(changed) = changed_key(account, identity, &record.card, &row.changes)
+            && let Some(changed) = changed_key(account, identity, &record.card, &sealed)
         {
             if held.is_none() {
                 held = Some(sealed_to_me(connection).await?);
@@ -305,16 +332,22 @@ pub async fn contacts(
             *record = OwnContact::new(card, record.verified);
             put = true;
         }
+        let mut ops = Vec::new();
         if let Some(record) = record.as_ref().filter(|_| put) {
-            be_block_protocol::write::<(), _>(
-                connection,
-                None,
-                be_block_protocol::Op::PutContact {
-                    contact: row.account,
-                    sealed: record.seal(identity),
-                },
-            )
-            .await??;
+            ops.push(be_block_protocol::Op::PutContact {
+                contact: row.account,
+                sealed: record.seal(identity),
+            });
+        }
+        if record.is_some() && mismatch != Some(Mismatch::Unreadable) {
+            ops.extend(
+                letters
+                    .iter()
+                    .map(|(id, _)| be_block_protocol::Op::DeleteMessage(*id)),
+            );
+        }
+        if !ops.is_empty() {
+            be_block_protocol::write_all::<(), _>(connection, None, ops).await??;
         }
         listed.push(match record {
             Some(record) => Contact {
@@ -688,6 +721,25 @@ pub(crate) async fn finish_links(
         be_block_protocol::Query::Links,
     )
     .await??;
+    // Each accepted link's card, from the mailbox: by link, the message and its sender.
+    let mut cards: HashMap<Uuid, (u64, Uuid, Vec<u8>)> = HashMap::new();
+    let mut stray = Vec::new();
+    for message in mailbox(connection).await? {
+        if let (Some(from), be_block_protocol::Letter::Accepted { link, card }) =
+            (message.from, message.letter)
+        {
+            match links.iter().any(|own| own.id == link) {
+                true => {
+                    cards.insert(link, (message.id, from, card));
+                }
+                // Its link was finished, or ended, already.
+                false => stray.push(be_block_protocol::Op::DeleteMessage(message.id)),
+            }
+        }
+    }
+    if !stray.is_empty() {
+        be_block_protocol::write_all::<(), _>(connection, None, stray).await??;
+    }
     let served = match links.iter().any(|link| link.accepter.is_some()) {
         true => served_verified(connection, identity).await?,
         false => HashMap::new(),
@@ -697,11 +749,17 @@ pub(crate) async fn finish_links(
         let Some(accepter) = link.accepter else {
             continue;
         };
+        // A card from anyone but the accepter the server names is no card for this link.
+        let (letter, card) = match cards.remove(&link.id) {
+            Some((letter, from, card)) if from == accepter => (Some(letter), card),
+            Some((letter, ..)) => (Some(letter), Vec::new()),
+            None => (None, Vec::new()),
+        };
         let opened = identity
             .open_own(&link.code)
             .ok()
             .and_then(|code| InviteCode::from_bytes(&code).ok())
-            .and_then(|code| ContactCard::open(&code, CardRole::Accepter, &link.card).ok())
+            .and_then(|code| ContactCard::open(&code, CardRole::Accepter, &card).ok())
             .filter(|card| card.account == accepter.into_bytes());
         let mut kept = opened.is_some();
         if let Some(card) = &opened {
@@ -738,20 +796,18 @@ pub(crate) async fn finish_links(
         if kept && elsewhere {
             continue;
         }
-        match opened.filter(|_| kept) {
-            Some(card) => finished.push(Finished {
+        match (opened.filter(|_| kept), letter) {
+            (Some(card), Some(letter)) => finished.push(Finished {
                 card,
                 grant,
                 invited,
                 link: link.id,
+                letter,
             }),
-            None => {
-                be_block_protocol::write::<(), _>(
-                    connection,
-                    None,
-                    be_block_protocol::Op::DeleteLink(link.id),
-                )
-                .await??
+            (_, letter) => {
+                let mut ops = vec![be_block_protocol::Op::DeleteLink(link.id)];
+                ops.extend(letter.map(be_block_protocol::Op::DeleteMessage));
+                be_block_protocol::write_all::<(), _>(connection, None, ops).await??
             }
         }
     }

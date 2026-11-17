@@ -31,7 +31,7 @@ It opens the server's one `events` stream on the first `subscribe()` and pumps
 it into one `broadcast` of `be_block_client::Event`. As it attaches, a peer
 follows what it hears as it changes (`Peer::follow_topics`: a read with
 `follow` of its keys, key work, roots and notification modes, and the account's
-contacts, notices and storage, each let go of when the server refuses it, as it
+contacts, mailbox and storage, each let go of when the server refuses it, as it
 does a block's agent); each topic arrives as an `Event` that says only to read
 again (`KeysChanged`, `KeyWorkChanged`, `Roots`, `StorageChanged`, ...).
 Blocks are read, not announced: `Peer::listing` reads a listing and the

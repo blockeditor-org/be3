@@ -96,16 +96,20 @@ const SCHEMA: &str = "
         expires    INTEGER NOT NULL
     );
 
-    -- What an account is told on its devices of its ways to sign in changing
-    -- (`store/account_notices.rs`).
-    CREATE TABLE account_notices (
+    -- An account's mailbox (`store/mailbox.rs`): each message kept until a device of the
+    -- account deletes it. `sender_id` is '' for the server's own notices; `letter` is the
+    -- encoded `be_block_protocol::Letter`, and `kind` its case (`notice`, `accepted`,
+    -- `key-change`), which the hold and the bounds read.
+    CREATE TABLE mailbox (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
         account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-        text            TEXT NOT NULL,
-        created         INTEGER NOT NULL,
-        dismissed       INTEGER NOT NULL DEFAULT 0
+        sender_id       TEXT NOT NULL DEFAULT '',
+        kind            TEXT NOT NULL,
+        letter          BLOB NOT NULL,
+        created         INTEGER NOT NULL
     );
-    CREATE INDEX account_notices_account ON account_notices(account_id, id);
+    CREATE INDEX mailbox_account ON mailbox(account_id, id);
+    CREATE INDEX mailbox_sender ON mailbox(sender_id);
 
     -- Ways to sign in added to or removed from an account, and its email changing (`kind`:
     -- `added`, `removed`, `email`), kept `IDENTITY_HISTORY` for the portal's settings page and
@@ -186,8 +190,7 @@ const SCHEMA: &str = "
         -- (`delete-link` on an accepted one);
         -- the row stays for the organization's invite list until its retention passes.
         invite_finished INTEGER NOT NULL DEFAULT 0,
-        accepter_id     TEXT NOT NULL DEFAULT '',
-        accepter_card   BLOB NOT NULL DEFAULT x''
+        accepter_id     TEXT NOT NULL DEFAULT ''
     );
 
     CREATE INDEX links_owner
@@ -202,17 +205,6 @@ const SCHEMA: &str = "
         sealed          BLOB NOT NULL DEFAULT x'',
         PRIMARY KEY (account_id, contact_id)
     );
-
-    CREATE TABLE key_changes (
-        account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-        contact_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-        position        INTEGER NOT NULL,
-        sealed          BLOB NOT NULL,
-        PRIMARY KEY (account_id, contact_id, position)
-    );
-
-    CREATE INDEX key_changes_contact
-        ON key_changes (contact_id);
 
     CREATE TABLE blocks (
         organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,

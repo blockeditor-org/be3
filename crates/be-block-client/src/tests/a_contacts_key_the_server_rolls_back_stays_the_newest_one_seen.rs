@@ -75,8 +75,8 @@ async fn a_contacts_key_the_server_rolls_back_stays_the_newest_one_seen() {
         .unwrap();
     database
         .execute(
-            "DELETE FROM key_changes WHERE account_id = ?1 AND contact_id = ?2",
-            [owner.account().to_string(), guest.account().to_string()],
+            "DELETE FROM mailbox WHERE account_id = ?1 AND sender_id = ?2",
+            [guest.account().to_string(), owner.account().to_string()],
         )
         .unwrap();
     let listed = guest.refresh_contacts().await.unwrap();

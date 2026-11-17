@@ -195,7 +195,7 @@ redirect URI; the server logs at start how many accounts that strands, and each 
 link.
 
 While mail goes only to the log, an account hears of a way to sign in added or removed, or of
-its email changing, through notices on its devices (shown at its next sign-in when none is
+its email changing, through notices in its mailbox (shown at its next sign-in when none is
 signed in) and the portal's settings page, which lists the last thirty days of changes.
 
 Adding a device: be-host begins a ten-minute authorization request with a one-shot post to

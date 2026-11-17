@@ -33,10 +33,11 @@ async fn an_email_change_is_told_on_the_accounts_devices_and_listed() {
         harness.mailed("ada@example.com", "Your be3 email address changed"),
         1
     );
-    let listed = store.account_notices(account).await.unwrap();
+    let listed = store.mailbox(account).await.unwrap();
     assert_eq!(listed.len(), 1, "{listed:?}");
     assert!(
-        listed[0].text.contains("changed to ada@new.example"),
+        matches!(&listed[0].letter, be_block_protocol::Letter::Notice(text)
+            if text.contains("changed to ada@new.example")),
         "{listed:?}"
     );
     let changes = page_of(&ada.get(&harness, "/auth/settings").await).identity_changes;

@@ -1,5 +1,5 @@
 use super::*;
-use crate::store::account_notices::{IDENTITY_CHANGES_PER_DAY, MAX_ACCOUNT_NOTICES};
+use crate::store::{identity_changes::IDENTITY_CHANGES_PER_DAY, mailbox::MAX_ACCOUNT_NOTICES};
 
 #[tokio::test]
 async fn an_account_adds_ways_to_sign_in_only_so_often_a_day_and_always_removes_them() {
@@ -29,8 +29,8 @@ async fn an_account_adds_ways_to_sign_in_only_so_often_a_day_and_always_removes_
     for _ in 1..MAX_ACCOUNT_NOTICES {
         database
             .execute(
-                "INSERT INTO account_notices (account_id, text, created)
-                 VALUES (?1, 'A passkey can now sign in.', unixepoch())",
+                "INSERT INTO mailbox (account_id, kind, letter, created)
+                 VALUES (?1, 'notice', x'', unixepoch())",
                 [account.to_string()],
             )
             .unwrap();
@@ -46,7 +46,7 @@ async fn an_account_adds_ways_to_sign_in_only_so_often_a_day_and_always_removes_
     // Past the bound, a notice in its first week is never let go of.
     let held: i64 = database
         .query_row(
-            "SELECT count(*) FROM account_notices WHERE account_id = ?1",
+            "SELECT count(*) FROM mailbox WHERE account_id = ?1 AND kind = 'notice'",
             [account.to_string()],
             |row| row.get(0),
         )
@@ -71,7 +71,7 @@ async fn an_account_adds_ways_to_sign_in_only_so_often_a_day_and_always_removes_
     assert_eq!(status, 303, "{response}");
     let held: i64 = database
         .query_row(
-            "SELECT count(*) FROM account_notices WHERE account_id = ?1",
+            "SELECT count(*) FROM mailbox WHERE account_id = ?1 AND kind = 'notice'",
             [account.to_string()],
             |row| row.get(0),
         )

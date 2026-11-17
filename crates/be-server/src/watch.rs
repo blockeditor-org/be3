@@ -59,8 +59,8 @@ pub enum Push {
     },
     Paired(PairingMessage),
     ContactsChanged,
-    /// The account's notices changed (`store/account_notices.rs`).
-    AccountNoticesChanged,
+    /// A message arrived in the account's mailbox, or was deleted (`store/mailbox.rs`).
+    MailboxChanged,
     /// The account's key work in the organization may have changed (`topic.key-work`).
     KeyWorkChanged {
         organization: Uuid,

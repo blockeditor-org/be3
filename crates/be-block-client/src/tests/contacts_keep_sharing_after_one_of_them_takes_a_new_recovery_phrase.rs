@@ -66,15 +66,16 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
         },
         stranger.keys().identity().identity(),
     );
+    // A forged change ahead of the real one in the guest's mailbox, as the owner's.
     harness
         .database()
         .execute(
-            "INSERT INTO key_changes (account_id, contact_id, position, sealed)
-             VALUES (?1, ?2, -1, ?3)",
+            "INSERT INTO mailbox (account_id, sender_id, kind, letter, created)
+             VALUES (?1, ?2, 'key-change', ?3, unixepoch())",
             rusqlite::params![
-                owner.account().to_string(),
                 guest.account().to_string(),
-                forged
+                owner.account().to_string(),
+                be_block_protocol::encode(&be_block_protocol::Letter::KeyChange(forged)).unwrap()
             ],
         )
         .unwrap();

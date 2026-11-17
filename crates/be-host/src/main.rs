@@ -1771,12 +1771,7 @@ impl HostCore {
                             // sees them too; while one is open, its stack follows changes.
                             if let Ok(listed) = accounts::account_notices(url.clone(), token).await
                             {
-                                notices::account_notices(
-                                    listed
-                                        .into_iter()
-                                        .map(|notice| (notice.id, notice.text))
-                                        .collect(),
-                                );
+                                notices::account_notices(listed);
                             }
                             Ok(OrganizationResult::Loaded(
                                 organizations,

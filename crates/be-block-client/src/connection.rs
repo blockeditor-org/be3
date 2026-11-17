@@ -111,8 +111,9 @@ pub enum Event {
     /// The account's notification modes changed on another of its devices
     /// (`topic.notify-modes`).
     NotifyModesChanged,
-    /// The account's notices changed (`topic.notices`).
-    AccountNoticesChanged,
+    /// A message arrived in the account's mailbox, or another connection deleted one
+    /// (`topic.mailbox`): a notice, an accepted link's card or a contact's key change.
+    MailboxChanged,
     /// The organization's key work for this account may have changed (`topic.key-work`): read it
     /// again.
     KeyWorkChanged,
@@ -324,7 +325,7 @@ impl Connection {
                 Topic::KeyWork => Event::KeyWorkChanged,
                 Topic::Contacts => Event::ContactsChanged,
                 Topic::NotifyModes => Event::NotifyModesChanged,
-                Topic::Notices => Event::AccountNoticesChanged,
+                Topic::Mailbox => Event::MailboxChanged,
                 Topic::Storage => Event::StorageChanged,
                 Topic::Tree(_) | Topic::Session(_) => return None,
             },

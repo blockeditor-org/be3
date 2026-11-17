@@ -10,7 +10,7 @@ package be3:server@0.1.0;
 ///
 /// Five calls and one stream carry everything: `read`, `unfollow`, `write`,
 /// `send` and `events`, beside `ping` and the one-shot browser sign-in. Each names its organization: none for what is the account's own
-/// (its contacts, links, notices, recovery key and storage), else one the
+/// (its contacts, links, mailbox, recovery key and storage), else one the
 /// account is a member of. No organization is open on a connection: one
 /// connection works in any of its account's organizations at once.
 ///
@@ -25,7 +25,7 @@ interface server {
         link-id, listing, organization-id, organization-role, public-key, sealed-key,
         own-sealed, key-change, block-summary, session-state,
     };
-    use account.{account-storage, account-notice, authenticated, browser-login, browser-login-state, pairing-message};
+    use account.{account-storage, message, authenticated, browser-login, browser-login-state, pairing-message};
     use objects.{hold, object-length, upload-url};
     use blocks.{
         access-list, change-cursor, changed-page, contents, history-entry, listed, object-change,
@@ -136,12 +136,15 @@ interface server {
         /// The account's storage usage and quota. The account's own; followed,
         /// the connection hears `storage` as the bytes it pays for change.
         storage,
-        /// The account's notices not yet dismissed, oldest first. The
-        /// account's own; followed, the connection hears `notices`.
-        notices,
+        /// The account's mailbox, oldest first: the server's notices, its
+        /// accepted links' cards and its contacts' key changes, each kept
+        /// until a device deletes it. The account's own; followed, the
+        /// connection hears `mailbox` when a message arrives or is deleted
+        /// through another connection.
+        mailbox,
         /// The account's contacts. The account's own; followed, the
-        /// connection hears `contacts` when its contacts, links or key changes
-        /// changed through another connection.
+        /// connection hears `contacts` when its contacts changed through
+        /// another connection.
         contacts,
         /// The caller's links, outstanding or accepted and not yet finished;
         /// an invitation expired or revoked is not one. The account's own.
@@ -224,7 +227,7 @@ interface server {
         organizations(list<organization>),
         invitations(list<invitation-row>),
         storage(account-storage),
-        notices(list<account-notice>),
+        mailbox(list<message>),
         contacts(list<contact-row>),
         links(list<own-link>),
         link(link),
@@ -256,7 +259,7 @@ interface server {
         key-work,
         roots,
         storage,
-        notices,
+        mailbox,
         contacts,
         notify-modes,
     }
@@ -337,8 +340,9 @@ interface server {
         /// administrator of the organization the write names, which has a
         /// bounded number outstanding.
         create-link(create-link),
-        /// Accepts a link, leaving the caller's `card` for its owner and its
-        /// contact card for the owner sealed to itself (`contact`). `key` is,
+        /// Accepts a link, leaving the caller's `card` in its owner's mailbox
+        /// (`letter.accepted`) and its contact card for the owner sealed to
+        /// itself (`contact`). `key` is,
         /// for a contact link with a grant, the granted key sealed to the
         /// caller; for an invitation, the escrow key it pins sealed to
         /// itself; otherwise empty. The account's own.
@@ -358,7 +362,7 @@ interface server {
         remove-contact(remove-contact),
         /// Moves the account to a new recovery key and the signing key derived
         /// with it, with everything sealed to the old one sealed again, a key
-        /// change for each contact, and an entry retiring the old keys in
+        /// change for each contact, left in its mailbox (`letter.key-change`), and an entry retiring the old keys in
         /// every access log the account signed in
         /// (`be_block_keys::Entry::retirement`). The account's own.
         set-recovery-key(set-recovery-key),
@@ -371,11 +375,11 @@ interface server {
         /// first.
         set-push-endpoint(push-endpoint-change),
         set-notify-mode(set-notify-mode),
-        /// Dismisses one of the account's notices on every device, once it is
-        /// a week old; until then a device hides it for itself, since whoever
-        /// it warns about may hold a session too, and this changes nothing.
-        /// The account's own.
-        dismiss-notice(u64),
+        /// Deletes a message from the account's mailbox, for every device. A
+        /// notice is refused in its first `NOTICE_HOLD` (a week), since
+        /// whoever it warns about may hold a session too; a device hides it for
+        /// itself meanwhile. One already gone is no refusal. The account's own.
+        delete-message(u64),
         /// Ends the session the connection's token named and signs it out.
         /// With a push address, the device's push endpoint, the account
         /// forgets that endpoint in every organization too, as the device

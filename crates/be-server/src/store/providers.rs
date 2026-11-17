@@ -395,7 +395,7 @@ impl ServerStore {
                         ));
                     }
                     add_provider_identity(&transaction, account, &subject, &email)?;
-                    super::account_notices::claim_identity_add(&transaction, account, &label)?;
+                    super::identity_changes::claim_identity_add(&transaction, account, &label)?;
                     transaction.commit()?;
                     store.sessions_changed();
                     Ok(Outcome::Linked)
