@@ -31,7 +31,7 @@
    "id": 2,
    "type": "timeseries",
    "title": "Build time",
-   "description": "Minutes from buck2's start to its end for every build that sent a record, by command: CI's ./scripts/ci, ./scripts/verify, ./scripts/test, and ./scripts/buck build, run and bxl. A cloud session's builds are in with the rest; the Recent builds table tells them apart.",
+   "description": "Minutes from buck2's start to its end for every build that sent a record, by command: CI's ./scripts/ci, ./scripts/verify, ./scripts/test, and ./scripts/buck build, run and bxl. A cloud session's builds are in with the rest; the Recent builds table tells them apart. Each build is plotted when it started, so none can lie above the dashed line: a build started that long before now would still be running, and sends its record only when it ends.",
    "datasource": {
     "type": "frser-sqlite-datasource",
     "uid": "builds"
@@ -53,7 +53,92 @@
       "showPoints": "always"
      }
     },
-    "overrides": []
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "not finished yet"
+      },
+      "properties": [
+       {
+        "id": "custom.drawStyle",
+        "value": "line"
+       },
+       {
+        "id": "custom.showPoints",
+        "value": "never"
+       },
+       {
+        "id": "custom.lineStyle",
+        "value": {
+         "fill": "dash",
+         "dash": [
+          10,
+          10
+         ]
+        }
+       },
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "text"
+        }
+       },
+       {
+        "id": "custom.hideFrom",
+        "value": {
+         "legend": false,
+         "tooltip": true,
+         "viz": false
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "not finished yet, above"
+      },
+      "properties": [
+       {
+        "id": "custom.drawStyle",
+        "value": "line"
+       },
+       {
+        "id": "custom.showPoints",
+        "value": "never"
+       },
+       {
+        "id": "custom.lineWidth",
+        "value": 0
+       },
+       {
+        "id": "custom.fillOpacity",
+        "value": 12
+       },
+       {
+        "id": "custom.fillBelowTo",
+        "value": "not finished yet"
+       },
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "text"
+        }
+       },
+       {
+        "id": "custom.hideFrom",
+        "value": {
+         "legend": true,
+         "tooltip": true,
+         "viz": false
+        }
+       }
+      ]
+     }
+    ]
    },
    "options": {
     "legend": {
@@ -113,6 +198,19 @@
      "queryType": "time series",
      "queryText": "SELECT started AS time, seconds / 60.0 AS \"build, run, bxl\" FROM builds WHERE kind IN ('build', 'build-cloud', 'run', 'run-cloud', 'bxl', 'bxl-cloud') AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
      "rawQueryText": "SELECT started AS time, seconds / 60.0 AS \"build, run, bxl\" FROM builds WHERE kind IN ('build', 'build-cloud', 'run', 'run-cloud', 'bxl', 'bxl-cloud') AND started BETWEEN $__from / 1000.0 AND $__to / 1000.0 ORDER BY started",
+     "timeColumns": [
+      "time"
+     ]
+    },
+    {
+     "refId": "E",
+     "datasource": {
+      "type": "frser-sqlite-datasource",
+      "uid": "builds"
+     },
+     "queryType": "time series",
+     "queryText": "WITH h AS (SELECT MAX(1.0, COALESCE(MAX(seconds), 0) / 60.0) AS m FROM builds WHERE started BETWEEN $__from / 1000.0 AND $__to / 1000.0), n AS (SELECT CAST(strftime('%s', 'now') AS REAL) AS now) SELECT now - m * 60 AS time, m AS \"not finished yet\", m AS \"not finished yet, above\" FROM h, n UNION ALL SELECT now, 0.0, m FROM h, n ORDER BY time",
+     "rawQueryText": "WITH h AS (SELECT MAX(1.0, COALESCE(MAX(seconds), 0) / 60.0) AS m FROM builds WHERE started BETWEEN $__from / 1000.0 AND $__to / 1000.0), n AS (SELECT CAST(strftime('%s', 'now') AS REAL) AS now) SELECT now - m * 60 AS time, m AS \"not finished yet\", m AS \"not finished yet, above\" FROM h, n UNION ALL SELECT now, 0.0, m FROM h, n ORDER BY time",
      "timeColumns": [
       "time"
      ]
