@@ -49,6 +49,8 @@ impl TestClient {
         let commit = CommitId::from_hash(hash);
         let sealed = || b"sealed".to_vec();
         let root = self.account.map_or_else(Vec::new, |_| self.root(other));
+        let placement = self.placement(other, BlockParent::Block(block)).await;
+        let moving = self.signed_parent(block, BlockParent::Root).await;
         let mut answers = vec![
             (
                 "ping",
@@ -257,6 +259,7 @@ impl TestClient {
                         },
                         false,
                         root,
+                        placement,
                     )
                     .await,
                 ),
@@ -296,8 +299,14 @@ impl TestClient {
             (
                 "set-parent",
                 answered(
-                    client::blocks::set_parent(peer, block, BlockParent::Root, KeySet::default())
-                        .await,
+                    client::blocks::set_parent(
+                        peer,
+                        block,
+                        BlockParent::Root,
+                        KeySet::default(),
+                        moving,
+                    )
+                    .await,
                 ),
             ),
             (
@@ -583,6 +592,7 @@ async fn every_call_states_who_may_make_it() {
     let referrer = Uuid::new_v4();
     let key = Uuid::new_v4();
     let root = knower.root(referrer);
+    let placement = knower.placement(referrer, BlockParent::Root).await;
     let response = knower
         .call(|peer| {
             client::blocks::create_block(
@@ -599,6 +609,7 @@ async fn every_call_states_who_may_make_it() {
                 },
                 false,
                 root,
+                placement,
             )
         })
         .await;

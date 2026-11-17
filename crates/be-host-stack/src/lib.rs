@@ -224,6 +224,9 @@ pub fn aside(why: be_block_client::Aside) -> &'static str {
         be_block_client::Aside::KeyOutdated => {
             "it was locked offline with a key someone who lost access may hold: discard it to go on editing"
         }
+        be_block_client::Aside::Misplaced => {
+            "it was locked offline under a folder it is not really in: discard it to go on editing"
+        }
     }
 }
 

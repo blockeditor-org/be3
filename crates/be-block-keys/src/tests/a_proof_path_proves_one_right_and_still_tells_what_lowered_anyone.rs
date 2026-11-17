@@ -13,7 +13,7 @@ fn a_proof_path_proves_one_right_and_still_tells_what_lowered_anyone() {
     let reader = RecoveryPhrase::generate().secret();
     let (creator_id, manager_id, editor_id, reader_id) = ([1; 16], [2; 16], [3; 16], [4; 16]);
     let block = [7; 16];
-    let none = |_: [u8; 16], _: &Authority| None;
+    let none = |_: &Asked| None;
     let root = Entry::root(&creator, creator_id, LogKind::Block, block);
     let mut log = vec![root.clone()];
     let append = |log: &mut Vec<Entry>, by: &RecoverySecret, signer, record| {

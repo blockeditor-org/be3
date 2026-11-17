@@ -146,8 +146,9 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             blocks::Call::SetAccess { block: of, .. } => block(*of, Access::KnowExists),
             blocks::Call::ReadContents { blocks, .. } => Rule::Blocks(blocks.clone(), Access::View),
             blocks::Call::ListHistory { block: of, .. }
-            | blocks::Call::GetAccessLog { block: of, .. }
             | blocks::Call::ChangedSince { entry: of, .. } => block(*of, Access::View),
+            // Of a block the caller views, or one above a block it views (`access_log`).
+            blocks::Call::GetAccessLog { .. } => Rule::Organization,
             blocks::Call::ListAccess { block: of, .. } => block(*of, Access::Manage),
             // A listing, and a listing's `rest`, leave out what the caller may not know of.
             blocks::Call::ListBlocks { .. }
@@ -1641,6 +1642,7 @@ impl Client {
                 keys,
                 owner_only,
                 root,
+                placement,
             } => {
                 let created = async {
                     prelude?;
@@ -1658,6 +1660,7 @@ impl Client {
                             keys,
                             owner_only,
                             root,
+                            placement,
                         )
                         .await?;
                     let mut changed = vec![block.id];
@@ -1822,6 +1825,7 @@ impl Client {
                 block,
                 parent,
                 keys,
+                placement,
             } => {
                 let moved = async {
                     prelude?;
@@ -1832,7 +1836,7 @@ impl Client {
                         above,
                     } = connection
                         .store
-                        .set_parent(identity, block, parent, keys)
+                        .set_parent(identity, block, parent, keys, placement)
                         .await?;
                     // Its roots change for whoever could know of it only when it leaves or
                     // reaches the top or the trash, or who may know of it changed.

@@ -77,6 +77,8 @@ fn every_record_reads_back_with_each_option_none_and_some() {
             },
             owner_only: some,
             root: vec![8],
+            placement: vec![9],
+            unchecked: some,
         };
         let moving = Moving {
             block,

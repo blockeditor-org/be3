@@ -354,7 +354,6 @@ pub(crate) fn store_keys(
                 let granted = row.kind == KeyKind::Scope
                     && crate::access::granted_level(
                         connection,
-                        graph,
                         organization,
                         row.block,
                         account,

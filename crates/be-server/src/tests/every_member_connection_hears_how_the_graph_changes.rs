@@ -57,9 +57,7 @@ async fn every_member_connection_hears_how_the_graph_changes() {
     let (made, _) = other.read_changes(folder).await;
     assert!(made.iter().any(|block| block.id == child), "{made:?}");
     let response = author
-        .call(|peer| {
-            client::blocks::set_parent(peer, child, BlockParent::Detached, KeySet::default())
-        })
+        .move_keyed(child, BlockParent::Detached, KeySet::default())
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     assert_eq!(advanced(&mut other).await, folder);

@@ -73,14 +73,9 @@ async fn block_sizes_add_up_their_subtrees_and_follow_moves() {
 
     let token = client.token.clone();
     let moved = client
-        .call(|peer| {
-            client::blocks::set_parent(
-                peer,
-                child,
+        .move_keyed(child,
                 BlockParent::Block(elsewhere),
-                KeySet::default(),
-            )
-        })
+                KeySet::default())
         .await;
     assert!(moved.is_ok(), "{moved:?}");
     assert_eq!(client.read_block(folder).await.tree_size, 0);
@@ -95,9 +90,7 @@ async fn block_sizes_add_up_their_subtrees_and_follow_moves() {
     );
 
     let deleted = client
-        .call(|peer| {
-            client::blocks::set_parent(peer, child, BlockParent::Detached, KeySet::default())
-        })
+        .move_keyed(child, BlockParent::Detached, KeySet::default())
         .await;
     assert!(deleted.is_ok(), "{deleted:?}");
     assert_eq!(

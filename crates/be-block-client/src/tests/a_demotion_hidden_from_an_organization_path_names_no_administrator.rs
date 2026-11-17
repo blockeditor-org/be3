@@ -30,7 +30,7 @@ fn a_demotion_hidden_from_an_organization_path_names_no_administrator() {
             organization.into_bytes(),
             root.hash(),
             steps,
-            &|_, _| None,
+            &|_| None,
         )
         .unwrap()
     };

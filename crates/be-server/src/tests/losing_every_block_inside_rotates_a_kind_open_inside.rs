@@ -5,6 +5,7 @@ async fn create_under(client: &mut TestClient, content_type: Uuid, parent: Uuid)
     let block = Uuid::new_v4();
     let key = Uuid::new_v4();
     let root = client.root(block);
+    let placement = client.placement(block, BlockParent::Block(parent)).await;
     let response = client
         .call(|peer| {
             client::blocks::create_block(
@@ -21,6 +22,7 @@ async fn create_under(client: &mut TestClient, content_type: Uuid, parent: Uuid)
                 },
                 false,
                 root.clone(),
+                placement,
             )
         })
         .await;

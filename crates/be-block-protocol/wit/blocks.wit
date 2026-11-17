@@ -217,6 +217,10 @@ interface blocks {
         /// The root of the block's access log (`be_block_keys::Entry::root`),
         /// signed by the caller with its current keys (plans/signed_access.md).
         root: list<u8>,
+        /// The log's next entry, the caller's parent record placing the block
+        /// at `parent` (`be_block_keys::Record::Parent`), naming the root of
+        /// the parent's log (plans/signed_access.md, step 4).
+        placement: list<u8>,
     ) -> result<block-summary, error>;
 
     /// The block's access log, root first, each entry as
@@ -224,7 +228,9 @@ interface blocks {
     /// caller with Edit or above on the block or a block below it, else a
     /// proof path (`be_block_keys::proof_path`) whole only where it proves
     /// the caller's right or a sealer's (plans/signed_access.md, "Who is
-    /// served what").
+    /// served what"), and every parent record. Needs View on the block or a
+    /// block below it: a reader of a block below is served the right of
+    /// whoever signs there on authority from this one.
     get-access-log: async func(block: block-id) -> result<list<list<u8>>, error>;
 
     set-metadata: async func(block: block-id, metadata: list<u8>, references: list<block-id>) -> result<block-summary, error>;
@@ -269,8 +275,10 @@ interface blocks {
     /// client asks again for the blocks left out.
     read-contents: async func(blocks: list<block-id>, held: list<commit-id>) -> result<contents, error>;
 
-    /// Moves a block, with the keys it needs under its new parent.
-    set-parent: async func(block: block-id, parent: block-parent, keys: key-set) -> result<_, error>;
+    /// Moves a block, with the keys it needs under its new parent, by
+    /// `placement`: the caller's parent record placing it at `parent`, the next
+    /// entry of its access log (plans/signed_access.md, step 4).
+    set-parent: async func(block: block-id, parent: block-parent, keys: key-set, placement: list<u8>) -> result<_, error>;
 
     /// A page of the blocks of a listing, in the order of their ids: from the
     /// first, or from the first id past `after` (a `listed.next`) as the

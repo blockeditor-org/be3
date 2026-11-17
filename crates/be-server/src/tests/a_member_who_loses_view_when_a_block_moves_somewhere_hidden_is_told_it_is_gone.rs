@@ -21,9 +21,7 @@ async fn a_member_who_loses_view_when_a_block_moves_somewhere_hidden_is_told_it_
     guest.follow(note).await;
 
     let response = owner
-        .call(|peer| {
-            client::blocks::set_parent(peer, note, BlockParent::Block(hidden), KeySet::default())
-        })
+        .move_keyed(note, BlockParent::Block(hidden), KeySet::default())
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     assert_eq!(

@@ -26,7 +26,7 @@ fn a_key_opened_through_a_chain_longer_than_any_tree_is_outdated() {
         block.into_bytes(),
         root.hash(),
         &[root.clone()],
-        &|_, _| None,
+        &|_| None,
     )
     .unwrap();
     book.note_log(block, &checked, &[root.clone().into()]);
