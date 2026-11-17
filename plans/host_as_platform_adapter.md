@@ -549,14 +549,25 @@ Each step lands on its own.
        layout no longer names (`Surfaces::place` calls `release_surface`), so its instance holds
        only what its layout names; any other guest is trimmed only as far as it drops its own
        surfaces, and then holds no texture its guest does not.
-     - 4e3. An editor's watches and a block's content in the library, and be-sdk-test on it:
-       the host side of `be3:blocks` (watches, replicas, opens, commands) over a store trait,
-       which be-host-runtime implements over be-host-stack and be-sdk-test over its
-       `ContentStore`. be-sdk-test's in-process host then runs on `Wire`, so its own host-side
-       connection (beui.rs's `hear`, its published watches and docks) and `link.rs` go; `Wire`
-       takes a sandbox of its own kind, so an editor test's in-process workers stand in for
-       `Server`. They land together because `Wire` owns the connection and answers block
-       watches itself, so be-sdk-test cannot move onto it while `link.rs` answers them.
+     - 4e3. be-sdk-test on the library, and an editor's watches and a block's content in it, in
+       two sub-steps:
+       - 4e3a. Built: be-sdk-test's in-process host (`BeuiTest`) runs the editor's wire as
+         be-host's runtime does (`Wire`), so its own host-side connection goes: what the wire
+         serves itself (published, child-status, dock, block-type and web-view watches, the
+         block watches' `next`s, replica streams and sends) it no longer duplicates, and it
+         answers the rest from what the wire hears (`Heard`). `Wire` takes any `Sandbox`
+         (be-host-runtime's `AppSandbox` over `Server`, an editor test's in-process workers),
+         holds any answer the app does not wait on for the next thing sent
+         (`Wire::acknowledge`, which `send_acknowledged` sends at once for a host that steps the
+         app itself), tells one published watch its value (`set_published`), and lends its
+         connection for the replies and streams it hands over (`Wire::connection`). The
+         generated calls name their op (`Call::op`). `link.rs` stays be-sdk-test's store, now
+         answering through the wire.
+       - 4e3b. The store trait: be-sdk-app-host gains `blocks`, the host side of `be3:blocks`
+         (`Subject`, a watch's dedup, a dispatcher over a `BlockStore` trait and the answers to
+         watches that wait). be-host-runtime's `Instances` implements it over be-host-stack,
+         keeping its scope, permission and event policy in its implementation, and be-sdk-test's
+         `link.rs` over its `ContentStore`, so its own watch bookkeeping goes.
      - 4e4. be-host-runtime's orchestration in the library: pacing, settling against the
        deadline, the layout and present holds (`Laid`, `Kept`), restarts and grafting the
        accessibility trees, on be-lib-geometry rather than beui's geometry, with be-host-runtime

@@ -1,11 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use be_sdk_api::{
-    BlockCommand, EditorInstanceId, Encoded,
+    BlockCommand, EditorInstanceId,
     blocks::{BlockHistory, BlockSubject, BlockValue, OpenRequest},
     embed::blocks::Call,
-    ops::{Connection, OpError, OpId, Outcome, Producer, encode, wire},
+    ops::{OpId, Reply, encode},
 };
+use be_sdk_app_host::wire::Wire;
 use be_sdk_beui::FromEditor;
 use uuid::Uuid;
 
@@ -25,9 +26,8 @@ pub(crate) enum Subject {
 
 struct Watch {
     subject: Subject,
-    answering: be_sdk_api::Watch<Encoded>,
+    /// Its latest value, until the editor asks for the next.
     latest: Option<Vec<u8>>,
-    next: Option<OpId>,
 }
 
 pub(crate) enum Sent {
@@ -37,12 +37,13 @@ pub(crate) enum Sent {
     Frame(Uuid, FromEditor),
 }
 
+/// The editor's block calls, answered from the test's `ContentStore` through the editor's wire,
+/// which holds its watches' `next`s, its replicas' streams and its sends (`Wire`).
 pub(crate) struct Link {
     instance: EditorInstanceId,
     watches: BTreeMap<OpId, Watch>,
     values: BTreeMap<Subject, Vec<u8>>,
     replicas: BTreeMap<OpId, Uuid>,
-    producers: BTreeMap<OpId, Producer<Vec<u8>, wire::Bytes>>,
     pub(crate) sent: Vec<Sent>,
 }
 
@@ -53,13 +54,8 @@ impl Link {
             watches: BTreeMap::new(),
             values: BTreeMap::new(),
             replicas: BTreeMap::new(),
-            producers: BTreeMap::new(),
             sent: Vec::new(),
         }
-    }
-
-    pub(crate) fn holds(&self, op: OpId) -> bool {
-        self.replicas.contains_key(&op) || self.watches.contains_key(&op)
     }
 
     fn watch_store(&self, store: &ContentStore) {
@@ -85,32 +81,22 @@ impl Link {
 
     fn watch(&mut self, op: OpId, subject: Subject) {
         let latest = self.values.get(&subject).cloned();
-        let mut answering = be_sdk_api::Watch::default();
-        answering.opened(op);
-        self.watches.insert(
-            op,
-            Watch {
-                subject,
-                answering,
-                latest,
-                next: None,
-            },
-        );
+        self.watches.insert(op, Watch { subject, latest });
     }
 
     /// `author` is the account the editor's host is signed in to, which the blocks it makes
-    /// are by.
-    pub(crate) fn call(
-        &mut self,
-        call: Call,
-        store: &ContentStore,
-        connection: &mut Connection,
-        author: Uuid,
-    ) {
+    /// are by. A call that changes something is answered along with the next thing the test
+    /// sends, as an acknowledgement (`Wire::acknowledge`): its answer alone steps the editor for
+    /// nothing.
+    pub(crate) fn call(&mut self, call: Call, store: &ContentStore, wire: &mut Wire, author: Uuid) {
         let block = Uuid::from_bytes;
+        let done = |wire: &mut Wire, reply: Reply<()>| {
+            let (op, outcome) = reply.answer(&());
+            wire.acknowledge(op, outcome);
+        };
         match call {
             Call::OpenBlock { reply, request } => {
-                reply.send(connection, &());
+                done(wire, reply);
                 self.sent.push(Sent::Open(request));
             }
             Call::Act {
@@ -118,7 +104,7 @@ impl Link {
                 block: id,
                 command,
             } => {
-                reply.send(connection, &());
+                done(wire, reply);
                 let id = block(id);
                 match command {
                     BlockCommand::SetParent(parent) => store.set_parent(id, parent),
@@ -141,7 +127,7 @@ impl Link {
                 content,
                 owner_only,
             } => {
-                reply.send(connection, &());
+                done(wire, reply);
                 store.create_block(
                     block, block_type, parent, defined, content, owner_only, author,
                 );
@@ -153,7 +139,7 @@ impl Link {
                 bytes,
                 replace,
             } => {
-                reply.send(connection, &());
+                done(wire, reply);
                 store.seed_content(block(id), block(content_type), bytes, replace);
             }
             Call::ReplicaNew {
@@ -164,11 +150,8 @@ impl Link {
                 self.replicas.insert(resource.op(), block(id));
                 store.watch_content(self.instance, block(id), true);
             }
-            Call::ReplicaFrames { this, stream } => {
-                self.producers.insert(this.op(), stream);
-            }
             Call::ReplicaSend { this, frame, reply } => {
-                reply.send(connection, &());
+                wire.accepted(reply.into_op());
                 let Some(id) = self.replicas.get(&this.op()).copied() else {
                     return;
                 };
@@ -191,28 +174,26 @@ impl Link {
             }
             Call::SearchWatchNew { resource, .. } => self.watch(resource.op(), Subject::Search),
             Call::ShowRequestsNew { resource } => self.watch(resource.op(), Subject::Shows),
-            Call::BlockWatchNext { this, reply } => self.wait(this.op(), reply.into_op()),
-            Call::SearchWatchNext { this, reply } => self.wait(this.op(), reply.into_op()),
-            Call::ShowRequestsNext { this, reply } => self.wait(this.op(), reply.into_op()),
+            // The wire holds a replica's stream and each watch's `next` itself.
+            call @ (Call::ReplicaFrames { .. }
+            | Call::BlockWatchNext { .. }
+            | Call::SearchWatchNext { .. }
+            | Call::ShowRequestsNext { .. }) => {
+                let (op, outcome) = call.refuse(be_sdk_api::ops::OpError::Unsupported);
+                wire.answer(op, outcome);
+            }
         }
     }
 
-    fn wait(&mut self, watch: OpId, next: OpId) {
-        if let Some(watch) = self.watches.get_mut(&watch) {
-            watch.next = Some(next);
-        }
-    }
-
-    pub(crate) fn ended(&mut self, op: OpId, store: &ContentStore, connection: &mut Connection) {
+    /// A watch or replica the editor dropped, which its wire has answered.
+    pub(crate) fn ended(&mut self, op: OpId, store: &ContentStore) {
         if let Some(block) = self.replicas.remove(&op) {
-            self.producers.remove(&op);
             if !self.replicas.values().any(|held| *held == block) {
                 store.watch_content(self.instance, block, false);
             }
         } else {
             self.watches.remove(&op);
         }
-        connection.complete(op, Outcome::Err(OpError::Canceled));
     }
 
     pub(crate) fn offer_history(&mut self, block: Uuid, history: &BlockHistory) {
@@ -250,17 +231,16 @@ impl Link {
         }
     }
 
-    pub(crate) fn answer(&mut self, store: &ContentStore, connection: &mut Connection) {
+    /// Relays what the store has for the editor's replicas, and answers each watch the editor
+    /// waits on that has a new value.
+    pub(crate) fn answer(&mut self, store: &ContentStore, wire: &mut Wire) {
         self.watch_store(store);
-        let (replicas, producers) = (&self.replicas, &self.producers);
+        let replicas = &self.replicas;
         let outgoing = store.outgoing(self.instance, |block, frame| {
-            let replica = replicas
+            replicas
                 .iter()
                 .find(|(_, held)| **held == block)
-                .map(|(op, _)| *op);
-            replica
-                .and_then(|op| producers.get(&op))
-                .is_none_or(|producer| producer.send(connection, frame).is_ok())
+                .is_none_or(|(op, _)| wire.relay(*op, frame))
         });
         for (block, head) in outgoing.heads {
             self.offer(
@@ -274,12 +254,13 @@ impl Link {
                 encode(&BlockValue::Blocks(Ok(listed))),
             );
         }
-        for watch in self.watches.values_mut() {
-            if let Some(next) = watch.next.take() {
-                watch.answering.next_encoded(connection, next);
-            }
-            if let Some(value) = watch.latest.take() {
-                watch.answering.set(connection, value);
+        for op in wire.waiting() {
+            if let Some(value) = self
+                .watches
+                .get_mut(&op)
+                .and_then(|watch| watch.latest.take())
+            {
+                wire.answer_watch(op, value);
             }
         }
     }
