@@ -1739,19 +1739,17 @@ impl TestClient {
     }
 
     /// The grant record a device sends with `set-access` (`Peer::grant`), signed with this
-    /// client's test keys and naming the grantee's: as the block's manager, else as an
-    /// administrator of the organization. None for a standing grant, a revocation the log does
-    /// not need, or a block the server lists no log for this client.
+    /// client's test keys and naming the grantee's (for anyone inside, an opening): as the
+    /// block's manager, else as an administrator of the organization. None for a revocation the
+    /// log does not need, or a block the server lists no log for this client.
     async fn signed_grant(
         &mut self,
         block: Uuid,
         account: Uuid,
         access: be_block_graph::Access,
     ) -> Option<Vec<u8>> {
-        use be_block_keys::{Authority, Entry, Grant, LogKind, Record};
-        if account == be_block_graph::ANYONE_INSIDE {
-            return None;
-        }
+        use be_block_keys::{Authority, Entry, Grant, LogKind, Opening, Record};
+        let opening = account == be_block_graph::ANYONE_INSIDE;
         let me = self.account?;
         let decode = |served: Vec<Vec<u8>>| -> Vec<Entry> {
             served
@@ -1777,6 +1775,7 @@ impl TestClient {
         // The last grant the log names for them; the server checks the whole log.
         let named = log.iter().rev().find_map(|entry| match &entry.record {
             Record::Grant(grant) if grant.grantee == account.into_bytes() => Some(grant.level),
+            Record::Opening(opened) if opening => Some(opened.level),
             _ => None,
         });
         if level == be_block_keys::Level::None
@@ -1786,7 +1785,7 @@ impl TestClient {
         }
         let manages = check(LogKind::Block, block.into_bytes(), &log)
             .is_some_and(|checked| checked.manager(LogKind::Block, me.into_bytes()).is_some());
-        let own = account == me && level == be_block_keys::Level::None;
+        let own = !opening && account == me && level == be_block_keys::Level::None;
         let mut authority = None;
         if own || manages {
             authority = Some(Authority::Log);
@@ -1824,12 +1823,15 @@ impl TestClient {
             me.into_bytes(),
             block.into_bytes(),
             Some(log.last()?.hash()),
-            Record::Grant(Grant {
-                grantee: account.into_bytes(),
-                identity: test_secret(account).identity(),
-                level,
-                authority,
-            }),
+            match opening {
+                true => Record::Opening(Opening { level, authority }),
+                false => Record::Grant(Grant {
+                    grantee: account.into_bytes(),
+                    identity: test_secret(account).identity(),
+                    level,
+                    authority,
+                }),
+            },
         );
         Some(entry.encode())
     }

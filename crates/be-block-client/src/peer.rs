@@ -1524,8 +1524,10 @@ impl<S: ObjectStore> Peer<S> {
         };
         let entries = self.served_log(block).await?;
         let cites = entries.iter().any(|entry| {
-            matches!(&entry.record, be_block_keys::Record::Grant(grant)
-                if grant.authority != be_block_keys::Authority::Log)
+            entry
+                .record
+                .authority()
+                .is_some_and(|authority| authority != be_block_keys::Authority::Log)
         });
         let around = match cites {
             true => self.logs_around(block).await?,
@@ -1599,10 +1601,11 @@ impl<S: ObjectStore> Peer<S> {
         })
     }
 
-    /// The grant record `grant` sends: `None` for a standing grant (to anyone inside, or to the
-    /// server) and for revoking one the log does not name. It names the keys this device verified
-    /// for `account`, or those the log already names for it, and where this device's Manage
-    /// comes from: the block's log, the organization's (administering it), or a block above.
+    /// The grant record `grant` sends: `None` for the standing grant to the server and for
+    /// revoking one the log does not name; for anyone inside, an opening (`Record::Opening`).
+    /// It names the keys this device verified for `account`, or those the log already names for
+    /// it, and where this device's Manage comes from: the block's log, the organization's
+    /// (administering it), or a block above.
     async fn signed_grant(
         &self,
         block: Uuid,
@@ -1610,17 +1613,50 @@ impl<S: ObjectStore> Peer<S> {
         access: Access,
         given: Option<be_block_keys::PublicIdentity>,
     ) -> Result<Option<Vec<u8>>, ClientError> {
-        use be_block_keys::{Authority, Grant, LogKind, Record};
-        let standing = account == be_block_graph::ANYONE_INSIDE
-            || self
-                .keys
-                .server()
-                .is_some_and(|(server, _)| server == account);
-        if standing {
+        use be_block_keys::{Authority, Grant, LogKind, Opening, Record};
+        if self
+            .keys
+            .server()
+            .is_some_and(|(server, _)| server == account)
+        {
             return Ok(None);
         }
         let level = grant_level(access);
         let (entries, checked) = self.checked_access(block).await?;
+        let me = self.keys.account().into_bytes();
+        let manages = checked.manager(LogKind::Block, me).is_some();
+        let authority = |own: bool| async move {
+            match own || manages {
+                true => Ok(Authority::Log),
+                false => self
+                    .logs_around(block)
+                    .await?
+                    .authority(self.organization, me)
+                    .ok_or(ClientError::Refused(
+                        ErrorCode::PermissionDenied,
+                        format!("this account does not manage block {block}"),
+                    )),
+            }
+        };
+        let sign = |record: Record| {
+            be_block_keys::Entry::sign(
+                self.keys.identity(),
+                me,
+                block.into_bytes(),
+                entries.last().map(be_block_keys::Entry::hash),
+                record,
+            )
+            .encode()
+        };
+        if account == be_block_graph::ANYONE_INSIDE {
+            if level == be_block_keys::Level::None
+                && checked.open_inside == be_block_keys::Level::None
+            {
+                return Ok(None);
+            }
+            let authority = authority(false).await?;
+            return Ok(Some(sign(Record::Opening(Opening { level, authority }))));
+        }
         let named = checked.grants.get(&account.into_bytes()).copied();
         if level == be_block_keys::Level::None
             && named.is_none_or(|(named, _)| named == be_block_keys::Level::None)
@@ -1636,33 +1672,14 @@ impl<S: ObjectStore> Peer<S> {
                     "share only with your contacts: send them a contact link first".into(),
                 )
             })?;
-        let me = self.keys.account().into_bytes();
         let own = account.into_bytes() == me && level == be_block_keys::Level::None;
-        let authority = match own || checked.manager(LogKind::Block, me).is_some() {
-            true => Authority::Log,
-            false => {
-                let around = self.logs_around(block).await?;
-                around
-                    .authority(self.organization, me)
-                    .ok_or(ClientError::Refused(
-                        ErrorCode::PermissionDenied,
-                        format!("this account does not manage block {block}"),
-                    ))?
-            }
-        };
-        let entry = be_block_keys::Entry::sign(
-            self.keys.identity(),
-            me,
-            block.into_bytes(),
-            entries.last().map(be_block_keys::Entry::hash),
-            Record::Grant(Grant {
-                grantee: account.into_bytes(),
-                identity,
-                level,
-                authority,
-            }),
-        );
-        Ok(Some(entry.encode()))
+        let authority = authority(own).await?;
+        Ok(Some(sign(Record::Grant(Grant {
+            grantee: account.into_bytes(),
+            identity,
+            level,
+            authority,
+        }))))
     }
 
     /// Defines a block's metadata on this device and keeps the change in the outbox: a block
@@ -3124,7 +3141,7 @@ impl<S: ObjectStore> Peer<S> {
                 if node.id != block && node.scope == Some(node.id) {
                     if let Some(nested) = self.keys.scope_key(node.id)
                         && !wrapped_under(nested)
-                        && !self.keys.owner_only(nested)
+                        && !self.keys.owner_only_covers(nested)
                     {
                         keys.wrapped.push(self.keys.wrap(nested, under)?);
                     }

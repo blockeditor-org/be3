@@ -4,7 +4,7 @@ mod access;
 pub mod aead;
 pub use access::{
     Administrator, Authority, CarriedKey, Checked, Entry, EntryHash, Grant, Level, LogKind, Logs,
-    Member, Named, Record, Retirement, Root, agent_account, answer, check_log, check_log_as_of,
+    Member, Named, Opening, Record, Retirement, Root, agent_account, answer, check_log, check_log_as_of,
 };
 
 use hkdf::Hkdf;

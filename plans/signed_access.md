@@ -52,8 +52,10 @@ is granted what).
   (administering it), or a block above as of an entry of its log. A log then
   checks the same however the other log changes later: a grant an
   administrator signed still checks after they are demoted.
-  Grants to anyone inside and to the server's own account are standing
-  exceptions, server rows with no record: no device seals to either by grant.
+  Opening a kind of settings to anyone inside is a record too
+  (`Record::Opening`), which names no grantee or keys. A grant to the
+  server's own account is a standing exception, a server row with no record:
+  no device seals to it by grant.
 - **Parent.** New parent and the hash of the parent's log root, signed by the
   member who moved it. Inherited access is checked only through signed parent
   records, so the server cannot place a block under an ancestor someone else
@@ -193,12 +195,17 @@ did not sign.
   the grant; a device sealing by the log also checks the server's row, so
   nobody seals them a new epoch meanwhile, and the rotation key work asks for
   goes ahead.
-- **Standing grants**: to anyone inside (a kind of settings a viewer inside
-  offers its contacts) and to the server's own account (the settings scope,
-  crypto audit HIGH 1) are rows with no record. Neither is ever a sealing
-  target by grant: a device seals only to grantees a log names, and no record
-  can name the server, which only ever holds the organization settings'
-  scope key. Window: none beyond those two rows.
+- **Who views inside.** A kind its log opens to anyone inside
+  (`Record::Opening`) is offered by a viewer inside to its contacts the server
+  lists as viewing a block inside its owner. That they view inside is the
+  server's tree until parents are signed (step 4): a server can list any of a
+  viewer's contacts for a kind a manager opened, never for a block no
+  opening in its own log opens (the server's `opens_inside` counts for
+  nothing).
+- **The standing grant to the server's own account** (the settings scope,
+  crypto audit HIGH 1) is a row with no record. It is never a sealing target
+  by grant: no record can name the server, which only ever holds the
+  organization settings' scope key. Window: none beyond that row.
 
 ## Accepted limits
 
@@ -399,10 +406,14 @@ instead.
      on an ancestor reach a child through the ancestor's scope wrap, so
      nothing is lost before step 4 signs parents), never on a grant resting
      on `Authority::Inherited` directly or through its granters
-     (`Checked::tainted`); the escrow and settings keys go to
-     administrators the organization's log names. A key sealed by a member
+     (`Checked::tainted`); the escrow key, and any other key key work lists
+     for them (the settings blocks' keys), go to administrators the
+     organization's log names, who open all but owner-only keys through
+     escrow anyway. A key sealed by a member
      who is no contact opens with the keys the organization's log names,
-     weakly and untrusted (3a's rules). Removals made from a device
+     weakly and untrusted (3a's rules). A kind of settings is offered to a
+     viewer's contacts only when its own log opens it (`Record::Opening`,
+     untainted). Removals made from a device
      (`remove-member`, `remove-contact`, revoking in the share dialog) carry
      their signed revocations, refused without them; only the server's own
      (agents collected or deleted, `remove-contact` in another organization)
@@ -411,7 +422,9 @@ instead.
      can have the next epoch sealed to the revoked member), and checking a
      contact sender's Edit as of that head. Done: a test where a grantee who is not a contact gets
      the key and a contact with no grant does not; one where the server lists
-     a contact as granted with no record and no key reaches them.
+     a contact as granted with no record and no key reaches them; one where
+     the server makes an ordinary block a kind open inside and nothing is
+     sealed to a contact.
    - **3d. Key epochs bound to log heads.** Each new epoch names the log head
      it was made under, signed by its maker; a device seals or wraps it only
      to members granted as of that head and must hold the log up to it. Done:

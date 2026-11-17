@@ -1111,17 +1111,12 @@ impl KeyBook {
         ))
     }
 
-    /// Whether `key` is an owner-only block's scope key, which nothing else may wrap. Told by
-    /// the key's own id, which every seal of it binds, so the server cannot say otherwise.
-    pub fn owner_only(&self, key: Uuid) -> bool {
-        be_block_protocol::owner_only_key(key)
-    }
-
-    /// Whether an owner-only block's scope key covers `key`: it is one, or this device minted
-    /// or opened `key` under one, whatever the server's rows say. Such a key is its author's
-    /// alone, never escrowed, so never sealed to anyone else either.
+    /// Whether an owner-only block's scope key covers `key`: it is one (told by the key's own
+    /// id, which every seal of it binds, so the server cannot say otherwise), or this device
+    /// minted or opened `key` under one, whatever the server's rows say. Such a key is its
+    /// author's alone, never escrowed, so never sealed to anyone else either.
     pub fn owner_only_covers(&self, key: Uuid) -> bool {
-        self.owner_only(key) || self.under_owner_only.lock().unwrap().contains(&key)
+        be_block_protocol::owner_only_key(key) || self.under_owner_only.lock().unwrap().contains(&key)
     }
 
     /// Moves on each time keys are recorded (`record`).

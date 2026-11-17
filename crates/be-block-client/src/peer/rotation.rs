@@ -69,12 +69,19 @@ impl<S: ObjectStore> Peer<S> {
             self.adopt_escrows(work.escrows.clone());
         }
         let mut keys = KeySet::default();
+        let organization = match work.unsealed.is_empty() {
+            true => None,
+            false => self.checked_organization().await.ok().flatten(),
+        };
         for unsealed in &work.unsealed {
             // An owner-only block's keys are its author's alone, whoever the server lists.
             if !self.keys.trusted(unsealed.key) || self.keys.owner_only_covers(unsealed.key) {
                 continue;
             }
-            let Some(public) = self.sealing_target(unsealed.key, unsealed.account).await else {
+            let Some(public) = self
+                .sealing_target(unsealed.key, unsealed.account, organization.as_ref())
+                .await
+            else {
                 continue;
             };
             keys.wrapped
@@ -97,61 +104,64 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// The key `key` is sealed to `account` with, as the logs name them (signed access 3c): to
-    /// the server, only the organization settings' scope key (`KeyBook::recipient`); an escrow
-    /// key, and the settings' scope key, to an administrator, with the keys the organization's
-    /// log names; an owner-only key,
-    /// to this account alone; a scope key, to a grantee its block's own log names with View or
-    /// above, with the keys the grant names, contact or not. That log is checked from the root
-    /// this device pinned in full (a weak root is a member's word, plans/signed_access.md), and
-    /// a grant that rests on the server's tree (`Checked::tainted`) counts for nothing. Key
-    /// work lists only accounts the server holds a grant row for, so one it revoked is sealed
-    /// to no more, signed or not.
-    async fn sealing_target(&self, key: Uuid, account: Uuid) -> Option<RecoveryPublic> {
+    /// the server, only the organization settings' scope key (`KeyBook::recipient`); any key,
+    /// the escrow key among them, to an administrator, with the keys the organization's log
+    /// names; an owner-only block's keys to no one (`KeyBook::owner_only_covers`); a scope
+    /// key, to a grantee its block's own log names with View or above, with the keys the grant
+    /// names, contact or not, or, for a kind its log opens to anyone inside, to a contact the
+    /// server lists as viewing inside. That log is checked from the root this device pinned in
+    /// full (a weak root is a member's word, plans/signed_access.md), and a grant or opening
+    /// that rests on the server's tree (`Checked::tainted`) counts for nothing. Key work lists
+    /// only accounts the server holds a grant row for, so one it revoked is sealed to no more,
+    /// signed or not. `organization` is the organization's log, checked.
+    async fn sealing_target(
+        &self,
+        key: Uuid,
+        account: Uuid,
+        organization: Option<&be_block_keys::Checked>,
+    ) -> Option<RecoveryPublic> {
+        if self.keys.owner_only_covers(key) {
+            return None;
+        }
         let row = self.keys.row(key)?;
         if self.keys.server().is_some_and(|(server, _)| server == account) {
             return self.keys.recipient(account, key);
         }
-        // The escrow key, and the organization settings' scope key, which administering the
-        // organization gives rather than a grant: to administrators its log names.
-        let settings = be_block::organization_settings(self.organization);
-        let administering = row.kind == KeyKind::Escrow
-            || (row.kind == KeyKind::Scope && self.keys.block_of(key) == Some(settings));
-        if administering
-            && let Some(checked) = self.checked_organization().await.ok().flatten()
-            && let Some(administrator) = checked.administrators.get(&account.into_bytes())
+        // Administering the organization gives the escrow key, and with it every key but an
+        // owner-only block's: to an administrator its log names, any of them (the settings'
+        // scope key and its blocks' data keys, which key work lists for them).
+        if let Some(administrator) =
+            organization.and_then(|checked| checked.administrators.get(&account.into_bytes()))
         {
             return Some(administrator.public);
         }
         if row.kind == KeyKind::Escrow {
             return None;
         }
-        if self.keys.owner_only(key) {
-            return (account == self.account).then(|| self.keys.identity().public());
-        }
         if row.kind != KeyKind::Scope {
             return None;
         }
         let block = self.keys.block_of(key)?;
-        // A kind of settings open to whoever views a block inside is offered by its viewers to
-        // their contacts: a standing grant no log names (plans/signed_access.md, "Grants the
-        // server changes first").
-        if self
-            .summary(block)
-            .await
-            .is_ok_and(|summary| summary.opens_inside)
-        {
-            return self.keys.contact(account);
-        }
         let crate::keys::RootPin::Pinned(_) = self.keys.root_pin(block) else {
             return None;
         };
         let (_, checked) = self.checked_access(block).await.ok()?;
         let grantee = account.into_bytes();
-        if checked.tainted.contains(&grantee) {
-            return None;
+        if let Some((level, identity)) = checked.grants.get(&grantee)
+            && *level >= be_block_keys::Level::View
+            && !checked.tainted.contains(&grantee)
+        {
+            return Some(identity.public);
         }
-        let (level, identity) = checked.grants.get(&grantee)?;
-        (*level >= be_block_keys::Level::View).then_some(identity.public)
+        // A kind of settings its log opens to whoever views a block inside is offered by its
+        // viewers to their contacts. That the contact views inside is the server's word
+        // (plans/signed_access.md, "Grants the server changes first"); that the kind is open is
+        // the log's, so a block no manager opened is offered to no one.
+        let open = checked.open_inside >= be_block_keys::Level::View && !checked.open_inside_tainted;
+        match open {
+            true => self.keys.contact(account),
+            false => None,
+        }
     }
 
     pub(super) async fn save_pin(&self) -> Result<(), ClientError> {
