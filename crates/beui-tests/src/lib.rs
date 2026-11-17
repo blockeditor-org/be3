@@ -393,36 +393,83 @@ fn TextFixture() -> NodeId {
 
 const BLANK_LINE: &str = "afdjnafndjsk fadsnjknjafkdsl nfjakdjnklafds njafdnjlkafds njkafdsnjlkafds njkafdnjlkfads jnkafldsnlj a";
 
-/// A line in a frame exactly as wide as its words, then a `Blank`, which must hang past the
-/// line's end rather than wrap the last word: the screen says whether the wrapped line is as
-/// tall as the unwrapped one.
+/// A line in a frame exactly as wide as its words, then a `Blank` with a glyph over it, which
+/// must hang past the line's end rather than wrap the last word: the screen says whether the
+/// wrapped line is as tall as the unwrapped one. In the browser it also says whether the blank's
+/// box, which a mark over it fills, is as tall as its line and as wide as it was asked, and
+/// whether the glyph over it sits on the line.
 #[component]
 fn BlankFixture() -> NodeId {
     let free = view! {
         <Text color={INK} overflow={beui::Overflow::Visible}>{BLANK_LINE}</Text>
     };
     let free_rect = measured_rect(free);
+    let glyph = vec![TextGlyph::new(
+        BLANK_LINE.len()..BLANK_LINE.len() + 1,
+        "\u{23ce}",
+        FontId::proportional(14.0),
+        BLUE,
+    )];
     let fitted = view! {
-        <Text color={INK}>
+        <Text color={INK} glyphs={glyph} @test_id="blank.text">
             {BLANK_LINE}
-            <Blank width=14.0 />
+            <Blank width=BLANK_WIDTH />
         </Text>
     };
     let fitted_rect = measured_rect(fitted);
-    let report = create_memo(move || match (free_rect.get(), fitted_rect.get()) {
-        (Some(free), Some(fitted)) if free.height() == fitted.height() => "Blank hangs".to_owned(),
-        (Some(_), Some(_)) => "Blank wraps".to_owned(),
-        _ => "Blank unmeasured".to_owned(),
+    let narrower = view! {
+        <Text color={INK}>
+            {BLANK_LINE}
+            <Blank width=BLANK_WIDTH />
+        </Text>
+    };
+    let narrower_rect = measured_rect(narrower);
+    let report = create_memo(move || {
+        match (free_rect.get(), fitted_rect.get(), narrower_rect.get()) {
+            (Some(free), Some(fitted), Some(narrower)) => {
+                let hangs = match free.height() == fitted.height() {
+                    true => "Blank hangs",
+                    false => "Blank wraps",
+                };
+                let wraps = match narrower.height() > free.height() {
+                    true => "narrower wraps",
+                    false => "narrower fits",
+                };
+                format!("{hangs}, {wraps}")
+            }
+            _ => "Blank unmeasured".to_owned(),
+        }
+    });
+    // `free` sits across a row, so it is measured at its own width, not the column's.
+    let width = move |less: f32| {
+        move || Extent::px(free_rect.get().map_or(0.0, |rect| rect.width()) - less)
+    };
+    let boxed = create_memo(move || {
+        let _laid_out = fitted_rect.get();
+        blank_box()
     });
     view! {
         <List spacing=12.0>
-            {free}
-            <Frame width={move || Extent::px(free_rect.get().map_or(0.0, |rect| rect.width()))}>
-                {fitted}
-            </Frame>
+            <List direction={Direction::Horizontal} spacing=0.0>{free}</List>
+            <Frame width={width(0.0)}>{fitted}</Frame>
+            <Frame width={width(4.0)}>{narrower}</Frame>
             <Text color={INK}>{report}</Text>
+            <Text color={INK}>{boxed}</Text>
         </List>
     }
+}
+
+const BLANK_WIDTH: f32 = 14.0;
+
+/// What the browser drew for the blank in `BlankFixture`.
+#[cfg(target_arch = "wasm32")]
+fn blank_box() -> String {
+    web::blank_box(BLANK_WIDTH)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn blank_box() -> String {
+    "Blank box drawn natively".to_owned()
 }
 
 #[component]

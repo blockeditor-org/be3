@@ -478,6 +478,25 @@ impl TextModel {
     pub fn set_font(&self, font: FontId) {
         self.decor.borrow_mut().font = Some(font);
     }
+
+    pub fn font(&self) -> Option<FontId> {
+        self.decor.borrow().font
+    }
+}
+
+/// How far a space advances in `font`, as the browser lays it out; `None` outside one.
+pub fn space_advance(font: FontId) -> Option<f32> {
+    #[cfg(target_arch = "wasm32")]
+    return web::canvas(|context| {
+        context.set_font(&crate::css::font(font));
+        context.measure_text(" ").ok().map(|metrics| metrics.width() as f32)
+    })
+    .flatten();
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = font;
+        None
+    }
 }
 
 #[derive(Clone, PartialEq, Debug)]

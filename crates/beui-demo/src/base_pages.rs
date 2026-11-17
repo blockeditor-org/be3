@@ -343,14 +343,28 @@ const BLANKED: &str = "A blank after the last word hangs past the edge";
 #[component]
 fn TextBlanks() -> NodeId {
     let theme = use_theme();
-    let mark = move || vec![beui::TextMark::new(BLANKED.len()..BLANKED.len() + 1, theme.accent.get())];
+    // The line laid out alone, so the frame below can be exactly as wide as its words.
+    let alone = view! {
+        <Text color={theme.text} overflow={Overflow::Visible}>{BLANKED}</Text>
+    };
+    let measured = measure(alone);
+    let width = move || Extent::px(measured.get().map_or(0.0, |measured| measured.rect.width()));
+    let mark = move || {
+        vec![beui::TextMark::new(
+            BLANKED.len()..BLANKED.len() + 1,
+            theme.accent.get(),
+        )]
+    };
     view! {
-        <Frame width=200.0 fill={theme.control}>
-            <Text color={theme.text} marks={mark}>
-                {BLANKED}
-                <Blank width=16.0 />
-            </Text>
-        </Frame>
+        <List spacing={SECTION_SPACING.px()}>
+            <List direction={Direction::Horizontal} spacing={ROW_SPACING.px()}>{alone}</List>
+            <Frame width={width} fill={theme.control}>
+                <Text color={theme.text} marks={mark}>
+                    {BLANKED}
+                    <Blank width=16.0 />
+                </Text>
+            </Frame>
+        </List>
     }
 }
 

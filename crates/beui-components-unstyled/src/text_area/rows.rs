@@ -408,8 +408,9 @@ fn invisible_marker(byte: u8) -> Option<&'static str> {
 
 /// The name shown for a control character with no width of its own (NUL, BEL, CR and the
 /// rest of C0, and DEL), its ASCII abbreviation, which takes its place, and so its width, in
-/// the row. Tab and newline have markers of their own; a newline's is drawn in a hanging blank. The abbreviations are text,
-/// not Control Pictures symbols, which the bundled fonts do not have.
+/// the row. Tab and newline have markers of their own; a newline's is drawn in a hanging
+/// blank. The abbreviations are text, not Control Pictures symbols, which the bundled fonts do
+/// not have.
 fn control_marker(byte: u8) -> Option<&'static str> {
     const NAMES: [&str; 32] = [
         "NUL", "SOH", "STX", "ETX", "EOT", "ENQ", "ACK", "BEL", "BS", "HT", "LF", "VT", "FF", "CR",

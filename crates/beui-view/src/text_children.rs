@@ -296,10 +296,6 @@ impl IntoSegment<TextChild> for Gap {
 
 pub struct Blank {
     pub(crate) width: f32,
-    #[cfg_attr(
-        beui_html,
-        expect(dead_code, reason = "the HTML core's lines take the text's line-height")
-    )]
     pub(crate) font: Option<FontId>,
 }
 
