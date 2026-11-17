@@ -1211,7 +1211,8 @@ impl KeyBook {
     /// held, so no seal names its sender) for as long as it names a head no log holds. An
     /// honest head newer than this device's log costs a rotation (`Peer::outdated` reads the
     /// log again first). And a key counts as outdated when the epoch it was opened through is,
-    /// whoever's head it names (`Roots::through`).
+    /// whoever's head it names (`Roots::through`), or when the organization's log demoted an
+    /// administrator after the head of it the key names (`demoted_since`).
     pub fn outdated(&self, key: Uuid, block: Uuid) -> bool {
         self.judged(key, block, true)
     }
@@ -1231,7 +1232,11 @@ impl KeyBook {
         // was checked as it was taken) is judged only by logs this device holds or kept.
         let opened_through = unknown_outdates && path.len() > 1;
         path.into_iter().any(|(key, block)| {
-            let head = roots.heads.get(&key).and_then(|heads| heads.block);
+            let heads = roots.heads.get(&key).copied().unwrap_or_default();
+            if self.demoted_since(&roots, key, heads.organization) {
+                return true;
+            }
+            let head = heads.block;
             if let Some(log) = roots.logs.get(&block) {
                 return match head.filter(|head| log.holds(head)) {
                     Some(head) => log.outdates(&head),
@@ -1249,14 +1254,46 @@ impl KeyBook {
         })
     }
 
+    /// Whether the organization's log, as this device last checked it (or, with none read this
+    /// run, kept it), outdates the epoch of `key`, which names `head` of it: an administrator
+    /// was demoted or signed out after it, and may hold the epoch through escrow (signed access
+    /// 8). So a demotion makes every scope under the escrow due a rotation at its next write, as
+    /// a revocation does its block's. A head the log does not reach counts as its root, as for
+    /// a block's log. Never a key an owner-only scope covers, which no escrow holds; never in an
+    /// organization this device holds no log of (the personal one has none).
+    fn demoted_since(&self, roots: &Roots, key: Uuid, head: Option<EntryHash>) -> bool {
+        if self.owner_only_covers(key) {
+            return false;
+        }
+        if let Some(log) = roots.logs.get(&self.organization) {
+            return match head.filter(|head| log.holds(head)) {
+                Some(head) => log.outdates(&head),
+                None => log.last_lowering > 0,
+            };
+        }
+        roots.kept.get(&self.organization).is_some_and(|kept| {
+            kept.lowering_place > 0 && !head.is_some_and(|head| kept.current.contains(&head))
+        })
+    }
+
     /// The scopes whose logs `outdated` judges `key`, of `block`'s scope, by, that this device
     /// has not checked, or whose log does not reach the head the key there names: what
-    /// `Peer::outdated` reads first.
+    /// `Peer::outdated` reads first. The organization's among them, by its id, when it has a log
+    /// and a key on the path names a head of it this device does not hold.
     pub fn logs_to_read(&self, key: Uuid, block: Uuid) -> Vec<Uuid> {
+        let organization_root = self.organization_root();
         let roots = self.roots.lock().unwrap();
-        let mut found: Vec<Uuid> = roots
-            .path(key, block)
-            .unwrap_or_default()
+        let path = roots.path(key, block).unwrap_or_default();
+        let organization = organization_root.is_some()
+            && path.iter().any(|(key, _)| {
+                let head = roots.heads.get(key).and_then(|heads| heads.organization);
+                !self.owner_only_covers(*key)
+                    && match roots.logs.get(&self.organization) {
+                        None => true,
+                        Some(log) => head.is_some_and(|head| !log.holds(&head)),
+                    }
+            });
+        let mut found: Vec<Uuid> = path
             .into_iter()
             .filter(|(key, block)| match roots.logs.get(block) {
                 None => true,
@@ -1267,6 +1304,7 @@ impl KeyBook {
                     .is_some_and(|head| !log.holds(&head)),
             })
             .map(|(_, block)| block)
+            .chain(organization.then_some(self.organization))
             .collect();
         found.sort();
         found.dedup();

@@ -203,7 +203,9 @@ organization's log has them administer it); an escrow key only from an
 administrator at the organization log's head. The log is read first when this
 device pinned the block's root. And an epoch named before an entry that
 lowered someone's access is written, wrapped and sealed under no more: the
-device rotates its scope (guides/blocks/keys.md, "Epochs name their heads").
+device rotates its scope (guides/blocks/keys.md, "Epochs name their heads"). An
+epoch naming an organization head before a demotion is written and wrapped
+under no more either, in every scope under the escrow (step 8).
 
 This stops a server that only withholds. It does not stop one that **forks**
 the log, showing Carol's phone a history that never reaches the revocation or
@@ -312,11 +314,32 @@ did not sign.
   device neither kept nor can read judges a key opened through another as
   outdated, and one made here, or sealed to this account directly, as not.
   What it cannot catch: a revocation it never held in any run.
-- **Demoting an administrator rotates only the escrow**, not the blocks'
-  scopes. The demoted one keeps every scope epoch they reached through escrow,
-  and since no block's log lowered anyone, those epochs stay current: with the
-  server's help they read what is written under them until each block rotates
-  for some other reason. The fix: step 8.
+- **A demotion rotates scopes as they are written.** A demotion (or an
+  administrator signed out) outdates every epoch under the escrow that names
+  an organization head before it (`KeyBook::demoted_since`, step 8), so the
+  demoted administrator, with the server, reads what was written before it
+  and nothing written after; but no scope rotates at the demotion, only at its
+  next write, block made or relay (`Peer::rotate_outdated`). Cost: nothing at
+  the demotion; the first write in a tree after it rotates from the highest
+  outdated scope above the one written (`Peer::rotation_top`), one `Rotate`
+  for the whole tree (a new epoch per scope and data key per block, every
+  data key epoch rewrapped), as a revocation on the tree's top costs; later
+  writes in it rotate nothing. So at most one rotation per tree written after
+  a demotion, and none for a tree never written again. Rotating each scope
+  from below instead would rotate the scopes above again at each level, as a
+  scope's new epoch must be wrapped under a new one of the scope above it. A
+  member who reaches a scope only from inside it (granted there, viewing no
+  block above) cannot rotate it, as for a revocation in that scope's log:
+  online their writes there are refused (`Locked`) until a member who views
+  the tree's top writes in it, and an edit they made offline is set aside
+  (`Aside::KeyOutdated`) if no rotation reached it by the time it is sent. A
+  device learns of a demotion only by reading the organization's log: the
+  server tells every member's devices that key work changed, and `tend` reads
+  it; a server that withholds the demotion keeps a device writing under the
+  old epochs, as for any withheld revocation ("Which epoch a device writes
+  under"). A key naming no organization head, or one this device's log does
+  not reach even read again, counts as named at the root, as for a block's
+  log: in an organization that ever demoted anyone, it costs a rotation.
 - **Stale heads on making.** A key minted on a device whose block or
   organization log is stale names those stale heads: for a new block, as for a
   rotation by a device withheld a revocation, its epoch is current only on
@@ -693,9 +716,19 @@ instead.
    edit set aside and makes no epoch; one where a merge holding a local commit
    under the outdated key, outside the outbox, is set aside and that commit
    never uploaded.
-8. **Demotions rotate scopes.** A demotion makes every scope under the escrow
-   due a rotation, as a revocation does its block's, so a demoted
-   administrator reads nothing written after it under epochs they reached
-   through escrow (Accepted limits, "Demoting an administrator rotates only
-   the escrow"). Done: a test where a demoted administrator, with the server,
-   cannot open what a member writes after the demotion.
+8. **Demotions rotate scopes.** Built (guides/blocks/keys.md, "Outdated
+   epochs"): a key, and every key it was opened through, naming an
+   organization head before the organization log's last demotion is outdated
+   (`KeyBook::demoted_since`), unless an owner-only scope covers it, so every
+   scope under the escrow is due a rotation at its next write, as a
+   revocation makes its block's; the organization's log is read before
+   judging when this device holds none or does not reach a key's head
+   (`KeyBook::logs_to_read`); a rotation for an outdated key starts from the
+   highest outdated scope above (`Peer::rotation_top`); and the server tells
+   every member's devices key work changed on a demotion or a member's
+   removal, so `tend` reads the log (Accepted limits, "A demotion rotates
+   scopes as they are written"). Done: a test where a demoted administrator,
+   with the server, cannot open what a member writes after the demotion, in a
+   scope of its own inside a workspace, rotated with the workspace in one
+   rotation; one where an edit made offline across a demotion is sealed again
+   (step 7) under a key the demoted administrator never gets.
