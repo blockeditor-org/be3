@@ -322,7 +322,6 @@ impl<S: ObjectStore> Peer<S> {
         let Some(root) = crate::peer::made_root(creation) else {
             return Ok(());
         };
-        self.refs.made_again(creation.block)?;
         if let Some(kept) = self.keys.kept_log(creation.block)
             && kept.head == root
         {
@@ -337,7 +336,10 @@ impl<S: ObjectStore> Peer<S> {
         let Some(root) = crate::peer::made_root(creation) else {
             return Ok(());
         };
-        crate::peer::forget_made(&self.keys, &self.refs, creation.block, root)
+        let minted: Vec<Uuid> = creation.keys.keys.iter().map(|row| row.id).collect();
+        self.keys.forget_made(creation.block, root, &minted);
+        self.refs.unmade_root(creation.block, root, &minted)?;
+        Ok(())
     }
 
     /// A local account's outbox settled as a server would answer it (`Peer::local`): every
@@ -856,17 +858,18 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
-    /// Whether the block the server has under `creation`'s id is the one it made: its log
-    /// starts at the root made with it. A block this account may not read the log of is
-    /// someone else's.
+    /// Whether the block the server has under `creation`'s id is one this account made: its
+    /// log starts at the root made with it, which every device of the account makes the same
+    /// (`Entry::root` signs the account and the block alone), so the first of two devices
+    /// counts. A block this account may not read the log of is someone else's.
     pub(super) async fn made_here(&self, creation: &Creation) -> Result<bool, ClientError> {
         let Some(root) = crate::peer::made_root(creation) else {
             return Ok(false);
         };
         match self.served_log(creation.block).await {
             Ok(steps) => Ok(steps.first().is_some_and(|first| first.hash() == root)),
-            // Deliberately someone else's: this account made the block it would read the log
-            // of, so one it may not read is not the block it made.
+            // Deliberately someone else's: this account may read the log of any block it made,
+            // so one it may not read is not one it made.
             Err(ClientError::Refused(code, _)) if lost_access(code) => Ok(false),
             Err(error) => Err(error),
         }
