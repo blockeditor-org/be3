@@ -50,6 +50,15 @@ fn hovering_a_menu_item_with_children_opens_its_submenu_without_a_click() {
 
     let share_pos = harness.center(share_button);
     harness.frame(vec![Input::PointerMoved(share_pos)]);
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::MenuListApi>(content)
+            .row_submenu_content(0)
+            .is_none(),
+        "the submenu waits for the pointer to rest on its row"
+    );
+    harness.pause(unstyled::SUBMENU_DELAY * 2);
 
     let submenu = harness
         .document()
