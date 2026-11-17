@@ -134,9 +134,8 @@ pub(crate) fn Stage(
         let held = hand.with_untracked(|hand| hand.iter().any(|held| held.spot == from));
         match held {
             true => Some(HAND_CARD),
-            false => layout.with_untracked(|layout| {
-                Some(layout.lifted(from)?.rect.size() * view_now().scale)
-            }),
+            false => layout
+                .with_untracked(|layout| Some(layout.lifted(from)?.rect.size() * view_now().scale)),
         }
     };
     // Where `spot` is on screen: its hand card, or the union of its items on the table.
@@ -379,43 +378,43 @@ pub(crate) fn Stage(
     // given, does not have.
     let built = view! {
         <Layers @node_ref=&stage>
-                <List spacing=Space::None>
-                    <ListItem grow=1.0>
-                        <Canvas view={canvas} @node_ref={&content}>
-                            <ForEach value={item_keys}>|id: ItemId|
-                                <TableItem id layout={layout} play={play} hidden={hidden} />
-                            </ForEach>
-                            <ForEach value={spot_keys}>|spot: Spot|
-                                <SpotItem spot layout={layout} play={play} />
-                            </ForEach>
-                            <CanvasItem
-                                x=0.0
-                                y=0.0
-                                width={move || bounds.get().width().max(1.0)}
-                                height={move || bounds.get().height().max(1.0)}
-                                @test_id={"game.board"}
-                            >
-                                <Drawing draw={marks_draw} />
-                            </CanvasItem>
-                        </Canvas>
-                    </ListItem>
-                    <HandBar hand bar play={play} hidden />
-                </List>
-                <Canvas view={screen_view()}>
-                    <ForEach value={motion.flying}>|id: ItemId|
-                        <FlightItem id motion={motion} />
-                    </ForEach>
-                    <CanvasItem
-                        x={create_memo(move || lifted_rect.get().left())}
-                        y={create_memo(move || lifted_rect.get().top())}
-                        width={create_memo(move || lifted_rect.get().width())}
-                        height={create_memo(move || lifted_rect.get().height())}
-                        clip=false
-                        @test_id={"game.lifted"}
-                    >
-                        <Drawing draw={lifted_draw} />
-                    </CanvasItem>
-                </Canvas>
+            <List spacing=Space::None>
+                <ListItem grow=1.0>
+                    <Canvas view={canvas} @node_ref={&content}>
+                        <ForEach value={item_keys}>|id: ItemId|
+                            <TableItem id layout={layout} play={play} hidden={hidden} />
+                        </ForEach>
+                        <ForEach value={spot_keys}>|spot: Spot|
+                            <SpotItem spot layout={layout} play={play} />
+                        </ForEach>
+                        <CanvasItem
+                            x=0.0
+                            y=0.0
+                            width={move || bounds.get().width().max(1.0)}
+                            height={move || bounds.get().height().max(1.0)}
+                            @test_id={"game.board"}
+                        >
+                            <Drawing draw={marks_draw} />
+                        </CanvasItem>
+                    </Canvas>
+                </ListItem>
+                <HandBar hand bar play={play} hidden />
+            </List>
+            <Canvas view={screen_view()}>
+                <ForEach value={motion.flying}>|id: ItemId|
+                    <FlightItem id motion={motion} />
+                </ForEach>
+                <CanvasItem
+                    x={create_memo(move || lifted_rect.get().left())}
+                    y={create_memo(move || lifted_rect.get().top())}
+                    width={create_memo(move || lifted_rect.get().width())}
+                    height={create_memo(move || lifted_rect.get().height())}
+                    clip=false
+                    @test_id={"game.lifted"}
+                >
+                    <Drawing draw={lifted_draw} />
+                </CanvasItem>
+            </Canvas>
             <Interactive
                 focusable=true
                 on_key={on_key}

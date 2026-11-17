@@ -4,7 +4,11 @@ use super::*;
 fn a_rect_can_touch_each_side_lined_up_with_its_start_middle_or_end() {
     let laptop = Rect::from_min_size(pos2(0.0, 0.0), vec2(1000.0, 500.0));
     let found = places(vec2(400.0, 300.0), &[laptop]);
-    assert_eq!(found.len(), 12, "three lined-up places on each of four sides");
+    assert_eq!(
+        found.len(),
+        12,
+        "three lined-up places on each of four sides"
+    );
     let at = |side: Side, line: Line| {
         found
             .iter()

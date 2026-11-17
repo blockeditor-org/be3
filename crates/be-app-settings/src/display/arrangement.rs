@@ -1,9 +1,9 @@
 use be_sdk_beui::HostDisplay;
 use be_sdk_beui::be_block::DisplaySettings;
 use be_sdk_beui::be_block::display_settings::{Arrangement, ScreenPlace};
+use be_sdk_beui::beui::drag::{self, DragSpec};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::drag::{self, DragSpec};
 use be_sdk_beui::beui::{NodeId, PointerPress, Pos2, Rect, Vec2, pos2, vec2};
 use beui::geometry::Side;
 use beui::geometry::touching;
@@ -133,8 +133,11 @@ fn arrangement_spec(tiles: &[Tile], id: &str, view: View, area: NodeRef) -> Drag
     let rects: Vec<Rect> = others.iter().map(|tile| tile.rect).collect();
     let in_area = |rect: Rect| Rect::from_min_size(view.to_area(rect.min), rect.size() * view.fit);
     let places = touching::places(size, &rects).into_iter().map(|place| {
-        drag::Candidate::new(place.rect, in_area(place.rect), area)
-            .labelled(place_label(&others[place.beside].name, place.side, place.line))
+        drag::Candidate::new(place.rect, in_area(place.rect), area).labelled(place_label(
+            &others[place.beside].name,
+            place.side,
+            place.line,
+        ))
     });
     drag::closest(places)
         .when_far(drag::free(area, move |rect: Rect| {
@@ -185,9 +188,7 @@ pub(super) fn ArrangementRow(
     use_drop_site(
         Func::new(|_: Carried| true),
         Func::new(move |Carried(id): Carried| {
-            laid.with_untracked(|tiles| {
-                arrangement_spec(tiles, &id, view.get_untracked(), area)
-            })
+            laid.with_untracked(|tiles| arrangement_spec(tiles, &id, view.get_untracked(), area))
         }),
         Callback::new(move |(Carried(id), rect): (Carried, Rect)| {
             let arrangement = laid.with_untracked(|tiles| {
@@ -215,8 +216,6 @@ pub(super) fn ArrangementRow(
                 border={Border::DEFAULT}
                 radius=Radius::Sm
             >
-                // A scroll that never overflows, for its clip: a display carried past the
-                // area never draws over the rows around it.
                 <Scroll>
                     <Frame
                         width={Length::Size(Size::Custom(AREA.x))}
