@@ -1668,6 +1668,7 @@ dependencies = [
  "be-lib-layers",
  "be-lib-stable-hash",
  "be-sdk-api",
+ "be-sdk-app-host",
  "be-sdk-manifest",
  "be-sdk-type-api",
  "be-sdk-type-guest",
@@ -2089,6 +2090,19 @@ dependencies = [
  "be-wasm-ops-bindgen",
  "serde",
  "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "be-sdk-app-host"
+version = "0.1.0"
+dependencies = [
+ "be-lib-stable-hash",
+ "be-sdk-api",
+ "be-sdk-manifest",
+ "be-wasm-host",
+ "be-wasm-sandbox-api",
+ "be-wasm-sandbox-host",
  "uuid",
 ]
 

@@ -134,7 +134,9 @@ pub(super) fn spawn(
 /// The wire to `app`, which serves it the sandbox API for its workers: it may spawn only its own
 /// app's workers (`be_wasm_sandbox_host::Server::for_app`), found by `staged_worker`.
 pub(super) fn wire(app: &AppManifest) -> Wire {
-    Wire::granting(app.extensions.clone()).with_sandbox(be_wasm_sandbox_host::Server::for_app(
+    Wire::granting(app.extensions.clone())
+        .offering(super::published::offered)
+        .with_sandbox(be_wasm_sandbox_host::Server::for_app(
         Arc::new(be_host_base::host::wake),
         app.identity.id.clone(),
         Box::new(staged_worker),

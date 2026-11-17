@@ -96,23 +96,24 @@ fn a_watch_of_an_extension_the_manifest_does_not_grant_is_denied() {
     );
     assert_eq!(*administrator.borrow(), None, "it waits for the value");
 
-    let mut wire = Wire::granting(vec!["be3:desktop".to_owned()]);
+    let mut wire = Wire::granting(vec!["be3:desktop".to_owned()]).offering(|_| true);
     let (guest, editor, mut heard) = opened(&mut wire);
     let power = watched::<PowerWatch>(&guest, editor);
     guest.enter(|| with_parent(editor, || power::request(PowerAction::PowerOff)).detach());
     exchange(&mut wire, &guest, &mut heard);
-    match cfg!(target_os = "linux") {
-        true => {
-            assert_eq!(*power.borrow(), None, "a granted watch waits for the value");
-            assert!(matches!(
-                heard.as_slice(),
-                [Heard::Watch(INSTANCE, open), Heard::Published(INSTANCE, _)]
-                    if *open == PowerWatch::OPEN
-            ));
-        }
-        false => assert!(
-            matches!(*power.borrow(), Some(Err(_))),
-            "a host with no Linux session has none of it"
-        ),
-    }
+    assert_eq!(*power.borrow(), None, "a granted watch waits for the value");
+    assert!(matches!(
+        heard.as_slice(),
+        [Heard::Watch(INSTANCE, open), Heard::Published(INSTANCE, _)]
+            if *open == PowerWatch::OPEN
+    ));
+
+    let mut wire = Wire::granting(vec!["be3:desktop".to_owned()]);
+    let (guest, editor, mut heard) = opened(&mut wire);
+    let power = watched::<PowerWatch>(&guest, editor);
+    exchange(&mut wire, &guest, &mut heard);
+    assert!(
+        matches!(*power.borrow(), Some(Err(_))),
+        "a host that does not offer an extension's interface refuses it even where it is granted"
+    );
 }
