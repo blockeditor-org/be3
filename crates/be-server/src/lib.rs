@@ -143,7 +143,6 @@ pub struct ServerConfig {
     pub allow_registration: bool,
     pub allow_login: bool,
     pub auth_origin: Option<String>,
-    pub lease: Duration,
     pub portal: Option<be_server_portal::Portal>,
     /// The bytes each account may store (`--account-quota`): the distinct objects of the blocks
     /// it pays for, and its uploads no block holds yet. None for no limit.
@@ -164,6 +163,9 @@ pub struct ServerConfig {
     pub trusted_proxies: Cow<'static, [IpAddr]>,
     /// How long a connection may go after its greeting before its first call signs it in.
     pub sign_in_timeout: Duration,
+    /// How long a websocket may send nothing at all before the server takes it for gone,
+    /// closing it and leaving its sessions (`IDLE_TIMEOUT` unless a test waits less).
+    pub idle_timeout: Duration,
     /// The fewest seconds between two polls of a browser sign-in, at first; tests that poll
     /// one sign-in again at once set it to zero.
     pub sign_in_poll_interval: Duration,
@@ -187,7 +189,6 @@ impl ServerConfig {
         allow_registration: false,
         allow_login: false,
         auth_origin: None,
-        lease: Duration::from_millis(be_block_session::LEASE_MILLISECONDS.unsigned_abs()),
         portal: None,
         account_quota: Some(store::DEFAULT_ACCOUNT_QUOTA),
         upload_grace: store::DEFAULT_UPLOAD_GRACE,
@@ -199,6 +200,7 @@ impl ServerConfig {
             IpAddr::V6(Ipv6Addr::LOCALHOST),
         ]),
         sign_in_timeout: SIGN_IN_TIMEOUT,
+        idle_timeout: IDLE_TIMEOUT,
         sign_in_poll_interval: browser_auth::POLL_INTERVAL,
         bucket: None,
         public_url: None,
@@ -435,6 +437,7 @@ pub async fn serve_with_mail(
             "accounts sign in only with providers this server no longer has, or with passkeys made for another --auth-origin: let one in with `be-server login-link --account ID`"
         );
     }
+    let hub = Arc::new(WatchHub::new());
     let services = Services {
         discovery: Arc::default(),
         pusher: push::Pusher::new(vapid, subject, &config.push),
@@ -461,8 +464,8 @@ pub async fn serve_with_mail(
             objects::Objects::Bucket(_) => None,
         },
         store,
-        hub: Arc::new(WatchHub::new()),
-        registry: Arc::new(SessionRegistry::new(config.lease)),
+        registry: Arc::new(SessionRegistry::new(Arc::clone(&hub))),
+        hub,
         config,
         mail,
         http: Arc::new(http::Sessions::default()),
@@ -739,18 +742,20 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for Watched<S> {
     }
 }
 
-/// The next message, or none once nothing at all has been read for `IDLE_TIMEOUT`. A large
-/// message on a slow link takes as long as it takes, as long as its bytes keep coming.
+/// The next message, or none once nothing at all has been read for `idle`
+/// (`ServerConfig::idle_timeout`). A large message on a slow link takes as long as it takes, as
+/// long as its bytes keep coming.
 pub(crate) async fn next_heard<M>(
     source: &mut (impl futures_util::Stream<Item = M> + Unpin),
     heard: &Heard,
+    idle: Duration,
 ) -> Option<M> {
     let mut next = source.next();
     loop {
         tokio::select! {
             message = &mut next => return message,
-            () = tokio::time::sleep_until(heard.last() + IDLE_TIMEOUT) => {
-                if heard.last() + IDLE_TIMEOUT <= tokio::time::Instant::now() {
+            () = tokio::time::sleep_until(heard.last() + idle) => {
+                if heard.last() + idle <= tokio::time::Instant::now() {
                     return None;
                 }
             }
@@ -811,6 +816,7 @@ async fn serve_socket<S>(
 where
     S: AsyncRead + AsyncWrite + Unpin + Send,
 {
+    let idle = services.config.idle_timeout;
     let (mut sink, mut source) = socket.split();
     let greeted = tokio::select! {
         greeted = greet(&mut sink, &mut source) => greeted?,
@@ -872,7 +878,7 @@ where
         let (outgoing, peer) = (outgoing.clone(), client.peer.clone());
         async move {
             loop {
-                let Some(frame) = next_heard(&mut source, heard).await else {
+                let Some(frame) = next_heard(&mut source, heard, idle).await else {
                     return Ok(());
                 };
                 let sent = match frame? {

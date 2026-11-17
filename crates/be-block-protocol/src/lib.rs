@@ -27,7 +27,7 @@ be_wasm_ops_bindgen::generate!({
         "object-change",
         "reference-change",
     ],
-    inline: ["block-changed", "block-removed", "joined", "relayed"],
+    inline: ["block-changed", "block-removed", "joined", "relayed", "sealed"],
 });
 
 pub use account::*;
@@ -355,12 +355,6 @@ impl KeySet {
     pub fn extend(&mut self, other: KeySet) {
         self.keys.extend(other.keys);
         self.wrapped.extend(other.wrapped);
-    }
-}
-
-impl SessionState {
-    pub fn is_holder(&self, client: ClientId) -> bool {
-        self.owner == Some(client)
     }
 }
 

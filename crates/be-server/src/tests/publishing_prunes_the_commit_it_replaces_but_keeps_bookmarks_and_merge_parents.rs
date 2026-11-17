@@ -35,6 +35,7 @@ async fn publishing_prunes_the_commit_it_replaces_but_keeps_bookmarks_and_merge_
                 listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await;
@@ -73,6 +74,7 @@ async fn publishing_prunes_the_commit_it_replaces_but_keeps_bookmarks_and_merge_
                 listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await;

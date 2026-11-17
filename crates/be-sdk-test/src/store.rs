@@ -210,13 +210,16 @@ impl Default for Inner {
     }
 }
 
-fn session() -> SessionState {
+fn session(tag: SessionTag) -> SessionState {
     SessionState {
-        generation: 1,
-        owner: Some(THIS_DEVICE),
-        participants: vec![THIS_DEVICE],
-        clean_at: None,
-        tag: None,
+        index: 1,
+        after: 0,
+        participants: vec![be_sdk_type_guest::api::Participant {
+            client: THIS_DEVICE,
+            tag: Hash::from_bytes(tag.0),
+            may_edit: true,
+            claimed: None,
+        }],
     }
 }
 
@@ -520,8 +523,7 @@ impl Inner {
                 reply.send(&mut self.host, &());
             }
             Call::Send { reply, .. }
-            | Call::ClaimLease { reply, .. }
-            | Call::ReportClean { reply, .. }
+            | Call::Claim { reply }
             | Call::ReportStatus { reply, .. }
             | Call::InStepAt { reply, .. }
             | Call::Conflict { reply, .. }
@@ -607,7 +609,7 @@ impl Inner {
                 kept_submitted: 0,
                 kept_submissions: Vec::new(),
                 head,
-                session: session(),
+                session: session(TAG),
                 journal: None,
                 lost_edits: false,
                 journal_kept: false,
@@ -690,7 +692,7 @@ impl Inner {
                 bytes,
                 now,
                 Some(be_sdk_type_guest::api::Delivery {
-                    kind: be_sdk_type_guest::api::RelayKind::Seal,
+                    kind: be_sdk_type_guest::api::RelayKind::Peer,
                     received: now as i64,
                 }),
             );

@@ -1,6 +1,5 @@
 use be_block_commit::CommitId;
 use be_block_session::{Payload, SessionMessage};
-use be_sdk_type_api::RelayKind;
 use serde::{Deserialize, Serialize};
 
 /// What a replica puts in the order, sealed as a submission's payload: the entry, and `through`,
@@ -78,20 +77,6 @@ impl Submitted {
     pub fn decode(bytes: &[u8]) -> Option<Self> {
         be_block_protocol::decode(bytes).ok()
     }
-}
-
-/// What the server checks before relaying `message`: who may send it.
-pub fn kind(message: &SessionMessage) -> RelayKind {
-    match message {
-        SessionMessage::Presence { .. } | SessionMessage::Channel { .. } => RelayKind::Peer,
-        SessionMessage::Sealed { .. } => RelayKind::Seal,
-    }
-}
-
-/// Whether a message the server relayed as `kind` may say this: what the server checked covers
-/// what it asks for. A viewer could label a `Sealed` as presence; it is dropped.
-pub fn sent_as(message: &SessionMessage, as_kind: RelayKind) -> bool {
-    as_kind == RelayKind::Seal || kind(message) == RelayKind::Peer
 }
 
 pub fn encode(message: &SessionMessage) -> Vec<u8> {

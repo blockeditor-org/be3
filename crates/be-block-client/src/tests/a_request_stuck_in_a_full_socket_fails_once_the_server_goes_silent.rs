@@ -28,6 +28,7 @@ async fn a_request_stuck_in_a_full_socket_fails_once_the_server_goes_silent() {
         be_block_protocol::ReferenceChange::default(),
         Vec::new(),
         vec![vec![7; be_block_protocol::MAX_FRAME_BYTES - 1024]],
+        None,
     ));
     relay.heard_beyond(heard).await;
     clock.advance(PING_INTERVAL + PONG_WAIT);

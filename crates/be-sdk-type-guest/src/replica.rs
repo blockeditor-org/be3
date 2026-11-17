@@ -3,10 +3,11 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use be_block_commit::{CommitId, MergeResult};
 use be_block_content::{Landed, LiveEdit, Merge, Settling};
 use be_block_protocol::{ClientId, SessionState};
+use be_block_session::Membership;
 use be_block_session::{OpId, Payload, Resume, SessionMessage, SessionOp, Submission};
 use be_block_store::{Hash, PartRef};
 use be_sdk_type_api::{
-    Change, Delivery, EditorId, Endpoint, FileChange, Journal, JournalBase, KeptSubmission,
+    Change, EditorId, Endpoint, FileChange, Journal, JournalBase, KeptSubmission,
     Merging, Recipients, RelayKind, ReplicaId, SessionTag, Status, UndoState, Unjournaled, Written,
 };
 use uuid::Uuid;
@@ -56,8 +57,6 @@ pub const RESTART_STATE_BYTES: usize = 1024 * 1024;
 /// How far past `RESTART_STATE_BYTES` session state grows before a holder with others in the
 /// session restarts anyway.
 pub const RESTART_CEILING: usize = 4;
-
-pub const HEARTBEAT_INTERVAL: u64 = be_block_session::LEASE_MILLISECONDS as u64 / 2;
 
 /// How long a replica asked to close waits for the order to bring back what it submitted before
 /// it seals and goes.
@@ -147,8 +146,6 @@ pub(crate) enum Input {
     Message {
         from: Endpoint,
         bytes: Vec<u8>,
-        /// What the server says of a peer's message.
-        delivery: Option<Delivery>,
     },
     Attach {
         editor: EditorId,
@@ -166,6 +163,11 @@ pub(crate) enum Input {
     Head(HeadEvent),
     Lease {
         session: SessionState,
+    },
+    /// A seal moved the head to `head`, holding the order through `through`.
+    Sealed {
+        head: CommitId,
+        through: u64,
     },
     /// The order numbered these, in order.
     Sequenced(Vec<SessionOp>),
@@ -236,8 +238,6 @@ enum Job<C> {
     Heard {
         from: ClientId,
         message: Option<SessionMessage>,
-        /// What the server checked the sender may send.
-        kind: RelayKind,
     },
     /// The next entry of the order, held back while the parts it names are read.
     Ordered(SessionOp),
@@ -640,10 +640,7 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     replaced_through: u64,
     /// Which opening this is (`Opened::epoch`), said with every status.
     epoch: u64,
-    beaten: Option<u64>,
-    active: bool,
     sealing: bool,
-    claimed: Option<u64>,
     closing: Option<u64>,
     loaded: bool,
     released: bool,
@@ -705,11 +702,10 @@ where
             Input::Message {
                 from: Endpoint::Peer(from),
                 bytes,
-                delivery,
+                ..
             } => self.jobs.push_back(Job::Heard {
                 from,
                 message: wire::decode(&bytes),
-                kind: delivery.map_or(RelayKind::Peer, |delivery| delivery.kind),
             }),
             Input::Sequenced(ops) => {
                 for op in ops {
@@ -759,9 +755,6 @@ where
                 reply: None,
             });
         }
-        if self.beat_at().is_some_and(|at| self.now >= at) {
-            self.heartbeat();
-        }
         self.run(out);
     }
 
@@ -769,7 +762,6 @@ where
         self.in_step_at()
             .into_iter()
             .chain(self.read_retry.values().copied())
-            .chain(self.beat_at())
             .min()
     }
 
@@ -911,10 +903,7 @@ where
             replacing_from: None,
             replaced_through: 0,
             epoch: opened.epoch,
-            beaten: None,
-            active: false,
             sealing: false,
-            claimed: None,
             closing: None,
             loaded: false,
             released: false,
@@ -971,16 +960,6 @@ where
             if self.waiting.is_some() && !(self.sealing_out() && job.passes_a_seal()) {
                 break;
             }
-            if let Job::Heard {
-                message: Some(message),
-                kind,
-                ..
-            } = job
-                && !wire::sent_as(message, *kind)
-            {
-                self.jobs.pop_front();
-                continue;
-            }
             // The order's next entry waits for the parts it names, and so does all that came
             // after it.
             if let Job::Ordered(op) = job {
@@ -1003,12 +982,6 @@ where
             self.job(job);
         }
         self.prune_payloads();
-        match self.loaded && self.is_holder() && !self.released {
-            true => {
-                self.beaten.get_or_insert(self.now);
-            }
-            false => self.beaten = None,
-        }
         self.tell_lacking();
         self.report();
         out.append(&mut self.out);
@@ -1216,7 +1189,7 @@ where
 
     fn alone(&self) -> bool {
         self.state
-            .participants
+            .clients()
             .iter()
             .all(|participant| *participant == self.client)
     }
@@ -1279,30 +1252,11 @@ where
     fn rebase_journal(&mut self) {
         self.out.push(Effect::Rebase {
             replica: self.id,
-            generation: self.state.generation,
             base: JournalBase {
                 commit: self.base,
                 sequence: self.sealed,
                 state: self.base_state(self.sealed_state.clone(), self.sealed),
             },
-        });
-    }
-
-    fn beat_at(&self) -> Option<u64> {
-        let busy = self.active || !self.is_clean();
-        self.beaten
-            .filter(|_| busy)
-            .map(|beaten| beaten + HEARTBEAT_INTERVAL)
-    }
-
-    fn heartbeat(&mut self) {
-        self.beaten = Some(self.now);
-        self.active = false;
-        let clean_at = self.base.filter(|_| self.is_clean());
-        self.out.push(Effect::ReportClean {
-            replica: self.id,
-            generation: self.state.generation,
-            clean_at,
         });
     }
 
@@ -1447,7 +1401,6 @@ where
             let state = self.base_state(Vec::new(), self.sealed);
             self.out.push(Effect::Rebase {
                 replica: self.id,
-                generation: self.state.generation,
                 base: JournalBase {
                     commit: self.base,
                     sequence: 0,
@@ -1513,6 +1466,12 @@ where
                 self.seal_retry_at = None;
                 self.flush();
             }
+            Input::Sealed { head, through } => {
+                if !self.is_holder() {
+                    self.heard_seal = Some((head, through));
+                    self.take_heard_seal();
+                }
+            }
             Input::Claim => self.claim(),
             Input::Close => {
                 self.closing.get_or_insert(self.now);
@@ -1543,12 +1502,6 @@ where
             return;
         };
         match message {
-            SessionMessage::Sealed { head, sequence } => {
-                if !self.is_holder() {
-                    self.heard_seal = Some((head, sequence));
-                    self.take_heard_seal();
-                }
-            }
             SessionMessage::Presence { kind, value } => {
                 if from == self.client {
                     return;
@@ -2030,10 +1983,14 @@ where
         then: AfterPublish,
     ) {
         let token = self.token();
-        // A seal holds the order through what it applied when it began.
-        let sealed_through = match &then {
-            AfterPublish::Seal { through, .. } => Some(*through),
-            AfterPublish::Merged { .. } => None,
+        // A seal holds the order through what it applied when it began, and the journal starts
+        // from it with the session state as of then once it wins the head.
+        let (sealed_through, journal_state) = match &then {
+            AfterPublish::Seal { through, state, .. } => (
+                Some(*through),
+                Some(self.base_state(state.clone(), *through)),
+            ),
+            AfterPublish::Merged { .. } => (None, None),
         };
         self.out.push(Effect::Publish {
             replica: self.id,
@@ -2042,6 +1999,7 @@ where
             merging,
             content,
             sealed_through,
+            journal_state,
             restarts: self.restarts,
         });
         self.waiting = Some(Wait::Publish { token, then });
@@ -2198,21 +2156,8 @@ where
                 if self.unsent.is_empty() && self.pending.is_empty() {
                     self.edited_since = None;
                 }
-                self.rebase_journal();
-                self.broadcast(&SessionMessage::Sealed {
-                    head,
-                    sequence: through,
-                });
-                self.beaten = Some(self.now);
-                self.active = false;
-                // Clean only with nothing past the seal.
-                if self.applied == through && self.keep.is_empty() {
-                    self.out.push(Effect::ReportClean {
-                        replica: self.id,
-                        generation: self.state.generation,
-                        clean_at: Some(head),
-                    });
-                }
+                // The journal starts from the seal: the publish carried its base, which the
+                // server took as the head moved and every replica hears (`Input::Sealed`).
                 if let Some(id) = reply {
                     self.reply(id, Answer::Sealed);
                 }
@@ -2394,7 +2339,6 @@ where
         if self.lost_edits && self.is_holder() {
             self.rebase_journal();
         }
-        self.claim_if_abandoned();
     }
 
     /// Applies an entry of the journal opened on, as the order applies it: an operation, or a
@@ -2479,7 +2423,7 @@ where
     fn check_build(&mut self) {
         if self
             .state
-            .tag
+            .tag()
             .is_some_and(|tag| *tag.as_bytes() != self.tag.0)
         {
             self.incompatible = true;
@@ -2899,7 +2843,6 @@ where
     }
 
     fn edit(&mut self, mut operation: C::Op, origin: Option<EditorId>) -> bool {
-        self.active = true;
         self.edited_since.get_or_insert(self.now);
         self.last_edit = Some(self.now);
         if self.diverged {
@@ -3879,7 +3822,7 @@ where
                 Some(client) => Recipients::One(Endpoint::Peer(client)),
                 None => Recipients::Peers,
             },
-            kind: wire::kind(message),
+            kind: RelayKind::Peer,
             bytes: wire::encode(message),
         });
     }
@@ -3903,16 +3846,15 @@ where
     }
 
     fn adopt(&mut self, state: SessionState) {
-        let known: BTreeSet<ClientId> = self.state.participants.iter().copied().collect();
+        let known: BTreeSet<ClientId> = self.state.clients().into_iter().collect();
         let joined: Vec<ClientId> = state
-            .participants
-            .iter()
-            .copied()
+            .clients()
+            .into_iter()
             .filter(|client| *client != self.client && !known.contains(client))
             .collect();
         let before = self.presence.len();
         self.presence
-            .retain(|(client, _), _| state.participants.contains(client));
+            .retain(|(client, _), _| state.has(*client));
         self.presence_changed |= self.presence.len() != before;
         let was_holder = self.is_holder();
         self.state = state;
@@ -3920,7 +3862,6 @@ where
         for client in joined {
             self.show_presence_to(client);
         }
-        self.claim_if_abandoned();
         if was_holder && !self.is_holder() {
             // A merge that was failing is the new holder's to do.
             self.merge_failures = 0;
@@ -3929,33 +3870,13 @@ where
         }
     }
 
+    /// Claims the lease, as a terminal host does: the server writes the claim into the order,
+    /// and the lease follows from it.
     fn claim(&mut self) {
         if !self.loaded || self.is_holder() {
             return;
         }
-        self.claimed = Some(self.state.generation);
-        self.out.push(Effect::ClaimLease {
-            replica: self.id,
-            generation: self.state.generation,
-        });
-    }
-
-    fn claim_if_abandoned(&mut self) {
-        if !self.loaded {
-            return;
-        }
-        let held = self
-            .state
-            .owner
-            .is_some_and(|holder| self.state.participants.contains(&holder));
-        if held || self.claimed == Some(self.state.generation) {
-            return;
-        }
-        self.claimed = Some(self.state.generation);
-        self.out.push(Effect::ClaimLease {
-            replica: self.id,
-            generation: self.state.generation,
-        });
+        self.out.push(Effect::Claim { replica: self.id });
     }
 
     /// A head landed: the holder reconciles with it. Any other replica leaves that to the

@@ -36,6 +36,7 @@ async fn a_block_linked_before_it_exists_is_announced_only_once_it_does() {
                 listing(&[], vec![note]),
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await;

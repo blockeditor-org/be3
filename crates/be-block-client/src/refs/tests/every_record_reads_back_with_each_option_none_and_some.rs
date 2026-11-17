@@ -53,6 +53,14 @@ fn every_record_reads_back_with_each_option_none_and_some() {
             pinned: some,
             references: vec![Uuid::new_v4()],
             metadata: vec![6],
+            journal: some.then_some(be_block_protocol::JournalSeal {
+                tag: Hash::of(b"build"),
+                base: be_block_protocol::JournalBase {
+                    commit: Some(commit(b"commit")),
+                    sequence: 9,
+                    state: vec![10],
+                },
+            }),
         };
         let creation = Creation {
             block,

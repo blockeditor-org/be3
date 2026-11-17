@@ -29,7 +29,7 @@ async fn a_message_arriving_slowly_is_not_taken_for_silence() {
     let payload = vec![7u8; 1 << 20];
     let frame = masked_binary(&payload);
     let reading = tokio::spawn(async move {
-        let message = next_heard(&mut source, &heard).await;
+        let message = next_heard(&mut source, &heard, IDLE_TIMEOUT).await;
         (message, source, heard)
     });
     let started = tokio::time::Instant::now();
@@ -52,7 +52,7 @@ async fn a_message_arriving_slowly_is_not_taken_for_silence() {
         "a message whose bytes kept coming was read whole"
     );
 
-    assert!(next_heard(&mut source, &heard).await.is_none());
+    assert!(next_heard(&mut source, &heard, IDLE_TIMEOUT).await.is_none());
     assert!(
         last_written.elapsed() >= IDLE_TIMEOUT,
         "only a connection that sent nothing for the idle timeout is given up on"

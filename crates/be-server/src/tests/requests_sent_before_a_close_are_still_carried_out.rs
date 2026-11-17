@@ -43,6 +43,7 @@ async fn requests_sent_before_a_close_are_still_carried_out() {
                 listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .collect();

@@ -5,7 +5,6 @@ use super::*;
 #[test]
 fn a_holder_demoted_while_its_put_is_pending_sends_the_edit_to_the_new_holder() {
     let mut sim = Sim::<ProseContent>::new(2, prose_module);
-    sim.lease = Lease::lasting(0);
     sim.publish_elsewhere(&prose_of("start\n"));
     for device in 0..2 {
         sim.open(device);

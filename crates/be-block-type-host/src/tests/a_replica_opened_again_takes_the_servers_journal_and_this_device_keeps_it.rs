@@ -18,7 +18,7 @@ fn held(journal: &Journal) -> Vec<(u64, Option<i64>, Vec<u8>)> {
 
 /// Starts this device's journal on `base` and numbers one entry per payload in it, offline.
 async fn numbered(peer: &Peer<MemoryStore>, block: Uuid, base: &JournalBase, payloads: &[u8]) {
-    peer.rebase_journal(block, 0, tag(), base.clone(), false, false)
+    peer.rebase_journal(block, tag(), base.clone(), false, false)
         .await
         .expect("the journal starts");
     for (counter, payload) in payloads.iter().enumerate() {

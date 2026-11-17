@@ -52,6 +52,7 @@ async fn a_watched_folder_hears_each_entry_added_in_bytes_that_do_not_grow_with_
                     references,
                     Vec::new(),
                     Vec::new(),
+                    None,
                 )
             })
             .await;

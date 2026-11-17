@@ -61,7 +61,7 @@ fn a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_when_it_reaches_the
             sequence: 0,
             state: Vec::new(),
         };
-        peer.rebase_journal(block, 0, tag(), base.clone(), false, false)
+        peer.rebase_journal(block, tag(), base.clone(), false, false)
             .await
             .expect("the journal starts on the head");
         numbered(&peer, block, 4).await;
@@ -95,7 +95,7 @@ fn a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_when_it_reaches_the
             sequence: 4,
             ..base
         };
-        peer.rebase_journal(block, 0, tag(), past, false, false)
+        peer.rebase_journal(block, tag(), past, false, false)
             .await
             .expect("the journal starts past what it numbered");
         let empty = seal(&peer, block, parent, "empty", 5).await;

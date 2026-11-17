@@ -1,7 +1,8 @@
 //! Each block's journal: its session's order since the last seal, sealed entries the server
 //! numbered, and the base they apply to (a commit and the sealed session state as of it). It
 //! sits beside history, never in it, so retention never sees it. The server numbers what a
-//! session's replicas submit here (`submit`), and the lease holder's seals trim it (`rebase`).
+//! session's replicas submit here (`submit`), and the lease holder's seals trim it (`rebase`) in
+//! the transaction of the publish that seals it.
 
 use be_block_commit::CommitId;
 use be_block_protocol::{ErrorCode, Journal, JournalBase, JournalEntry};
@@ -229,8 +230,9 @@ pub fn submit(
     }))
 }
 
-/// The lease holder sealed the order through `base`, as the build `tag`: the journal starts from
-/// it, keeping the entries after it. A base that goes back while nothing after the journal's own
+/// The lease holder sealed the order through `base`, as the build `tag`, inside the publish's
+/// `transaction`: the journal starts from it, keeping the entries after it, and the order goes
+/// on from the number answered. A base that goes back while nothing after the journal's own
 /// base was numbered (the last one out) starts the order afresh from it. Entries of another
 /// build are dropped, since the holder could not have applied them, and every device opening
 /// the block is told so until the journal moves to another commit.
@@ -240,9 +242,8 @@ pub fn rebase(
     block: Uuid,
     tag: Hash,
     base: &JournalBase,
-) -> Result<(), ServerError> {
-    crate::limits::at_most("a journal's base", base.state.len(), MAX_BASE_STATE_BYTES)?;
-    let transaction = be_block_sqlite_schema::write_transaction(database)?;
+) -> Result<u64, ServerError> {
+    let transaction = database;
     let (org, id) = (organization.to_string(), block.to_string());
     let before = head(&transaction, organization, block)?;
     let other = before.as_ref().is_some_and(|head| head.tag != tag);
@@ -303,8 +304,7 @@ pub fn rebase(
             lost
         ],
     )?;
-    transaction.commit()?;
-    Ok(())
+    Ok(order.sequence)
 }
 
 /// Forgets a deleted block's journal.
@@ -378,16 +378,5 @@ impl crate::store::ServerStore {
             submit(database, organization, block, tag, submission, received)
         })
         .await
-    }
-
-    pub async fn rebase_journal(
-        &self,
-        organization: Uuid,
-        block: Uuid,
-        tag: Hash,
-        base: JournalBase,
-    ) -> Result<(), ServerError> {
-        self.with_database(move |_, database| rebase(database, organization, block, tag, &base))
-            .await
     }
 }

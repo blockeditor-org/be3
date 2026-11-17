@@ -4,7 +4,7 @@ use be_block_graph::{
     SETTINGS_TYPE,
 };
 use be_block_protocol::{
-    AccessEntry, AccessList, BlockSummary, ChangeCursor, ChangedPage, ErrorCode, HistoryEntry,
+    AccessEntry, AccessList, BlockSummary, ChangeCursor, ChangedPage, ErrorCode, HistoryEntry, JournalBase,
     Hold, KeyKind, KeySet, Listed, Listing, ObjectChange, OrganizationRole, ReferenceChange,
 };
 use be_block_store::Hash;
@@ -60,7 +60,9 @@ use crate::{
 };
 
 pub enum PublishOutcome {
-    Published(CommitId, Option<Redescribed>),
+    /// The head moved, or was the commit already; with the order's last number when the
+    /// publish trimmed its block's journal.
+    Published(CommitId, Option<Redescribed>, Option<u64>),
     Rejected(Option<CommitId>),
 }
 
@@ -895,8 +897,22 @@ impl ServerStore {
         pinned: bool,
         references: ReferenceChange,
         metadata: Vec<u8>,
+        trim: Option<(Hash, JournalBase)>,
     ) -> Result<PublishOutcome, ServerError> {
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
+        if let Some((_, base)) = &trim {
+            if base.commit != Some(commit) {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "a journal base names the commit published".into(),
+                ));
+            }
+            crate::limits::at_most(
+                "a journal's base",
+                base.state.len(),
+                crate::journal::MAX_BASE_STATE_BYTES,
+            )?;
+        }
         // Checked before the graph is taken, so no change too large to keep holds it up.
         crate::limits::references(&references.removed)?;
         if references.added.len() > crate::limits::MAX_REFERENCES {
@@ -926,8 +942,24 @@ impl ServerStore {
                 if current != expected {
                     return Ok(PublishOutcome::Rejected(current));
                 }
+                // A trim with no new commit: the head is the base's commit already.
                 if current == Some(commit) {
-                    return Ok(PublishOutcome::Published(commit, None));
+                    let trimmed = match &trim {
+                        Some((tag, base)) => {
+                            let transaction = be_block_sqlite_schema::write_transaction(database)?;
+                            let order = crate::journal::rebase(
+                                &transaction,
+                                identity.organization,
+                                block,
+                                *tag,
+                                base,
+                            )?;
+                            transaction.commit()?;
+                            Some(order)
+                        }
+                        None => None,
+                    };
+                    return Ok(PublishOutcome::Published(commit, None, trimmed));
                 }
                 require_descends(expected, &parents)?;
                 let organization = identity.organization.to_string();
@@ -1099,6 +1131,17 @@ impl ServerStore {
                     commit,
                     &policy,
                 )?;
+                // A seal trims the journal only as its commit wins the head, in one transaction.
+                let trimmed = match &trim {
+                    Some((tag, base)) => Some(crate::journal::rebase(
+                        &transaction,
+                        identity.organization,
+                        block,
+                        *tag,
+                        base,
+                    )?),
+                    None => None,
+                };
                 transaction.commit()?;
                 graph.set_references(block, &references)?;
                 graph.set_head(block, commit)?;
@@ -1111,6 +1154,7 @@ impl ServerStore {
                         relinked: relinked.unwrap_or_default(),
                         moved,
                     }),
+                    trimmed,
                 ))
             })
         })
