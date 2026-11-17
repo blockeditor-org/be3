@@ -321,8 +321,9 @@ pub enum Aside {
     /// or too large).
     Refused(ErrorCode),
     /// It was sealed offline under a key epoch its block's access log shows outdated, which
-    /// someone who lost access may hold, so this device never sent it (plans/signed_access.md,
-    /// 3d).
+    /// someone who lost access may hold, and could not be sealed again under a new epoch
+    /// (`Peer::reseal`: this account may no longer write the block, or no epoch could be made),
+    /// so this device never sent it (plans/signed_access.md, 3d and step 7).
     KeyOutdated,
     /// It was made offline under a scope the server's tree named, which the signed parent
     /// records do not place its parent under, so its keys were never sent wrapped there
@@ -1928,6 +1929,38 @@ impl Refs {
             .filter(|(_, op)| op.block() == block)
             .map(|(sequence, op)| (*sequence, op.clone()))
             .collect()
+    }
+
+    /// The operation waiting at `sequence`, as it stands now: a commit sealed again
+    /// (`replace_publishes`) keeps its place.
+    pub fn op(&self, sequence: u64) -> Option<Op> {
+        self.state.lock().unwrap().outbox.get(&sequence).cloned()
+    }
+
+    /// Puts each publish in `rewritten` in the place of the one at its sequence, and makes
+    /// `head` the block's local head, in one write: what `Peer::reseal` sealed again.
+    pub fn replace_publishes(
+        &self,
+        block: Uuid,
+        rewritten: Vec<(u64, Pending)>,
+        head: Option<CommitId>,
+    ) -> Result<(), StoreError> {
+        let mut rows = Vec::with_capacity(rewritten.len() + 1);
+        {
+            let mut state = self.state.lock().unwrap();
+            for (sequence, pending) in rewritten {
+                let op = Op::Publish(pending);
+                if let Some(held) = state.outbox.get_mut(&sequence) {
+                    rows.push(row(Table::Outbox, sequence.to_be_bytes().to_vec(), &op));
+                    *held = op;
+                }
+            }
+            if let Some(head) = head {
+                rows.push(row(Table::Head, block.as_bytes().to_vec(), &head));
+                state.heads.insert(block, head);
+            }
+        }
+        self.write(rows)
     }
 
     pub fn holds(&self, sequence: u64) -> bool {

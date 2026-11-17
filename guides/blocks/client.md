@@ -341,7 +341,10 @@ sends it. `Peer::write` does both.
   `Drained` per block. A rejected publish whose remote head already contains
   the commit is settled, not diverged; an entry is settled once a published
   head descends from it. `Peer::reconcile` finishes a diverged block, answering
-  `Reconciled::Merge` when the replica host has to merge.
+  `Reconciled::Merge` when the replica host has to merge. A commit sealed
+  offline under a key the logs now show outdated is sealed again under a new
+  epoch and sent (`Drained::Resealed`), or set aside (guides/blocks/keys.md,
+  "Outdated epochs").
 - **The unsent area.** A block whose access is refused (on a publish, a create,
   `summary`, or a drain refused `PermissionDenied`/`BlockNotFound` after
   re-reading the summary) moves its entries to `Peer::unsent`;

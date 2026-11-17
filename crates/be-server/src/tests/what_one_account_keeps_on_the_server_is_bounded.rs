@@ -127,6 +127,20 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                 ],
             )
             .unwrap();
+        // The giver is a contact of the account, so the transfer below is refused for the
+        // account's bound alone: to anyone else, a transfer is refused before it.
+        transaction
+            .execute(
+                "INSERT INTO accounts (id, email, display_name) VALUES (?1, ?1, 'Giver')",
+                [giver.to_string()],
+            )
+            .unwrap();
+        transaction
+            .execute(
+                "INSERT INTO contacts (account_id, contact_id) VALUES (?1, ?2)",
+                params![giver.to_string(), account.to_string()],
+            )
+            .unwrap();
         for _ in 0..MAX_CONTACTS_PER_ACCOUNT {
             let contact = Uuid::new_v4().to_string();
             transaction

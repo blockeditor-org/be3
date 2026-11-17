@@ -397,7 +397,11 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   the creator's after the root.
 - `SetAccess` needs `Manage`, and a grant above `None` must name a member who
   is a contact of the granter (guides/blocks/keys.md). Anyone may revoke their
-  own grant. `ListAccess` never lists the rest of the membership.
+  own grant. `ListAccess` never lists the rest of the membership. Carrying an
+  owner record, it moves ownership (`transfer_owner`): only from the owner, to
+  a member who is their contact, and the block counts against the new owner's
+  bound on blocks (`OverQuota`), checked after the rest, so an owner learns
+  whether an account is at its bound only of a contact.
 - Each block has an access log (plans/signed_access.md; table `access_log`,
   `be-server/src/access.rs`), served by `get-access-log` to its viewers and to
   anyone viewing a block below it (`Visibility::reads_below`), who checks its

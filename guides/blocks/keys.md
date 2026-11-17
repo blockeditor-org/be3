@@ -40,13 +40,19 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   account's identity key.
 - **Trust.** A key sealed to an account names its sender and is sealed by it
   (`RecoverySecret::seal_for`/`open_from`, binding both public keys, both
-  account ids and the key id). A device takes such a key only from itself or a
-  contact it verified (`KeyBook::contact`) and silently ignores any other row,
+  account ids and the key id). A device takes such a key only from itself, a
+  contact it verified (`KeyBook::contact`), or a sender the signed logs vouch
+  for: a member the organization's log names, with the keys it names, whom the
+  block's log grants Edit or above as of the key's head, or the logs above
+  (`KeyBook::vouch`; "Access logs"); it silently ignores any other row,
   including one the server sealed to its public key. It seals a key only to
-  itself or a verified contact (`KeyBook::contact`), whatever account key work
-  or the member list names, the server's own included; the one key it seals to
-  the server is the settings block's scope key, by the block it knows that key
-  is of (`KeyBook::recipient`, `Peer::share_with_server`). Keys made here, sealed by a
+  itself, to whom the signed logs name, with the keys their record names
+  (a grantee its block's log names, an administrator the organization's log
+  names: "Sealing", `Peer::sealing_target`), or, for a kind of settings its
+  log opens to anyone inside, to a verified contact; never to whom key work or
+  the member list alone names, the server's own included. The one key it seals
+  to the server is the settings block's scope key, by the block it knows that
+  key is of (`KeyBook::recipient`, `Peer::share_with_server`). Keys made here, sealed by a
   verified sender, or wrapped under such keys are *trusted*
   (`KeyBook::trusted`); keys opened only through escrow, or the server's seal
   of the organization settings key, are not. A device reads with any key it
@@ -345,15 +351,24 @@ maker through every sender (`KeyBook::heads`).
   journal entry, metadata: `Peer::sealing_key`); offline, a person's edit
   for the outbox is never refused (`sealing_key_kept`, for a commit and the
   content it holds): it is sealed under the epoch at hand and kept, and judged
-  again before it is sent (`Peer::send_pending`, `KeyBook::shown_outdated`),
-  set aside among the unsent (`refs::Aside::KeyOutdated`) when the logs show
-  its key outdated. Whatever path uploads (an outbox commit, a snapshot or a
-  fork through `Peer::hold`), an object the server lacks that is sealed under
-  a key the logs show outdated is not uploaded (`ClientError::Outdated`).
-  `write_content`, public, is strict; only the outbox's own writes keep. As
-  for an edit the server refuses, what is made of the block after one set
-  aside waits with it until it is discarded (plans/signed_access.md, step 7,
-  would seal it again instead). An object whose block's scope cannot be told
+  again before it is sent (`Peer::send_pending`, `KeyBook::shown_outdated`).
+  When the logs show its key outdated, the drain seals every commit of the
+  block waiting in the outbox again (`Peer::reseal`, `Drained::Resealed`):
+  content, commit, metadata and journal state, under the key `sealing_key`
+  gives now (a new epoch, which it makes first), each on the commits it went
+  on as sealed again, in its place in the outbox, and sends it. A write on a
+  commit sealed again goes on the one in its place (`Peer::resealed_as` names
+  what a commit replaced, for a replica that kept them). Only while this
+  account may still write the block as its signed logs show now (Edit or
+  above in its log, administering, or from a block above), and only under an
+  epoch the logs do not outdate; otherwise, or when no epoch can be made, the
+  edit is set aside among the unsent (`refs::Aside::KeyOutdated`). Whatever
+  path uploads (an outbox commit, a snapshot or a fork through `Peer::hold`),
+  an object the server lacks that is sealed under a key the logs show outdated
+  is not uploaded (`ClientError::Outdated`), so what was first sealed never
+  leaves the device. `write_content`, public, is strict; only the outbox's own
+  writes keep. As for an edit the server refuses, what is made of the block
+  after one set aside waits with it until it is discarded. An object whose block's scope cannot be told
   counts as outdated. A log answer older
   than one this run already took is stale, not withheld (`keys::Served`). A
   local account judges nothing (there is no server). An escrow epoch the organization's log outdates
@@ -569,8 +584,9 @@ Edit can write as someone else.
 
 ## Contacts
 
-Every sharing relationship starts with a link passed outside the host, and a
-device seals a key only to a contact's public key verified that way.
+Every sharing relationship starts with a link passed outside the host: a grant
+names only a contact of its granter (the server refuses any other), with the
+keys the granter verified that way, which every device then seals to.
 
 - A **contact card** (`be_block_keys::ContactCard`: account id, identity public
   key, signing key, name, email) is sealed with a link's code (`ContactCard::seal`, keyed by
@@ -649,7 +665,8 @@ change.
 It still decides, and devices trust it for: which held key is a block's current
 data key and which epoch is newest (so a server colluding with someone who lost
 access, or a demoted administrator, can keep a device writing under a key that
-person knows); which blocks lie under a block, as listings and key work name
+person knows, for as long as it withholds from that device what outdates it);
+which blocks lie under a block, as listings and key work name
 them (a device wraps nothing under a scope its block's signed parent records do
 not reach, but may leave a block out of a listing or a rotation), and who views
 a block inside, for a kind opened to anyone inside; the log's head, up to the heads an

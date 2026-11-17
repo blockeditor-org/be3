@@ -296,10 +296,12 @@ did not sign.
   current only if it names one of the kept entries from the last lowering
   through the head, so an honest epoch naming a head newer than those costs a
   rotation. Offline, where none can be made, the edit is kept, sealed under
-  the epoch at hand, and judged again before it is sent: set aside if the
-  logs then show that epoch outdated (`refs::Aside::KeyOutdated`, among the
-  unsent with its content kept), sent if they do not; no other path uploads
-  it either. One whose scope this
+  the epoch at hand, and judged again before it is sent: sealed again under a
+  new epoch if the logs then show that epoch outdated (step 7), or set aside
+  (`refs::Aside::KeyOutdated`, among the unsent with its content kept) when its
+  author may no longer write the block or no such epoch can be made; sent as
+  it is if they do not; what was sealed under the outdated epoch leaves the
+  device by no path. One whose scope this
   device can neither read nor has kept anything of is sent as before: that
   device never held the revocation, which a server can already bring about by
   truncating the log for a device new to the block.
@@ -675,15 +677,20 @@ instead.
    at the head now or from before, nor give the block away again, and a log
    the server appends such a grant to is refused; a unit test where a path
    reducing a transfer leaves the old owner no Manage.
-6. **Guides.** guides/blocks/keys.md's server section, and its rule that keys
-   are sealed only to and taken only from verified contacts, which a checked
-   grant now also satisfies; guides/blocks/server.md's access section.
-7. **Re-seal outdated offline edits.** An edit made offline under an epoch the
-   logs show outdated by the time it is sent is set aside today, though the
-   content is the person's and only the key was compromised. Seal it again
-   under a new epoch of its scope and send it, setting it aside only when no
-   new epoch can be made. Done: a test where an edit sealed offline under a key
-   a revoked member made up reaches the server under a key they never get.
+6. **Guides.** Done: guides/blocks/keys.md's server section and its "Trust"
+   rule (keys taken from and sealed to whom the signed logs name, not verified
+   contacts alone), and guides/blocks/server.md's access section (owner
+   transfer).
+7. **Re-seal outdated offline edits.** Built (guides/blocks/keys.md, "Outdated
+   epochs"): an edit made offline under an epoch the logs show outdated by the
+   time it is sent is sealed again by the drain (`Peer::reseal`), every commit
+   of the block waiting in the outbox, under the key `sealing_key` gives now (a
+   new epoch it makes first), and sent; set aside (`Aside::KeyOutdated`) only
+   when this account may no longer write the block as its signed logs show
+   now, or no epoch the logs do not outdate can be made. Done: a test where an
+   edit sealed offline under a key a revoked member made up reaches the server
+   under a key they never get; one where an author demoted meanwhile has their
+   edit set aside and makes no epoch.
 8. **Demotions rotate scopes.** A demotion makes every scope under the escrow
    due a rotation, as a revocation does its block's, so a demoted
    administrator reads nothing written after it under epochs they reached

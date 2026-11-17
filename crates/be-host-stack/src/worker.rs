@@ -2263,6 +2263,11 @@ async fn drain_outbox(
                         if !missed.contains(&block) =>
                     {
                         published.push((block, Some(head), false));
+                        // What it was sealed again in the place of (`Drained::Resealed`) is
+                        // what a replica kept: it reached the server as this did.
+                        for before in peer.resealed_as(head) {
+                            published.push((block, Some(before), false));
+                        }
                     }
                     be_block_client::Drained::Created { block }
                         if !missed.contains(&block) && peer.pending_commits(block).is_empty() =>
@@ -2299,7 +2304,7 @@ async fn drain_outbox(
                             .lock()
                             .unwrap_or_else(PoisonError::into_inner)
                             .sync_error = Some(format!(
-                            "An edit to {named} was locked offline with a key someone who lost access may hold, so it was not sent. It waits among the unsent edits: discard it to go on editing {named}."
+                            "An edit to {named} was locked offline with a key someone who lost access may hold, and could not be locked again with a new one, so it was not sent. It waits among the unsent edits: discard it to go on editing {named}."
                         ));
                     }
                     be_block_client::Drained::Refused { block, code, .. } => {

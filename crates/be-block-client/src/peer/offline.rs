@@ -530,9 +530,13 @@ impl<S: ObjectStore> Peer<S> {
         }
         let mut outcomes: Vec<Drained> = Vec::new();
         let mut stopped = HashSet::new();
-        for (sequence, op) in self.refs.outbox() {
+        for (sequence, _) in self.refs.outbox() {
+            // As it stands now: a commit sealed again (`reseal`) keeps its place.
+            let Some(op) = self.refs.op(sequence) else {
+                continue;
+            };
             let block = op.block();
-            if skip(block) || stopped.contains(&block) || !self.refs.holds(sequence) {
+            if skip(block) || stopped.contains(&block) {
                 continue;
             }
             // What was made since of a block the server refused to make joins it among the
@@ -541,13 +545,25 @@ impl<S: ObjectStore> Peer<S> {
                 self.move_to_unsent(block, None)?;
                 continue;
             }
-            let publishing = match &op {
+            let mut publishing = match &op {
                 Op::Publish(pending) => Some(pending.commit),
                 _ => None,
             };
             let sent = match op {
                 Op::Create(creation) => self.send_creation(sequence, creation).await,
-                Op::Publish(pending) => self.drain_publish(sequence, pending).await,
+                // Sealed again under a new epoch: sent once more as it now stands, and set
+                // aside if that is refused as outdated too.
+                Op::Publish(pending) => match self.drain_publish(sequence, pending, true).await {
+                    Ok(resealed @ Drained::Resealed { .. }) => {
+                        outcomes.push(resealed);
+                        let Some(Op::Publish(pending)) = self.refs.op(sequence) else {
+                            continue;
+                        };
+                        publishing = Some(pending.commit);
+                        self.drain_publish(sequence, pending, false).await
+                    }
+                    sent => sent,
+                },
                 Op::Move(moving) => self.drain_move(sequence, moving).await,
                 Op::Define(defining) => self.drain_define(sequence, defining).await,
                 Op::Hold(holding) => self.drain_hold(sequence, holding).await,
@@ -590,6 +606,7 @@ impl<S: ObjectStore> Peer<S> {
                 | Drained::Held { .. }
                 | Drained::Refused { .. }
                 | Drained::SetAside { .. }
+                | Drained::Resealed { .. }
                 | Drained::Failed { .. } => {}
             }
             outcomes.push(outcome);
@@ -905,7 +922,15 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
-    async fn drain_publish(&self, sequence: u64, pending: Pending) -> Result<Drained, ClientError> {
+    /// Sends a commit waiting in the outbox. With `reseal`, one sealed offline under a key the
+    /// logs now show outdated is sealed again under a new epoch (`Drained::Resealed`), to be
+    /// sent as it then stands; otherwise, or when it cannot be, it is set aside.
+    async fn drain_publish(
+        &self,
+        sequence: u64,
+        pending: Pending,
+        reseal: bool,
+    ) -> Result<Drained, ClientError> {
         let block = pending.block;
         match self.send_pending(&pending).await {
             Ok(PublishOutcome::Published(head)) => {
@@ -936,9 +961,15 @@ impl<S: ObjectStore> Peer<S> {
                     why: crate::refs::Aside::Refused(code),
                 })
             }
-            // Sealed offline under a key the log now shows outdated (`send_pending`): set aside,
-            // never sent.
+            // Sealed offline under a key the log now shows outdated (`send_pending`): the edit
+            // is this account's and only its key may be held by someone who lost access, so it
+            // is sealed again under a new epoch this device vouches for (signed access 7). Set
+            // aside, never sent, when this account may no longer write the block as the logs
+            // show now, or no such epoch can be made.
             Err(ClientError::Outdated(_)) => {
+                if reseal && self.reseal(block).await? {
+                    return Ok(Drained::Resealed { block });
+                }
                 self.move_to_unsent(block, Some(crate::refs::Aside::KeyOutdated))?;
                 Ok(Drained::SetAside {
                     block,

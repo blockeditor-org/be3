@@ -60,6 +60,7 @@ pub use journal::Submitted;
 mod notifications;
 mod offline;
 mod prefixes;
+mod reseal;
 mod rotation;
 mod transfers;
 
@@ -292,11 +293,18 @@ pub enum Drained {
         restored: bool,
     },
     /// The server refused to make the block, or one it was made under, or what was sealed of
-    /// it offline is under a key its log shows outdated: what this device made of it is set
-    /// aside among the unsent (`UnsentBlock::refused`).
+    /// it offline is under a key its log shows outdated and could not be sealed again
+    /// (`Resealed`): what this device made of it is set aside among the unsent
+    /// (`UnsentBlock::refused`).
     SetAside {
         block: Uuid,
         why: crate::refs::Aside,
+    },
+    /// What this device sealed of the block offline was under a key its log shows outdated,
+    /// and this account may still write it: it was sealed again under a new epoch, in its
+    /// place in the outbox (`Peer::resealed_as` names what it replaced), and sent on.
+    Resealed {
+        block: Uuid,
     },
     Failed {
         block: Uuid,
@@ -367,6 +375,9 @@ pub struct Peer<S: ObjectStore> {
     /// The scope logs read in this run to judge each key (`Peer::outdated`), each asked for
     /// once.
     log_reads: Mutex<HashSet<(Uuid, Uuid)>>,
+    /// Each commit waiting in the outbox that was sealed again in this run (`Peer::reseal`),
+    /// with the one in its place: a write on the first goes on the second.
+    resealed: Mutex<HashMap<CommitId, CommitId>>,
 }
 
 /// How long a read of an access log before a write may take before what was kept of it is
@@ -539,6 +550,7 @@ impl<S: ObjectStore> Peer<S> {
             local: false,
             settled_here: Mutex::new(HashSet::new()),
             log_reads: Mutex::new(HashSet::new()),
+            resealed: Mutex::new(HashMap::new()),
         };
         for summary in peer.refs.summaries() {
             if let Some(key) = summary.key {
@@ -3149,6 +3161,11 @@ impl<S: ObjectStore> Peer<S> {
                 None => Err(ClientError::Discarded(block)),
             };
         }
+        // A write on a commit sealed again since (`reseal`) goes on the one in its place.
+        write.expected = write.expected.map(|expected| self.resealed(expected));
+        if let Some((_, ours)) = &mut write.merging {
+            *ours = self.resealed(*ours);
+        }
         let (manifest, extra_parents, metadata) = self.prepare_write(block, &mut write).await?;
         let Write {
             references,
@@ -3309,7 +3326,8 @@ impl<S: ObjectStore> Peer<S> {
         } = *pending;
         // Sealed offline under a key judged then by what was kept, or not at all: judged again
         // now, and never sent under an epoch the logs show outdated (signed access 3d). Refused
-        // as the server would refuse it, so the edit is set aside, not lost.
+        // as the server would refuse it, so the drain seals the edit again (`reseal`) or sets it
+        // aside, never loses it.
         if self.sent_outdated(block, id).await? {
             return Err(ClientError::Outdated(block));
         }
