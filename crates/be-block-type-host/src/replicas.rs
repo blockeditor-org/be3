@@ -604,6 +604,9 @@ struct Open {
     /// Whether one of `submissions` is not kept on the device yet: the next submission writes
     /// them ahead even if it submits no edit past those kept.
     unkept_submissions: bool,
+    /// The restart of the order `submissions` were made under: one past it passes them over.
+    /// Restarts only grow, though a replica reports none before it loads.
+    submissions_restart: u64,
     /// Why keeping its edits last failed, until they are kept (`Owing::keep_error`).
     keep_error: Option<String>,
     /// What was kept of its local edits when the host last stopped (`opening.kept-restart`,
@@ -1549,6 +1552,7 @@ impl<H: Host> Replicas<H> {
                 kept_submitted_through: submitted_through,
                 submissions,
                 unkept_submissions: false,
+                submissions_restart: kept_restart,
                 keep_error: None,
                 kept_restart,
                 kept_through: given_up + replay_count,
@@ -3555,12 +3559,16 @@ impl<H: Host> Replicas<H> {
             open.reported_clean(status.sealed_taken);
         }
         open.journaled_taken = status.journaled_taken;
-        // The order started over: what was submitted before is passed over, and the edits go
-        // again as new submissions, which hold them otherwise. A replica reports a restart
-        // before it submits again (`Replica::flush`), so those are kept from here.
-        if status.restarts != open.status.restarts && !open.submissions.is_empty() {
-            open.submissions.clear();
-            open.edits_changed = true;
+        // The order started over since the submissions kept were made: they are passed over,
+        // and the edits go again as new submissions, which hold them otherwise. A replica
+        // reports a restart before it submits again (`Replica::flush`), so those are kept from
+        // here. One that reports fewer restarts has not loaded yet.
+        if status.restarts > open.submissions_restart {
+            open.submissions_restart = status.restarts;
+            if !open.submissions.is_empty() {
+                open.submissions.clear();
+                open.edits_changed = true;
+            }
         }
         let became_unreadable = status.unreadable.is_some() && open.status.unreadable.is_none();
         open.status = status.clone();
