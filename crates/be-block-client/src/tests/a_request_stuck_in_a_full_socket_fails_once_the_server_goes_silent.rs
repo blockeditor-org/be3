@@ -11,7 +11,7 @@ async fn a_request_stuck_in_a_full_socket_fails_once_the_server_goes_silent() {
         .expect("the server listens on an address");
     let relay = be_block_fault_relay::Relay::start(server);
     let clock = Clock::manual();
-    let connection = Connection::connect(&relay.url(), &clock).await.unwrap();
+    let connection = harness.connection(&relay.url(), &clock).await;
 
     relay.jam_at_next_request();
     let heard = relay.heard();

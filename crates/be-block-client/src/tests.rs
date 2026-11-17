@@ -351,6 +351,19 @@ impl Harness {
         Peer::cached(self.config(like, refs), like.account(), store.clone()).unwrap()
     }
 
+    /// A new account's connection to `url` (the server, or a relay in front of it), signed in
+    /// with its token, keeping time by `clock`.
+    async fn connection(&self, url: &str, clock: &Clock) -> std::sync::Arc<Connection> {
+        let token = self
+            .server
+            .register(&format!("{}@example.com", Uuid::new_v4()), "Connection")
+            .await;
+        Connection::connect(url, clock, &Credentials::Token(token))
+            .await
+            .expect("the connection opens signed in")
+            .0
+    }
+
     async fn reconnect(&self, peer: &Peer<MemoryStore>, token: String) {
         let (connection, signed_in) =
             Connection::connect(&self.url, &Clock::real(), &Credentials::Token(token))

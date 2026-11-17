@@ -11,7 +11,7 @@ async fn a_request_fails_once_a_ping_goes_unanswered() {
         .expect("the server listens on an address");
     let relay = be_block_fault_relay::Relay::start(server);
     let clock = Clock::manual();
-    let connection = Connection::connect(&relay.url(), &clock).await.unwrap();
+    let connection = harness.connection(&relay.url(), &clock).await;
 
     relay.stall();
     let answer = crate::ask(be_block_protocol::read::<

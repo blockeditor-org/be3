@@ -13,7 +13,7 @@ async fn a_request_on_a_link_gone_silent_fails_without_waiting_for_the_idle_ping
         .expect("the server listens on an address");
     let relay = be_block_fault_relay::Relay::start(server);
     let clock = Clock::manual();
-    let connection = Connection::connect(&relay.url(), &clock).await.unwrap();
+    let connection = harness.connection(&relay.url(), &clock).await;
 
     relay.stall();
     let answer = crate::ask(be_block_protocol::read::<
