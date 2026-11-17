@@ -9,7 +9,7 @@ fn a_member_is_signed_in_by_an_administrator_and_an_agent_by_its_maker() {
     let (admin_id, person_id, stranger_id) = ([1; 16], [2; 16], [4; 16]);
     let agent_id = agent_account(person_id, &agent.identity());
     let organization = [9; 16];
-    let none = |_: [u8; 16], _: &Authority| None;
+    let none = |_: &Asked| None;
     let root = Entry::root(&admin, admin_id, LogKind::Organization, organization);
     let pinned = root.hash();
     let member = |by: &RecoverySecret, signer, previous, account, identity, member, agent| {

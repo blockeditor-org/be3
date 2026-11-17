@@ -29,9 +29,7 @@ async fn a_block_in_unfiled_stays_live_without_a_listing_until_it_is_deleted() {
     assert!(collected.is_empty(), "nothing was deleted: {collected:?}");
 
     let response = client
-        .call(|peer| {
-            client::blocks::set_parent(peer, deleted, BlockParent::Detached, KeySet::default())
-        })
+        .move_keyed(deleted, BlockParent::Detached, KeySet::default())
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     assert!(!client.read_block(deleted).await.held);
@@ -43,9 +41,7 @@ async fn a_block_in_unfiled_stays_live_without_a_listing_until_it_is_deleted() {
     );
 
     let response = client
-        .call(|peer| {
-            client::blocks::set_parent(peer, deleted, BlockParent::Detached, KeySet::default())
-        })
+        .move_keyed(deleted, BlockParent::Detached, KeySet::default())
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     assert_eq!(collect(&mut client).await, vec![deleted]);
@@ -79,6 +75,7 @@ pub(super) async fn make(
         wrapped: Vec::new(),
     };
     let root = client.root(block);
+    let placement = client.placement(block, parent).await;
     client
         .call(|peer| {
             client::blocks::create_block(
@@ -92,6 +89,7 @@ pub(super) async fn make(
                 keys,
                 false,
                 root,
+                placement,
             )
         })
         .await

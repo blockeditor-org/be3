@@ -42,9 +42,7 @@ async fn a_connection_hears_only_of_the_trees_it_follows() {
     assert!(summaries.is_empty(), "read to its end already");
 
     let response = author
-        .call(|peer| {
-            client::blocks::set_parent(peer, inside, BlockParent::Detached, KeySet::default())
-        })
+        .move_keyed(inside, BlockParent::Detached, KeySet::default())
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let entry = loop {

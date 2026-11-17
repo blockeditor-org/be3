@@ -54,7 +54,7 @@ impl<S: ObjectStore> Peer<S> {
         blocks: &[(Saved, BlockParent)],
         mut done: impl FnMut(Uuid, Imported),
     ) -> Queued {
-        let mut scopes: HashMap<Uuid, Uuid> = HashMap::new();
+        let mut scopes: HashMap<Uuid, (Uuid, bool)> = HashMap::new();
         let mut prepared = Vec::with_capacity(blocks.len());
         for (block, parent) in blocks {
             match self.prepare(block, *parent, &mut scopes).await {
@@ -150,21 +150,24 @@ impl<S: ObjectStore> Peer<S> {
         &self,
         block: &Saved,
         parent: BlockParent,
-        scopes: &mut HashMap<Uuid, Uuid>,
+        scopes: &mut HashMap<Uuid, (Uuid, bool)>,
     ) -> Result<Prepared, ClientError> {
+        // Each block's scope key, and whether it was taken unchecked (`scope_key_making`), as
+        // is everything below it.
         let under = match parent {
             BlockParent::Block(parent) => match scopes.get(&parent) {
                 Some(scope) => Some(*scope),
                 None => {
-                    let scope = self.scope_key_under(parent).await?;
+                    let scope = self.scope_key_making(parent).await?;
                     scopes.insert(parent, scope);
                     Some(scope)
                 }
             },
             BlockParent::Root | BlockParent::Detached => None,
         };
-        let root = self.new_root(block.id);
-        let (key, keys, children) = match under {
+        let unchecked = under.is_some_and(|(_, unchecked)| unchecked);
+        let (root, placement) = self.new_log(block.id, parent).await?;
+        let (key, keys, children) = match under.map(|(under, _)| under) {
             Some(under) => {
                 let (key, keys) = self.keys.mint_data(block.id, under)?;
                 (key, keys, under)
@@ -176,7 +179,7 @@ impl<S: ObjectStore> Peer<S> {
                 (key, keys, scope)
             }
         };
-        scopes.insert(block.id, children);
+        scopes.insert(block.id, (children, unchecked));
         let vault = self.commits.vault();
         let creation = Creation {
             block: block.id,
@@ -189,6 +192,8 @@ impl<S: ObjectStore> Peer<S> {
             // Block files hold no owner-only block: exporting leaves them out.
             owner_only: false,
             root,
+            placement,
+            unchecked,
         };
         let Some(content) = &block.content else {
             return Ok(Prepared {
@@ -248,6 +253,8 @@ impl<S: ObjectStore> Peer<S> {
                 keys,
                 owner_only,
                 root,
+                placement,
+                unchecked: _,
             } = ready.creation.clone();
             let created = client::blocks::create_block(
                 &self.connection(),
@@ -260,6 +267,7 @@ impl<S: ObjectStore> Peer<S> {
                 keys,
                 owner_only,
                 root,
+                placement,
             );
             let published = ready.publish.clone().map(|pending| {
                 client::blocks::publish(

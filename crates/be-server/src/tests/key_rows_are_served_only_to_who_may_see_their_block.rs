@@ -168,14 +168,9 @@ async fn key_rows_are_served_only_to_who_may_see_their_block() {
         sorted(vec![private.data, private.scope])
     );
     let _ = owner
-        .call(|peer| {
-            client::blocks::set_parent(
-                peer,
-                private.block,
+        .move_keyed(private.block,
                 BlockParent::Detached,
-                KeySet::default(),
-            )
-        })
+                KeySet::default())
         .await;
     let response = owner
         .call(|peer| client::blocks::collect_detached(peer))

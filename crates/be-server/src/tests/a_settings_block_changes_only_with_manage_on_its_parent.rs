@@ -8,6 +8,7 @@ async fn create_settings(
     let block = Uuid::new_v4();
     let key = Uuid::new_v4();
     let root = client.root(block);
+    let placement = client.placement(block, BlockParent::Block(parent)).await;
     let response = client
         .call(|peer| {
             client::blocks::create_block(
@@ -24,6 +25,7 @@ async fn create_settings(
                 },
                 false,
                 root.clone(),
+                placement,
             )
         })
         .await;
@@ -88,9 +90,7 @@ async fn a_settings_block_changes_only_with_manage_on_its_parent() {
     let (planted, created) = create_settings(&mut editor, own).await;
     assert!(matches!(created, Ok(_)), "{created:?}");
     let moved = editor
-        .call(|peer| {
-            client::blocks::set_parent(peer, planted, BlockParent::Block(folder), KeySet::default())
-        })
+        .move_keyed(planted, BlockParent::Block(folder), KeySet::default())
         .await;
     assert!(
         refused_as(&moved, ErrorCode::PermissionDenied),

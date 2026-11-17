@@ -1054,6 +1054,7 @@ impl TestClient {
         keys: KeySet,
     ) {
         let root = self.root(block);
+        let placement = self.placement(block, parent).await;
         let response = self
             .call(|peer| {
                 client::blocks::create_block(
@@ -1067,6 +1068,7 @@ impl TestClient {
                     keys,
                     false,
                     root,
+                    placement,
                 )
             })
             .await;
@@ -1665,8 +1667,153 @@ impl TestClient {
     }
 
     async fn move_to(&mut self, block: Uuid, parent: BlockParent) -> Result<(), Error> {
-        self.call(|peer| client::blocks::set_parent(peer, block, parent, KeySet::default()))
+        self.move_keyed(block, parent, KeySet::default()).await
+    }
+
+    /// Moves `block` to `parent` with `keys`, by a parent record this account signs
+    /// (`signed_parent`).
+    async fn move_keyed(
+        &mut self,
+        block: Uuid,
+        parent: BlockParent,
+        keys: KeySet,
+    ) -> Result<(), Error> {
+        let record = self.signed_parent(block, parent).await;
+        self.call(|peer| client::blocks::set_parent(peer, block, parent, keys, record))
             .await
+    }
+
+    /// Where `parent` is, as a parent record names it, with the root of its log as served.
+    async fn placement_of(&mut self, parent: BlockParent) -> be_block_keys::Placement {
+        use be_block_keys::Placement;
+        match parent {
+            BlockParent::Root => Placement::Top,
+            BlockParent::Detached => Placement::Detached,
+            BlockParent::Block(above) => {
+                let log = decode_steps(
+                    self.call(|peer| client::blocks::get_access_log(peer, above))
+                        .await
+                        .unwrap_or_default(),
+                );
+                Placement::Block {
+                    block: above.into_bytes(),
+                    root: log.first().map_or([0; 32], be_block_keys::Step::hash),
+                }
+            }
+        }
+    }
+
+    /// The parent record a new block's log takes after its root (`root`), placing it at
+    /// `parent`: its creator's, on the log's own authority.
+    async fn placement(&mut self, block: Uuid, parent: BlockParent) -> Vec<u8> {
+        let Some(account) = self.account else {
+            return Vec::new();
+        };
+        let placement = self.placement_of(parent).await;
+        let root = be_block_keys::Entry::decode(&self.root(block)).expect("a root reads");
+        be_block_keys::Entry::sign(
+            &test_secret(account),
+            account.into_bytes(),
+            block.into_bytes(),
+            Some(root.hash()),
+            false,
+            be_block_keys::Record::Parent(be_block_keys::Parent {
+                placement,
+                authority: be_block_keys::Authority::Log,
+            }),
+        )
+        .encode()
+    }
+
+    /// The parent record moving `block` to `parent`, signed by this account at the head of the
+    /// block's log on the authority `authority` finds for Edit; empty when the log is not served.
+    async fn signed_parent(&mut self, block: Uuid, parent: BlockParent) -> Vec<u8> {
+        let Some(me) = self.account else {
+            return Vec::new();
+        };
+        let log = decode_steps(
+            self.call(|peer| client::blocks::get_access_log(peer, block))
+                .await
+                .unwrap_or_default(),
+        );
+        let Some(head) = log.last().map(be_block_keys::Step::hash) else {
+            return Vec::new();
+        };
+        let placement = self.placement_of(parent).await;
+        let authority = self
+            .authority(block, &log, be_block_keys::Level::Edit)
+            .await;
+        be_block_keys::Entry::sign(
+            &test_secret(me),
+            me.into_bytes(),
+            block.into_bytes(),
+            Some(head),
+            false,
+            be_block_keys::Record::Parent(be_block_keys::Parent {
+                placement,
+                authority,
+            }),
+        )
+        .encode()
+    }
+
+    /// Where this account's `level` on `block`, whose log is `log`, comes from: the log itself,
+    /// else the nearest block above whose log gives it, else administering the organization.
+    /// Each log is checked alone, so one resting on authority from outside gives nothing here;
+    /// the server checks the record whole.
+    async fn authority(
+        &mut self,
+        block: Uuid,
+        log: &[be_block_keys::Step],
+        level: be_block_keys::Level,
+    ) -> be_block_keys::Authority {
+        use be_block_keys::{Authority, LogKind, Step};
+        let Some(me) = self.account else {
+            return Authority::Log;
+        };
+        let check = |kind, of: [u8; 16], entries: &[Step]| {
+            let pinned = entries.first()?.hash();
+            be_block_keys::check_log(kind, of, pinned, entries, &|_| None).ok()
+        };
+        if check(LogKind::Block, block.into_bytes(), log)
+            .is_some_and(|checked| checked.holding(LogKind::Block, me.into_bytes(), level).is_some())
+        {
+            return Authority::Log;
+        }
+        let mut at = block;
+        while let Some(BlockParent::Block(parent)) = self
+            .try_read_block(at)
+            .await
+            .ok()
+            .and_then(|summary| summary.parent)
+        {
+            at = parent;
+            let above = decode_steps(
+                self.call(|peer| client::blocks::get_access_log(peer, parent))
+                    .await
+                    .unwrap_or_default(),
+            );
+            if check(LogKind::Block, parent.into_bytes(), &above)
+                .is_some_and(|checked| {
+                    checked.holding(LogKind::Block, me.into_bytes(), level).is_some()
+                })
+                && let Some(head) = above.last()
+            {
+                return Authority::Inherited {
+                    block: parent.into_bytes(),
+                    head: head.hash(),
+                };
+            }
+        }
+        let organization = decode_steps(
+            self.call(client::organizations::get_organization_log)
+                .await
+                .unwrap_or_default(),
+        );
+        match organization.last() {
+            Some(head) => Authority::Organization(head.hash()),
+            None => Authority::Log,
+        }
     }
 
     async fn grant(
@@ -1755,7 +1902,7 @@ impl TestClient {
             root.log,
             root.hash(),
             &steps,
-            &|_, _| None,
+            &|_| None,
         )
         .ok()?;
         Some((root.log, checked))
@@ -1882,7 +2029,7 @@ impl TestClient {
         let level = crate::access::level(access);
         let check = |kind, of: [u8; 16], entries: &[Step]| {
             let pinned = entries.first()?.hash();
-            be_block_keys::check_log(kind, of, pinned, entries, &|_, _| None).ok()
+            be_block_keys::check_log(kind, of, pinned, entries, &|_| None).ok()
         };
         // The last grant the log names for them; the server checks the whole log.
         let named =

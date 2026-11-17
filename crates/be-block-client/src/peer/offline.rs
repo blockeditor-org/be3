@@ -700,6 +700,42 @@ impl<S: ObjectStore> Peer<S> {
         Ok(())
     }
 
+    /// Whether `creation`, made offline under the scope its kept summary named
+    /// (`Creation::unchecked`), wraps a key under the key of a block its parent does not lie at
+    /// or under by the signed parent records (`Peer::signed_below`). A failed read is a failure
+    /// to send, tried again later.
+    async fn misplaced(&self, creation: &Creation) -> Result<bool, ClientError> {
+        let BlockParent::Block(parent) = creation.parent else {
+            return Ok(false);
+        };
+        let scopes: HashSet<Uuid> = creation
+            .keys
+            .wrapped
+            .iter()
+            .filter_map(|wrap| match wrap.wrapped_by {
+                // The escrow key is the organization's, under no block.
+                be_block_protocol::WrappedBy::Key(key)
+                    if self
+                        .keys
+                        .row(key)
+                        .is_some_and(|row| row.kind == be_block_protocol::KeyKind::Scope) =>
+                {
+                    self.keys.block_of(key)
+                }
+                _ => None,
+            })
+            .filter(|scope| *scope != creation.block)
+            .collect();
+        for scope in scopes {
+            match self.signed_below(parent, scope).await {
+                Ok(()) => {}
+                Err(ClientError::Forged(_)) => return Ok(true),
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(false)
+    }
+
     async fn send_creation(
         &self,
         sequence: u64,
@@ -714,6 +750,13 @@ impl<S: ObjectStore> Peer<S> {
             self.move_to_unsent(block, Some(why))?;
             return Ok(Drained::SetAside { block, why });
         }
+        // Made offline under the scope a kept summary named: its keys go up only wrapped under
+        // the key of a block the signed parent records place it under (signed access 4).
+        if creation.unchecked && self.misplaced(&creation).await? {
+            let why = crate::refs::Aside::Misplaced;
+            self.move_to_unsent(block, Some(why))?;
+            return Ok(Drained::SetAside { block, why });
+        }
         let response = crate::ask(client::blocks::create_block(
             &self.connection(),
             block,
@@ -725,6 +768,7 @@ impl<S: ObjectStore> Peer<S> {
             creation.keys.clone(),
             creation.owner_only,
             creation.root.clone(),
+            creation.placement.clone(),
         ))
         .await;
         match response {
