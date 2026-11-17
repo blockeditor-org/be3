@@ -51,7 +51,10 @@ fn an_app_panel_moved_by_a_drop_keeps_its_state_and_resizes_once() {
     harness.settle();
     harness.click(harness.center(dock_tab(harness.document(), dock, "Tab 3")));
     harness.settle();
-    let placed = slot.placement().expect("the app is placed in its pane").rect;
+    let placed = slot
+        .placement()
+        .expect("the app is placed in its pane")
+        .rect;
     let sizes = Rc::new(RefCell::new(Vec::<Option<Vec2>>::new()));
     {
         let sizes = Rc::clone(&sizes);
@@ -72,7 +75,10 @@ fn an_app_panel_moved_by_a_drop_keeps_its_state_and_resizes_once() {
     }
     harness.pause(Duration::from_millis(400));
     assert!(
-        sizes.borrow().iter().all(|size| *size == Some(placed.size())),
+        sizes
+            .borrow()
+            .iter()
+            .all(|size| *size == Some(placed.size())),
         "while carried the app keeps the size it was laid out at: {:?}",
         sizes.borrow()
     );
@@ -87,7 +93,10 @@ fn an_app_panel_moved_by_a_drop_keeps_its_state_and_resizes_once() {
         "let go on the other bar, the tab moves into that pane"
     );
     assert_eq!(builds.get_untracked(), 1, "its panel is not built again");
-    let after = slot.placement().expect("the app is placed in its new pane").rect;
+    let after = slot
+        .placement()
+        .expect("the app is placed in its new pane")
+        .rect;
     assert_ne!(after.size(), placed.size(), "it takes the new pane's size");
     assert_eq!(
         *sizes.borrow(),
