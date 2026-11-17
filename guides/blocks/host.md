@@ -227,7 +227,12 @@ it on the server's journal. `Replicas::reconnect` asks the same of every replica
 unsealed work (one opened offline that replayed this device's journal, one
 opened as the outbox drained), and a join's answer waits (`Replicas::settling`) while a seal of the replica is asked, on its way,
 or answered and not yet reported, since its head is moving past the reported
-one, and while a submission of it is unanswered (`Open::submitting`). What the
+one, and while a submission of it is unanswered (`Open::submitting`), and
+when, after it sealed once, the order holds journaled edits no seal holds and
+no seal would take them (`rejoin_held`: it diverged, or its seal backs off or
+cannot merge), until a status says one would. A block closed meanwhile lets go
+of that join instead (`Replicas::let_go_if_held`): its replica ends in its
+made-up session, whose journal keeps those edits on this device. What the
 order numbered while the join was on its way reaches the replica it opens
 before its edits are given again, so one the order took meanwhile is not
 submitted twice: the join's journal may predate it, and each opening numbers
