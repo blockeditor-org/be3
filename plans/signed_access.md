@@ -246,6 +246,13 @@ did not sign.
   revocation; never for an escrow key, taken only from an administrator at the
   organization log's head now. A device whose log outdates that head writes
   under no such key; one that does not hold the revocation does.
+- **A key from a sender the block's log never names** (Edit from a block
+  above, the server's tree until step 4) is taken, and written under only
+  while it names a head the log reaches with nothing lowering anyone after
+  it, or, naming none, only while the log has never lowered anyone. Such a
+  sender, revoked above with the server's help, can so have a key they made up
+  written under in a block whose own log has lowered no one, or naming its
+  newest head.
 - **Stale heads on making.** A key minted on a device whose block or
   organization log is stale names those stale heads: for a new block, as for a
   rotation by a device withheld a revocation, its epoch is current only on
