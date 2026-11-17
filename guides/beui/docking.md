@@ -206,7 +206,7 @@ Tabs and panes are carries on the drag board (guides/beui/components.md, Drag an
 row lifts its tab, the grip an `Interactive`'s `drag`, and `DockTiles` is a drop site
 (`unstyled/fluid.rs`). At the lift, `State::spec` offers every drop the state admits as a
 place (`DockPlace`), so a locked place is no place: for each pane laid out now, a split on each
-edge, chosen in a band along it (`EDGE_ZONE` of the pane; a pane hosting a group gives its edges
+edge, chosen in a band along it (`EDGE_ZONE` of the pane, each corner split along its diagonal by `Candidate::nearest_edge`; a pane hosting a group gives its edges
 only `OUTER_EDGE`, then its group's places), and grouping in its middle, each zone leaving the pane's tab bar to the bar.
 Each place carries the `DockState` its drop leaves and where the carried item rests in it.
 A surface's places are reached only where none of the dock's other windows or dialogs, nor anything else, covers them
@@ -224,7 +224,7 @@ neighbour taking its room, and a pane that only the drop makes is left open, emp
 keeps the size it was laid out at while the dock carries anything (`DockHeldSize`), clipped by
 the pane as it moves, so no app or program in it lays out again until the drop commits; its
 docked tool bars are the pane's and move with it. The carried tab is drawn the size of where it
-would rest (`shaped()`), still under the pointer (`DockGhost`, the `preview` face with
+would rest (`shaped`), under the pointer but inside its surface (`DockGhost`, the `preview` face with
 `opening`), and glides into that rest on release. A pane keeps showing the tab it shows until the
 drop. The carried tab is listed once: as its bar's preview while it floats, as the opening over a place.
 A group is a tab holding a dock tree of its own (`Entry::Group`); the tree tidies itself after every
