@@ -23,8 +23,8 @@ use beui_view::primitives::*;
 use beui_view::reactive::*;
 use beui_view::reactive::{KeyAt, NodeId, OverlayAnchor};
 use beui_view::types::{
-    CursorIcon, Direction, Key, KeyPhase, LayerLevel, LayerPolicy, Placement, PointerPress, Pos2,
-    Rect, Sides, TouchDrags,
+    CursorIcon, Direction, Extent, Key, KeyPhase, LayerLevel, LayerPolicy, Placement, PointerPress, Pos2,
+    Rect, Sides, TouchDrags, input::PointerId,
 };
 
 use crate::glide::{Glide, GlideApi, GlideHold};
@@ -397,10 +397,11 @@ where
     });
 }
 
-/// This list's row `key` is carried off it (`away`) or comes back: it collapses and the slot
-/// it leaves closes on the spring, or, let go where nothing takes it, the slot opens again
-/// before it uncollapses into it; carried back onto the list, it is shown at once.
-fn fold<K, P>(stored: Stored<State<K, P>>, key: K, away: bool, length: f32)
+/// This list's row `key` is carried off it (`away`) or comes back: it collapses (or, carried
+/// by the keyboard, shrinks to nothing but keeps its spacing, `spaced`) and the slot it leaves
+/// closes on the spring, or, let go where nothing takes it, the slot opens again before it
+/// grows back into it; carried back onto the list, it is shown at once.
+fn fold<K, P>(stored: Stored<State<K, P>>, key: K, away: bool, length: f32, spaced: bool)
 where
     K: Clone + Eq + Hash + 'static,
     P: Clone + PartialEq + 'static,
@@ -411,7 +412,11 @@ where
         let before = at.and_then(|at| keys.get(at + 1).cloned());
         // Measured as it leaves; collapsed, it measures nothing on its way back.
         if away {
-            state.folded_length.set(length + spacing(state));
+            let spacing = match spaced {
+                true => 0.0,
+                false => spacing(state),
+            };
+            state.folded_length.set(length + spacing);
         }
         let size = state.folded_length.get();
         let carried = state
@@ -907,8 +912,14 @@ where
     );
     let arm = Trackable::from(shifted);
     let folded = state.with(|state| state.folded);
-    let collapsed =
+    // Whether the row was carried off by the keyboard: it keeps the focus, so it is not
+    // collapsed (which blurs it on HTML, `display: none`, and leaves it unplaced natively)
+    // but drawn at no size and opacity 0, its slot closing with the gap all the same.
+    let by_keys = create_signal(false);
+    let folded_here =
         create_memo(move || folded.with(|folded| key.with(|key| folded.as_ref() == Some(key))));
+    let collapsed = create_memo(move || folded_here.get() && !by_keys.get());
+    let shrunk = create_memo(move || folded_here.get() && by_keys.get());
     // A gap at the end opens after the last row shown, not a collapsed one.
     let trail = create_memo(move || {
         gap.with(|gap| match gap {
@@ -1009,12 +1020,21 @@ where
                 .try_get()
                 .and_then(|root| measure(root).get_untracked())
                 .map_or(0.0, |measured| main.main(measured.rect.size()));
-            fold(state, key.get_untracked(), *away, length);
+            if *away {
+                by_keys.set(drag_board().carried_by(PointerId::Keyboard));
+            }
+            fold(
+                state,
+                key.get_untracked(),
+                *away,
+                length,
+                by_keys.get_untracked(),
+            );
         },
     );
     // Uncollapsed after coming back, the row glides in from where it was let go.
     create_effect_on_change(
-        move || collapsed.get(),
+        move || folded_here.get(),
         move |collapsed, was| {
             if *was
                 && !*collapsed
@@ -1055,11 +1075,23 @@ where
     };
     let row = NodeRef::new();
     let glide = view! {
-        <Frame @node_ref=&row collapsed={collapsed} raised={raised}>
+        <Frame
+            @node_ref=&row
+            collapsed={collapsed}
+            raised={raised}
+            width={move || match shrunk.get() {
+                true => Extent::px(0.0),
+                false => Extent::INTRINSIC,
+            }}
+            height={move || match shrunk.get() {
+                true => Extent::px(0.0),
+                false => Extent::INTRINSIC,
+            }}
+        >
             <Glide api spring on={arm} from={from}>
                 <Frame padding={padding}>
                     <Frame
-                        opacity={move || match hidden.get() {
+                        opacity={move || match hidden.get() || shrunk.get() {
                             true => 0.0,
                             false => 1.0,
                         }}
