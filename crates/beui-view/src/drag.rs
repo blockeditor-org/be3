@@ -5,7 +5,7 @@ pub use crate::types::drag::{
     Pending, Space, Take, Target,
 };
 pub use crate::types::drag::{
-    After, Candidate, CandidateId, Carry, CarryId, DragFrame, DragSpec, Evaluated, Evaluation,
+    After, Candidate, CandidateId, Carry, CarryFace, CarryId, DragFrame, DragSpec, Evaluated, Evaluation,
     REACH, Rest, SNAP_RADIUS, STICKY, THROW_SECONDS, THROW_SPEED, closest, custom, evaluate, fixed,
     floating, free, into, move_after, rests, step_toward,
 };
