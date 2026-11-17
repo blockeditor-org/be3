@@ -60,6 +60,9 @@ pub struct Server {
     modules: HashMap<ModuleId, Module>,
     compiling: Vec<(Compiling, Answer<Result<ModuleId, String>>)>,
     instances: BTreeMap<OpId, Served>,
+    /// The device the staged apps it spawns draw on: the host's, given only to the root guest.
+    #[cfg(not(target_arch = "wasm32"))]
+    display: Option<(wgpu::Device, wgpu::Queue)>,
 }
 
 struct Served {
@@ -80,7 +83,34 @@ impl Server {
             modules: HashMap::new(),
             compiling: Vec::new(),
             instances: BTreeMap::new(),
+            #[cfg(not(target_arch = "wasm32"))]
+            display: None,
         }
+    }
+
+    /// Gives the staged apps the guest spawns the host's device to draw on, as the root guest's
+    /// children: what they present stays on it, and the guest names it only by the instance and
+    /// the surface (`surface`). Workers an app spawns never get one.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_display(mut self, device: wgpu::Device, queue: wgpu::Queue) -> Self {
+        self.display = Some((device, queue));
+        self
+    }
+
+    /// What the surface `surface` of the instance the guest spawned with the op `instance` (its
+    /// `instance` resource) shows: the texture it presented last, on the host's device.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn surface(
+        &self,
+        instance: OpId,
+        surface: u32,
+    ) -> Option<&be_wasm_host::PresentedTexture> {
+        self.instances
+            .get(&instance)?
+            .instance
+            .as_ref()
+            .ok()?
+            .surface(surface)
     }
 
     /// Serves the app with the id `app`: it may spawn only modules its own app stages, which
@@ -151,6 +181,8 @@ impl Server {
                         sandbox::Config {
                             name: config.name,
                             memory_limit: usize::try_from(memory_limit).unwrap_or(usize::MAX),
+                            #[cfg(not(target_arch = "wasm32"))]
+                            display: self.display.clone(),
                         },
                         Arc::clone(&self.wake),
                     )

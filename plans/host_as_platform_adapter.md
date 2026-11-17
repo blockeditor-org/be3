@@ -369,6 +369,14 @@ Other users:
     length are current.
   - Deciding which panel a press goes to uses last frame's pose.
 
+Built (step 4e1): natively a staged app the root spawns draws on the host's device, so what it
+presents never leaves the GPU. `be_wasm_host::sandbox::Config::display` gives it the device, which
+the root's sandbox passes (`Server::with_display`, from `Root::start`) and an app's sandbox never
+does. Each `Instance` keeps the texture each of its surfaces presented last (`App` reports them as
+it steps, `PresentedTexture`, the same report be-host-runtime's apps make), and the root names one
+in its layer list as `Surface::Screen { instance, surface }`, `instance` being its `instance`
+resource's op, which `Root::surface` resolves on the host's side.
+
 ## Space and headsets
 
 Space (`beui-layer-space`) moves into a guest of its own. While it is on, it is the root and drives
@@ -521,14 +529,32 @@ Each step lands on its own.
      `WebAssembly.compile` and spawns a worker per instance, and calls the root inline from
      `requestAnimationFrame`, resuming it as its workers answer; tested with 4a's root in
      Chromium.
-   - 4e. A surface a guest names, and the app host in a guest: an app the root spawns gets the
-     gpu on the host's device, its presented textures named to the root only by handle
-     (`App::attach_surface`, a `Surface::Screen` of a sandbox instance). The host side of the
-     app protocol (configuring screens, an editor's watches, a block's content; be-sdk-test's
-     `ContentStore` and `link.rs` already run in wasm, in process) and be-host-runtime's
-     orchestration (pacing, settle, restarts, grafting accessibility trees) become a guest
-     library, and a root built on it embeds an editor without the host's compositor, shown by
-     a host test. The root gets its `input` export here.
+   - 4e. A surface a guest names, and the app host in a guest, in sub-steps that each land on
+     their own:
+     - 4e1. Built: a surface a guest names, natively. A staged app the root spawns draws on the
+       host's device (`Server::with_display`, which only the root's sandbox has; an app's
+       workers still get no gpu), and its presented textures are named to the root only by
+       handle: `Surface::Screen { instance, surface }`, whose `instance` is the op of the
+       root's `instance` resource, which both sides know it by, and which `Root::surface`
+       resolves to the texture on the host's device. The web's half, a child's
+       `OffscreenCanvas` named by handle, waits until the page runs a root.
+     - 4e2. The host half of the app protocol as a portable library, `be-lib-app-host` (no
+       beui, wgpu or be-host-stack; it builds for wasm32): be-host-runtime's `Wire`, `calls`,
+       `sent`, `session` and the docks' resolution move into it, and be-host-runtime and
+       be-sdk-test's in-process host both use it, so be-sdk-test's own host-side connection
+       goes.
+     - 4e3. An editor's watches and a block's content in the library: the host side of
+       `be3:blocks` (watches, replicas, opens, commands) over a store trait, which
+       be-host-runtime implements over be-host-stack and be-sdk-test over its `ContentStore`,
+       so `link.rs` goes.
+     - 4e4. be-host-runtime's orchestration in the library: pacing, settling against the
+       deadline, the layout and present holds (`Laid`, `Kept`), restarts and grafting the
+       accessibility trees, on be-lib-geometry rather than beui's geometry, with be-host-runtime
+       driving it. It may split again.
+     - 4e5. A root built on the library embeds an editor without the host's compositor, shown by
+       a host test, and the root gets its `input` export, routed by `Router` over its last
+       list. be-host runs it through a run option that starts a root module in place of its
+       own UI: the path 4g turns on and makes the default, not a test-only fork 4g replaces.
    - 4f. The router over the layer list: the `HitTest` moves from beui's catchers to the last
      committed `WindowLayers`. `AppView`, anchored views, scrims and popups declare each layer's
      `LayerInput` (hit and gesture areas, `captures`, `focuses`, `placer`), the host's UI its

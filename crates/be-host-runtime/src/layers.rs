@@ -204,7 +204,7 @@ fn anchored_piece(
     placed(
         id,
         Surface::Anchored {
-            instance: blit.surface,
+            instance: u64::from(blit.surface),
             surface: anchored.surface,
         },
         Quad::upright(shown),

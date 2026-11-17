@@ -1847,10 +1847,9 @@ pub fn place_screens(
     let mut placed = super::web::placements(&frame, scale);
     HOST.with(|host| {
         for runtime in host.borrow_mut().runtimes.values_mut() {
-            let placements = placed.remove(&runtime.surface).unwrap_or_default();
-            runtime
-                .backend
-                .place(placements, layers.remove(&runtime.surface));
+            let slot = u64::from(runtime.surface);
+            let placements = placed.remove(&slot).unwrap_or_default();
+            runtime.backend.place(placements, layers.remove(&slot));
         }
     });
 }

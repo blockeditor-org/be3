@@ -502,6 +502,7 @@ impl Running {
         let config = sandbox::Config {
             name: "input remaps".to_owned(),
             memory_limit: MEMORY_BYTES,
+            display: None,
         };
         let instance = sandbox::spawn(sandbox::Source::Module(module.clone()), config, wake)
             .map_err(|error| format!("the remaps would not start: {error}"))?;

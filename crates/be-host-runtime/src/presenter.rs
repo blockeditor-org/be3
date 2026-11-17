@@ -360,7 +360,7 @@ impl Blit {
         crate::layers::screen(
             crate::layers::id(self.surface, self.screen.0, false, drawing, piece),
             Surface::Screen {
-                instance: self.surface,
+                instance: u64::from(self.surface),
                 surface: placement.surface,
             },
             self.shown_at(painted)?,
@@ -399,7 +399,7 @@ impl Blit {
                 piece,
             ),
             Surface::Anchored {
-                instance: self.surface,
+                instance: u64::from(self.surface),
                 surface: anchored.surface,
             },
             within_texture(self.quad, source)?,

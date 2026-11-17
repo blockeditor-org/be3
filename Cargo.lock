@@ -3161,7 +3161,9 @@ dependencies = [
  "js-sys",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "wat",
  "web-sys",
+ "wgpu",
 ]
 
 [[package]]
@@ -3219,6 +3221,7 @@ dependencies = [
  "js-sys",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "wgpu",
 ]
 
 [[package]]

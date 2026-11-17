@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use be_wasm_host::App;
+use be_wasm_host::{App, PresentedTexture};
 use be_wasm_root_api::{FrameDone, FrameRequest};
 use be_wasm_sandbox_host::{Loader, Server};
 
@@ -71,13 +71,19 @@ impl Bell {
 
 impl Root {
     /// Starts `app`, the root guest, loaded on the calling thread, whose staged apps it spawns
-    /// by id are found by `apps`.
-    pub fn start(mut app: App, apps: Loader) -> Result<Self, String> {
+    /// by id are found by `apps` and draw on the host's `device`.
+    pub fn start(
+        mut app: App,
+        apps: Loader,
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+    ) -> Result<Self, String> {
         let bell = Arc::new(Bell::default());
         let ringer = Arc::clone(&bell);
         app.on_wake(move || ringer.ring());
         let ringer = Arc::clone(&bell);
-        let sandbox = Server::new(Arc::new(move || ringer.ring()), apps);
+        let sandbox =
+            Server::new(Arc::new(move || ringer.ring()), apps).with_display(device, queue);
         app.start()?;
         Ok(Self {
             core: Core::new(app, sandbox)?,
@@ -106,6 +112,15 @@ impl Root {
                 Progress::Yielded => {}
             }
         }
+    }
+
+    /// What the surface `surface` of the instance the root spawned with the op `instance` shows,
+    /// as the root's layer list names it (be-lib-layers' `Surface::Screen` or `Anchored`, whose
+    /// `instance` is that instance's `instance` resource's op): the texture it presented last to
+    /// that surface, on the host's device. The root never sees it: it names it only by handle,
+    /// and only the host draws it. None for a surface never presented.
+    pub fn surface(&self, instance: u64, surface: u32) -> Option<&PresentedTexture> {
+        self.core.sandbox.surface(instance, surface)
     }
 }
 
