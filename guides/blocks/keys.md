@@ -355,8 +355,9 @@ maker through every sender (`KeyBook::heads`).
   (`KeyBook::sender_may`). From a contact the block's log never names, a key
   only once this device found, as that key arrived, the contact holding Edit
   or above on a block the signed parent records place it under
-  (`Peer::held_above`, `KeyBook::vouch`): that key alone is kept as vouched
-  for (`KeptLog::vouched`), so a contact revoked above since hands over
+  (`Peer::held_above`, `KeyBook::vouch`): that wrap alone (key, sender and
+  digest of what was sealed) is kept as vouched for (`KeptLog::vouched`), so
+  another wrap of the key, or a contact revoked above since, hands over
   nothing new. A key of a block whose log this device never checked is
   taken; `refresh_keys` takes this account's own keys first, so the roots they
   carry are pinned, then reads the log of each block whose root it pinned
