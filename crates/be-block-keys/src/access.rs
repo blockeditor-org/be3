@@ -655,7 +655,8 @@ pub struct Checked {
     pub last_lowering: usize,
     /// Whether a reduced entry lowered anyone: on a block's path, someone else's revocation; on
     /// an organization's, which reduces none that did when honest (`proof_path`), a demotion
-    /// hidden from the reader, who then trusts no escrow epoch by it.
+    /// hidden from the reader, so the log names no administrator (`administrators` and `levels`
+    /// are left empty) and vouches for no escrow epoch.
     pub hides_lowering: bool,
     /// Whether the log was served as a proof path (`proof_path`): some entries reduced, so
     /// `grants`, `levels`, `administrators` and `members` hold only those it proves, and a
@@ -1034,6 +1035,13 @@ pub fn check_log(
     if hidden_lowering > opened_at {
         state.open_inside = Level::None;
         state.open_inside_tainted = false;
+    }
+    // An honest path of an organization's log reduces nothing that lowered anyone
+    // (`proof_path`): one that does hides whom it demoted, so it names no administrator, nor
+    // anyone's administering as of any entry, for taking a seal, an escrow wrap or an epoch.
+    if kind == LogKind::Organization && state.hides_lowering {
+        state.administrators.clear();
+        state.levels.clear();
     }
     Ok(state)
 }

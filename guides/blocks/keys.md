@@ -213,11 +213,18 @@ it `partial`. How each check reads one:
 - No key is wrapped under an escrow epoch while the organization's log hides a
   lowering (`Checked::hides_lowering`, `KeyBook::escrow`): an honest path of it
   reduces no entry that lowered anyone.
+- An organization path that reduces an entry that lowered anyone hides a
+  demotion (an honest one reduces none): `check_log` leaves it naming no
+  administrator and no level, so no seal, escrow wrap or epoch is taken by it.
 - A seal's sender is judged by the records the path shows of them
-  (`sender_may`, `settle_escrowed`, kept `levels`), which a server can make
-  look current by reducing their revocation: accepted
-  (plans/signed_access.md, "Accepted limits"), since a reader below Edit seals,
-  wraps and writes content under nothing.
+  (`sender_may`, `settle_escrowed`, kept `levels`), but the server picks whom
+  a path proves: a sender it leaves out is never named, and taken as Edit from
+  above. So for a reader below Edit the sender check is a verified contact
+  check. Accepted (plans/signed_access.md, "Accepted limits"): a reader below
+  Edit seals, wraps and writes content under nothing, though it relays its
+  presence under such a key.
+- A path is kept (`KeptLog`) only up to its last whole entry, so a tail the
+  server made up after the real head never leaves later logs withheld.
 
 **Epochs name their heads** (plans/signed_access.md, 3d). A key minted here
 names the heads of its scope's log (a scope key's own block; for a data key,

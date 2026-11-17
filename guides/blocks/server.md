@@ -405,7 +405,9 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   on any block, or administering, for the organization's), and to anyone else
   as a proof path (`access::served_log`, `be_block_keys::proof_path`) whole
   only where it proves the caller's right and that of each account that sealed
-  it a key (`wrapped_keys.sender`).
+  it a key (`wrapped_keys.sender`). A block's creator holds Manage on it, so
+  every member who has made a block is served the organization's whole log,
+  and with it its member list.
 
 No check maps the whole graph. `BlockGraph` indexes children by parent and
 blocks by the accounts that authored or were granted them; `inherited` walks
