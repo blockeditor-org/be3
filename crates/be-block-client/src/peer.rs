@@ -70,8 +70,8 @@ pub use notifications::{
 
 pub use authorship::Signer;
 pub use import::Imported;
-pub use rotation::PendingRotation;
 pub use prefixes::Registry;
+pub use rotation::PendingRotation;
 
 #[derive(Clone)]
 pub enum Credentials {
