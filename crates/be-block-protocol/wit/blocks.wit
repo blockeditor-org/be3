@@ -25,21 +25,6 @@ interface objects {
         headers: list<header>,
     }
 
-    /// A URL to upload each of `objects` to, in order, and none for one the
-    /// caller holds already (it uploaded it, or may read it): room is reserved
-    /// only for the rest, charged to the uploader until a block takes them. An
-    /// object counts as stored only once its bytes arrived. An object with no
-    /// length the caller does not hold refuses the call with
-    /// `object-not-found`, alike whether or not anyone stored it, and nothing
-    /// is reserved. At most `be_block_protocol::MAX_OBJECT_URLS` objects a
-    /// call.
-    upload-urls: async func(objects: list<object-length>) -> result<list<option<upload-url>>, error>;
-
-    /// A presigned S3 GET for each object the caller may read, in order, and
-    /// none for the rest. At most `be_block_protocol::MAX_OBJECT_URLS` hashes a
-    /// call.
-    download-urls: async func(hashes: list<hash>) -> result<list<option<string>>, error>;
-
     /// How long `hold-objects` keeps objects for a block. Either way the
     /// block's payer is charged for them, and whoever may view the block may
     /// read them.
@@ -53,10 +38,6 @@ interface objects {
         /// `be3:block-type`).
         until-committed,
     }
-
-    /// Keeps stored objects alive for `block`. Holding one again extends it,
-    /// and a lasting hold outlasts any other.
-    hold-objects: async func(block: block-id, objects: list<hash>, hold: hold) -> result<_, error>;
 }
 
 /// The blocks of the organization this connection opened.
@@ -148,7 +129,7 @@ interface blocks {
         blocks: list<block-summary>,
         /// The listing's next blocks after those, as many ids as fit in a
         /// sixteenth of a frame: the ids are as of `sequence`, and a client
-        /// reads their summaries with `read-summaries`, which are as of when
+        /// reads their summaries with `query.blocks`, which are as of when
         /// it reads them.
         rest: list<block-id>,
         /// The last block of the page when the listing goes on past it: a
@@ -156,11 +137,6 @@ interface blocks {
         next: option<block-id>,
     }
 
-    /// What `collect-detached` deleted and freed.
-    record collected {
-        blocks: list<block-id>,
-        objects: u64,
-    }
 
     record access-entry {
         account: account-id,
@@ -181,139 +157,6 @@ interface blocks {
         company: bool,
         set-inside: u32,
     }
-
-    /// The tree of an entry point the connection follows changed: its
-    /// changes up to `sequence` are there to read with `changed-since`. Only
-    /// the latest is sent, and none again for the entry until the connection
-    /// reads its changes to their end, so a burst of changes is one event.
-    record tree-advanced {
-        entry: block-id,
-        sequence: u64,
-    }
-
-    /// What a connection's `changes` stream tells.
-    variant tree-change {
-        /// A tree it follows changed.
-        advanced(tree-advanced),
-        /// What lies at the top of the organization, in the trash or is shared
-        /// with this account (`listing.children(root)`, `listing.deleted`,
-        /// `listing.shared`) may have changed, by a move or a grant: a client
-        /// lists them again.
-        roots,
-    }
-
-    create-block: async func(
-        block: block-id,
-        content-type: content-type-id,
-        parent: block-parent,
-        metadata: list<u8>,
-        references: list<block-id>,
-        key: key-id,
-        keys: key-set,
-        /// Readable by its author alone, for its whole life: a scope root whose
-        /// key is sealed only to the author and never escrowed, which no one
-        /// else may open, move or grant, administrators included.
-        owner-only: bool,
-        /// The root of the block's access log (`be_block_keys::Entry::root`),
-        /// signed by the caller with its current keys (plans/signed_access.md).
-        root: list<u8>,
-        /// The log's next entry, the caller's parent record placing the block
-        /// at `parent` (`be_block_keys::Record::Parent`), naming the root of
-        /// the parent's log (plans/signed_access.md, step 4).
-        placement: list<u8>,
-    ) -> result<block-summary, error>;
-
-    /// The block's access log, root first, each entry as
-    /// `be_block_keys::Step::encode` writes it: every entry whole to a
-    /// caller with Edit or above on the block or a block below it, else a
-    /// proof path (`be_block_keys::proof_path`) whole only where it proves
-    /// the caller's right or a sealer's (plans/signed_access.md, "Who is
-    /// served what"), and every parent record. Needs View on the block or a
-    /// block below it: a reader of a block below is served the right of
-    /// whoever signs there on authority from this one.
-    get-access-log: async func(block: block-id) -> result<list<list<u8>>, error>;
-
-    set-metadata: async func(block: block-id, metadata: list<u8>, references: list<block-id>) -> result<block-summary, error>;
-
-    /// Stores `objects` and moves the head to `commit` if it is `expected`.
-    /// `held` and `references` are changes from what `expected` holds and
-    /// references, so a commit that changes little sends little.
-    ///
-    /// With `journal`, a seal of the block's live session: its base names
-    /// `commit`, and the journal starts from it only if this publish moves
-    /// the head, in the same transaction, which every participant hears as
-    /// `session-event.sealed`. A trim with no new commit (`commit` is
-    /// `expected` and the head) needs the caller to be in the session and its
-    /// lease holder at the order's tip.
-    publish: async func(
-        block: block-id,
-        commit: commit-id,
-        expected: option<commit-id>,
-        parents: list<commit-id>,
-        held: object-change,
-        time: s64,
-        pinned: bool,
-        references: reference-change,
-        metadata: list<u8>,
-        objects: list<list<u8>>,
-        journal: option<journal-seal>,
-    ) -> result<publish-outcome, error>;
-
-    /// What changed in the tree of `entry`, a page at a time from the cursor
-    /// `after` (first `{ changed: watermark, block: ff..ff }`), at most `limit`
-    /// blocks of each kind (guides/blocks/server.md, "Changes since").
-    /// `entry` is an entry point of the caller's (`block-summary.entry`): a
-    /// top-level block, the top of what lies in the trash, or a block it may
-    /// view whose parent it may not. Needs View on `entry`. With `follow`, the
-    /// connection follows the entry first, until `unfollow`: its `changes`
-    /// stream tells it as the tree advances (`tree-advanced`).
-    changed-since: async func(entry: block-id, after: change-cursor, limit: u32, follow: bool) -> result<changed-page, error>;
-
-    /// Summaries of the first of `blocks`, as many as fit in the answer and
-    /// at least one, their journals, and the objects of their heads the
-    /// caller does not hold, those of the commits in `held` left out. A
-    /// client asks again for the blocks left out.
-    read-contents: async func(blocks: list<block-id>, held: list<commit-id>) -> result<contents, error>;
-
-    /// Moves a block, with the keys it needs under its new parent, by
-    /// `placement`: the caller's parent record placing it at `parent`, the next
-    /// entry of its access log (plans/signed_access.md, step 4).
-    set-parent: async func(block: block-id, parent: block-parent, keys: key-set, placement: list<u8>) -> result<_, error>;
-
-    /// A page of the blocks of a listing, in the order of their ids: from the
-    /// first, or from the first id past `after` (a `listed.next`) as the
-    /// listing is now. A block that stays in the listing is on exactly one
-    /// page; one that joins or leaves between pages has a `changed` past the
-    /// first page's `sequence`.
-    list-blocks: async func(listing: listing, after: option<block-id>) -> result<listed, error>;
-
-    /// The summaries of the first of `blocks` (at most 4096 asked), as many
-    /// as fit in a sixteenth of a frame and at least one, in order: none
-    /// for a block the caller may not know of, or that no longer exists. A
-    /// client asks again for the rest.
-    read-summaries: async func(blocks: list<block-id>) -> result<list<option<block-summary>>, error>;
-
-    /// Stops following an entry point (`changed-since`'s `follow`).
-    unfollow: async func(entry: block-id) -> result<_, error>;
-
-    /// What changes in the trees this connection follows, and in the
-    /// account's roots; `open-organization` starts the following over.
-    changes: func() -> stream<tree-change>;
-
-    list-history: async func(block: block-id) -> result<list<history-entry>, error>;
-
-    /// Deletes the detached blocks nothing reaches any more.
-    collect-detached: async func() -> result<collected, error>;
-
-    /// Sets `account`'s access to `block`. `signed` is the signed grant
-    /// (be_block_keys::Grant) the server appends to the block's access log
-    /// once it checks there: needed for any access above none, and to revoke
-    /// a grant the log names. Grants to anyone inside and to the server's own
-    /// account are standing exceptions that no device seals to by grant, and
-    /// take none.
-    set-access: async func(block: block-id, account: account-id, access: access-level, signed: option<list<u8>>) -> result<_, error>;
-
-    list-access: async func(block: block-id) -> result<access-list, error>;
 }
 
 /// Live sessions on blocks. The server orders each session's submissions,
@@ -323,18 +166,6 @@ interface blocks {
 /// seals with `blocks.publish`.
 interface sessions {
     use types.{block-id, client-id, commit-id, error, hash, journal, journal-entry, membership-entry, session-state};
-
-    record joined {
-        /// This connection, as the session's participants name it.
-        client: client-id,
-        state: session-state,
-        /// The block's journal as of joining; what the order numbers after
-        /// reaches this connection as `sequenced`.
-        journal: option<journal>,
-        /// Whether this account may edit the block as it joined: the server's
-        /// word, which a device trusts over a listing it holds.
-        may-edit: bool,
-    }
 
     record relayed {
         %from: client-id,
@@ -353,13 +184,8 @@ interface sessions {
         run: u64,
     }
 
-    /// What a session's `join` stream tells.
+    /// What happens in a session (`event.session`).
     variant session-event {
-        /// First, once joined: the membership as of the number it joins at,
-        /// which `membership` events then follow.
-        joined(joined),
-        /// First and last, when the caller may not join.
-        refused(error),
         /// The server wrote a membership entry.
         membership(membership-entry),
         /// A participant relayed a message to this one, or to all.
@@ -369,33 +195,5 @@ interface sessions {
         sequenced(journal-entry),
         /// A seal moved the head and trimmed the journal.
         sealed(sealed),
-    }
-
-    /// This connection in a block's session. Dropping it leaves the session.
-    resource session {
-        /// Names the block, and the build of its type this connection runs;
-        /// `join` joins it.
-        constructor(block: block-id, tag: hash);
-
-        /// Joins the session and tells what happens in it, starting with
-        /// `joined` or `refused`.
-        join: func() -> stream<session-event>;
-
-        /// Claims the lease: the server writes a claim into the session's
-        /// order, and the caller holds the lease from it while it stays with
-        /// edit access. Refused to a viewer.
-        claim: async func() -> result<_, error>;
-
-        /// Relays a sealed message (presence, a channel's) to one participant,
-        /// or to every other one with no `to`. Any participant may.
-        relay: async func(to: option<client-id>, payload: list<u8>) -> result<_, error>;
-
-        /// Hands the order a submission: the server numbers it, keeps it in
-        /// the block's journal and sends it to every participant as
-        /// `sequenced`, then answers. A submission whose id the journal holds
-        /// already is answered and not numbered again. Refused to a viewer,
-        /// and to a connection whose build is not the session's, or not the
-        /// journal's while it holds entries.
-        submit: async func(origin: u64, counter: u64, base: u64, barrier: bool, payload: list<u8>) -> result<_, error>;
     }
 }

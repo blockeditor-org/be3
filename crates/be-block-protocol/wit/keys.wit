@@ -54,7 +54,7 @@ interface keys {
         account: account-id,
     }
 
-    /// A page of `get-keys`, and the last key it holds when more follow.
+    /// A page of `query.keys`, and the last key it holds when more follow.
     record key-page {
         keys: key-set,
         next: option<key-id>,
@@ -86,83 +86,4 @@ interface keys {
         unsigned-revocations: list<revocation>,
     }
 
-    /// One page of the keys of `blocks`, or of every key the caller holds
-    /// with none: the keys after `after` in the order of their ids, as many
-    /// as fit in half a frame with the wraps of each, and at least one. A
-    /// client asks again from `next` until it is none.
-    get-keys: async func(blocks: option<list<block-id>>, after: option<key-id>) -> result<key-page, error>;
-
-    /// Stores rows, and tells `keys-changed` to every other connection of an
-    /// account a key in them is sealed to or that may view a block they are
-    /// of.
-    put-keys: async func(keys: key-set) -> result<_, error>;
-
-    /// The grants in the organization open, named in their blocks' logs,
-    /// that removing `account` would revoke: as a member (`remove-member`),
-    /// or with `contact`, as the caller's contact (`remove-contact`: each
-    /// one's grants on blocks the other manages). The caller signs each
-    /// revocation and sends them with the removal.
-    removal-revocations: async func(account: account-id, contact: bool) -> result<list<revocation>, error>;
-
-    get-recovery-key: async func() -> result<recovery-key, error>;
-
-    /// Moves the account to a new recovery key and the signing key derived
-    /// with it, with everything sealed to the old one sealed again, a key
-    /// change for each contact, and an entry retiring the old keys in every
-    /// access log the account signed in (`be_block_keys::Entry::retirement`).
-    set-recovery-key: async func(
-        public: public-key,
-        signing: public-key,
-        sealed: list<sealed-key>,
-        %own: list<own-sealed>,
-        changes: list<key-change>,
-        retirements: list<retirement>,
-    ) -> result<_, error>;
-
-    /// The signing keys of those of `accounts` that are the caller, its
-    /// contacts or members of the organization open (in the personal
-    /// organization, every account), leaving out any other and any account
-    /// with none.
-    get-signing-keys: async func(accounts: list<account-id>) -> result<list<signing-key>, error>;
-
-    reseal-keys: async func(keys: list<sealed-key>) -> result<_, error>;
-
-    /// The organization's key work for the caller: its value as the stream
-    /// opens, then each new value as it may have changed through another
-    /// connection, or as the connection opens an organization. Opened before
-    /// any is, it waits for one to open, unlike `storage-changed`, which ends
-    /// denied. A latest-value stream, so values the client has not taken yet
-    /// are one item; a connection may hold several, each starting with the
-    /// current value, and one whose first value cannot be read ends with the
-    /// failure.
-    key-work-changed: func() -> stream<key-work>;
-
-    /// An item whenever `put-keys` stored rows the account may open through
-    /// another connection, so the client asks again for keys it found
-    /// missing; a latest-value stream, so changes the client has not taken
-    /// yet are one item.
-    keys-changed: func() -> stream;
-
-    /// Gives every block below `roots` a new key.
-    rotate: async func(roots: list<block-id>, keys: key-set) -> result<_, error>;
-
-    /// Adds the next epoch of the escrow chain.
-    create-escrow: async func(escrow: escrow-key, keys: key-set) -> result<_, error>;
-
-    /// Keeps the escrow key the caller pinned, sealed to itself.
-    pin-escrow: async func(sealed: list<u8>) -> result<_, error>;
-}
-
-/// What a client imports from the server.
-world client {
-    import connection;
-    import account;
-    import organizations;
-    import members;
-    import contacts;
-    import objects;
-    import blocks;
-    import sessions;
-    import keys;
-    import notifications;
 }
