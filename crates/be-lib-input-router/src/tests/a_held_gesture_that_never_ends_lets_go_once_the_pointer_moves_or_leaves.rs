@@ -29,6 +29,12 @@ fn a_held_gesture_that_never_ends_lets_go_once_the_pointer_moves_or_leaves() {
         Some(Some(EDITOR)),
         "a pointer resting where it was keeps it"
     );
+    router.route(&test, Input::PointerMoved(pos2(251.5, 250.0)));
+    assert_eq!(
+        router.latched(),
+        Some(Some(EDITOR)),
+        "so does a move within the slop, as a finger landing on the touchpad jitters it"
+    );
     router.route(&test, Input::PointerMoved(pos2(150.0, 150.0)));
     assert_eq!(
         targets(&router.route(&test, wheel())),
