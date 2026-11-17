@@ -44,7 +44,7 @@ The host keeps `be-objects/` and the refs database across builds.
 `be-host-stack/src/worker.rs` is the peer's loop. `be_block_type_host::Replicas`
 (shared with `be`; be-host's `Host` is `replicas.rs`, where reports land in
 `Shared`) is the host half of every open block's replica: it joins the session,
-reads the block's head (which lists it, so `changes` tells it the heads other
+reads the block's head (which lists it, so its followed tree tells it the heads other
 connections publish), constructs the `replica` with the head, answers its calls
 with the real primitives (`Peer::seal` then `publish_sealed`, `Peer::stash`,
 resume, the lease, relays sealed with the block key, `sleep-until`) and keeps
@@ -518,13 +518,13 @@ instance, `Owner::Open` for open blocks' parents, `Owner::Host`,
   unfollows it (`take_follows`). So the host follows only the trees of what it
   shows, a few entries, never a listing. `Event::TreeAdvanced` marks the entry
   to read (`Graph::advanced`, once more if it advanced during a read), and
-  `read_trees` reads its `changed-since` pages from its cursor, in a task: the
+  `read_trees` reads its `tree` pages from its cursor, in a task: the
   graph takes only what it holds or a listing it holds would list
   (`Graph::followed`, `holds_or_lists`), so a page's changes in folders nobody
   shows cost nothing more; a block a page changes has its `Backrefs` listing
   read again (the server touches the blocks a change starts or stops
   referencing); a held block that left the tree is read again wherever it went
-  (`read-summaries`) or forgotten. A read refused (the tree is no longer the
+  (a `blocks` query) or forgotten. A read refused (the tree is no longer the
   account's) reads again the listings holding what lies in it
   (`follow_failed`), so what was shown of it goes. Every head this device
   learns moved on from one it knew, by any read, reaches the open block's

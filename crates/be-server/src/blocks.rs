@@ -23,9 +23,9 @@ fn departing(graph: &BlockGraph, block: Uuid) -> crate::changes::Departing {
     }
 }
 
-/// The most blocks of either kind a page of `changed-since` holds.
+/// The most blocks of either kind a page of `query.tree` holds.
 const MAX_CHANGES_PER_PAGE: usize = 500;
-/// The summaries of one `changed-since` page: once they come to this, the page ends, so with
+/// The summaries of one `query.tree` page: once they come to this, the page ends, so with
 /// one summary more, however large, it stays inside a frame.
 const MAX_PAGE_SUMMARY_BYTES: usize = be_block_protocol::MAX_FRAME_BYTES / 4;
 const _: () = assert!(
@@ -36,7 +36,7 @@ const _: () = assert!(
         <= be_block_protocol::MAX_FRAME_BYTES
 );
 
-/// The most changes one page of `changed-since` looks at, those of other trees included.
+/// The most changes one page of `query.tree` looks at, those of other trees included.
 const MAX_SCANNED: usize = if cfg!(test) { 6 } else { 20_000 };
 
 use crate::{
@@ -556,7 +556,7 @@ impl ServerStore {
         .await
     }
 
-    /// The block's access log, root first (`get-access-log`), to a caller who may view it or a
+    /// The block's access log, root first (`query.log`), to a caller who may view it or a
     /// block below it: whole to one with Edit or above on it, or who views it with Edit below,
     /// else a proof path of the caller's own right, and, for a block above what the caller
     /// views, of whoever signs below on authority from it.
@@ -1501,7 +1501,7 @@ impl ServerStore {
                 },
             )?;
             store.follow_payer(graph, &transaction, identity, block, parent)?;
-            // The entry points above it, for `changed-since` to name it to their readers once it
+            // The entry points above it, for `query.tree` to name it to their readers once it
             // has left them.
             let entries_before = crate::changes::entries_above(graph, block);
             let above: Vec<Uuid> = graph.ancestors(block).collect();

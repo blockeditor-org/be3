@@ -254,7 +254,7 @@ pub struct Batch {
     pub removed: Vec<(DocId, Commit)>,
     /// Blocks that left the tree, every document of each.
     pub removed_blocks: Vec<(Vec<u8>, Commit)>,
-    /// The sequence of changes (`changed-since`) the index has now seen every change up to.
+    /// The sequence of changes (`query.tree`) the index has now seen every change up to.
     pub watermark: Option<u64>,
     /// When the writing device applies it, on its own clock (milliseconds): a block it removes
     /// is remembered from then (`Index::forget_before`), whatever its commit's author's clock

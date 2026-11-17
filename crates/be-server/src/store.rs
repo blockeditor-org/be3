@@ -393,7 +393,7 @@ impl ServerStore {
         .await
     }
 
-    /// The organization's access log, root first (`get-organization-log`): whole to an
+    /// The organization's access log, root first (`query.log`): whole to an
     /// administrator or a member with Edit or above on any of its blocks, else a proof path of
     /// the caller's own records and its sealers' (`access::served_log`).
     pub async fn organization_log(&self, identity: Identity) -> Result<Vec<Vec<u8>>, ServerError> {
@@ -913,7 +913,7 @@ impl ServerStore {
     }
 
     /// The grants of `account` in `organization`, named in their blocks' logs, that removing it
-    /// revokes (`removal-revocations`).
+    /// revokes (`query.revocations`).
     pub async fn member_revocations(
         &self,
         organization: Uuid,

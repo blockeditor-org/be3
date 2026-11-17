@@ -230,7 +230,7 @@ not joined yet, is refused.
 
 Each replica that applies the operation keeps the part in its parts as
 `Part::Reused`, so whoever commits next saves a manifest reusing it, uploading
-nothing (the server holds it, so `upload-urls` asks for none of it) and
+nothing (the server holds it, so `reserve-uploads` asks for none of it) and
 downloading its nodes, never its chunks: its top object to learn its key, and
 the rest to list the commit's objects. That needs the server, so a holder
 offline cannot seal a commit reusing a part it never fetched. A type that only

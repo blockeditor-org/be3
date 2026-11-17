@@ -486,7 +486,7 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// The blocks a local account's peer made, changed, moved or named since this was last
-    /// asked: what a server's `changed-since` would list for it.
+    /// asked: what a server's `query.tree` would list for it.
     pub fn take_settled_here(&self) -> HashSet<Uuid> {
         std::mem::take(&mut *self.settled_here.lock().unwrap())
     }

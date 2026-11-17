@@ -72,7 +72,7 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// Uploads `hashes` from this device's store, those the server answers it holds already
-    /// left out (`upload-urls`). An object this device does not hold (a part it reuses by its
+    /// left out (`reserve-uploads`). An object this device does not hold (a part it reuses by its
     /// ref alone) is asked for with no length: the server must hold it for this account, and
     /// refuses it as not found otherwise, which is `MissingObject`.
     pub(super) async fn upload(&self, hashes: &[Hash]) -> Result<(), ClientError> {

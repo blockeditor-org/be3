@@ -77,7 +77,7 @@ pub use sessions::*;
 pub use types::*;
 
 pub const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
-/// The most blocks one `read-summaries` names.
+/// The most blocks one `query.blocks` names.
 pub const MAX_SUMMARIES_ASKED: usize = 4096;
 /// What a frame spends on more than its answer's items: the op's envelope and the lengths and
 /// fixed fields around them. An answer sized to fit leaves this much of a frame spare.
@@ -95,7 +95,7 @@ pub fn encoded_len<T: Serialize + ?Sized>(value: &T) -> usize {
 }
 /// The largest object the server stores.
 pub const MAX_OBJECT_BYTES: usize = 8 * 1024 * 1024;
-/// The most objects one `upload-urls` or `download-urls` call names, which keeps its answer
+/// The most objects one `reserve-uploads` or `download-urls` call names, which keeps its answer
 /// well inside a frame.
 pub const MAX_OBJECT_URLS: usize = 1024;
 /// The largest sealed notification `notify` takes: what an app writes is about 1 KiB, and

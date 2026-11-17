@@ -1,4 +1,4 @@
-//! The organization's durable change sequence, which `changed-since` pages through and which
+//! The organization's durable change sequence, which `query.tree` pages through and which
 //! orders every summary a client is told (`block-summary.changed`).
 //!
 //! One strictly increasing counter per organization (`organizations.change_sequence`) is
