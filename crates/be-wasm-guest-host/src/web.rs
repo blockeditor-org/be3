@@ -156,6 +156,7 @@ fn produced<P: Pictures>(data: &JsValue) -> Produced<P> {
             .map(|frame| js_sys::Uint8Array::new(&frame).to_vec())
             .collect(),
         presented: P::read(data),
+        released: Vec::new(),
         painted: get(data, "painted").is_truthy(),
         took: StepTime {
             step: milliseconds(data, "step"),

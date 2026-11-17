@@ -202,7 +202,11 @@ impl Backend {
     }
 
     pub(super) fn received_frame(&mut self) -> Option<Frame> {
-        let (presented, presents) = self.worker.as_mut()?.take_presented()?;
+        let worker = self.worker.as_mut()?;
+        // The presenter lets an app's textures go by its layout (`SurfacePresenter::retain`), so
+        // the surfaces it released need nothing more here.
+        worker.take_released();
+        let (presented, presents) = worker.take_presented()?;
         Some(platform::frame(presented, presents))
     }
 

@@ -48,7 +48,7 @@ created as `masked(local, scope_mask(checkout))` with the `LOCAL_ID` metadata
 key; a block created in or adopted into a checkout keeps its own id as its
 local id. The host translates every block id crossing the app protocol for an
 instance inside a checkout (`Instances::translate`, over the `BlockIds` of what
-crosses, in `be-host-runtime/src/calls.rs`; a clip item's ids are its `refs`
+crosses, in `be-sdk-app-host/src/calls.rs`; a clip item's ids are its `refs`
 whatever its format, guides/beui/platforms.md), and the peer resolves published
 references the same way (`Peer::set_resolver`), so neither content nor editors
 know about checkouts. Resolution looks in the instance's checkout first and

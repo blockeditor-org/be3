@@ -216,7 +216,8 @@ pub struct Instance {
     worker: Worker<Threaded<PresentedTexture>>,
     /// Why it stopped, once it did.
     failure: Option<String>,
-    /// What each of its surfaces shows: the texture it presented last.
+    /// What each of its surfaces shows: the texture it presented last, until it lets the surface
+    /// go.
     presented: BTreeMap<u32, PresentedTexture>,
 }
 
@@ -271,6 +272,9 @@ impl Instance {
     pub fn receive(&mut self) -> Result<Vec<Vec<u8>>, String> {
         if self.failure.is_none() {
             self.failure = self.worker.poll();
+        }
+        for surface in self.worker.take_released() {
+            self.presented.remove(&surface);
         }
         if let Some((presented, _)) = self.worker.take_presented() {
             for presented in presented {

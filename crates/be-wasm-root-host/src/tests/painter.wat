@@ -4,7 +4,7 @@
 ;;
 ;; app_start makes surface 7 (`PAINTED_SURFACE`) and gives it a 4 by 4
 ;; rgba8unorm target. Its first app_step clears it in a render pass, presents
-;; it and sends the frame [1]; later steps send [2] and draw nothing. Each
+;; it and sends the frame [1]; later steps drop the surface and send [2]. Each
 ;; handle it is given is the first of its kind, 1, which the descriptors below
 ;; name.
 (module
@@ -18,6 +18,7 @@
   (import "be3:gpu/device@0.1.0" "[method]render-pass.end" (func $end (param i32)))
   (import "be3:gpu/device@0.1.0" "[method]command-encoder.finish" (func $finish (param i32) (result i32)))
   (import "be3:gpu/device@0.1.0" "submit" (func $submit (param i32 i32)))
+  (import "be3:gpu/device@0.1.0" "[resource-drop]surface" (func $drop_surface (param i32)))
   (import "be3_host" "host_send" (func $send (param i32 i32)))
 
   (memory (export "memory") 1)
@@ -50,6 +51,10 @@
     (local $pass i32)
     (if (global.get $painted)
       (then
+        (if (global.get $surface)
+          (then
+            (call $drop_surface (global.get $surface))
+            (global.set $surface (i32.const 0))))
         (call $send (i32.const 113) (i32.const 1))
         (return)))
     (drop (call $create_view (call $acquire (global.get $surface)) (i32.const 16) (i32.const 9)))

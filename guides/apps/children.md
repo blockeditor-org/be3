@@ -210,7 +210,8 @@ nothing but its `Docking`.
   `use_window()`, so its size, key scopes and the menus it opens are the
   tab's.
 - The root hosts each child's declaration as a pinned group in place of the
-  tab. `be-host-runtime/src/docks.rs` routes docks between instances,
+  tab. `Docks` (`be-sdk-app-host/src/docks.rs`, which be-host-runtime holds one
+  of) routes docks between instances,
   applying a commit's child placements before its dock messages.
 - The tab body holding the editor's content is where the host keeps its
   camera, chrome and frame takeovers, so a joined canvas pans and hands its
