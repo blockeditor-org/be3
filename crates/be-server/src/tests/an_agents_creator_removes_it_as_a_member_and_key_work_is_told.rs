@@ -33,15 +33,14 @@ async fn an_agents_creator_removes_it_as_a_member_and_key_work_is_told() {
         "{members:?}"
     );
 
-    let mut work = client::keys::key_work_changed(&admin.peer);
-    work.recv()
-        .await
-        .expect("the stream starts with the key work");
+    let work = admin
+        .call(|peer| peer.ask::<be_block_protocol::KeyWork>(Query::KeyWork, true))
+        .await;
+    assert!(work.is_ok(), "following the key work failed: {work:?}");
     let removed = creator.remove_member(agent.account).await;
     assert!(matches!(removed, Ok(())), "{removed:?}");
-    work.recv()
-        .await
-        .expect("removing the agent told the administrator its key work again");
+    // Removing the agent tells the administrator its key work again.
+    admin.heard_changed(Topic::KeyWork).await;
 
     let members = admin
         .call(|peer| peer.read::<Vec<be_block_protocol::Member>>(be_block_protocol::Query::Members))

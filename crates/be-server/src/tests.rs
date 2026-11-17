@@ -21,7 +21,7 @@ use uuid::Uuid;
 use super::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
-mod a_block_agent_is_deleted_with_its_block_or_its_grant;
+mod a_block_agent_is_deleted_with_its_grant;
 mod a_block_agent_is_refused_while_its_block_is_in_the_trash;
 mod a_block_agent_never_becomes_an_administrator;
 mod a_block_agent_reaches_its_block_and_nothing_else;
@@ -50,9 +50,8 @@ mod a_codes_link_opened_in_another_browser_shows_the_code_and_signs_nothing_in;
 mod a_commit_from_the_far_future_is_refused;
 mod a_connection_follows_a_bounded_number_of_entry_points;
 mod a_connection_hears_only_of_the_trees_it_follows;
-mod a_connection_holds_a_bounded_number_of_streams_and_sessions;
+mod a_connection_holds_one_events_stream_and_a_bounded_number_of_sessions;
 mod a_contact_card_the_server_swaps_does_not_open;
-mod a_detached_subtree_is_collected_and_its_objects_freed;
 mod a_device_registers_only_an_endpoint_the_server_would_push_to;
 mod a_download_does_not_wait_behind_another_organizations_store_call;
 mod a_follower_of_a_shared_subtree_hears_a_block_leave_it_within_one_tree;
@@ -61,7 +60,6 @@ mod a_grant_that_changes_nothing_writes_nothing;
 mod a_graph_change_reaches_only_the_members_who_may_see_it;
 mod a_head_moves_only_to_a_commit_that_descends_from_it;
 mod a_holder_that_loses_edit_access_hands_the_lease_on;
-mod a_key_work_stream_starts_with_the_current_value;
 mod a_kind_open_inside_passes_from_one_viewer_inside_to_another;
 mod a_link_or_a_proof_begins_only_with_the_settings_pages_check;
 mod a_link_or_a_proof_needs_a_sign_in_at_the_provider_just_now;
@@ -107,6 +105,7 @@ mod a_removed_agents_blocks_stay_charged_to_its_creator;
 mod a_reply_before_a_change_and_the_change_after_it_keep_their_order_across_a_restart;
 mod a_reserved_object_counts_only_once_its_bytes_arrive;
 mod a_rotation_gives_every_block_below_it_a_new_key_or_nothing;
+mod a_rotation_missing_one_blocks_key_is_refused_whole;
 mod a_seal_by_the_old_build_after_a_new_build_started_over_trims_nothing;
 mod a_search_index_is_capped_by_the_bytes_its_commit_holds;
 mod a_search_index_takes_exactly_the_access_of_the_block_it_indexes;
@@ -127,6 +126,7 @@ mod a_trim_from_other_than_the_holder_is_not_kept;
 mod a_trim_past_the_orders_last_entry_is_not_kept;
 mod a_type_with_a_short_retention_keeps_only_its_recent_states;
 mod a_viewer_neither_holds_nor_claims_the_lease_and_its_presence_still_reaches_the_others;
+mod a_write_whose_second_op_is_refused_keeps_nothing_of_its_first;
 mod accepting_either_kind_of_link_makes_two_contacts;
 mod accounts_stranded_by_a_removed_provider_are_counted;
 mod adding_a_provider_or_moving_its_email_tells_the_account;
@@ -163,7 +163,7 @@ mod an_unauthenticated_connection_cannot_touch_blocks;
 mod an_unauthenticated_connection_is_closed_unless_it_signs_in;
 mod an_unknown_emails_budget_runs_out_as_a_known_ones_does;
 mod an_unverified_provider_email_links_nothing;
-mod an_upload_is_used_once_and_its_object_goes_once_collected;
+mod an_upload_is_used_once_and_what_a_block_holds_is_not_asked_for_again;
 mod another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_hashes;
 mod another_build_is_greeted_and_turned_away;
 mod approving_a_device_code_needs_a_fresh_proof;
@@ -184,6 +184,7 @@ mod every_graph_change_advances_a_blocks_version;
 mod every_key_is_read_a_page_at_a_time_without_one_skipped;
 mod every_member_connection_hears_how_the_graph_changes;
 mod fcm_sends_a_data_message_with_the_service_accounts_token;
+mod following_key_work_answers_its_current_value;
 mod history_records_each_commits_parents;
 mod key_rows_are_served_only_to_who_may_see_their_block;
 mod linking_or_proving_with_a_provider_needs_the_signed_in_account;
@@ -193,10 +194,10 @@ mod metadata_travels_with_the_content_once_a_block_has_any;
 mod moving_a_block_drops_the_wraps_of_its_old_scope;
 mod moving_a_block_out_of_what_is_shared_rotates_its_keys;
 mod nobody_makes_or_writes_to_another_accounts_unfiled;
-mod objects_a_block_holds_outlive_its_commits_until_it_is_collected;
 mod objects_are_served_only_from_blocks_the_reader_can_see;
 mod old_database_backups_thin_out_by_age;
 mod one_address_holds_only_so_many_connections_and_http_sessions;
+mod one_connection_reads_two_organizations_without_reconnecting;
 mod one_shot_calls_only_sign_in_and_are_rate_limited;
 mod only_a_manager_lets_go_of_a_blocks_settings;
 mod only_a_manager_shares_and_a_lower_grant_reduces_nothing;
@@ -231,7 +232,7 @@ mod the_portals_cookies_are_host_cookies_over_https;
 mod the_providers_file_is_checked_and_keeps_its_secrets;
 mod the_server_orders_sealed_submissions_and_a_seal_trims_them;
 mod the_trees_owner_pays_for_what_anyone_makes_in_it;
-mod told_keys_past_the_newest_kept_or_of_a_deleted_block_or_removed_member_are_news;
+mod told_keys_past_the_newest_kept_or_of_a_removed_member_are_news;
 mod unsigned_or_expired_s3_requests_are_refused;
 mod uploads_no_block_takes_are_collected_after_their_grace;
 mod what_one_account_keeps_on_the_server_is_bounded;
@@ -470,6 +471,15 @@ impl At {
         }
     }
 
+    /// The organization a write of `op` names.
+    fn op_organization(&self, op: &Op) -> Option<Uuid> {
+        match crate::client::op_rule(op) {
+            // Removing a contact names the organization whose revocations go with it.
+            crate::client::Rule::Anywhere => self.organization,
+            rule => self.organization_for(rule),
+        }
+    }
+
     fn read<T: FromPage + Send + 'static>(
         &self,
         query: Query,
@@ -498,11 +508,7 @@ impl At {
         &self,
         op: Op,
     ) -> impl Future<Output = Answered<T>> + use<T> {
-        let organization = match crate::client::op_rule(&op) {
-            // Removing a contact names the organization whose revocations go with it.
-            crate::client::Rule::Anywhere => self.organization,
-            rule => self.organization_for(rule),
-        };
+        let organization = self.op_organization(&op);
         be_block_protocol::write(self, organization, op)
     }
 
@@ -869,6 +875,14 @@ impl TestClient {
         joined
     }
 
+    /// Leaves `block`'s session (`unfollow` of its topic).
+    async fn leave(&mut self, block: Uuid) {
+        let left = self
+            .call(|peer| peer.unfollow(Topic::Session(block)))
+            .await;
+        assert!(left.is_ok(), "leaving the session failed: {left:?}");
+    }
+
     async fn join_session(&mut self, block: Uuid) -> (ClientId, SessionState) {
         self.try_join(block).await.expect("joining failed")
     }
@@ -970,6 +984,30 @@ impl TestClient {
         }
     }
 
+    /// Waits until a topic this connection follows tells it changed, as `topic` matches it.
+    async fn heard_changed(&mut self, topic: Topic) {
+        loop {
+            if let Notice::Changed { topic: changed, .. } = self.notification().await
+                && changed == topic
+            {
+                return;
+            }
+        }
+    }
+
+    /// Whether this connection was told `topic` changed, after two round trips: a push queued
+    /// for it before the first is sent before the second's ping arrives, whichever the server
+    /// took first. Forgets what it was told of `topic`.
+    async fn told(&mut self, topic: Topic) -> bool {
+        self.round_trip().await;
+        self.round_trip().await;
+        let before = self.notifications.len();
+        self.notifications.retain(
+            |notice| !matches!(notice, Notice::Changed { topic: changed, .. } if *changed == topic),
+        );
+        self.notifications.len() != before
+    }
+
     async fn graph_change(&mut self) -> Notice {
         loop {
             let next = self.next_notification().await;
@@ -984,22 +1022,16 @@ impl TestClient {
         if !self.notifications.is_empty() {
             return self.notifications.remove(0);
         }
-        std::future::poll_fn(|context| {
-            let mut index = 0;
-            while index < self.heard.len() {
-                match self.heard[index].poll(context) {
-                    std::task::Poll::Ready(Some(notice)) => {
-                        return std::task::Poll::Ready(notice);
-                    }
-                    std::task::Poll::Ready(None) => {
-                        self.heard.remove(index);
-                    }
-                    std::task::Poll::Pending => index += 1,
-                }
+        let Some(heard) = &mut self.heard else {
+            return std::future::pending().await;
+        };
+        match heard.recv().await {
+            Some(event) => Notice::of(event),
+            None => {
+                self.heard = None;
+                std::future::pending().await
             }
-            std::task::Poll::Pending
-        })
-        .await
+        }
     }
 
     async fn register(&mut self, email: &str) -> Uuid {
@@ -1137,14 +1169,48 @@ impl TestClient {
         key: Uuid,
         keys: KeySet,
     ) {
-        let root = self.root(block);
-        let placement = self.placement(block, parent).await;
+        let op = self
+            .create_op(block, content_type, parent, key, keys)
+            .await;
         let response = self
-            .call(|peer| {
-                peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::CreateBlock { block: block, content_type: content_type, parent: parent, metadata: Vec::new(), references: Vec::new(), key: key, keys: keys, owner_only: false, root: root, placement: placement })
-            })
+            .call(|peer| peer.write::<be_block_protocol::BlockSummary>(op))
             .await;
         assert!(response.is_ok(), "{response:?}");
+    }
+
+    /// The op making `block`, signed by this client's account as `create_typed` makes it.
+    async fn create_op(
+        &mut self,
+        block: Uuid,
+        content_type: Uuid,
+        parent: BlockParent,
+        key: Uuid,
+        keys: KeySet,
+    ) -> Op {
+        let root = self.root(block);
+        let placement = self.placement(block, parent).await;
+        Op::CreateBlock {
+            block,
+            content_type,
+            parent,
+            metadata: Vec::new(),
+            references: Vec::new(),
+            key,
+            keys,
+            owner_only: false,
+            root,
+            placement,
+        }
+    }
+
+    /// The op making a new block of the test type at `parent`, with a data key of its own.
+    async fn new_block_op(&mut self, parent: BlockParent) -> (Uuid, Op) {
+        let (block, key) = (Uuid::new_v4(), Uuid::new_v4());
+        let keys = KeySet {
+            keys: vec![row(key, block, KeyKind::Data)],
+            wrapped: Vec::new(),
+        };
+        (block, self.create_op(block, CONTENT, parent, key, keys).await)
     }
 
     /// Every page of `get-keys`, as a client reads them.
@@ -1827,7 +1893,7 @@ impl TestClient {
             }
         }
         let organization = decode_steps(
-            self.call(client::organizations::get_organization_log)
+            self.call(|peer| peer.read::<Vec<Vec<u8>>>(Query::Log(None)))
                 .await
                 .unwrap_or_default(),
         );
@@ -1913,7 +1979,7 @@ impl TestClient {
     /// what it gives. None in an organization with no log.
     async fn organization_log(&mut self) -> Option<([u8; 16], be_block_keys::Checked)> {
         let steps = decode_steps(
-            self.call(client::organizations::get_organization_log)
+            self.call(|peer| peer.read::<Vec<Vec<u8>>>(Query::Log(None)))
                 .await
                 .ok()?,
         );
@@ -2127,6 +2193,19 @@ async fn begin_session(harness: &Harness) -> (String, String) {
 }
 
 /// Polls a browser sign-in once, as a one-shot call.
+/// Begins a browser sign-in (`device-login(begin)`), answering what it began.
+fn begin_login(
+    peer: &At,
+) -> impl Future<Output = Answered<be_block_protocol::BrowserLogin>> + use<> {
+    let begun = client::server::device_login(peer, DeviceLoginStep::Begin);
+    async move {
+        Ok(begun.await?.map(|answer| match answer {
+            DeviceLoginAnswer::Begun(begun) => begun,
+            other => panic!("beginning a sign-in answered {other:?}"),
+        }))
+    }
+}
+
 async fn poll_login(
     harness: &Harness,
     code: &str,

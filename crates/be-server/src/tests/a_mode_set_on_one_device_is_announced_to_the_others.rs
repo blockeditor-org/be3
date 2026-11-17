@@ -11,14 +11,13 @@ async fn a_mode_set_on_one_device_is_announced_to_the_others() {
     let mut laptop = harness
         .second_connection(&phone.token.clone(), organization)
         .await;
-    let mut changed = client::notifications::notify_modes_changed(&laptop.peer);
-    // Calls are taken in order, so the stream is open once this is answered.
-    let _ = laptop
-        .call(|peer| peer.read::<Vec<be_block_protocol::BlockNotifyMode>>(be_block_protocol::Query::NotifyModes))
+    let followed = laptop
+        .call(|peer| peer.ask::<Vec<be_block_protocol::BlockNotifyMode>>(Query::NotifyModes, true))
         .await;
+    assert!(followed.is_ok(), "{followed:?}");
 
     phone.set_notify_mode(block, NotifyMode::Off).await;
-    assert_eq!(changed.recv().await, Some(()));
+    laptop.heard_changed(Topic::NotifyModes).await;
     let modes = laptop
         .call(|peer| peer.read::<Vec<be_block_protocol::BlockNotifyMode>>(be_block_protocol::Query::NotifyModes))
         .await

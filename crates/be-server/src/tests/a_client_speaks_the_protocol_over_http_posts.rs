@@ -72,7 +72,7 @@ async fn post_authorized(
 }
 
 pub(super) struct Posted {
-    pub(super) peer: Peer,
+    pub(super) peer: At,
     outbound: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>,
 }
 
@@ -82,7 +82,13 @@ impl Posted {
         let peer = Peer::new(be_wasm_ops::Side::Guest, move |frame| {
             let _ = sending.send(frame);
         });
-        Self { peer, outbound }
+        Self {
+            peer: At {
+                peer,
+                organization: None,
+            },
+            outbound,
+        }
     }
 
     pub(super) fn frames(&mut self) -> Vec<Vec<u8>> {
@@ -91,7 +97,7 @@ impl Posted {
 
     pub(super) fn heard(&self, frames: &[Vec<u8>]) {
         for frame in frames {
-            self.peer.receive(frame).unwrap();
+            self.peer.peer.receive(frame).unwrap();
         }
     }
 }
@@ -127,8 +133,8 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
     };
     assert!(matches!(response, Ok(Authenticated { .. })), "{response:?}");
 
-    let mut list = posted.peer.read::<Vec<be_block_protocol::Organization>>(be_block_protocol::Query::Organizations);
-    let mut again = posted.peer.read::<Vec<be_block_protocol::Organization>>(be_block_protocol::Query::Organizations);
+    let mut list = client::server::read(&posted.peer, None, Query::Organizations, false);
+    let mut again = client::server::read(&posted.peer, None, Query::Organizations, false);
     let sent = posted.frames();
     let (_, _, frames) = post(&mut stream, Some(&session), &refs(&sent)).await;
     let answered: Vec<be_wasm_ops::OpId> = frames

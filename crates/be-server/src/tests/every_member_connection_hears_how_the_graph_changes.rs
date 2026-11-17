@@ -70,15 +70,5 @@ async fn every_member_connection_hears_how_the_graph_changes() {
         [child]
     );
 
-    let response = author
-        .call(|peer| client::blocks::collect_detached(peer))
-        .await;
-    assert!(
-        matches!(response, Ok(be_block_protocol::Collected { .. })),
-        "{response:?}"
-    );
-    roots(&mut other).await;
-    assert!(other.list(BlockParent::Detached).await.is_empty());
-
     harness.stop().await;
 }

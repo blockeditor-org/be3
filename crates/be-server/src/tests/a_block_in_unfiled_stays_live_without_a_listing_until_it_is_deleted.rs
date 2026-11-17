@@ -25,9 +25,6 @@ async fn a_block_in_unfiled_stays_live_without_a_listing_until_it_is_deleted() {
     assert!(client.read_block(deleted).await.held);
     assert!(client.read_block(unfiled).await.references.is_empty());
 
-    let collected = collect(&mut client).await;
-    assert!(collected.is_empty(), "nothing was deleted: {collected:?}");
-
     let response = client
         .move_keyed(deleted, BlockParent::Detached, KeySet::default())
         .await;
@@ -44,7 +41,7 @@ async fn a_block_in_unfiled_stays_live_without_a_listing_until_it_is_deleted() {
         .move_keyed(deleted, BlockParent::Detached, KeySet::default())
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
-    assert_eq!(collect(&mut client).await, vec![deleted]);
+    assert!(!client.read_block(deleted).await.held);
     assert!(client.read_block(kept).await.held);
 
     let response = client.move_to(unfiled, BlockParent::Detached).await;
@@ -81,14 +78,4 @@ pub(super) async fn make(
             peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::CreateBlock { block: block, content_type: content_type, parent: parent, metadata: Vec::new(), references: Vec::new(), key: key, keys: keys, owner_only: false, root: root, placement: placement })
         })
         .await
-}
-
-async fn collect(client: &mut TestClient) -> Vec<Uuid> {
-    let response = client
-        .call(|peer| client::blocks::collect_detached(peer))
-        .await;
-    let Ok(be_block_protocol::Collected { blocks, .. }) = response else {
-        panic!("collection failed: {response:?}");
-    };
-    blocks
 }
