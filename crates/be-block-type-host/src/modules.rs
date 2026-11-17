@@ -213,15 +213,15 @@ struct Module {
 impl Module {
     /// Brings the module to `now`: yields the clock if it moved, and ends a sleep until a
     /// moment it has reached, whether or not the clock moved since, as under a held clock it may
-    /// never move again. The clock goes first, so the module wakes reading `now`.
+    /// never move again. A module runs its timers as the clock reaches it (`tick`), not as its
+    /// sleep ends, so a due sleep ends with the clock yielded again, moved or not.
     fn advance(&mut self, now: u64) {
-        if self.ticked.is_none_or(|ticked| ticked < now) {
-            self.ticked = Some(now);
+        let due = self.sleeping.as_ref().is_some_and(|(at, _)| *at <= now);
+        if due || self.ticked.is_none_or(|ticked| ticked < now) {
+            self.ticked = Some(self.ticked.map_or(now, |ticked| ticked.max(now)));
             let _ = self.clock.send(&mut self.connection, &now, |_| true);
         }
-        if self.sleeping.as_ref().is_some_and(|(at, _)| *at <= now)
-            && let Some((_, reply)) = self.sleeping.take()
-        {
+        if due && let Some((_, reply)) = self.sleeping.take() {
             reply.send(&mut self.connection, &());
         }
     }
@@ -803,7 +803,6 @@ impl Modules {
 
     fn collect(&mut self) -> Vec<(usize, Heard)> {
         let clock_now = self.now();
-        let clock_held = self.held.is_some();
         let mut heard: Vec<(usize, Heard)> = self.backlog.drain(..).collect();
         for module in 0..self.modules.len() {
             let Some(worker) = self.modules[module].worker.as_mut() else {
@@ -835,13 +834,6 @@ impl Modules {
                             Some(Call::SleepUntil { reply, at }) => {
                                 if let Some((_, before)) = held.sleeping.replace((at, reply)) {
                                     before.fail(&mut held.connection, OpError::Canceled);
-                                }
-                                // Under a held clock a moment already reached ends the sleep
-                                // now: the clock may never move to end it. A running clock ends
-                                // it as it moves on (`tick_due`), with the tick that fires the
-                                // module's timer.
-                                if clock_held {
-                                    held.advance(clock_now);
                                 }
                             }
                             Some(Call::InStepAt { reply, at }) => {
