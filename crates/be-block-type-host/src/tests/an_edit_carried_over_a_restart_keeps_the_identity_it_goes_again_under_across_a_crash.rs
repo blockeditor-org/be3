@@ -154,6 +154,11 @@ fn an_edit_carried_over_a_restart_keeps_the_identity_it_goes_again_under_across_
             .submissions_of(block)
             .expect("the block is open again");
         assert_eq!(kept, [added], "the reopened replica's first status kept them");
+        assert_eq!(
+            replicas.kept_restarts_of(block),
+            Some(1),
+            "what is kept before the replica loads is kept under the restart it was made under"
+        );
         while replicas.joining() {
             replicas.woken().await;
             replicas.pump((&peer, &shared)).await;
