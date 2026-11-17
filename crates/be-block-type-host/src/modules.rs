@@ -210,6 +210,23 @@ struct Module {
     restarts: usize,
 }
 
+impl Module {
+    /// Brings the module to `now`: yields the clock if it moved, and ends a sleep until a
+    /// moment it has reached, whether or not the clock moved since, as under a held clock it may
+    /// never move again. The clock goes first, so the module wakes reading `now`.
+    fn advance(&mut self, now: u64) {
+        if self.ticked.is_none_or(|ticked| ticked < now) {
+            self.ticked = Some(now);
+            let _ = self.clock.send(&mut self.connection, &now, |_| true);
+        }
+        if self.sleeping.as_ref().is_some_and(|(at, _)| *at <= now)
+            && let Some((_, reply)) = self.sleeping.take()
+        {
+            reply.send(&mut self.connection, &());
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum Heard {
     Hello(Vec<TypeInfo>),
@@ -539,11 +556,31 @@ impl Modules {
     }
 
     pub fn settled(&self) -> bool {
-        self.backlog.is_empty()
-            && self
-                .modules
-                .iter()
-                .all(|module| module.worker.as_ref().is_none_or(Worker::settled))
+        self.unsettled().is_empty()
+    }
+
+    /// Why the modules are not settled, one reason each: empty once they are.
+    pub fn unsettled(&self) -> Vec<String> {
+        let mut reasons: Vec<String> = self
+            .modules
+            .iter()
+            .filter_map(|module| {
+                let why = module.worker.as_ref()?.unsettled()?;
+                Some(format!("{}: {why}", module.source.name))
+            })
+            .collect();
+        if !self.backlog.is_empty() {
+            reasons.push("what the modules said meanwhile waits to be taken".to_owned());
+        }
+        reasons
+    }
+
+    /// Whether a wait on one module (`until`, `ask_all`, `ask_reading`) kept what the modules
+    /// said meanwhile for later (`backlog`), or restarted one: the wake that told of it went to
+    /// that wait, so whoever pumps the modules must take it without waiting for another
+    /// (`Replicas::woken`), or it sits there, unsettled, until a module next speaks.
+    pub fn kept(&self) -> bool {
+        !self.backlog.is_empty() || !self.restarted.is_empty()
     }
 
     pub fn tag(&self, module: usize) -> SessionTag {
@@ -642,25 +679,11 @@ impl Modules {
         }
     }
 
-    fn advance(&mut self, module: usize, now: u64) {
-        let held = &mut self.modules[module];
-        if held.ticked.is_some_and(|ticked| ticked >= now) {
-            return;
-        }
-        held.ticked = Some(now);
-        let _ = held.clock.send(&mut held.connection, &now, |_| true);
-        if held.sleeping.as_ref().is_some_and(|(at, _)| *at <= now)
-            && let Some((_, reply)) = held.sleeping.take()
-        {
-            reply.send(&mut held.connection, &());
-        }
-    }
-
     pub fn call<R>(&mut self, module: usize, call: impl FnOnce(&mut Connection) -> R) -> Option<R> {
         self.wake(module);
         self.modules[module].worker.as_ref()?;
         let now = self.now();
-        self.advance(module, now);
+        self.modules[module].advance(now);
         let result = call(&mut self.modules[module].connection);
         self.flush(module);
         Some(result)
@@ -675,7 +698,7 @@ impl Modules {
             return;
         }
         let now = self.millis_at(at);
-        self.advance(module, now);
+        self.modules[module].advance(now);
         self.flush(module);
     }
 
@@ -812,6 +835,9 @@ impl Modules {
                                 if let Some((_, before)) = held.sleeping.replace((at, reply)) {
                                     before.fail(&mut held.connection, OpError::Canceled);
                                 }
+                                // A moment already reached ends the sleep now: nothing else
+                                // would, while the clock is held there.
+                                held.advance(clock_now);
                             }
                             Some(Call::InStepAt { reply, at }) => {
                                 held.in_step = at;

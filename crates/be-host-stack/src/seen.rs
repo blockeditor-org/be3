@@ -275,11 +275,12 @@ pub struct Seen, delta SeenDelta {
     pub frames_queued: u64,
     pub histories: Part<imbl::OrdMap<Uuid, History>>,
     pub wakes: u64,
-    pub unsealed: usize,
     pub saves: u64,
     pub owing: usize,
     /// The blocks `owing` counts, with what their seals wait on, for `busy` to name.
     pub owing_blocks: Vec<be_block_type_host::Owing>,
+    /// The open blocks whose edits are not all committed (`Replicas::counts`).
+    pub unsealed_blocks: Vec<be_block_type_host::Owing>,
     /// The blocks `undurable` counts, for `busy` to name.
     pub undurable_blocks: Vec<be_block_type_host::Owing>,
     /// How many `Command::SealOwed` the worker has carried out, for `busy` to say whether the
@@ -336,7 +337,9 @@ pub struct Seen, delta SeenDelta {
     /// How many commands the worker has finished: those the page sent and it has not finished
     /// are pending (`Shared::pending`).
     pub done: usize,
-    pub typing: bool,
+    /// Why the block type modules have yet to settle (`Modules::unsettled`): empty once they
+    /// have.
+    pub typing: Vec<String>,
     /// While the host holds the modules' clock and nothing else is in flight, when their
     /// soonest timer that keeps a block in step comes due on it (`Modules::held_due`): what a
     /// stopped clock must reach for that work to happen. `None` while anything else could still
@@ -417,6 +420,11 @@ impl Notice {
 }
 
 impl Seen {
+    /// How many open blocks have edits not all committed (`unsealed_blocks`).
+    pub fn unsealed(&self) -> usize {
+        self.unsealed_blocks.len()
+    }
+
     /// The `Seen` in bytes, for a page whose memory the worker does not share
     /// (decisions/the_web_page_never_waits.md): postcard, the protocol crates' encoding.
     pub fn encode(&self) -> Vec<u8> {
@@ -459,7 +467,7 @@ impl Seen {
         if self.recounting {
             reasons.push("the block store has yet to count what waits to be sent".to_owned());
         }
-        let waiting = self.unsealed + self.waiting;
+        let waiting = self.unsealed() + self.waiting;
         if waiting > 0 {
             // Named in full, so a wait that never ends says what it waited on: whether the
             // edits were never sealed or sat in the outbox with no drain to send them.
@@ -468,10 +476,14 @@ impl Seen {
                 .iter()
                 .map(|(kind, block)| format!("{kind} {block}"))
                 .collect();
-            let unsealed: Vec<String> = self.owing_blocks.iter().map(ToString::to_string).collect();
+            let unsealed: Vec<String> = self
+                .unsealed_blocks
+                .iter()
+                .map(ToString::to_string)
+                .collect();
             reasons.push(format!(
                 "{waiting} edit(s) wait to be sent: {} unsealed [{}], {} in the outbox [{}]; {} drain(s) ended, {}; the last left [{}]; errors: {:?}, {:?}",
-                self.unsealed,
+                self.unsealed(),
                 unsealed.join("; "),
                 self.waiting,
                 outbox.join(", "),
@@ -498,7 +510,6 @@ impl Seen {
     ) -> Vec<String> {
         let mut reasons: Vec<String> = [
             (pending > 0, "the block store has commands to carry out"),
-            (self.typing, "a block type module has yet to settle"),
             (self.uploading > 0, "the block store uploads files"),
             (
                 self.graph.loading(),
@@ -508,6 +519,12 @@ impl Seen {
         .into_iter()
         .filter_map(|(busy, reason)| busy.then_some(reason.to_owned()))
         .collect();
+        if !self.typing.is_empty() {
+            reasons.push(format!(
+                "a block type module has yet to settle: {}",
+                self.typing.join("; ")
+            ));
+        }
         if self.undurable > 0 {
             let blocks: Vec<String> = self
                 .undurable_blocks

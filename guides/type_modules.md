@@ -159,7 +159,10 @@ host owes a replica (the WIT documents each call):
 - **Time.** The replica never reads a clock. The host yields its clock on
   `host.clock` whenever it moves, and stamps each `message` with `at`, since
   the clock stream is credit-limited and can arrive after a later message. A
-  test moves time by yielding.
+  test moves time by yielding. A `sleep-until` a moment the clock has already
+  reached ends at once, after the clock if it moved (be-block-type-host's
+  `Module::advance`): under a held clock (a host test's stopped clock) the
+  clock may never move again to end it.
 - **Opening.** The host calls `head-moved` for every head landing after the
   one in `opening`; the replica does not reconcile on opening. After a
   reconnect, `reopen` starts the replica over and the host replays what it

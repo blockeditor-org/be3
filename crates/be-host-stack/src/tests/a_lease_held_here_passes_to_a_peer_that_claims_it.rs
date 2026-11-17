@@ -25,7 +25,7 @@ fn a_lease_held_here_passes_to_a_peer_that_claims_it() {
     add(block, 10);
     outside.until("had this peer's add", |seen| seen.count == Some(15));
     wait_until("had its add sealed by the new holder", |shared| {
-        counted(shared, block) == Some(15) && shared.unsealed == 0 && shared.owing == 0
+        counted(shared, block) == Some(15) && shared.unsealed() == 0 && shared.owing == 0
     });
 
     outside.seal();
