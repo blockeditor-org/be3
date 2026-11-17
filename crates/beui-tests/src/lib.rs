@@ -225,7 +225,7 @@ pub fn Fixture(name: String) -> Root {
         "picture" => view! {
             <surfaces::PictureFixture />
         },
-        "docking" => view! {
+        "docking" | "docking_keys" => view! {
             <docking::DockingFixture />
         },
         other => {

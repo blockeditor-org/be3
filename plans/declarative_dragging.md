@@ -262,7 +262,11 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      language gained `Candidate::nearest_edge` (edge bands that split corners along the diagonal), `shaped(within)` (the item drawn the size of its place, under the pointer, kept inside `within`) and
      `open_where` (places reached only where nothing covers their site). A tab bar parting for a
      tab from another pane parts the dock too. Panes keep showing their real tabs until the drop.
-   - **3c: panels stay built, and keyboard carries between bars**, below.
+   - **3c (done): panels stay built, and keyboard carries between bars**, below. A drag source
+     hears the carry keys while the focus is on it or within it, so a dock tab's row (its tab
+     button focused) moves with Ctrl+Shift and an arrow or Move, stepping into the dock's
+     labelled places. An `Embed` moved between parents in one frame is never told it was
+     unplaced, so an app dropped into another pane is placed once, at its new size.
    - **Candidates:** for a lifted tab or pane grip, each `DockState` drop is a candidate: group with
      a pane, split a pane or the whole dock on an edge, insert into a tab bar after a tab, or float.
      It carries the `DockLayout` that `layout_tree` gives for the state after it. Locks leave
@@ -281,15 +285,18 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
    - **Keys and bars:** Alt while dropping keeps the tab floating. Dock bars belonging to a tab move
      with its pane in the preview.
 
-   - **Panels stay built.** A pane whose panel moves to another place in the layout keeps its
-     panel; today that is the dock's own `panels` map, which a `KeepAlive` with a `Kept` per
-     panel could replace, since a `Kept` moves its subtree between parents under one
-     `KeepAlive` (guides/beui/core.md).
+   - **Panels stay built (done).** A pane whose panel moves to another place in the layout
+     keeps its panel: each is already a `Kept` under the dock's one `KeepAlive`, which moves its
+     subtree between parents (guides/beui/core.md); the dock's `panels` map is only an index of
+     the built panels' nodes, which `KeepAlive` does not expose. What was missing was below the
+     dock: the old pane's removal told its app's `Embed` it was unplaced before the new pane
+     placed it.
 
-   - **Tabs carried by the keyboard between bars.** A focusable source carried off its list by
-     the keyboard must keep its focus: hide its row with opacity and close its slot with the gap,
-     rather than `collapsed`, which blurs it on HTML (`display: none`) and leaves it unplaced
-     natively. `Reorder` rows are not focusable today, so only Alt+arrow steps move them.
+   - **Tabs carried by the keyboard between bars (done).** A focusable source carried off its
+     list by the keyboard keeps its focus: its row is hidden with opacity and drawn at no size,
+     its slot closing with the gap, rather than `collapsed`, which blurs it on HTML
+     (`display: none`) and leaves it unplaced natively. Pane grips stay unfocusable.
+
    - **`TabStrip` goes (done, 3a).** Step 2b moved the old `Reorder` unchanged into beui-dock-host as the
      private `TabStrip`, because the dock still splits panes from the old `DropTarget`, which
      only its drags reach. Tab bars become drop sites over `slots_in` like every other list,

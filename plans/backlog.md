@@ -452,11 +452,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   when it is built (the dock's tiles, tab strips and held panels, a `Reorder`'s root). Done:
   beui-core-html's `watch()` seeds the signal synchronously the first time it
   is made, and those eager `measure` calls at build go.
-- **A dock carry from the keyboard.** The dock's places are fixed and labelled
-  ("left of Files", "with Files"), so a keyboard carry could step between them,
-  but no dock source is focusable (tab rows, pane grips). Done with
-  plans/declarative_dragging.md step 3c: a focused tab lifts with the keys, and
-  a test steps it into a pane's edge and drops it there.
 
 ## 18. Keys
 
