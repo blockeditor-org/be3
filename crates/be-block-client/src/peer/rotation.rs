@@ -415,10 +415,11 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// Finishes the links this account made that were accepted (`contacts::finish_links`,
-    /// then `finish_link` for each), deleting each only after: a device that stops halfway, or
-    /// whose delete fails, finishes it again on its next sync, rather than leave a contact
-    /// link's grant unsigned or an invitation's accepter waiting, unsigned, for an
-    /// administrator.
+    /// then `finish_link` for each), deleting each only once it finished, or can never finish:
+    /// one that a device stops halfway through, or that fails while the server is out of
+    /// reach, is finished again on the next sync, rather than leave a contact link's grant
+    /// unsigned or an invitation's accepter waiting, unsigned, for an administrator. Every link
+    /// is tried; the first error, if any, is answered once they all were.
     pub async fn finish_links(&self) -> Result<Vec<crate::contacts::Finished>, ClientError> {
         let finished = crate::contacts::finish_links(
             &self.connection(),
@@ -426,19 +427,37 @@ impl<S: ObjectStore> Peer<S> {
             self.organization,
         )
         .await?;
+        let mut failed = None;
         for done in &finished {
-            self.finish_link(done).await;
-            // One that fails stays listed, and is finished again on the next sync.
-            let _ = client::contacts::delete_link(&self.connection(), done.link).await;
+            let finish = self.finish_link(done).await;
+            let unreachable = finish.as_ref().is_err_and(ClientError::is_unreachable);
+            if let Err(error) = finish {
+                failed.get_or_insert(error);
+            }
+            if unreachable {
+                continue;
+            }
+            let deleted = client::contacts::delete_link(&self.connection(), done.link).await;
+            if let Err(error) = deleted.map_err(ClientError::from).and_then(|deleted| {
+                deleted.map_err(ClientError::from)
+            }) {
+                failed.get_or_insert(error);
+            }
         }
-        Ok(finished)
+        match failed {
+            Some(error) => Err(error),
+            None => Ok(finished),
+        }
     }
 
     /// Finishes an accepted link in this organization, as often as it is asked to: signs a
     /// contact link's grant into the block's log and seals the block's scope to the accepter,
     /// and signs an invitation's accepter into the organization's log, with the keys their
     /// card, opened with the link's code, names.
-    pub(crate) async fn finish_link(&self, done: &crate::contacts::Finished) {
+    pub(crate) async fn finish_link(
+        &self,
+        done: &crate::contacts::Finished,
+    ) -> Result<(), ClientError> {
         let identity = be_block_keys::PublicIdentity {
             public: done.card.public,
             signing: done.card.signing,
@@ -451,35 +470,36 @@ impl<S: ObjectStore> Peer<S> {
         {
             // A contact link's grant, applied when it was accepted, goes in the block's log now
             // that the accepter's card names their keys; until then no one seals to them by it.
-            // Only while the log names them nowhere: once it does, a later grant or revocation
-            // decides, and finishing again must not undo it. One that fails leaves the
-            // server's row unsigned, sealed by no one.
-            let named = self
-                .checked_access(grant.block)
-                .await
-                .ok()
-                .map(|(_, checked)| checked.grants.get(&account.into_bytes()).map(|(level, _)| *level));
-            let level = match named {
-                Some(None) => self
-                    .grant_as(grant.block, account, grant.access, Some(identity))
-                    .await
-                    .ok()
-                    .map(|()| super::grant_level(grant.access)),
-                Some(Some(level)) => Some(level),
-                None => None,
+            // Only while the log names them nowhere and the server still holds the grant the
+            // link applied: once either changed, a later grant or revocation decides, and
+            // finishing again must not undo it.
+            let (_, checked) = self.checked_access(grant.block).await?;
+            let level = match checked.grants.get(&account.into_bytes()) {
+                Some((level, _)) => *level,
+                None => {
+                    let held = self
+                        .list_access(grant.block)
+                        .await?
+                        .entries
+                        .iter()
+                        .any(|entry| entry.account == account && entry.granted == Some(grant.access));
+                    if !held {
+                        return Ok(());
+                    }
+                    self.grant_as(grant.block, account, grant.access, Some(identity))
+                        .await?;
+                    super::grant_level(grant.access)
+                }
             };
-            // Sealed to them only while the log grants them a view; one that fails is sealed
-            // later through `unsealed`.
-            if level.is_some_and(|level| level >= be_block_keys::Level::View) {
-                let _ = self
-                    .seal_share(grant.block, account, &done.card.public)
-                    .await;
+            if level >= be_block_keys::Level::View {
+                self.seal_share(grant.block, account, &done.card.public)
+                    .await?;
             }
         }
         if done.invited == Some(self.organization) {
-            // One that fails waits in key work's unsigned members.
-            let _ = self.sign_in(account, identity, false).await;
+            self.sign_in(account, identity, false).await?;
         }
+        Ok(())
     }
 
     /// The organization's log checked from the root this account pinned; none when it has no

@@ -39,6 +39,7 @@ async fn upload(peer: &Peer<MemoryStore>, objects: Vec<Vec<u8>>) -> Result<(), C
     Ok(())
 }
 
+mod a_contact_link_revoked_before_it_is_finished_grants_nothing;
 mod an_invitation_finished_halfway_signs_its_accepter_in_on_the_next_finish;
 mod finishing_a_contact_link_again_does_not_undo_a_revocation;
 mod a_block_a_shared_one_links_to_shows_only_that_it_exists;
