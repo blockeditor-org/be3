@@ -512,12 +512,14 @@ pub enum Stop<D> {
         node: D,
         newline: bool,
     },
+    /// A `Gap`: room holding no bytes, which a caret at the end of a line stands past.
+    Room { byte: usize, node: D },
 }
 
 impl<D> Stop<D> {
     pub fn byte(&self) -> usize {
         match self {
-            Stop::Char { byte, .. } | Stop::Atom { byte, .. } => *byte,
+            Stop::Char { byte, .. } | Stop::Atom { byte, .. } | Stop::Room { byte, .. } => *byte,
         }
     }
 
@@ -525,6 +527,7 @@ impl<D> Stop<D> {
         match self {
             Stop::Char { ch, .. } => ch.len_utf8(),
             Stop::Atom { len, .. } => *len,
+            Stop::Room { .. } => 0,
         }
     }
 
@@ -536,6 +539,7 @@ impl<D> Stop<D> {
         match self {
             Stop::Char { ch, .. } => *ch == '\n',
             Stop::Atom { newline, .. } => *newline,
+            Stop::Room { .. } => false,
         }
     }
 }
@@ -559,11 +563,20 @@ pub fn after<D>(stops: &[Stop<D>], index: usize) -> Option<&Stop<D>> {
         .find(|stop| !stop.is_empty() && stop.byte() == index)
 }
 
-pub fn before<D>(stops: &[Stop<D>], index: usize) -> Option<&Stop<D>> {
-    stops
+/// The stops a caret at `index` stands after when no character follows it on its line: the
+/// character (or atom) ending at `index`, then the gaps right after it, so a caret at the end
+/// of a line keeps the room a gap leaves there, as natively, but stands before an icon.
+pub fn ending_at<D>(stops: &[Stop<D>], index: usize) -> Vec<&Stop<D>> {
+    let Some(at) = stops
         .iter()
-        .rev()
-        .find(|stop| !stop.is_empty() && stop.byte() + stop.len() == index)
+        .rposition(|stop| !stop.is_empty() && stop.byte() + stop.len() == index)
+    else {
+        return Vec::new();
+    };
+    let room = stops[at + 1..]
+        .iter()
+        .take_while(|stop| matches!(stop, Stop::Room { .. }));
+    std::iter::once(&stops[at]).chain(room).collect()
 }
 
 pub fn byte_at<D>(stops: &[Stop<D>], same: impl Fn(&D) -> bool, utf16: u32) -> Option<usize> {

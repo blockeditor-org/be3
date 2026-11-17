@@ -9,7 +9,7 @@
 //! itself; a screen checking a layout prints what it `measure`s in a
 //! `Text`. The browser alone also answers `selection none|some`, `role ROLE NAME [STATE...]`
 //! (Playwright's `getByRole`; `modal` and `inert` read Chrome's accessibility tree over CDP) and
-//! `roles ROLE COUNT`, `highlighted TEXT|none` (what the CSS highlights cover) and
+//! `roles ROLE COUNT` and
 //! `elements CSS COUNT`, for scripts that run only there (crates/beui-demo-html's), and
 //! `attribute CSS NAME VALUE|none`, `history LENGTH`, `history-state marker|none`, `loads COUNT` and
 //! `reload`, which a script both cores
@@ -1405,11 +1405,50 @@ fn TextGapFixture() -> NodeId {
         }
         (wrapped, unwrapped) => format!("Gap wrapped {wrapped:?} unwrapped {unwrapped:?}"),
     });
+    // A caret at the end of a line stands past the gap that ends it, so a selection to there
+    // covers the gap: the end caret of a text ending in a 30 pixel gap stands 30 pixels further
+    // from its start than that of the same text without it.
+    let span = |gapped: bool| {
+        let text = match gapped {
+            true => view! {
+                <Text color={INK} overflow={beui::Overflow::Visible}>
+                    "ab"
+                    <Gap width=20.0 />
+                    "c"
+                    <Gap width=30.0 />
+                </Text>
+            },
+            false => view! {
+                <Text color={INK} overflow={beui::Overflow::Visible}>
+                    "ab"
+                    <Gap width=20.0 />
+                    "c"
+                </Text>
+            },
+        };
+        let geometry = measure_text(text);
+        let span = create_memo(move || {
+            let geometry = geometry.get()?;
+            Some(geometry.caret_rect(3, 2.0)?.left() - geometry.caret_rect(0, 2.0)?.left())
+        });
+        (text, span)
+    };
+    let (ended, with_gap) = span(true);
+    let (bare, without_gap) = span(false);
+    let end = create_memo(move || match (with_gap.get(), without_gap.get()) {
+        (Some(with), Some(without)) if (with - without - 30.0).abs() < 1.0 => {
+            "End caret past the gap".to_owned()
+        }
+        (with, without) => format!("End caret {with:?} without the gap {without:?}"),
+    });
     view! {
         <List spacing=12.0>
             <Frame width=240.0 padding={Sides::all(8.0)} fill={PAPER}>{wrapping}</Frame>
             <Frame width=240.0 padding={Sides::all(8.0)} fill={PAPER}>{visible}</Frame>
+            <Frame width=240.0 padding={Sides::all(8.0)} fill={PAPER}>{ended}</Frame>
+            <Frame width=240.0 padding={Sides::all(8.0)} fill={PAPER}>{bare}</Frame>
             <Text color={INK}>{report}</Text>
+            <Text color={INK}>{end}</Text>
         </List>
     }
 }
