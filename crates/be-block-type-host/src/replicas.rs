@@ -3677,7 +3677,10 @@ impl<H: Host> Replicas<H> {
                 .iter()
                 .filter(|(editor, _)| **editor != HOST_EDITOR)
                 .map(|(editor, editable)| (*editor, *editable));
-            match self.open((peer, shared), block, open.content_type, open.reader).await {
+            match self
+                .open((peer, shared), block, open.content_type, open.reader)
+                .await
+            {
                 Ok(()) => {
                     for (editor, editable) in editors {
                         self.attach(block, editor, editable);

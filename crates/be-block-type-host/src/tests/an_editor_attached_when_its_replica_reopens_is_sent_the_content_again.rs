@@ -29,7 +29,10 @@ fn an_editor_attached_when_its_replica_reopens_is_sent_the_content_again() {
             step(&peer, &shared, &mut replicas).await;
             receive_frames(&shared, editor, &mut mirror);
         }
-        assert!(mirror.is_loaded(), "the editor is sent the reopened replica's content");
+        assert!(
+            mirror.is_loaded(),
+            "the editor is sent the reopened replica's content"
+        );
         assert!(replicas.is_open(block));
     });
 }

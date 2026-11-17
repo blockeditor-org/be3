@@ -5,9 +5,7 @@ use super::*;
 #[test]
 fn a_checklist_this_build_cannot_read_says_so_rather_than_loading() {
     let mut editor = BeuiTest::<ChecklistRoot>::editing(Uuid::new_v4());
-    editor
-        .store()
-        .register(be_type_checklist::registrations());
+    editor.store().register(be_type_checklist::registrations());
     editor.store().hold_unreadable::<ChecklistContent>(None);
     editor.run();
     assert!(editor.shown("editor.failed"), "it says it failed");

@@ -28,7 +28,8 @@ fn a_tree_whose_view_block_cannot_be_read_still_shows() {
         BlockParent::Block(tree),
     ));
     test.hold(None, EditorView::document(None));
-    test.store().hold_unreadable::<EditorViewContent>(Some(view));
+    test.store()
+        .hold_unreadable::<EditorViewContent>(Some(view));
     test.run();
     assert!(
         test.shown(&format!("file-tree.{}.row", mine.id)),

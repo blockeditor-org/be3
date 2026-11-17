@@ -30,9 +30,16 @@ fn an_editor_reads_content_its_replica_could_not_open_as_failed() {
         failure.starts_with("The content could not be read"),
         "an undecodable snapshot is a failure too: {failure}"
     );
-    assert!(mirror.revision() > failed_at, "readers hear of the new failure");
+    assert!(
+        mirror.revision() > failed_at,
+        "readers hear of the new failure"
+    );
 
     mirror.receive(snapshot(ChecklistContent::default().encode()));
     assert!(mirror.is_loaded());
-    assert_eq!(mirror.failure(), None, "a snapshot that opens clears the failure");
+    assert_eq!(
+        mirror.failure(),
+        None,
+        "a snapshot that opens clears the failure"
+    );
 }
