@@ -334,6 +334,10 @@ pub struct Peer<S: ObjectStore> {
     log_reads: Mutex<HashSet<(Uuid, Uuid)>>,
 }
 
+/// How long a read of an access log before a write may take before what was kept of it is
+/// used instead (`Peer::bounded_read`).
+const LOG_READ_LIMIT: std::time::Duration = std::time::Duration::from_secs(10);
+
 /// What this device knows of the server's clock (`Peer::server_now`).
 struct ServerClock {
     anchor: Option<Anchor>,
@@ -739,6 +743,8 @@ impl<S: ObjectStore> Peer<S> {
             // A log short of what was kept leaves the organization as this device last held
             // it, or judged by what was kept (`KeyBook::kept`).
             Err(ClientError::Withheld(_)) => {}
+            // Nor does a read that did not get through: the last one this run took stands.
+            Err(error) if error.is_unreachable() => {}
             checked => self.keys.set_organization(checked.ok().flatten().as_ref()),
         }
         self.keys.absorb(KeySet::default());
@@ -789,7 +795,11 @@ impl<S: ObjectStore> Peer<S> {
             let checked = around
                 .check(self.organization, escrowed.block, pinned, &entries)
                 // A log short of what an earlier check kept is withheld: the key waits.
-                .filter(|checked| !self.keys.withheld(escrowed.block, checked));
+                .and_then(|checked| match self.keys.served(escrowed.block, &checked) {
+                    crate::keys::Served::Take => Some(checked),
+                    crate::keys::Served::Stale(newer) => Some(*newer),
+                    crate::keys::Served::Withheld => None,
+                });
             let granted = checked
                 .and_then(|checked| checked.grants.get(&escrowed.sender.into_bytes()).copied())
                 .is_some_and(|(level, _)| level >= be_block_keys::Level::Edit);
@@ -948,9 +958,14 @@ impl<S: ObjectStore> Peer<S> {
         // (`Peer::outdated`) rather than refused.
         if !self.local {
             use futures_util::StreamExt;
-            let unkept = self.keys.unkept_scopes();
+            let unkept: Vec<Uuid> = self
+                .keys
+                .unkept_scopes()
+                .into_iter()
+                .filter(|scope| !self.uncreated(*scope))
+                .collect();
             futures_util::stream::iter(unkept)
-                .map(|scope| async move { self.checked_access(scope).await })
+                .map(|scope| async move { self.bounded_read(scope).await })
                 .buffer_unordered(8)
                 .collect::<Vec<_>>()
                 .await;
@@ -1124,9 +1139,14 @@ impl<S: ObjectStore> Peer<S> {
         if let Some(scope) = kept.and_then(|kept| scope_of(&kept).ok())
             && self.outdated(chosen, scope).await
         {
-            Box::pin(self.rotate(scope))
-                .await
-                .map_err(|_| ClientError::Locked(block))?;
+            match Box::pin(self.rotate(scope)).await {
+                Ok(()) => {}
+                // A person's edit made offline is never refused: it is sealed and kept here,
+                // and judged again before it is sent (`Peer::send_pending`), which sets it aside
+                // rather than send it under an outdated key.
+                Err(error) if error.is_unreachable() => return Ok(chosen),
+                Err(_) => return Err(ClientError::Locked(block)),
+            }
             let rotated = newest();
             if self.keys.outdated(rotated, scope) {
                 return Err(ClientError::Locked(block));
@@ -1145,16 +1165,52 @@ impl<S: ObjectStore> Peer<S> {
     /// what was kept (`KeyBook::outdated`); each is asked for once per key in a run, so a key
     /// naming a head no log the server serves reaches is not read for on every save. A local
     /// account has no server to withhold anything.
+    ///
+    /// A scope whose creation still waits in the outbox is not read: the server holds nothing
+    /// of it to withhold, and what this device kept on making it stands. A read that does not
+    /// answer within `LOG_READ_LIMIT` leaves what was kept.
     async fn outdated(&self, key: Uuid, scope: Uuid) -> bool {
         if self.local {
             return false;
         }
         for log in self.keys.logs_to_read(key, scope) {
-            if self.log_reads.lock().unwrap().insert((key, log)) {
-                let _ = self.checked_access(log).await;
+            if !self.uncreated(log) && self.log_reads.lock().unwrap().insert((key, log)) {
+                let _ = self.bounded_read(log).await;
             }
         }
         self.keys.outdated(key, scope)
+    }
+
+    /// Whether `commit`, an edit of `block` waiting to be sent, is sealed under a key the logs
+    /// show outdated (`KeyBook::shown_outdated`), each read first as `outdated` reads them.
+    async fn sent_outdated(&self, block: Uuid, commit: CommitId) -> Result<bool, ClientError> {
+        let key = self.commits.vault().sealed_under(commit.hash())?;
+        let kept = match self.refs.summary(block) {
+            Some(kept) => Some(kept),
+            None => self.summary(block).await.ok(),
+        };
+        let Some(scope) = kept.and_then(|kept| scope_of(&kept).ok()) else {
+            return Ok(false);
+        };
+        for log in self.keys.logs_to_read(key, scope) {
+            if !self.uncreated(log) && self.log_reads.lock().unwrap().insert((key, log)) {
+                let _ = self.bounded_read(log).await;
+            }
+        }
+        Ok(self.keys.shown_outdated(key, scope))
+    }
+
+    /// `checked_access`, given up after `LOG_READ_LIMIT`: a key judged by a log that does not
+    /// arrive is judged by what was kept of it.
+    async fn bounded_read(&self, block: Uuid) -> Result<(), ClientError> {
+        let clock = self.connection().clock().clone();
+        let read = std::pin::pin!(self.checked_access(block));
+        match futures_util::future::select(read, clock.sleep(LOG_READ_LIMIT)).await {
+            futures_util::future::Either::Left((read, _)) => read.map(|_| ()),
+            futures_util::future::Either::Right(_) => {
+                Err(ClientError::TimedOut("reading an access log"))
+            }
+        }
     }
 
     /// The newest scope key of `scope` this device holds; one its log outdates (as
@@ -1657,8 +1713,12 @@ impl<S: ObjectStore> Peer<S> {
             .ok_or(ClientError::Forged(block))?;
         // A log short of what an earlier check kept is withheld: nothing acts on it, and what
         // waits on it (a seal to judge, an escrowed key to take) waits for a whole one.
-        if self.keys.withheld(block, &checked) {
-            return Err(ClientError::Withheld(block));
+        match self.keys.served(block, &checked) {
+            crate::keys::Served::Take => {}
+            // An older answer than one this run already took: that one stands. The entries are
+            // the older answer's; a record signed on them may need signing again.
+            crate::keys::Served::Stale(newer) => return Ok((entries, *newer)),
+            crate::keys::Served::Withheld => return Err(ClientError::Withheld(block)),
         }
         if let Some(kept) = self.keys.note_log(block, &checked) {
             let _ = self.refs.keep_log(block, kept);
@@ -2776,6 +2836,15 @@ impl<S: ObjectStore> Peer<S> {
             ref references,
             ref metadata,
         } = *pending;
+        // Sealed offline under a key judged then by what was kept, or not at all: judged again
+        // now, and never sent under an epoch the logs show outdated (signed access 3d). Refused
+        // as the server would refuse it, so the edit is set aside, not lost.
+        if self.sent_outdated(block, id).await? {
+            return Err(ClientError::Refused(
+                ErrorCode::InvalidRequest,
+                format!("block {block}'s edit is sealed under a key its access log outdates"),
+            ));
+        }
         let previous = match expected {
             Some(head) => self.commits.try_get(head)?,
             None => None,

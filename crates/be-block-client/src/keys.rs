@@ -167,6 +167,15 @@ impl Roots {
     }
 }
 
+/// What a served log is to this device (`KeyBook::served`).
+pub enum Served {
+    Take,
+    /// Short of a log read further in this run: that one stands.
+    Stale(Box<Checked>),
+    /// Short of what an earlier run kept: the server holds history back.
+    Withheld,
+}
+
 /// The most keys a key is judged through (`Roots::path`): one per scope above it, and more
 /// than any honest tree holds. A longer path is judged outdated.
 pub const MAX_PATH: usize = 256;
@@ -915,15 +924,22 @@ impl KeyBook {
         }
     }
 
-    /// Whether `checked`, a log the server served for `block`, stops short of what this device
-    /// kept of it from an earlier check: withheld, so nothing is taken from it.
-    pub fn withheld(&self, block: Uuid, checked: &Checked) -> bool {
-        self.roots
-            .lock()
-            .unwrap()
-            .kept
-            .get(&block)
-            .is_some_and(|kept| !checked.holds(&kept.head))
+    /// What to make of `checked`, a log the server served for `block` (or the organization):
+    /// taken when it reaches what this device kept of it; when it stops short, stale if this
+    /// run already read further (two reads raced, and the older answer came second), so the
+    /// newer is used, or else withheld, and nothing is taken from it.
+    pub fn served(&self, block: Uuid, checked: &Checked) -> Served {
+        let roots = self.roots.lock().unwrap();
+        let Some(kept) = roots.kept.get(&block) else {
+            return Served::Take;
+        };
+        if checked.holds(&kept.head) {
+            return Served::Take;
+        }
+        match roots.logs.get(&block) {
+            Some(newer) if newer.holds(&kept.head) => Served::Stale(Box::new(newer.clone())),
+            _ => Served::Withheld,
+        }
     }
 
     /// The scopes whose keys this device holds trusted, with their roots pinned, whose logs it
@@ -1082,13 +1098,23 @@ impl KeyBook {
     /// log again first). And a key counts as outdated when the epoch it was opened through is,
     /// whoever's head it names (`Roots::through`).
     pub fn outdated(&self, key: Uuid, block: Uuid) -> bool {
+        self.judged(key, block, true)
+    }
+
+    /// `outdated`, but a scope this device neither read nor kept the log of counts for nothing:
+    /// what an edit already made is judged by before it is sent, set aside only on evidence.
+    pub fn shown_outdated(&self, key: Uuid, block: Uuid) -> bool {
+        self.judged(key, block, false)
+    }
+
+    fn judged(&self, key: Uuid, block: Uuid, unknown_outdates: bool) -> bool {
         let roots = self.roots.lock().unwrap();
         let Some(path) = roots.path(key, block) else {
             return true;
         };
         // A key opened through no other (made here, or sealed to this account, whose sender
         // was checked as it was taken) is judged only by logs this device holds or kept.
-        let opened_through = path.len() > 1;
+        let opened_through = unknown_outdates && path.len() > 1;
         path.into_iter().any(|(key, block)| {
             let head = roots.heads.get(&key).and_then(|heads| heads.block);
             if let Some(log) = roots.logs.get(&block) {
