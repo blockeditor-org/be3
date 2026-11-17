@@ -1106,12 +1106,13 @@ impl replicas::GuestReplica for OpenReplica {
         Box::pin(ready(()))
     }
 
-    fn sealed(&self, commit: CommitId, through: u64) -> LocalFuture<()> {
+    fn sealed(&self, commit: CommitId, through: u64, restarts: u64) -> LocalFuture<()> {
         self.module.input(
             self.id,
             Input::Sealed {
                 head: commit,
                 through,
+                restarts,
             },
         );
         Box::pin(ready(()))

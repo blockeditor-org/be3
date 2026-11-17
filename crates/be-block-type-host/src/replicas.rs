@@ -404,6 +404,7 @@ pub(crate) enum Replayed {
     Sealed {
         commit: CommitId,
         through: u64,
+        run: u64,
     },
     /// Entries of the order, opened. Given only to the replica that heard them: one opened
     /// again reads them in the journal.
@@ -446,8 +447,12 @@ impl Replayed {
                 replica.lease(connection, session);
             }
             Replayed::Membership { .. } => {}
-            Replayed::Sealed { commit, through } => {
-                replica.sealed(connection, commit, through);
+            Replayed::Sealed {
+                commit,
+                through,
+                run,
+            } => {
+                replica.sealed(connection, commit, through, run);
             }
             Replayed::Sequenced { entries } => {
                 replica.sequenced(connection, entries);
@@ -2933,6 +2938,7 @@ impl<H: Host> Replicas<H> {
                 block,
                 commit,
                 through,
+                run,
             } => {
                 let Some(replica) = self.blocks.get(block).copied() else {
                     return;
@@ -2943,6 +2949,7 @@ impl<H: Host> Replicas<H> {
                 let replayed = Replayed::Sealed {
                     commit: *commit,
                     through: *through,
+                    run: *run,
                 };
                 if open.joining {
                     return open.early.push(replayed);

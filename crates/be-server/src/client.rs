@@ -701,10 +701,15 @@ impl Client {
                 block,
                 commit,
                 through,
+                run,
             } => {
                 streams.send(
                     &mut lock,
-                    SessionEvent::Sealed { commit, through },
+                    SessionEvent::Sealed {
+                        commit,
+                        through,
+                        run,
+                    },
                     sessions(block),
                 )?;
             }
@@ -1730,7 +1735,12 @@ impl Client {
                     // outbox drains before its replica joins again); a trim with no new commit
                     // only while the caller holds the lease, which the store checks with the
                     // registry held.
-                    let through = journal.as_ref().map(|seal| seal.base.sequence);
+                    // Told only when the head moved: a trim with no new commit is no news of
+                    // which head holds which number.
+                    let told = journal
+                        .as_ref()
+                        .filter(|_| expected != Some(commit))
+                        .map(|seal| (seal.base.sequence, seal.run));
                     let trim = journal.map(|seal| {
                         let (registry, client) = (Arc::clone(&connection.registry), connection.client);
                         crate::journal::Asked {
@@ -1748,12 +1758,10 @@ impl Client {
                             references, metadata, trim,
                         )
                         .await?;
-                    if let (PublishOutcome::Published(head, _, Some(trimmed)), Some(through)) =
-                        (&outcome, through)
-                    {
+                    if let PublishOutcome::Published(head, _, Some(trimmed)) = &outcome {
                         connection
                             .registry
-                            .sealed(place, *head, through, trimmed)
+                            .sealed(place, *head, told, trimmed)
                             .await;
                     }
                     // Its tree advanced, and so did those of the blocks it started or stopped

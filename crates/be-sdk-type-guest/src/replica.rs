@@ -164,10 +164,12 @@ pub(crate) enum Input {
     Lease {
         session: SessionState,
     },
-    /// A seal moved the head to `head`, holding the order through `through`.
+    /// A seal moved the head to `head`, holding the order through `through` in the run
+    /// `restarts`.
     Sealed {
         head: CommitId,
         through: u64,
+        restarts: u64,
     },
     /// The order numbered these, in order.
     Sequenced(Vec<SessionOp>),
@@ -1468,8 +1470,14 @@ where
                 self.seal_retry_at = None;
                 self.flush();
             }
-            Input::Sealed { head, through } => {
-                if !self.is_holder() {
+            Input::Sealed {
+                head,
+                through,
+                restarts,
+            } => {
+                // A seal of another run of the order counts its numbers there: they name other
+                // entries here.
+                if !self.is_holder() && restarts == self.restarts {
                     self.heard_seal = Some((head, through));
                     self.take_heard_seal();
                 }

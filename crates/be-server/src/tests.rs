@@ -99,6 +99,7 @@ mod a_push_service_refusing_the_server_or_redirecting_does_not_cost_the_right_en
 mod a_push_service_that_never_answers_delays_only_its_own_account;
 mod a_range_get_reads_part_of_an_s3_object;
 mod a_seal_by_the_old_build_after_a_new_build_started_over_trims_nothing;
+mod a_session_started_again_counts_its_membership_past_the_one_before;
 mod a_stale_seal_from_an_earlier_run_publishes_and_trims_nothing;
 mod a_trim_by_another_build_marks_the_journal_lost_until_the_next_commit;
 mod a_trim_from_other_than_the_holder_is_not_kept;
@@ -393,7 +394,9 @@ impl Heard {
                         Poll::Ready(Some(SessionEvent::Membership(entry))) => {
                             Poll::Ready(Some(Notice::Membership { block, entry }))
                         }
-                        Poll::Ready(Some(SessionEvent::Sealed { commit, through })) => {
+                        Poll::Ready(Some(SessionEvent::Sealed {
+                            commit, through, ..
+                        })) => {
                             Poll::Ready(Some(Notice::Sealed {
                                 block,
                                 commit,

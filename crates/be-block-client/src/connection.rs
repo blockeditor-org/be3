@@ -80,11 +80,12 @@ pub enum Event {
         entry: MembershipEntry,
     },
     /// A seal moved a block's head to `commit`, holding its session's order through `through`
-    /// (`session-event.sealed`).
+    /// in its `run` (`session-event.sealed`).
     Sealed {
         block: Uuid,
         commit: CommitId,
         through: u64,
+        run: u64,
     },
     Relayed {
         block: Uuid,
@@ -357,10 +358,15 @@ impl Connection {
                 while let Some(event) = joining.recv().await {
                     let _ = events.send(match event {
                         SessionEvent::Membership(entry) => Event::Membership { block, entry },
-                        SessionEvent::Sealed { commit, through } => Event::Sealed {
+                        SessionEvent::Sealed {
+                            commit,
+                            through,
+                            run,
+                        } => Event::Sealed {
                             block,
                             commit,
                             through,
+                            run,
                         },
                         SessionEvent::Relayed {
                             from,

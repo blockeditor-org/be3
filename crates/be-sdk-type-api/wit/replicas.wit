@@ -150,10 +150,11 @@ interface replicas {
         lease: async func(session: session-state);
 
         /// The server took a seal: `commit` holds the order through
-        /// `through`, and the server's journal starts from it. A replica that
-        /// does not hold the lease takes it as its base once it applied that
-        /// far; the head still reaches it as the block's too (`head-moved`).
-        sealed: async func(commit: commit-id, through: u64);
+        /// `through` in the run `restarts` (`status.restarts`), and the
+        /// server's journal starts from it. A replica that does not hold the
+        /// lease takes it as its base once it applied that far in that run; the
+        /// head still reaches it as the block's too (`head-moved`).
+        sealed: async func(commit: commit-id, through: u64, restarts: u64);
 
         /// The order numbered these submissions, in order, this replica's own
         /// among them: the host hands on every one it hears, and reopens the

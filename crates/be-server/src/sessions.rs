@@ -40,6 +40,10 @@ pub struct Sessions {
     /// The blocks each client is a participant of, so leaving them all costs what the client
     /// joined rather than every session on the server.
     joined: HashMap<ClientId, HashSet<Place>>,
+    /// The highest membership index written in any session: a session that starts counts
+    /// from here, so an entry of an earlier session of the same block that reaches a
+    /// participant late never follows on from the new one's.
+    issued: u64,
 }
 
 impl Sessions {
@@ -56,6 +60,7 @@ impl Sessions {
         let left = matches!(change, MembershipChange::Left);
         let joined = matches!(change, MembershipChange::Joined(_));
         let entry = session.state.write(session.tip, client, change)?;
+        self.issued = self.issued.max(entry.index);
         let state = session.state.clone();
         let mut told = state.clients();
         // A joiner has the membership its join answers, its own entry in it.
@@ -108,7 +113,14 @@ impl SessionRegistry {
         tag: be_block_store::Hash,
     ) -> SessionState {
         let mut sessions = self.sessions.lock().await;
-        sessions.sessions.entry(block).or_default();
+        let issued = sessions.issued;
+        sessions.sessions.entry(block).or_insert_with(|| Session {
+            state: SessionState {
+                index: issued,
+                ..SessionState::default()
+            },
+            tip: 0,
+        });
         sessions.joined.entry(client).or_default().insert(block);
         let change = MembershipChange::Joined(JoinedParticipant { tag, may_edit });
         sessions
@@ -192,13 +204,14 @@ impl SessionRegistry {
             .then_some(Holding(sessions))
     }
 
-    /// A seal moved `block`'s head to `commit`, holding the order through `through`, and the
-    /// journal's order goes on from `trimmed.sequence`: every participant hears it.
+    /// A seal trimmed `block`'s journal, and the order goes on from `trimmed.sequence`; with
+    /// `told`, it moved the head to `commit`, holding the order through that number in that
+    /// run, which every participant hears.
     pub async fn sealed(
         &self,
         block: Place,
         commit: CommitId,
-        through: u64,
+        told: Option<(u64, u64)>,
         trimmed: &crate::journal::Trimmed,
     ) {
         let mut sessions = self.sessions.lock().await;
@@ -210,12 +223,16 @@ impl SessionRegistry {
             true => trimmed.sequence,
             false => session.tip.max(trimmed.sequence),
         };
+        let Some((through, run)) = told else {
+            return;
+        };
         let participants = session.state.clients();
         self.hub
             .send_every(&participants, &Push::Sealed {
                 block,
                 commit,
                 through,
+                run,
             })
             .await;
     }

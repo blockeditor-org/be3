@@ -563,7 +563,10 @@ The registry (`sessions.rs`) writes them and sends them and the order's entries
 under one lock, so every participant hears them in one order (`Push::Membership`,
 `Push::Sequenced`); a joiner gets the membership as of the number it joins at in
 `joined` and not its own entry. Entries apply in index order, and a participant
-that finds a gap joins again. The holder is derived from them by one function,
+that finds a gap joins again. A session that starts counts on from the highest
+index the registry wrote (`Sessions::issued`), so an entry of an earlier session
+of the same block that arrives late (its own leave, say) never follows on from
+the new one's. The holder is derived from them by one function,
 `Membership::holder`, which the server and every replica use: of the
 participants with edit access that run the session's build, the last claimant,
 else the earliest joined. The server applies an entry as it writes it, and a

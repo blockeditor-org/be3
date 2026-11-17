@@ -332,11 +332,13 @@ interface sessions {
         received: s64,
     }
 
-    /// A publish with a journal base moved the head to `commit`, which holds
-    /// the order through `through`: the journal starts from it.
+    /// A publish with a journal seal moved the head to `commit`, which holds
+    /// the order through `through` in its `run` (`journal-seal.run`): the
+    /// journal starts from it. A trim with no new commit is not told.
     record sealed {
         commit: commit-id,
         through: u64,
+        run: u64,
     }
 
     /// What a session's `join` stream tells.

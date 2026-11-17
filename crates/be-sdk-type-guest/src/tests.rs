@@ -1026,7 +1026,10 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
 
     /// The journal starts from `base`, which `device` sealed, as the server trims it; the
     /// other participants hear of a seal that names a commit (`replica.sealed`).
-    fn trim(&mut self, device: usize, base: JournalBase) {
+    fn trim(&mut self, device: usize, base: JournalBase, new_commit: bool) {
+        let base_run = |base: &JournalBase| {
+            crate::wire::BaseState::decode(&base.state).map_or(0, |state| state.restarts)
+        };
         // Another build's entries go: the holder could not have applied them.
         let other = self.journal_tag != self.devices[device].tag;
         let entries: Vec<_> = self
@@ -1041,14 +1044,18 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             self.order = Sequencer::starting(base.sequence);
         }
         let sealed = base.commit.map(|commit| (commit, base.sequence));
+        let run = base_run(&base);
         self.journal = Some(Journal { base, entries });
         self.journal_tag = self.devices[device].tag;
-        let Some((commit, through)) = sealed else {
+        // As the server, which tells only a seal that moved the head.
+        let Some((commit, through)) = sealed.filter(|_| new_commit) else {
             return;
         };
         for to in self.open_devices() {
             if to != device && !self.deaf.contains(&to) {
-                self.with_replica(to, |replica, host| replica.sealed(host, commit, through));
+                self.with_replica(to, |replica, host| {
+                    replica.sealed(host, commit, through, run)
+                });
             }
         }
     }
@@ -1281,7 +1288,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     if let Some(base) = base(head)
                         && self.lease.is_holder(client)
                     {
-                        self.trim(device, base);
+                        self.trim(device, base, false);
                     }
                     let kept = self.kept_publishes;
                     return self.to(device, |host| {
@@ -1304,7 +1311,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.head = Some(head);
                 self.publishes += 1;
                 if let Some(base) = base(head) {
-                    self.trim(device, base);
+                    self.trim(device, base, true);
                 }
                 let kept = self.kept_publishes;
                 self.to(device, |host| {
@@ -1448,7 +1455,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.to(device, |host| reply.send(host, &()));
                 // As the server: a trim with no new commit is the holder's, on the head.
                 if self.lease.is_holder(client) && base.commit == self.head {
-                    self.trim(device, base);
+                    self.trim(device, base, false);
                 }
             }
             Call::ReportStatus { reply, status } => {
