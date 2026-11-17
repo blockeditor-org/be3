@@ -521,7 +521,10 @@ fn release_apps(
         .map_err(|error| format!("{} does not read: {error}", path.display()))?;
     for (file, expected) in &hashes {
         let bytes = std::fs::read(web.join(file)).map_err(|error| {
-            format!("{} lists {file}, which the web bundle lacks: {error}", path.display())
+            format!(
+                "{} lists {file}, which the web bundle lacks: {error}",
+                path.display()
+            )
         })?;
         let found = hex(&Sha256::digest(&bytes));
         if found != *expected {

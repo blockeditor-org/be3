@@ -15,7 +15,9 @@ fn a_list_of_hashes_other_than_the_one_be_ships_with_is_refused() {
         cache(),
         |url: &str| fake.fetch(url),
     );
-    let error = release.read("counter.wasm").expect_err("another list fails");
+    let error = release
+        .read("counter.wasm")
+        .expect_err("another list fails");
     assert!(error.contains(HASHES), "{error}");
     assert!(error.contains(be_lib_build_id::FILE), "{error}");
     assert_eq!(fake.fetches_of("counter.wasm"), 0, "no app downloaded");

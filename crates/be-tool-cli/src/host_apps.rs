@@ -82,7 +82,8 @@ impl<F: Fn(&str) -> Result<Vec<u8>, String>> Release<F> {
             return Ok(bytes);
         }
         let url = format!("{}/{path}", self.apps.url);
-        let bytes = (self.fetch)(&url).map_err(|error| format!("could not download {url}: {error}"))?;
+        let bytes =
+            (self.fetch)(&url).map_err(|error| format!("could not download {url}: {error}"))?;
         let found = sha256(&bytes);
         if found != expected {
             return Err(format!("{url} has SHA-256 {found}, not {expected}"));
@@ -93,9 +94,11 @@ impl<F: Fn(&str) -> Result<Vec<u8>, String>> Release<F> {
 
     fn expected(&self, path: &str) -> Result<String, String> {
         let hashes = self.hashes.get_or_init(|| {
-            let listed = self.fetch_checked(HASHES, &self.apps.sha256).map_err(|error| {
-                format!("{error}, which this be's {} names", be_lib_build_id::FILE)
-            })?;
+            let listed = self
+                .fetch_checked(HASHES, &self.apps.sha256)
+                .map_err(|error| {
+                    format!("{error}, which this be's {} names", be_lib_build_id::FILE)
+                })?;
             serde_json::from_slice(&listed)
                 .map_err(|error| format!("{}/{HASHES} does not read: {error}", self.apps.url))
         });

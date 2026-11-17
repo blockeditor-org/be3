@@ -19,7 +19,12 @@ pub struct Hosting {
 impl Hosting {
     /// Starts the host component for `block`, of `block_type`, as the device `client`, its app
     /// downloaded into `cache` if it is not there already.
-    pub fn start(block: Uuid, block_type: Uuid, client: Uuid, cache: &Path) -> Result<Self, String> {
+    pub fn start(
+        block: Uuid,
+        block_type: Uuid,
+        client: Uuid,
+        cache: &Path,
+    ) -> Result<Self, String> {
         crate::host_apps::serve(cache)?;
         let (app, host) = be_host_stack::discovery::manifests()
             .into_iter()
@@ -64,11 +69,7 @@ impl Hosting {
     }
 
     /// Runs the component until `done` answers, for at most `within`.
-    pub fn run_until<T>(
-        &mut self,
-        within: Duration,
-        done: impl FnMut() -> Option<T>,
-    ) -> Option<T> {
+    pub fn run_until<T>(&mut self, within: Duration, done: impl FnMut() -> Option<T>) -> Option<T> {
         self.headless.run_until(within, done)
     }
 }

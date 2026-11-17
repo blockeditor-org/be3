@@ -27,9 +27,9 @@ program(
 cargo_test(
     env = {
         "BE_BUNDLE": "$(location :test-host-apps)",
+        "EDITOR_MANIFESTS": "$(location //crates/be-sdk-manifest:editor-manifests)",
         # be-host-runtime links ALSA for apps' audio, from the sysroot it was linked against.
         "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
-        "EDITOR_MANIFESTS": "$(location //crates/be-sdk-manifest:editor-manifests)",
     },
 )
 
