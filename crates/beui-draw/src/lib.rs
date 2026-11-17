@@ -16,8 +16,8 @@ pub struct DrawAt {
     pub format: wgpu::TextureFormat,
     pub renderer: u64,
     /// Whether the renderer composites this frame (`compose`): a drawing that shows a surface
-    /// then places it as a layer (`Draw::layers`) and paints only the hole it shows through,
-    /// rather than painting the surface itself.
+    /// then lists it as a layer (`Draw::layers`), and leaves one that lies over the UI (an
+    /// anchored view) for the renderer to composite rather than painting it.
     pub composited: bool,
 }
 
@@ -45,7 +45,7 @@ pub trait Draw: 'static {
 
     /// The surfaces this drawing shows as layers of its window when its renderer composites
     /// (`DrawAt::composited`), bottom first, as of its last `prepare`. A composited renderer
-    /// prepares every drawing each frame, damaged or not, and asks for them after.
+    /// asks after each `prepare`, and keeps the answer while the drawing stays where it was.
     fn layers(&self) -> Vec<compose::Placed> {
         Vec::new()
     }

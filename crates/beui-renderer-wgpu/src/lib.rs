@@ -14,7 +14,7 @@ use beui_core::fade::Fade;
 use beui_core::filter::Filter;
 use beui_core::font::{GlyphId, GlyphImage};
 use beui_core::painter::{Shape, placed_shape};
-use be_lib_layers::{LayerId, Surface};
+use be_lib_layers::LayerId;
 use beui_draw::compose::Placed;
 use beui_draw::{Draw, DrawAt};
 use beui_types::Color32;
@@ -566,9 +566,25 @@ struct Frame<'a> {
     drawings: Vec<(Drawing, DrawAt)>,
     opacities: Vec<f32>,
     overflow: bool,
-    /// Whether the frame is composited, so every drawing is visited, damaged or not, to place
-    /// its layers.
+    /// Whether the frame is composited (`DrawAt::composited`).
     composited: bool,
+    /// What is visited damaged or not.
+    forced: &'a Forced,
+}
+
+/// What a composited frame visits whether or not it is damaged: each drawing that placed a
+/// composited layer (an anchored view) last frame, and the displays that hold one, so the roots
+/// split where it paints.
+#[derive(Default)]
+pub(crate) struct Forced {
+    displays: be_lib_stable_hash::HashSet<u64>,
+    drawings: be_lib_stable_hash::HashSet<usize>,
+}
+
+impl Forced {
+    fn drawing(&self, drawing: &Drawing) -> bool {
+        !self.drawings.is_empty() && self.drawings.contains(&drawing.identity().0)
+    }
 }
 
 impl Frame<'_> {
@@ -655,15 +671,6 @@ impl Frame<'_> {
         self.opacities.push(opacity);
     }
 
-    /// Whether a drawing reaching `reach` is visited: where it is damaged, and anywhere it shows
-    /// while the frame is composited.
-    fn visits(&self, reach: [f32; 4]) -> bool {
-        match self.composited {
-            true => reach[0] < reach[2] && reach[1] < reach[3],
-            false => self.damages(reach),
-        }
-    }
-
     fn damages(&self, reach: [f32; 4]) -> bool {
         reach[0] < reach[2]
             && reach[1] < reach[3]
@@ -689,6 +696,10 @@ fn overlap(left: [f32; 4], right: [f32; 4]) -> [f32; 4] {
         left[2].min(right[2]),
         left[3].min(right[3]),
     ]
+}
+
+fn shows(reach: [f32; 4]) -> bool {
+    reach[0] < reach[2] && reach[1] < reach[3]
 }
 
 fn overlaps(left: [f32; 4], right: [f32; 4]) -> bool {
@@ -1009,6 +1020,12 @@ impl Renderer {
                 )
             }
         };
+        // A composited window lists every drawing it shows, from what they placed last frame
+        // where nothing changed (`place`), and visits those that placed an anchored view.
+        let (found, forced) = match composited {
+            true => self.found(output, screen, pixels_per_point),
+            false => (Vec::new(), Forced::default()),
+        };
         let (instances, mut steps, mut frame) = loop {
             let mut frame = Frame {
                 queue,
@@ -1022,6 +1039,7 @@ impl Renderer {
                 opacities: Vec::new(),
                 overflow: false,
                 composited,
+                forced: &forced,
             };
             frame.space([0.0; 2], OPEN, Fade::NONE);
             let top = self.list_top;
@@ -1060,12 +1078,21 @@ impl Renderer {
         queue.write_buffer(&self.space_buffer, 0, &spaces);
         self.record_drawings(device, queue, &frame.drawings);
         let placed = match composited {
-            true => self.split(&mut steps, damaged.is_none()),
+            true => self.place(
+                device,
+                queue,
+                found,
+                &frame.drawings,
+                &mut steps,
+                damaged.is_none(),
+            ),
             false => Some(Vec::new()),
         };
         let Some(placed) = placed else {
-            // What is painted after the first anchored view moves between the roots, so they
-            // are painted whole.
+            // The first anchored view, where the upper root begins, is another than last
+            // frame's, so what the UI paints after it moves between the roots: the frame is
+            // prepared again, painted whole. That frame splits wherever it finds, so this
+            // happens at most once a frame.
             self.release_drawings();
             return self.prepare(
                 device,
@@ -1212,9 +1239,8 @@ impl Renderer {
                 Layer::Shape(shape) => {
                     let shape = placed_shape(shape, at.offset, at.clip);
                     quads.clear();
-                    // A composited frame visits every drawing (`Frame::visits`).
-                    let damaged = match (frame.composited, &shape) {
-                        (true, Shape::Drawing { .. }) => None,
+                    let damaged = match &shape {
+                        Shape::Drawing { drawing, .. } if frame.forced.drawing(drawing) => None,
                         _ => frame.damaged,
                     };
                     push_quads(&shape, at.factor, damaged, &mut quads);
@@ -1292,7 +1318,8 @@ impl Renderer {
 
     fn walk(&mut self, frame: &mut Frame, display: &Display, at: Walk, steps: &mut Vec<Step>) {
         let reach = at.reach(display);
-        if !(frame.damages(reach) || display.drawings > 0 && frame.visits(reach)) {
+        let forced = frame.forced.displays.contains(&display.key) && shows(reach);
+        if !(forced || frame.damages(reach)) {
             return;
         }
         let key = at.key(display);
@@ -1428,26 +1455,17 @@ impl Renderer {
         bound: [f32; 4],
     ) -> Option<Run> {
         let clip = overlap(clip, bound);
-        if !frame.visits(overlap(rect, clip)) {
+        let reach = overlap(rect, clip);
+        if !(frame.forced.drawing(&drawing) && shows(reach) || frame.damages(reach)) {
             return None;
         }
-        let shift = |[left, top, right, bottom]: [f32; 4]| {
-            [
-                left - self.origin.x,
-                top - self.origin.y,
-                right - self.origin.x,
-                bottom - self.origin.y,
-            ]
-        };
-        let at = DrawAt {
-            rect: shift(rect),
-            clip: shift(clip),
-            screen: frame.screen,
-            pixels_per_point: frame.pixels_per_point,
-            format: self.format,
-            renderer: self.id,
-            composited: frame.composited,
-        };
+        let at = self.draw_at(
+            rect,
+            clip,
+            frame.screen,
+            frame.pixels_per_point,
+            frame.composited,
+        );
         frame.drawings.push((drawing.clone(), at));
         Some(Run {
             punch: false,
@@ -1703,90 +1721,283 @@ impl Renderer {
         })
     }
 
-    /// Splits a composited frame's steps between the roots, at the first drawing that places an
-    /// anchored view (`Surface::Anchored`): the upper root's steps begin there, cleared first
-    /// where it is damaged. Returns the layers the frame's drawings place, bottom first, each
-    /// with whether it lies over the lower root; or `None` when the upper root would begin at
-    /// another anchored view than last frame's on a frame not painted whole, which moves what is
-    /// painted after it between the roots.
-    fn split(&mut self, steps: &mut Vec<Step>, whole: bool) -> Option<Vec<(Placed, bool)>> {
-        fn layers_of(runs: &[Run]) -> impl Iterator<Item = (usize, Vec<Placed>)> + '_ {
-            runs.iter().enumerate().filter_map(|(index, run)| {
-                let (drawing, _) = run.drawing.as_ref()?;
-                let layers = drawing.draw::<Rc<dyn Draw>>()?.layers();
-                (!layers.is_empty()).then_some((index, layers))
-            })
-        }
-        fn nested(steps: &[Step], into: &mut Vec<Placed>) {
-            for step in steps {
-                match step {
-                    Step::Runs(runs) => into.extend(layers_of(runs).flat_map(|(_, layers)| layers)),
-                    Step::Filter { steps, .. } | Step::Group { steps, .. } => nested(steps, into),
-                }
-            }
-        }
-        let anchored = |layers: &[Placed]| {
-            layers.iter().find_map(|placed| {
-                matches!(placed.layer.surface, Surface::Anchored { .. }).then_some(placed.layer.id)
-            })
+    /// Where a drawing emit places at `rect` within `clip` (in the document's pixels) is drawn.
+    fn draw_at(
+        &self,
+        rect: [f32; 4],
+        clip: [f32; 4],
+        screen: Vec2,
+        pixels_per_point: f32,
+        composited: bool,
+    ) -> DrawAt {
+        let shift = |[left, top, right, bottom]: [f32; 4]| {
+            [
+                left - self.origin.x,
+                top - self.origin.y,
+                right - self.origin.x,
+                bottom - self.origin.y,
+            ]
         };
-        let mut placed = Vec::new();
-        // Where the upper root begins: a step, and the run in it, or the step after it.
-        let mut at: Option<(usize, Option<usize>, LayerId)> = None;
-        for (index, step) in steps.iter().enumerate() {
-            let mut found = Vec::new();
-            match step {
-                Step::Runs(runs) => {
-                    for (run, layers) in layers_of(runs) {
-                        if at.is_none()
-                            && let Some(id) = anchored(&layers)
-                        {
-                            at = Some((index, Some(run), id));
-                        }
-                        let lifted = at.is_some();
-                        placed.extend(layers.into_iter().map(|layer| (layer, lifted)));
-                    }
-                    continue;
+        DrawAt {
+            rect: shift(rect),
+            clip: shift(clip),
+            screen,
+            pixels_per_point,
+            format: self.format,
+            renderer: self.id,
+            composited,
+        }
+    }
+
+    /// Every drawing a composited window shows, in paint order, each where emit places it,
+    /// found by walking only the displays that hold drawings (`Display::drawings`); and what the
+    /// frame visits whether or not it is damaged: the drawings that placed a composited layer
+    /// last frame, and the displays that hold them.
+    fn found(
+        &self,
+        output: &WindowOutput,
+        screen: Vec2,
+        pixels_per_point: f32,
+    ) -> (Vec<(Drawing, DrawAt)>, Forced) {
+        struct Finding<'a> {
+            renderer: &'a Renderer,
+            screen: Vec2,
+            pixels_per_point: f32,
+            lifted: Option<&'a be_lib_stable_hash::HashSet<usize>>,
+            path: Vec<u64>,
+            found: Vec<(Drawing, DrawAt)>,
+            forced: Forced,
+        }
+        impl Finding<'_> {
+            fn shape(&mut self, shape: &Shape, at: Walk) {
+                if !matches!(shape, Shape::Drawing { .. }) {
+                    return;
                 }
-                Step::Filter { steps, .. } | Step::Group { steps, .. } => nested(steps, &mut found),
+                let mut quads = Vec::new();
+                push_quads(
+                    &placed_shape(shape, at.offset, at.clip),
+                    at.factor,
+                    None,
+                    &mut quads,
+                );
+                for quad in quads {
+                    let Quad::Drawing {
+                        rect,
+                        clip,
+                        drawing,
+                    } = quad
+                    else {
+                        continue;
+                    };
+                    let (rect, clip) = (
+                        translated(rect, at.origin),
+                        overlap(translated(clip, at.origin), at.bound),
+                    );
+                    if !shows(overlap(rect, clip)) {
+                        continue;
+                    }
+                    if self
+                        .lifted
+                        .is_some_and(|lifted| lifted.contains(&drawing.identity().0))
+                    {
+                        self.forced.drawings.insert(drawing.identity().0);
+                        self.forced.displays.extend(self.path.iter().copied());
+                    }
+                    let at = self.renderer.draw_at(
+                        rect,
+                        clip,
+                        self.screen,
+                        self.pixels_per_point,
+                        true,
+                    );
+                    self.found.push((drawing, at));
+                }
             }
-            let lifted = at.is_some();
-            if !lifted && let Some(id) = anchored(&found) {
-                at = Some((index, None, id));
+
+            fn display(&mut self, display: &Display, at: Walk) {
+                if display.drawings == 0 || !shows(at.reach(display)) {
+                    return;
+                }
+                self.path.push(display.key);
+                self.parts(display, &display.parts, at);
+                self.path.pop();
             }
-            placed.extend(found.into_iter().map(|layer| (layer, lifted)));
+
+            fn parts(&mut self, display: &Display, parts: &[Part], at: Walk) {
+                for part in parts {
+                    match part {
+                        Part::Shapes { start, end, .. } => {
+                            for shape in &display.shapes[*start as usize..*end as usize] {
+                                self.shape(shape, at);
+                            }
+                        }
+                        Part::Child(_, translation, child) => {
+                            self.display(child, at.child(*translation))
+                        }
+                        Part::Group(group, inner) => {
+                            self.parts(display, inner, at.group(group, &mut |_, _, _| 0))
+                        }
+                    }
+                }
+            }
+
+            fn layers(&mut self, layers: &[Layer], at: Walk) {
+                for layer in layers {
+                    match layer {
+                        Layer::Shape(shape) => self.shape(shape, at),
+                        Layer::Display(translation, display) => {
+                            self.display(display, at.child(*translation))
+                        }
+                        Layer::Group(group, inner) => {
+                            self.layers(inner, at.group(group, &mut |_, _, _| 0))
+                        }
+                    }
+                }
+            }
         }
-        // Ids are unique in a list: a drawing that repeats another's (such as a view's pieces
-        // drawn above its children, counted apart from those below) takes one of its own for
-        // each time it repeats, which is as stable as the order the drawings show them in.
-        let mut seen = HashMap::<LayerId, u64>::default();
-        for (shown, _) in &mut placed {
-            let repeats = seen.entry(shown.layer.id).or_default();
-            if *repeats > 0 {
-                shown.layer.id = LayerId(std::hash::BuildHasher::hash_one(
-                    &be_lib_stable_hash::State::default(),
-                    (shown.layer.id.0, *repeats),
-                ));
-            }
-            *repeats += 1;
-        }
+        let mut finding = Finding {
+            renderer: self,
+            screen,
+            pixels_per_point,
+            lifted: self
+                .composition
+                .as_ref()
+                .map(|composition| &composition.lifted),
+            path: Vec::new(),
+            found: Vec::new(),
+            forced: Forced::default(),
+        };
+        finding.layers(
+            &output.layers,
+            Walk {
+                factor: pixels_per_point,
+                space: 0,
+                origin: [0.0; 2],
+                bound: OPEN,
+                offset: Vec2::ZERO,
+                clip: Rect::EVERYTHING,
+                fade: Fade::NONE,
+            },
+        );
+        (finding.found, finding.forced)
+    }
+
+    /// The layers a composited window's drawings place this frame, bottom first, each with
+    /// whether it lies over the lower root: a drawing prepared this frame (`prepared`) says
+    /// them anew, one that is where it was keeps last frame's, and any other is prepared now.
+    /// Splits the frame's steps between the roots at the first drawing that places a composited
+    /// layer (an anchored view): the upper root's steps begin there, cleared first where it is
+    /// damaged. Returns `None` when the upper root would begin at another anchored view than
+    /// last frame's on a frame not painted whole.
+    fn place(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        found: Vec<(Drawing, DrawAt)>,
+        prepared: &[(Drawing, DrawAt)],
+        steps: &mut Vec<Step>,
+        whole: bool,
+    ) -> Option<Vec<(Placed, bool)>> {
+        let fresh: be_lib_stable_hash::HashSet<(usize, u64)> = prepared
+            .iter()
+            .map(|(drawing, _)| drawing.identity())
+            .collect();
         let composition = self.composition.as_mut()?;
-        let splits_at = at.map(|(_, _, id)| id);
+        let mut encoder = None;
+        let mut known = be_lib_stable_hash::HashMap::default();
+        let mut placed = Vec::new();
+        let mut lifted = be_lib_stable_hash::HashSet::default();
+        let mut splits_at = None;
+        for (drawing, at) in found {
+            let Some(draw) = drawing.draw::<Rc<dyn Draw>>() else {
+                continue;
+            };
+            let key = composite::Known::key(&drawing, &at);
+            let layers = match composition.known.remove(&key) {
+                _ if fresh.contains(&drawing.identity()) => draw.layers(),
+                Some(kept) if kept.at == at => kept.placed,
+                _ => {
+                    let encoder = encoder.get_or_insert_with(|| {
+                        device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                            label: Some("beui drawings"),
+                        })
+                    });
+                    draw.prepare(device, queue, encoder, at);
+                    draw.layers()
+                }
+            };
+            if let Some(layer) = layers.iter().find(|placed| !placed.inline) {
+                lifted.insert(drawing.identity().0);
+                splits_at.get_or_insert(layer.layer.id);
+            }
+            let above = splits_at.is_some();
+            placed.extend(layers.iter().cloned().map(|layer| (layer, above)));
+            known.insert(
+                key,
+                composite::Known {
+                    drawing,
+                    at,
+                    placed: layers,
+                },
+            );
+        }
+        if let Some(encoder) = encoder {
+            queue.submit([encoder.finish()]);
+        }
+        composition.known = known;
+        composition.lifted = lifted;
+        debug_assert!(
+            {
+                let mut ids: Vec<LayerId> =
+                    placed.iter().map(|(shown, _)| shown.layer.id).collect();
+                ids.sort_unstable();
+                ids.windows(2).all(|pair| pair[0] != pair[1])
+            },
+            "every layer a window's drawings place has an id of its own"
+        );
         if !whole && splits_at != composition.splits_at {
             return None;
         }
         composition.splits_at = splits_at;
-        composition.split = at.map(|(index, run, _)| match run {
-            Some(run) => {
+        // Where the upper root begins in the steps: the run of the first drawing that placed a
+        // composited layer, or the step after a group or filter holding it.
+        fn lifts(runs: &[Run], lifted: &be_lib_stable_hash::HashSet<usize>) -> Option<usize> {
+            runs.iter().position(|run| {
+                run.drawing
+                    .as_ref()
+                    .is_some_and(|(drawing, _)| lifted.contains(&drawing.identity().0))
+            })
+        }
+        fn nested(steps: &[Step], lifted: &be_lib_stable_hash::HashSet<usize>) -> bool {
+            steps.iter().any(|step| match step {
+                Step::Runs(runs) => lifts(runs, lifted).is_some(),
+                Step::Filter { steps, .. } | Step::Group { steps, .. } => nested(steps, lifted),
+            })
+        }
+        let at = steps
+            .iter()
+            .enumerate()
+            .find_map(|(index, step)| match step {
+                Step::Runs(runs) => lifts(runs, &composition.lifted).map(|run| (index, Some(run))),
+                Step::Filter { steps, .. } | Step::Group { steps, .. } => {
+                    nested(steps, &composition.lifted).then_some((index, None))
+                }
+            });
+        // Without the anchored view in the steps, nothing damaged lies under or over it, so the
+        // damaged steps go on the lower root whole; the upper root is cleared where damaged.
+        composition.split = match (at, splits_at) {
+            (_, None) => None,
+            (None, Some(_)) => Some(steps.len()),
+            (Some((index, Some(run))), Some(_)) => {
                 let Step::Runs(runs) = &mut steps[index] else {
                     unreachable!("a run is in a step of runs");
                 };
                 let upper = runs.split_off(run);
                 steps.insert(index + 1, Step::Runs(upper));
-                index + 1
+                Some(index + 1)
             }
-            None => index + 1,
-        });
+            (Some((index, None)), Some(_)) => Some(index + 1),
+        };
         if let Some(split) = composition.split
             && !whole
         {

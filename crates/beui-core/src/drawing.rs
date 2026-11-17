@@ -67,6 +67,12 @@ impl Drawing {
         }
     }
 
+    /// What tells this drawing and revision apart from every other drawing kept alive, for a
+    /// renderer that keeps what it learned of each (`==` compares the same two).
+    pub fn identity(&self) -> (usize, u64) {
+        (Rc::as_ptr(&self.shared) as usize, self.revision)
+    }
+
     pub fn same_draw(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.shared, &other.shared)
     }

@@ -40,7 +40,10 @@ fn the_webs_frame_stacks_screens_under_the_host_and_anchored_views_and_what_they
         3,
         Rect::from_min_size(pos2(300.0, 0.0), vec2(200.0, 100.0)),
     );
-    let frame = frame(&[editor, popover, child, beside], vec2(800.0, 600.0));
+    let frame = frame(
+        &[(1, editor), (2, popover), (3, child), (4, beside)],
+        vec2(800.0, 600.0),
+    );
     let surfaces: Vec<Surface> = frame.layers.iter().map(|layer| layer.surface).collect();
     assert_eq!(
         surfaces,

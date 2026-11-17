@@ -2,7 +2,7 @@ use super::*;
 use be_lib_layers::Surface;
 
 #[test]
-fn a_composited_window_shows_surfaces_through_their_holes_and_its_ui_over_anchored_ones() {
+fn a_composited_window_draws_screens_in_place_and_its_ui_over_anchored_views() {
     beui_draw::compose::composite_windows();
     let mut target = Target::new();
     target.renderer.set_window(true);
@@ -68,7 +68,7 @@ fn a_composited_window_shows_surfaces_through_their_holes_and_its_ui_over_anchor
          paints after the anchored view over that"
     );
     let check = |capture: &Capture, chrome: (u32, u32)| {
-        assert_eq!(capture.pixel(10, 10), red, "the screen shows through its hole");
+        assert_eq!(capture.pixel(10, 10), red, "the screen shows in place");
         assert_eq!(
             capture.pixel(17, 17),
             [0, 255, 0, 255],

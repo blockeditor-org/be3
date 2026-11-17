@@ -1827,6 +1827,7 @@ dependencies = [
  "be-host-programs",
  "be-lib-dmabuf",
  "be-lib-layers",
+ "be-lib-stable-hash",
  "beui",
  "beui-host",
  "beui-layer-space",

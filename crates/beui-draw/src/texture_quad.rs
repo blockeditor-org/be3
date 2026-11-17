@@ -435,8 +435,8 @@ impl<K: 'static> TextureDraw<K> {
     }
 
     /// Shows the texture as a surface the host owns (`Surface::Host(id)`, such as a program
-    /// window): where the renderer composites, a layer of the window under a hole this drawing
-    /// punches, rather than painted into the window.
+    /// window): still drawn here, and where the renderer composites, listed as a layer of the
+    /// window for damage and input.
     pub fn hosted(mut self, id: u64) -> Self {
         self.hosted = Some(id);
         self
@@ -470,29 +470,22 @@ impl<K: 'static> Draw for TextureDraw<K> {
         if let (true, Some(id)) = (at.composited, self.hosted) {
             let size = (self.texture.width(), self.texture.height());
             let id = be_lib_layers::LayerId(id);
-            if let Some(layer) = crate::compose::layer_of(
-                &quad,
-                size,
-                at.pixels_per_point,
-                id,
-                be_lib_layers::Surface::Host(id.0),
-            ) {
-                placed.push(crate::compose::Placed {
+            placed.extend(
+                crate::compose::layer_of(
+                    &quad,
+                    size,
+                    at.pixels_per_point,
+                    id,
+                    be_lib_layers::Surface::Host(id.0),
+                )
+                .map(|layer| crate::compose::Placed {
                     layer,
                     texture: texture.clone(),
                     opaque: quad.opaque,
                     srgb_encoded: quad.srgb_encoded,
-                });
-            }
-            let hole = Hole::of(device, queue, &at);
-            self.quads.prepare(
-                &hole.pipelines,
-                queue,
-                at.format,
-                [at.screen.x, at.screen.y],
-                [(&hole.white, Quad { opaque: false, opacity: 1.0, ..quad })],
+                    inline: true,
+                }),
             );
-            return;
         }
         self.quads.prepare(
             &pipelines,

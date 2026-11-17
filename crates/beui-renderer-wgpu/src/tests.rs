@@ -19,9 +19,10 @@ mod a_bounded_renderer_filters_and_paints_only_within_its_bounds;
 mod a_clip_rectangle_hides_what_falls_outside_it;
 mod a_colour_glyph_paints_its_own_colours_beside_tinted_text;
 mod a_colour_vision_filter_recolours_the_region_it_covers;
-mod a_composited_window_shows_surfaces_through_their_holes_and_its_ui_over_anchored_ones;
+mod a_composited_window_draws_screens_in_place_and_its_ui_over_anchored_views;
+mod a_layer_of_a_turned_and_clipped_quad_shows_what_the_quad_shows;
+mod a_screen_in_a_composited_window_blends_over_the_ui_beneath_it_and_fades_with_its_group;
 mod a_drawing_paints_between_the_shapes_around_it;
-mod drawings_that_place_one_layer_id_each_show_in_a_composited_window;
 mod a_drawing_repaints_only_within_each_damaged_region;
 mod a_faded_scroll_fades_its_content_toward_each_edge_with_more_beyond_it;
 mod a_fill_with_fractional_bounds_lands_on_whole_pixels;
@@ -378,7 +379,9 @@ struct Patch {
     placement: wgpu::Buffer,
 }
 
-/// Shows a texture as a layer of a composited window, punching its hole when it is a screen.
+/// Shows a texture as a surface, as the host's drawings do: a screen is drawn in place and
+/// listed as a layer; where the window is composited, an anchored view is a layer the renderer
+/// composites, and drawn in place where it is not.
 pub struct Shows {
     texture: wgpu::Texture,
     surface: be_lib_layers::Surface,
@@ -407,30 +410,37 @@ impl Draw for Shows {
         _encoder: &mut wgpu::CommandEncoder,
         at: DrawAt,
     ) {
-        assert!(at.composited, "the window is composited");
         let quad = beui_draw::texture_quad::Quad {
             rect: at.rect,
             clip: at.clip,
             ..Default::default()
         };
-        let size = (self.texture.width(), self.texture.height());
-        let layer = beui_draw::compose::layer_of(&quad, size, at.pixels_per_point, be_lib_layers::LayerId(self.id), self.surface)
+        let pipelines = beui_draw::texture_quad::Pipelines::of(device, &at);
+        let texture = pipelines.bind(&self.texture);
+        let inline = !matches!(self.surface, be_lib_layers::Surface::Anchored { .. });
+        let mut placed = self.placed.borrow_mut();
+        placed.clear();
+        if at.composited {
+            let size = (self.texture.width(), self.texture.height());
+            let layer = beui_draw::compose::layer_of(
+                &quad,
+                size,
+                at.pixels_per_point,
+                be_lib_layers::LayerId(self.id),
+                self.surface,
+            )
             .expect("the surface shows");
-        *self.placed.borrow_mut() = vec![beui_draw::compose::Placed {
-            layer,
-            texture: beui_draw::texture_quad::Pipelines::of(device, &at).bind(&self.texture),
-            opaque: false,
-            srgb_encoded: false,
-        }];
-        let hole = beui_draw::texture_quad::Hole::of(device, queue, &at);
-        let holes = matches!(self.surface, be_lib_layers::Surface::Screen { .. }).then_some((&hole.white, quad));
-        self.quads.prepare(
-            &hole.pipelines,
-            queue,
-            at.format,
-            [at.screen.x, at.screen.y],
-            holes,
-        );
+            placed.push(beui_draw::compose::Placed {
+                layer,
+                texture: texture.clone(),
+                opaque: false,
+                srgb_encoded: false,
+                inline,
+            });
+        }
+        let drawn = (inline || !at.composited).then_some((&texture, quad));
+        self.quads
+            .prepare(&pipelines, queue, at.format, [at.screen.x, at.screen.y], drawn);
     }
 
     fn paint(&self, pass: &mut wgpu::RenderPass<'_>, _at: DrawAt) {

@@ -101,7 +101,7 @@ fn a_view_resized_before_its_app_draws_the_new_size_keeps_its_last_frame_unstret
                 ..runtime.template(screen)
             };
             let placement = *runtime.shown_placement(screen)?;
-            blit.screen_layer(&placement, Some((300, 200)), 0)
+            blit.screen_layer(&placement, Some((300, 200)), 0, 0)
         })
         .flatten()
         .expect("the last frame still shows");
