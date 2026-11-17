@@ -955,6 +955,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             self.devices[device].clock = Some(clock);
             let held = std::mem::take(&mut self.devices[device].sleeping);
             let (due, waiting): (Vec<_>, Vec<_>) = held.into_iter().partition(|(at, _)| *at <= now);
+            self.devices[device].wake = waiting.iter().map(|(at, _)| *at).min();
             self.devices[device].sleeping = waiting;
             for (_, reply) in due {
                 self.to(device, |host| reply.send(host, &()));
@@ -1190,8 +1191,12 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.to(device, |host| reply.send(host, &()));
             }
             Call::SleepUntil { reply, at } => {
-                self.devices[device].wake = Some(at);
                 self.devices[device].sleeping.push((at, reply));
+                self.devices[device].wake = self.devices[device]
+                    .sleeping
+                    .iter()
+                    .map(|(at, _)| *at)
+                    .min();
             }
             Call::Send { reply, to, bytes } => {
                 self.to(device, |host| reply.send(host, &()));

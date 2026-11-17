@@ -40,7 +40,7 @@ async fn a_trim_by_another_build_marks_the_journal_lost_until_the_next_commit() 
     let (_, state) = laptop.try_join_as(block, new_build).await.unwrap();
     assert_eq!(state.tag(), Some(new_build));
     let trimmed = laptop
-        .trim(&author, block, first.clone(), base(first.0, 0))
+        .trim(&author, block, first.clone(), of_build(base(first.0, 0)))
         .await;
     assert!(trimmed.is_ok(), "{trimmed:?}");
     let journal = journal_of(&mut laptop, block).await;
@@ -58,7 +58,7 @@ async fn a_trim_by_another_build_marks_the_journal_lost_until_the_next_commit() 
             second.1,
             Some(first.0),
             2_000,
-            Some(base(second.0, 0)),
+            Some(of_build(base(second.0, 0))),
         )
         .await;
     assert!(

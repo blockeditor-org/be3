@@ -2889,7 +2889,16 @@ impl<H: Host> Replicas<H> {
                         entry: entry.clone(),
                     });
                 }
+                // A session the host made up hears nothing of the server's.
+                if open.made_up {
+                    return;
+                }
                 if !open.session.apply(entry) {
+                    // One was lost: the replica hears the membership afresh on joining again.
+                    if entry.index > open.session.index + 1 {
+                        let rejoin = self.rejoins;
+                        self.rejoin(peer, replica, rejoin);
+                    }
                     return;
                 }
                 let replayed = Replayed::Lease {

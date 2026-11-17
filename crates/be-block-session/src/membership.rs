@@ -9,8 +9,9 @@ use be_block_store::Hash;
 
 /// What a session's membership answers, over the `SessionState` the server and replicas hold.
 pub trait Membership {
-    /// Applies `entry` when it is the next one this membership lacks (its index past this
-    /// one's); answers whether it did. One held already changes nothing.
+    /// Applies `entry` when it is the next one (its index this one's plus one); answers
+    /// whether it did. One held already changes nothing, and so does one past a gap, which a
+    /// participant hearing one stream in order never sees: it joins again rather than guess.
     fn apply(&mut self, entry: &MembershipEntry) -> bool;
 
     /// Writes the next entry, about `client`, stamped `after` the order's last number, and
@@ -23,8 +24,10 @@ pub trait Membership {
         change: MembershipChange,
     ) -> Option<MembershipEntry>;
 
-    /// The lease holder, who seals: the last claimant still present with edit access, else
-    /// the earliest-joined participant with it. None while no participant may edit.
+    /// The lease holder, who seals: of the participants with edit access that run the build
+    /// the session speaks, the last claimant, else the earliest joined. None while there is no
+    /// such participant. One of another build never holds it, since it could not apply the
+    /// session's entries, and with no expiry it would otherwise keep it.
     fn holder(&self) -> Option<ClientId>;
 
     fn is_holder(&self, client: ClientId) -> bool {
@@ -46,7 +49,7 @@ pub trait Membership {
 
 impl Membership for SessionState {
     fn apply(&mut self, entry: &MembershipEntry) -> bool {
-        if entry.index <= self.index {
+        if entry.index != self.index + 1 {
             return false;
         }
         self.index = entry.index;
@@ -113,10 +116,11 @@ impl Membership for SessionState {
     }
 
     fn holder(&self) -> Option<ClientId> {
+        let tag = self.tag();
         let editors = || {
             self.participants
                 .iter()
-                .filter(|participant| participant.may_edit)
+                .filter(move |participant| participant.may_edit && Some(participant.tag) == tag)
         };
         editors()
             .filter(|participant| participant.claimed.is_some())

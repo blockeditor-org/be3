@@ -2,10 +2,10 @@ use be_block_protocol::JournalBase;
 
 use super::*;
 
-/// A seal holds only what the order numbered: a trim onto a base past its last entry is
-/// refused, and the order goes on numbering after what it holds.
+/// A seal holds only what the order numbered: a trim onto a base past its last entry is not
+/// kept, though its publish goes through, and the order goes on numbering after what it holds.
 #[tokio::test]
-async fn a_trim_past_the_orders_last_entry_is_refused() {
+async fn a_trim_past_the_orders_last_entry_is_not_kept() {
     let harness = Harness::start().await;
     let mut phone = harness.client().await;
     let account = phone.register("phone@example.com").await;
@@ -27,8 +27,8 @@ async fn a_trim_past_the_orders_last_entry_is_refused() {
         sequence: 5,
         state: Vec::new(),
     };
-    let answered = phone.trim(&author, block, first, past).await;
-    assert!(answered.is_err(), "a base past the last entry is refused");
+    let answered = phone.trim(&author, block, first, of_build(past)).await;
+    assert!(answered.is_ok(), "{answered:?}");
 
     phone
         .submit(block, 7, 2, 1, b"another".to_vec())

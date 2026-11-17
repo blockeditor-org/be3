@@ -71,11 +71,11 @@ async fn the_server_orders_sealed_submissions_and_a_seal_trims_them() {
             second.1,
             Some(first.0),
             2_000,
-            Some(JournalBase {
+            Some(of_build(JournalBase {
                 commit: Some(second.0),
                 sequence: 1,
                 state: Vec::new(),
-            }),
+            })),
         )
         .await;
     assert!(

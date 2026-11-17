@@ -1263,6 +1263,13 @@ impl Client {
                         .store
                         .set_role(identity, account, role, signed)
                         .await?;
+                    // A role changes edit access across the organization: each session the
+                    // account is in hears it, the caller's own connections included. Another
+                    // account's connections are dropped below, which leaves their sessions as
+                    // they close.
+                    connection
+                        .recheck_sessions(identity.organization, Some(account), None)
+                        .await;
                     if account != identity.account {
                         connection
                             .hub

@@ -102,9 +102,11 @@ mod a_push_service_refusing_the_server_or_redirecting_does_not_cost_the_right_en
 mod a_push_service_that_never_answers_delays_only_its_own_account;
 mod a_range_get_reads_part_of_an_s3_object;
 mod a_reader_is_told_which_connection_moved_a_head;
+mod a_seal_by_the_old_build_after_a_new_build_started_over_trims_nothing;
+mod a_stale_seal_from_an_earlier_run_publishes_and_trims_nothing;
 mod a_trim_by_another_build_marks_the_journal_lost_until_the_next_commit;
-mod a_trim_from_other_than_the_holder_is_refused_and_not_kept;
-mod a_trim_past_the_orders_last_entry_is_refused;
+mod a_trim_from_other_than_the_holder_is_not_kept;
+mod a_trim_past_the_orders_last_entry_is_not_kept;
 mod a_refused_call_keeps_the_cached_graph;
 mod a_relay_to_a_client_that_left_the_session_is_dropped_without_an_error;
 mod a_remembered_account_approves_a_manually_entered_code_and_can_switch_accounts;
@@ -1114,7 +1116,7 @@ impl TestClient {
             .await
     }
 
-    /// Publishes as `publish` does, with `base` a seal of the block's session by `TYPE_BUILD`.
+    /// Publishes as `publish` does, with `journal` a seal of the block's session.
     #[allow(clippy::too_many_arguments)]
     async fn seal(
         &mut self,
@@ -1124,7 +1126,7 @@ impl TestClient {
         chunks: Vec<Hash>,
         expected: Option<CommitId>,
         time: i64,
-        base: Option<be_block_protocol::JournalBase>,
+        journal: Option<be_block_protocol::JournalSeal>,
     ) -> Result<be_block_protocol::PublishOutcome, Error> {
         self.upload(&author.store, &author.objects_of(commit, &chunks))
             .await;
@@ -1142,11 +1144,7 @@ impl TestClient {
                 listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
-                base.clone().map(|base| be_block_protocol::JournalSeal {
-                    tag: TYPE_BUILD,
-                    run: 0,
-                    base,
-                }),
+                journal.clone(),
             )
         })
         .await
@@ -1159,9 +1157,9 @@ impl TestClient {
         author: &Author,
         block: Uuid,
         (head, chunks): (CommitId, Vec<Hash>),
-        base: be_block_protocol::JournalBase,
+        journal: be_block_protocol::JournalSeal,
     ) -> Result<be_block_protocol::PublishOutcome, Error> {
-        self.seal(author, block, head, chunks, Some(head), 1_000, Some(base))
+        self.seal(author, block, head, chunks, Some(head), 1_000, Some(journal))
             .await
     }
 
@@ -2623,4 +2621,18 @@ fn unused_keys(seed: u8) -> be_block_keys::PublicIdentity {
         public: be_block_keys::RecoveryPublic([seed; 32]),
         signing: be_block_keys::SigningPublic([seed; 32]),
     }
+}
+
+/// A seal by `TYPE_BUILD` in the order's first run.
+fn of_build(base: be_block_protocol::JournalBase) -> be_block_protocol::JournalSeal {
+    in_run(base, TYPE_BUILD, 0)
+}
+
+/// A seal by the build `tag` in the order's `run`.
+fn in_run(
+    base: be_block_protocol::JournalBase,
+    tag: Hash,
+    run: u64,
+) -> be_block_protocol::JournalSeal {
+    be_block_protocol::JournalSeal { tag, run, base }
 }

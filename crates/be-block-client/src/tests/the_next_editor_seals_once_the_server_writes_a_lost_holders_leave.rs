@@ -4,16 +4,12 @@ use be_type_text::{TextBlock, TextContent};
 use super::*;
 use crate::Event;
 
-/// Only the server writes leaves: a holder whose socket goes silent stays the holder until the
-/// server gives up on the connection (`ServerConfig::idle_timeout`) and writes its leave, and
-/// from that entry the next editor holds the lease and seals.
+/// Only the server writes leaves: a holder whose connection is lost stays the holder until the
+/// server sees the socket close (or go silent past `IDLE_TIMEOUT`) and writes its leave, and from
+/// that entry the next editor holds the lease and seals.
 #[tokio::test]
-async fn the_next_editor_seals_once_the_server_writes_a_silent_holders_leave() {
-    let harness = Harness::configured(be_server::ServerConfig {
-        idle_timeout: std::time::Duration::from_secs(2),
-        ..be_server::ServerConfig::OPEN
-    })
-    .await;
+async fn the_next_editor_seals_once_the_server_writes_a_lost_holders_leave() {
+    let harness = Harness::start().await;
     let server = harness
         .url
         .trim_start_matches("ws://")
@@ -46,24 +42,12 @@ async fn the_next_editor_seals_once_the_server_writes_a_silent_holders_leave() {
     submitted(&phone, note, 1).await;
     assert!(seen.is_holder(holder));
 
-    relay.stall();
-    // The laptop keeps talking, so the server gives up only on the phone.
-    loop {
-        let heard = tokio::time::timeout(std::time::Duration::from_millis(250), on_laptop.recv());
-        match heard.await {
-            Ok(Ok(Event::Membership { block, entry })) if block == note => {
-                seen.apply(&entry);
-                if !seen.has(holder) {
-                    break;
-                }
-            }
-            Ok(Ok(_)) => {}
-            Ok(Err(error)) => panic!("the laptop stopped hearing its connection: {error}"),
-            Err(_) => {
-                be_block_protocol::client::connection::ping(&laptop.connection())
-                    .await
-                    .unwrap();
-            }
+    relay.cut();
+    while seen.has(holder) {
+        if let Event::Membership { block, entry } = on_laptop.recv().await.unwrap()
+            && block == note
+        {
+            seen.apply(&entry);
         }
     }
     assert!(seen.is_holder(next), "the next editor holds the lease");
