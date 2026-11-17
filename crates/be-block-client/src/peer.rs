@@ -2064,6 +2064,16 @@ impl<S: ObjectStore> Peer<S> {
         parent: BlockParent,
     ) -> Result<(Vec<u8>, Vec<u8>), ClientError> {
         use be_block_keys::{Authority, Entry, LogKind, Parent, Record};
+        // A block whose log this device holds is there already, though its summary may be
+        // gone (forgotten, or its edits discarded): a second root would write over what the
+        // device kept of the real log and set its pin at odds with the root its keys carry,
+        // so their seals stop opening. Refused before anything is kept, as the server would.
+        if self.keys.holds_log(block) {
+            return Err(ClientError::Refused(
+                ErrorCode::BlockAlreadyExists,
+                format!("block {block} already exists"),
+            ));
+        }
         let placement = self.placement(parent).await?;
         let me = self.keys.account().into_bytes();
         let root = Entry::root(self.keys.identity(), me, LogKind::Block, block.into_bytes());
