@@ -143,10 +143,12 @@ itself, from the holder. `claim-lease`, `heartbeat`, `rebase-journal`,
 `clean-at`, `ServerConfig::lease` and the registry's empty-session memory are
 gone (guides/blocks/server.md, "Membership"). Where it differs from the plan:
 a claim is the session call `claim` until 3a makes it an ordered send; a seal
-names the build that made it (`journal-seal`), so one kept in the outbox and
-drained before its replica rejoins still trims; and
-`ServerConfig::idle_timeout` lets a test wait less than `IDLE_TIMEOUT` for a
-silent holder's leave.
+names the build that made it and the run of the order it seals
+(`journal-seal`), so one kept in the outbox and drained before its replica
+rejoins still trims, and a stale one (an earlier run, another build) publishes
+untrimmed; the holder is the last claimant or earliest editor among those that
+run the session's build; and `relay-kind` and the replica's `delivery` are gone
+with `seal`, since only presence and channel messages are relayed.
 
 ### 2. Following whole trees, with one organization sequence
 

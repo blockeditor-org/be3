@@ -166,7 +166,10 @@ arrives.
   (`Pending::journal`, with the build that sealed it) so a drained seal trims too), only as it wins the
   head; `Peer::rebase_journal` trims this device's, and with `trim` the
   server's with no new commit (a publish of the head on itself, which the server
-  takes only from the holder). A base that goes back while nothing after the
+  takes only from the holder; none for a base with no commit, which stays on this
+  device). A seal names its build and its run of the order (the replica's
+  `restarts`), so the server passes over a stale one (guides/blocks/server.md,
+  "Membership"). A base that goes back while nothing after the
   journal's own base was numbered (the last one out, sequence zero) starts the
   order afresh. Entries of another build are dropped, and the journal marked
   `lost` until it moves to another commit, so every device opening the block

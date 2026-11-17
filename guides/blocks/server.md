@@ -535,9 +535,9 @@ participant's queue (`Push::Relayed` holds an `Arc`). A relay named for one
 client that has left the session (or never joined) is dropped without an error:
 it is best-effort, and the sender cannot know the other left. Each relay reaches
 participants stamped with when the server took it (`received`, by its clock).
-The server cannot read a relay, so each names its `relay-kind`: `peer` (presence,
-channel messages) needs view access (`rule`), and the server stamps it on what it
-delivers (`relayed.kind`). Editors are trusted with the block's content and session.
+Any participant may relay (view access, `rule`): relays are presence and channel
+messages, while which head holds which number comes from the server
+(`Push::Sealed`). Editors are trusted with the block's content and session.
 
 **The order.** `submit` needs edit access and a build the session speaks
 (`Membership::speaks`): the server numbers the submission in the block's journal
@@ -557,20 +557,25 @@ journal, so numbering stays gapless and churn never fills `MAX_JOURNAL_BYTES`.
 The registry (`sessions.rs`) writes them and sends them and the order's entries
 under one lock, so every participant hears them in one order (`Push::Membership`,
 `Push::Sequenced`); a joiner gets the membership as of the number it joins at in
-`joined` and not its own entry. The holder is derived from it by one function,
-`Membership::holder`, on the server and every replica alike: the last claimant
-still present with edit access, else the earliest-joined participant with it.
-So a session of viewers alone has no holder, a holder that loses edit access
-loses the lease at once, and a claim takes it at once (two devices that claim in
-turn pass it back and forth). Only the server writes leaves: when a socket
-closes, and when a connection goes silent past `ServerConfig::idle_timeout`
-(`IDLE_TIMEOUT`, 90 s), as `leave_all` runs on any disconnect; until then a
+`joined` and not its own entry. Entries apply in index order, and a participant
+that finds a gap joins again. The holder is derived from them by one function,
+`Membership::holder`, which the server and every replica use: of the
+participants with edit access that run the session's build, the last claimant,
+else the earliest joined. The server applies an entry as it writes it, and a
+replica as it hears it, so a replica lags the server's view by its stream, which
+only means two may seal at once (below). So a session of viewers alone has no
+holder, one of another build never holds it, a holder that loses edit access
+loses it at once, and a claim takes it at once (two devices that claim in turn
+pass it back and forth). After `set-access`, `set-parent`, a revocation or
+`set-role`, `recheck_sessions` writes the changes of edit access. Only the server
+writes leaves: when a socket closes, and when a connection goes silent past
+`IDLE_TIMEOUT` (90 s), as `leave_all` runs on any disconnect; until then a
 silent holder stays the holder. The registry indexes sessions by client, so
 leaving them all costs what that client joined, and forgets an empty session.
 After a restart every session is empty and rebuilds from joins.
 
 Each block's journal (guides/blocks/client.md, "The journal") is two tables,
-`block_journals` (tag, base, the order's last number and barrier) and
+`block_journals` (tag, run, base, the order's last number and barrier) and
 `journal_entries` (an id unique per block), written by `be_server::journal` and
 deleted with the block. It is kept whether or not anyone is in the session, so
 what nobody sealed waits for the next holder. A seal trims it: `publish` with a
@@ -584,10 +589,18 @@ trim never outruns its commit, and a sealing publish needs no holder check. A
 trim with no new commit (the last one out restarting the session, a new build
 starting the journal over: a publish of the head on itself) needs the head to be
 the base's commit and the caller to be the holder at the order's tip, by the
-server's derivation. A base past the order's last number is refused; one that
-goes back starts the order afresh only when nothing past the journal's base was
-numbered. A seal names the build that made it (`journal-seal.tag`), so one
-the outbox sends before its replica joins again still trims. A submission is
+server's derivation, checked with the registry held while the trim is written
+(`SessionRegistry::holding`). A seal names the build that made it and the run of
+the order it seals (`journal-seal`: how many times the session had started
+over, `status.restarts`), so one the outbox sends before its replica joins again
+still trims, and one that is stale trims nothing: of an earlier run (sequence
+numbers are reused once the order starts over), below the journal's base, past
+the order's last number, or with a new commit by another build than the
+journal's. A stale seal's publish still goes through on its compare-and-swap,
+untrimmed and untold; no publish is refused over its seal. Only a later run's
+base, with nothing numbered past the journal's base, goes back, starting the
+order afresh (`journal::Trimmed::restarted`, which alone moves the registry's tip
+back). A submission is
 refused while the journal holds another build's entries, and bounded by
 `MAX_JOURNAL_BYTES`; `read-contents` answers journals while they fit in a
 quarter of a frame.

@@ -223,9 +223,9 @@ interface types {
     /// Who is in a block's live session, in the order they joined, as of its
     /// `index`-th membership entry, written when the order's last number was
     /// `after`. The lease holder and the build the session speaks follow from
-    /// it (`be_block_session::Membership`): the last claimant still present
-    /// with edit access, else the earliest-joined participant with it; and the
-    /// first participant's build.
+    /// it (`be_block_session::Membership`): the build is the first
+    /// participant's, and the holder, of the participants with edit access
+    /// that run it, the last claimant, else the earliest joined.
     record session-state {
         index: u64,
         after: u64,

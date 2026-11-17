@@ -397,10 +397,14 @@ order: presence and channel messages. The rules an agent most needs:
   `Reload`; it seals nothing while that reload is on its way. A replica made
   holder carries on from the last seal's head: nothing moves with the lease.
 - **The lease.** The host hands the replica the session's membership
-  (`replica.lease`, applying each membership entry it hears), and the replica
-  derives whether it holds the lease from it (`Membership::holder`), as every
-  replica and the server do: there is nothing to renew, and a replica whose
-  holder left holds it from that entry with no claim of its own. `claim` (a
+  (`replica.lease`, applying each membership entry as it hears it, and joining
+  again on a gap), and the replica derives whether it holds the lease from it
+  with the server's function (`Membership::holder`). It may lag the server's
+  view by what is on its way, which at worst has two replicas seal at once, and
+  the server's compare-and-swap takes one. There is nothing to renew, and a
+  replica whose holder left holds it from that entry with no claim of its own.
+  Each seal names the replica's `restarts` as its run of the order, so the
+  server passes over a stale one. `claim` (a
   terminal host's) asks the server to write a claim, which takes the lease at
   once. A trim with no new commit (`rebase-journal`: the last one out restarting
   the session, a new build starting the journal over) reaches the server only
@@ -448,7 +452,7 @@ order: presence and channel messages. The rules an agent most needs:
   a host that waits on the answer may be what would hand the replica the order.
 - **Who sends what.** The server takes submissions and claims only from editors,
   submissions of the session's build alone. Relayed messages are presence and
-  channel messages, which any participant sends (`relay-kind::peer`); which head
+  channel messages, which any participant sends; which head
   holds which number comes from the server (`replica.sealed`), never a peer.
   Editors are trusted with the block's content and session; only viewers are
   kept out. The server holds a part for the whole

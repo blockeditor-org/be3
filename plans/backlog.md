@@ -133,6 +133,17 @@ Fixed items are removed as they land.
   holds a submission and controls when a replica loads, and a test of that
   sequence counting exactly what was made.
 
+- **The order's entries pushed out of order.** `submit` numbers a submission in
+  the database (`journal::submit`) before `SessionRegistry::sequenced` takes the
+  registry's lock to push it, so two submissions numbered at once can reach
+  participants as N+1 then N, and a membership entry written between them is
+  stamped with whichever was pushed last. Replicas hold what arrives early
+  (`ahead`), and a host that sees a gap joins again, so nothing is lost, but the
+  stream is not one order. Done: numbering and pushing under one per-session
+  lock (the registry's lock is server-wide, so not that one), with a be-server
+  test where many connections submit at once and every participant hears the
+  entries in sequence.
+
 ## 9. Version control's caches
 
 - **Walks that read thinning as a root.** Depends on #686, which rewrites
