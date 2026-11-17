@@ -1,5 +1,4 @@
 use beui::reactive::view;
-use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::wasm_bindgen;
 
@@ -76,9 +75,12 @@ pub(crate) fn blank_box(width: f32) -> String {
 pub(crate) fn grown_blank_width(width: f32) -> String {
     let blank = web_sys::window()
         .and_then(|window| window.document())
-        .and_then(|document| document.query_selector_all(".beui-blank").ok())
-        .and_then(|blanks| blanks.item(blanks.length().checked_sub(1)?))
-        .and_then(|node| node.dyn_into::<web_sys::Element>().ok());
+        .and_then(|document| {
+            document
+                .query_selector("[data-testid~=\"blank.grown\"] .beui-blank")
+                .ok()
+                .flatten()
+        });
     let Some(blank) = blank else {
         return "Grown blank unseen".to_owned();
     };
