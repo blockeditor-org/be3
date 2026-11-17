@@ -134,6 +134,8 @@ impl Default for Wire {
             held: Held::default(),
             acks: Vec::new(),
             hearing: Vec::new(),
+            #[cfg(not(target_arch = "wasm32"))]
+            sandbox: None,
         }
     }
 }
