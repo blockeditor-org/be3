@@ -116,7 +116,7 @@ pub(crate) const PLANS: &[Plan] = &[
     },
     // The apps, the libraries apps are linked against and the crates that
     // test linking them (wasm_library and linked_app in buck/wasm/defs.bzl),
-    // the echo guest staged as an app, beui's demo and the paint review, whose
+    // the echo guest staged as an app and its worker, beui's demo and the paint review, whose
     // tests paint as an app's do: a plan of their own, since they want a
     // different wgpu.
     Plan {
@@ -128,6 +128,7 @@ pub(crate) const PLANS: &[Plan] = &[
             Prefix("be-sdk-library-", &[]),
             Prefix("be-tool-tls-diamond-", &[]),
             Named("be-wasm-guest-echo"),
+            Named("be-sdk-worker-echo"),
             Named("be-sdk"),
             Named("be-sdk-beui"),
             Named("beui-demo"),
