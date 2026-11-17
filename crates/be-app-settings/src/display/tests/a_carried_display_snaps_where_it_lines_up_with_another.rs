@@ -30,7 +30,9 @@ fn a_carried_display_snaps_where_it_lines_up_with_another() {
 
     let arrangement = settings.here().arrangement();
     assert_eq!(
-        arrangement.place(LAPTOP).map(|(x, _)| x + laptop.width() as i32),
+        arrangement
+            .place(LAPTOP)
+            .map(|(x, _)| x + laptop.width() as i32),
         arrangement.place(MONITOR).map(|(x, _)| x),
         "the laptop still meets the monitor's left edge"
     );
