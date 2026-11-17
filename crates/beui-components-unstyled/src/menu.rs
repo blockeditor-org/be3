@@ -7,14 +7,25 @@ use beui_view::types::Placement;
 use beui_view::types::Rect;
 use beui_view::types::Track;
 use beui_view::types::icons::Glyph;
-use beui_view::types::{Key, KeyPress};
+use beui_view::types::{Key, KeyPress, PointerPress, Pos2};
 
 use crate as unstyled;
 use crate::button::ButtonHandle;
+use crate::typeahead::Typeahead;
+use beui_view::measure::measure;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::time::{Duration, Instant};
+
+/// How long the pointer stays on a row before its submenu opens, or before
+/// another row's open submenu gives way to the row it is on.
+pub const SUBMENU_DELAY: Duration = Duration::from_millis(120);
+
+/// How long the pointer may rest on another row while it heads for the open
+/// submenu before that row takes over.
+pub const SUBMENU_GRACE: Duration = Duration::from_millis(300);
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum MenuRowKind {
@@ -284,6 +295,17 @@ impl Row {
     }
 }
 
+/// Where the pointer is in one menu level: the item it is over, where it was
+/// last, and the item waiting to take over once the pointer settles on it.
+#[derive(Default)]
+struct Intent {
+    over: Option<Focus>,
+    last: Option<Pos2>,
+    left_at: Option<Instant>,
+    pending: Option<Focus>,
+    timer: Option<Timer>,
+}
+
 #[derive(Clone, Copy)]
 struct State {
     rows: Stored<RefCell<Vec<Row>>>,
@@ -300,6 +322,8 @@ struct State {
     spacing: f32,
     bounds: Memo<Option<Rect>>,
     on_select: Callback<MenuThen>,
+    intent: Stored<RefCell<Intent>>,
+    typeahead: Stored<RefCell<Typeahead>>,
 }
 
 /// The keyboard of every menu, popup and submenu: one Tab stop, which Tab stays
@@ -308,7 +332,14 @@ struct State {
 /// row. Right opens an item's submenu and focuses its first item, or expands an
 /// inline group and then moves into it; Left collapses an expanded group, moves
 /// to its parent row, or else closes the submenu and refocuses the item that
-/// opened it. Escape closes one submenu level at a time.
+/// opened it. Escape closes one submenu level at a time. Typing letters moves to
+/// the next enabled item whose label starts with them (`Typeahead`).
+///
+/// The pointer highlights a row as it reaches it, but a submenu opens only once
+/// the pointer has stayed on its row for `SUBMENU_DELAY`, and an open submenu
+/// gives way to another row after the same delay. While the pointer heads for the
+/// open submenu (each move stays inside the triangle from where it was to the
+/// submenu's near edge) the rows it crosses wait for it to rest `SUBMENU_GRACE`.
 #[component]
 pub(crate) fn MenuList(
     #[prop(default = ComponentRef::new())] api: ComponentRef<MenuListApi>,
@@ -354,7 +385,14 @@ pub(crate) fn MenuList(
         spacing,
         bounds: create_memo(move || bounds.get()),
         on_select,
+        intent: store(RefCell::default()),
+        typeahead: store(RefCell::default()),
     };
+    let timer = create_timer(move || {
+        settle_intent(state);
+        None
+    });
+    state.intent.value().borrow_mut().timer = Some(timer);
     api.fill(MenuListApi(state));
     let active_focus = active.map(move |active| match active {
         false => Focus::Away,
@@ -421,6 +459,7 @@ pub(crate) fn MenuList(
                     }
                 }}
                 on_key={move |press: KeyPress| key(state, Focus::Root, press)}
+                on_text={move |text: String| typeahead(state, Focus::Root, &text)}
             />
             <Show
                 value={page}
@@ -497,8 +536,10 @@ fn MenuBackRow(
     focused: Selector<Focus>,
     row: RenderFn<MenuRowHandle, NodeId>,
 ) -> NodeId {
+    let pointed = Pointed::default();
+    let watched = pointed.clone();
     let content = move |handle: ButtonHandle| {
-        watch_hover(state, Focus::Back, handle.pointed);
+        watched.watch(state, Focus::Back, handle.pointed);
         row.call(MenuRowHandle {
             kind: MenuRowKind::Back,
             pointed: handle.pointed,
@@ -517,7 +558,9 @@ fn MenuBackRow(
             on_focus_change={move |has_focus: bool| lose_focus(state, Focus::Back, has_focus)}
             content
             on_click={move || state.parent.leave()}
+            on_hover_move={move |press: PointerPress| pointed.moved(state, Focus::Back, &press)}
             on_key={move |press: KeyPress| key(state, Focus::Back, press)}
+            on_text={move |text: String| typeahead(state, Focus::Back, &text)}
         />
     };
     if !matches!(&test_id, Prop::Static(id) if id.is_empty()) {
@@ -674,8 +717,10 @@ fn MenuTile(
     let at = Focus::Tile(index, tile);
     let test_id = item.test_id.clone();
     let face = item.clone();
+    let pointed = Pointed::default();
+    let watched = pointed.clone();
     let content = move |handle: ButtonHandle| {
-        watch_hover(state, at, handle.pointed);
+        watched.watch(state, at, handle.pointed);
         row.call(item_handle(MenuRowKind::Tile, &face, &handle))
     };
     let accessibility = row_accessibility(&item);
@@ -691,7 +736,9 @@ fn MenuTile(
             on_focus_change={move |has_focus: bool| lose_focus(state, at, has_focus)}
             content
             on_click={move || choose(state, &chosen)}
+            on_hover_move={move |press: PointerPress| pointed.moved(state, at, &press)}
             on_key={move |press: KeyPress| key(state, at, press)}
+            on_text={move |text: String| typeahead(state, at, &text)}
         />
     };
     if let Some(test_id) = test_id {
@@ -729,8 +776,10 @@ fn MenuRow(
         move || !children.is_empty()
     });
     let face = item.clone();
+    let pointed = Pointed::default();
+    let watched = pointed.clone();
     let content = move |handle: ButtonHandle| {
-        watch_hover(state, at, handle.pointed);
+        watched.watch(state, at, handle.pointed);
         row.call(MenuRowHandle {
             has_submenu: has_children.into_prop(),
             glyphs: state.glyphs.into_prop(),
@@ -755,11 +804,17 @@ fn MenuRow(
                     if chosen.disabled.get_untracked() {
                         return;
                     }
+                    cancel_intent(state);
+                    if chosen.opens() {
+                        close_sibling_submenus(state, Some(index));
+                    }
                     if !open_submenu(state, index) {
                         choose(state, &chosen);
                     }
                 }}
+                on_hover_move={move |press: PointerPress| pointed.moved(state, at, &press)}
                 on_key={move |press: KeyPress| key(state, at, press)}
+                on_text={move |text: String| typeahead(state, at, &text)}
             />
             <Show value={move || cascades && has_children.get()}>|| {
                 let children = children.clone();
@@ -776,7 +831,7 @@ fn MenuRow(
                         on_dismiss={move |_: Dismiss| open.set(false)}
                         content={move || {
                             let children = children.clone();
-                            panel.call(view! {
+                            let list = view! {
                                 <MenuList
                                     @node_ref={&content_ref}
                                     items={children}
@@ -789,7 +844,12 @@ fn MenuRow(
                                     bounds={state.bounds}
                                     on_select={state.on_select}
                                 />
-                            })
+                            };
+                            // Measured from the start, so the HTML core, which answers a
+                            // frame after the first ask, knows where it is by the time the
+                            // pointer heads for it.
+                            measure(list);
+                            panel.call(list)
                         }}
                     />
                 }
@@ -816,17 +876,154 @@ fn choose(state: State, item: &MenuItem) {
     }
 }
 
-fn watch_hover(state: State, at: Focus, pointed: ReadSignal<bool>) {
-    let mut was_pointed = false;
-    create_effect(move || {
-        let pointing = pointed.get();
-        match (was_pointed, pointing) {
-            (_, true) => hover(state, at),
-            (true, false) => leave(state, at),
-            (false, false) => {}
+/// An item's button's `pointed`: the pointer moved onto it, not an item that
+/// arrived under a resting pointer (a submenu opening there).
+#[derive(Clone, Default)]
+struct Pointed(Rc<Cell<Option<ReadSignal<bool>>>>);
+
+impl Pointed {
+    fn watch(&self, state: State, at: Focus, pointed: ReadSignal<bool>) {
+        self.0.set(Some(pointed));
+        let mut was_pointed = false;
+        create_effect(move || {
+            let pointing = pointed.get();
+            if was_pointed && !pointing {
+                leave(state, at);
+            }
+            was_pointed = pointing;
+        });
+    }
+
+    fn moved(&self, state: State, at: Focus, press: &PointerPress) {
+        if !press.touch && self.0.get().is_some_and(|pointed| pointed.get_untracked()) {
+            pointer_at(state, at, press);
         }
-        was_pointed = pointing;
+    }
+}
+
+fn pointer_at(state: State, at: Focus, press: &PointerPress) {
+    let (from, entered, pending) = {
+        let intent = state.intent.value();
+        let mut intent = intent.borrow_mut();
+        let away = intent.over.is_none() && intent.left_at.is_some_and(|left| left < now());
+        let from = intent.last.replace(press.pos).filter(|_| !away);
+        intent.left_at = None;
+        let entered = intent.over != Some(at);
+        intent.over = Some(at);
+        (from, entered, intent.pending)
+    };
+    if !entered && pending != Some(at) {
+        return;
+    }
+    let open = open_row(state);
+    if open.is_some_and(|open| Focus::Row(open) == at) {
+        cancel_intent(state);
+        return;
+    }
+    let heading = open.is_some_and(|open| {
+        from.is_some_and(|from| heading_into(state, open, from, press))
     });
+    let delay = match (open, heading) {
+        (Some(_), true) => SUBMENU_GRACE,
+        (Some(_), false) => SUBMENU_DELAY,
+        (None, _) if cascades(state, at) => {
+            if entered {
+                focus_on(state, at);
+            }
+            SUBMENU_DELAY
+        }
+        (None, _) => {
+            cancel_intent(state);
+            focus_on(state, at);
+            return;
+        }
+    };
+    let intent = state.intent.value();
+    let mut intent = intent.borrow_mut();
+    intent.pending = Some(at);
+    let Some(timer) = intent.timer else {
+        return;
+    };
+    drop(intent);
+    match entered || heading {
+        true => timer.restart(delay),
+        false => timer.start(delay),
+    }
+}
+
+fn settle_intent(state: State) {
+    let ready = {
+        let intent = state.intent.value();
+        let mut intent = intent.borrow_mut();
+        let pending = intent.pending.take();
+        pending.filter(|at| intent.over == Some(*at))
+    };
+    if let Some(at) = ready {
+        hover(state, at);
+    }
+}
+
+fn cancel_intent(state: State) {
+    let intent = state.intent.value();
+    let mut intent = intent.borrow_mut();
+    intent.pending = None;
+    if let Some(timer) = intent.timer {
+        timer.stop();
+    }
+}
+
+fn open_row(state: State) -> Option<usize> {
+    state
+        .rows
+        .value()
+        .borrow()
+        .iter()
+        .position(|row| row.submenu.open.get_untracked())
+}
+
+fn cascades(state: State, at: Focus) -> bool {
+    let Focus::Row(index) = at else {
+        return false;
+    };
+    state
+        .rows
+        .value()
+        .borrow()
+        .get(index)
+        .is_some_and(|row| row.has_children() && !row.item.page && !state.pages)
+}
+
+/// Whether the pointer, moving from `from` to where `press` is, stays inside the
+/// triangle from `from` to the near edge of row `open`'s submenu: on its way there
+/// across the rows between. A submenu in another window than its row (a layer
+/// escaped into a window of its own) shares no coordinates with it, so the
+/// triangle is off there and only the delays apply.
+fn heading_into(state: State, open: usize, from: Pos2, press: &PointerPress) -> bool {
+    let content = state
+        .rows
+        .value()
+        .borrow()
+        .get(open)
+        .and_then(|row| row.submenu.content.try_get());
+    let Some(content) = content.filter(|content| window_of(*content) == press.window) else {
+        return false;
+    };
+    let Some(placed) = measure(content).get_untracked() else {
+        return false;
+    };
+    let (rect, to) = (placed.rect, press.pos);
+    let edge = match from.x {
+        x if x <= rect.min.x => rect.min.x,
+        x if x >= rect.max.x => rect.max.x,
+        _ => return false,
+    };
+    if (edge - to.x).abs() >= (edge - from.x).abs() {
+        return false;
+    }
+    let (top, bottom) = (Pos2::new(edge, rect.min.y), Pos2::new(edge, rect.max.y));
+    let side = |a: Pos2, b: Pos2| (b.x - a.x) * (to.y - a.y) - (b.y - a.y) * (to.x - a.x);
+    let sides = [side(from, top), side(top, bottom), side(bottom, from)];
+    sides.iter().all(|side| *side >= 0.0) || sides.iter().all(|side| *side <= 0.0)
 }
 
 fn lose_focus(state: State, at: Focus, has_focus: bool) {
@@ -874,23 +1071,29 @@ fn close_sibling_submenus(state: State, index: Option<usize>) {
 }
 
 fn hover(state: State, at: Focus) {
-    if let Focus::Row(index) = at {
-        let cascades = state
-            .rows
-            .value()
-            .borrow()
-            .get(index)
-            .is_some_and(|row| row.has_children() && !row.item.page && !state.pages);
-        if cascades {
-            close_sibling_submenus(state, Some(index));
-            open_submenu(state, index);
-            return;
-        }
+    if let Focus::Row(index) = at
+        && cascades(state, at)
+    {
+        close_sibling_submenus(state, Some(index));
+        open_submenu(state, index);
+        return;
     }
     focus_on(state, at);
 }
 
 fn leave(state: State, at: Focus) {
+    let waiting = {
+        let intent = state.intent.value();
+        let mut intent = intent.borrow_mut();
+        if intent.over == Some(at) {
+            intent.over = None;
+            intent.left_at = Some(now());
+        }
+        intent.pending == Some(at)
+    };
+    if waiting {
+        cancel_intent(state);
+    }
     let open = match at {
         Focus::Row(index) => state
             .rows
@@ -1154,9 +1357,40 @@ fn key(state: State, at: Focus, press: KeyPress) -> bool {
         }
     };
     if let Some(target) = target {
+        cancel_intent(state);
         focus_on(state, target);
     }
     true
+}
+
+fn typeahead(state: State, at: Focus, text: &str) {
+    let stops = Stops::of(state);
+    let count = stops.stops.len();
+    let from = stops.position(at).unwrap_or(count.saturating_sub(1));
+    let matched =
+        state
+            .typeahead
+            .value()
+            .borrow_mut()
+            .matched(text, from, count, |stop| stop_label(state, stops.stops[stop]));
+    if let Some(matched) = matched {
+        cancel_intent(state);
+        focus_on(state, stops.stops[matched]);
+    }
+}
+
+/// What typeahead matches an item by: its label, or nothing for a disabled item
+/// or the back row.
+fn stop_label(state: State, stop: Focus) -> String {
+    let item = match stop {
+        Focus::Row(index) => item_at(state, index),
+        Focus::Tile(index, tile) => item_at(state, index)
+            .and_then(|grid| grid.children.get_untracked().get(tile).cloned()),
+        _ => None,
+    };
+    item.filter(|item| !item.disabled.get_untracked())
+        .map(|item| item.label.get_untracked())
+        .unwrap_or_default()
 }
 
 #[component]

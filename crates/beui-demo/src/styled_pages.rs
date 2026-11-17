@@ -2072,6 +2072,7 @@ fn CardMenu() -> NodeId {
             <ContextMenu
                 items={view! {
                     <MenuItem
+                        @test_id="demo.menu.copy"
                         label="Copy"
                         glyph=ICON_COPY
                         detail="Ctrl+C"
@@ -2081,25 +2082,47 @@ fn CardMenu() -> NodeId {
                         }}
                     />
                     <MenuItem
+                        @test_id="demo.menu.paste"
                         label="Paste"
                         glyph=ICON_CLIPBOARD
                         detail="Ctrl+V"
                         disabled={move || !copied.get()}
                         on_click={move || menu_text.set("Chose: Paste".to_owned())}
                     />
-                    <MenuItem label="Share" glyph=ICON_SHARE_2>
+                    <MenuItem @test_id="demo.menu.share" label="Share" glyph=ICON_SHARE_2>
                         <MenuItem
+                            @test_id="demo.menu.share.email"
                             label="Email"
                             glyph=ICON_MAIL
                             on_click={move || menu_text.set("Chose: Share > Email".to_owned())}
                         />
                         <MenuItem
+                            @test_id="demo.menu.share.link"
                             label="Link"
                             glyph=ICON_LINK
                             on_click={move || menu_text.set("Chose: Share > Link".to_owned())}
                         />
+                        <MenuItem
+                            @test_id="demo.menu.share.message"
+                            label="Message"
+                            glyph=ICON_SEND
+                            on_click={move || menu_text.set("Chose: Share > Message".to_owned())}
+                        />
+                    </MenuItem>
+                    <MenuItem @test_id="demo.menu.export" label="Export" glyph=ICON_DOWNLOAD>
+                        <MenuItem
+                            @test_id="demo.menu.export.pdf"
+                            label="PDF"
+                            on_click={move || menu_text.set("Chose: Export > PDF".to_owned())}
+                        />
+                        <MenuItem
+                            @test_id="demo.menu.export.png"
+                            label="PNG"
+                            on_click={move || menu_text.set("Chose: Export > PNG".to_owned())}
+                        />
                     </MenuItem>
                     <MenuItem
+                        @test_id="demo.menu.delete"
                         label="Delete"
                         glyph=ICON_TRASH
                         danger=true
@@ -2108,13 +2131,16 @@ fn CardMenu() -> NodeId {
                     />
                 }}
             >
-                <Card>
+                <Card @test_id="demo.menu.card">
                     <List spacing=Space::Xs>
                         <Text style=TextStyle::CAPTION>"Right-click or long-press this card"</Text>
                         <Text style=TextStyle::PARAGRAPH>
                             "A mouse opens the menu at the pointer and a finger opens \
-                             it as a sheet. Paste stays disabled until Copy is chosen; Share \
-                             opens a submenu on hover or Right Arrow, and Left Arrow closes it."
+                             it as a sheet. Paste stays disabled until Copy is chosen. Share \
+                             and Export open a submenu once the pointer stays on them or on \
+                             Right Arrow, and Left Arrow closes it; heading for an open submenu \
+                             across Export keeps it open. Typing a label's first letters moves \
+                             to it."
                         </Text>
                     </List>
                 </Card>

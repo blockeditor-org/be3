@@ -55,6 +55,10 @@ control's exact keys are in its code and tests. The patterns that span them:
   focus.
 - The context menu opens on Shift+F10 or the Menu key with the focus in its
   `ContextMenu` or on the control it is part of; Escape closes one level.
+- Typing letters in a tree or a menu (each submenu on its own) moves to the
+  next enabled item whose label starts with them, through the one
+  `unstyled::typeahead::Typeahead`: letters typed within a second add to the
+  search, and one letter typed again steps through the items it starts.
 - The inspector is a document of its own; Ctrl+Shift+F moves the focus into
   it and back.
 

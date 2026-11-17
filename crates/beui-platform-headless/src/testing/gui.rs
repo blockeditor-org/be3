@@ -330,6 +330,16 @@ pub trait Gui {
         act(self, "back", &[], &[]);
     }
 
+    /// Lets `by` pass a frame at a time, painting each, as `drive pause` does: what waits
+    /// on the clock (a submenu's hover delay, a timeout) is due by the end. `settle` does
+    /// not move the clock past a delay a program asked for.
+    fn pause(&mut self, by: Duration) {
+        let frames = by.as_nanos().div_ceil(FRAME_INTERVAL.as_nanos());
+        for _ in 0..frames {
+            self.run();
+        }
+    }
+
     /// Paints until a frame stops asking to be painted again at once. Call it before a
     /// snapshot of something that animates in.
     fn settle(&mut self) {
