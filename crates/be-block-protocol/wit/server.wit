@@ -268,8 +268,9 @@ interface server {
         /// stores (`put-keys(rows)` after it), checked at the write's end.
         create-block(create-block),
         /// Moves the head to `commit` if it is `expected`, or with no commit
-        /// sets the metadata and the references alone, the head staying
-        /// `expected` (refused with `block-has-content` when it is not).
+        /// sets the metadata and the references alone while the head is
+        /// `expected`, which stays the head, answered as `block`; either is
+        /// `published(rejected)` with the head when it is not `expected`.
         /// `references` is a change from what `expected` holds (with none,
         /// the whole list), so a commit that changes little sends little.
         /// With `journal`, a seal of the block's live session, which needs a

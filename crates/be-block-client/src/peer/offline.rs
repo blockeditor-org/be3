@@ -876,7 +876,7 @@ impl<S: ObjectStore> Peer<S> {
     ) -> Result<Drained, ClientError> {
         let block = defining.block;
         let response = crate::ask(
-            be_block_protocol::write::<be_block_protocol::BlockSummary, _>(
+            be_block_protocol::write::<be_block_protocol::Described, _>(
                 &self.connection(),
                 Some(self.organization),
                 be_block_protocol::Op::Publish {
@@ -894,12 +894,13 @@ impl<S: ObjectStore> Peer<S> {
         )
         .await;
         match response {
-            Ok(summary) => {
+            Ok(be_block_protocol::Described::Block(summary)) => {
                 self.refs.remove(&[sequence])?;
                 self.note(&summary);
                 Ok(Drained::Defined { block })
             }
-            Err(ClientError::Refused(ErrorCode::BlockHasContent, _)) => {
+            // It has content now: what it defined goes in a commit.
+            Ok(be_block_protocol::Described::Rejected(_)) => {
                 self.refs.remove(&[sequence])?;
                 let plain = self
                     .commits

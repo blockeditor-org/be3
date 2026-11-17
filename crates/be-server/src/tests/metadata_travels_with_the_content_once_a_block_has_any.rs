@@ -68,7 +68,7 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
 
     let response = author_connection
         .call(|peer| {
-            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
                 block: block,
                 expected: None,
                 commit: None,
@@ -78,15 +78,9 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
             })
         })
         .await;
-    assert!(
-        matches!(
-            response,
-            Err(Error {
-                code: ErrorCode::BlockHasContent,
-                ..
-            })
-        ),
-        "{response:?}"
+    assert_eq!(
+        response,
+        Ok(be_block_protocol::PublishOutcome::Rejected(Some(head)))
     );
     assert_eq!(
         author_connection.read_block(block).await.metadata,

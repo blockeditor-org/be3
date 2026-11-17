@@ -1557,11 +1557,17 @@ impl<S: ObjectStore> Peer<S> {
     /// The key a block made or moved under `parent` is wrapped under: its scope's, once the
     /// signed parent records place `parent` under that scope (`signed_below`).
     async fn scope_key_under(&self, parent: Uuid) -> Result<Uuid, ClientError> {
+        Ok(self.scope_under(parent).await?.1)
+    }
+
+    /// The scope `parent` lies in and its key, once the signed parent records place `parent`
+    /// under it.
+    async fn scope_under(&self, parent: Uuid) -> Result<(Uuid, Uuid), ClientError> {
         let summary = self.summary(parent).await?;
         self.note(&summary);
         let scope = scope_of(&summary)?;
         self.signed_below(parent, scope).await?;
-        self.scope_key(scope).await
+        Ok((scope, self.scope_key(scope).await?))
     }
 
     /// `scope_key_under` for a creation, which is never refused offline: where the logs cannot
@@ -2602,7 +2608,7 @@ impl<S: ObjectStore> Peer<S> {
                     return self.define_locally(summary, sealed, references);
                 }
                 let response = crate::ask(be_block_protocol::write::<
-                    be_block_protocol::BlockSummary,
+                    be_block_protocol::Described,
                     _,
                 >(
                     &self.connection(),
@@ -2621,8 +2627,9 @@ impl<S: ObjectStore> Peer<S> {
                 ))
                 .await;
                 match response {
-                    Ok(block) => return Ok(block),
-                    Err(ClientError::Refused(ErrorCode::BlockHasContent, _)) => continue,
+                    Ok(be_block_protocol::Described::Block(block)) => return Ok(block),
+                    // It has content now: its metadata goes in a commit.
+                    Ok(be_block_protocol::Described::Rejected(_)) => continue,
                     Err(error) if offline::unreachable(&error) => {
                         return self.define_locally(summary, sealed, references);
                     }
@@ -4140,16 +4147,17 @@ impl<S: ObjectStore> Peer<S> {
         let shared = own
             || (moved.scope == Some(block) && matches!(moved.parent, Some(BlockParent::Block(_))));
         let parent_scope = match parent {
-            BlockParent::Block(parent) => Some(self.scope_key_under(parent).await?),
+            BlockParent::Block(parent) => Some(self.scope_under(parent).await?),
             BlockParent::Root | BlockParent::Detached => None,
         };
         let mut keys = KeySet::default();
         if moved.owner_only {
             return Ok(keys);
         }
-        let under = match (shared, parent_scope) {
+        let (scope, under) = match (shared, parent_scope) {
             (false, Some(under)) => under,
             (_, parent_scope) => {
+                let parent_scope = parent_scope.map(|(_, key)| key);
                 let own = match self.keys.scope_key(block) {
                     Some(own) => own,
                     None => {
@@ -4167,11 +4175,15 @@ impl<S: ObjectStore> Peer<S> {
                 {
                     keys.wrapped.push(self.keys.wrap(own, parent_scope)?);
                 }
-                own
+                (block, own)
             }
         };
         let wrapped_under = |key: Uuid| self.keys.wrapped_by(key).contains(&WrappedBy::Key(under));
-        if moved.key.is_some_and(wrapped_under) {
+        // Within the scope it was in, what lies below it is wrapped as it was. Into another, each
+        // block below is looked at, though the moved one's key is wrapped there already (it was
+        // there before): one made below it since is not, and the server checks every one
+        // (`keys::Whole::Moved`).
+        if moved.scope == Some(scope) && moved.key.is_some_and(wrapped_under) {
             return Ok(keys);
         }
         let mut level = vec![moved];
@@ -4189,9 +4201,11 @@ impl<S: ObjectStore> Peer<S> {
                     self.placed_under(node.id, listed).await?;
                 }
                 if node.id != block && node.scope == Some(node.id) {
+                    // Not inside a block readable by its author alone, which the walk skips: a
+                    // nested scope's key wrapped under one too (a scope moved out of it) is
+                    // wrapped under the new scope as well, as the server checks.
                     if let Some(nested) = self.keys.scope_key(node.id)
                         && !wrapped_under(nested)
-                        && !self.keys.owner_only_covers(nested)
                     {
                         keys.wrapped.push(self.keys.wrap(nested, under)?);
                     }

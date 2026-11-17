@@ -244,21 +244,32 @@ In three pieces, each landing whole.
   `be_block_protocol::write_all` for a write answered as its first op. Where
   it differs: a publish with no commit is answered with the block's summary
   (`done.block`, as `set-metadata` was), and a head other than `expected`
-  refuses it with `block-has-content` rather than answering `rejected`; it
+  rejects it as any publish is (`published(rejected(head))`, read as
+  `be_block_protocol::Described`), so `block-has-content` is gone; it
   carries no journal seal, so a trim stays a publish of the head on itself.
   `create-block` still names its key (`key`), set on the block at once so its
   answer's summary names it, and the end checks its row. A write that makes or
   moves a block is a transaction even of one op. The move check skips what
   takes no key anywhere new (a move within one scope, to the top or the trash,
   of an owner-only block, or into a scope with no key) and what the mover may
-  not view, as `Peer::rescope` does. The client sends no `[move,
+  not view, as `Peer::rescope` does, which looks at every block below once the
+  scope changes (not only when the moved block's key is not wrapped there
+  yet) and wraps a nested scope moved out of an owner-only block too. Only the
+  scope's latest key counts, so a block restored from the trash into a scope
+  rotated meanwhile is wrapped again. The check makes a few queries per block
+  moved inside the write's transaction, as `rescope` lists and wraps each:
+  bounded by the subtree, which a large move into another scope already
+  costs. The client sends no `[move,
   put-keys(rotate)]`: a move out of a scope still leaves the rotation to key
   work (`lost_below`, `Peer::tend`), which the server allows in one write but
   nothing needs yet. Storing a new block's keys through `put-keys` tells
   `topic.keys` to its viewers, which `create-block` did not. Tests:
   `a_block_made_with_no_key_in_its_write_is_refused`,
   `a_move_missing_one_blocks_wrap_under_its_new_scope_is_refused_whole`,
-  `a_publish_with_no_commit_changes_the_metadata_and_leaves_the_head`, and
+  `a_publish_with_no_commit_changes_the_metadata_and_leaves_the_head`,
+  be-block-client's
+  `a_block_moved_back_into_a_scope_takes_what_was_made_below_it_meanwhile` and
+  `a_block_restored_into_a_scope_rotated_while_it_was_in_the_trash_is_wrapped_under_its_new_key`, and
   `every_call_states_who_may_make_it`'s `publish (no commit)`.
 
 Guides: guides/blocks/server.md ("Protocol", "Organizations and access",
