@@ -1288,10 +1288,40 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// The key `block` is sealed with now. One its scope's log outdates gets the scope a new
-    /// epoch first, and when that cannot go through, the write fails as
-    /// `Locked`: what is sealed here may be uploaded at once (a part, a relay, a journal entry).
+    /// epoch first. When the server refuses that, the write fails as `Locked`: what is sealed
+    /// here may be uploaded at once (a part, a relay, a journal entry). When the server cannot
+    /// be reached, it fails as that (`ClientError::is_unreachable`), to wait for a connection.
     pub async fn sealing_key(&self, block: Uuid) -> Result<Uuid, ClientError> {
         self.sealing_key_for(block, false).await
+    }
+
+    /// Whether this device holds the key `block` is sealed with now, its keys asked for again
+    /// when it does not: what `sealing_key` finds, read only, never rotating. A server that
+    /// cannot be reached for the block's summary or keys fails as that, not as false.
+    pub async fn holds_key(&self, block: Uuid) -> Result<bool, ClientError> {
+        let known = self.current.lock().unwrap().get(&block).copied();
+        let key = match known {
+            Some(key) => key,
+            None => match self.refs.summary(block) {
+                Some(summary) => match summary.key {
+                    Some(key) => key,
+                    None => return Ok(false),
+                },
+                None => match self.summary(block).await?.key {
+                    Some(key) => key,
+                    None => return Ok(false),
+                },
+            },
+        };
+        let settings = block == self.organization_settings();
+        let usable = |key: Uuid| self.keys.trusted(key) || (settings && self.keys.server_held(key));
+        if !usable(key) {
+            if !self.local && !self.is_attached() {
+                return Err(ClientError::Disconnected("offline".into()));
+            }
+            self.refresh_keys(Some(vec![block])).await?;
+        }
+        Ok(usable(key))
     }
 
     /// `sealing_key` for what goes only into the outbox (a commit and the content it holds),
