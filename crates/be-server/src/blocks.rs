@@ -1976,7 +1976,9 @@ impl ServerStore {
                 }
             }
             if account == ANYONE_INSIDE {
-                if graph.settings_owner(block).is_none() || access > Access::View {
+                if graph.settings_owner(block).is_none()
+                    || !matches!(access, Access::None | Access::View)
+                {
                     return Err(ServerError::Refused(
                         ErrorCode::InvalidRequest,
                         "only a kind of settings opens to anyone who can view a block inside, and only to view".into(),

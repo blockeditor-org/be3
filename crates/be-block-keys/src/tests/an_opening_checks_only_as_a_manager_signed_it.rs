@@ -49,11 +49,13 @@ fn an_opening_checks_only_as_a_manager_signed_it() {
         check(&[root.clone(), edit, by_editor]).is_err(),
         "one who does not manage the block opens nothing"
     );
-    let wider = opening(&creator, creator_id, root.hash(), Level::Edit, Authority::Log);
-    assert!(
-        check(&[root.clone(), wider]).is_err(),
-        "a block opens to anyone inside only to view"
-    );
+    for level in [Level::KnowExists, Level::Edit, Level::Manage] {
+        let other = opening(&creator, creator_id, root.hash(), level, Authority::Log);
+        assert!(
+            check(&[root.clone(), other]).is_err(),
+            "a block opens to anyone inside only to view, or closes"
+        );
+    }
     let inherited = opening(
         &member,
         member_id,

@@ -418,8 +418,10 @@ instead.
      their signed revocations, refused without them; only the server's own
      (agents collected or deleted, `remove-contact` in another organization)
      wait in key work for a manager's `tend`. Left to 3d: sealing against an
-     epoch's head (until then a server that withholds a signed revocation
-     can have the next epoch sealed to the revoked member), and checking a
+     epoch's head (until then a server that withholds a signed revocation,
+     or a kind's signed closing, can have the next epoch sealed to the
+     revoked member or to a contact inside, since a served log need only
+     extend the pinned root, not reach the newest head), and checking a
      contact sender's Edit as of that head. Done: a test where a grantee who is not a contact gets
      the key and a contact with no grant does not; one where the server lists
      a contact as granted with no record and no key reaches them; one where
@@ -427,10 +429,13 @@ instead.
      sealed to a contact.
    - **3d. Key epochs bound to log heads.** Each new epoch names the log head
      it was made under, signed by its maker; a device seals or wraps it only
-     to members granted as of that head and must hold the log up to it. Done:
-     a test where the server withholds a revocation from a device and that
-     device seals the new epoch to nobody until it has the log up to the
-     epoch's head.
+     to members granted as of that head and must hold the log up to it. The
+     same holds for the organization's log: a server that withholds an
+     administrator's demotion keeps them sealed keys until a device holds
+     the log up to the head an epoch names. Done: a test where the server
+     withholds a revocation from a device and that device seals the new
+     epoch to nobody until it has the log up to the epoch's head; the same
+     for a withheld closing of a kind open inside, and a withheld demotion.
    - **3e. Proof paths.** Whole logs to Edit and above, proof paths to
      readers below Edit ("Who is served what"). Done: a test where a member
      with View is served no other member's grant.
