@@ -11,7 +11,7 @@ use beui_view::types::Color;
 use beui_view::types::Corners;
 use beui_view::types::{SpanBackground, SpanStyle};
 
-use super::rows::{RowTable, gutter_quotes};
+use super::rows::{RowTable, quote_in_text};
 use super::state::TextAreaState;
 use beui_view::types::{Align2, Extent, Sides};
 
@@ -148,6 +148,8 @@ pub struct TextLine {
     /// How far short of the text's right edge a rule on this line ends, so a line hook draws
     /// it only as far as its characters' shares, where its carets and selection end.
     pub rule_short: Memo<f32>,
+    /// How far past the text's left edge a rule on this line starts (past a quote's gutter).
+    pub rule_start: Memo<f32>,
     pub text: NodeId,
 }
 
@@ -208,11 +210,13 @@ impl TextLine {
                 false => 0.0,
             };
             let margin = margin.get();
+            // A row that lays its quote's gutter out itself lays the nesting after it too.
+            if quote_in_text(&look) {
+                return margin.left - outdent.get();
+            }
             let hung = listed && look.quote == 0 && margin.hangs;
             let nested = (levels - f32::from(u8::from(hung))) * LIST_INDENT_EM;
-            // The quote levels whose prefix the row lays out over the gutter are in the text.
-            let gutter = (look.quote - gutter_quotes(&look)) as f32;
-            let indent = (gutter * QUOTE_INDENT_EM + nested) * size.get();
+            let indent = (look.quote as f32 * QUOTE_INDENT_EM + nested) * size.get();
             margin.left + indent - outdent.get()
         })
     }

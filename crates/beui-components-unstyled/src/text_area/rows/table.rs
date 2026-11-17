@@ -241,11 +241,31 @@ impl Builder<'_> {
         }
     }
 
+    /// Lays out the spaces a table row has before its first pipe (past a quote's prefix) as
+    /// text, giving where the row's cells start and how wide the spaces were.
+    pub(super) fn table_lead(&mut self, content: Range<usize>, body: SpanStyle) -> (usize, f32) {
+        let bytes = &self.inputs.snapshot.bytes;
+        let lead = bytes[content.clone()]
+            .iter()
+            .take_while(|byte| matches!(byte, b' ' | b'\t'))
+            .count();
+        if lead == 0 {
+            return (content.start, 0.0);
+        }
+        let spaces = content.start..content.start + lead;
+        let text = String::from_utf8_lossy(&bytes[spaces.clone()]).into_owned();
+        self.push(&text, spaces.clone(), true, body, SpanKind::Text);
+        (spaces.end, text_width(&text, body.font))
+    }
+
+    /// A table row's cells, laid out from `origin` across the row (past a quote's gutter), so
+    /// its grid lines (`RowTable::edges`) are there too.
     pub(super) fn table_row(
         &mut self,
         table: TableLine,
         content: Range<usize>,
         columns: &TableColumns,
+        origin: f32,
         body: SpanStyle,
     ) {
         let inputs = self.inputs;
@@ -257,7 +277,7 @@ impl Builder<'_> {
         let parsed = cells(bytes, content.clone());
         let count = columns.widths.len().max(parsed.cells.len());
         let mut edges = Vec::with_capacity(count + 1);
-        let mut edge = body_pipe / 2.0;
+        let mut edge = origin + body_pipe / 2.0;
         for index in 0..count {
             edges.push(edge);
             edge += padding * 2.0 + columns.widths.get(index).copied().unwrap_or(0.0);
@@ -268,7 +288,7 @@ impl Builder<'_> {
         // on its left and one after it beside the content on its right; the grid lines are
         // drawn at `edges`, apart from the pipes.
         let hidden = Some(Color::TRANSPARENT);
-        let mut x = 0.0;
+        let mut x = origin;
         for (index, cell) in parsed.cells.iter().enumerate() {
             if let Some(pipe_at) = cell.pipe {
                 x += self.table_text(pipe_at..pipe_at + 1, table.row, hidden);

@@ -17,6 +17,7 @@ use be_sdk_beui::be_block_content::{EditorView, EditorViewContent};
 use be_type_text::{TextBlock, TextContent};
 use beui::Vec2;
 mod a_bullet_a_peer_makes_a_task_draws_a_checkbox;
+mod quoted_lists_rules_and_tables_lay_their_prefix_over_the_gutter;
 mod nested_and_tight_quotes_take_a_column_per_level;
 mod a_quotes_prefix_takes_the_bar_and_the_gap_beside_it;
 mod a_caret_beside_a_table_pipe_stands_by_the_cells_content;

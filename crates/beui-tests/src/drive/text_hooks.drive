@@ -5,9 +5,11 @@ click '#text_hooks.read'
 wait 'value="Texts Alpha,Beta row 3 at Some(60.0)"'
 
 # A text's selection hooks: the highlight is a mark box in the text's decoration, and each
-# handle is a caret handle there; both go when cleared.
+# handle is a caret handle there; both go when cleared. The word's background is drawn in the
+# decoration too, under the mark, so the selection shows over it.
 click '#text_hooks.select'
 #web elements .beui-mark 1
+#web elements .beui-span-background 1
 #web elements .beui-caret-handle 2
 click '#text_hooks.clear'
 #web elements .beui-mark 0

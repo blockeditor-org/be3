@@ -221,7 +221,7 @@ impl TextChild {
                     ),
                 };
                 set_style(node, "width", Some(width));
-                (node, Piece::Skip { newline: false })
+                (node, Piece::Gap)
             }
             TextChild::Blank(blank) => {
                 // A space in the blank's font, so a mark or glyph over it is as tall as the
@@ -430,6 +430,12 @@ impl Span {
                 span,
                 "border-radius",
                 background.map(|background| css::px(background.radius)),
+            );
+            // A decorated text draws the background itself, under its marks.
+            set_attribute(
+                span,
+                "data-beui-background",
+                background.map(|_| String::new()),
             );
             let clone = background.map(|_| "clone".to_owned());
             set_style(span, "box-decoration-break", clone.clone());

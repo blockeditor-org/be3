@@ -6,16 +6,22 @@ use beui_view::types::{Color, FontId, GapWidth, SpanStyle};
 
 use super::table::unseen_width;
 use super::{Builder, SpanKind, UNSEEN_SIZE};
-use crate::text_area::hooks::QUOTE_INDENT_EM;
+use crate::text_area::hooks::{LIST_INDENT_EM, QUOTE_INDENT_EM};
 
-/// How many of a line's quote levels its row lays out in the quote's gutter, with their `>`
-/// and the space after it, rather than indenting its text past the gutter: those of a plain
-/// quote line holding its `>`s. A list, table or code block in a quote keeps its prefix in its
-/// marker, its text indented past the bars.
-pub fn gutter_quotes(look: &LineLook) -> usize {
-    match look.list.is_none() && !look.continues && look.table.is_none() && !look.code_block {
-        true => look.quote_marks,
-        false => 0,
+/// Whether a line's row lays out its quote's gutter itself, every level's column with the `>`
+/// and space it holds, then any list nesting, rather than its text being indented past them:
+/// a quote line holding a `>`, but for a code block's, which sits in its block's frame. The one
+/// answer the row and its line's indent both follow (`TextLine::indent`).
+pub fn quote_in_text(look: &LineLook) -> bool {
+    look.quote_marks > 0 && !look.code_block
+}
+
+/// The ems of list nesting a row whose quote is in its text lays out after the quote's
+/// columns, as its line would otherwise indent it.
+pub fn quoted_nesting_em(look: &LineLook) -> f32 {
+    match look.list.is_some() || look.continues {
+        true => (look.depth + usize::from(look.continues)) as f32 * LIST_INDENT_EM,
+        false => 0.0,
     }
 }
 
@@ -25,13 +31,14 @@ impl Builder<'_> {
     /// the rest of the column, so the caret stands left of a bar before its `>`, just right of
     /// it after, and at the next column or the text after the space; a level whose `>` has no
     /// space after it leaves that room as a gap. A level with no `>` on the line (a lazy
-    /// continuation) is a gap of the column's width. Gives where the text after it starts.
+    /// continuation) is a gap of the column's width. Then any list nesting, as a gap. Gives
+    /// where the text after it starts, and how wide it is.
     pub(super) fn quote_prefix(
         &mut self,
         look: &LineLook,
         line: Range<usize>,
         body: SpanStyle,
-    ) -> usize {
+    ) -> (usize, f32) {
         let bytes = &self.inputs.snapshot.bytes;
         let options = &self.inputs.options;
         let column = options.body_size * QUOTE_INDENT_EM;
@@ -53,7 +60,7 @@ impl Builder<'_> {
                     .iter()
                     .take_while(|byte| matches!(byte, b' ' | b'\t'))
                     .count();
-            if level >= gutter_quotes(look) || next >= line.end || bytes[next] != b'>' {
+            if level >= look.quote_marks || next >= line.end || bytes[next] != b'>' {
                 self.gap(GapWidth::px(column), body);
                 continue;
             }
@@ -70,7 +77,11 @@ impl Builder<'_> {
                 _ => self.gap(GapWidth::px(column - bar), body),
             }
         }
+        let nesting = quoted_nesting_em(look) * options.body_size;
+        if nesting > 0.0 {
+            self.gap(GapWidth::px(nesting), body);
+        }
         self.row.hang = self.row.display.len();
-        at
+        (at, look.quote as f32 * column + nesting)
     }
 }

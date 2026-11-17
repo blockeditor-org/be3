@@ -12,12 +12,14 @@ const RULE_SLACK: f32 = 0.5;
 impl Builder<'_> {
     /// A thematic break's characters, unseen: the rule is drawn in their place. When `shared`
     /// (a rule with no marker before it) each takes an equal share of the row's width, so the
-    /// caret's stops divide the rule evenly and it steps across a character at a time. Gives
-    /// the spans it pushed, for `fit_rule`.
+    /// caret's stops divide the rule evenly and it steps across a character at a time; the
+    /// shares are of the row past the `gutter` laid out before it (a quote's columns), where
+    /// the rule is drawn from (`Row::rule_start`). Gives the spans it pushed, for `fit_rule`.
     pub(super) fn rule(
         &mut self,
         characters: Range<usize>,
         shared: bool,
+        gutter: f32,
         body: SpanStyle,
     ) -> Range<usize> {
         let bytes = &self.inputs.snapshot.bytes;
@@ -35,7 +37,9 @@ impl Builder<'_> {
             false => hidden,
         };
         let first = self.row.spans.len();
+        self.row.rule_start = gutter;
         let share = 1.0 / characters.len().max(1) as f32;
+        let used = gutter / characters.len().max(1) as f32;
         for at in characters {
             let text = String::from_utf8_lossy(&bytes[at..at + 1]).into_owned();
             let width = match shared {
@@ -44,7 +48,7 @@ impl Builder<'_> {
             };
             self.push(&text, at..at + 1, true, hidden, SpanKind::Text);
             if shared {
-                let px = -width - RULE_SLACK;
+                let px = -width - RULE_SLACK - used;
                 self.gap(GapWidth { px, share }, body);
             }
         }

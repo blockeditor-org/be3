@@ -579,7 +579,14 @@ fn TextHooksFixture() -> NodeId {
                 }}
             />
             <Text color={INK}>{read}</Text>
-            <Text @node_ref=&chosen @test_id="text_hooks.chosen" color={INK}>"Hello world"</Text>
+            <Text @node_ref=&chosen @test_id="text_hooks.chosen" color={INK}>
+                "Hello "
+                <Span background={Some(beui::SpanBackground {
+                    color: PAPER.into(),
+                    radius: 3.0,
+                    outset: Vec2::ZERO,
+                })}>"world"</Span>
+            </Text>
             <Button
                 id="text_hooks.select"
                 label="Select world"

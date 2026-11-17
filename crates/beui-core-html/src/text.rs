@@ -230,6 +230,9 @@ fn glyph_node(text: &str, segment: Segment) -> Held {
 pub enum Piece {
     Run(Rc<Run>),
     Item(Prop<TextSlot>),
+    /// A `Gap`: room holding no bytes.
+    Gap,
+    /// Something else holding no bytes: an icon, or a break when `newline`.
     Skip { newline: bool },
 }
 
@@ -410,7 +413,7 @@ impl TextModel {
                     at += len;
                 }
                 Piece::Item(slot) => at += slot.get().bytes(),
-                Piece::Skip { .. } => {}
+                Piece::Gap | Piece::Skip { .. } => {}
             }
         }
         self.bump();
@@ -426,6 +429,7 @@ impl TextModel {
         }
         crate::document::set_style(self.node, "position", Some("relative".to_owned()));
         crate::document::set_style(self.node, "z-index", Some("0".to_owned()));
+        crate::document::set_attribute(self.node, "data-beui-decorated", Some(String::new()));
         let overlay = Node::element("div");
         overlay.set_attribute("class", Some("beui-text-decor".to_owned()));
         overlay.set_attribute("aria-hidden", Some("true".to_owned()));
@@ -557,26 +561,46 @@ pub fn text_stops<D: Clone>(byte: usize, text: &str, node: &D, stops: &mut Vec<S
     }
 }
 
+/// The character (or atom) that starts at `index`. `stops` are in byte order, as a text makes
+/// them, so this and `ending_at` search rather than scan.
 pub fn after<D>(stops: &[Stop<D>], index: usize) -> Option<&Stop<D>> {
-    stops
+    let from = stops.partition_point(|stop| stop.byte() < index);
+    stops[from..]
         .iter()
-        .find(|stop| !stop.is_empty() && stop.byte() == index)
+        .take_while(|stop| stop.byte() == index)
+        .find(|stop| !stop.is_empty())
+}
+
+/// The stop a piece holding no bytes makes at `byte`: room for a gap, which a caret at the end
+/// of a line stands past, else an atom of no bytes (an icon, or a break).
+pub fn empty_stop<D>(piece: &Piece, byte: usize, node: D) -> Option<Stop<D>> {
+    match piece {
+        Piece::Gap => Some(Stop::Room { byte, node }),
+        Piece::Skip { newline } => Some(Stop::Atom {
+            byte,
+            len: 0,
+            node,
+            newline: *newline,
+        }),
+        Piece::Run(_) | Piece::Item(_) => None,
+    }
 }
 
 /// The stops a caret at `index` stands after when no character follows it on its line: the
 /// character (or atom) ending at `index`, then the gaps right after it, so a caret at the end
 /// of a line keeps the room a gap leaves there, as natively, but stands before an icon.
-pub fn ending_at<D>(stops: &[Stop<D>], index: usize) -> Vec<&Stop<D>> {
-    let Some(at) = stops
+pub fn ending_at<D>(stops: &[Stop<D>], index: usize) -> Option<(&Stop<D>, &[Stop<D>])> {
+    let before = stops.partition_point(|stop| stop.byte() < index);
+    let at = stops[..before].iter().rposition(|stop| !stop.is_empty())?;
+    let stop = &stops[at];
+    if stop.byte() + stop.len() != index {
+        return None;
+    }
+    let rooms = stops[at + 1..]
         .iter()
-        .rposition(|stop| !stop.is_empty() && stop.byte() + stop.len() == index)
-    else {
-        return Vec::new();
-    };
-    let room = stops[at + 1..]
-        .iter()
-        .take_while(|stop| matches!(stop, Stop::Room { .. }));
-    std::iter::once(&stops[at]).chain(room).collect()
+        .take_while(|stop| matches!(stop, Stop::Room { .. }))
+        .count();
+    Some((stop, &stops[at + 1..at + 1 + rooms]))
 }
 
 pub fn byte_at<D>(stops: &[Stop<D>], same: impl Fn(&D) -> bool, utf16: u32) -> Option<usize> {

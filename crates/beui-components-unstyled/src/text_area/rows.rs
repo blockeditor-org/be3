@@ -21,7 +21,7 @@ mod quote;
 mod rule;
 mod table;
 
-pub use quote::gutter_quotes;
+pub use quote::quote_in_text;
 
 pub use table::{CellAlign, RowTable, TableColumns, table_columns};
 
@@ -30,7 +30,10 @@ pub const CODE_SIZE: f32 = BODY_SIZE;
 
 /// The size markup laid out unseen in a share of the row is set in (a shared rule's
 /// characters, a quote's `>`s), so each is narrower than the room it stands for and a
-/// difference in measuring it cannot push past that room.
+/// difference in measuring it cannot push past that room. A browser whose minimum font size is
+/// set (off by default, as in Chrome and Firefox) lays it out at that size while it is
+/// measured on a canvas at this one, so a rule's characters overrun their slack and its row
+/// can wrap; a quote's prefix only grows wider than its column.
 const UNSEEN_SIZE: f32 = 1.0;
 const MASK: &str = "*";
 const OBJECT: &str = "\u{fffc}";
@@ -188,6 +191,8 @@ pub struct Row {
     /// How far short of the row's end a shared rule's last share ends (its slack, and the room
     /// what follows its characters takes), so the rule is drawn only as far as its carets go.
     pub rule_short: f32,
+    /// How far past the text's left edge a rule starts: past a quote's gutter.
+    pub rule_start: f32,
 }
 
 impl Row {
@@ -838,13 +843,28 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     builder.row.look = look.clone();
     let mut marker = look.marker.start.clamp(start, end)..look.marker.end.clamp(start, end);
     let mut marked = look.list.is_some() || !marker.is_empty();
+    // A quote laid over its gutter by the row: what its marker held past the prefix is a list's
+    // marker (or a continuation's spaces) as before, else text as wide as it is.
+    let mut index = start;
+    let mut gutter = 0.0;
+    if quote_in_text(&look) && !options.mask {
+        (index, gutter) = builder.quote_prefix(&look, start..end, body);
+        let listed = look.list.is_some() || look.continues;
+        marker = match listed {
+            true => index..marker.end.max(index),
+            false => index..index,
+        };
+        marked = look.list.is_some() || !marker.is_empty();
+    }
     if let (Some(table), Some(columns)) = (look.table, inputs.columns.clone())
         && !options.mask
     {
         if marked {
             builder.marker(&look, marker.clone(), body);
         }
-        builder.table_row(table, marker.end..end, &columns, body);
+        let from = builder.table_lead(index.max(marker.end)..end, body);
+        gutter += from.1;
+        builder.table_row(table, from.0..end, &columns, gutter, body);
         builder.row.space = line_space(&look, line, &options);
         let delimiter = table.row == TableRow::Delimiter;
         let mut row = finish(builder, body);
@@ -863,14 +883,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         false => snapshot.runs_in(start, end),
     };
     let run_starts = |at: usize| runs.binary_search_by_key(&at, |run| run.at).is_ok();
-    let mut index = start;
     let shared = marker.is_empty();
-    if gutter_quotes(&look) > 0 && !options.mask {
-        index = builder.quote_prefix(&look, start..end, body);
-        // Spaces past the level's own are text, as wide as they are.
-        marker = index..index;
-        marked = false;
-    }
     let mut rule = None;
     if look.rule && !options.mask {
         if marked {
@@ -879,7 +892,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         }
         let from = index.max(marker.end);
         index = trailing_from.max(from);
-        rule = Some(builder.rule(from..index, shared, body));
+        rule = Some(builder.rule(from..index, shared, gutter, body));
     }
     while index < end || marked {
         if marked && index >= marker.start {

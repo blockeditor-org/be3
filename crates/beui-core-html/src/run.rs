@@ -34,7 +34,8 @@ const BASE_STYLES: &str = "\
 .beui-glyph::before { content: attr(data-glyph); position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: center; white-space: pre; line-height: normal; font: var(--beui-glyph-font); color: var(--beui-glyph-color); pointer-events: none; }
 .beui-text-decor { position: absolute; inset: 0; pointer-events: none; }
 .beui-text-decor > * { position: absolute; }
-.beui-mark { z-index: -1; }
+.beui-mark, .beui-span-background { z-index: -1; }
+[data-beui-decorated] > [data-beui-background] { background-color: transparent !important; }
 .beui-caret-blink { animation: beui-caret-blink 1060ms steps(1, end) infinite; }
 @keyframes beui-caret-blink { 50% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .beui-caret-blink { animation: none; } }

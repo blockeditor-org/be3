@@ -293,6 +293,7 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
         space: create_memo(move || model.get().space),
         table: create_memo(move || model.get().table.clone()),
         rule_short: create_memo(move || model.get().rule_short),
+        rule_start: create_memo(move || model.get().rule_start),
         text: lines,
     });
     let built = view! {

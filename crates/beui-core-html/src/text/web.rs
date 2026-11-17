@@ -14,6 +14,8 @@ use crate::css;
 use crate::node::NodeId;
 
 const CARET_FLAG: Vec2 = Vec2::new(6.0, 4.0);
+/// The attribute a span with a background carries (`beui-view`'s `Span`).
+const BACKGROUND: &str = "data-beui-background";
 
 #[derive(Default)]
 pub(crate) struct Shown {
@@ -137,20 +139,11 @@ fn stops(model: &TextModel) -> Stops {
                 }
                 at += len;
             }
-            Piece::Skip { newline } => {
-                if let Some(dom) = crate::dom::dom(node) {
-                    stops.push(match newline {
-                        true => Stop::Atom {
-                            byte: at,
-                            len: 0,
-                            node: dom,
-                            newline,
-                        },
-                        false => Stop::Room {
-                            byte: at,
-                            node: dom,
-                        },
-                    });
+            Piece::Gap | Piece::Skip { .. } => {
+                if let Some(stop) = crate::dom::dom(node)
+                    .and_then(|dom| super::empty_stop(&piece, at, dom))
+                {
+                    stops.push(stop);
                 }
             }
         }
@@ -185,12 +178,11 @@ fn spot(frame: &Frame, stops: &Stops, index: usize) -> (f64, i64) {
     {
         return (rect.left(), frame.line_of(&rect));
     }
-    let ending = ending_at(stops, index);
-    if let Some(stop) = ending.first().filter(|stop| !stop.breaks())
+    if let Some((stop, rooms)) = ending_at(stops, index).filter(|(stop, _)| !stop.breaks())
         && let Some(rect) = stop_rect(stop)
     {
         let line = frame.line_of(&rect);
-        let right = ending[1..]
+        let right = rooms
             .iter()
             .filter_map(|stop| stop_rect(stop))
             .take_while(|room| frame.line_of(room) == line)
@@ -491,7 +483,9 @@ fn apply_hang(model: &TextModel, frame: &Frame, stops: &Stops) -> bool {
 /// The boxes a mark over `bytes` fills, as (left, line, right): from where a caret at its start
 /// stands to where one at its end does, a line at a time, so it covers a gap between its
 /// characters (which the browser's own highlights would leave bare) and is drawn where its
-/// carets are. A line between its first and last spans the characters on it.
+/// carets are. A line between its first and last spans the characters on it, at least a pixel
+/// wide as natively (an empty line's newline); a last line it holds nothing of (it ends where
+/// a line wraps) gets none.
 fn mark_boxes(
     frame: &Frame,
     stops: &Stops,
@@ -505,7 +499,7 @@ fn mark_boxes(
     let mut lines: HashMap<i64, (f64, f64)> = HashMap::default();
     if let Some(rects) = dom_range(stops, bytes).and_then(|range| range.get_client_rects()) {
         for index in 0..rects.length() {
-            let Some(rect) = rects.get(index).filter(|rect| rect.width() > 0.0) else {
+            let Some(rect) = rects.get(index).filter(|rect| rect.height() > 0.0) else {
                 continue;
             };
             let held = lines
@@ -519,13 +513,13 @@ fn mark_boxes(
             let span = lines.get(&line).copied();
             let from = match line == first {
                 true => left,
-                false => span.map_or(frame.start, |span| span.0),
+                false => span?.0,
             };
             let to = match line == last {
                 true => right,
                 false => span.map_or(from, |span| span.1),
             };
-            (to > from).then_some((from, line, to))
+            (line == first || to > from || line != last).then_some((from, line, to.max(from + 1.0)))
         })
         .collect()
 }
@@ -542,6 +536,38 @@ fn boxes(model: &TextModel, frame: &Frame, stops: &Stops) -> Vec<(&'static str, 
         )
     };
     let mut boxes = Vec::new();
+    // A span's background is drawn here while the text is decorated (the span's own is hidden
+    // by `run.rs`'s style), before the marks: the text is a stacking context then, and a mark
+    // under it would go under an inline background too. So a mark over inline code shows, in
+    // the order the native core paints: backgrounds, marks, glyphs.
+    for (node, piece) in model.ordered() {
+        let Piece::Run(_) = piece else {
+            continue;
+        };
+        let Some(span) = crate::dom::dom(node).and_then(|dom| dom.dyn_into::<web_sys::HtmlElement>().ok())
+        else {
+            continue;
+        };
+        if !span.has_attribute(BACKGROUND) {
+            continue;
+        }
+        let style = span.style();
+        let color = style.get_property_value("background-color").unwrap_or_default();
+        let radius = style.get_property_value("border-radius").unwrap_or_default();
+        let rects = span.get_client_rects();
+        for index in 0..rects.length() {
+            let Some(rect) = rects.get(index) else {
+                continue;
+            };
+            boxes.push((
+                "beui-span-background",
+                format!(
+                    "{} background-color: {color}; border-radius: {radius};",
+                    local(rect.left(), rect.top(), rect.width(), rect.height()),
+                ),
+            ));
+        }
+    }
     for mark in &decor.all_marks() {
         if mark.range.is_empty() {
             continue;
