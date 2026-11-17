@@ -9,6 +9,7 @@ use beui_components_unstyled::{TOOLTIP_DELAY, TooltipHandle};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Direction;
+use beui_view::types::{Placement, Pos2, Rect};
 use std::time::Duration;
 
 const PADDING: Padding = Padding::symmetric(Space::Md, Space::Xs);
@@ -20,6 +21,11 @@ pub fn Tooltip(
     label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = TOOLTIP_DELAY)] delay: Duration,
+    #[prop(default = false)] open: Binding<bool>,
+    #[prop(default = None)] at: Binding<Option<Pos2>>,
+    #[prop(default = Placement::BELOW_START)] placement: Prop<Placement>,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
+    #[prop(default = false)] keep_alive: bool,
     children: Child,
 ) -> NodeId {
     view! {
@@ -27,6 +33,11 @@ pub fn Tooltip(
             label
             disabled
             delay
+            open
+            at
+            placement
+            bounds
+            keep_alive
             content={move |handle: TooltipHandle| view! {
                 <TooltipBubble handle />
             }}

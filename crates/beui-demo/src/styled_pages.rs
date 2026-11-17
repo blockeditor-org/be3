@@ -1,5 +1,6 @@
 use super::*;
 use beui::KeyAt;
+use beui::styled::theme::POINTER_REACH;
 use beui::Pos2;
 use beui::TextAlign;
 use beui::icons::Glyph;
@@ -2519,7 +2520,6 @@ fn HeldMenu() -> NodeId {
                 anchor=button
                 open
                 min_width={Size::Custom(240.0)}
-                on_dismiss={move || open.set(false)}
                 items={view! {
                     <MenuItem
                         label="Red"
@@ -2685,6 +2685,9 @@ pub(crate) fn OverlaysPage() -> NodeId {
             <Sample title="Popover" code={vec![FiltersButton::SOURCE, FilterPopover::SOURCE]}>
                 <FiltersButton />
             </Sample>
+            <Sample title="Popover with an arrow" code={vec![ShareButton::SOURCE]}>
+                <ShareButton />
+            </Sample>
             <Sample title="Dialog" code={vec![DiscardDialog::SOURCE]}>
                 <DiscardDialog />
             </Sample>
@@ -2751,6 +2754,29 @@ fn FiltersButton() -> NodeId {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
             <Popover label="Filters" @test_id="demo.filters">|handle: PopoverHandle|
                 <FilterPopover handle />
+            </Popover>
+        </List>
+    }
+}
+
+/// Centred under its button, a gap off it for the arrow that points back at it.
+#[sample]
+#[component]
+fn ShareButton() -> NodeId {
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+            <Popover
+                label="Share"
+                arrow=true
+                placement={beui::Placement::BELOW_CENTER
+                    .gap(POINTER_REACH as u16)
+                    .margin(Space::Md.px() as u16)}
+                @test_id="demo.share"
+            >|_: PopoverHandle|
+                <List spacing=Space::Sm>
+                    <Text style=TextStyle::HEADING>"Share"</Text>
+                    <Text>"Anyone with the link can view."</Text>
+                </List>
             </Popover>
         </List>
     }

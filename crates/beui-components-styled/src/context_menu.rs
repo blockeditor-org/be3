@@ -50,14 +50,14 @@ pub fn ContextMenu(
     items: Children<MenuItem>,
     #[prop(default = 0.0)] child_grow: Prop<f32>,
     #[prop(default = false)] disabled: Prop<bool>,
-    #[prop(default = None)] open_at: Prop<Option<Pos2>>,
-    #[prop(default = true)] open_at_focuses: bool,
+    #[prop(default = false)] open: Binding<bool>,
+    #[prop(default = None)] at: Binding<Option<Pos2>>,
+    #[prop(default = Placement::Menu)] placement: Prop<Placement>,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
+    #[prop(default = false)] keep_alive: bool,
     #[prop(default = false)] selection: bool,
     #[prop(default = None)] toolbar_at: Prop<Option<Rect>>,
     #[prop(default = true)] opens_on_hold: bool,
-    #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    #[prop(default = Placement::Menu)] placement: Prop<Placement>,
-    on_close: Callback<()>,
     on_toolbar_close: Callback<()>,
 ) -> NodeId {
     view! {
@@ -66,14 +66,14 @@ pub fn ContextMenu(
             menu={menu_style()}
             child_grow={child_grow}
             disabled={disabled}
-            open_at={open_at}
-            open_at_focuses
+            open
+            at
+            placement
+            bounds
+            keep_alive
             selection
             toolbar_at
             opens_on_hold
-            bounds
-            placement
-            on_close={on_close}
             on_toolbar_close={on_toolbar_close}
         >
             {children}
@@ -85,15 +85,15 @@ pub fn ContextMenu(
 pub fn MenuPopup(
     items: Children<MenuItem>,
     anchor: Prop<OverlayAnchor>,
+    #[prop(default = false)] open: Binding<bool>,
+    #[prop(default = None)] at: Binding<Option<Pos2>>,
     #[prop(default = Placement::Menu)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    open: Prop<bool>,
+    #[prop(default = false)] keep_alive: bool,
     #[prop(default = false)] sheet: Prop<bool>,
     #[prop(default = Size::Menu)] min_width: Prop<Size>,
     #[prop(default = NodeRef::new())] overlay: NodeRef,
-    on_dismiss: Callback<()>,
 ) -> NodeId {
-    let open = create_memo(move || open.get());
     let sheet = create_memo(move || match sheet.get() {
         true => SheetWhen::Always,
         false => SheetWhen::Touched,
@@ -103,12 +103,13 @@ pub fn MenuPopup(
             items={items.into_run()}
             menu={sized_menu_style(min_width.get_untracked())}
             anchor
+            open
+            at
             placement
             bounds
-            open={open}
+            keep_alive
             sheet={sheet}
             overlay
-            on_dismiss={on_dismiss}
         />
     }
 }

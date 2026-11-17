@@ -173,14 +173,19 @@ pub(crate) fn ProgramsPanelOverlay(
     let buttoned = programs_panel.has_button(display);
     let surface = popover_surface(Some(PANEL_WIDTH));
     let close = Callback::new(move |()| programs_panel.close(display));
+    let shown = create_memo(move || open.get() == Some(display) && !buttoned.get());
+    let shown = Binding::new(shown, move |now: bool| {
+        if !now {
+            programs_panel.close(display);
+        }
+    });
     view! {
         <Anchored
             style={surface}
             anchor={move || OverlayAnchor::Rect(area.get())}
             placement=Placement::CenterOn
             policy=LayerPolicy::Pass
-            open={move || open.get() == Some(display) && !buttoned.get()}
-            on_dismiss={move || programs_panel.close(display)}
+            open={shown}
         >|handle: AnchoredHandle|
             <ProgramsPanelContent
                 programs_panel

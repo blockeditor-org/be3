@@ -56,7 +56,8 @@ fn row(frame: &Frame, label: &str) -> Option<Rect> {
 #[test]
 fn a_views_menu_is_an_anchored_view_it_paints_describes_and_takes_input_on() {
     let _root = RootScope::new();
-    let open_at = create_signal(None::<Pos2>);
+    let open = create_signal(false);
+    let menu_at = create_signal(None::<Pos2>);
     let chosen = create_signal(Vec::<usize>::new());
     let mut surface = launched(
         &EditorHost::default(),
@@ -73,7 +74,7 @@ fn a_views_menu_is_an_anchored_view_it_paints_describes_and_takes_input_on() {
                 }</ForEach>
             };
             view! {
-                <styled::ContextMenu items open_at on_close={move || open_at.set(None)}>
+                <styled::ContextMenu items open at=menu_at>
                     <styled::Frame />
                 </styled::ContextMenu>
             }
@@ -83,7 +84,8 @@ fn a_views_menu_is_an_anchored_view_it_paints_describes_and_takes_input_on() {
     one(&mut surface, &shown);
     assert!(one(&mut surface, &shown).anchored.is_empty());
 
-    open_at.set(Some(pos2(90.0, 50.0)));
+    menu_at.set(Some(pos2(90.0, 50.0)));
+    open.set(true);
     let frame = one(&mut surface, &shown);
     let [layer] = frame.anchored.as_slice() else {
         panic!("the open menu is one layer: {:?}", frame.anchored);
@@ -149,7 +151,8 @@ fn a_views_menu_is_an_anchored_view_it_paints_describes_and_takes_input_on() {
         "and closes the menu"
     );
 
-    open_at.set(Some(pos2(90.0, 50.0)));
+    menu_at.set(Some(pos2(90.0, 50.0)));
+    open.set(true);
     let opened = one(&mut surface, &shown).anchored;
     assert_eq!(opened.len(), 1);
     surface.dismiss_anchored(&shown, &[opened[0].view]);
@@ -157,5 +160,5 @@ fn a_views_menu_is_an_anchored_view_it_paints_describes_and_takes_input_on() {
         one(&mut surface, &shown).anchored.is_empty(),
         "a dismissal from the host closes the layer"
     );
-    assert_eq!(open_at.get_untracked(), None);
+    assert!(!open.get_untracked());
 }

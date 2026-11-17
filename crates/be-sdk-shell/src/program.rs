@@ -959,6 +959,7 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
         });
     }
     let panel = NodeRef::new();
+    let menu_open = create_signal(false);
     let menu_at = create_signal(None::<Pos2>);
     let asked = create_memo(move || heard.with(|heard| heard.menu));
     // The last ask heard, kept while the report says nothing, so only a new one opens it.
@@ -979,6 +980,7 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
                 .and_then(|node| measure(node).get_untracked());
             if let Some(shown) = shown {
                 menu_at.set(Some(shown.rect.min + asked.at.to_vec2()));
+                menu_open.set(true);
             }
         },
     );
@@ -988,10 +990,10 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
     };
     view! {
         <Layers>
-            <ContextMenu
-                disabled=true
-                open_at={menu_at}
-                on_close={move || menu_at.set(None)}
+            <MenuPopup
+                anchor=panel
+                open=menu_open
+                at=menu_at
                 items={view! {
                     {floating.then(|| view! {
                         <MenuItem
@@ -1018,9 +1020,7 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
                         on_click={move || workspace.close(tab)}
                     />
                 }}
-            >
-                <Frame />
-            </ContextMenu>
+            />
             <Subregion
                 editor={editor}
                 placed={Some(SubregionContent::Window(window))}
