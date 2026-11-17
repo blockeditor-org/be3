@@ -171,6 +171,9 @@ struct Listed {
     /// Asked for again while a fetch was under way, whose answer may be from before the change
     /// that asked: fetched once more when it lands (`relist`).
     again: bool,
+    /// The server answered it once: a fetch since reads it again (`Graph::refreshing`), while
+    /// what it holds keeps showing.
+    answered: bool,
 }
 
 /// An entry point the mirror follows because some node it holds lies in its tree
@@ -494,6 +497,7 @@ impl Graph {
                     members,
                     fetch: Fetch::Wanted,
                     again: false,
+                    answered: false,
                 },
             );
             changed = true;
@@ -596,6 +600,7 @@ impl Graph {
             return;
         };
         let stale = std::mem::take(&mut listed.again);
+        listed.answered = true;
         listed.fetch = match stale {
             true => Fetch::Wanted,
             false => Fetch::Loaded,
@@ -799,6 +804,22 @@ impl Graph {
         self.listings
             .values()
             .any(|listed| matches!(listed.fetch, Fetch::Wanted | Fetch::Fetching))
+    }
+
+    /// Whether a listing the server never answered is being read: what shows it waits for it.
+    pub fn loading(&self) -> bool {
+        self.listings.values().any(|listed| {
+            !listed.answered && matches!(listed.fetch, Fetch::Wanted | Fetch::Fetching)
+        })
+    }
+
+    /// Whether a listing the server answered before is being read again (a change it pushed, a
+    /// new connection): what it held keeps showing meanwhile, so this waits on the server alone,
+    /// and a connection that silently stopped answering holds it until it is declared lost.
+    pub fn refreshing(&self) -> bool {
+        self.listings.values().any(|listed| {
+            listed.answered && matches!(listed.fetch, Fetch::Wanted | Fetch::Fetching)
+        })
     }
 
     /// Whether `block` has a change made here pending, or was made here and not sent yet: the
