@@ -1,8 +1,8 @@
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 
-use be_sdk_beui::worker::{Sender, Worker};
+use be_sdk_beui::worker::Shared;
 use be_sdk_beui::network::{Request, Response};
 use be_sdk_beui::{EditorHost, Task, Waker};
 pub(crate) use be_worker_map::TileId;
@@ -27,101 +27,6 @@ pub(crate) struct TileResult {
 
 type Fetched = Rc<RefCell<Vec<(TileId, Result<Vec<u8>, String>)>>>;
 
-/// What the rasterizer answered one map since it last looked: a tile, or why it stopped.
-type Answered = Rc<RefCell<VecDeque<Result<Rasterized, String>>>>;
-
-/// Each map's answers, by its `requester`, and the waker that tells it they came.
-type Routes = Rc<RefCell<HashMap<u64, (Answered, Waker)>>>;
-
-thread_local! {
-    /// The rasterizer every map of the app shares while any holds it.
-    static RASTERIZER: RefCell<Weak<Rasterizer>> = RefCell::new(Weak::new());
-}
-
-/// The rasterizer (be-worker-map-tiles), a worker of the map's own that every map it shows
-/// shares, rather than one each, and the task that hears it and hands each map its own answers.
-/// Dropping it, once no map holds it, stops both.
-struct Rasterizer {
-    sender: Sender,
-    routes: Routes,
-    next: Cell<u64>,
-    /// Whether it stopped: a map that asks for the shared rasterizer then gets a new one.
-    stopped: Rc<Cell<bool>>,
-    hearing: Task,
-}
-
-impl Drop for Rasterizer {
-    fn drop(&mut self) {
-        self.hearing.cancel();
-    }
-}
-
-impl Rasterizer {
-    fn shared() -> Rc<Self> {
-        RASTERIZER.with(|shared| {
-            if let Some(rasterizer) = shared.borrow().upgrade()
-                && !rasterizer.stopped.get()
-            {
-                return rasterizer;
-            }
-            let rasterizer = Rc::new(Self::spawn());
-            *shared.borrow_mut() = Rc::downgrade(&rasterizer);
-            rasterizer
-        })
-    }
-
-    fn spawn() -> Self {
-        let mut worker = Worker::spawn(be_worker_map::MODULE);
-        let sender = worker.sender();
-        let routes = Routes::default();
-        let heard = Rc::clone(&routes);
-        let stopped = Rc::new(Cell::new(false));
-        let stops = Rc::clone(&stopped);
-        let hearing = be_sdk_beui::spawn(async move {
-            loop {
-                let answer = worker
-                    .receive()
-                    .await
-                    .and_then(|message| Rasterized::decode(&message));
-                let routes = heard.borrow();
-                match answer {
-                    Ok(answer) => {
-                        if let Some((answered, waker)) = routes.get(&answer.requester) {
-                            answered.borrow_mut().push_back(Ok(answer));
-                            waker.wake();
-                        }
-                    }
-                    Err(why) => {
-                        stops.set(true);
-                        for (answered, waker) in routes.values() {
-                            answered.borrow_mut().push_back(Err(why.clone()));
-                            waker.wake();
-                        }
-                        return;
-                    }
-                }
-            }
-        });
-        Self {
-            sender,
-            routes,
-            next: Cell::new(0),
-            stopped,
-            hearing,
-        }
-    }
-
-    /// A requester for one map, whose answers go to `answered` and wake it with `waker`.
-    fn route(&self, answered: &Answered, waker: &Waker) -> u64 {
-        let requester = self.next.get();
-        self.next.set(requester + 1);
-        self.routes
-            .borrow_mut()
-            .insert(requester, (Rc::clone(answered), waker.clone()));
-        requester
-    }
-}
-
 pub(crate) struct TileWorker {
     downloads: HashMap<TileId, Task>,
     fetched: Fetched,
@@ -136,11 +41,9 @@ pub(crate) struct TileWorker {
     /// cancelled meanwhile, is dropped.
     sent: HashSet<TileId>,
     rasterizing: usize,
-    /// The shared rasterizer and this map's requester, once it sent one a tile.
-    rasterizer: Option<(Rc<Rasterizer>, u64)>,
-    answered: Answered,
-    /// Why the rasterizer stopped, once it did: every tile after fails with it.
-    stopped: Option<String>,
+    /// This map's way to the rasterizer (be-worker-map-tiles), which every map of the app shares,
+    /// once it sent it a tile.
+    rasterizer: Option<Shared>,
 }
 
 impl TileWorker {
@@ -157,8 +60,6 @@ impl TileWorker {
             sent: HashSet::new(),
             rasterizing: 0,
             rasterizer: None,
-            answered: Rc::default(),
-            stopped: None,
         }
     }
 
@@ -233,25 +134,21 @@ impl TileWorker {
             });
             self.downloads.insert(id, task);
         }
-        if self.stopped.is_some() {
-            return;
-        }
         while self.rasterizing < MAX_RASTERIZING {
             let Some((id, source, body)) = self.pending.pop_front() else {
                 break;
             };
-            let (rasterizer, requester) = self.rasterizer.get_or_insert_with(|| {
-                let rasterizer = Rasterizer::shared();
-                let requester = rasterizer.route(&self.answered, &self.waker);
-                (rasterizer, requester)
-            });
             let job = Job {
-                requester: *requester,
                 id,
                 source,
                 body: body.as_ref().clone(),
             };
-            rasterizer.sender.send(job.encode());
+            let waker = self.waker.clone();
+            self.rasterizer
+                .get_or_insert_with(|| {
+                    Shared::new(be_worker_map::MODULE, move || waker.wake())
+                })
+                .send(&job.encode());
             self.rasterizing += 1;
         }
     }
@@ -286,35 +183,38 @@ impl TileWorker {
                 }
             }
         }
-        let answered = std::mem::take(&mut *self.answered.borrow_mut());
-        for answer in answered {
-            match answer {
-                Ok(Rasterized { id, result, .. }) => {
+        while let Some(answer) = self.rasterizer.as_ref().and_then(Shared::try_receive) {
+            match answer.and_then(|message| Rasterized::decode(&message)) {
+                Ok(Rasterized { id, result }) => {
                     self.rasterizing = self.rasterizing.saturating_sub(1);
                     if self.sent.remove(&id) {
                         results.push(TileResult { id, result });
                     }
                 }
-                Err(why) => self.stopped = Some(why),
+                // The rasterizer stopped: what it was sent fails, and the next tile starts it
+                // anew. A tile still pending was never sent, so it waits for that.
+                Err(why) => {
+                    self.rasterizing = 0;
+                    let pending: HashSet<TileId> =
+                        self.pending.iter().map(|(id, _, _)| *id).collect();
+                    let failed: Vec<TileId> = self
+                        .sent
+                        .iter()
+                        .filter(|id| !pending.contains(id))
+                        .copied()
+                        .collect();
+                    for id in failed {
+                        self.sent.remove(&id);
+                        results.push(TileResult {
+                            id,
+                            result: Err(why.clone()),
+                        });
+                    }
+                }
             }
-        }
-        if let Some(why) = &self.stopped {
-            self.pending.clear();
-            results.extend(self.sent.drain().map(|id| TileResult {
-                id,
-                result: Err(why.clone()),
-            }));
         }
         self.dispatch(host);
         results
-    }
-}
-
-impl Drop for TileWorker {
-    fn drop(&mut self) {
-        if let Some((rasterizer, requester)) = &self.rasterizer {
-            rasterizer.routes.borrow_mut().remove(requester);
-        }
     }
 }
 

@@ -16,7 +16,9 @@ const NO_COMPILES: &str = "an app may not compile a module from bytes";
 
 /// The workers an editor spawned (be_sdk::worker), served as the host serves an app's, but each
 /// in the test's own instance (`Hosted`), so a job is done by the time the editor next steps.
-/// A test names the workers it serves with `BeuiTest::serve_worker`.
+/// A test names the workers it serves with `BeuiTest::serve_worker`. Its bookkeeping (an instance
+/// per resource, frames held until a `next` asks, a stop answering every `next` after) follows
+/// `be_wasm_sandbox_host::Server`'s, which serves the same calls for real: change both together.
 #[derive(Default)]
 pub(crate) struct Workers {
     served: HashMap<String, Start>,
@@ -76,13 +78,9 @@ impl Workers {
             } => {
                 if let Some(running) = self.running.get_mut(&this.op())
                     && let Ok(work) = &mut running.work
+                    && let Err(failure) = work.step(frames, &mut running.sent)
                 {
-                    for frame in frames {
-                        if let Err(failure) = work.receive(frame, &mut running.sent) {
-                            running.work = Err(failure);
-                            break;
-                        }
-                    }
+                    running.work = Err(failure);
                 }
                 reply.send(connection, &());
                 false

@@ -11,6 +11,7 @@ use crate::root::MapRoot;
 mod a_map_on_a_phone_on_its_side_shows_its_inspector_beside_it;
 mod a_map_on_a_phone_shows_its_inspector_below_it;
 mod a_new_map_shows_the_whole_world;
+mod a_tile_the_rasterizer_fails_on_fails_alone;
 mod labels_hold_still_between_frames;
 mod labels_stay_while_deeper_tiles_load;
 mod overlapping_labels_keep_the_larger_one;

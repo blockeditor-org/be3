@@ -152,12 +152,9 @@ impl Pane {
             target,
         };
         let sent = Instant::now();
-        let client = match self.client.take() {
-            Some(client) if !client.stopped() => client,
-            _ => RenderClient::new(&waker),
-        };
-        let client = self.client.insert(client);
-        client.send(data, page, target);
+        self.client
+            .get_or_insert_with(|| RenderClient::new(&waker))
+            .send(data, page, target);
         performance.record_duration("Send render job", sent.elapsed());
         self.job = Some(request);
     }

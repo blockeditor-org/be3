@@ -49,7 +49,8 @@ pub const WORKER_MEMORY_LIMIT: u64 = 1 << 30;
 pub const WORKERS: usize = 16;
 
 /// Serves one guest the sandbox. Every module it compiled stays compiled, and every instance it
-/// spawned runs, while the server is held.
+/// spawned runs, while the server is held. be-sdk-test's `Workers` serves an editor test's
+/// workers with the same bookkeeping, in the test's own instance: change both together.
 pub struct Server {
     wake: Wake,
     apps: Loader,

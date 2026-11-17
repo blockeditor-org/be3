@@ -160,6 +160,10 @@ pub fn layout(arguments: &[String]) -> Result<Layout, String> {
                 layout.insert(name.clone(), input(0));
                 manifests.push(name);
                 if !module.is_empty() {
+                    // At the root, beside app.js and the libraries, as the entry point equals a
+                    // file name (checked above): the web's app.js links a module against the
+                    // libraries beside itself, not beside the module, which suits a worker under
+                    // workers/<id>/ too.
                     layout.insert(entry_point, input(1));
                     unstaged = workers(path, &manifest)?;
                 }

@@ -12,11 +12,21 @@
 //! - The app starts it with `Worker::spawn` through the sandbox API (`be3:sandbox`), sends it
 //!   messages with `send` and takes its answers with `receive`. Each message is one byte buffer,
 //!   delivered whole and in order. Dropping the `Worker` stops it.
+//! - Or, for work every editor of the app asks of one worker, each holds a `Shared`: they share
+//!   one instance of the module, and each hears only the answers to what it asked.
+//!
+//! Each message travels with the client that sent it or that it answers, which `Shared` tells its
+//! editors apart by: a `Work` answers the client whose message it is taking, and `Worker` is
+//! client 0, as are the messages a worker sends as it starts.
 //!
 //! Nothing here assumes the guest has one thread: it keeps no state of its own, and a `Worker` is
 //! used from the thread whose executor spawned it, as every op is.
 
 use std::{collections::VecDeque, rc::Rc};
+
+mod shared;
+
+pub use shared::Shared;
 
 use be_wasm_sandbox_api::{
     guest::sandbox::Instance,
@@ -77,15 +87,20 @@ impl Worker {
     /// The worker's next message, once it has sent one, or why it stopped: it could not start,
     /// trapped or panicked. Once it stopped, every later call fails the same way.
     pub async fn receive(&mut self) -> Result<Vec<u8>, String> {
+        self.receive_framed().await.map(|(_, message)| message)
+    }
+
+    /// The worker's next message and the client it answers (`Shared`).
+    async fn receive_framed(&mut self) -> Result<(u64, Vec<u8>), String> {
         loop {
-            if let Some(message) = self.received.pop_front() {
-                return Ok(message);
+            if let Some(frame) = self.received.pop_front() {
+                return unframe(&frame).map(|(client, message)| (client, message.to_vec()));
             }
-            let messages = self.sender.0.next().await.map_err(|error| match error {
+            let frames = self.sender.0.next().await.map_err(|error| match error {
                 OpError::Unsupported => NO_WORKERS.to_owned(),
                 error => format!("the host did not answer: {error:?}"),
             })??;
-            self.received.extend(messages);
+            self.received.extend(frames);
         }
     }
 }
@@ -98,8 +113,25 @@ pub struct Sender(Rc<Instance>);
 impl Sender {
     /// Sends the worker one message (`Worker::send`).
     pub fn send(&self, message: Vec<u8>) {
-        self.0.send(vec![message]).detach();
+        self.send_as(0, &message);
     }
+
+    fn send_as(&self, client: u64, message: &[u8]) {
+        self.0.send(vec![frame(client, message)]).detach();
+    }
+}
+
+/// A message as it travels between an app and its worker: the client it is from or for, then the
+/// message.
+fn frame(client: u64, message: &[u8]) -> Vec<u8> {
+    [&client.to_le_bytes()[..], message].concat()
+}
+
+fn unframe(frame: &[u8]) -> Result<(u64, &[u8]), String> {
+    let Some((client, message)) = frame.split_first_chunk::<8>() else {
+        return Err("a worker's message came with no client".to_owned());
+    };
+    Ok((u64::from_le_bytes(*client), message))
 }
 
 /// What a worker module does: its state, made when it starts, and how it takes each message from
@@ -116,32 +148,69 @@ pub trait Work: Sized + 'static {
 /// The app that spawned a worker, as the worker sees it.
 pub struct App<'a> {
     outbound: &'a mut Vec<Vec<u8>>,
+    /// The client whose message the worker is taking, which what it sends answers.
+    client: u64,
 }
 
 impl App<'_> {
-    /// Sends the app one message, which its `Worker::receive` answers with.
+    /// Sends the app one message, which its `Worker::receive` answers with: an answer to the
+    /// client whose message the worker is taking (`Shared`), or to client 0 as it starts.
     pub fn send(&mut self, message: Vec<u8>) {
-        self.outbound.push(message);
+        self.outbound.push(frame(self.client, &message));
     }
+}
+
+/// Starts `W`, which sends what it says as it starts to `outbound`.
+fn start<W: Work>(outbound: &mut Vec<Vec<u8>>) -> Result<W, String> {
+    W::start(&mut App {
+        outbound,
+        client: 0,
+    })
+}
+
+/// Hands `W` each of `frames`, as its app sent them, answering to `outbound`.
+fn step<W: Work>(
+    work: &mut W,
+    frames: Vec<Vec<u8>>,
+    outbound: &mut Vec<Vec<u8>>,
+) -> Result<(), String> {
+    for frame in frames {
+        let (client, message) = unframe(&frame)?;
+        work.receive(message.to_vec(), &mut App { outbound, client })?;
+    }
+    Ok(())
 }
 
 /// A `Work` run in the caller's own instance rather than one of its own: how an app's tests
 /// serve its workers (be-sdk-test's `BeuiTest::serve_worker`), and a worker crate's tests drive
-/// it, in step with the test.
-pub struct Hosted(Box<dyn FnMut(Vec<u8>, &mut App) -> Result<(), String>>);
+/// it, in step with the test. Frames in and out are as an instance of the worker module takes and
+/// sends them.
+pub struct Hosted(Box<dyn FnMut(Vec<Vec<u8>>, &mut Vec<Vec<u8>>) -> Result<(), String>>);
 
 impl Hosted {
     /// Starts `W`, which sends what it says as it starts to `outbound`.
     pub fn start<W: Work>(outbound: &mut Vec<Vec<u8>>) -> Result<Self, String> {
-        let mut work = W::start(&mut App { outbound })?;
-        Ok(Self(Box::new(move |message, app| {
-            work.receive(message, app)
+        let mut work = start::<W>(outbound)?;
+        Ok(Self(Box::new(move |frames, outbound| {
+            step(&mut work, frames, outbound)
         })))
     }
 
-    /// Hands the worker one message, which it answers to `outbound`.
-    pub fn receive(&mut self, message: Vec<u8>, outbound: &mut Vec<Vec<u8>>) -> Result<(), String> {
-        (self.0)(message, &mut App { outbound })
+    /// Hands the worker the frames its app sent, which it answers to `outbound`. An error stops
+    /// it, as it stops an instance.
+    pub fn step(&mut self, frames: Vec<Vec<u8>>, outbound: &mut Vec<Vec<u8>>) -> Result<(), String> {
+        (self.0)(frames, outbound)
+    }
+
+    /// Sends the worker one message as a `Worker` would, and answers what it sent back: how a
+    /// worker crate's tests ask it something.
+    pub fn ask(&mut self, message: &[u8]) -> Result<Vec<Vec<u8>>, String> {
+        let mut outbound = Vec::new();
+        self.step(vec![frame(0, message)], &mut outbound)?;
+        outbound
+            .iter()
+            .map(|frame| unframe(frame).map(|(_, message)| message.to_vec()))
+            .collect()
     }
 }
 
@@ -154,7 +223,7 @@ impl<W: Work> be_wasm_guest_abi::Guest for Running<W> {
         _waker: be_wasm_guest_abi::Waker,
         outbound: &mut Vec<Vec<u8>>,
     ) -> Result<Self, String> {
-        W::start(&mut App { outbound }).map(Self)
+        start::<W>(outbound).map(Self)
     }
 
     fn step(
@@ -163,10 +232,7 @@ impl<W: Work> be_wasm_guest_abi::Guest for Running<W> {
         _woken: bool,
         outbound: &mut Vec<Vec<u8>>,
     ) -> Result<be_wasm_guest_abi::Flow, String> {
-        let mut app = App { outbound };
-        for message in inbound {
-            self.0.receive(message, &mut app)?;
-        }
+        step(&mut self.0, inbound, outbound)?;
         Ok(be_wasm_guest_abi::Flow::Running)
     }
 }

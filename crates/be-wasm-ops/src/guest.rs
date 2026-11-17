@@ -87,6 +87,8 @@ struct Inner {
     parent: Cell<Option<OpId>>,
     request: Cell<Option<OpId>>,
     dispatch: RefCell<Option<Dispatch>>,
+    /// Which executor this is, unique in the process (`executor`).
+    id: u64,
 }
 
 thread_local! {
@@ -136,6 +138,10 @@ impl Executor {
                 parent: Cell::new(None),
                 request: Cell::new(None),
                 dispatch: RefCell::new(Some(dispatch)),
+                id: {
+                    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+                    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                },
             }),
         }
     }
@@ -390,6 +396,13 @@ impl Future for UnderRequest {
 /// when the request ends. None outside a request, including in tasks it spawns.
 pub fn request() -> Option<OpId> {
     current().request.get()
+}
+
+/// The executor whose step is running, by an id no other executor in the process has, so state
+/// kept for one (such as the worker an app's editors share) is never found by the next, as when
+/// one test's app ends and another's starts on the same thread.
+pub fn executor() -> u64 {
+    current().id
 }
 
 pub fn spawn(future: impl Future<Output = ()> + 'static) {

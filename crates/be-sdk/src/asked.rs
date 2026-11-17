@@ -144,10 +144,7 @@ impl Task {
     }
 }
 
-/// Runs `future` on the app's thread as a task of the app's own rather than of one editor's
-/// (`EditorHost::then`), so no editor closing cancels it: only `Task::cancel` does, such as the
-/// task that hears a worker every editor of the app shares (guides/adding_an_app.md, Workers).
-pub fn spawn(future: impl Future<Output = ()> + 'static) -> Task {
+pub(crate) fn spawn(future: impl Future<Output = ()> + 'static) -> Task {
     let task = Task(Rc::default());
     run(&task, future);
     task

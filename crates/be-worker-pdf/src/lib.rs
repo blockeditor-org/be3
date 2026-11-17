@@ -30,11 +30,9 @@ pub enum Target {
     },
 }
 
-/// What the app asks: render `target` of page `page` of the PDF `data`. `requester` is the
-/// app's own, and comes back with the answer: every PDF the app shows shares one renderer.
+/// What the app asks: render `target` of page `page` of the PDF `data`.
 #[derive(Serialize, Deserialize)]
 pub struct Job {
-    pub requester: u64,
     pub page: usize,
     pub target: Target,
     #[serde(with = "serde_bytes")]
@@ -67,7 +65,6 @@ pub enum Measure {
 /// The answer to one `Job`: the tile, or why it could not be rendered.
 #[derive(Serialize, Deserialize)]
 pub struct Answer {
-    pub requester: u64,
     pub result: Result<Rendered, String>,
     pub measures: Vec<Measure>,
 }

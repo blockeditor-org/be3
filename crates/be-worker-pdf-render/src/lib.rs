@@ -20,11 +20,7 @@ impl Work for Renderer {
         let job = Job::decode(&message)?;
         let mut measures = Vec::new();
         let result = pdfium::render(&job.data, job.page, job.target, &mut measures);
-        let answer = Answer {
-            requester: job.requester,
-            result,
-            measures,
-        };
+        let answer = Answer { result, measures };
         app.send(answer.encode());
         Ok(())
     }
