@@ -9,7 +9,12 @@ fn painted(width: u32, height: u32, raster: f32) -> Painted {
     }
 }
 
-fn drawing(shared: &Rc<RefCell<Shared>>, pieces: Vec<Piece>, zoom: f32, rotation: f32) -> ViewDrawing {
+fn drawing(
+    shared: &Rc<RefCell<Shared>>,
+    pieces: Vec<Piece>,
+    zoom: f32,
+    rotation: f32,
+) -> ViewDrawing {
     ViewDrawing::new(
         Blit {
             surface: 1,
@@ -52,18 +57,27 @@ fn close(a: f32, b: f32) -> bool {
 fn an_apps_painting_is_shown_at_its_own_size_whatever_size_its_view_is_laid_out_at() {
     let at = pos2(10.0, 40.0);
     assert_eq!(
-        shown(Rect::from_min_size(at, vec2(150.0, 100.0)), painted(300, 200, 2.0)),
+        shown(
+            Rect::from_min_size(at, vec2(150.0, 100.0)),
+            painted(300, 200, 2.0)
+        ),
         Some((Rect::from_min_size(at, vec2(150.0, 100.0)), WHOLE)),
         "a painting drawn at the size the view is laid out at fills it"
     );
     assert_eq!(
-        shown(Rect::from_min_size(at, vec2(200.0, 130.0)), painted(300, 200, 2.0)),
+        shown(
+            Rect::from_min_size(at, vec2(200.0, 130.0)),
+            painted(300, 200, 2.0)
+        ),
         Some((Rect::from_min_size(at, vec2(150.0, 100.0)), WHOLE)),
         "a view laid out larger before its app draws the new size shows the last painting at its \
          own size from the top left, leaving the rest to the backdrop, rather than stretching it"
     );
     assert_eq!(
-        shown(Rect::from_min_size(at, vec2(120.0, 100.0)), painted(300, 200, 2.0)),
+        shown(
+            Rect::from_min_size(at, vec2(120.0, 100.0)),
+            painted(300, 200, 2.0)
+        ),
         Some((
             Rect::from_min_size(at, vec2(120.0, 100.0)),
             Rect::from_min_max(Pos2::ZERO, pos2(0.8, 1.0))
@@ -71,7 +85,10 @@ fn an_apps_painting_is_shown_at_its_own_size_whatever_size_its_view_is_laid_out_
         "and laid out narrower, shows the left of it, cropped rather than squished"
     );
     assert_eq!(
-        shown(Rect::from_min_size(at, vec2(150.0, 100.0)), painted(150, 100, 1.0)),
+        shown(
+            Rect::from_min_size(at, vec2(150.0, 100.0)),
+            painted(150, 100, 1.0)
+        ),
         Some((Rect::from_min_size(at, vec2(150.0, 100.0)), WHOLE)),
         "a painting at another raster covers the same points: its pixels over its raster"
     );
@@ -118,11 +135,13 @@ fn an_apps_painting_is_shown_at_its_own_size_whatever_size_its_view_is_laid_out_
                                      raster {raster}, zoom {zoom}, turned {rotation}"
                                 );
                                 assert!(
-                                    close(quad.rect.width() * density, source.width() * width as f32)
-                                        && close(
-                                            quad.rect.height() * density,
-                                            source.height() * height as f32
-                                        ),
+                                    close(
+                                        quad.rect.width() * density,
+                                        source.width() * width as f32
+                                    ) && close(
+                                        quad.rect.height() * density,
+                                        source.height() * height as f32
+                                    ),
                                     "{case}: shown at {:?} from {source:?}, scaled",
                                     quad.rect
                                 );

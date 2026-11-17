@@ -44,8 +44,8 @@ pub(crate) fn set(window: &dyn winit::window::Window, color: Color32) {
     let pixel = 0xff00_0000 | (u32::from(red) << 16) | (u32::from(green) << 8) | u32::from(blue);
     CONNECTION.with(|connection| {
         let mut connection = connection.borrow_mut();
-        let Some(connection) =
-            connection.get_or_insert_with(|| x11rb::connect(None).ok().map(|(connection, _)| connection))
+        let Some(connection) = connection
+            .get_or_insert_with(|| x11rb::connect(None).ok().map(|(connection, _)| connection))
         else {
             return;
         };
@@ -54,10 +54,7 @@ pub(crate) fn set(window: &dyn winit::window::Window, color: Color32) {
         let attributes = ChangeWindowAttributesAux::new()
             .background_pixel(pixel)
             .bit_gravity(Gravity::NORTH_WEST);
-        if connection
-            .change_window_attributes(id, &attributes)
-            .is_ok()
-        {
+        if connection.change_window_attributes(id, &attributes).is_ok() {
             let _ = connection.flush();
         }
     });

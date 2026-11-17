@@ -194,8 +194,7 @@ impl Shared {
         // a frame with the layout it follows), so the layout published here is never older than
         // a surface painted in it.
         let surfaces = self.surfaces();
-        self.painted
-            .retain(|surface, _| surfaces.contains(surface));
+        self.painted.retain(|surface, _| surfaces.contains(surface));
         let Some(frame) = frame else {
             return;
         };
@@ -366,12 +365,10 @@ impl Blit {
             return Some(Vec::new());
         }
         let placement = shared.placement(self.screen)?;
-        let painted = shared
-            .holds(placement, None)
-            .unwrap_or(Painted {
-                size: (placement.width, placement.height),
-                raster: placement.raster(),
-            });
+        let painted = shared.holds(placement, None).unwrap_or(Painted {
+            size: (placement.width, placement.height),
+            raster: placement.raster(),
+        });
         if painted.size != (placement.width, placement.height) {
             return None;
         }
@@ -430,6 +427,16 @@ pub(super) fn unscaled(
     );
     let origin = rect.min - vec2(source.min.x * laid.x, source.min.y * laid.y);
     let covers = Rect::from_min_size(origin, painted / density);
+    // An edge within a thousandth of a point of the piece's is the piece's: float error in
+    // the mapping must not move a painting that fills its view by a fraction of a pixel.
+    let snap = |value: f32, to: f32| match (value - to).abs() < 1e-3 {
+        true => to,
+        false => value,
+    };
+    let covers = Rect::from_min_max(
+        pos2(snap(covers.min.x, rect.min.x), snap(covers.min.y, rect.min.y)),
+        pos2(snap(covers.max.x, rect.max.x), snap(covers.max.y, rect.max.y)),
+    );
     let shown = rect.intersect(covers);
     if !shown.is_positive() {
         return None;
@@ -533,12 +540,7 @@ pub struct ViewDrawing {
 pub type Pieces = Rc<RefCell<Vec<Piece>>>;
 
 impl ViewDrawing {
-    pub(super) fn new(
-        template: Blit,
-        pieces: Pieces,
-        held: Option<Rect>,
-        rotation: f32,
-    ) -> Self {
+    pub(super) fn new(template: Blit, pieces: Pieces, held: Option<Rect>, rotation: f32) -> Self {
         Self {
             #[cfg(target_arch = "wasm32")]
             id: next_drawing(),
@@ -877,10 +879,11 @@ impl beui::native::Draw for AppDrawing {
                 if !frames.is_empty() {
                     platform.retain(blit.surface, &surfaces);
                 }
-                let region =
-                    match blit.layer {
-                        Some(layer) => platform.size(blit.surface, layer.surface).and_then(
-                            |(width, height)| {
+                let region = match blit.layer {
+                    Some(layer) => {
+                        platform
+                            .size(blit.surface, layer.surface)
+                            .and_then(|(width, height)| {
                                 let (width, height) = (width as f32, height as f32);
                                 let source = Rect::from_min_max(
                                     pos2(layer.pixels.min.x / width, layer.pixels.min.y / height),
@@ -889,12 +892,12 @@ impl beui::native::Draw for AppDrawing {
                                 let (quad, source) = (width > 0.0 && height > 0.0)
                                     .then(|| within_texture(blit.quad, source))??;
                                 Some((layer.surface, quad, source))
-                            },
-                        ),
-                        None => region.and_then(|placement| {
-                            blit.on_surface(&placement, platform.size(blit.surface, placement.surface))
-                        }),
-                    };
+                            })
+                    }
+                    None => region.and_then(|placement| {
+                        blit.on_surface(&placement, platform.size(blit.surface, placement.surface))
+                    }),
+                };
                 blit.status.set(match failure {
                     Some(error) => PresenterState::Failed(error),
                     None => PresenterState::Presenting,

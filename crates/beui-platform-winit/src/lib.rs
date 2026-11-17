@@ -1,7 +1,10 @@
 #![cfg(not(any(target_os = "android", target_arch = "wasm32")))]
 
 mod accessibility;
-#[cfg(all(unix, not(any(target_os = "android", target_os = "macos", target_os = "ios"))))]
+#[cfg(all(
+    unix,
+    not(any(target_os = "android", target_os = "macos", target_os = "ios"))
+))]
 mod backdrop;
 mod clipboard;
 mod file_picker;
@@ -227,7 +230,8 @@ impl PlatformServices for WinitPlatform<'_> {
             && window.appearance.title != shown.appearance.title
         {
             surface.window.set_title(title);
-        }        #[cfg(all(
+        }
+        #[cfg(all(
             unix,
             not(any(target_os = "android", target_os = "macos", target_os = "ios"))
         ))]
