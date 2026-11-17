@@ -152,6 +152,13 @@ pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
     core::bind_test_id(node, test_id);
 }
 
+/// Describes the first node at or within `node` that has accessibility of its own to
+/// assistive technology with `description` (none while it is empty), where that gives no
+/// description and another label: a tooltip describes the control it wraps so.
+pub fn bind_description<M1>(node: NodeId, description: impl IntoPropValue<Prop<String>, M1>) {
+    core::bind_description(node, description.into_prop_value());
+}
+
 pub fn tree_local<T: Clone + 'static>(make: impl FnOnce() -> T) -> T {
     core::tree_local(make)
 }

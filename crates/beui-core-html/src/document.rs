@@ -17,6 +17,9 @@ pub(crate) struct Shared {
     placed: Vec<(&'static str, String)>,
     test_ids: Vec<String>,
     described: Option<(u64, accesskit::Node)>,
+    /// A description another component gives the node (a tooltip's label), shown where the
+    /// node's own accessibility has none.
+    description: Option<String>,
     aria: Vec<(&'static str, String)>,
 }
 
@@ -427,7 +430,17 @@ pub fn set_accessibility(node: NodeId, accessibility: accesskit::Node, rank: u64
     {
         return;
     }
-    let mut attributes = crate::aria::attributes(&accessibility, element.tag());
+    let mut attributes = match &shared.description {
+        Some(description)
+            if accessibility.description().is_none()
+                && accessibility.label() != Some(description.as_str()) =>
+        {
+            let mut described = accessibility.clone();
+            described.set_description(description.clone());
+            crate::aria::attributes(&described, element.tag())
+        }
+        _ => crate::aria::attributes(&accessibility, element.tag()),
+    };
     if let Some(referenced) = accessibility.active_descendant() {
         let name = format!("beui-{}", referenced.0);
         let target = with_entry(NodeId::from_key(referenced.0), |entry| {
@@ -448,6 +461,61 @@ pub fn set_accessibility(node: NodeId, accessibility: accesskit::Node, rank: u64
         element.set_attribute(name, Some(value.clone()));
     }
     shared.aria = attributes;
+}
+
+/// Describes the first node at or within `node` that has accessibility of its own with
+/// `description`, where that gives no description and another label, as a tooltip describes the
+/// control it wraps; `None` takes it away.
+pub fn set_description(node: NodeId, description: Option<String>) {
+    let Some(shared) = described_within(node) else {
+        return;
+    };
+    let held = {
+        let mut shared = shared.borrow_mut();
+        if shared.description == description {
+            return;
+        }
+        shared.description = description;
+        shared.described.take()
+    };
+    if let Some((rank, accessibility)) = held {
+        let node = ARENA.with(|arena| {
+            let arena = arena.borrow();
+            arena.slots.iter().enumerate().find_map(|(index, (generation, entry))| {
+                entry
+                    .as_ref()
+                    .filter(|entry| Rc::ptr_eq(&entry.shared, &shared))
+                    .map(|_| NodeId::new(index as u32, *generation))
+            })
+        });
+        match node {
+            Some(node) => set_accessibility(node, accessibility, rank),
+            None => shared.borrow_mut().described = Some((rank, accessibility)),
+        }
+    }
+}
+
+/// The shared state of the first element at or within `node`'s that has accessibility of its
+/// own, in document order.
+fn described_within(node: NodeId) -> Option<Rc<RefCell<Shared>>> {
+    let element = element(node)?;
+    let described: Vec<(Node, Rc<RefCell<Shared>>)> = ARENA.with(|arena| {
+        arena
+            .borrow()
+            .slots
+            .iter()
+            .filter_map(|(_, entry)| entry.as_ref())
+            .filter(|entry| entry.shared.borrow().described.is_some())
+            .map(|entry| (entry.element.clone(), entry.shared.clone()))
+            .collect()
+    });
+    let found = element.find(&|candidate: &Node| {
+        described.iter().any(|(element, _)| element.is(candidate))
+    })?;
+    described
+        .into_iter()
+        .find(|(element, _)| element.is(&found))
+        .map(|(_, shared)| shared)
 }
 
 pub fn in_document_scope<T>(run: impl FnOnce() -> T) -> T {

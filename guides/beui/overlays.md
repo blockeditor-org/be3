@@ -57,7 +57,7 @@ sideways, so it keeps its width and shifts into the window over its anchor.
 Along its side it shifts to stay in the window. `layer::room` is how much room
 it will get there (like Floating UI's `size`); the native core measures its
 content in that room, and content can size itself to it before it opens.
-`Placement::Menu`, which menus (`MenuPopup`, context menus) and selects use,
+`Placement::Menu`, which menus (`MenuPopup`, context menus) use,
 instead covers its anchor when neither side has room, as low as the window
 allows, and shrinks only when it is taller than the window
 (`layer::resolve_rect`). A menu that must keep clear of what opened it passes

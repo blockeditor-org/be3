@@ -13,8 +13,11 @@ use beui_view::types::{Placement, Pos2, Rect};
 use std::time::Duration;
 
 const PADDING: Padding = Padding::symmetric(Space::Md, Space::Xs);
-const GAP: Space = Space::Xs;
 const MAX_WIDTH: f32 = 280.0;
+
+/// Where a tooltip opens unless told otherwise: below the start of what it describes,
+/// `Space::Xs` off it.
+pub const TOOLTIP_PLACEMENT: Placement = Placement::BELOW_START.gap(Space::Xs.px() as u16);
 
 #[component]
 pub fn Tooltip(
@@ -23,7 +26,7 @@ pub fn Tooltip(
     #[prop(default = TOOLTIP_DELAY)] delay: Duration,
     #[prop(default = false)] open: Binding<bool>,
     #[prop(default = None)] at: Binding<Option<Pos2>>,
-    #[prop(default = Placement::BELOW_START)] placement: Prop<Placement>,
+    #[prop(default = TOOLTIP_PLACEMENT)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
     #[prop(default = false)] keep_alive: bool,
     children: Child,
@@ -51,20 +54,18 @@ pub fn Tooltip(
 fn TooltipBubble(handle: TooltipHandle) -> NodeId {
     let TooltipHandle { label, .. } = handle;
     view! {
-        <Frame padding={Padding::vertical(GAP)}>
-            <List direction=Direction::Horizontal spacing=Space::None>
-                <ListItem max=MAX_WIDTH>
-                    <Frame
-                        @test_id={"tooltip"}
-                        fill=ColorRole::Surface
-                        border={Border::DEFAULT}
-                        radius=Radius::Md
-                        padding=PADDING
-                    >
-                        <Text style=TextStyle::CAPTION color=TextColor::Default>{label}</Text>
-                    </Frame>
-                </ListItem>
-            </List>
-        </Frame>
+        <List direction=Direction::Horizontal spacing=Space::None>
+            <ListItem max=MAX_WIDTH>
+                <Frame
+                    @test_id={"tooltip"}
+                    fill=ColorRole::Surface
+                    border={Border::DEFAULT}
+                    radius=Radius::Md
+                    padding=PADDING
+                >
+                    <Text style=TextStyle::CAPTION color=TextColor::Default>{label}</Text>
+                </Frame>
+            </ListItem>
+        </List>
     }
 }

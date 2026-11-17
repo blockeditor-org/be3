@@ -127,7 +127,7 @@ pub enum Placement {
         gap: u16,
         margin: u16,
     },
-    /// A menu or a select's list: below its anchor, else above it, and where it fits on
+    /// A menu: below its anchor, else above it, and where it fits on
     /// neither side, over the anchor and as low as the window allows rather than cut short
     /// to scroll. Only menus cover what opened them; everything else opens `Beside`.
     Menu,

@@ -161,7 +161,7 @@ pub use tile_button::TileButton;
 pub use toast::Toasts;
 pub use tokens::{CornerSet, Length, Movement, Padding, Size, Space, Stroke};
 pub use tool_pill::ToolPill;
-pub use tooltip::Tooltip;
+pub use tooltip::{TOOLTIP_PLACEMENT, Tooltip};
 pub use tree::{Tree, TreeRowFace};
 pub use treemap::Treemap;
 

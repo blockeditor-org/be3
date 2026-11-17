@@ -42,7 +42,7 @@ pub fn Select<T>(
     #[prop(default = String::new())] name: Prop<String>,
     #[prop(default = false)] open: Binding<bool>,
     #[prop(default = None)] at: Binding<Option<Pos2>>,
-    #[prop(default = Placement::Menu)] placement: Prop<Placement>,
+    #[prop(default = Placement::BELOW_START)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
     #[prop(default = false)] keep_alive: bool,
 ) -> NodeId
@@ -80,7 +80,7 @@ where
             }}
             surface={AnchoredStyle::new(
                 |dropdown: Dropdown| view! {
-                    <SelectPopup>{dropdown.content}</SelectPopup>
+                    <SelectPopup trigger_width={dropdown.anchor_width()}>{dropdown.content}</SelectPopup>
                 },
                 |handle| view! {
                     <AnchoredSheet handle padding=POPUP_PADDING />
@@ -198,11 +198,17 @@ where
     }
 }
 
+/// At least `POPUP_WIDTH` wide, and as wide as its trigger where that is wider.
 #[component]
-fn SelectPopup(children: Child) -> NodeId {
+fn SelectPopup(trigger_width: Memo<Option<f32>>, children: Child) -> NodeId {
+    let width = create_memo(move || {
+        let trigger = trigger_width.get().unwrap_or(0.0);
+        Length::Size(Size::Custom(trigger.max(POPUP_WIDTH.px())))
+    });
     view! {
         <Frame
-            width=POPUP_WIDTH
+            @test_id="select.list"
+            width={width}
             fill=ColorRole::Surface
             border={Border::DEFAULT}
             radius=Radius::Md
