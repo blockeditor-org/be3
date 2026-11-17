@@ -119,18 +119,20 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
     }
     let response = agent
         .call(|peer| {
-            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::CreateBlock {
-                block: Uuid::new_v4(),
-                content_type: CONTENT,
-                parent: BlockParent::Root,
-                metadata: Vec::new(),
-                references: Vec::new(),
-                key: KEY,
-                keys: KeySet::default(),
-                owner_only: false,
-                root: Vec::new(),
-                placement: Vec::new(),
-            })
+            peer.write_all::<be_block_protocol::BlockSummary>(vec![
+                be_block_protocol::Op::CreateBlock {
+                    block: Uuid::new_v4(),
+                    content_type: CONTENT,
+                    parent: BlockParent::Root,
+                    metadata: Vec::new(),
+                    references: Vec::new(),
+                    key: KEY,
+                    owner_only: false,
+                    root: Vec::new(),
+                    placement: Vec::new(),
+                },
+                be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet::default())),
+            ])
         })
         .await;
     assert!(

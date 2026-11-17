@@ -17,15 +17,17 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
                 block: block,
-                commit: base,
                 expected: None,
-                parents: Vec::new(),
-                held: objects_change(&[], base_chunks.clone()),
-                time: 1_000,
-                pinned: false,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: base,
+                    parents: Vec::new(),
+                    held: objects_change(&[], base_chunks.clone()),
+                    time: 1_000,
+                    pinned: false,
+                    objects: Vec::new(),
+                }),
                 references: listing(&[], Vec::new()),
                 metadata: Vec::new(),
-                objects: Vec::new(),
                 journal: None,
             })
         })
@@ -39,15 +41,17 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
                 block: block,
-                commit: ours,
                 expected: None,
-                parents: Vec::new(),
-                held: objects_change(&[], ours_chunks.clone()),
-                time: 2_000,
-                pinned: false,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: ours,
+                    parents: Vec::new(),
+                    held: objects_change(&[], ours_chunks.clone()),
+                    time: 2_000,
+                    pinned: false,
+                    objects: Vec::new(),
+                }),
                 references: listing(&[], Vec::new()),
                 metadata: Vec::new(),
-                objects: Vec::new(),
                 journal: None,
             })
         })
@@ -62,15 +66,17 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
                 block: block,
-                commit: ours,
                 expected: Some(base),
-                parents: Some(base).into_iter().collect(),
-                held: objects_change(&base_chunks, ours_chunks),
-                time: 2_000,
-                pinned: false,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: ours,
+                    parents: Some(base).into_iter().collect(),
+                    held: objects_change(&base_chunks, ours_chunks),
+                    time: 2_000,
+                    pinned: false,
+                    objects: Vec::new(),
+                }),
                 references: listing(&[], Vec::new()),
                 metadata: Vec::new(),
-                objects: Vec::new(),
                 journal: None,
             })
         })

@@ -29,8 +29,9 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   whatever the server's row says (`KeyBook::opened` drops a key whose block
   differs), may pin the root, and seals it on only as far as the logs reach
   those heads.
-- **Data keys (DEKs)**: one per block, made at creation (`CreateBlock` carries
-  it; `BlockSummary::key` is the current one). A block keeps every epoch, so its
+- **Data keys (DEKs)**: one per block, made at creation (`create-block` names
+  it and a `put-keys(rows)` in the same write stores it, which the server
+  checks at the write's end; `BlockSummary::key` is the current one). A block keeps every epoch, so its
   history stays readable.
 - **Scope keys (KEKs)**: a scope root is a root block, a detached block, an
   owner-only block (guides/settings.md, Owner only), or a block with grants of
@@ -96,9 +97,10 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   blocks the account can view and wraps by its account or a key it is served,
   a page at a time in the order of key ids (`ServerConfig::key_page_bytes`, each key with its
   wraps), which `Peer::refresh_keys` reads through;
-  `PutKeys`, `CreateBlock` and `SetParent` store rows only for blocks the
-  caller may edit, never replace a sealed row, and refuse a seal to any account
-  but the caller's own and its contacts'.
+  `put-keys` is the one op that stores rows (`create-block` and `move` carry
+  none: a write puts `put-keys` beside them). It stores rows only for blocks
+  the caller may edit, never replaces a sealed row, and refuses a seal to any
+  account but the caller's own and its contacts'.
 - **On the client**: `Peer::signed_in` loads every row (kept in the refs
   database, so `Peer::cached` unwraps offline) and unwraps what it can
   (`KeyBook::absorb`). A read meeting an unknown key refetches once, then fails
@@ -134,8 +136,14 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   seal key work asks of another editor all unlock it.
 - **Moving and sharing.** `Peer::set_parent` into another scope rewraps the
   moved DEKs (old epochs too) under the destination KEK, gives each block a
-  fresh DEK and rewraps scope roots inside, all in one `SetParent`. A move
-  within a scope or to Recently Deleted changes no keys. `Peer::share` grants
+  fresh DEK and rewraps scope roots inside, all in one write, `[move,
+  put-keys(rows)]`. The server checks it at the write's end
+  (`keys::Whole::Moved`): every key the move took into the new scope opens
+  from that scope's latest key, the moved block's own scope key if it is a
+  scope whose key does, else its data key and, below it, each viewable block's
+  data key or nested scope's key; one missing refuses the whole write
+  (`KeyMissing`). A move within a scope or to Recently Deleted changes no
+  keys, and the server checks none. `Peer::share` grants
   and makes the block a scope root sealed to the grantee's verified key.
 - **Wrapped only under what is above.** A device wraps a key of a block under
   a scope key only of a block the signed parent records place it at or under
@@ -165,7 +173,7 @@ block has a log of `be_block_keys::Entry`s, each signed with the
 signer's account signing key in a domain of its own (`be3.access.v1`) and
 naming the hash of the entry before it. The first is the root: the block's
 creator and their keys, made by `Peer::creation` (and `import`) and sent with
-`CreateBlock`, also through the outbox. A device takes a root's hash only from
+`create-block`, also through the outbox. A device takes a root's hash only from
 somewhere the server cannot write: making the block (`KeyBook::pin_root`,
 before its keys are made, which carry it) or a trusted key of the block
 (`KeyBook::opened`). Keys of one block that carry different roots leave it

@@ -5,7 +5,7 @@ use be_block_graph::{
 };
 use be_block_protocol::{
     AccessEntry, AccessList, BlockSummary, ChangeCursor, ChangedPage, ErrorCode, HistoryEntry,
-    Hold, KeyKind, KeySet, Listed, Listing, ObjectChange, OrganizationRole, ReferenceChange,
+    Hold, Listed, Listing, ObjectChange, OrganizationRole, ReferenceChange,
 };
 use be_block_store::Hash;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -41,7 +41,6 @@ const MAX_SCANNED: usize = if cfg!(test) { 6 } else { 20_000 };
 
 use crate::{
     ServerError,
-    keys::store_keys,
     limits::{MAX_BLOCKS_PER_ACCOUNT, MAX_COMMIT_AHEAD, MAX_METADATA_BYTES},
     store::{
         Identity, ServerStore, encode_access, encode_parent, parse_uuid,
@@ -65,6 +64,8 @@ pub struct Moved {
     pub lost: BTreeSet<Uuid>,
     /// The blocks above it before, whose followers hear it left.
     pub above: Vec<Uuid>,
+    /// The scope above where it was, none from the top or the trash (`keys::Whole::Moved`).
+    pub scope_before: Option<Uuid>,
 }
 
 pub(crate) struct Visibility {
@@ -464,7 +465,6 @@ impl ServerStore {
         metadata: Vec<u8>,
         references: Vec<Uuid>,
         key: Uuid,
-        keys: KeySet,
         owner_only: bool,
         root: Vec<u8>,
         placement: Vec<u8>,
@@ -489,28 +489,21 @@ impl ServerStore {
                 require_index_place(graph, block, parent)?;
             }
             store.may_create(graph, database, identity, block, content_type, parent)?;
-            if !keys
-                .keys
-                .iter()
-                .any(|row| row.id == key && row.block == block && row.kind == KeyKind::Data)
-            {
-                return Err(ServerError::Refused(
-                    ErrorCode::InvalidRequest,
-                    "a new block needs a data key of its own".into(),
-                ));
-            }
             let mut node = BlockNode::new(content_type, identity.account, parent);
             node.metadata.clone_from(&metadata);
             node.owner_only = owner_only;
             graph.insert(block, node)?;
+            // Its key row comes in a `put-keys` of the same write, checked at the write's end
+            // (`keys::Whole::Made`).
+            graph.set_key(block, key)?;
             let (kind, parent_id) = encode_parent(parent);
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             let payer = payer_for_new(&transaction, identity.organization, parent, identity.account)?;
             transaction.execute(
                 "INSERT INTO blocks
                     (organization_id, id, content_type, author, parent_kind, parent_id, head, metadata,
-                     payer, owner_only)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, ?8, ?9)",
+                     payer, owner_only, key_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, ?8, ?9, ?10)",
                 params![
                     identity.organization.to_string(),
                     block.to_string(),
@@ -521,6 +514,7 @@ impl ServerStore {
                     metadata,
                     payer.to_string(),
                     owner_only,
+                    key.to_string(),
                 ],
             )?;
             crate::access::store_root(
@@ -541,14 +535,6 @@ impl ServerStore {
                 &identity.organization.to_string(),
                 block,
                 &references,
-            )?;
-            store_keys(
-                graph,
-                &transaction,
-                identity.organization,
-                identity.account,
-                &keys,
-                |_, owner| owner == block,
             )?;
             transaction.commit()?;
             graph.set_references(block, &references)?;
@@ -609,24 +595,51 @@ impl ServerStore {
         .await
     }
 
-    pub async fn set_metadata(
+    /// A publish with no commit: sets `block`'s metadata and references while its head is
+    /// `expected`, which stays the head. `references` is a change from what `expected` holds,
+    /// the whole list with none.
+    pub async fn describe(
         &self,
         identity: Identity,
         block: Uuid,
+        expected: Option<CommitId>,
         metadata: Vec<u8>,
-        references: Vec<Uuid>,
+        references: ReferenceChange,
     ) -> Result<(BlockSummary, Vec<Uuid>), ServerError> {
-        let references = distinct(references);
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
-        crate::limits::references(&references)?;
+        crate::limits::references(&references.removed)?;
+        if references.added.len() > crate::limits::MAX_REFERENCES {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                format!(
+                    "a block may reference at most {} blocks",
+                    crate::limits::MAX_REFERENCES
+                ),
+            ));
+        }
         self.with_graph(identity.organization, move |_, graph, database| {
             require_edit(graph, &visibility(identity), block)?;
-            if let Some(head) = graph.head(block) {
+            let head = graph.head(block);
+            if head != expected {
                 return Err(ServerError::Refused(
                     ErrorCode::BlockHasContent,
-                    format!("block {block} has content at {head}, so its metadata is published with it"),
+                    match head {
+                        Some(head) => format!("block {block}'s head is {head}"),
+                        None => format!("block {block} has no content yet"),
+                    },
                 ));
             }
+            let listed = match expected {
+                Some(_) => graph.references(block),
+                None => Vec::new(),
+            };
+            let references = references.apply(&listed).ok_or_else(|| {
+                ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "a reference change must be as `ReferenceChange::between` makes it".into(),
+                )
+            })?;
+            crate::limits::references(&references)?;
             require_keeping_settings(graph, &visibility(identity), block, &references)?;
             require_one_index(graph, block, &references)?;
             let relinked = relinked(graph, block, &references);
@@ -1416,7 +1429,6 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
         parent: BlockParent,
-        keys: KeySet,
         record: Vec<u8>,
     ) -> Result<Moved, ServerError> {
         self.with_graph(identity.organization, move |store, graph, database| {
@@ -1472,6 +1484,10 @@ impl ServerStore {
                 BlockParent::Root | BlockParent::Detached => {}
             }
             let before = graph.audience(block);
+            let scope_before = match node.parent {
+                BlockParent::Block(above) => Some(graph.scope(above)),
+                BlockParent::Root | BlockParent::Detached => None,
+            };
             let viewing = match parent {
                 BlockParent::Detached => None,
                 _ => Some(crate::keys::viewing_below(
@@ -1489,17 +1505,6 @@ impl ServerStore {
                 identity.account,
                 parent,
                 &record,
-            )?;
-            store_keys(
-                graph,
-                &transaction,
-                identity.organization,
-                identity.account,
-                &keys,
-                |graph, owner| {
-                    (owner == block || graph.ancestors(owner).any(|above| above == block))
-                        && seen.can_view(graph, owner)
-                },
             )?;
             store.follow_payer(graph, &transaction, identity, block, parent)?;
             // The entry points above it, for `query.tree` to name it to their readers once it
@@ -1570,6 +1575,7 @@ impl ServerStore {
                 before,
                 lost,
                 above,
+                scope_before,
             })
         })
         .await

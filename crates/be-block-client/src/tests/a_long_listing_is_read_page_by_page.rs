@@ -59,10 +59,13 @@ async fn a_long_listing_is_read_page_by_page() {
         be_block_protocol::write::<be_block_protocol::BlockSummary, _>(
             &author.connection(),
             Some(author.organization()),
-            be_block_protocol::Op::SetMetadata {
+            be_block_protocol::Op::Publish {
                 block: referrer,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &order.clone()),
                 metadata: Vec::new(),
-                references: order.clone(),
+                journal: None,
             },
         ),
     )

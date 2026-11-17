@@ -323,7 +323,11 @@ sends it. `Peer::write` does both.
   through) and where it is returned (`Peer::summary_with_outbox`), and a server
   listing with what the outbox adds or moves (`Peer::with_outbox`): an answer
   the server gave before those reached it would otherwise undo them here.
-  Sending a move carries its databases' prefixes along (`Moving::from`).
+  Each goes up as one write: a creation as `[create-block, put-keys(rows)]`
+  (`Creation::ops`), a move as `[move, put-keys(rows)]` with the keys
+  `Peer::rescope` made for its new scope (none within one), and a define as a
+  `publish` with no commit, expecting no head. Sending a move carries its
+  databases' prefixes along (`Moving::from`).
   `Peer::history` answers offline with the history the device holds, walked
   from the server's head as last heard (`history_held`): it can hold commits
   the server has since pruned, where online it lists only what the server keeps.

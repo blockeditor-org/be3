@@ -41,10 +41,13 @@ async fn one_connection_reads_two_organizations_without_reconnecting() {
         let written = peer
             .write_in::<BlockSummary>(
                 Some(organization),
-                Op::SetMetadata {
-                    block,
+                Op::Publish {
+                    block: block,
+                    expected: None,
+                    commit: None,
+                    references: be_block_protocol::ReferenceChange::between(&[], &Vec::new()),
                     metadata: b"changed".to_vec(),
-                    references: Vec::new(),
+                    journal: None,
                 },
             )
             .await

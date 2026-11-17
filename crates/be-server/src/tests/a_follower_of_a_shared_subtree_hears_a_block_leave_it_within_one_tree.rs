@@ -42,10 +42,13 @@ async fn a_follower_of_a_shared_subtree_hears_a_block_leave_it_within_one_tree()
     // The sibling's follower hears of the next change in its own tree, and of nothing before.
     let renamed = owner
         .call(|peer| {
-            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
                 block: sibling,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &Vec::new()),
                 metadata: b"renamed".to_vec(),
-                references: Vec::new(),
+                journal: None,
             })
         })
         .await;

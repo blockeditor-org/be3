@@ -104,8 +104,8 @@ const QUERIES: &[&str] = &[
 fn op_case(op: &Op) -> &'static str {
     match op {
         Op::CreateBlock { .. } => "create-block",
-        Op::Publish { .. } => "publish",
-        Op::SetMetadata { .. } => "set-metadata",
+        Op::Publish { commit: None, .. } => "publish (no commit)",
+        Op::Publish { commit: Some(_), .. } => "publish",
         Op::Move { .. } => "move",
         Op::AppendLog(LogRecord::Grant { .. }) => "append-log (grant)",
         Op::AppendLog(LogRecord::Role { .. }) => "append-log (role)",
@@ -145,7 +145,7 @@ fn op_case(op: &Op) -> &'static str {
 const OPS: &[&str] = &[
     "create-block",
     "publish",
-    "set-metadata",
+    "publish (no commit)",
     "move",
     "append-log (grant)",
     "append-log (role)",
@@ -444,34 +444,35 @@ impl TestClient {
                 metadata: Vec::new(),
                 references: Vec::new(),
                 key: KEY,
-                keys: KeySet {
-                    keys: vec![row(KEY, other, KeyKind::Data)],
-                    wrapped: Vec::new(),
-                },
                 owner_only: false,
                 root,
                 placement,
             })
             .await;
         calls
-            .write(Op::SetMetadata {
-                block,
+            .write(Op::Publish {
+                block: block,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &Vec::new()),
                 metadata: sealed(),
-                references: Vec::new(),
+                journal: None,
             })
             .await;
         calls
             .write(Op::Publish {
-                block,
-                commit,
+                block: block,
                 expected: None,
-                parents: Vec::new(),
-                held: objects_change(&[], Vec::new()),
-                time: 1_000,
-                pinned: false,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: commit,
+                    parents: Vec::new(),
+                    held: objects_change(&[], Vec::new()),
+                    time: 1_000,
+                    pinned: false,
+                    objects: vec![b"an object".to_vec()],
+                }),
                 references: listing(&[], Vec::new()),
                 metadata: Vec::new(),
-                objects: vec![b"an object".to_vec()],
                 journal: None,
             })
             .await;
@@ -493,7 +494,6 @@ impl TestClient {
             .write(Op::Move {
                 block,
                 parent: BlockParent::Root,
-                keys: KeySet::default(),
                 placement: moving,
             })
             .await;
@@ -708,21 +708,23 @@ async fn every_call_states_who_may_make_it() {
     let placement = knower.placement(referrer, BlockParent::Root).await;
     let response = knower
         .call(|peer| {
-            peer.write::<be_block_protocol::BlockSummary>(Op::CreateBlock {
-                block: referrer,
-                content_type: CONTENT,
-                parent: BlockParent::Root,
-                metadata: Vec::new(),
-                references: vec![block],
-                key,
-                keys: KeySet {
+            peer.write_all::<be_block_protocol::BlockSummary>(vec![
+                Op::CreateBlock {
+                    block: referrer,
+                    content_type: CONTENT,
+                    parent: BlockParent::Root,
+                    metadata: Vec::new(),
+                    references: vec![block],
+                    key: key,
+                    owner_only: false,
+                    root: root,
+                    placement: placement,
+                },
+                Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
                     keys: vec![row(key, referrer, KeyKind::Data)],
                     wrapped: Vec::new(),
-                },
-                owner_only: false,
-                root,
-                placement,
-            })
+                })),
+            ])
         })
         .await;
     assert!(response.is_ok(), "{response:?}");
@@ -733,7 +735,7 @@ async fn every_call_states_who_may_make_it() {
     let viewing = [
         "hold-objects",
         "create-block",
-        "set-metadata",
+        "publish (no commit)",
         "publish",
         "blocks (contents)",
         "move",

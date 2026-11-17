@@ -23,15 +23,17 @@ async fn a_request_stuck_in_a_full_socket_fails_once_the_server_goes_silent() {
         Some(uuid::Uuid::nil()),
         be_block_protocol::Op::Publish {
             block: uuid::Uuid::nil(),
-            commit: be_block_commit::CommitId::from_hash(be_block_store::Hash::of(b"a commit")),
             expected: None,
-            parents: Vec::new(),
-            held: be_block_protocol::ObjectChange::default(),
-            time: 0,
-            pinned: false,
+            commit: Some(be_block_protocol::NewCommit {
+                id: be_block_commit::CommitId::from_hash(be_block_store::Hash::of(b"a commit")),
+                parents: Vec::new(),
+                held: be_block_protocol::ObjectChange::default(),
+                time: 0,
+                pinned: false,
+                objects: vec![vec![7; be_block_protocol::MAX_FRAME_BYTES - 1024]],
+            }),
             references: be_block_protocol::ReferenceChange::default(),
             metadata: Vec::new(),
-            objects: vec![vec![7; be_block_protocol::MAX_FRAME_BYTES - 1024]],
             journal: None,
         },
     ));

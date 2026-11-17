@@ -38,7 +38,7 @@ async fn a_write_let_go_of_midway_keeps_nothing_and_leaves_no_transaction_open()
 
     // The server's next write waits for the lock the batch held, then is kept.
     let (block, create) = owner.new_block_op(BlockParent::Root).await;
-    let made = owner.call(|peer| peer.write::<BlockSummary>(create)).await;
+    let made = owner.call(|peer| peer.write_all::<BlockSummary>(create)).await;
     assert!(made.is_ok(), "{made:?}");
     let database = metadata_database(&harness.directory);
     let name: String = database

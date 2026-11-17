@@ -3,10 +3,13 @@ use super::*;
 async fn rename(client: &mut TestClient, block: Uuid, name: &[u8]) {
     let response = client
         .call(|peer| {
-            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
                 block: block,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &Vec::new()),
                 metadata: name.to_vec(),
-                references: Vec::new(),
+                journal: None,
             })
         })
         .await;

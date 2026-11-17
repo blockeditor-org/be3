@@ -11,21 +11,23 @@ async fn create_index(
     let placement = client.placement(block, BlockParent::Block(parent)).await;
     let response = client
         .call(|peer| {
-            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::CreateBlock {
-                block: block,
-                content_type: SEARCH_INDEX_TYPE,
-                parent: BlockParent::Block(parent),
-                metadata: Vec::new(),
-                references: Vec::new(),
-                key: key,
-                keys: KeySet {
+            peer.write_all::<be_block_protocol::BlockSummary>(vec![
+                be_block_protocol::Op::CreateBlock {
+                    block: block,
+                    content_type: SEARCH_INDEX_TYPE,
+                    parent: BlockParent::Block(parent),
+                    metadata: Vec::new(),
+                    references: Vec::new(),
+                    key: key,
+                    owner_only: false,
+                    root: root,
+                    placement: placement,
+                },
+                be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
                     keys: vec![row(key, block, KeyKind::Data)],
                     wrapped: Vec::new(),
-                },
-                owner_only: false,
-                root: root,
-                placement: placement,
-            })
+                })),
+            ])
         })
         .await;
     (block, response)
@@ -42,10 +44,13 @@ async fn refer(
 ) -> Result<BlockSummary, Error> {
     client
         .call(|peer| {
-            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
                 block: block,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &references),
                 metadata: Vec::new(),
-                references: references,
+                journal: None,
             })
         })
         .await

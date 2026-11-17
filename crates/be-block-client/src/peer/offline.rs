@@ -777,21 +777,10 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(Drained::SetAside { block, why });
         }
         let response = crate::ask(
-            be_block_protocol::write::<be_block_protocol::BlockSummary, _>(
+            be_block_protocol::write_all::<be_block_protocol::BlockSummary, _>(
                 &self.connection(),
                 Some(self.organization),
-                be_block_protocol::Op::CreateBlock {
-                    block: block,
-                    content_type: creation.content_type,
-                    parent: creation.parent,
-                    metadata: creation.metadata.clone(),
-                    references: creation.references.clone(),
-                    key: creation.key,
-                    keys: creation.keys.clone(),
-                    owner_only: creation.owner_only,
-                    root: creation.root.clone(),
-                    placement: creation.placement.clone(),
-                },
+                creation.ops(),
             ),
         )
         .await;
@@ -890,10 +879,16 @@ impl<S: ObjectStore> Peer<S> {
             be_block_protocol::write::<be_block_protocol::BlockSummary, _>(
                 &self.connection(),
                 Some(self.organization),
-                be_block_protocol::Op::SetMetadata {
+                be_block_protocol::Op::Publish {
                     block: block,
+                    expected: None,
+                    commit: None,
+                    references: be_block_protocol::ReferenceChange::between(
+                        &[],
+                        &defining.references,
+                    ),
                     metadata: defining.metadata.clone(),
-                    references: defining.references.clone(),
+                    journal: None,
                 },
             ),
         )

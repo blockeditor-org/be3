@@ -5,7 +5,7 @@ use be_block_graph::BlockParent;
 use be_block_protocol::{
     Authenticated, BlockSummary, ChangeCursor, ClientId, DeviceLoginAnswer, DeviceLoginStep, Done,
     Error, ErrorCode, Event, FromDone, FromPage, HistoryEntry, Hold, KeyKind, KeyRow, KeySet,
-    Listing, ObjectLength, Op, OrganizationRole, PairingMessage, Query, SessionEvent, SessionSend,
+    Listing, ObjectLength, Op, OrganizationRole, PutKeys, PairingMessage, Query, SessionEvent, SessionSend,
     SessionState, Target, Topic, UploadUrl, WrappedBy, WrappedKey, WriteError, client,
 };
 use be_block_session::{Resume, resume};
@@ -30,6 +30,7 @@ mod a_block_agents_long_poll_session_is_replaced_too;
 mod a_block_agents_new_connection_replaces_the_open_one;
 mod a_block_holds_a_bounded_number_of_agents_of_its_own;
 mod a_block_in_unfiled_stays_live_without_a_listing_until_it_is_deleted;
+mod a_block_made_with_no_key_in_its_write_is_refused;
 mod a_block_shared_from_a_hidden_folder_is_listed_as_shared;
 mod a_blocks_references_are_listed_and_announced_together;
 mod a_browser_preflight_to_the_s3_endpoint_is_answered;
@@ -76,6 +77,7 @@ mod a_member_who_loses_view_when_a_block_is_trashed_is_told_it_is_gone;
 mod a_member_who_loses_view_when_a_block_moves_somewhere_hidden_is_told_it_is_gone;
 mod a_message_arriving_slowly_is_not_taken_for_silence;
 mod a_mode_set_on_one_device_is_announced_to_the_others;
+mod a_move_missing_one_blocks_wrap_under_its_new_scope_is_refused_whole;
 mod a_move_never_takes_a_workspace_or_more_access_without_manage;
 mod a_move_past_the_new_payers_quota_is_refused;
 mod a_new_recovery_key_reseals_every_key_sealed_to_the_account;
@@ -94,6 +96,7 @@ mod a_provider_the_server_no_longer_has_is_no_way_in;
 mod a_provider_token_with_the_wrong_audience_or_a_strangers_signature_is_refused;
 mod a_publish_adding_a_reference_the_block_already_holds_moves_it;
 mod a_publish_pushes_the_new_storage_usage_to_its_payer;
+mod a_publish_with_no_commit_changes_the_metadata_and_leaves_the_head;
 mod a_push_hosts_cap_is_keyed_by_its_allowlist_entry_and_statuses_are_judged;
 mod a_push_reaches_members_who_are_not_connected_and_want_it;
 mod a_push_service_refusing_the_server_or_redirecting_does_not_cost_the_right_endpoints;
@@ -543,6 +546,16 @@ impl At {
         op: Op,
     ) -> impl Future<Output = Answered<T>> + use<T> {
         be_block_protocol::write(self, organization, op)
+    }
+
+    /// Writes `ops` as one write in the organization of the first, answered as the case `T` the
+    /// first makes.
+    fn write_all<T: FromDone + Send + 'static>(
+        &self,
+        ops: Vec<Op>,
+    ) -> impl Future<Output = Answered<T>> + use<T> {
+        let organization = ops.first().and_then(|op| self.op_organization(op));
+        be_block_protocol::write_all(self, organization, ops)
     }
 
     /// Writes `ops` as one write in the organization.
@@ -1230,14 +1243,15 @@ impl TestClient {
         key: Uuid,
         keys: KeySet,
     ) {
-        let op = self.create_op(block, content_type, parent, key, keys).await;
+        let ops = self.create_op(block, content_type, parent, key, keys).await;
         let response = self
-            .call(|peer| peer.write::<be_block_protocol::BlockSummary>(op))
+            .call(|peer| peer.write_all::<be_block_protocol::BlockSummary>(ops))
             .await;
         assert!(response.is_ok(), "{response:?}");
     }
 
-    /// The op making `block`, signed by this client's account as `create_typed` makes it.
+    /// The ops making `block`, signed by this client's account as `create_typed` makes it: the
+    /// creation and its keys.
     async fn create_op(
         &mut self,
         block: Uuid,
@@ -1245,25 +1259,27 @@ impl TestClient {
         parent: BlockParent,
         key: Uuid,
         keys: KeySet,
-    ) -> Op {
+    ) -> Vec<Op> {
         let root = self.root(block);
         let placement = self.placement(block, parent).await;
-        Op::CreateBlock {
-            block,
-            content_type,
-            parent,
-            metadata: Vec::new(),
-            references: Vec::new(),
-            key,
-            keys,
-            owner_only: false,
-            root,
-            placement,
-        }
+        vec![
+            Op::CreateBlock {
+                block,
+                content_type,
+                parent,
+                metadata: Vec::new(),
+                references: Vec::new(),
+                key,
+                owner_only: false,
+                root,
+                placement,
+            },
+            Op::PutKeys(PutKeys::Rows(keys)),
+        ]
     }
 
-    /// The op making a new block of the test type at `parent`, with a data key of its own.
-    async fn new_block_op(&mut self, parent: BlockParent) -> (Uuid, Op) {
+    /// The ops making a new block of the test type at `parent`, with a data key of its own.
+    async fn new_block_op(&mut self, parent: BlockParent) -> (Uuid, Vec<Op>) {
         let (block, key) = (Uuid::new_v4(), Uuid::new_v4());
         let keys = KeySet {
             keys: vec![row(key, block, KeyKind::Data)],
@@ -1426,15 +1442,17 @@ impl TestClient {
         self.call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
                 block: block,
-                commit: commit,
                 expected: expected,
-                parents: expected.into_iter().collect(),
-                held: objects_change(&before, chunks),
-                time: time,
-                pinned: false,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: commit,
+                    parents: expected.into_iter().collect(),
+                    held: objects_change(&before, chunks),
+                    time: time,
+                    pinned: false,
+                    objects: Vec::new(),
+                }),
                 references: listing(&[], Vec::new()),
                 metadata: Vec::new(),
-                objects: Vec::new(),
                 journal: journal.clone(),
             })
         })
@@ -1599,15 +1617,17 @@ impl TestClient {
             .call(|peer| {
                 peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
                     block: parent,
-                    commit: head,
                     expected: None,
-                    parents: Vec::new(),
-                    held: objects_change(&[], chunks),
-                    time: 1_000,
-                    pinned: false,
+                    commit: Some(be_block_protocol::NewCommit {
+                        id: head,
+                        parents: Vec::new(),
+                        held: objects_change(&[], chunks),
+                        time: 1_000,
+                        pinned: false,
+                        objects: Vec::new(),
+                    }),
                     references: listing(&[], children),
                     metadata: Vec::new(),
-                    objects: Vec::new(),
                     journal: None,
                 })
             })
@@ -1933,15 +1953,15 @@ impl TestClient {
         keys: KeySet,
     ) -> Result<(), Error> {
         let record = self.signed_parent(block, parent).await;
-        self.call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::Move {
-                block: block,
-                parent: parent,
-                keys: keys,
-                placement: record,
-            })
-        })
-        .await
+        let mut ops = vec![be_block_protocol::Op::Move {
+            block: block,
+            parent: parent,
+            placement: record,
+        }];
+        if !keys.is_empty() {
+            ops.push(Op::PutKeys(PutKeys::Rows(keys)));
+        }
+        self.call(|peer| peer.write_all::<()>(ops)).await
     }
 
     /// Where `parent` is, as a parent record names it, with the root of its log as served.

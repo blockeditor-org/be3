@@ -266,6 +266,26 @@ pub struct Creation {
     pub unchecked: bool,
 }
 
+impl Creation {
+    /// The write that makes the block: `create-block`, and its keys stored beside it.
+    pub fn ops(&self) -> Vec<be_block_protocol::Op> {
+        vec![
+            be_block_protocol::Op::CreateBlock {
+                block: self.block,
+                content_type: self.content_type,
+                parent: self.parent,
+                metadata: self.metadata.clone(),
+                references: self.references.clone(),
+                key: self.key,
+                owner_only: self.owner_only,
+                root: self.root.clone(),
+                placement: self.placement.clone(),
+            },
+            be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(self.keys.clone())),
+        ]
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Moving {
     pub block: Uuid,

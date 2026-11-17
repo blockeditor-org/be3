@@ -34,15 +34,17 @@ async fn requests_sent_before_a_close_are_still_carried_out() {
             publisher.peer.write::<be_block_protocol::PublishOutcome>(
                 be_block_protocol::Op::Publish {
                     block: block,
-                    commit: head,
                     expected: None,
-                    parents: Vec::new(),
-                    held: objects_change(&[], chunks),
-                    time: 1_000,
-                    pinned: false,
+                    commit: Some(be_block_protocol::NewCommit {
+                        id: head,
+                        parents: Vec::new(),
+                        held: objects_change(&[], chunks),
+                        time: 1_000,
+                        pinned: false,
+                        objects: Vec::new(),
+                    }),
                     references: listing(&[], Vec::new()),
                     metadata: Vec::new(),
-                    objects: Vec::new(),
                     journal: None,
                 },
             )
