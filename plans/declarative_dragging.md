@@ -332,7 +332,12 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      The source holds a tentative removal. On drop the target writes the insert first and the
      source then commits its removal, so a crash between the two leaves a copy, never nothing.
    - **settings' display arrangement:** every touching position is a candidate, `when_far(free)`.
-   - **bottom sheet:** detents are `closest(detents).thrown()`.
+   - **bottom sheet (done):** its release chooses among its detents and closing as
+     `closest(detents).thrown_for(..)`, evaluated where it lets go rather than carried: the
+     sheet's height and its content's scroll are one continuous travel under the finger,
+     which stays on `on_drag` (step 8). Closing is a place below the lowest detent, so a
+     release past the close distance takes it; `thrown_for` lets a flick carry on longer
+     than a carried item's throw.
 6. **Across apps.** plans/host_as_platform_adapter.md owns the cross-app session (Input, "Drag
    and drop"): the source starts it with its payload, and the host routes drag-over events to the
    surface under the pointer and the drop to the one under the release, by its forwarding router.

@@ -19,11 +19,14 @@ use beui_view::types::Color;
 use beui_view::types::Direction;
 use beui_view::types::ScrollPosition;
 use beui_view::types::{BackGesture, CursorIcon, DragGesture, PointerPress, ScrollGesture};
-use beui_view::types::{Measured, Rect, vec2};
+use beui_view::drag;
+use beui_view::types::{Measured, Modifiers, Rect, Vec2, pos2, vec2};
 
 const CLOSE_SHARE: f32 = 0.4;
 const CLOSE_DISTANCE: f32 = 96.0;
-const PROJECTION: f32 = 0.2;
+/// How far a flick carries a sheet on before it chooses a stop: longer than a carried item's
+/// throw, so a quick flick down from high up closes it.
+const THROWN_SECONDS: f32 = 0.2;
 const RELEASED_STRETCH: f32 = 0.35;
 const EPSILON: f32 = 0.5;
 const ENTER_SECONDS: f32 = 0.3;
@@ -752,26 +755,56 @@ impl Motion {
     }
 
     fn snap_phase(&self, height: f32, velocity: f32, shape: &Shape) -> Phase {
-        let projected = height + velocity * PROJECTION;
         let lowest = shape.stops.first().map_or(shape.top, |(stop, _)| *stop);
-        let close_below = lowest - (lowest * CLOSE_SHARE).min(CLOSE_DISTANCE);
-        if projected < close_below {
-            return Phase::Snap {
+        // Closing is a place as far below the lowest stop as the close distance doubled, so
+        // a release past the close distance chooses it.
+        let close = lowest - 2.0 * (lowest * CLOSE_SHARE).min(CLOSE_DISTANCE);
+        let places = shape
+            .stops
+            .iter()
+            .map(|(stop, rest)| (*stop, Some(*rest)))
+            .chain([(close, None)]);
+        match self.snap_to(height, velocity, places) {
+            Some(None) => Phase::Snap {
                 target: Rest::Free(height),
                 velocity: (-velocity).max(0.0),
                 closes: true,
-            };
+            },
+            target => Phase::Snap {
+                target: target.flatten().unwrap_or(self.top_rest()),
+                velocity,
+                closes: false,
+            },
         }
-        let target = shape
-            .stops
-            .iter()
-            .min_by(|(a, _), (b, _)| (a - projected).abs().total_cmp(&(b - projected).abs()))
-            .map_or(self.top_rest(), |(_, rest)| *rest);
-        Phase::Snap {
-            target,
-            velocity,
-            closes: false,
-        }
+    }
+
+    /// Which of `places` (heights) a release at `height`, rising at `velocity`, lands on:
+    /// `closest(places).thrown()`, the nearest, or the one a fast release is thrown toward.
+    /// The sheet is a continuous drag, its height and its content's scroll one travel under
+    /// the finger, so only its release is a spec, evaluated here rather than carried.
+    fn snap_to<D: Clone + 'static>(
+        &self,
+        height: f32,
+        velocity: f32,
+        places: impl IntoIterator<Item = (f32, D)>,
+    ) -> Option<D> {
+        // Heights rise up the y axis, as the sheet's top does.
+        let at = |height: f32| Rect::from_min_size(pos2(0.0, -height), Vec2::ZERO);
+        let spec = drag::closest(
+            places
+                .into_iter()
+                .map(|(place, drop)| drag::Candidate::new(drop, at(place), self.slot)),
+        )
+        .thrown()
+        .thrown_for(THROWN_SECONDS);
+        let placed = |_: NodeId| Some((Rect::ZERO, 1.0));
+        let evaluation = drag::Evaluation {
+            point: drag::DragPoint::at(pos2(0.0, -height), Modifiers::default()),
+            velocity: vec2(0.0, -velocity),
+            released: true,
+            placed: &placed,
+        };
+        drag::evaluate(&spec, &evaluation, &drag::DragFrame::default()).drop
     }
 
     fn start(&self, phase: Phase) {
@@ -909,7 +942,14 @@ impl Motion {
         }
         self.dragging.set(false);
         if std::mem::take(&mut self.held.borrow_mut().dismiss_drag) {
-            if self.shifted.get() - velocity * PROJECTION > self.height() * CLOSE_SHARE {
+            // Shown, or closed: a place twice the close share down, so a release past the
+            // share closes.
+            let closes = self.snap_to(
+                -self.shifted.get(),
+                velocity,
+                [(0.0, false), (-2.0 * CLOSE_SHARE * self.height(), true)],
+            );
+            if closes == Some(true) {
                 self.close((-velocity).max(0.0));
             } else {
                 self.start(Phase::SheetBounce {
