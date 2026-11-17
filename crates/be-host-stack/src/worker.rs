@@ -1875,7 +1875,7 @@ impl Session<'_> {
                     && !held.arriving
                     && !held.graph.refreshing())
                 .then(|| self.replicas.modules.held_due())
-                    .flatten();
+                .flatten();
                 (
                     std::mem::replace(&mut held.typing, typing),
                     std::mem::replace(&mut held.modules_due, due),

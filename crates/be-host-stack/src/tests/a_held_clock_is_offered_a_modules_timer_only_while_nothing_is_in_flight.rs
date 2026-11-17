@@ -76,5 +76,7 @@ fn a_held_clock_is_offered_a_modules_timer_only_while_nothing_is_in_flight() {
     });
     assert_eq!(due, None, "with a listing read again, no timer is offered");
     harness.relay().hold_requests(false);
-    wait_until("the listing is answered", |shared| !shared.graph.refreshing());
+    wait_until("the listing is answered", |shared| {
+        !shared.graph.refreshing()
+    });
 }
