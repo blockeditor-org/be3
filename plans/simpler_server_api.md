@@ -306,13 +306,19 @@ describe.
   own-block work may want one). Pairing stays `target.devices` and
   `event.paired`, as only live connections pair. A block's agent reads and
   deletes from its mailbox, where its contacts' key changes arrive. Removing a
-  contact deletes what each left the other. Letters from accounts are bounded
-  per sender (`MAX_LETTERS_FROM_ONE`) and in all (`MAX_LETTERS`), refusing the
-  write past either. Tests: be-server's
+  contact deletes what each left the other, with the links between them.
+  Letters are bounded per kind and sender (`MAX_LETTERS_FROM_ONE`): past it an
+  accepted card is refused, but a key change lets the sender's oldest go, so
+  a contact that never reads cannot hold up a new phrase; the reader's device
+  then finds the chain broken and lists the contact as not confirmed until a
+  new link. Tests: be-server's
   `a_notice_under_a_week_old_refuses_deletion_and_one_older_deletes`,
   be-block-client's
   `a_key_change_reaches_a_contact_offline_and_is_read_from_its_mailbox` and
-  `a_device_that_read_fewer_key_changes_never_rolls_a_contact_back`, and
+  `a_device_that_read_fewer_key_changes_never_rolls_a_contact_back`,
+  `a_contact_whose_key_changes_outran_the_mailbox_is_not_confirmed_until_linked_again`,
+  be-server's `a_key_change_past_the_bound_lets_the_oldest_go_but_an_accepted_card_is_refused`
+  and `a_link_accepted_then_unmade_as_a_contact_leaves_no_link_or_card`, and
   `every_call_states_who_may_make_it`'s `mailbox` and `delete-message`.
 - **An owner-only block** in the personal organization holds what the account
   seals for itself: contact records, its cards and link codes, the escrow keys

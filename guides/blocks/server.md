@@ -838,9 +838,12 @@ needs code of its own for any method.
   it tells, so none is lost between the two, and tells the account's
   connections that follow the topic. Removing a contact deletes what each left
   the other, with the links between them. An account holds at most
-  `MAX_LETTERS_FROM_ONE` letters from one sender and `MAX_LETTERS` in all; past
-  either the write that would leave one is refused rather than an old one let
-  go, which would break the chain of key changes a device follows. A block's agent reads its mailbox and deletes from it, since its
+  `MAX_LETTERS_FROM_ONE` letters of each kind from one sender (so at most that
+  many times `MAX_CONTACTS_PER_ACCOUNT`). Past it, accepting another link is
+  refused, but a key change never is, since a new phrase is what an account
+  takes after a compromise: the sender's oldest change goes, and the reader's
+  device, finding the chain broken, lists the contact as not confirmed
+  (guides/blocks/keys.md, "Contacts"). A block's agent reads its mailbox and deletes from it, since its
   contacts' key changes arrive there.
 - **Holding notices.** Whoever a notice warns about may hold a session too, so
   in its first `NOTICE_HOLD` (a week) `delete-message` refuses it and a

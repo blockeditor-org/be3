@@ -56,6 +56,7 @@ use std::{
     sync::Arc,
     time::Instant,
 };
+pub use mailbox::MAX_LETTERS_FROM_ONE;
 pub use usage::{DEFAULT_ACCOUNT_QUOTA, DEFAULT_UPLOAD_GRACE, StorageLimits};
 
 use be_block_commit::CommitId;

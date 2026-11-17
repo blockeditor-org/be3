@@ -67,6 +67,7 @@ async fn an_invitation_finished_halfway_signs_its_accepter_in_on_the_next_finish
     // The device opens the link and stops before signing the member in.
     let opened = crate::contacts::finish_links(
         &admin.connection(),
+        admin.account(),
         admin.keys().identity(),
         admin.organization(),
     )

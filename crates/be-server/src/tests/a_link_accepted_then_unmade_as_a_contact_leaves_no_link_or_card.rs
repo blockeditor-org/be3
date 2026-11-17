@@ -1,0 +1,36 @@
+use super::*;
+
+/// The accepter removes the link's owner as a contact before the owner's device finished the
+/// link: the link goes with the card it left in the owner's mailbox, so nothing is left to finish.
+#[tokio::test]
+async fn a_link_accepted_then_unmade_as_a_contact_leaves_no_link_or_card() {
+    let harness = Harness::start().await;
+    let mut owner = harness.member("owner@example.com").await;
+    let mut other = harness.member("other@example.com").await;
+    let (owner_id, other_id) = (owner.id(), other.id());
+    let link = owner.link(None).await;
+    other.accept(link, &[]).await.unwrap();
+    let database = metadata_database(&harness.directory);
+    let count = |sql: &str| -> i64 {
+        database
+            .query_row(sql, [owner_id.to_string(), other_id.to_string()], |row| {
+                row.get(0)
+            })
+            .unwrap()
+    };
+    let cards = "SELECT count(*) FROM mailbox WHERE account_id = ?1 AND sender_id = ?2";
+    let links = "SELECT count(*) FROM links WHERE owner_id = ?1 AND accepter_id = ?2";
+    assert_eq!((count(cards), count(links)), (1, 1));
+
+    other.remove_contact(owner_id).await.unwrap();
+    assert_eq!(
+        (count(cards), count(links)),
+        (0, 0),
+        "a link or its card was left to finish"
+    );
+    let listed = owner
+        .call(|peer| peer.read::<Vec<be_block_protocol::OwnLink>>(be_block_protocol::Query::Links))
+        .await
+        .unwrap();
+    assert!(listed.is_empty(), "{listed:?}");
+}
