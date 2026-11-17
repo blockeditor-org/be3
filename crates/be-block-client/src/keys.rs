@@ -1254,6 +1254,19 @@ impl KeyBook {
         })
     }
 
+    /// Whether a demotion in the organization's log outdates `key`, of `block`'s scope, or any
+    /// key it was opened through (`demoted_since`): what key work rotates at once
+    /// (`Peer::rotate_demoted`).
+    pub fn demoted(&self, key: Uuid, block: Uuid) -> bool {
+        let roots = self.roots.lock().unwrap();
+        roots.path(key, block).is_some_and(|path| {
+            path.into_iter().any(|(key, _)| {
+                let head = roots.heads.get(&key).and_then(|heads| heads.organization);
+                self.demoted_since(&roots, key, head)
+            })
+        })
+    }
+
     /// Whether the organization's log, as this device last checked it (or, with none read this
     /// run, kept it), outdates the epoch of `key`, which names `head` of it: an administrator
     /// was demoted or signed out after it, and may hold the epoch through escrow (signed access

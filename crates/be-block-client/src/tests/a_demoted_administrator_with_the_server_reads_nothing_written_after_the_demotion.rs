@@ -73,11 +73,11 @@ async fn a_demoted_administrator_with_the_server_reads_nothing_written_after_the
         .await
         .unwrap()
         .published();
+    let public = member.verified_identity(admin.account()).unwrap();
     member
-        .grant(inner, admin.account(), Access::View)
+        .share(inner, admin.account(), Access::View, &public)
         .await
         .unwrap();
-    member.tend().await.unwrap();
     assert_eq!(
         crate::peer::scope_of(&member.summary(inner).await.unwrap()).unwrap(),
         inner,
@@ -99,9 +99,11 @@ async fn a_demoted_administrator_with_the_server_reads_nothing_written_after_the
         .await
         .unwrap();
     admin.tend().await.unwrap();
-    // Told key work changed, as every member's devices are of a demotion: tending reads the
-    // organization's log.
-    member.tend().await.unwrap();
+    // A device of the member's that reads the organization's log as it connects, and tends
+    // nothing: its write alone rotates (key work's eager rotation is
+    // `a_grantee_inside_a_workspace_writes_once_an_editor_above_tends_after_a_demotion`).
+    let member = harness.second(&member).await;
+    assert_eq!(member.keys().scope_key(team), Some(team_before));
     let before = opened_with_the_server(&harness, &promoted);
     assert!(
         before.contains(&team_before.to_string()),

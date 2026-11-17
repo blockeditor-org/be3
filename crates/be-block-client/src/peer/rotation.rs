@@ -58,11 +58,12 @@ impl<S: ObjectStore> Peer<S> {
                 failed.get_or_insert(error);
             }
         }
+        let demoted = self.rotate_demoted().await;
         *self.unsigned.lock().unwrap() = work.unsigned_members.clone();
         if let Err(error) = self.tend_agents(&work.unsigned_members).await {
             failed.get_or_insert(error);
         }
-        if escrow_rotation || !work.rotations.is_empty() {
+        if escrow_rotation || !work.rotations.is_empty() || demoted {
             work = self.key_work().await?;
             if work.escrows != self.keys.escrows() {
                 self.learn_administrators().await;
@@ -113,6 +114,57 @@ impl<S: ObjectStore> Peer<S> {
             failed.get_or_insert(error);
         }
         failed.map_or(Ok(()), Err)
+    }
+
+    /// Gives a new epoch, from the top, to every scope this device holds and may edit whose
+    /// newest key a demotion outdates (`KeyBook::demoted`, signed access 8), each tree once
+    /// (`rotation_top`): a member reaching a scope only from inside it cannot rotate it, as its
+    /// new epoch is wrapped under the scope above, so the editors above do it when key work
+    /// tells them of the demotion rather than at their next write there, which may never come.
+    /// Opportunistic: a scope this device cannot rotate is left to one that can, and one
+    /// another device rotated first is seen current once its keys are read. Answers whether
+    /// it rotated any.
+    async fn rotate_demoted(&self) -> bool {
+        let Ok(Some(_)) = self.checked_organization().await else {
+            return false;
+        };
+        let demoted = |block: Uuid| {
+            self.keys.scope_key(block).is_some_and(|key| {
+                self.keys.trusted(key)
+                    && !self.keys.owner_only_covers(key)
+                    && self.keys.demoted(key, block)
+            })
+        };
+        let mut scopes: Vec<Uuid> = self
+            .keys
+            .keys_of_kind(KeyKind::Scope)
+            .into_iter()
+            .filter_map(|row| self.keys.block_of(row.id))
+            .collect();
+        scopes.sort();
+        scopes.dedup();
+        scopes.retain(|scope| demoted(*scope));
+        let mut rotated = false;
+        for scope in scopes {
+            if !demoted(scope) {
+                continue;
+            }
+            let top = self.rotation_top(scope).await;
+            let Ok(summary) = self.summary(top).await else {
+                continue;
+            };
+            if !summary.access.can_edit() {
+                continue;
+            }
+            // Another device of an editor above may have rotated it since key work told them.
+            if self.refresh_keys(Some(vec![top])).await.is_err() || !demoted(top) {
+                continue;
+            }
+            if self.rotate(top).await.is_ok() {
+                rotated = true;
+            }
+        }
+        rotated
     }
 
     /// The key `key` is sealed to `account` with, as the logs name them (signed access 3c): to

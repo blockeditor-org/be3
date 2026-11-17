@@ -327,7 +327,10 @@ maker through every sender (`KeyBook::heads`).
   but one an owner-only scope covers) naming an organization head before its
   last demotion (`KeyBook::demoted_since`, plans/signed_access.md step 8):
   the demoted administrator may hold it through escrow, so a demotion makes
-  every scope due a rotation at its next write. A
+  every scope due a rotation: at its next write, and in each device's `tend`
+  for every such scope it may edit (`Peer::rotate_demoted`), since a grantee
+  inside a scope cannot rotate it (its new epoch is wrapped under the scope
+  above). A
   device about to write or wrap under a data or scope key its logs outdate
   rotates the scope first (`Peer::sealing_key`, `scope_key`), from the highest
   scope above it whose newest key is outdated too (`Peer::rotation_top`), so
@@ -441,8 +444,8 @@ to open the organization makes it (`CreateEscrow`), and `mint_scope` seals
 every new scope key to it too, so administrators open everything. Demoting or
 removing an administrator records an escrow rotation, and tells every
 member's devices that key work changed, whose `tend` reads the organization's
-log, so each scope under the escrow rotates at its next write (Outdated
-epochs above): the next epoch is signed
+log and rotates every scope under the escrow it may edit (Outdated epochs
+above): the next epoch is signed
 over `EscrowKey::chained` by its maker's identity key, an administrator the
 device's checked organization log names at its current head, and covers the
 organization log's head it was made under (`EscrowKey::head`): the server

@@ -1359,7 +1359,7 @@ impl<S: ObjectStore> Peer<S> {
     /// at once (signed access 8), and a scope's new epoch is wrapped under the one above it,
     /// which must be new too: rotating from below would rotate each scope above again for each
     /// level, where rotating from the top once rotates every scope under it.
-    async fn rotation_top(&self, scope: Uuid) -> Uuid {
+    pub(super) async fn rotation_top(&self, scope: Uuid) -> Uuid {
         let mut top = scope;
         for _ in 0..crate::keys::MAX_PATH {
             let Some(above) = self.scope_above(top).await else {
