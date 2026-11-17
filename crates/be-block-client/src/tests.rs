@@ -71,6 +71,7 @@ mod a_block_sent_after_a_new_escrow_key_is_wrapped_under_it;
 mod a_block_the_server_places_under_a_contacts_scope_is_wrapped_under_nothing_there;
 mod a_block_the_server_refused_to_make_is_not_listed_offline;
 mod a_block_the_server_says_is_open_inside_is_sealed_to_no_contact;
+mod a_block_this_account_makes_on_another_device_after_a_discard_pins_its_root;
 mod a_block_whose_edit_was_set_aside_as_outdated_takes_the_next_one_once_it_is_discarded;
 mod a_block_whose_root_the_server_swaps_is_refused;
 mod a_change_the_server_refuses_leaves_the_rest_of_the_outbox_to_send;
@@ -85,6 +86,7 @@ mod a_contact_the_log_never_names_hands_over_a_key_only_with_edit_from_above;
 mod a_contact_the_server_lists_as_granted_with_no_record_is_sealed_nothing;
 mod a_contacts_key_the_server_rolls_back_stays_the_newest_one_seen;
 mod a_contacts_seal_waits_on_a_log_short_of_what_was_kept;
+mod a_creation_another_device_of_the_account_made_first_keeps_its_root;
 mod a_creation_discarded_unsent_lets_its_root_go;
 mod a_creation_the_server_refuses_is_set_aside_and_nothing_waits_behind_it;
 mod a_data_key_a_revoked_member_makes_up_is_never_written_under;
@@ -182,6 +184,8 @@ mod an_escrow_secret_is_held_apart_from_content_keys;
 mod an_escrow_wrap_from_a_revoked_editor_waits_on_a_log_short_of_what_was_kept;
 mod an_exported_artifact_imports_pointing_to_its_imported_source;
 mod an_image_round_trips_without_being_re_encoded;
+mod an_import_another_device_of_the_account_made_first_stands;
+mod an_import_under_the_id_of_a_block_someone_else_made_is_set_aside;
 mod an_invitation_finished_halfway_signs_its_accepter_in_on_the_next_finish;
 mod an_offline_edit_merges_against_the_head_it_left_after_the_server_pruned_it;
 mod an_offline_save_under_a_key_named_between_the_last_lowering_and_the_head_goes_through;
@@ -425,6 +429,20 @@ async fn my_files(peer: &Peer<MemoryStore>) -> Uuid {
     .await
     .unwrap()
     .id
+}
+
+/// Imports `saved` at the root and uploads it, with every answer `queue_import` and
+/// `upload_import` give.
+async fn import_one(peer: &Peer<MemoryStore>, saved: crate::transfer::Saved) -> Vec<crate::peer::Imported> {
+    let mut answers = Vec::new();
+    let queued = peer
+        .queue_import(&[(saved, BlockParent::Root)], |_, imported| {
+            answers.push(imported)
+        })
+        .await;
+    peer.upload_import(queued, |_, imported| answers.push(imported))
+        .await;
+    answers
 }
 
 async fn text(peer: &Peer<MemoryStore>, block: Uuid) -> String {

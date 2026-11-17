@@ -183,11 +183,15 @@ log kept (refs `Logs`, `MadeRoot`); a creation refused, failed or discarded
 unsent lets the root and log go (`KeyBook::forget_made`), and lifts a conflict
 it caused with the one root other keys of the block carried meanwhile. The keys
 it minted stay, so what was set aside still reads, and they still carry that
-root: the device keeps it as unmade (refs `Unmade`, read before the keys at
-start) and pins it no more, until it makes the block again. An outbox or
-imported creation the server answers `BlockAlreadyExists` stands only when the
-served log starts at the root made with it (a log this account may not read is
-someone else's); one made by someone else (a block opened offline with no
+root: the device keeps them as unmade (refs `Unmade`, read before the keys at
+start, never collected) and pins no root through them. A root is fixed by the
+account and the block (`Entry::root` signs only those), so every device of an
+account makes the same one, and the same root carried by another key (one a
+device of this account sealed once it really made the block) pins as any does.
+A creation the server answers `BlockAlreadyExists`, online, from the outbox or
+imported, stands when the served log starts at the root made with it (another
+device of the account made it first); a log this account may not read is
+someone else's. One made by someone else (a block opened offline with no
 summary of it) is set aside as refused. A device that
 holds anything of a block's log (a root, or how far it checked the log) never
 makes a root for it: making it again is refused as `BlockAlreadyExists` before
