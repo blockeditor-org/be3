@@ -1879,8 +1879,8 @@ impl KeyBook {
     }
 
     /// Clears the owner-only mark (`owner_only_covers`) of each key one of `wraps` shows moved
-    /// out of the owner-only block it was minted or opened in (`wrapped_outside`), whichever wrap
-    /// opened it first: it is a shared key now, sealed and escrowed as any other.
+    /// out of the owner-only block it was minted or opened in (`wrapped_outside`), whatever wrap
+    /// opened it: it is a shared key now, sealed and escrowed as any other.
     fn moved_out<'a>(&self, wraps: impl IntoIterator<Item = &'a WrappedKey>) {
         for wrap in wraps {
             let marked = self.under_owner_only.lock().unwrap().contains(&wrap.key);
@@ -1893,7 +1893,9 @@ impl KeyBook {
     /// Whether `wrap` holds the very key this device holds as `wrap.key` under a content key no
     /// owner-only scope covers: made only by one who holds the key, and only its author holds a
     /// key an owner-only scope covers, so only by its own move out of the owner-only block
-    /// (`Peer::rescope`), which the server takes only once the block lies outside it.
+    /// (`Peer::rescope`), which the server takes only once the block lies outside it. A server
+    /// could replay a genuine wrap from a move it refused, but that exposes nothing: the wrap
+    /// already puts the key in the hands of whoever holds the key it is wrapped under.
     fn wrapped_outside(&self, wrap: &WrappedKey) -> bool {
         let WrappedBy::Key(by) = wrap.wrapped_by else {
             return false;
