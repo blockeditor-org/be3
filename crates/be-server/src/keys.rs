@@ -352,13 +352,8 @@ pub(crate) fn store_keys(
                 // To a contact, or to a grantee the block's log names (signed access 3c), with
                 // the keys its grant names, which a device checks as the server does.
                 let granted = row.kind == KeyKind::Scope
-                    && crate::access::granted_level(
-                        connection,
-                        organization,
-                        row.block,
-                        account,
-                    )?
-                    .is_some_and(|level| level >= be_block_keys::Level::View);
+                    && crate::access::granted_level(connection, organization, row.block, account)?
+                        .is_some_and(|level| level >= be_block_keys::Level::View);
                 if account != caller
                     && !granted
                     && !crate::contacts::is_contact(connection, caller, account)?

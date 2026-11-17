@@ -53,17 +53,18 @@ async fn a_reader_granted_from_above_checks_its_grant_on_the_ancestors_path() {
         .share(note, reader.account(), Access::View, &identity)
         .await
         .unwrap();
-    let authority = deputy
-        .access_log(note)
-        .await
-        .unwrap()
-        .into_iter()
-        .find_map(|entry| match entry.record {
-            Record::Grant(grant) if grant.grantee == reader.account().into_bytes() => {
-                Some(grant.authority)
-            }
-            _ => None,
-        });
+    let authority =
+        deputy
+            .access_log(note)
+            .await
+            .unwrap()
+            .into_iter()
+            .find_map(|entry| match entry.record {
+                Record::Grant(grant) if grant.grantee == reader.account().into_bytes() => {
+                    Some(grant.authority)
+                }
+                _ => None,
+            });
     assert!(
         authority.as_ref().and_then(|authority| authority.above()) == Some(team.into_bytes()),
         "the deputy grants on its Manage of the workspace: {authority:?}"
@@ -86,9 +87,12 @@ async fn a_reader_granted_from_above_checks_its_grant_on_the_ancestors_path() {
         "the reader's grant checks against the workspace's path"
     );
 
-    let served = crate::ask(be_block_protocol::client::blocks::get_access_log(&reader.connection(), team))
-        .await
-        .unwrap();
+    let served = crate::ask(be_block_protocol::client::blocks::get_access_log(
+        &reader.connection(),
+        team,
+    ))
+    .await
+    .unwrap();
     let path: Vec<Step> = served
         .iter()
         .map(|step| Step::decode(step).unwrap())

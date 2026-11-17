@@ -2340,8 +2340,7 @@ pub(crate) fn write_grant(
     // A revocation the server makes on its own (`remove-contact`, `remove-member`) of a grant
     // the block's log names waits for a device to sign it (`KeyWork::unsigned_revocations`);
     // a signed one, appended after, clears it (`access::append_grant`).
-    if access == Access::None
-        && crate::access::names_grant(database, organization, block, account)?
+    if access == Access::None && crate::access::names_grant(database, organization, block, account)?
     {
         database.execute(
             "INSERT OR IGNORE INTO unsigned_revocations (organization_id, block_id, account_id)

@@ -4,7 +4,15 @@ use be_block_graph::Access;
 
 /// Puts a scope key of `block` with id `key` in the server's database, sealed to `to` by
 /// `sender` as `sealed`.
-fn plant(harness: &Harness, organization: Uuid, key: Uuid, block: Uuid, to: Uuid, sender: Uuid, sealed: Vec<u8>) {
+fn plant(
+    harness: &Harness,
+    organization: Uuid,
+    key: Uuid,
+    block: Uuid,
+    to: Uuid,
+    sender: Uuid,
+    sealed: Vec<u8>,
+) {
     let database = harness.database();
     database
         .execute(
@@ -152,7 +160,9 @@ async fn a_contact_the_log_never_names_hands_over_a_key_only_with_edit_from_abov
     // A device that vouched for the editor's wrap of a key, and is then served another unnamed
     // contact's wrap of the same key, made up: the vouch names the wrap it was found for, so
     // this one is judged afresh, and refused.
-    let fresh = harness.device(&owner, &refs::RefsDb::memory(), &MemoryStore::new()).await;
+    let fresh = harness
+        .device(&owner, &refs::RefsDb::memory(), &MemoryStore::new())
+        .await;
     fresh.checked_access(note).await.unwrap();
     assert!(
         fresh

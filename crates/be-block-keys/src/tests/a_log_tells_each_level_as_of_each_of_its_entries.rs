@@ -51,14 +51,7 @@ fn a_log_tells_each_level_as_of_each_of_its_entries() {
     );
     assert!(checked.current_at(&revoked.hash()));
 
-    let short = check_log(
-        LogKind::Block,
-        block,
-        root.hash(),
-        &entries[..2],
-        &|_| None,
-    )
-    .unwrap();
+    let short = check_log(LogKind::Block, block, root.hash(), &entries[..2], &|_| None).unwrap();
     assert!(
         !short.holds(&revoked.hash()),
         "a log withheld before an entry reaches it"

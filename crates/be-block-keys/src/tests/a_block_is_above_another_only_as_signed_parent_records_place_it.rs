@@ -226,7 +226,10 @@ fn a_block_is_above_another_only_as_signed_parent_records_place_it() {
     );
     let moved_logs = logs_of(vec![
         (folder, folder_log.clone()),
-        (middle, vec![middle_root.clone(), middle_placed.clone(), middle_moved]),
+        (
+            middle,
+            vec![middle_root.clone(), middle_placed.clone(), middle_moved],
+        ),
         (elsewhere, vec![elsewhere_root.clone()]),
     ]);
     assert!(

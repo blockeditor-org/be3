@@ -1775,9 +1775,11 @@ impl TestClient {
             let pinned = entries.first()?.hash();
             be_block_keys::check_log(kind, of, pinned, entries, &|_| None).ok()
         };
-        if check(LogKind::Block, block.into_bytes(), log)
-            .is_some_and(|checked| checked.holding(LogKind::Block, me.into_bytes(), level).is_some())
-        {
+        if check(LogKind::Block, block.into_bytes(), log).is_some_and(|checked| {
+            checked
+                .holding(LogKind::Block, me.into_bytes(), level)
+                .is_some()
+        }) {
             return Authority::Log;
         }
         // The chain up to the nearest block above that gives it, each as of its head now.
@@ -1803,7 +1805,9 @@ impl TestClient {
                 head: head.hash(),
             });
             if check(LogKind::Block, parent.into_bytes(), &above).is_some_and(|checked| {
-                checked.holding(LogKind::Block, me.into_bytes(), level).is_some()
+                checked
+                    .holding(LogKind::Block, me.into_bytes(), level)
+                    .is_some()
             }) {
                 return Authority::Inherited(chain);
             }

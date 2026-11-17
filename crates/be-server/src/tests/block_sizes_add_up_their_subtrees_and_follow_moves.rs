@@ -73,9 +73,7 @@ async fn block_sizes_add_up_their_subtrees_and_follow_moves() {
 
     let token = client.token.clone();
     let moved = client
-        .move_keyed(child,
-                BlockParent::Block(elsewhere),
-                KeySet::default())
+        .move_keyed(child, BlockParent::Block(elsewhere), KeySet::default())
         .await;
     assert!(moved.is_ok(), "{moved:?}");
     assert_eq!(client.read_block(folder).await.tree_size, 0);
