@@ -1,14 +1,6 @@
 package be3:server@0.1.0;
 
-/// What the client asks of the server, and what it hears back, over one
-/// websocket. A connection starts with the raw `be3 hello` frame
-/// (`be_block_protocol::hello`) each way; after that every frame is a be-wasm-ops frame,
-/// and each function below is an op whose id is the only correlation. The
-/// server serves these interfaces; the client imports them.
-///
-/// Calls on one connection are taken in the order they were sent, so a call
-/// that opens a stream (`watch`, `changes`, `paired`, ...) is in place before
-/// any call sent after it is answered.
+/// The types `server` and its records share.
 interface types {
     use be3:shared/ids@0.1.0.{uuid, hash, block-id, account-id, organization-id, commit-id, content-type-id};
     use be3:shared/access@0.1.0.{access-level};
@@ -86,7 +78,7 @@ interface types {
         block(block-id),
     }
 
-    /// A query for blocks (`list-blocks`), answered as of the sequence it was
+    /// A query for blocks (`query.list`), answered as of the sequence it was
     /// read at.
     variant listing {
         children(block-parent),
@@ -117,7 +109,7 @@ interface types {
         /// only knows exists carries its own too, so it orders after one read while viewed.
         changed: u64,
         /// The entry point whose tree a reader follows to hear of this block's changes
-        /// (`changed-since`): the top of its tree (a top-level block, or the block at the top
+        /// (`query.tree`): the top of its tree (a top-level block, or the block at the top
         /// of what lies in the trash), or the block where the reader's view starts, below a
         /// parent it may not view. None for a block the reader may not view.
         entry: option<block-id>,
