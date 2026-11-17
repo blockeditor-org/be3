@@ -27,7 +27,9 @@ fn an_organizations_unsent_edits_are_discarded_once_the_grace_period_passes() {
         lost.clone(),
         UnsentBlock {
             block: Uuid::from_u128(2),
-            refused: Some(be_block_protocol::ErrorCode::OverQuota),
+            refused: Some(be_block_client::Aside::Refused(
+                be_block_protocol::ErrorCode::OverQuota,
+            )),
             ..lost
         },
     ];

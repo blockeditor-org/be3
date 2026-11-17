@@ -46,9 +46,9 @@ impl<S: ObjectStore> Peer<S> {
         self.refs.is_unsent(block)
     }
 
-    /// The code the server refused to make `block` with, while what this device made of it is
-    /// set aside for that (`UnsentBlock::refused`).
-    pub fn refusal(&self, block: Uuid) -> Option<ErrorCode> {
+    /// Why what this device made of `block` is set aside, when it was refused or outdated
+    /// (`UnsentBlock::refused`).
+    pub fn refusal(&self, block: Uuid) -> Option<crate::refs::Aside> {
         self.refs.refused(block)
     }
 
@@ -702,10 +702,10 @@ impl<S: ObjectStore> Peer<S> {
         // Made under a block the server refused to make: it cannot be made either, and waits
         // set aside with it, restored with it (`restore_unsent`).
         if let BlockParent::Block(parent) = creation.parent
-            && let Some(code) = self.refs.refused(parent)
+            && let Some(why) = self.refs.refused(parent)
         {
-            self.move_to_unsent(block, Some(code))?;
-            return Ok(Drained::SetAside { block, code });
+            self.move_to_unsent(block, Some(why))?;
+            return Ok(Drained::SetAside { block, why });
         }
         let response = crate::ask(client::blocks::create_block(
             &self.connection(),
@@ -738,8 +738,11 @@ impl<S: ObjectStore> Peer<S> {
             // device made of it is set aside, to be restored or discarded, so nothing waits
             // behind a creation that never goes.
             Err(ClientError::Refused(code, _)) => {
-                self.move_to_unsent(block, Some(code))?;
-                Ok(Drained::SetAside { block, code })
+                self.move_to_unsent(block, Some(crate::refs::Aside::Refused(code)))?;
+                Ok(Drained::SetAside {
+                    block,
+                    why: crate::refs::Aside::Refused(code),
+                })
             }
             Err(error) => Err(error),
         }
@@ -792,8 +795,11 @@ impl<S: ObjectStore> Peer<S> {
             // kept to try again (a quota, a missing key), since a hold dropped could let what a
             // commit still to publish uses be collected first.
             Err(ClientError::Refused(code, _)) if never_taken(code) => {
-                self.move_to_unsent(block, Some(code))?;
-                Ok(Drained::SetAside { block, code })
+                self.move_to_unsent(block, Some(crate::refs::Aside::Refused(code)))?;
+                Ok(Drained::SetAside {
+                    block,
+                    why: crate::refs::Aside::Refused(code),
+                })
             }
             Err(error) => Err(error),
         }
@@ -871,8 +877,20 @@ impl<S: ObjectStore> Peer<S> {
             // block is set aside with the reason, to be restored or discarded, rather than
             // sent again every round.
             Err(ClientError::Refused(code, _)) if never_taken(code) => {
-                self.move_to_unsent(block, Some(code))?;
-                Ok(Drained::SetAside { block, code })
+                self.move_to_unsent(block, Some(crate::refs::Aside::Refused(code)))?;
+                Ok(Drained::SetAside {
+                    block,
+                    why: crate::refs::Aside::Refused(code),
+                })
+            }
+            // Sealed offline under a key the log now shows outdated (`send_pending`): set aside,
+            // never sent.
+            Err(ClientError::Outdated(_)) => {
+                self.move_to_unsent(block, Some(crate::refs::Aside::KeyOutdated))?;
+                Ok(Drained::SetAside {
+                    block,
+                    why: crate::refs::Aside::KeyOutdated,
+                })
             }
             Err(error) => Err(error),
         }
@@ -975,7 +993,7 @@ impl<S: ObjectStore> Peer<S> {
     pub fn move_to_unsent(
         &self,
         block: Uuid,
-        refused: Option<ErrorCode>,
+        refused: Option<crate::refs::Aside>,
     ) -> Result<bool, ClientError> {
         let commits: HashSet<CommitId> = self.pending_commits(block).into_iter().collect();
         self.refs.commits_refused(block, &commits)?;
@@ -1086,9 +1104,6 @@ pub(super) fn lost_access(code: ErrorCode) -> bool {
 fn never_taken(code: ErrorCode) -> bool {
     matches!(
         code,
-        ErrorCode::InvalidRequest
-            | ErrorCode::ObjectTooLarge
-            | ErrorCode::CommitAhead
-            | ErrorCode::KeyOutdated
+        ErrorCode::InvalidRequest | ErrorCode::ObjectTooLarge | ErrorCode::CommitAhead
     )
 }

@@ -2260,7 +2260,10 @@ async fn drain_outbox(
                     } => {
                         diverged.push((block, local, remote));
                     }
-                    be_block_client::Drained::SetAside { block, code } => {
+                    be_block_client::Drained::SetAside {
+                        block,
+                        why: be_block_client::Aside::Refused(code),
+                    } => {
                         // Named by the block that was refused, not what was made in it.
                         let named = named_block(peer, refused_above(peer, block));
                         let why = crate::refusal(code);
@@ -2269,6 +2272,18 @@ async fn drain_outbox(
                             .unwrap_or_else(PoisonError::into_inner)
                             .sync_error = Some(format!(
                             "The server refused to make {named}: {why}. It waits among the unsent edits."
+                        ));
+                    }
+                    be_block_client::Drained::SetAside {
+                        block,
+                        why: be_block_client::Aside::KeyOutdated,
+                    } => {
+                        let named = named_block(peer, block);
+                        shared
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .sync_error = Some(format!(
+                            "An edit to {named} was locked offline with a key someone who lost access may hold, so it was not sent. It waits among the unsent edits."
                         ));
                     }
                     be_block_client::Drained::Refused { block, code, .. } => {

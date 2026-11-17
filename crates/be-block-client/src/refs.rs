@@ -302,14 +302,26 @@ impl Op {
     }
 }
 
+/// Why what this device made of a block was set aside among the unsent, short of this account
+/// losing access to it.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum Aside {
+    /// The server refused it, with the code it gave (a block it would not make, over a quota
+    /// or too large).
+    Refused(ErrorCode),
+    /// It was sealed offline under a key epoch its block's access log shows outdated, which
+    /// someone who lost access may hold, so this device never sent it (plans/signed_access.md,
+    /// 3d).
+    KeyOutdated,
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub(crate) struct Unsent {
     pub head: Option<CommitId>,
     pub since: i64,
     pub ops: Vec<Op>,
-    /// Why it was set aside: the server refused it, with the code it gave (a block it would
-    /// not make, over a quota or too large), or else this account lost access to it.
-    pub refused: Option<ErrorCode>,
+    /// Why it was set aside (`Aside`), or none when this account lost access to it.
+    pub refused: Option<Aside>,
 }
 
 /// Entries set aside because the block's access was refused. Only `Peer::discard_unsent`
@@ -321,9 +333,9 @@ pub struct UnsentBlock {
     pub commits: Vec<CommitId>,
     pub since: i64,
     pub offerable: bool,
-    /// The code the server refused it with, when it was refused rather than this account
-    /// losing access (`Unsent::refused`): what lost access does to it does not apply.
-    pub refused: Option<ErrorCode>,
+    /// Why it was set aside, when it was refused or outdated rather than this account losing
+    /// access (`Unsent::refused`): what lost access does to it does not apply.
+    pub refused: Option<Aside>,
     /// How many local edits a replica of it made that this device keeps and that never became
     /// a commit (`OpenEdits`): discarding drops them too.
     pub kept_edits: usize,
@@ -2074,7 +2086,7 @@ impl Refs {
         &self,
         block: Uuid,
         since: i64,
-        refused: Option<ErrorCode>,
+        refused: Option<Aside>,
     ) -> Result<bool, StoreError> {
         let mut rows = Vec::new();
         {
@@ -2133,9 +2145,9 @@ impl Refs {
         self.state.lock().unwrap().unsent.contains_key(&block)
     }
 
-    /// The code the server refused `block` with, when what this device made of it was set aside
-    /// for that (`Unsent::refused`).
-    pub fn refused(&self, block: Uuid) -> Option<ErrorCode> {
+    /// Why what this device made of `block` was set aside, when it was refused or outdated
+    /// (`Unsent::refused`).
+    pub fn refused(&self, block: Uuid) -> Option<Aside> {
         self.state
             .lock()
             .unwrap()

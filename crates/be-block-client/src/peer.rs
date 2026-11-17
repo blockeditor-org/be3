@@ -261,11 +261,12 @@ pub enum Drained {
         code: ErrorCode,
         restored: bool,
     },
-    /// The server refused to make the block, or one it was made under: what this device made
-    /// of it is set aside among the unsent (`UnsentBlock::refused`).
+    /// The server refused to make the block, or one it was made under, or what was sealed of
+    /// it offline is under a key its log shows outdated: what this device made of it is set
+    /// aside among the unsent (`UnsentBlock::refused`).
     SetAside {
         block: Uuid,
-        code: ErrorCode,
+        why: crate::refs::Aside,
     },
     Failed {
         block: Uuid,
@@ -1214,6 +1215,16 @@ impl<S: ObjectStore> Peer<S> {
         Ok(self.keys.shown_outdated(key, scope))
     }
 
+    /// The block `hash` is an object of, when it is sealed under a key of it that the logs
+    /// this device holds or kept show outdated (`KeyBook::shown_outdated`), judged without
+    /// reading anything: an object not sealed, or under a key it cannot place, is none.
+    pub(crate) fn sealed_outdated(&self, hash: Hash) -> Option<Uuid> {
+        let key = self.commits.vault().sealed_under(hash).ok()?;
+        let block = self.keys.block_of(key)?;
+        let scope = scope_of(&self.refs.summary(block)?).ok()?;
+        self.keys.shown_outdated(key, scope).then_some(block)
+    }
+
     /// `checked_access`, given up after `LOG_READ_LIMIT`: a key judged by a log that does not
     /// arrive is judged by what was kept of it.
     async fn bounded_read(&self, block: Uuid) -> Result<(), ClientError> {
@@ -1408,9 +1419,29 @@ impl<S: ObjectStore> Peer<S> {
         content_type: Uuid,
         parts: impl Into<Part<'a>>,
     ) -> Result<Manifest, ClientError> {
-        // Written here, uploaded only with the commit that holds it, which is judged before it
-        // is sent; an upload of its own (`stash`) seals with `sealing_key` first.
+        let key = self.sealing_key(block).await?;
+        self.write_content_under(key, content_type, parts).await
+    }
+
+    /// `write_content` for a commit headed for the outbox (`prepare_write`): written here and
+    /// uploaded only with that commit, which is judged before it is sent, so offline it takes
+    /// the key at hand (`sealing_key_kept`).
+    async fn write_content_kept<'a>(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        parts: impl Into<Part<'a>>,
+    ) -> Result<Manifest, ClientError> {
         let key = self.sealing_key_kept(block).await?;
+        self.write_content_under(key, content_type, parts).await
+    }
+
+    async fn write_content_under<'a>(
+        &self,
+        key: Uuid,
+        content_type: Uuid,
+        parts: impl Into<Part<'a>>,
+    ) -> Result<Manifest, ClientError> {
         let parts = parts.into();
         let vault = self.commits.vault();
         // A reused part this device never read (one another device put) names its key in its
@@ -2650,13 +2681,13 @@ impl<S: ObjectStore> Peer<S> {
         let content = std::mem::replace(&mut write.content, Content::Written(Manifest::default()));
         let manifest = match content {
             Content::Encoded(content_type, parts) => {
-                self.write_content(block, content_type, parts).await?
+                self.write_content_kept(block, content_type, parts).await?
             }
             Content::Written(manifest) => {
                 let parts = manifest
                     .root
                     .map_or_else(|| Part::from(Vec::new()), Part::Reused);
-                self.write_content(block, manifest.content_type, parts)
+                self.write_content_kept(block, manifest.content_type, parts)
                     .await?
             }
         };
@@ -2860,10 +2891,7 @@ impl<S: ObjectStore> Peer<S> {
         // now, and never sent under an epoch the logs show outdated (signed access 3d). Refused
         // as the server would refuse it, so the edit is set aside, not lost.
         if self.sent_outdated(block, id).await? {
-            return Err(ClientError::Refused(
-                ErrorCode::KeyOutdated,
-                format!("block {block}'s edit is sealed under a key its access log outdates"),
-            ));
+            return Err(ClientError::Outdated(block));
         }
         let previous = match expected {
             Some(head) => self.commits.try_get(head)?,

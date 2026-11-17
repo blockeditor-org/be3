@@ -211,12 +211,19 @@ pub fn refusal(code: be_block_protocol::ErrorCode) -> &'static str {
     match code {
         ErrorCode::OverQuota => "it would go over a limit",
         ErrorCode::InvalidRequest => "it could not take it as it is",
-        ErrorCode::KeyOutdated => {
-            "it was locked offline with a key someone who lost access may hold"
-        }
         ErrorCode::PolicyRefused => "your organization does not allow it",
         ErrorCode::PermissionDenied | ErrorCode::BlockNotFound => "you may not make it there",
         _ => "it would not say why",
+    }
+}
+
+/// Why edits were set aside among the unsent, in words for the person.
+pub fn aside(why: be_block_client::Aside) -> &'static str {
+    match why {
+        be_block_client::Aside::Refused(code) => refusal(code),
+        be_block_client::Aside::KeyOutdated => {
+            "it was locked offline with a key someone who lost access may hold"
+        }
     }
 }
 
@@ -1435,7 +1442,7 @@ pub fn unsent() -> Vec<UnsentEdit> {
                     .or_else(|| unsent.name.clone()),
                 since: unsent.since,
                 offerable: unsent.offerable,
-                refused: unsent.refused.map(refusal),
+                refused: unsent.refused.map(aside),
                 kept_edits: unsent.kept_edits,
             })
             .collect()

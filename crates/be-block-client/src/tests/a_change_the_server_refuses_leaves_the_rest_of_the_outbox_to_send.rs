@@ -67,7 +67,7 @@ async fn a_change_the_server_refuses_leaves_the_rest_of_the_outbox_to_send() {
     assert!(
         drained.contains(&Drained::SetAside {
             block: another,
-            code: ErrorCode::PolicyRefused
+            why: crate::Aside::Refused(ErrorCode::PolicyRefused)
         }),
         "{drained:?}"
     );

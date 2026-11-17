@@ -24,7 +24,7 @@ pub use peer::{
     Signer, Write,
 };
 pub use refs::{
-    KeptChange, KeptEdit, KeptSubmission, ListedBlock, OpenEdits, PendingCounts, RefsDb, SetAside,
+    Aside, KeptChange, KeptEdit, KeptSubmission, ListedBlock, OpenEdits, PendingCounts, RefsDb, SetAside,
     UnsentBlock,
 };
 #[cfg(not(target_arch = "wasm32"))]
@@ -152,6 +152,9 @@ pub enum ClientError {
     /// organization's) short of what this device checked of it before: it holds back history,
     /// so nothing is taken from it (plans/signed_access.md, 3d).
     Withheld(uuid::Uuid),
+    /// What would be sent of the block is sealed under a key epoch its access log shows
+    /// outdated, which someone who lost access may hold: not sent (plans/signed_access.md, 3d).
+    Outdated(uuid::Uuid),
     /// This device's edits to the block were discarded and it may not edit it: it keeps none
     /// (`Refs::keep_open_edits`).
     Discarded(uuid::Uuid),
@@ -190,6 +193,9 @@ impl fmt::Display for ClientError {
             Self::Forged(_) => {
                 formatter.write_str("the server served access records its members did not sign")
             }
+            Self::Outdated(_) => formatter.write_str(
+                "this edit was locked offline with a key someone who lost access may hold, so it was not sent",
+            ),
             Self::Withheld(_) => formatter.write_str(
                 "the server served less of this block's access history than this device saw before",
             ),

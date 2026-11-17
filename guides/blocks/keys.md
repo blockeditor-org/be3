@@ -240,8 +240,11 @@ maker through every sender (`KeyBook::heads`).
   for the outbox is never refused (`sealing_key_kept`, for a commit and the
   content it holds): it is sealed under the epoch at hand and kept, and judged
   again before it is sent (`Peer::send_pending`, `KeyBook::shown_outdated`),
-  set aside among the unsent as `ErrorCode::KeyOutdated` when the logs show
-  its key outdated. A log answer older
+  set aside among the unsent (`refs::Aside::KeyOutdated`) when the logs show
+  its key outdated. Whatever path uploads (an outbox commit, a snapshot or a
+  fork through `Peer::hold`), an object the server lacks that is sealed under
+  a key the logs show outdated is not uploaded (`ClientError::Outdated`).
+  `write_content`, public, is strict; only the outbox's own writes keep. A log answer older
   than one this run already took is stale, not withheld (`keys::Served`). A
   local account judges nothing (there is no server). An escrow epoch the organization's log outdates
   is wrapped under no more, so keys wait unescrowed for the next, with no

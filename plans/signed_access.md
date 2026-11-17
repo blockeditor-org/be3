@@ -262,8 +262,9 @@ did not sign.
   through the head, so an honest epoch naming a head newer than those costs a
   rotation. Offline, where none can be made, the edit is kept, sealed under
   the epoch at hand, and judged again before it is sent: set aside if the
-  logs then show that epoch outdated (`ErrorCode::KeyOutdated`, among the
-  unsent with its content kept), sent if they do not. One whose scope this
+  logs then show that epoch outdated (`refs::Aside::KeyOutdated`, among the
+  unsent with its content kept), sent if they do not; no other path uploads
+  it either. One whose scope this
   device can neither read nor has kept anything of is sent as before: that
   device never held the revocation, which a server can already bring about by
   truncating the log for a device new to the block.

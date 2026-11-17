@@ -164,8 +164,8 @@ async fn a_restarted_device_served_a_log_before_a_revocation_it_held_writes_unde
 /// A device offline, whose read of the team's log fails, judges the epoch by what it kept of
 /// the log when it was last online, which holds the revocation, and cannot give the team a new
 /// epoch. A person's edit made offline is never refused: it is sealed and kept here. But it is
-/// judged again before it is sent, and set aside rather than sent under the key Bob made up
-/// (signed access 3d).
+/// judged again before it is sent, and set aside rather than sent under the key Bob made up,
+/// nor uploaded by any other path (signed access 3d).
 #[tokio::test]
 async fn an_edit_made_offline_under_a_made_up_key_is_kept_and_never_sent() {
     let harness = Harness::start().await;
@@ -218,11 +218,21 @@ async fn an_edit_made_offline_under_a_made_up_key_is_kept_and_never_sent() {
         .iter()
         .find(|unsent| unsent.block == revoked.note)
         .expect("the edit set aside is not among the unsent");
-    assert_eq!(
-        aside.refused,
-        Some(be_block_protocol::ErrorCode::KeyOutdated)
-    );
+    assert_eq!(aside.refused, Some(crate::Aside::KeyOutdated));
     assert!(aside.commits.contains(&kept));
+    // Nor does any other path upload it: a repository snapshot or a fork holds what it reaches
+    // through `hold`, as here.
+    let held = back
+        .hold(
+            revoked.note,
+            &[kept.hash()],
+            be_block_protocol::Hold::Lasting,
+        )
+        .await;
+    assert!(
+        matches!(held, Err(ClientError::Outdated(_))),
+        "an edit set aside as outdated was uploaded: {held:?}"
+    );
 
     harness.stop().await;
 }

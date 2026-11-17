@@ -103,7 +103,7 @@ fn every_record_reads_back_with_each_option_none_and_some() {
             head: some.then_some(commit(b"head")),
             since: 9,
             ops: vec![Op::Publish(pending)],
-            refused: some.then_some(ErrorCode::OverQuota),
+            refused: some.then_some(crate::refs::Aside::Refused(ErrorCode::OverQuota)),
         });
         reads_back(&some.then_some(ListedBlock {
             root: Uuid::new_v4(),
