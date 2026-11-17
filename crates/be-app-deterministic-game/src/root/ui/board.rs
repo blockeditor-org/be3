@@ -172,9 +172,14 @@ pub(crate) fn Stage(
         Func::new(move |Carried(from): Carried| {
             let placed = stage
                 .try_get()
-                .and_then(|node| drag::space().placed(node));
-            let (Some((origin, scale)), Some(size)) = (placed, lifted_size(from)) else {
+                .and_then(|node| measure(node).get_untracked());
+            let (Some(placed), Some(size)) = (placed, lifted_size(from)) else {
                 return drag::floating();
+            };
+            let origin = placed.rect;
+            let scale = match placed.size.y > 0.0 {
+                true => origin.height() / placed.size.y,
+                false => 1.0,
             };
             let local = |rect: Rect| {
                 Rect::from_min_size(
@@ -359,7 +364,7 @@ pub(crate) fn Stage(
         }) as Draw
     };
 
-    view! {
+    let built = view! {
         <Interactive
             focusable=true
             on_key={on_key}
@@ -411,7 +416,12 @@ pub(crate) fn Stage(
                 </Canvas>
             </Layers>
         </Interactive>
+    };
+    // Measured from the start, so a lift reads where the stage is.
+    if let Some(node) = stage.try_get() {
+        measure(node);
     }
+    built
 }
 
 #[component]

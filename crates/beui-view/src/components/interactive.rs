@@ -631,13 +631,17 @@ fn CarriedFace(
     children: Option<Child>,
 ) -> NodeId {
     use crate::components::overlay::Overlay;
+    use crate::components::list::ListItem;
     use crate::primitives::{Frame, List};
     use crate::types::{LayerLevel, LayerPolicy, Placement};
     view! {
         <Frame raised={raised}>
             <List spacing=0.0>
                 <CarryStatus said={said} />
-                <Frame translate={offset} children={children} />
+                // It fills the source, as an `Interactive`'s child does without `drag`.
+                <ListItem grow=1.0>
+                    <Frame translate={offset} children={children} />
+                </ListItem>
                 <Overlay
                     anchor={anchor}
                     placement=Placement::At
