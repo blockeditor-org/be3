@@ -3052,6 +3052,16 @@ where
                 None => return,
             },
         };
+        // The host keeps each operation's identity under the restart it reported last, and drops
+        // those of an earlier one: told of a restart first, it keeps this one.
+        if self
+            .reported
+            .status
+            .as_ref()
+            .is_some_and(|status| status.restarts != self.restarts)
+        {
+            self.report();
+        }
         let Some((operation, _, weight, through, _)) = self.unsent.pop_front() else {
             return;
         };
