@@ -53,12 +53,15 @@ fn csrf(page: &str) -> &str {
         .unwrap()
 }
 async fn sign_in(server: &Running, email: &str) -> (Arc<Connection>, String) {
-    let be_block_protocol::BrowserLogin { code, secret, .. } =
-        be_block_client::call_once(&server.url, |peer| {
-            client::account::begin_browser_login(peer)
-        })
-        .await
-        .expect("browser sign-in starts");
+    let Ok(be_block_protocol::DeviceLoginAnswer::Begun(be_block_protocol::BrowserLogin {
+        code, secret, ..
+    })) = be_block_client::call_once(&server.url, |peer| {
+        client::server::device_login(peer, be_block_protocol::DeviceLoginStep::Begin)
+    })
+    .await
+    else {
+        panic!("browser sign-in does not start")
+    };
     let store = be_server::ServerStore::open(&server.directory).unwrap();
     let entered = store
         .ask_and_enter_code(request(CodePurpose::SignIn, email, "", ""), config())
@@ -76,11 +79,12 @@ async fn sign_in(server: &Running, email: &str) -> (Arc<Connection>, String) {
     )
     .await;
     assert!(approved.starts_with("HTTP/1.1 303"), "{approved}");
-    let Ok(be_block_protocol::BrowserLoginState::Approved(be_block_protocol::Authenticated {
-        token,
-        ..
-    })) = be_block_client::call_once(&server.url, |peer| {
-        client::account::poll_browser_login(peer, code, secret)
+    let Ok(be_block_protocol::DeviceLoginAnswer::Polled(
+        be_block_protocol::BrowserLoginState::Approved(be_block_protocol::Authenticated {
+            token, ..
+        }),
+    )) = be_block_client::call_once(&server.url, |peer| {
+        client::server::device_login(peer, be_block_protocol::DeviceLoginStep::Poll { code, secret })
     })
     .await
     else {
@@ -89,10 +93,7 @@ async fn sign_in(server: &Running, email: &str) -> (Arc<Connection>, String) {
     let connection = Connection::connect(&socket(server), &be_block_client::Clock::real())
         .await
         .unwrap();
-    ask(client::account::authenticate(
-        &connection,
-        Some(token.clone()),
-    ))
+    ask(be_block_protocol::client::server::authenticate(&connection, Some(token.clone())))
     .await
     .expect("the token signs in");
     (connection, token)
@@ -173,7 +174,7 @@ async fn check(snapshot: &Snapshot) {
         "{name}: the friend's session was not kept"
     );
     let Ok(be_block_protocol::RecoveryKey { public, .. }) =
-        ask(client::keys::get_recovery_key(&by_code)).await
+        ask(be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(&by_code, None, be_block_protocol::Query::RecoveryKey)).await
     else {
         panic!("{name}: the owner's recovery key was not sent");
     };
@@ -188,7 +189,7 @@ async fn check(snapshot: &Snapshot) {
         ),
         "{name}: the owner's phrase no longer matches its recovery key"
     );
-    let Ok(organizations) = ask(client::organizations::list_organizations(&by_code)).await else {
+    let Ok(organizations) = ask(be_block_protocol::read::<Vec<be_block_protocol::Organization>, _>(&by_code, None, be_block_protocol::Query::Organizations)).await else {
         panic!("{name}: the owner's organizations were not listed");
     };
     let kinds: Vec<_> = organizations
@@ -475,10 +476,7 @@ async fn check(snapshot: &Snapshot) {
         holiday.size + holiday_note.tree_size + friend_note.tree_size,
         "{name}: what the friend made in the owner's folder is not in its tree"
     );
-    let friend_storage = client::account::storage_changed(&friend.connection())
-        .recv()
-        .await
-        .unwrap();
+    let friend_storage = ask(be_block_protocol::read::<be_block_protocol::AccountStorage, _>(&friend.connection(), None, be_block_protocol::Query::Storage)).await.unwrap();
     assert_eq!(
         (friend_storage.held, snapshot.usage.friend_held),
         (0, 0),
@@ -649,10 +647,7 @@ async fn check_storage(
         my_files.size + notes.tree_size,
         "{name}"
     );
-    let storage = client::account::storage_changed(&owner.connection())
-        .recv()
-        .await
-        .unwrap();
+    let storage = ask(be_block_protocol::read::<be_block_protocol::AccountStorage, _>(&owner.connection(), None, be_block_protocol::Query::Storage)).await.unwrap();
     assert!(
         storage.held >= long.size,
         "{name}: the owner is charged less than one of its blocks holds"
@@ -684,22 +679,10 @@ async fn check_storage(
     let agent = Connection::connect(&socket(server), &be_block_client::Clock::real())
         .await
         .unwrap();
-    ask(client::account::authenticate(
-        &agent,
-        Some(snapshot.agent_token.to_owned()),
-    ))
+    ask(be_block_protocol::client::server::authenticate(&agent, Some(snapshot.agent_token.to_owned())))
     .await
     .unwrap();
-    ask(client::organizations::open_organization(
-        &agent,
-        id(snapshot.organization),
-    ))
-    .await
-    .unwrap();
-    let charged = client::account::storage_changed(&agent)
-        .recv()
-        .await
-        .unwrap();
+    let charged = ask(be_block_protocol::read::<be_block_protocol::AccountStorage, _>(&agent, None, be_block_protocol::Query::Storage)).await.unwrap();
     assert_eq!(
         (charged.held, charged.pending),
         (storage.held, storage.pending),

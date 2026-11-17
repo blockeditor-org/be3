@@ -8,8 +8,11 @@ crate.
 ## Connection
 
 `Connection` is a `be_wasm_ops::net::Peer` (`Side::Guest`) that implements
-`Caller`, so the generated `be_block_protocol::client::<interface>` functions
-take `&connection`. Below it, `transport/` has a `Writer`, a `Reader` and a
+`Caller`, so `be_block_protocol::read`, `ask` and `write` and the generated
+`be_block_protocol::client::server` functions take `&connection`. It works in
+no organization of its own: each call names one (a `Peer` its own,
+`Peer::organization`), or none for the account's own, so one connection may
+serve any of the account's organizations. Below it, `transport/` has a `Writer`, a `Reader` and a
 `spawn` per platform (tokio and tokio-tungstenite natively, the browser's
 `WebSocket` in `web.rs`). Natively an `http(s)://` URL takes the server's HTTP
 posts (`transport/native/http.rs`), and both go through `HTTPS_PROXY`;
@@ -21,11 +24,16 @@ credentials), which is how a browser sign-in is begun and polled; every
 connection's first call is `authenticate` (guides/blocks/server.md, "Signing
 in").
 
-It opens connection-wide streams on the first `subscribe()` and a session's as
-`join_session` is called, and pumps every stream into one `broadcast` of
-`be_block_client::Event`. Blocks are read, not announced: `Peer::listing` reads
-a listing and the sequence it was read at (`Listed`), `Peer::summary` one block
-(with `read-summaries`). What changes arrives as trees: `Peer::changed_since(entry,
+It opens the server's one `events` stream on the first `subscribe()` and pumps
+it into one `broadcast` of `be_block_client::Event`. As it attaches, a peer
+follows what it hears as it changes (`Peer::follow_topics`: a read with
+`follow` of its keys, key work, roots and notification modes, and the account's
+contacts, notices and storage, each let go of when the server refuses it, as it
+does a block's agent); each topic arrives as an `Event` that says only to read
+again (`KeysChanged`, `KeyWorkChanged`, `Roots`, `StorageChanged`, ...).
+Blocks are read, not announced: `Peer::listing` reads a listing and the
+sequence it was read at (`Listed`), `Peer::summary` one block (a `blocks`
+query). What changes arrives as trees: `Peer::changed_since(entry,
 since, follow)` reads the tree of an entry point (`block-summary.entry`) from
 a sequence, following it with `follow`, and `Event::TreeAdvanced` tells when a
 followed tree changed, once until it is read to its end
@@ -34,8 +42,8 @@ stops. `Event::Roots` says the top, the trash or Shared with me may have
 changed. A summary's `changed` orders it against every other of its block: the
 refs database keeps the newest (`Refs::put`), and a change this device makes
 offline is stamped just past the newest sequence it knows (`Refs::revise`). Key
-work arrives as `Event::KeyWork`; `Peer::key_work` reads the first value of a
-stream of it. A receiver that falls behind re-lists what it wants, reads again
+work changing arrives as `Event::KeyWorkChanged`, on which the host reads it
+(`Peer::key_work`) and tends it. A receiver that falls behind re-lists what it wants, reads again
 the trees it follows and rejoins its sessions, as after a reconnect.
 
 **Deciding the server is gone.** A socket can stay open with nothing behind it
@@ -103,14 +111,17 @@ for the answer to the one before, so a pen stroke's presence costs no more round
 trips than one message.
 
 The server orders the session (decisions/live_edits_are_ordered_by_the_server.md).
-`Connection::join_session(block, tag)` names the build of the block's type the
-connection runs, and answers the session's membership as of joining
-(`SessionState`), which `Event::Membership` entries then follow
+`Connection::join_session(organization, block, tag)` (a `session` read that
+follows) names the build of the block's type the connection runs, and answers
+the session's membership as of joining (`SessionState`), which
+`Event::Membership` entries then follow; the session's events that arrive
+before the join is answered are held until it is, so none reaches a subscriber
+ahead of it
 (guides/blocks/server.md, "Membership"); the session speaks its first
 participant's build (`Membership::tag`) and the server refuses submissions from
 any other.
 `Peer::submit` seals a submission's payload with the block's key and hands it to
-the server (`submit`), which numbers it, keeps it in the block's journal and
+the server (an `ordered` send), which numbers it, keeps it in the block's journal and
 sends it to every participant, its author too, as `Event::Sequenced`; the answer
 comes once it is kept. Every replica applies that one order. A replica keeps
 `confirmed` (the order applied) and `visible` (confirmed plus its own edits not

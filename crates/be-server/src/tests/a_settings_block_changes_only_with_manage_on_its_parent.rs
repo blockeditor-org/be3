@@ -11,22 +11,10 @@ async fn create_settings(
     let placement = client.placement(block, BlockParent::Block(parent)).await;
     let response = client
         .call(|peer| {
-            client::blocks::create_block(
-                peer,
-                block,
-                SETTINGS_TYPE,
-                BlockParent::Block(parent),
-                Vec::new(),
-                Vec::new(),
-                key,
-                KeySet {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::CreateBlock { block: block, content_type: SETTINGS_TYPE, parent: BlockParent::Block(parent), metadata: Vec::new(), references: Vec::new(), key: key, keys: KeySet {
                     keys: vec![row(key, block, KeyKind::Data)],
                     wrapped: Vec::new(),
-                },
-                false,
-                root.clone(),
-                placement,
-            )
+                }, owner_only: false, root: root.clone(), placement: placement })
         })
         .await;
     (block, response)
@@ -34,7 +22,7 @@ async fn create_settings(
 
 async fn set_metadata(client: &mut TestClient, block: Uuid) -> Result<BlockSummary, Error> {
     client
-        .call(|peer| client::blocks::set_metadata(peer, block, b"changed".to_vec(), Vec::new()))
+        .call(|peer| peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata { block: block, metadata: b"changed".to_vec(), references: Vec::new() }))
         .await
 }
 

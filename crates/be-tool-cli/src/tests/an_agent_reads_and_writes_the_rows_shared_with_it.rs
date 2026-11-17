@@ -1,5 +1,5 @@
 use be_block_graph::Access;
-use be_block_protocol::{CreatedAgent, client};
+use be_block_protocol::CreatedAgent;
 
 use super::*;
 use crate::session::{Settings, connect};
@@ -25,14 +25,7 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
         owner.peer().account().into_bytes(),
         &identity,
     ));
-    let CreatedAgent { agent, token } = be_block_client::ask(client::members::create_agent(
-        &owner.peer().connection(),
-        organization,
-        account,
-        "Claude".into(),
-        public.0,
-        phrase.secret().signing().0,
-        be_block_client::contacts::OwnContact::new(
+    let CreatedAgent { agent, token } = be_block_client::ask(be_block_protocol::write::<be_block_protocol::CreatedAgent, _>(&owner.peer().connection(), Some(organization), be_block_protocol::Op::CreateAgent { account: account, name: "Claude".into(), recovery: public.0, signing: phrase.secret().signing().0, contact: be_block_client::contacts::OwnContact::new(
             be_block_client::contacts::card(
                 owner.peer().account(),
                 owner.peer().keys().identity(),
@@ -41,19 +34,15 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
             ),
             0,
         )
-        .seal(&phrase.secret()),
-        be_block_client::contacts::seal_pin(
+        .seal(&phrase.secret()), escrow: be_block_client::contacts::seal_pin(
             &phrase.secret(),
             organization,
             &owner.peer().keys().pins(),
-        ),
-        None,
-        owner
+        ), bound_to: None, member: owner
             .peer()
             .agent_record(account, identity)
             .await
-            .expect("signing the agent in failed"),
-    ))
+            .expect("signing the agent in failed") }))
     .await
     .expect("creating the agent failed");
     owner

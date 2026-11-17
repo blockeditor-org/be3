@@ -2,7 +2,7 @@ use super::*;
 
 use be_block_graph::Access;
 use be_block_keys::{Authority, Entry, Grant, Level, Record};
-use be_block_protocol::{RecoveryKey, client};
+use be_block_protocol::{RecoveryKey};
 
 /// A new recovery phrase retires the old keys in every log that names them: one the account is
 /// only granted in, never having signed there, too. Otherwise whoever holds the old phrase could
@@ -25,7 +25,7 @@ async fn a_grantee_who_never_signed_retires_its_old_key_too() {
     let fresh = be_block_keys::RecoveryPhrase::generate().secret();
     let RecoveryKey {
         sealed, own, logs, ..
-    } = crate::ask(client::keys::get_recovery_key(&member.connection()))
+    } = crate::ask(be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(&member.connection(), None, be_block_protocol::Query::RecoveryKey))
         .await
         .unwrap();
     assert!(
@@ -34,15 +34,7 @@ async fn a_grantee_who_never_signed_retires_its_old_key_too() {
     );
     let resealed =
         crate::contacts::new_identity(member.account(), &old, &fresh, sealed, own, logs).unwrap();
-    crate::ask(client::keys::set_recovery_key(
-        &member.connection(),
-        fresh.public().0,
-        fresh.signing().0,
-        resealed.sealed,
-        resealed.own,
-        resealed.changes,
-        resealed.retirements,
-    ))
+    crate::ask(be_block_protocol::write::<(), _>(&member.connection(), None, be_block_protocol::Op::SetRecoveryKey { public: fresh.public().0, signing: fresh.signing().0, sealed: resealed.sealed, own: resealed.own, changes: resealed.changes, retirements: resealed.retirements }))
     .await
     .unwrap();
 

@@ -2,7 +2,7 @@ use super::*;
 
 async fn rename(client: &mut TestClient, block: Uuid, name: &[u8]) {
     let response = client
-        .call(|peer| client::blocks::set_metadata(peer, block, name.to_vec(), Vec::new()))
+        .call(|peer| peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata { block: block, metadata: name.to_vec(), references: Vec::new() }))
         .await;
     assert!(matches!(response, Ok(_)), "{response:?}");
 }
@@ -59,7 +59,7 @@ async fn a_connection_hears_only_of_the_trees_it_follows() {
     );
 
     let response = other
-        .call(|peer| client::blocks::unfollow(peer, followed))
+        .call(|peer| peer.unfollow(be_block_protocol::Topic::Tree(followed)))
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     rename(&mut author, followed, b"unheard too").await;

@@ -12,34 +12,22 @@ pub(super) async fn join(
 ) {
     let response = owner
         .call(|peer| {
-            client::contacts::create_link(
-                peer,
-                Uuid::from_u128(invitation),
-                Vec::new(),
-                Vec::new(),
-                be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
+            peer.write::<()>(be_block_protocol::Op::CreateLink { link: Uuid::from_u128(invitation), card: Vec::new(), code: Vec::new(), kind: be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                     organization,
                     escrow: Vec::new(),
-                }),
-            )
+                }) })
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let _ = member
         .call(|peer| {
-            client::contacts::accept_link(
-                peer,
-                Uuid::from_u128(invitation),
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-            )
+            peer.write::<()>(be_block_protocol::Op::AcceptLink { link: Uuid::from_u128(invitation), card: Vec::new(), contact: Vec::new(), key: Vec::new() })
         })
         .await;
     // An invitation joins as an editor; an administrator is made one after.
     if role == OrganizationRole::Administrator {
         let members = owner
-            .call(|peer| client::members::list_members(peer))
+            .call(|peer| peer.read::<Vec<be_block_protocol::Member>>(be_block_protocol::Query::Members))
             .await
             .expect("the members are listed");
         let account = members
@@ -55,7 +43,7 @@ pub(super) async fn join(
 
 async fn access_list(client: &mut TestClient, block: Uuid) -> AccessList {
     let response = client
-        .call(|peer| client::blocks::list_access(peer, block))
+        .call(|peer| peer.read::<be_block_protocol::AccessList>(be_block_protocol::Query::Access(block)))
         .await;
     let Ok(list) = response else {
         panic!("listing access failed: {response:?}");

@@ -2,7 +2,7 @@ use super::*;
 
 use be_block_graph::Access;
 use be_block_keys::Party;
-use be_block_protocol::{RecoveryKey, client};
+use be_block_protocol::{RecoveryKey};
 use be_type_text::{TextBlock, TextContent};
 
 async fn note_in(peer: &Peer<MemoryStore>, parent: Uuid, body: &str) -> Uuid {
@@ -80,7 +80,7 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
         .unwrap();
     let RecoveryKey {
         sealed, own, logs, ..
-    } = crate::ask(client::keys::get_recovery_key(&owner.connection()))
+    } = crate::ask(be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(&owner.connection(), None, be_block_protocol::Query::RecoveryKey))
         .await
         .expect("the server answers with the recovery key");
     let block = Uuid::new_v4();
@@ -96,15 +96,7 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
     )
     .expect("the old phrase opens everything sealed to the owner");
     assert_eq!(resealed.changes.len(), 2, "one change per verified contact");
-    crate::ask(client::keys::set_recovery_key(
-        &owner.connection(),
-        fresh.public().0,
-        fresh.signing().0,
-        resealed.sealed,
-        resealed.own,
-        resealed.changes,
-        resealed.retirements,
-    ))
+    crate::ask(be_block_protocol::write::<(), _>(&owner.connection(), None, be_block_protocol::Op::SetRecoveryKey { public: fresh.public().0, signing: fresh.signing().0, sealed: resealed.sealed, own: resealed.own, changes: resealed.changes, retirements: resealed.retirements }))
     .await
     .unwrap();
 

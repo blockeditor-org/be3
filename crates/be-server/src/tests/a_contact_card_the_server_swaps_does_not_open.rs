@@ -19,13 +19,7 @@ async fn a_contact_card_the_server_swaps_does_not_open() {
     let link = Uuid::from_bytes(code.lookup());
     let response = owner
         .call(|peer| {
-            client::contacts::create_link(
-                peer,
-                link,
-                honest.seal(&code, CardRole::Owner),
-                Vec::new(),
-                be_block_protocol::LinkKind::Contact(None),
-            )
+            peer.write::<()>(be_block_protocol::Op::CreateLink { link: link, card: honest.seal(&code, CardRole::Owner), code: Vec::new(), kind: be_block_protocol::LinkKind::Contact(None) })
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
@@ -46,7 +40,7 @@ async fn a_contact_card_the_server_swaps_does_not_open() {
         .unwrap();
 
     let Ok(found) = other
-        .call(|peer| client::contacts::get_link(peer, link))
+        .call(|peer| peer.read::<be_block_protocol::Link>(be_block_protocol::Query::Link(link)))
         .await
     else {
         panic!("the link could not be read");

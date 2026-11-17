@@ -162,37 +162,53 @@ orders summaries by `changed`, the organization's sequence
 carries them until 3a folds it into `events`, and `unfollow` becomes 3a's
 `unfollow(org, topic)`.
 
-Gaps kept until 3a: a block a reader knows only exists (through a reference)
-names no entry, so it is read again only on `roots` or a reconnect; one
-deleted for good by `collect-detached` while known that way stays in the
-mirror until then, which 3a's removal of `collect-detached` ends.
+Gap kept: a block a reader knows only exists (through a reference) names no
+entry, so it is read again only on `roots` or a reconnect. (One deleted for
+good while known that way no longer happens: 3a removed `collect-detached`.)
 
 ### 3. The calls merge
 
-In two pieces, each landing whole.
+In three pieces, each landing whole.
 
-- **3a. read, write, send and events, each naming its organization.** The
-  interfaces become the calls above, with every query, op and target stating
-  its rule once (`client.rs`'s `rule`, now per variant), and the dispatcher
-  applying it before the handler, as today. A batch fails whole and names the
-  index of the op that failed and why. Every call names its organization, so
-  `open-organization` goes, and what it answered moves: the connection's
-  client id to `authenticate`'s answer (the greeting's, after 3b), the role,
-  kind and escrow chain to `Organizations`, the server's account and clock to
-  `ServerInfo`, the pinned escrow to `RecoveryKey` until step 4. `AppendLog`
-  takes every record kind; the unsigned `remove-member` waits on decision
-  (b), and notify modes on decision (a). `collect-detached` goes: nothing but
-  two be-block-client tests calls it, and
-  decisions/garbage_collection_waits_for_trash_and_history.md keeps
-  collection off anyway; collection, if wanted, becomes a server policy, and
-  those tests go with it. The streams become `events`. Done:
-  `every_call_states_who_may_make_it` (a be-server test; there is no decision
-  of that name) enumerates queries, ops and targets rather than methods and
-  fails until each new one has a rule; a test where a batch whose second op is
-  refused writes nothing of its first; one where a rotation missing one
-  block's key is refused whole; one where a connection reads two
-  organizations without reconnecting; the be-host-tests that sign in, share,
-  invite and remove a member pass unchanged.
+- **3a. read, write, send and events, each naming its organization (done).**
+  `be3:server` is one interface, `server` (crates/be-block-protocol/wit/
+  server.wit): `ping`, `device-login(begin | poll)`, `authenticate`,
+  `read(organization, query, follow) -> page`, `unfollow(organization,
+  topic)`, `write(organization, ops) -> list<done>`, `send(organization,
+  target, payload)` and `events() -> stream<event>`; the other files keep only
+  records. Every query, op, target and topic states its rule once
+  (`query_rule`, `op_rule`, `target_rule`, `topic_rule` in client.rs), which
+  the dispatcher applies against the organization named; there is no open
+  organization, and a connection works in an organization from its first call
+  naming it (`WatchHub::join_organization`). A write of more than one op runs
+  in one SQLite transaction (`ServerStore::batch`, savepoints for the
+  transactions nested in it), each op's rule applied as it comes, and a
+  refusal names the op's index (`write-error`). What `open-organization`
+  answered moved: the client id to `authenticate`, the role, kind and escrow
+  chain to `organizations`, the server's account, clock, push key and FCM to
+  `server-info`, and the pinned escrow is the recovery key's `own` (kind
+  `escrow`). `collect-detached` and the server's whole delete-for-good path
+  are gone, with their tests. Streams became `events`: `tree-advanced`,
+  `session`, `paired`, and `topic-changed` for `keys`, `key-work`, `roots`,
+  `storage`, `notices`, `contacts` and `notify-modes`, each followed by reading
+  its query with `follow` (a peer follows them as it attaches,
+  `Peer::follow_topics`); a topic tells no value, so key work and storage are
+  read again. Where it differs from the list above: listings stay one
+  `list(listing, after)` query (`Children`, `Roots`, `Backrefs`,
+  `OpenSettings` are its `Listing` cases); `blocks(blocks, contents, held)`
+  answers summaries or contents; a signed-in `link` and the anonymous
+  `invitation` are two queries; `set-metadata` stays an op beside `publish`,
+  and `create-block` and `move` still carry their keys, until 3c; `append-log` takes a
+  grant or an owner record (`grant`, as `set-access` carried both), a role or
+  a member record; `put-keys` is `rows`, `rotate`, `escrow` or `reseal`, each with its own
+  rule; notices, contacts, links, `put-contact` and `pin-escrow` wait for step
+  4; `remove-member` and the notify modes (`notify-modes`, `set-notify-mode`,
+  `topic.notify-modes`) are as they were, decisions (a) and (b) unanswered;
+  no `members` topic, since nothing pushed one before. Tests:
+  `every_call_states_who_may_make_it` (by case of query, op and target),
+  `a_write_whose_second_op_is_refused_keeps_nothing_of_its_first`,
+  `a_rotation_missing_one_blocks_key_is_refused_whole`,
+  `one_connection_reads_two_organizations_without_reconnecting`.
 - **3b. Signing in in the greeting.** The token goes in the greeting, and the
   request's Authorization header stands in when the greeting carries none
   (`be` behind a proxy that injects it, `Credentials::Header`), so
@@ -202,6 +218,20 @@ In two pieces, each landing whole.
   (`Credentials::Token`). `logout` is `RevokeToken` from 3a. Done: a test
   where a greeting with a bad token is closed before any call; the web build
   signs in (its host test).
+- **3c. One form for keys and metadata.** `create-block` and `move` lose
+  their `keys`: a batch carries `put-keys` beside them (`[create-block,
+  put-keys(rows)]`, `[move, put-keys(rows)]`, a move out of a scope with
+  `put-keys(rotate)`), and the rules a batch must keep whole are checked once,
+  at its end, over everything it wrote: a block made names a key the batch
+  stored, a move leaves every moved key wrapped under the new scope's key.
+  `set-metadata` goes into `publish` with an optional commit (none sets the
+  metadata and the reference change alone). be-block-client sends the batches
+  (`Peer::create_with`, `Peer::set_parent`, its metadata saves and offline
+  outbox). Done: a test where `[create-block]` with no key in the batch is
+  refused; one where a move missing one block's wrap under its new scope is
+  refused whole; one where a `publish` with no commit changes the metadata and
+  leaves the head. Guides: guides/blocks/server.md ("Protocol"),
+  guides/blocks/keys.md.
 
 Guides: guides/blocks/server.md ("Protocol", "Organizations and access",
 "Accounts", "Notifications"), guides/blocks/client.md ("Connection"),

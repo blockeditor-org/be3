@@ -5,7 +5,6 @@ use std::collections::HashSet;
 use std::sync::{Arc, Weak};
 
 use be_block_keys::SigningPublic;
-use be_block_protocol::client;
 use be_block_store::ObjectStore;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
@@ -195,7 +194,7 @@ impl<S: ObjectStore> Peer<S> {
             let verified: Vec<_> = known.iter().filter(|known| known.verified).collect();
             return Ok(by_verified(&verified, made, arrived).unwrap_or(Signer::Bad));
         }
-        let served = client::keys::get_signing_keys(&self.connection(), vec![account])
+        let served = be_block_protocol::read::<Vec<be_block_protocol::SigningKey>, _>(&self.connection(), Some(self.organization), be_block_protocol::Query::SigningKeys(vec![account]))
             .await??
             .into_iter()
             .find(|served| served.account == account)

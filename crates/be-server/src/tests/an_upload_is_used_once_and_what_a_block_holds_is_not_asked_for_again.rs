@@ -1,7 +1,7 @@
 use super::*;
 
 #[tokio::test]
-async fn an_upload_is_used_once_and_its_object_goes_once_collected() {
+async fn an_upload_is_used_once_and_what_a_block_holds_is_not_asked_for_again() {
     let harness = Harness::start().await;
     let mut client = harness.client().await;
     let account = client.register("reuser@example.com").await;
@@ -33,19 +33,6 @@ async fn an_upload_is_used_once_and_its_object_goes_once_collected() {
     let missing = client.missing(&bytes).await.unwrap();
     assert!(missing.is_empty(), "the server holds what the block holds");
     assert_eq!(uploads(), 0, "nothing held is reserved again");
-
-    // Once the last block that held them is collected, so are they, and they are asked for again.
-    let deleted = client
-        .move_keyed(block, BlockParent::Detached, KeySet::default())
-        .await;
-    assert!(deleted.is_ok(), "{deleted:?}");
-    let collected = client
-        .call(|peer| client::blocks::collect_detached(peer))
-        .await
-        .unwrap();
-    assert_eq!(collected.objects as usize, objects.len());
-    let missing = client.missing(&bytes).await.unwrap();
-    assert_eq!(missing, objects, "collected objects are asked for again");
 
     harness.stop().await;
 }

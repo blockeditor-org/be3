@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block_protocol::{RecoveryKey, client};
+use be_block_protocol::{RecoveryKey};
 
 /// The server, with whoever holds a contact's old phrase, serves the old own-sealed card for
 /// the contact again and hides the key change; the device keeps the newest key it saw, so it
@@ -26,7 +26,7 @@ async fn a_contacts_key_the_server_rolls_back_stays_the_newest_one_seen() {
     let fresh = be_block_keys::RecoveryPhrase::generate().secret();
     let RecoveryKey {
         sealed, own, logs, ..
-    } = crate::ask(client::keys::get_recovery_key(&owner.connection()))
+    } = crate::ask(be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(&owner.connection(), None, be_block_protocol::Query::RecoveryKey))
         .await
         .unwrap();
     let resealed = crate::contacts::new_identity(
@@ -38,15 +38,7 @@ async fn a_contacts_key_the_server_rolls_back_stays_the_newest_one_seen() {
         logs,
     )
     .unwrap();
-    crate::ask(client::keys::set_recovery_key(
-        &owner.connection(),
-        fresh.public().0,
-        fresh.signing().0,
-        resealed.sealed,
-        resealed.own,
-        resealed.changes,
-        resealed.retirements,
-    ))
+    crate::ask(be_block_protocol::write::<(), _>(&owner.connection(), None, be_block_protocol::Op::SetRecoveryKey { public: fresh.public().0, signing: fresh.signing().0, sealed: resealed.sealed, own: resealed.own, changes: resealed.changes, retirements: resealed.retirements }))
     .await
     .unwrap();
     guest.refresh_contacts().await.unwrap();

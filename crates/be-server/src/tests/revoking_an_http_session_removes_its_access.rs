@@ -10,7 +10,7 @@ async fn revoking_an_http_session_removes_its_access() {
     let (_, session, _) = post(&mut stream, None, &[&hello(BUILD)]).await;
     let session = session.unwrap();
     let mut posted = Posted::new();
-    let _authenticating = client::account::authenticate(&posted.peer, Some(owner.token.clone()));
+    let _authenticating = be_block_protocol::client::server::authenticate(&posted.peer, Some(owner.token.clone()));
     let sent = posted.frames();
     let (status, _, frames) = post(&mut stream, Some(&session), &[&sent[0]]).await;
     assert_eq!(status, 200);
@@ -27,7 +27,7 @@ async fn revoking_an_http_session_removes_its_access() {
             .0,
         303
     );
-    let _listed = client::organizations::list_organizations(&posted.peer);
+    let _listed = posted.peer.read::<Vec<be_block_protocol::Organization>>(be_block_protocol::Query::Organizations);
     let list = posted.frames();
     assert_eq!(post(&mut stream, Some(&session), &[&list[0]]).await.0, 404);
 }

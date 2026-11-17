@@ -1,12 +1,5 @@
 package be3:server@0.1.0;
 
-/// The connection itself.
-interface connection {
-    /// Answers at once, so a client learns its socket is alive; the server
-    /// answers it ahead of anything else it is doing.
-    ping: async func();
-}
-
 /// Signing in, and the account's other devices.
 interface account {
     use types.{account-id, client-id, error};
@@ -35,12 +28,16 @@ interface account {
     }
 
     /// A signed-in connection. `token` is empty when the token came in the
-    /// request's Authorization header.
+    /// request's Authorization header, and in a sign-in a poll approved, which
+    /// signs no connection in, `client` is 0.
     record authenticated {
         account: account-id,
         email: string,
         display-name: string,
         token: string,
+        /// This connection, as sessions, pairing and `session-happened` name
+        /// it.
+        client: client-id,
     }
 
     /// A message from another connection of the same account.
@@ -70,49 +67,4 @@ interface account {
         created: s64,
     }
 
-    /// Starts a browser sign-in. Made as a one-shot call (`POST .../call`),
-    /// like `poll-browser-login`: a connection's first call is `authenticate`.
-    begin-browser-login: async func() -> result<browser-login, error>;
-
-    /// Where the sign-in begun with `code` and `secret` stands. Polled again
-    /// sooner than its interval, it fails with `slow-down`, and the interval
-    /// grows by five seconds (RFC 8628).
-    poll-browser-login: async func(code: string, secret: string) -> result<browser-login-state, error>;
-
-    /// Signs this connection in with an account token, or with none, the token
-    /// of the request's Authorization header.
-    authenticate: async func(token: option<string>) -> result<authenticated, error>;
-
-    /// Ends the session the token named and signs this connection out. With
-    /// `push-address`, the device's push endpoint, the account forgets that
-    /// endpoint in every organization too, as the device stops taking its pushes.
-    logout: async func(push-address: option<string>) -> result<_, error>;
-
-    /// The signed-in account's storage usage and quota: its value as the stream opens,
-    /// then each new value as the bytes it pays for change. A latest-value
-    /// stream: a connection may hold several, each starting with the current
-    /// value, and one whose first value cannot be read ends with the failure.
-    /// Ends at once, denied, before an organization is open.
-    storage-changed: func() -> stream<account-storage>;
-
-    /// The account's notices not yet dismissed, oldest first.
-    account-notices: async func() -> result<list<account-notice>, error>;
-
-    /// Dismisses one of the account's notices on every device, once it is a
-    /// week old; until then a device hides it for itself, since whoever it
-    /// warns about may hold a session too, and this changes nothing.
-    dismiss-account-notice: async func(id: u64) -> result<_, error>;
-
-    /// An item whenever the account's notices changed, so the client reads
-    /// them again; a latest-value stream, so changes the client has not taken
-    /// yet are one item.
-    account-notices-changed: func() -> stream;
-
-    /// Sends a pairing message to one of the account's other connections, or
-    /// to all of them with no `to`. Fails when `to` is no longer connected.
-    pair: async func(to: option<client-id>, payload: list<u8>) -> result<_, error>;
-
-    /// The pairing messages the account's other connections send this one,
-    /// for as long as it is open.
-    paired: func() -> stream<pairing-message>;
 }

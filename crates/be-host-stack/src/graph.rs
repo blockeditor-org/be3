@@ -177,7 +177,7 @@ struct Listed {
 }
 
 /// An entry point the mirror follows because some node it holds lies in its tree
-/// (`Node::entry`): read with `changed-since` from `cursor` when the server says its tree
+/// (`Node::entry`): read with `query.tree` from `cursor` when the server says its tree
 /// advanced (`Graph::advanced`).
 #[derive(Clone, Debug, Default, PartialEq)]
 struct Follow {
@@ -1072,7 +1072,7 @@ impl Graph {
     }
 
     /// What lies at the top, in the trash or is shared with this account may have changed, by a
-    /// move, a grant or a block made at the top (`tree-change.roots`): those listings are read
+    /// move, a grant or a block made at the top (`topic.roots`): those listings are read
     /// again, and the settings opened to who views a block inside (a grant too), and the blocks
     /// asked for that are not held, and every tree whose read was refused is tried again.
     pub fn roots(&mut self) {

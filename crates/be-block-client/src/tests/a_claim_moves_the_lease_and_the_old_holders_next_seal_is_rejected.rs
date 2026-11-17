@@ -23,8 +23,8 @@ async fn a_claim_moves_the_lease_and_the_old_holders_next_seal_is_rejected() {
         .unwrap();
     let laptop = harness.second(&phone).await;
     let mut on_phone = phone.connection().subscribe();
-    let (holder, mut seen, ..) = phone.connection().join_session(note, BUILD).await.unwrap();
-    let (claimant, ..) = laptop.connection().join_session(note, BUILD).await.unwrap();
+    let (holder, mut seen, ..) = phone.connection().join_session(phone.organization(), note, BUILD).await.unwrap();
+    let (claimant, ..) = laptop.connection().join_session(laptop.organization(), note, BUILD).await.unwrap();
     submitted(&phone, note, 1).await;
     submitted(&phone, note, 2).await;
     assert!(seen.is_holder(holder));

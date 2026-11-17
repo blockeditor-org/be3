@@ -104,8 +104,8 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   (`KeyBook::absorb`). A read meeting an unknown key refetches once, then fails
   with `ClientError::Locked`; `Peer::learn` fetches rows for blocks that appear
   later. A key found missing is not asked for again until keys arrive, so a key
-  stored later must be told: a `PutKeys` that stores or changes a row pushes
-  `keys-changed` to every other connection of the viewers of each block it gave
+  stored later must be told: a `put-keys` that stores or changes a row tells
+  `topic.keys` to every other connection, following it, of the viewers of each block it gave
   a key or wrapped one of under another key, of each viewer it sealed a key to,
   and of every administrator (all an escrow wrap tells). An agent bound to a
   block may not open it; a device attaching again reads every row anyway.
@@ -182,15 +182,18 @@ closing is an opening to `None`), parent records (`Record::Parent`) and owner
 records (`Record::Owner`) in a block's log, the first three naming where their
 signer's right comes from (`Authority`); administrators and members
 (`Record::Administrator`, `Record::Member`) in the organization's.
-`set-access`, `set-role`, `set-parent`, `create-agent`,
-`sign-member`, `remove-member` and `remove-contact` carry them, and
+`append-log` carries a grant or an owner record (`grant`), a role or a member
+record, and `move`, `create-agent`, `remove-member` and `remove-contact` carry
+theirs;
 `create-block` carries the creator's parent record after the root; the server
 appends each once it checks at the log's head as devices check it.
+`remove-member` is no `append-log`: a person who accepted an invitation joins
+before any record names them (plans/simpler_server_api.md, decision (b)).
 
 **Owner records** move a block's ownership:
 only its owner (the root's creator, or whom the last owner record named, held
 as `Checked::owner`) signs one, naming another account and the keys it verified
-for them, sent as `set-access` with Manage (`Peer::transfer`, the share
+for them, sent as an `append-log(grant)` with Manage (`Peer::transfer`, the share
 dialog's crown). The new owner holds Manage and no grant may name them; the
 former keeps Edit (`FORMER_OWNER`), so every Manage they held by ownership,
 directly or as authority for a record below (`Authority::Inherited`), ends
@@ -453,13 +456,14 @@ names the organization's head in its signed record (`EscrowKey::head`).
 
 When an account stops being able to view a block (revoked, left, moved away,
 contact or member removed), the server records the block in `rotations`, drops
-that account's wraps and ends its sessions there. `key-work-changed` tells a client
-what it can do: rotations on blocks it may edit, scope keys not yet sealed to
+that account's wraps and ends its sessions there. `query.key-work` tells a
+client what it can do, and following it tells `topic.key-work` as it may have
+changed: rotations on blocks it may edit, scope keys not yet sealed to
 someone who should have them (`unsealed`, whose list is `keys::sealed_to`), and
 scope keys not yet escrowed. `Peer::tend` does all of it; the worker calls it
-on connect, `ContactsChanged`, each `KeyWork` and after its own changes.
+on connect, `ContactsChanged`, each `KeyWorkChanged` and after its own changes.
 
-`Peer::rotate` sends one `Rotate` for a subtree: new epochs of every scope key,
+`Peer::rotate` sends one `put-keys(rotate)` for a subtree: new epochs of every scope key,
 every data key rewrapped, a new data key per block. The server takes it only
 whole. Each block it lists must be placed where the server lists it by the
 signed parent records (`Peer::signed_below`), or nothing is sent. Content is not resealed, except that the lease holder of a live session
@@ -678,8 +682,8 @@ Edit can write as someone else.
   phrase. A record with no stamp, or arriving between the new phrase and this
   device learning of it, stays `Changed`. An account with one is checked only against verified keys, after
   rereading the contacts once, so the server cannot sign as a contact. Any other
-  member's key comes from the server (`get-signing-keys`: the caller, its
-  contacts and the members of the organization open, which in the personal
+  member's key comes from the server (`query.signing-keys`: the caller, its
+  contacts and the members of the organization it names, which in the personal
   organization is every account) and is pinned the first time, unverified; a
   different key the server names later answers `Changed` for what it signed.
   Nothing known that made the signature answers `Bad`; a record found `Bad`

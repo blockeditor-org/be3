@@ -69,7 +69,7 @@ async fn blocks_publish_and_read_back_from_a_bucket() {
         );
     }
     let url = client
-        .call(|peer| client::objects::download_urls(peer, vec![chunks[0]]))
+        .call(|peer| peer.read::<Vec<Option<String>>>(be_block_protocol::Query::DownloadUrls(vec![chunks[0]])))
         .await
         .unwrap()
         .remove(0)
@@ -79,7 +79,7 @@ async fn blocks_publish_and_read_back_from_a_bucket() {
         "{url}"
     );
     let contents = client
-        .call(|peer| client::blocks::read_contents(peer, vec![block], Vec::new()))
+        .call(|peer| peer.read::<be_block_protocol::Contents>(be_block_protocol::Query::Blocks { blocks: vec![block], contents: true, held: Vec::new() }))
         .await;
     assert!(
         matches!(&contents, Ok(contents) if !contents.objects.is_empty()),

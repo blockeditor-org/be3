@@ -13,12 +13,12 @@ async fn an_unauthenticated_connection_is_closed_unless_it_signs_in() {
     let mut anonymous = harness.client().await;
     let mut signed = harness.client().await;
     let response = signed
-        .call(|peer| client::account::authenticate(peer, Some(token)))
+        .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(token)))
         .await;
     assert!(response.is_ok(), "{response:?}");
     let mut wrong = harness.client().await;
     let first = wrong.peer.clone();
-    let listed = client::organizations::list_organizations(&first).await;
+    let listed = first.read::<Vec<be_block_protocol::Organization>>(be_block_protocol::Query::Organizations).await;
     assert!(
         !matches!(listed, Ok(Ok(_))),
         "a connection was answered before it signed in: {listed:?}"
@@ -28,11 +28,11 @@ async fn an_unauthenticated_connection_is_closed_unless_it_signs_in() {
     let mut logging_out = harness.client().await;
     let token = harness.register("leaving@example.com", "Leaving").await;
     let response = logging_out
-        .call(|peer| client::account::authenticate(peer, Some(token)))
+        .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(token)))
         .await;
     assert!(response.is_ok(), "{response:?}");
     let response = logging_out
-        .call(|peer| client::account::logout(peer, None))
+        .call(|peer| peer.write::<()>(be_block_protocol::Op::RevokeToken(None)))
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     logging_out.ended().await;

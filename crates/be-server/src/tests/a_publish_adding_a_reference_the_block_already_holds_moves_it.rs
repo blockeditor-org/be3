@@ -18,20 +18,7 @@ async fn publish_references(
     let before = author.held_by(expected);
     client
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                block,
-                commit,
-                expected,
-                expected.into_iter().collect(),
-                objects_change(&before, chunks),
-                time,
-                false,
-                references,
-                Vec::new(),
-                Vec::new(),
-                None,
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: block, commit: commit, expected: expected, parents: expected.into_iter().collect(), held: objects_change(&before, chunks), time: time, pinned: false, references: references, metadata: Vec::new(), objects: Vec::new(), journal: None })
         })
         .await
 }

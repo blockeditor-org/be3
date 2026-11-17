@@ -72,7 +72,7 @@ async fn post_authorized(
 }
 
 pub(super) struct Posted {
-    pub(super) peer: Peer,
+    pub(super) peer: At,
     outbound: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>,
 }
 
@@ -82,7 +82,13 @@ impl Posted {
         let peer = Peer::new(be_wasm_ops::Side::Guest, move |frame| {
             let _ = sending.send(frame);
         });
-        Self { peer, outbound }
+        Self {
+            peer: At {
+                peer,
+                organization: None,
+            },
+            outbound,
+        }
     }
 
     pub(super) fn frames(&mut self) -> Vec<Vec<u8>> {
@@ -91,7 +97,7 @@ impl Posted {
 
     pub(super) fn heard(&self, frames: &[Vec<u8>]) {
         for frame in frames {
-            self.peer.receive(frame).unwrap();
+            self.peer.peer.receive(frame).unwrap();
         }
     }
 }
@@ -118,7 +124,7 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
         .await
         .unwrap();
     let mut posted = Posted::new();
-    let mut registering = client::account::authenticate(&posted.peer, Some(token));
+    let mut registering = be_block_protocol::client::server::authenticate(&posted.peer, Some(token));
     let sent = posted.frames();
     let (_, _, frames) = post(&mut stream, Some(&session), &refs(&sent)).await;
     posted.heard(&frames);
@@ -127,8 +133,8 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
     };
     assert!(matches!(response, Ok(Authenticated { .. })), "{response:?}");
 
-    let mut list = client::organizations::list_organizations(&posted.peer);
-    let mut again = client::organizations::list_organizations(&posted.peer);
+    let mut list = client::server::read(&posted.peer, None, Query::Organizations, false);
+    let mut again = client::server::read(&posted.peer, None, Query::Organizations, false);
     let sent = posted.frames();
     let (_, _, frames) = post(&mut stream, Some(&session), &refs(&sent)).await;
     let answered: Vec<be_wasm_ops::OpId> = frames
@@ -153,7 +159,7 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
     );
 
     let listing = Posted::new();
-    let _listed = client::organizations::list_organizations(&listing.peer);
+    let _listed = listing.peer.read::<Vec<be_block_protocol::Organization>>(be_block_protocol::Query::Organizations);
     let mut listing = listing;
     let list = listing.frames();
     let (status, _, _) = post(&mut stream, Some("not-a-session"), &refs(&list)).await;
@@ -178,7 +184,7 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
         post_authorized(&mut proxy, None, &[&hello(BUILD)], Some(&authorization)).await;
     let session = session.unwrap();
     let mut proxied = Posted::new();
-    let mut authenticating = client::account::authenticate(&proxied.peer, None);
+    let mut authenticating = be_block_protocol::client::server::authenticate(&proxied.peer, None);
     let sent = proxied.frames();
     let (_, _, frames) = post_authorized(
         &mut proxy,
@@ -192,7 +198,7 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
         poll(&mut authenticating),
         std::task::Poll::Ready(Ok(Ok(Authenticated { token, .. }))) if token.is_empty()
     ));
-    let _listed = client::organizations::list_organizations(&proxied.peer);
+    let _listed = proxied.peer.read::<Vec<be_block_protocol::Organization>>(be_block_protocol::Query::Organizations);
     let list = proxied.frames();
     let (status, _, _) = post_authorized(
         &mut proxy,

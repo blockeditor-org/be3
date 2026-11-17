@@ -1,4 +1,4 @@
-//! The organization's durable change sequence, which `changed-since` pages through and which
+//! The organization's durable change sequence, which `query.tree` pages through and which
 //! orders every summary a client is told (`block-summary.changed`).
 //!
 //! One strictly increasing counter per organization (`organizations.change_sequence`) is
@@ -120,23 +120,6 @@ pub(crate) fn touch_moved(
 pub(crate) struct Departing {
     pub block: Uuid,
     pub owner: Option<Uuid>,
-}
-
-/// Records that a block is deleted for good while below the entry points `entries`, which a
-/// block in the trash already recorded for the trees it left when it was trashed.
-pub(crate) fn removed(
-    database: &Connection,
-    organization: Uuid,
-    entries: &[Uuid],
-    block: Departing,
-    now: i64,
-) -> Result<(), ServerError> {
-    if entries.is_empty() {
-        return Ok(());
-    }
-    let organization = organization.to_string();
-    let sequence = next(database, &organization)?;
-    departed(database, &organization, entries, &[block], sequence, now)
 }
 
 /// Remembers that `blocks` left the trees of `entries`, and forgets the departures past

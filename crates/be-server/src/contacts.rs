@@ -1076,7 +1076,7 @@ impl ServerStore {
     }
 
     /// The grants in `organization` that removing `other` as `caller`'s contact revokes, named
-    /// in their blocks' logs (`removal-revocations`).
+    /// in their blocks' logs (`query.revocations`).
     pub async fn contact_revocations(
         &self,
         caller: Uuid,

@@ -23,18 +23,9 @@ fn departing(graph: &BlockGraph, block: Uuid) -> crate::changes::Departing {
     }
 }
 
-/// The top-level block whose tree `block` is in, if it is in one (and not in the trash).
-fn tree_of(graph: &BlockGraph, block: Uuid) -> Option<Uuid> {
-    let top = graph.ancestors(block).last().unwrap_or(block);
-    graph
-        .get(top)
-        .is_some_and(|node| node.parent == BlockParent::Root)
-        .then_some(top)
-}
-
-/// The most blocks of either kind a page of `changed-since` holds.
+/// The most blocks of either kind a page of `query.tree` holds.
 const MAX_CHANGES_PER_PAGE: usize = 500;
-/// The summaries of one `changed-since` page: once they come to this, the page ends, so with
+/// The summaries of one `query.tree` page: once they come to this, the page ends, so with
 /// one summary more, however large, it stays inside a frame.
 const MAX_PAGE_SUMMARY_BYTES: usize = be_block_protocol::MAX_FRAME_BYTES / 4;
 const _: () = assert!(
@@ -45,15 +36,15 @@ const _: () = assert!(
         <= be_block_protocol::MAX_FRAME_BYTES
 );
 
-/// The most changes one page of `changed-since` looks at, those of other trees included.
+/// The most changes one page of `query.tree` looks at, those of other trees included.
 const MAX_SCANNED: usize = if cfg!(test) { 6 } else { 20_000 };
 
 use crate::{
     ServerError,
-    keys::{forget_block_keys, store_keys},
+    keys::store_keys,
     limits::{MAX_BLOCKS_PER_ACCOUNT, MAX_COMMIT_AHEAD, MAX_METADATA_BYTES},
     store::{
-        Collected, Identity, ServerStore, encode_access, encode_parent, parse_uuid,
+        Identity, ServerStore, encode_access, encode_parent, parse_uuid,
         usage::{forget_objects, payer_for_new, persist_sizes},
     },
 };
@@ -367,42 +358,6 @@ fn require_keeping_settings(
     }
 }
 
-/// Whether `seen` may delete a detached `block` for good: one it may edit, or an owner-only block
-/// (or one inside it) whose place it may edit, since deleting ciphertext nobody else opens
-/// reveals nothing, and leaving it would strand it below a parent that is gone.
-fn may_collect(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> bool {
-    seen.can_edit(graph, block)
-        || graph
-            .owner_only_root(block)
-            .and_then(|root| graph.get(root))
-            .and_then(|root| root.parent.block())
-            .is_some_and(|place| seen.can_edit(graph, place))
-}
-
-/// The `chosen` blocks that can go, children before their parents: a block goes only with every
-/// child it has, so no block is ever left below one that is gone.
-fn removable(graph: &BlockGraph, mut chosen: BTreeSet<Uuid>) -> Vec<Uuid> {
-    loop {
-        let kept: BTreeSet<Uuid> = chosen
-            .iter()
-            .copied()
-            .filter(|block| {
-                graph
-                    .children(BlockParent::Block(*block))
-                    .iter()
-                    .all(|child| chosen.contains(child))
-            })
-            .collect();
-        if kept.len() == chosen.len() {
-            break;
-        }
-        chosen = kept;
-    }
-    let mut ordered: Vec<Uuid> = chosen.into_iter().collect();
-    ordered.sort_by_key(|block| std::cmp::Reverse(graph.ancestors(*block).count()));
-    ordered
-}
-
 /// An owner-only block is made only in its maker's own settings: a `Settings` or
 /// `SettingsProfile` block the maker authored, so no one plants one in a block someone else
 /// pays for and could then neither open nor delete.
@@ -602,7 +557,7 @@ impl ServerStore {
         .await
     }
 
-    /// The block's access log, root first (`get-access-log`), to a caller who may view it or a
+    /// The block's access log, root first (`query.log`), to a caller who may view it or a
     /// block below it: whole to one with Edit or above on it, or who views it with Edit below,
     /// else a proof path of the caller's own right, and, for a block above what the caller
     /// views, of whoever signs below on authority from it.
@@ -1547,7 +1502,7 @@ impl ServerStore {
                 },
             )?;
             store.follow_payer(graph, &transaction, identity, block, parent)?;
-            // The entry points above it, for `changed-since` to name it to their readers once it
+            // The entry points above it, for `query.tree` to name it to their readers once it
             // has left them.
             let entries_before = crate::changes::entries_above(graph, block);
             let above: Vec<Uuid> = graph.ancestors(block).collect();
@@ -1829,126 +1784,6 @@ impl ServerStore {
                 entry.head = head == Some(entry.commit);
             }
             Ok(entries)
-        })
-        .await
-    }
-
-    pub async fn collect_detached(&self, identity: Identity) -> Result<Collected, ServerError> {
-        self.with_graph(identity.organization, move |store, graph, database| {
-            store.keeping_refs(database, || {
-                let seen = visibility(identity);
-                let kept_for = store
-                    .policies(graph, database, identity.organization)?
-                    .history_kept_for();
-                let since = be_block_commit::now_milliseconds() - kept_for;
-                let mut chosen = BTreeSet::new();
-                let candidates = match seen.candidates(graph) {
-                    None => graph.detached(),
-                    Some(blocks) => blocks
-                        .into_iter()
-                        .filter(|block| graph.contains(*block) && !graph.is_live(*block))
-                        .collect(),
-                };
-                for block in candidates {
-                    if !may_collect(graph, &seen, block) {
-                        continue;
-                    }
-                    if kept_for > 0
-                        && newest_version(database, identity.organization, block)? > since
-                    {
-                        continue;
-                    }
-                    chosen.insert(block);
-                }
-                let detached = removable(graph, chosen);
-                let transaction = be_block_sqlite_schema::write_transaction(database)?;
-                let mut refs = store.object_refs();
-                let mut freed = Vec::new();
-                let mut removed = Vec::new();
-                for block in detached {
-                    let mut released = Vec::new();
-                    for commit in read_history(&transaction, identity.organization, block)? {
-                        let (rows, gone) = release_commit(
-                            &transaction,
-                            &mut refs,
-                            identity.organization,
-                            block,
-                            commit.commit,
-                        )?;
-                        released.extend(rows);
-                        freed.extend(gone);
-                    }
-                    let (rows, gone) =
-                        release_held(&transaction, &mut refs, identity.organization, block)?;
-                    released.extend(rows);
-                    freed.extend(gone);
-                    let shrank = store.release_charged(
-                        &transaction,
-                        graph,
-                        identity.organization,
-                        block,
-                        &released,
-                    )?;
-                    graph.add_size(block, shrank, false)?;
-                    let organization = identity.organization.to_string();
-                    transaction.execute(
-                        "DELETE FROM block_edges WHERE organization_id = ?1 AND block_id = ?2",
-                        params![organization, block.to_string()],
-                    )?;
-                    transaction.execute(
-                        "DELETE FROM block_edges WHERE organization_id = ?1 AND reference_id = ?2",
-                        params![organization, block.to_string()],
-                    )?;
-                    transaction.execute(
-                        "DELETE FROM block_access WHERE organization_id = ?1 AND block_id = ?2",
-                        params![organization, block.to_string()],
-                    )?;
-                    transaction.execute(
-                        "DELETE FROM opened_kinds WHERE organization_id = ?1 AND block_id = ?2",
-                        params![organization, block.to_string()],
-                    )?;
-                    // Deleted from a tree (not from the trash, which it left as it was
-                    // trashed): its entry points hear of it.
-                    let entries = match tree_of(graph, block) {
-                        Some(_) => crate::changes::entries_above(graph, block),
-                        None => Vec::new(),
-                    };
-                    crate::changes::removed(
-                        &transaction,
-                        identity.organization,
-                        &entries,
-                        departing(graph, block),
-                        be_block_commit::now_milliseconds(),
-                    )?;
-                    transaction.execute(
-                        "DELETE FROM blocks WHERE organization_id = ?1 AND id = ?2",
-                        params![organization, block.to_string()],
-                    )?;
-                    forget_block_keys(&transaction, identity.organization, block)?;
-                    crate::journal::forget(&transaction, identity.organization, block)?;
-                    crate::notifications::forget(&transaction, identity.organization, block)?;
-                    let resized = chain(graph, block);
-                    graph.remove(block);
-                    persist_sizes(&transaction, graph, identity.organization, resized)?;
-                    removed.push(block);
-                }
-                std::mem::drop(refs);
-                let freed = forget_objects(&transaction, &freed)?;
-                let forgotten = crate::store::forget_orphaned_block_agents(
-                    graph,
-                    &transaction,
-                    identity.organization,
-                )?;
-                transaction.commit()?;
-                if !forgotten.is_empty() {
-                    store.sessions_changed();
-                }
-                store.objects().remove_freed(&freed);
-                Ok(Collected {
-                    blocks: removed,
-                    objects: freed.len(),
-                })
-            })
         })
         .await
     }
@@ -2500,27 +2335,6 @@ pub(crate) fn write_grant(
     Ok(())
 }
 
-fn newest_version(
-    connection: &Connection,
-    organization: Uuid,
-    block: Uuid,
-) -> Result<i64, ServerError> {
-    let mut statement = connection.prepare_cached(
-        "SELECT commit_id, MAX(time, received) FROM block_commits
-         WHERE organization_id = ?1 AND block_id = ?2",
-    )?;
-    let rows = statement.query_map(
-        params![organization.to_string(), block.to_string()],
-        |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
-    )?;
-    let mut newest = i64::MIN;
-    for row in rows {
-        let (_, at) = row?;
-        newest = newest.max(at);
-    }
-    Ok(newest)
-}
-
 fn read_history(
     connection: &Connection,
     organization: Uuid,
@@ -2644,41 +2458,6 @@ fn release_committed(
     Ok(())
 }
 
-fn release_held(
-    connection: &Connection,
-    refs: &mut ObjectRefs,
-    organization: Uuid,
-    block: Uuid,
-) -> Result<(Vec<Hash>, Vec<Hash>), ServerError> {
-    let mut held = Vec::new();
-    {
-        let mut statement = connection.prepare(
-            "SELECT hash FROM block_objects WHERE organization_id = ?1 AND block_id = ?2",
-        )?;
-        let rows = statement.query_map(
-            params![organization.to_string(), block.to_string()],
-            |row| row.get::<_, String>(0),
-        )?;
-        for row in rows {
-            held.push(Hash::from_hex(&row?).ok_or(ServerError::Corrupt)?);
-        }
-    }
-    connection.execute(
-        "DELETE FROM block_objects WHERE organization_id = ?1 AND block_id = ?2",
-        params![organization.to_string(), block.to_string()],
-    )?;
-    let freed = refs.release(&held);
-    persist_refs(connection, refs, &held)?;
-    Ok((held, freed))
-}
-
-/// A block and its ancestors: the blocks whose sizes change with its own.
-fn chain(graph: &BlockGraph, block: Uuid) -> Vec<Uuid> {
-    std::iter::once(block)
-        .chain(graph.ancestors(block))
-        .collect()
-}
-
 fn persist_refs(
     connection: &Connection,
     refs: &ObjectRefs,
@@ -2748,7 +2527,7 @@ fn relinked(graph: &BlockGraph, block: Uuid, references: &[Uuid]) -> Option<Vec<
 const EDGE_SPACING: i64 = 1 << 20;
 
 fn store_edges(
-    transaction: &rusqlite::Transaction<'_>,
+    transaction: &rusqlite::Connection,
     organization: &str,
     block: Uuid,
     references: &[Uuid],
@@ -2767,7 +2546,7 @@ fn store_edges(
 }
 
 fn insert_edges(
-    transaction: &rusqlite::Transaction<'_>,
+    transaction: &rusqlite::Connection,
     organization: &str,
     block: Uuid,
     edges: impl IntoIterator<Item = (Uuid, i64)>,
@@ -2791,7 +2570,7 @@ fn insert_edges(
 /// Turns a block's edges from `before` into `after`, writing only the edges that left, joined
 /// or moved; an edge put in between two others takes a position between theirs.
 fn change_edges(
-    transaction: &rusqlite::Transaction<'_>,
+    transaction: &rusqlite::Connection,
     organization: &str,
     block: Uuid,
     before: &[Uuid],
@@ -2954,4 +2733,11 @@ fn listing_ids(
     ids.sort_unstable();
     ids.dedup();
     ids
+}
+
+/// A block and its ancestors: the blocks whose sizes change with its own.
+fn chain(graph: &BlockGraph, block: Uuid) -> Vec<Uuid> {
+    std::iter::once(block)
+        .chain(graph.ancestors(block))
+        .collect()
 }

@@ -33,20 +33,7 @@ async fn a_trashed_block_reaches_its_reader_as_detached() {
         .await;
     let published = trasher
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                block,
-                head,
-                None,
-                Vec::new(),
-                objects_change(&[], chunks),
-                1_000,
-                false,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                Vec::new(),
-                None,
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: block, commit: head, expected: None, parents: Vec::new(), held: objects_change(&[], chunks), time: 1_000, pinned: false, references: listing(&[], Vec::new()), metadata: Vec::new(), objects: Vec::new(), journal: None })
         })
         .await;
     assert!(published.is_ok(), "{published:?}");
@@ -56,19 +43,11 @@ async fn a_trashed_block_reaches_its_reader_as_detached() {
         .move_keyed(block, BlockParent::Detached, KeySet::default())
         .await;
     assert!(matches!(trashed, Ok(())), "{trashed:?}");
-    let response = trasher
-        .call(|peer| client::blocks::collect_detached(peer))
+    reader
+        .heard_change(block, |changed| {
+            changed.parent == Some(BlockParent::Detached)
+        })
         .await;
-    let Ok(collected) = response else {
-        panic!("collection failed: {response:?}");
-    };
-    assert!(collected.blocks.contains(&block));
-    while reader.graph_change().await != Notice::Roots {}
-    let response = reader.try_read_block(block).await;
-    assert!(
-        refused_as(&response, ErrorCode::BlockNotFound),
-        "{response:?}"
-    );
 
     harness.stop().await;
 }

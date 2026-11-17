@@ -11,7 +11,7 @@ use be_block_client::{Event, ask};
 use be_block_commit::CommitId;
 use be_block_content::BlockMetadata;
 use be_block_graph::{Access, BlockParent};
-use be_block_protocol::{AccessList, BlockSummary, client};
+use be_block_protocol::{AccessList, BlockSummary};
 use be_sdk_type_api::{Change, EditorId};
 use be_sdk_type_guest::editor::FromEditor;
 use futures_util::future::{Either, select};
@@ -3023,11 +3023,7 @@ async fn approve_pairing(
         .map_err(|error| ClientError::Encoding(error.to_string()))?;
     let sealed = key.seal(&peer.keys().identity().to_bytes());
     let payload = be_block_keys::PairingMessage::Reply { message, sealed }.encode();
-    ask(client::account::pair(
-        &peer.connection(),
-        Some(from),
-        payload,
-    ))
+    ask(be_block_protocol::client::server::send(&peer.connection(), None, be_block_protocol::Target::Devices(Some(from)), payload))
     .await?;
     Ok(())
 }
@@ -3061,21 +3057,9 @@ async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
     crate::changes::wake();
 }
 
+/// Reads the key work and tends the keys it asks for.
 async fn tend(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
-    tend_with(peer, shared, None).await;
-}
-
-/// Tends the keys from `work` when the server already sent it, or else reads it first.
-async fn tend_with(
-    peer: &Arc<Peer<Store>>,
-    shared: &Arc<Mutex<Shared>>,
-    work: Option<be_block_protocol::KeyWork>,
-) {
-    let tended = match work {
-        Some(work) => peer.tend_with(work).await,
-        None => peer.tend().await,
-    };
-    if let Err(error) = tended {
+    if let Err(error) = peer.tend().await {
         record(shared, error);
     }
     shared
@@ -3123,10 +3107,7 @@ async fn invitations(peer: &Peer<Store>, config: &Config, command: InvitationsCo
                 .map_err(|error| error.to_string()),
         ),
         InvitationsCommand::Revoke { link, reply } => {
-            let revoked = be_block_client::ask(be_block_protocol::client::contacts::delete_link(
-                &peer.connection(),
-                link,
-            ))
+            let revoked = be_block_client::ask(be_block_protocol::write::<(), _>(&peer.connection(), None, be_block_protocol::Op::DeleteLink(link)))
             .await;
             let listed = match revoked {
                 Ok(()) => list_invitations(peer, config).await,
@@ -3142,10 +3123,7 @@ async fn list_invitations(
     peer: &Peer<Store>,
     config: &Config,
 ) -> Result<Vec<crate::Invite>, ClientError> {
-    let rows = be_block_client::ask(be_block_protocol::client::contacts::list_invitations(
-        &peer.connection(),
-        peer.organization(),
-    ))
+    let rows = be_block_client::ask(be_block_protocol::read::<Vec<be_block_protocol::InvitationRow>, _>(&peer.connection(), Some(peer.organization()), be_block_protocol::Query::Invitations))
     .await?;
     let base = crate::accounts::link_base(&config.server_url);
     let identity = peer.keys().identity();
@@ -3233,25 +3211,14 @@ async fn create_agent(
         None => None,
     };
     let member = peer.agent_record(account, secret.identity()).await?;
-    let be_block_protocol::CreatedAgent { agent, token } = ask(client::members::create_agent(
-        &peer.connection(),
-        organization,
-        account,
-        name,
-        public.0,
-        secret.signing().0,
-        be_block_client::contacts::OwnContact::new(me.clone(), 0).seal(&secret),
-        be_block_client::contacts::seal_pin(
+    let be_block_protocol::CreatedAgent { agent, token } = ask(be_block_protocol::write::<be_block_protocol::CreatedAgent, _>(&peer.connection(), Some(organization), be_block_protocol::Op::CreateAgent { account: account, name: name, recovery: public.0, signing: secret.signing().0, contact: be_block_client::contacts::OwnContact::new(me.clone(), 0).seal(&secret), escrow: be_block_client::contacts::seal_pin(
             &secret,
             organization,
             &be_block_client::contacts::Pinned {
                 root: peer.keys().organization_root(),
                 escrow: peer.keys().escrow(),
             },
-        ),
-        bound,
-        member,
-    ))
+        ), bound_to: bound, member: member }))
     .await?;
     let card = be_block_keys::ContactCard {
         account: agent.account.into_bytes(),
@@ -3261,11 +3228,7 @@ async fn create_agent(
         email: agent.email.clone(),
     };
     let finished = async {
-        ask(client::contacts::put_contact(
-            &peer.connection(),
-            agent.account,
-            be_block_client::contacts::OwnContact::new(card.clone(), 0).seal(identity),
-        ))
+        ask(be_block_protocol::write::<(), _>(&peer.connection(), None, be_block_protocol::Op::PutContact { contact: agent.account, sealed: be_block_client::contacts::OwnContact::new(card.clone(), 0).seal(identity) }))
         .await?;
         if let Some(block) = bound_to {
             peer.seal_share(block, agent.account, &public).await?;
@@ -3297,7 +3260,7 @@ async fn change_block_agent(peer: &Peer<Store>, agent: Uuid, change: AgentChange
     let organization = peer.organization();
     // Only a block's agent the person made: an administrator may remove any member, and an app
     // must never do that in their name. A listed member that is not one is refused.
-    let listed = match ask(client::members::list_members(&connection)).await {
+    let listed = match ask(be_block_protocol::read::<Vec<be_block_protocol::Member>, _>(&connection, Some(organization), be_block_protocol::Query::Members)).await {
         Ok(members) => members.into_iter().find(|listed| listed.account == agent),
         Err(error) => return change.fail(error.to_string()),
     };
@@ -3309,11 +3272,7 @@ async fn change_block_agent(peer: &Peer<Store>, agent: Uuid, change: AgentChange
     }
     match change {
         AgentChange::Rotate(reply) => reply.send(
-            ask(client::members::rotate_agent_token(
-                &connection,
-                organization,
-                agent,
-            ))
+            ask(be_block_protocol::write::<String, _>(&connection, Some(organization), be_block_protocol::Op::RotateAgentToken(agent)))
             .await
             .map_err(|error| error.to_string()),
         ),
@@ -3384,13 +3343,7 @@ async fn contact(
             reply.send(opened.map_err(|error| error.to_string()));
         }
         ContactCommand::Accept { code, reply } => {
-            let accepted = be_block_client::contacts::accept_link(
-                &peer.connection(),
-                identity,
-                &me,
-                &code,
-                be_block_client::contacts::Expected::Contact,
-            )
+            let accepted = be_block_client::contacts::accept_link(&peer.connection(), identity, &me, &code, be_block_client::contacts::Expected::Contact)
             .await
             .map(|(_, card)| card);
             if accepted.is_ok() {
@@ -4336,9 +4289,9 @@ async fn heard(
         Some(Event::KeysChanged) => tasks.relearn_locked(peer, shared),
         Some(Event::NotifyModesChanged) => tasks.notify_modes(peer, shared),
         Some(Event::AccountNoticesChanged) => tasks.account_notices(peer),
-        Some(Event::KeyWork(work)) => {
+        Some(Event::KeyWorkChanged) => {
             let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
-            tasks.spawn(async move { tend_with(&peer, &shared, Some(work)).await });
+            tasks.spawn(async move { tend(&peer, &shared).await });
         }
         Some(_) => {}
         None => relist(shared),
@@ -4523,7 +4476,7 @@ fn take_follows(shared: &Arc<Mutex<Shared>>) -> (Vec<(Uuid, u64)>, Vec<Uuid>) {
     held.graph.take_follows()
 }
 
-/// Reads what changed in each tree of `trees` since its cursor, following it (`changed-since`),
+/// Reads what changed in each tree of `trees` since its cursor, following it (`query.tree`),
 /// and gives the graph what changed of what it holds (`Graph::followed`); the blocks it held that
 /// left a tree are read again, wherever they went. Unfollows `unfollowed`.
 async fn read_trees(
@@ -4845,7 +4798,7 @@ impl Tasks {
         let peer = Arc::clone(peer);
         self.spawn(async move {
             if let Ok(listed) = be_block_client::ask(
-                be_block_protocol::client::account::account_notices(&peer.connection()),
+                be_block_protocol::read::<Vec<be_block_protocol::AccountNotice>, _>(&peer.connection(), None, be_block_protocol::Query::Notices),
             )
             .await
             {
@@ -4864,9 +4817,9 @@ impl Tasks {
         self.spawn(async move { tasks.sync_contacts(&peer, &shared).await });
     }
 
-    /// Follows the account's storage on the server's `storage-changed` stream while an editor
-    /// watches it, and stops following once none does. A stream that ends while the connection
-    /// holds is a failure the host shows.
+    /// Follows the account's storage (`query.storage`, read again on `Event::StorageChanged`)
+    /// while an editor watches it, and stops following once none does. A read that fails while
+    /// the connection holds is a failure the host shows.
     fn storage(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
         let watched = shared
             .lock()
@@ -4884,16 +4837,22 @@ impl Tasks {
         *following = Some(stop);
         let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
         self.spawn(async move {
-            let mut usage = client::account::storage_changed(&peer.connection());
+            let connection = peer.connection();
+            let mut told = connection.subscribe();
             let mut stopped = std::pin::pin!(stopped);
             loop {
-                let next = match select(std::pin::pin!(usage.recv()), stopped.as_mut()).await {
+                let read = be_block_protocol::read::<be_block_protocol::AccountStorage, _>(
+                    &connection,
+                    None,
+                    be_block_protocol::Query::Storage,
+                );
+                let next = match select(std::pin::pin!(read), stopped.as_mut()).await {
                     Either::Left((next, _)) => next,
                     Either::Right(_) => return,
                 };
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
                 match next {
-                    Some(next) => {
+                    Ok(Ok(next)) => {
                         if held.storage.as_ref() != Some(&next) {
                             held.storage = Some(next);
                             crate::changes::post(crate::Changes {
@@ -4903,7 +4862,7 @@ impl Tasks {
                             held.progressed += 1;
                         }
                     }
-                    None => {
+                    Ok(Err(_)) | Err(_) => {
                         if peer.is_attached() {
                             held.error = Some(STORAGE_FAILED.to_owned());
                         }
@@ -4914,6 +4873,20 @@ impl Tasks {
                 }
                 drop(held);
                 crate::changes::wake();
+                // Read again once the server tells it changed (`Peer::follow_topics` follows it).
+                loop {
+                    let heard = match select(std::pin::pin!(told.recv()), stopped.as_mut()).await
+                    {
+                        Either::Left((heard, _)) => heard,
+                        Either::Right(_) => return,
+                    };
+                    match heard {
+                        Ok(Event::StorageChanged)
+                        | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => break,
+                        Ok(_) => {}
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+                    }
+                }
             }
         });
     }
