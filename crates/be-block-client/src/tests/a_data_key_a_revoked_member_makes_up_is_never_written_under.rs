@@ -138,7 +138,12 @@ async fn a_data_key_a_revoked_member_makes_up_is_never_written_under() {
             epochs + 1,
             "the save wrote under a key opened through an outdated epoch (round {round})"
         );
-        let written = device.keys().keys_of(note, KeyKind::Data).last().unwrap().id;
+        let written = device
+            .keys()
+            .keys_of(note, KeyKind::Data)
+            .last()
+            .unwrap()
+            .id;
         carol.refresh_keys(None).await.unwrap();
         assert_ne!(written, made_up);
         bob.refresh_keys(None).await.unwrap();

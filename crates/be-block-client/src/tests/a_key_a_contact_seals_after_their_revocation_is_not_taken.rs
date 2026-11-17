@@ -101,7 +101,14 @@ async fn a_key_a_contact_seals_after_their_revocation_is_not_taken() {
         refused.push(key);
     }
     let before = Uuid::new_v4();
-    plant(&harness, &bob, &carol, before, team, &made_up(Some(editing)));
+    plant(
+        &harness,
+        &bob,
+        &carol,
+        before,
+        team,
+        &made_up(Some(editing)),
+    );
     carol.refresh_keys(None).await.unwrap();
     for key in refused {
         assert!(

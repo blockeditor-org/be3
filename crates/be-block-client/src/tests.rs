@@ -6,7 +6,11 @@ use be_server::Running;
 use uuid::Uuid;
 
 use super::*;
+use be_block_graph::Access;
+use be_block_keys::{CarriedKey, EntryHash, Heads, Party, RecoveryPublic};
+use be_block_protocol::KeyKind;
 use be_type_image::{ImageContent, ImageHeader};
+use be_type_text::{TextBlock, TextContent};
 
 /// Uploads `objects` as `Peer::push` does, without keeping them on the device: asks for URLs,
 /// then PUTs each object's bytes.
@@ -52,6 +56,7 @@ mod a_block_referencing_too_many_blocks_is_refused;
 mod a_block_sent_after_a_new_escrow_key_is_wrapped_under_it;
 mod a_block_the_server_refused_to_make_is_not_listed_offline;
 mod a_block_the_server_says_is_open_inside_is_sealed_to_no_contact;
+mod a_block_whose_edit_was_set_aside_as_outdated_takes_the_next_one_once_it_is_discarded;
 mod a_block_whose_root_the_server_swaps_is_refused;
 mod a_burst_of_changes_behind_one_that_does_not_apply_reads_the_block_once;
 mod a_change_announced_as_what_moved_in_its_references_arrives_with_them_all;
@@ -65,6 +70,7 @@ mod a_contact_is_named_by_the_card_it_verified_not_the_servers_row;
 mod a_contact_link_revoked_before_it_is_finished_grants_nothing;
 mod a_contact_the_server_lists_as_granted_with_no_record_is_sealed_nothing;
 mod a_contacts_key_the_server_rolls_back_stays_the_newest_one_seen;
+mod a_contacts_seal_waits_on_a_log_short_of_what_was_kept;
 mod a_creation_the_server_refuses_is_set_aside_and_nothing_waits_behind_it;
 mod a_data_key_a_revoked_member_makes_up_is_never_written_under;
 mod a_definition_the_server_refuses_leaves_the_block_as_the_server_has_it;
@@ -73,7 +79,6 @@ mod a_device_reads_every_page_of_its_keys;
 mod a_device_shown_a_kind_still_open_seals_the_new_epoch_to_no_contact;
 mod a_device_shown_a_log_without_a_revocation_seals_the_new_epoch_to_no_one;
 mod a_device_shown_an_administrator_not_yet_demoted_seals_them_no_new_escrow_key;
-mod a_device_that_cannot_read_a_log_it_held_writes_under_no_key_it_outdates;
 mod a_device_that_knows_a_head_only_from_its_summary_saves_on_it_offline;
 mod a_device_that_starts_offline_reads_and_lists_what_it_saved;
 mod a_file_added_to_a_shared_folder_opens_and_saves_for_who_it_was_shared_with;
@@ -120,6 +125,7 @@ mod a_reordered_reference_list_keeps_its_new_order;
 mod a_request_fails_once_a_ping_goes_unanswered;
 mod a_request_on_a_link_gone_silent_fails_without_waiting_for_the_idle_ping;
 mod a_request_stuck_in_a_full_socket_fails_once_the_server_goes_silent;
+mod a_restarted_device_served_a_log_before_a_revocation_it_held_writes_under_no_made_up_key;
 mod a_revocation_the_server_makes_is_signed_into_the_log_by_a_manager;
 mod a_save_keeps_defined_metadata_it_does_not_know_and_drops_stale_derived_metadata;
 mod a_save_under_an_epoch_the_log_outdates_rotates_first;
@@ -140,15 +146,18 @@ mod an_administrator_made_after_a_demotion_opens_the_settings;
 mod an_administrator_reads_a_workspace_nobody_shared_with_them;
 mod an_administrators_device_shares_the_settings_with_the_server_again_when_it_connects;
 mod an_artifact_is_a_backref_of_the_block_it_describes;
+mod an_edit_made_offline_under_a_made_up_key_is_kept_and_never_sent;
 mod an_edit_the_server_kept_without_answering_settles_once_another_device_builds_on_it;
 mod an_editor_rotates_a_workspace_a_reader_was_taken_off;
 mod an_escrow_key_a_demoted_administrator_makes_is_refused;
 mod an_escrow_key_the_server_puts_in_place_is_refused;
 mod an_escrow_secret_is_held_apart_from_content_keys;
+mod an_escrow_wrap_from_a_revoked_editor_waits_on_a_log_short_of_what_was_kept;
 mod an_exported_artifact_imports_pointing_to_its_imported_source;
 mod an_image_round_trips_without_being_re_encoded;
 mod an_invitation_finished_halfway_signs_its_accepter_in_on_the_next_finish;
 mod an_offline_edit_merges_against_the_head_it_left_after_the_server_pruned_it;
+mod an_offline_save_under_a_key_named_between_the_last_lowering_and_the_head_goes_through;
 mod an_organization_whose_root_the_server_swaps_is_refused;
 mod an_organizations_policies_are_read_by_its_members_and_enforced_by_the_server;
 mod an_owner_only_block_is_read_by_its_author_alone;
@@ -715,4 +724,174 @@ async fn befriend(maker: &Peer<MemoryStore>, accepter: &Peer<MemoryStore>) {
     maker.finish_links().await.unwrap();
     maker.refresh_contacts().await.unwrap();
     accepter.refresh_contacts().await.unwrap();
+}
+
+/// A team where `bob` viewed and was revoked, and the epoch after: `(admin, carol, bob, team,
+/// note, head, old)`, `old` the scope epoch Bob still holds.
+struct Revoked {
+    admin: Peer<MemoryStore>,
+    carol: Peer<MemoryStore>,
+    bob: Peer<MemoryStore>,
+    team: Uuid,
+    note: Uuid,
+    head: Option<be_block_commit::CommitId>,
+    old: Uuid,
+}
+async fn revoked(harness: &Harness) -> Revoked {
+    revoked_from(harness, Access::View).await
+}
+/// `revoked`, with Bob granted `access` before his revocation.
+async fn revoked_from(harness: &Harness, access: Access) -> Revoked {
+    let admin = harness.owner("admin@example.com").await;
+    let carol = harness.member(&admin, "carol@example.com").await;
+    let bob = harness.member(&admin, "bob@example.com").await;
+    let team = workspace(&admin, "Team").await;
+    let note = admin
+        .create::<TextContent>(BlockParent::Block(team))
+        .await
+        .unwrap();
+    let head = admin
+        .save(note, &TextBlock::of("before"), None)
+        .await
+        .unwrap()
+        .published();
+    admin
+        .grant(team, carol.account(), Access::Edit)
+        .await
+        .unwrap();
+    admin.grant(team, bob.account(), access).await.unwrap();
+    admin.tend().await.unwrap();
+    bob.refresh_keys(None).await.unwrap();
+    let old = bob.keys().scope_key(team).unwrap();
+    admin
+        .grant(team, bob.account(), Access::None)
+        .await
+        .unwrap();
+    admin.tend().await.unwrap();
+    Revoked {
+        admin,
+        carol,
+        bob,
+        team,
+        note,
+        head,
+        old,
+    }
+}
+/// Bob, with the server, makes up a data key of the note naming `named`, wraps it under the
+/// epoch he still holds and has it listed as the note's newest.
+fn plant(harness: &Harness, revoked: &Revoked, named: Option<EntryHash>) -> Uuid {
+    let made_up = Uuid::new_v4();
+    let carried = CarriedKey {
+        key: [5; 32],
+        block: revoked.note.into_bytes(),
+        root: None,
+        heads: Heads {
+            block: named,
+            organization: None,
+        },
+    };
+    let sealed = revoked
+        .bob
+        .keys()
+        .ring()
+        .seal(revoked.old, &carried.encode())
+        .unwrap();
+    let organization = revoked.admin.organization();
+    let database = harness.database();
+    database
+        .execute(
+            "INSERT INTO keys (organization_id, id, block_id, kind, epoch, created)
+             VALUES (?1, ?2, ?3, 'data', 90, 0)",
+            rusqlite::params![
+                organization.to_string(),
+                made_up.to_string(),
+                revoked.note.to_string()
+            ],
+        )
+        .unwrap();
+    database
+        .execute(
+            "INSERT INTO wrapped_keys (organization_id, key_id, wrapped_by, sender, sealed)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![
+                organization.to_string(),
+                made_up.to_string(),
+                revoked.old.to_string(),
+                revoked.bob.account().to_string(),
+                sealed
+            ],
+        )
+        .unwrap();
+    made_up
+}
+/// Saves as `device`, which opened `made_up`, and checks the save gave the team a new epoch
+/// first and wrote under a key Bob never gets.
+async fn saves_past(revoked: &Revoked, device: &Peer<MemoryStore>, made_up: Uuid) {
+    assert!(
+        device.keys().trusted(made_up),
+        "the made-up key did not open, so the test shows nothing"
+    );
+    let epochs = device.keys().keys_of(revoked.team, KeyKind::Scope).len();
+    device
+        .save(revoked.note, &TextBlock::of("after"), revoked.head)
+        .await
+        .unwrap();
+    assert_eq!(
+        device.keys().keys_of(revoked.team, KeyKind::Scope).len(),
+        epochs + 1,
+        "the save wrote under the made-up key"
+    );
+    let written = device
+        .keys()
+        .keys_of(revoked.note, KeyKind::Data)
+        .last()
+        .unwrap()
+        .id;
+    assert_ne!(written, made_up);
+    revoked.bob.refresh_keys(None).await.unwrap();
+    assert!(!revoked.bob.keys().has(written));
+}
+/// Puts a key of `block` with id `key` and `kind`, sealed by Bob as `sealed`, in the server's
+/// database, wrapped by `wrapped_by` (an account or a key, as the server writes it).
+fn plant_sealed(
+    harness: &Harness,
+    revoked: &Revoked,
+    key: Uuid,
+    block: Uuid,
+    kind: &str,
+    wrapped_by: String,
+    sealed: Vec<u8>,
+) {
+    let organization = revoked.admin.organization();
+    let database = harness.database();
+    database
+        .execute(
+            "INSERT INTO keys (organization_id, id, block_id, kind, epoch, created)
+             VALUES (?1, ?2, ?3, ?4, 90, 0)",
+            rusqlite::params![
+                organization.to_string(),
+                key.to_string(),
+                block.to_string(),
+                kind
+            ],
+        )
+        .unwrap();
+    database
+        .execute(
+            "INSERT INTO wrapped_keys (organization_id, key_id, wrapped_by, sender, sealed)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![
+                organization.to_string(),
+                key.to_string(),
+                wrapped_by,
+                revoked.bob.account().to_string(),
+                sealed
+            ],
+        )
+        .unwrap();
+}
+/// The head of the team's log, past Bob's revocation, as `device` checks it.
+async fn team_head(revoked: &Revoked, device: &Peer<MemoryStore>) -> EntryHash {
+    device.checked_access(revoked.team).await.unwrap().1.head
 }

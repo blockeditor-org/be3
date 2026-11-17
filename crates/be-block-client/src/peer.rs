@@ -1137,9 +1137,7 @@ impl<S: ObjectStore> Peer<S> {
                 .into_iter()
                 .rev()
                 .find(|row| {
-                    row.epoch > epoch
-                        && usable(row.id)
-                        && self.keys.block_of(row.id) == Some(block)
+                    row.epoch > epoch && usable(row.id) && self.keys.block_of(row.id) == Some(block)
                 })
                 .map_or(key, |row| row.id)
         };
@@ -1253,7 +1251,9 @@ impl<S: ObjectStore> Peer<S> {
             Some(key) => key,
             None => {
                 self.refresh_keys(Some(vec![scope])).await?;
-                self.keys.scope_key(scope).ok_or(ClientError::Locked(scope))?
+                self.keys
+                    .scope_key(scope)
+                    .ok_or(ClientError::Locked(scope))?
             }
         };
         if self.outdated(key, scope).await {

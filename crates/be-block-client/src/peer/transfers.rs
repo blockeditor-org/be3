@@ -114,18 +114,19 @@ impl<S: ObjectStore> Peer<S> {
                     return Err(ClientError::Outdated(block));
                 }
             }
-            let mut uploads = futures_util::stream::iter(wanted.into_iter().map(|(hash, url)| async move {
-                let bytes = store.get(*hash)?.ok_or(ClientError::MissingObject(*hash))?;
-                let headers: Vec<(String, String)> = url
-                    .headers
-                    .into_iter()
-                    .map(|header| (header.name, header.value))
-                    .collect();
-                http::put(&url.url, &headers, bytes)
-                    .await
-                    .map_err(transfer_failed)
-            }))
-            .buffer_unordered(TRANSFERS);
+            let mut uploads =
+                futures_util::stream::iter(wanted.into_iter().map(|(hash, url)| async move {
+                    let bytes = store.get(*hash)?.ok_or(ClientError::MissingObject(*hash))?;
+                    let headers: Vec<(String, String)> = url
+                        .headers
+                        .into_iter()
+                        .map(|header| (header.name, header.value))
+                        .collect();
+                    http::put(&url.url, &headers, bytes)
+                        .await
+                        .map_err(transfer_failed)
+                }))
+                .buffer_unordered(TRANSFERS);
             while let Some(sent) = uploads.next().await {
                 sent?;
             }

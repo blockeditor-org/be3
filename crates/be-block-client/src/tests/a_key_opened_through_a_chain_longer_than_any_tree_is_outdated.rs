@@ -14,7 +14,12 @@ fn a_key_opened_through_a_chain_longer_than_any_tree_is_outdated() {
     let account = Uuid::new_v4();
     let block = Uuid::new_v4();
     let book = crate::KeyBook::new(account, Uuid::new_v4(), identity.clone(), Keyring::new());
-    let root = Entry::root(&identity, account.into_bytes(), LogKind::Block, block.into_bytes());
+    let root = Entry::root(
+        &identity,
+        account.into_bytes(),
+        LogKind::Block,
+        block.into_bytes(),
+    );
     book.pin_root(block, root.hash());
     let checked = be_block_keys::check_log(
         LogKind::Block,

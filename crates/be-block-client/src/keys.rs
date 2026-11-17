@@ -629,7 +629,13 @@ impl KeyBook {
         // demoted administrator may hold it. Keys wait, unescrowed, for the next epoch.
         // With no organization log read this run, as what an earlier run kept of it says:
         // current only if it names one of its entries from the last demotion on.
-        let kept = self.roots.lock().unwrap().kept.get(&self.organization).cloned();
+        let kept = self
+            .roots
+            .lock()
+            .unwrap()
+            .kept
+            .get(&self.organization)
+            .cloned();
         let outdates = |head: &EntryHash| match (&log, &kept) {
             (Some(log), _) => log.outdates(head),
             (None, Some(kept)) => kept.lowering_place > 0 && !kept.current.contains(head),
@@ -914,7 +920,10 @@ impl KeyBook {
         current.sort();
         let kept = crate::refs::KeptLog {
             head: checked.head,
-            place: checked.positions.get(&checked.head).map_or(0, |at| *at as u64),
+            place: checked
+                .positions
+                .get(&checked.head)
+                .map_or(0, |at| *at as u64),
             lowering_place: checked.last_lowering as u64,
             current: current.into_iter().map(|(_, head)| head).collect(),
             levels: {

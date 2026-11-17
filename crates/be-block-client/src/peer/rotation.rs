@@ -84,9 +84,10 @@ impl<S: ObjectStore> Peer<S> {
                 .sealing_target(unsealed.key, unsealed.account, organization.as_ref())
                 .await
             {
-                Target::Seal(public) => keys
-                    .wrapped
-                    .push(self.keys.seal_to(unsealed.key, unsealed.account, &public)?),
+                Target::Seal(public) => {
+                    keys.wrapped
+                        .push(self.keys.seal_to(unsealed.key, unsealed.account, &public)?)
+                }
                 Target::Outdated(scope) if !outdated.contains(&scope) => outdated.push(scope),
                 Target::Outdated(_) | Target::Nobody => {}
             }

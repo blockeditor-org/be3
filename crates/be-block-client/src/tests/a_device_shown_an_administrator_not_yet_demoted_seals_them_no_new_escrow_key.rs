@@ -31,7 +31,10 @@ async fn a_device_shown_an_administrator_not_yet_demoted_seals_them_no_new_escro
         withheld.hash(),
         "the new escrow epoch names a head other than the demotion's"
     );
-    assert_eq!(admin.keys().heads(escrow.id).organization, Some(escrow.head));
+    assert_eq!(
+        admin.keys().heads(escrow.id).organization,
+        Some(escrow.head)
+    );
     let database = harness.database();
     // As though no device had sealed it to the other administrator yet, and with the server's
     // rows as the withheld log has them, so the server would take a seal to the deputy and only
@@ -39,7 +42,10 @@ async fn a_device_shown_an_administrator_not_yet_demoted_seals_them_no_new_escro
     database
         .execute(
             "DELETE FROM wrapped_keys WHERE key_id = ?1 AND wrapped_by = ?2",
-            [escrow.id.to_string(), format!("account:{}", other.account())],
+            [
+                escrow.id.to_string(),
+                format!("account:{}", other.account()),
+            ],
         )
         .unwrap();
     database
