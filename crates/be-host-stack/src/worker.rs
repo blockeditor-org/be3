@@ -1870,7 +1870,9 @@ impl Session<'_> {
                 && typing.is_empty();
             let (typing_changed, was_due, due) = {
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-                let typing_changed = held.typing != typing;
+                // Progress is the modules settling or starting work, not why they have not: a
+                // module that keeps busy changes its reasons without moving anything on.
+                let typing_changed = held.typing.is_empty() != typing.is_empty();
                 if moved || typing_changed {
                     held.progressed += 1;
                 }
