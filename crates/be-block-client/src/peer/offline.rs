@@ -311,7 +311,13 @@ impl<S: ObjectStore> Peer<S> {
         made: crate::peer::MadeRoot<'_>,
     ) -> Result<BlockSummary, ClientError> {
         let summary = self.record_creation(&creation)?;
-        self.refs.push(Op::Create(creation))?;
+        // Its keys are kept on the device already: failing here, they are kept as unmade, or
+        // the next start would pin the root they carry (`forget_made`).
+        if let Err(error) = self.refs.push(Op::Create(creation.clone())) {
+            made.hold();
+            self.forget_made(&creation)?;
+            return Err(error.into());
+        }
         made.kept()?;
         self.settle_locally()?;
         Ok(summary)
@@ -336,9 +342,24 @@ impl<S: ObjectStore> Peer<S> {
         let Some(root) = crate::peer::made_root(creation) else {
             return Ok(());
         };
+        let block = creation.block;
         let minted: Vec<Uuid> = creation.keys.keys.iter().map(|row| row.id).collect();
-        self.keys.forget_made(creation.block, root, &minted);
-        self.refs.unmade_root(creation.block, root, &minted)?;
+        self.keys.forget_made(block, root, &minted);
+        self.refs.unmade_root(block, root, &minted)?;
+        // Nothing is sealed under its keys any more: the block's key is the server's, read
+        // again from its summary (`key_now`).
+        {
+            let mut current = self.current.lock().unwrap();
+            if current.get(&block).is_some_and(|key| minted.contains(key)) {
+                current.remove(&block);
+            }
+        }
+        if let Some(mut summary) = self.refs.summary(block)
+            && summary.key.is_some_and(|key| minted.contains(&key))
+        {
+            summary.key = None;
+            self.refs.note(&summary)?;
+        }
         Ok(())
     }
 

@@ -184,10 +184,12 @@ unsent lets the root and log go (`KeyBook::forget_made`), and lifts a conflict
 it caused with the one root other keys of the block carried meanwhile. The keys
 it minted stay, so what was set aside still reads, and they still carry that
 root: the device keeps them as unmade (refs `Unmade`, read before the keys at
-start, never collected) and pins no root through them. A root is fixed by the
-account and the block (`Entry::root` signs only those), so every device of an
-account makes the same one, and the same root carried by another key (one a
-device of this account sealed once it really made the block) pins as any does.
+start, never collected), pins no root through them and seals, wraps and offers
+nothing with them (`KeyBook::unmade`). `Unmade` names keys, not a root, because
+a root is fixed by the account and the block (`Entry::root` signs only those):
+every device of an account makes the same one, and the same root carried by
+another key (one a device of this account sealed once it really made the block)
+pins as any does.
 A creation the server answers `BlockAlreadyExists`, online, from the outbox or
 imported, stands when the served log starts at the root made with it (another
 device of the account made it first); a log this account may not read is
