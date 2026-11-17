@@ -7,7 +7,7 @@ mod tests;
 
 use std::rc::Rc;
 
-use be_lib_geometry::{Direction, Pos2, Rect, Vec2};
+use be_lib_geometry::{Direction, Pos2, Rect, Side, Vec2};
 
 use super::DragPoint;
 use crate::input::Modifiers;
@@ -33,44 +33,11 @@ pub struct Candidate<D> {
     pub drop: D,
     pub rest: Rect,
     pub zone: Option<Rect>,
-    /// Within its zone, chosen only while the pointer is nearer this edge of the rect than any
+    /// Within its zone, chosen only while the pointer is nearer this side of the rect than any
     /// other, each measured as a fraction of the rect's width or height (relative to `node`).
-    pub nearest: Option<(Edge, Rect)>,
+    pub nearest: Option<(Side, Rect)>,
     pub node: NodeRef,
     pub label: Option<String>,
-}
-
-/// An edge of a rect.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Edge {
-    Left,
-    Right,
-    Top,
-    Bottom,
-}
-
-impl Edge {
-    /// The edge of `rect` nearest `pos`, each measured as a fraction of `rect`'s width or
-    /// height, so a corner splits along its diagonal: ties go to the first of left, right,
-    /// top, bottom.
-    pub fn nearest(rect: Rect, pos: Pos2) -> Option<Edge> {
-        if rect.width() <= 0.0 || rect.height() <= 0.0 {
-            return None;
-        }
-        let edges = [
-            ((pos.x - rect.min.x) / rect.width(), Edge::Left),
-            ((rect.max.x - pos.x) / rect.width(), Edge::Right),
-            ((pos.y - rect.min.y) / rect.height(), Edge::Top),
-            ((rect.max.y - pos.y) / rect.height(), Edge::Bottom),
-        ];
-        edges
-            .into_iter()
-            .reduce(|nearest, edge| match edge.0 < nearest.0 {
-                true => edge,
-                false => nearest,
-            })
-            .map(|(_, edge)| edge)
-    }
 }
 
 impl<D> Candidate<D> {
@@ -85,12 +52,12 @@ impl<D> Candidate<D> {
         }
     }
 
-    /// Chosen in its zone only while the pointer is nearer `edge` of `of` than any other, in
-    /// proportion to `of`'s size: a pane's edge bands, which split each corner along its
-    /// diagonal.
-    pub fn nearest_edge(self, edge: Edge, of: Rect) -> Self {
+    /// Chosen in its zone only while the pointer is nearer `side` of `of` than any other, in
+    /// proportion to `of`'s size (`Side::nearest`): a pane's edge bands, which split each
+    /// corner along its diagonal.
+    pub fn nearest_edge(self, side: Side, of: Rect) -> Self {
         Self {
-            nearest: Some((edge, of)),
+            nearest: Some((side, of)),
             ..self
         }
     }
@@ -167,6 +134,8 @@ pub enum DragSpec<D> {
     },
     /// `spec`'s places only at points `open` lets through (where nothing covers the site, a
     /// menu or another window over it); elsewhere the item floats.
+    /// `rests` still lists a covered place, so a keyboard carry, which has no point under
+    /// anything, can step onto it.
     Open {
         spec: Box<DragSpec<D>>,
         open: Rc<dyn Fn(DragPoint) -> bool>,
@@ -648,7 +617,7 @@ fn walk<'s, D: Clone>(
                     let nearest = match candidate.nearest {
                         Some((edge, of)) => {
                             let of = evaluation.place(&candidate.node, of)?;
-                            Edge::nearest(of, pos) == Some(edge)
+                            Side::nearest(of, pos) == Some(edge)
                         }
                         None => true,
                     };

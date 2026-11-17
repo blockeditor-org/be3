@@ -496,6 +496,51 @@ impl CanvasView {
     }
 }
 
+/// A side of a rect.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum Side {
+    Left,
+    Right,
+    Above,
+    Below,
+}
+
+impl Side {
+    pub fn direction(self) -> Direction {
+        match self {
+            Side::Left | Side::Right => Direction::Horizontal,
+            Side::Above | Side::Below => Direction::Vertical,
+        }
+    }
+
+    /// Whether this side comes first along its direction (left, above).
+    pub fn leads(self) -> bool {
+        matches!(self, Side::Left | Side::Above)
+    }
+
+    /// The side of `rect` nearest `pos`, each measured as a fraction of `rect`'s width or
+    /// height, so a corner splits along its diagonal: ties go to the first of left, right,
+    /// above, below.
+    pub fn nearest(rect: Rect, pos: Pos2) -> Option<Side> {
+        if rect.width() <= 0.0 || rect.height() <= 0.0 {
+            return None;
+        }
+        let sides = [
+            ((pos.x - rect.min.x) / rect.width(), Side::Left),
+            ((rect.max.x - pos.x) / rect.width(), Side::Right),
+            ((pos.y - rect.min.y) / rect.height(), Side::Above),
+            ((rect.max.y - pos.y) / rect.height(), Side::Below),
+        ];
+        sides
+            .into_iter()
+            .reduce(|nearest, side| match side.0 < nearest.0 {
+                true => side,
+                false => nearest,
+            })
+            .map(|(_, side)| side)
+    }
+}
+
 /// Which way a row of things runs: across, or down.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Direction {
