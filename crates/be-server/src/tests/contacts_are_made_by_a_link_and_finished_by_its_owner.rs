@@ -4,10 +4,10 @@ use be_block_keys::{CardRole, ContactCard, InviteCode, RecoveryPhrase};
 #[tokio::test]
 async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let owner_id = owner.register("owner@example.com").await;
-    let mut other = harness.client().await;
-    let other_id = other.register("other@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let owner_id = owner.id();
+    let mut other = harness.member("other@example.com").await;
+    let other_id = other.id();
     let personal = owner.personal().await;
     let mut owners_device = harness.second_connection(&owner.token, personal).await;
 

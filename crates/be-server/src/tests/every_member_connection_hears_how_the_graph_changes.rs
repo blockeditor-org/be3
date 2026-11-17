@@ -17,8 +17,7 @@ async fn roots(client: &mut TestClient) {
 #[tokio::test]
 async fn every_member_connection_hears_how_the_graph_changes() {
     let harness = Harness::start().await;
-    let mut author = harness.client().await;
-    author.register("author@example.com").await;
+    let mut author = harness.member("author@example.com").await;
     let organization = author.organization("notes").await;
     let mut other = harness
         .second_connection(&author.token.clone(), organization)

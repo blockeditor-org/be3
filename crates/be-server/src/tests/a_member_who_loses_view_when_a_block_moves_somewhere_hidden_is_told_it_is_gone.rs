@@ -4,11 +4,11 @@ use be_block_graph::Access;
 #[tokio::test]
 async fn a_member_who_loses_view_when_a_block_moves_somewhere_hidden_is_told_it_is_gone() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let owner_id = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let owner_id = owner.id();
     owner.personal().await;
-    let mut guest = harness.client().await;
-    let guest_id = guest.register("guest@example.com").await;
+    let mut guest = harness.member("guest@example.com").await;
+    let guest_id = guest.id();
     guest.personal().await;
     let link = owner.link(None).await;
     let _ = guest.accept(link, &[]).await;

@@ -10,8 +10,8 @@ async fn a_relay_to_a_client_that_left_the_session_is_dropped_without_an_error()
 
 async fn body() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let account = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let account = owner.id();
     let organization = owner.organization("notes").await;
     let block = owner.create_block(BlockParent::Root).await;
     let author = Author::new(account);

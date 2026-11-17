@@ -9,8 +9,7 @@ async fn an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within()
         ..ServerConfig::OPEN
     })
     .await;
-    let mut client = harness.client().await;
-    client.register("hoarder@example.com").await;
+    let mut client = harness.member("hoarder@example.com").await;
     client.organization("quota").await;
     let object = |seed: u8| -> Vec<u8> {
         (0..OBJECT)

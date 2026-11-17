@@ -5,8 +5,8 @@ use be_block_commit::retention::MINUTE;
 #[tokio::test]
 async fn publishing_prunes_the_commit_it_replaces_but_keeps_bookmarks_and_merge_parents() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("keeper@example.com").await;
+    let mut client = harness.member("keeper@example.com").await;
+    let account = client.id();
     client.organization("notes").await;
     let author = Author::new(account);
     let block = client.create_block(BlockParent::Root).await;

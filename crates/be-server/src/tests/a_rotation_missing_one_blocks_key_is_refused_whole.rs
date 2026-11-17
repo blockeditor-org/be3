@@ -5,8 +5,8 @@ use super::*;
 #[tokio::test]
 async fn a_rotation_missing_one_blocks_key_is_refused_whole() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let owner_id = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let owner_id = owner.id();
     let organization = owner.personal().await;
     let shared = owner.scope_root(owner_id, BlockParent::Root).await;
     let (inside, _) = owner.inside(&shared).await;

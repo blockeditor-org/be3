@@ -178,21 +178,20 @@ async fn connect_to(settings: &Settings, url: String) -> Result<Peer<FileStore>,
             settings.server
         ));
     }
-    let connection = Connection::connect(&url, &be_block_client::Clock::real())
-        .await
-        .map_err(explain)?;
-    let token = (!settings.token.is_empty()).then(|| settings.token.clone());
-    let signed_in = be_block_client::ask(be_block_protocol::client::server::authenticate(
-        &connection,
-        token,
-    ))
-    .await;
-    let be_block_protocol::Authenticated { account, token, .. } = signed_in.map_err(|error| {
-        format!(
-            "the server refused account authentication: {}",
-            explain(error)
+    let (connection, be_block_protocol::Authenticated { account, token, .. }) =
+        Connection::connect(
+            &url,
+            &be_block_client::Clock::real(),
+            &settings.credentials(),
         )
-    })?;
+        .await
+        .map_err(|error| match error {
+            ClientError::Refused(..) => format!(
+                "the server refused account authentication: {}",
+                explain(error)
+            ),
+            error => explain(error),
+        })?;
     let organization = match settings.organization {
         Some(organization) => organization,
         None => only_organization(&connection).await?,

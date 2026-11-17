@@ -53,11 +53,7 @@ async fn members_manage_only_the_agents_they_created() {
         }
         let removed = other.remove_member(agent.account).await;
         assert!(matches!(removed, Ok(())), "{removed:?}");
-        let mut bot = harness.client().await;
-        let refused = bot
-            .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(token)))
-            .await;
-        assert!(matches!(refused, Err(_)));
+        assert!(harness.sign_in(&token).await.is_err());
     }
     harness.stop().await;
 }

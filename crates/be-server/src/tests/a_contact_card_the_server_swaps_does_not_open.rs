@@ -4,8 +4,8 @@ use be_block_keys::{CardRole, ContactCard, InviteCode, RecoveryPhrase};
 #[tokio::test]
 async fn a_contact_card_the_server_swaps_does_not_open() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let owner_id = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let owner_id = owner.id();
     let mut other = harness.member("other@example.com").await;
 
     let honest = ContactCard {

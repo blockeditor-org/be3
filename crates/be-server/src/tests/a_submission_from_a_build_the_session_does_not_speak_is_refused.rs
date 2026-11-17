@@ -6,8 +6,7 @@ use be_block_session::Membership;
 #[tokio::test]
 async fn a_submission_from_a_build_the_session_does_not_speak_is_refused() {
     let harness = Harness::start().await;
-    let mut phone = harness.client().await;
-    phone.register("phone@example.com").await;
+    let mut phone = harness.member("phone@example.com").await;
     let organization = phone.organization("notes").await;
     let block = phone.create_block(BlockParent::Root).await;
     phone.join_session(block).await;

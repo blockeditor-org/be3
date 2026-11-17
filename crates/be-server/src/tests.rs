@@ -161,8 +161,8 @@ mod an_object_uploads_and_downloads_with_presigned_s3_urls;
 mod an_old_nonce_a_reused_state_or_another_browser_is_refused;
 mod an_older_backup_renamed_as_the_newest_does_not_restore;
 mod an_s3_upload_that_is_not_its_key_stores_nothing;
-mod an_unauthenticated_connection_cannot_touch_blocks;
-mod an_unauthenticated_connection_is_closed_unless_it_signs_in;
+mod a_stranger_cannot_read_a_block_in_an_organization_it_is_not_in;
+mod a_greeting_that_signs_nothing_in_is_closed_before_any_call;
 mod an_unknown_emails_budget_runs_out_as_a_known_ones_does;
 mod an_unverified_provider_email_links_nothing;
 mod an_upload_is_used_once_and_what_a_block_holds_is_not_asked_for_again;
@@ -291,32 +291,55 @@ impl Harness {
         format!("ws://{}", self.server.address)
     }
 
-    async fn client(&self) -> TestClient {
-        let mut client = TestClient::connect(&self.socket()).await;
+    /// A connection its greeting signs in with `token`, or the server's refusal, the connection
+    /// then closed.
+    async fn sign_in(&self, token: &str) -> Result<TestClient, Error> {
+        let mut client = TestClient::connect(&self.socket(), Some(token)).await?;
         client.directory = Some(self.directory.clone());
-        client
+        Ok(client)
     }
 
+    async fn signed_in(&self, token: &str) -> TestClient {
+        self.sign_in(token)
+            .await
+            .unwrap_or_else(|error| panic!("signing in failed: {error:?}"))
+    }
+
+    /// A socket that greeted the server as `build`, with no token.
     async fn greeted(&self, build: &str) -> Socket {
-        greeted(&self.socket(), build).await
+        greet(&self.socket(), build, None).await
     }
 
+    /// A new account's connection, the account's recovery key set to its test keys.
     async fn member(&self, email: &str) -> TestClient {
-        let mut client = self.client().await;
-        client.register(email).await;
+        let (_, token) = ServerStore::open(&self.directory)
+            .unwrap()
+            .register(email, email)
+            .await
+            .unwrap();
+        let mut client = self.signed_in(&token).await;
+        let identity = test_secret(client.id()).identity();
+        let response = client
+            .call(|peer| {
+                peer.write::<()>(be_block_protocol::Op::SetRecoveryKey {
+                    public: identity.public.0,
+                    signing: identity.signing.0,
+                    sealed: Vec::new(),
+                    own: Vec::new(),
+                    changes: Vec::new(),
+                    retirements: Vec::new(),
+                })
+            })
+            .await;
+        assert!(
+            response.is_ok(),
+            "setting the recovery key failed: {response:?}"
+        );
         client
     }
 
     async fn second_connection(&self, token: &str, organization: Uuid) -> TestClient {
-        let mut client = self.client().await;
-        let token = token.to_owned();
-        let response = client
-            .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(token)))
-            .await;
-        let Ok(Authenticated { account, .. }) = response else {
-            panic!("signing in failed: {response:?}");
-        };
-        client.account = Some(account);
+        let mut client = self.signed_in(token).await;
         client.open(organization).await;
         client
     }
@@ -628,18 +651,51 @@ impl Drop for TestClient {
 }
 
 impl TestClient {
-    async fn connect(url: &str) -> Self {
-        let mut socket = greeted(url, BUILD).await;
+    /// A connection its greeting signs in with `token`, or with the request's Authorization
+    /// header when none, opening the events stream and following the account's contacts as
+    /// every client does; or the server's refusal.
+    async fn connect(url: &str, token: Option<&str>) -> Result<Self, Error> {
+        let socket = greet(url, BUILD, token).await;
+        Self::welcomed(socket).await
+    }
+
+    /// A connection signed in with `token` that neither opens the events stream nor follows
+    /// anything, for one whose following would be refused.
+    async fn unheard(url: &str, token: &str) -> Result<Self, Error> {
+        Self::signed_in_over(greet(url, BUILD, Some(token)).await).await
+    }
+
+    /// The client over `socket`, once the server's greeting on it says who it signed in as,
+    /// listening as every client does.
+    async fn welcomed(socket: Socket) -> Result<Self, Error> {
+        let mut client = Self::signed_in_over(socket).await?;
+        client.listen().await;
+        Ok(client)
+    }
+
+    async fn signed_in_over(mut socket: Socket) -> Result<Self, Error> {
+        let frame = next_binary(&mut socket).await;
+        let hello = frame
+            .as_deref()
+            .and_then(read_hello)
+            .expect("the server greets");
         assert_eq!(
-            next_binary(&mut socket)
-                .await
-                .as_deref()
-                .and_then(read_hello)
-                .as_deref(),
-            Some(BUILD),
+            hello.build, BUILD,
             "the server did not greet a client of its own build"
         );
-        Self::over(socket)
+        let Authenticated {
+            account,
+            token,
+            client,
+            ..
+        } = hello
+            .said::<be_block_protocol::Welcome>()
+            .expect("the server's greeting says who signed in")?;
+        let mut client_of = Self::over(socket);
+        client_of.account = Some(account);
+        client_of.token = token;
+        client_of.client = Some(client);
+        Ok(client_of)
     }
 
     fn over(socket: Socket) -> Self {
@@ -681,20 +737,11 @@ impl TestClient {
         }
     }
 
-    /// Makes a call; once one signs the connection in, opens the events stream and follows
-    /// the account's contacts, as every client does.
     async fn call<T: 'static, F: Future<Output = Answered<T>>>(
         &mut self,
         start: impl FnOnce(&At) -> F,
     ) -> Result<T, Error> {
         let answered = start(&self.peer).await.expect("the connection stayed open");
-        if let Ok(answer) = &answered
-            && let Some(authenticated) =
-                (answer as &dyn std::any::Any).downcast_ref::<Authenticated>()
-        {
-            self.client = Some(authenticated.client);
-            self.listen().await;
-        }
         self.collect();
         answered
     }
@@ -1054,38 +1101,9 @@ impl TestClient {
         }
     }
 
-    async fn register(&mut self, email: &str) -> Uuid {
-        let (_, token) = ServerStore::open(self.directory.as_ref().unwrap())
-            .unwrap()
-            .register(email, email)
-            .await
-            .unwrap();
-        let response = self
-            .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(token)))
-            .await;
-        let Ok(Authenticated { account, token, .. }) = response else {
-            panic!("registration failed: {response:?}");
-        };
-        self.token = token;
-        self.account = Some(account);
-        let identity = test_secret(account).identity();
-        let response = self
-            .call(|peer| {
-                peer.write::<()>(be_block_protocol::Op::SetRecoveryKey {
-                    public: identity.public.0,
-                    signing: identity.signing.0,
-                    sealed: Vec::new(),
-                    own: Vec::new(),
-                    changes: Vec::new(),
-                    retirements: Vec::new(),
-                })
-            })
-            .await;
-        assert!(
-            response.is_ok(),
-            "setting the recovery key failed: {response:?}"
-        );
-        account
+    /// The account this connection signed in as.
+    fn id(&self) -> Uuid {
+        self.account.expect("the connection signed in")
     }
 
     /// Moves `account` to a new phrase with nothing sealed to it to reseal, retiring its old keys
@@ -1680,9 +1698,44 @@ impl Author {
 
 type Socket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 
-async fn greeted(url: &str, build: &str) -> Socket {
+/// The greeting of a one-shot call, or of a client that signs in with the request's
+/// Authorization header: our build, and no token.
+fn one_shot_hello() -> Vec<u8> {
+    hello(BUILD, &be_block_protocol::Greeting::default())
+}
+
+/// The greeting of a client of our build that signs in with `token`.
+fn token_hello(token: &str) -> Vec<u8> {
+    hello(
+        BUILD,
+        &be_block_protocol::Greeting {
+            token: Some(token.to_owned()),
+        },
+    )
+}
+
+/// What a server's greeting of our build says: who the connection signed in as.
+fn welcome_of(frame: &[u8]) -> be_block_protocol::Welcome {
+    let hello = read_hello(frame).expect("the server greets");
+    assert_eq!(hello.build, BUILD, "the server is of another build");
+    hello.said().expect("the server's greeting says who signed in")
+}
+
+/// The build a server's greeting names.
+fn build_of(frame: &[u8]) -> Option<String> {
+    read_hello(frame).map(|hello| hello.build)
+}
+
+/// A socket that greeted the server as `build`, signing in with `token`.
+async fn greet(url: &str, build: &str, token: Option<&str>) -> Socket {
     let (mut socket, _) = connect_async(url).await.unwrap();
-    socket.send(WsMessage::Binary(hello(build))).await.unwrap();
+    let greeting = be_block_protocol::Greeting {
+        token: token.map(str::to_owned),
+    };
+    socket
+        .send(WsMessage::Binary(hello(build, &greeting)))
+        .await
+        .unwrap();
     socket
 }
 
@@ -1862,12 +1915,7 @@ impl TestClient {
 
     /// Whether `token` still signs a new connection in.
     async fn signs_in(harness: &Harness, token: &str) -> bool {
-        let mut client = harness.client().await;
-        let token = token.to_owned();
-        client
-            .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(token)))
-            .await
-            .is_ok()
+        harness.sign_in(token).await.is_ok()
     }
 
     async fn move_to(&mut self, block: Uuid, parent: BlockParent) -> Result<(), Error> {
@@ -2470,10 +2518,10 @@ impl Harness {
         let _ = poll(&mut pending);
         let call = sent.try_recv().expect("the call was started");
         let (status, answer) =
-            post_bytes(self, "/api/be/call", &framed(&[hello(BUILD), call])).await;
+            post_bytes(self, "/api/be/call", &framed(&[one_shot_hello(), call])).await;
         assert_eq!(status, 200, "{}", String::from_utf8_lossy(&answer));
         let frames = unframed(&answer);
-        assert_eq!(read_hello(&frames[0]).as_deref(), Some(BUILD));
+        assert_eq!(build_of(&frames[0]).as_deref(), Some(BUILD));
         for frame in &frames[1..] {
             peer.receive(frame).unwrap();
         }
@@ -3083,8 +3131,8 @@ async fn viewer_of(
     block: Uuid,
     email: &str,
 ) -> (TestClient, Uuid) {
-    let mut member = harness.client().await;
-    let account = member.register(email).await;
+    let mut member = harness.member(email).await;
+    let account = member.id();
     member.personal().await;
     let link = owner.link(None).await;
     let accepted = member.accept(link, &[]).await;

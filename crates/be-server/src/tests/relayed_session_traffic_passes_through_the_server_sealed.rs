@@ -4,8 +4,8 @@ use be_block_session::Membership;
 #[tokio::test]
 async fn relayed_session_traffic_passes_through_the_server_sealed() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let account = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let account = owner.id();
     let organization = owner.organization("notes").await;
     let block = owner.create_block(BlockParent::Root).await;
     let author = Author::new(account);

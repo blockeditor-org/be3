@@ -3,8 +3,7 @@ use super::*;
 #[tokio::test]
 async fn following_key_work_answers_its_current_value() {
     let harness = Harness::start().await;
-    let mut admin = harness.client().await;
-    admin.register("admin@example.com").await;
+    let mut admin = harness.member("admin@example.com").await;
     admin.organization("team").await;
     let first = admin
         .call(|peer| peer.ask::<be_block_protocol::KeyWork>(Query::KeyWork, true))

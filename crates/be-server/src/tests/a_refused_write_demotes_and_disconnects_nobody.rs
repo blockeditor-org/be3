@@ -7,8 +7,7 @@ use super::*;
 #[tokio::test]
 async fn a_refused_write_demotes_and_disconnects_nobody() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     let organization = owner.organization("team").await;
     let mut deputy = harness.member("deputy@example.com").await;
     let joined = owner.invite(organization).await.unwrap();

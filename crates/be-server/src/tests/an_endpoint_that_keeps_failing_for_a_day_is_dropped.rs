@@ -4,8 +4,8 @@ use be_block_protocol::PushService;
 #[tokio::test]
 async fn an_endpoint_that_keeps_failing_for_a_day_is_dropped() {
     let harness = Harness::configured(pushing_locally()).await;
-    let mut member = harness.client().await;
-    let account = member.register("member@example.com").await;
+    let mut member = harness.member("member@example.com").await;
+    let account = member.id();
     let organization = member.personal().await;
     let address = "http://127.0.0.1:9/broken".to_owned();
     member

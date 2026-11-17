@@ -9,8 +9,8 @@ use super::*;
 #[tokio::test]
 async fn a_stale_seal_from_an_earlier_run_publishes_and_trims_nothing() {
     let harness = Harness::start().await;
-    let mut phone = harness.client().await;
-    let account = phone.register("phone@example.com").await;
+    let mut phone = harness.member("phone@example.com").await;
+    let account = phone.id();
     phone.organization("notes").await;
     let block = phone.create_block(BlockParent::Root).await;
     let author = Author::new(account);

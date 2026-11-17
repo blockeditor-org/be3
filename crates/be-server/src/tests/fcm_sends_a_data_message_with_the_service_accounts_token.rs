@@ -71,8 +71,8 @@ async fn fcm_sends_a_data_message_with_the_service_accounts_token() {
         ..ServerConfig::OPEN
     })
     .await;
-    let mut owner = harness.client().await;
-    let owner_id = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let owner_id = owner.id();
     let organization = owner.personal().await;
     let block = owner.create_block(BlockParent::Root).await;
     let (mut member, _) = viewer_of(&harness, &mut owner, block, "member@example.com").await;

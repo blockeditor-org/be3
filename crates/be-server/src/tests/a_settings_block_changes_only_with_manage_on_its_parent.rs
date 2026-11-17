@@ -46,11 +46,10 @@ async fn set_metadata(client: &mut TestClient, block: Uuid) -> Result<BlockSumma
 #[tokio::test]
 async fn a_settings_block_changes_only_with_manage_on_its_parent() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.personal().await;
-    let mut editor = harness.client().await;
-    let editor_id = editor.register("editor@example.com").await;
+    let mut editor = harness.member("editor@example.com").await;
+    let editor_id = editor.id();
     editor.personal().await;
     let link = owner.link(None).await;
     let _ = editor.accept(link, &[]).await;

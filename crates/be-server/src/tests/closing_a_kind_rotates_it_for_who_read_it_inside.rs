@@ -40,11 +40,10 @@ async fn rotations(client: &mut TestClient) -> Vec<Uuid> {
 #[tokio::test]
 async fn closing_a_kind_rotates_it_for_who_read_it_inside() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.personal().await;
-    let mut guest = harness.client().await;
-    let guest_id = guest.register("guest@example.com").await;
+    let mut guest = harness.member("guest@example.com").await;
+    let guest_id = guest.id();
     guest.personal().await;
     let link = owner.link(None).await;
     let _ = guest.accept(link, &[]).await;

@@ -3,8 +3,8 @@ use super::*;
 #[tokio::test]
 async fn an_upload_is_used_once_and_what_a_block_holds_is_not_asked_for_again() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("reuser@example.com").await;
+    let mut client = harness.member("reuser@example.com").await;
+    let account = client.id();
     client.organization("uploads").await;
     let author = Author::new(account);
     let block = client.create_block(BlockParent::Root).await;

@@ -4,8 +4,8 @@ use be_block_graph::Access;
 #[tokio::test]
 async fn a_pending_grant_is_applied_when_its_link_is_accepted() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let owner_id = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let owner_id = owner.id();
     let personal = owner.personal().await;
     let shared = owner.scope_root(owner_id, BlockParent::Root).await;
     let other_root = owner.scope_root(owner_id, BlockParent::Root).await;
@@ -33,8 +33,8 @@ async fn a_pending_grant_is_applied_when_its_link_is_accepted() {
     );
     let link = owner.link(Some(pending(shared.scope))).await;
 
-    let mut other = harness.client().await;
-    let other_id = other.register("other@example.com").await;
+    let mut other = harness.member("other@example.com").await;
+    let other_id = other.id();
     other.personal().await;
     let hidden = other.try_read_block(shared.block).await;
     assert!(matches!(hidden, Err(_)), "{hidden:?}");

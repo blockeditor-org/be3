@@ -25,8 +25,7 @@ async fn a_listing_pages_in_id_order_without_skipping_a_block_that_stays() {
         ..ServerConfig::OPEN
     })
     .await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.organization("pages").await;
     let folder = owner.create_block(BlockParent::Root).await;
     let mut children = Vec::new();

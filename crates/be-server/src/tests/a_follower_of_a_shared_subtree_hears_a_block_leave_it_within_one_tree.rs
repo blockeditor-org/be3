@@ -3,8 +3,8 @@ use be_block_graph::Access;
 
 /// A guest the owner made a contact of, in the owner's personal organization.
 async fn guest(harness: &Harness, owner: &mut TestClient, email: &str) -> (TestClient, Uuid) {
-    let mut guest = harness.client().await;
-    let account = guest.register(email).await;
+    let mut guest = harness.member(email).await;
+    let account = guest.id();
     guest.personal().await;
     let link = owner.link(None).await;
     let _ = guest.accept(link, &[]).await;
@@ -14,8 +14,7 @@ async fn guest(harness: &Harness, owner: &mut TestClient, email: &str) -> (TestC
 #[tokio::test]
 async fn a_follower_of_a_shared_subtree_hears_a_block_leave_it_within_one_tree() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.personal().await;
     let (mut first, first_id) = guest(&harness, &mut owner, "first@example.com").await;
     let (mut second, second_id) = guest(&harness, &mut owner, "second@example.com").await;

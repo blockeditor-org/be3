@@ -69,8 +69,8 @@ const CONNECTING: &[&str] = &[
 #[tokio::test]
 async fn a_block_agent_reaches_its_block_and_nothing_else() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let me = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let me = owner.id();
     let organization = owner.organization("team").await;
     let terminal = owner.create_block(BlockParent::Root).await;
     let elsewhere = owner.create_block(BlockParent::Root).await;

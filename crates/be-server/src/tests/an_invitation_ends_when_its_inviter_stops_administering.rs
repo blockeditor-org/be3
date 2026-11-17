@@ -4,8 +4,7 @@ use be_block_protocol::InvitationState;
 #[tokio::test]
 async fn an_invitation_ends_when_its_inviter_stops_administering() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     let organization = owner.organization("team").await;
     // A second administrator, made by set-role after joining.
     let mut deputy = harness.member("deputy@example.com").await;

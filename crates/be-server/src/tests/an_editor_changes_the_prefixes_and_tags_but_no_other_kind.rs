@@ -41,11 +41,10 @@ fn created(response: &Result<BlockSummary, Error>) -> Uuid {
 #[tokio::test]
 async fn an_editor_changes_the_prefixes_and_tags_but_no_other_kind() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.personal().await;
-    let mut editor = harness.client().await;
-    let editor_id = editor.register("editor@example.com").await;
+    let mut editor = harness.member("editor@example.com").await;
+    let editor_id = editor.id();
     editor.personal().await;
     let link = owner.link(None).await;
     let _ = editor.accept(link, &[]).await;

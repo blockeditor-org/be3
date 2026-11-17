@@ -9,8 +9,8 @@ use super::*;
 #[tokio::test]
 async fn the_server_orders_sealed_submissions_and_a_seal_trims_them() {
     let harness = Harness::start().await;
-    let mut phone = harness.client().await;
-    let account = phone.register("phone@example.com").await;
+    let mut phone = harness.member("phone@example.com").await;
+    let account = phone.id();
     let organization = phone.organization("notes").await;
     let block = phone.create_block(BlockParent::Root).await;
     let author = Author::new(account);

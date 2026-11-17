@@ -9,8 +9,7 @@ async fn a_push_service_that_never_answers_delays_only_its_own_account() {
         _ => (201, String::new()),
     })
     .await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.personal().await;
     let block = owner.create_block(BlockParent::Root).await;
     let (mut slow, _) = viewer_of(&harness, &mut owner, block, "slow@example.com").await;

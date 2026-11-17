@@ -1,32 +1,13 @@
 use super::*;
 
 #[tokio::test]
-async fn an_unauthenticated_connection_cannot_touch_blocks() {
+async fn a_stranger_cannot_read_a_block_in_an_organization_it_is_not_in() {
     let harness = Harness::start().await;
     let mut owner = harness.member("owner@example.com").await;
     let organization = owner.organization("private").await;
     let block = owner.create_block(BlockParent::Root).await;
 
-    let mut stranger = harness.client().await;
-    let response = read_block(&stranger.peer, block).await;
-    assert!(
-        !matches!(response, Ok(Ok(_))),
-        "a connection read a block before signing in: {response:?}"
-    );
-    stranger.ended().await;
-
-    let mut stranger = harness.client().await;
-    let response = stranger
-        .call(|peer| {
-            be_block_protocol::client::server::authenticate(peer, Some("not a token".into()))
-        })
-        .await;
-    assert!(
-        matches!(response, Err(Error { code, .. }) if code == ErrorCode::InvalidCredentials),
-        "{response:?}"
-    );
-
-    stranger.register("stranger@example.com").await;
+    let mut stranger = harness.member("stranger@example.com").await;
     let response = stranger.try_read_block(block).await;
     assert!(
         matches!(response, Err(Error { code, .. }) if code == ErrorCode::InvalidRequest),

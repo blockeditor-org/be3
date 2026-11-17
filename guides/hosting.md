@@ -114,8 +114,9 @@ loopback address.
 ### Proxy account credentials
 
 `Authorization: Bearer <account token>` is reserved for be-server account sessions. A proxy may
-inject it into WebSocket upgrades or every HTTP post; the client then calls `authenticate` with
-no token, and the server answers with an empty token so the secret stays outside the client.
+inject it into WebSocket upgrades or every HTTP post; the client then greets the server with no
+token (`Credentials::Header`), and the server's greeting answers with an empty token so the
+secret stays outside the client.
 The Agents dialog's proxy checkbox produces such a bundle (`"authentication": "proxy"`, recovery
 phrase kept for decryption).
 

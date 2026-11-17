@@ -9,8 +9,8 @@ use super::*;
 #[tokio::test]
 async fn an_object_asked_for_without_its_length_is_answered_only_to_one_who_holds_it() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let account = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let account = owner.id();
     owner.personal().await;
     let author = Author::new(account);
     let block = owner.create_block(BlockParent::Root).await;
@@ -43,8 +43,7 @@ async fn an_object_asked_for_without_its_length_is_answered_only_to_one_who_hold
             .unwrap()
     };
     let before = sizes();
-    let mut other = harness.client().await;
-    other.register("other@example.com").await;
+    let mut other = harness.member("other@example.com").await;
     other.organization("elsewhere").await;
     let mut refusals = Vec::new();
     for hash in [stored, unknown] {

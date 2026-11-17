@@ -19,7 +19,6 @@ use uuid::Uuid;
 use crate::{
     Identity, PublishOutcome, SUMMARY_BYTES, ServerConfig, ServerError, ServerStore, Services,
     SessionRegistry, WatchHub,
-    address::{Anonymous, Eviction},
     browser_auth, contacts, contents_room,
     limits::{
         MAX_PAIRING_BYTES, MAX_RELAY_BYTES, MAX_SESSIONS_PER_CONNECTION, MAX_STREAMS_PER_CONNECTION,
@@ -397,7 +396,7 @@ impl Admitted {
         self.account.ok_or_else(|| {
             ServerError::Refused(
                 ErrorCode::NotAuthenticated,
-                "authenticate before using this connection".into(),
+                "sign in with the connection's greeting".into(),
             )
         })
     }
@@ -432,17 +431,7 @@ pub(crate) struct Connection {
     pub(crate) block_notifications: Arc<crate::address::Rate<(Uuid, Uuid)>>,
     /// The address the connection comes from; see [`crate::Services::client_address`].
     pub(crate) address: IpAddr,
-    /// Since when the connection has had no account.
-    anonymous_since: tokio::time::Instant,
-    /// The connection's place among those not signed in, until it signs in.
-    anonymous: Option<Anonymous>,
-    /// Tells when `anonymous` was let go of for a newer connection.
-    pub(crate) eviction: Arc<Eviction>,
-    /// Whether the connection serves a session, which must sign in with its first call, or one
-    /// one-shot call (`http.rs`, `one_shot`).
-    one_shot: bool,
-    /// Set once the connection should be closed after what it has answered: its first call was
-    /// not one that signs in, or it signed out.
+    /// Set once the connection should be closed after what it has answered: it signed out.
     pub(crate) closing: bool,
     /// While a batch runs, what its ops do once it commits (`After`).
     deferred: Option<Vec<After>>,
@@ -548,14 +537,11 @@ impl From<ServerError> for Refused {
 }
 
 impl Client {
-    /// A client from `address`, holding `anonymous`, its place among those not signed in, which
-    /// `eviction` tells the loss of, until it signs in. A `one_shot` client answers one call that
-    /// needs no sign-in; any other must sign in with its first call.
+    /// A client from `address`, not signed in until its greeting signs it in (`greeted`). A
+    /// one-shot client is never signed in: it answers one call that needs no sign-in.
     pub(crate) async fn open(
         services: &Services,
         address: IpAddr,
-        one_shot: bool,
-        (anonymous, eviction): (Anonymous, Arc<Eviction>),
         sink: impl Fn(Vec<u8>) + Send + Sync + 'static,
     ) -> Self {
         let (sender, pushes) = mpsc::channel(PUSHES);
@@ -579,10 +565,6 @@ impl Client {
                 notifications: Arc::clone(&services.notifications),
                 block_notifications: Arc::clone(&services.block_notifications),
                 address,
-                anonymous_since: tokio::time::Instant::now(),
-                anonymous: Some(anonymous),
-                eviction,
-                one_shot,
                 closing: false,
                 deferred: None,
             },
@@ -861,14 +843,6 @@ impl Client {
             Call::Ping { reply } => return reply.send(&mut self.peer.lock(), &()),
             call => call,
         };
-        if self.connection.account.is_none()
-            && !self.connection.one_shot
-            && !matches!(call, Call::Authenticate { .. })
-        {
-            tracing::debug!("closing a connection whose first call does not sign it in");
-            self.connection.closing = true;
-            return;
-        }
         let prelude = self.prelude().await;
         match call {
             Call::Ping { .. } => {}
@@ -879,13 +853,6 @@ impl Client {
                     Err(error) => Err(error),
                 };
                 self.reply(reply, answered.map_err(wire));
-            }
-            Call::Authenticate { reply, token } => {
-                let authenticated = match prelude {
-                    Ok(()) => self.authenticate(token).await,
-                    Err(error) => Err(error),
-                };
-                self.reply(reply, authenticated.map_err(wire));
             }
             Call::Read {
                 reply,
@@ -1092,7 +1059,14 @@ impl Client {
         }
     }
 
-    async fn authenticate(&mut self, token: Option<String>) -> Result<Authenticated, ServerError> {
+    /// Signs the connection in with its greeting's token, or with the request's Authorization
+    /// header when the greeting carries none: what the server's greeting answers. A connection
+    /// it does not sign in is closed before any call.
+    pub(crate) async fn greeted(&mut self, token: Option<String>) -> be_block_protocol::Welcome {
+        self.sign_in(token).await.map_err(wire)
+    }
+
+    async fn sign_in(&mut self, token: Option<String>) -> Result<Authenticated, ServerError> {
         let header = token.is_none();
         let token = token
             .or_else(|| self.connection.header_token.clone())
@@ -2399,18 +2373,6 @@ impl Connection {
         }
     }
 
-    /// When the connection is closed unless it signs in first, or none once it has an account.
-    /// One let go of to make room for a newer connection closes at once.
-    pub(crate) fn sign_in_deadline(&self) -> Option<tokio::time::Instant> {
-        if self.account.is_some() {
-            return None;
-        }
-        if self.eviction.evicted() {
-            return Some(self.anonymous_since);
-        }
-        Some(self.anonymous_since + self.config.sign_in_timeout)
-    }
-
     async fn authenticated(
         &mut self,
         profile: store::Profile,
@@ -2430,7 +2392,6 @@ impl Connection {
         }
         self.hub.join_account(self.client, profile.account).await;
         self.account = Some(profile.account);
-        self.anonymous = None;
         self.token = Some(token.clone());
         self.checked = None;
         Ok(Authenticated {
@@ -2580,7 +2541,7 @@ impl Connection {
         self.account.ok_or_else(|| {
             ServerError::Refused(
                 ErrorCode::NotAuthenticated,
-                "authenticate before using this connection".into(),
+                "sign in with the connection's greeting".into(),
             )
         })
     }

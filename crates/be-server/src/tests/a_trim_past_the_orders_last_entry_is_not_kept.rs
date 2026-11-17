@@ -7,8 +7,8 @@ use super::*;
 #[tokio::test]
 async fn a_trim_past_the_orders_last_entry_is_not_kept() {
     let harness = Harness::start().await;
-    let mut phone = harness.client().await;
-    let account = phone.register("phone@example.com").await;
+    let mut phone = harness.member("phone@example.com").await;
+    let account = phone.id();
     phone.organization("notes").await;
     let block = phone.create_block(BlockParent::Root).await;
     let author = Author::new(account);

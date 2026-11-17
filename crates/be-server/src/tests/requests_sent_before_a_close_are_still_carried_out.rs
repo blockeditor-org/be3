@@ -3,8 +3,8 @@ use super::*;
 #[tokio::test]
 async fn requests_sent_before_a_close_are_still_carried_out() {
     let harness = Harness::start().await;
-    let mut reader = harness.client().await;
-    let account = reader.register("author@example.com").await;
+    let mut reader = harness.member("author@example.com").await;
+    let account = reader.id();
     let organization = reader.organization("notes").await;
     let blocks = [
         reader.create_block(BlockParent::Root).await,

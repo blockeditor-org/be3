@@ -4,11 +4,11 @@ use be_block_graph::Access;
 #[tokio::test]
 async fn a_rotation_gives_every_block_below_it_a_new_key_or_nothing() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let owner_id = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let owner_id = owner.id();
     owner.personal().await;
-    let mut reader = harness.client().await;
-    let reader_id = reader.register("reader@example.com").await;
+    let mut reader = harness.member("reader@example.com").await;
+    let reader_id = reader.id();
     reader.personal().await;
     let shared = owner.scope_root(owner_id, BlockParent::Root).await;
     let (inside, _) = owner.inside(&shared).await;

@@ -4,8 +4,7 @@ use be_block_protocol::InvitationState;
 #[tokio::test]
 async fn an_invitation_is_read_before_sign_in_and_listed_as_it_goes() {
     let harness = Harness::start().await;
-    let mut admin = harness.client().await;
-    admin.register("admin@example.com").await;
+    let mut admin = harness.member("admin@example.com").await;
     let organization = admin.organization("team").await;
     let link = Uuid::new_v4();
     let made = admin

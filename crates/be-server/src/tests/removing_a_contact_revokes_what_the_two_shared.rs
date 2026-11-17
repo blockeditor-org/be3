@@ -4,11 +4,11 @@ use be_block_graph::Access;
 #[tokio::test]
 async fn removing_a_contact_revokes_what_the_two_shared() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let owner_id = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let owner_id = owner.id();
     owner.personal().await;
-    let mut other = harness.client().await;
-    let other_id = other.register("other@example.com").await;
+    let mut other = harness.member("other@example.com").await;
+    let other_id = other.id();
     other.personal().await;
     let mine = owner.create_block(BlockParent::Root).await;
     let theirs = other.create_block(BlockParent::Root).await;

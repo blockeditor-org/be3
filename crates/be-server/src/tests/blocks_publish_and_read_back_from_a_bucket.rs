@@ -8,8 +8,8 @@ async fn blocks_publish_and_read_back_from_a_bucket() {
         ..ServerConfig::OPEN
     })
     .await;
-    let mut client = harness.client().await;
-    let account = client.register("writer@example.com").await;
+    let mut client = harness.member("writer@example.com").await;
+    let account = client.id();
     client.organization("notes").await;
     let author = Author::new(account);
     let block = client.create_block(BlockParent::Root).await;

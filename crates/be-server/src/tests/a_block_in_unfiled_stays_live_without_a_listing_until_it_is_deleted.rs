@@ -6,8 +6,8 @@ use super::*;
 #[tokio::test]
 async fn a_block_in_unfiled_stays_live_without_a_listing_until_it_is_deleted() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("filer@example.com").await;
+    let mut client = harness.member("filer@example.com").await;
+    let account = client.id();
     let organization = client.organization("notes").await;
     let unfiled = be_block::unfiled(organization, account);
     let made = make(

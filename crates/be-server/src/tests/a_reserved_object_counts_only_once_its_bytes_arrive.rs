@@ -3,8 +3,8 @@ use super::*;
 #[tokio::test]
 async fn a_reserved_object_counts_only_once_its_bytes_arrive() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("uploader@example.com").await;
+    let mut client = harness.member("uploader@example.com").await;
+    let account = client.id();
     client.organization("uploads").await;
     let author = Author::new(account);
     let block = client.create_block(BlockParent::Root).await;

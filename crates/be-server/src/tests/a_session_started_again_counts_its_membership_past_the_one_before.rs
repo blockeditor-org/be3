@@ -7,8 +7,7 @@ use super::*;
 #[tokio::test]
 async fn a_session_started_again_counts_its_membership_past_the_one_before() {
     let harness = Harness::start().await;
-    let mut phone = harness.client().await;
-    phone.register("phone@example.com").await;
+    let mut phone = harness.member("phone@example.com").await;
     phone.organization("notes").await;
     let block = phone.create_block(BlockParent::Root).await;
 

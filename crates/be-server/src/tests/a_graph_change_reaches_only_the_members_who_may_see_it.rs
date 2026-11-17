@@ -8,8 +8,8 @@ pub(super) async fn join(
     email: &str,
     invitation: u128,
 ) -> (TestClient, Uuid) {
-    let mut member = harness.client().await;
-    let account = member.register(email).await;
+    let mut member = harness.member(email).await;
+    let account = member.id();
     let response = owner
         .call(|peer| {
             peer.write::<()>(be_block_protocol::Op::CreateLink {
@@ -54,8 +54,7 @@ async fn told(client: &mut TestClient) -> Notice {
 #[tokio::test]
 async fn a_graph_change_reaches_only_the_members_who_may_see_it() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     let organization = owner.organization("shared").await;
     let folder = owner.create_block(BlockParent::Root).await;
     let inside = owner.create_block(BlockParent::Block(folder)).await;

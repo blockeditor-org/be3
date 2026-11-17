@@ -9,7 +9,7 @@ async fn another_build_is_greeted_and_turned_away() {
         next_binary(&mut stranger)
             .await
             .as_deref()
-            .and_then(read_hello)
+            .and_then(build_of)
             .as_deref(),
         Some(BUILD),
         "the server did not say which build it is"
@@ -25,7 +25,7 @@ async fn another_build_is_greeted_and_turned_away() {
         next_binary(&mut unversioned)
             .await
             .as_deref()
-            .and_then(read_hello)
+            .and_then(build_of)
             .as_deref(),
         Some(BUILD)
     );

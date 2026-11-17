@@ -6,8 +6,8 @@ use super::*;
 #[tokio::test]
 async fn a_commit_from_the_far_future_is_refused() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("future@example.com").await;
+    let mut client = harness.member("future@example.com").await;
+    let account = client.id();
     client.organization("future").await;
     let author = Author::new(account);
     let block = client.create_block(BlockParent::Root).await;

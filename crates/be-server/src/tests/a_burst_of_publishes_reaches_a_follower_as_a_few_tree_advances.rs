@@ -3,8 +3,8 @@ use super::*;
 #[tokio::test]
 async fn a_burst_of_publishes_reaches_a_follower_as_a_few_tree_advances() {
     let harness = Harness::start().await;
-    let mut writer = harness.client().await;
-    let account = writer.register("author@example.com").await;
+    let mut writer = harness.member("author@example.com").await;
+    let account = writer.id();
     let organization = writer.organization("notes").await;
     let block = writer.create_block(BlockParent::Root).await;
     let mut follower = harness

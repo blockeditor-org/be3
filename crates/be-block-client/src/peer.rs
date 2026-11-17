@@ -22,7 +22,7 @@ use uuid::Uuid;
 
 use crate::{
     ClientError,
-    connection::{Answer, Connection},
+    connection::{Answer, Connection, Credentials},
     keys::KeyBook,
     refs::{Creation, ListedBlock, Op, Pending, Refs, RefsDb, Scope, Session},
 };
@@ -72,12 +72,6 @@ pub use import::Imported;
 pub use prefixes::Registry;
 pub use rotation::PendingRotation;
 
-#[derive(Clone)]
-pub enum Credentials {
-    Token(String),
-    Header,
-}
-
 /// Follows `query`'s topic, answering whether the server took it.
 fn followed<T: be_block_protocol::FromPage + Send + 'static>(
     connection: &Arc<Connection>,
@@ -86,19 +80,6 @@ fn followed<T: be_block_protocol::FromPage + Send + 'static>(
 ) -> std::pin::Pin<Box<dyn Future<Output = bool> + Send>> {
     let asked = be_block_protocol::ask::<T, _>(connection, organization, query, true);
     Box::pin(async move { matches!(asked.await, Ok(Ok(_))) })
-}
-
-impl Credentials {
-    pub async fn authenticate(
-        self,
-        connection: &Arc<Connection>,
-    ) -> Result<be_block_protocol::Authenticated, ClientError> {
-        let token = match self {
-            Self::Header => None,
-            Self::Token(token) => Some(token),
-        };
-        Ok(be_block_protocol::client::server::authenticate(connection, token).await??)
-    }
 }
 
 pub struct PeerConfig {
@@ -414,9 +395,8 @@ pub type Resolver = Arc<dyn Fn(Uuid, Vec<Uuid>) -> Vec<Uuid> + Send + Sync>;
 
 impl<S: ObjectStore> Peer<S> {
     pub async fn connect(config: PeerConfig, store: S) -> Result<Self, ClientError> {
-        let connection = Connection::connect(&config.url, &crate::Clock::real()).await?;
-        let be_block_protocol::Authenticated { account, token, .. } =
-            config.credentials.clone().authenticate(&connection).await?;
+        let (connection, be_block_protocol::Authenticated { account, token, .. }) =
+            Connection::connect(&config.url, &crate::Clock::real(), &config.credentials).await?;
         Self::signed_in(connection, account, token, config, store).await
     }
 

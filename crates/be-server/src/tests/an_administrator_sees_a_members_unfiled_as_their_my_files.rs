@@ -13,8 +13,7 @@ async fn access(client: &mut TestClient, block: Uuid) -> Option<be_block_graph::
 #[tokio::test]
 async fn an_administrator_sees_a_members_unfiled_as_their_my_files() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     let organization = owner.organization("Company").await;
     let mut boss = harness.member("boss@example.com").await;
     join(
@@ -26,8 +25,8 @@ async fn an_administrator_sees_a_members_unfiled_as_their_my_files() {
         OrganizationRole::Administrator,
     )
     .await;
-    let mut member = harness.client().await;
-    let member_id = member.register("member@example.com").await;
+    let mut member = harness.member("member@example.com").await;
+    let member_id = member.id();
     join(
         &mut owner,
         &mut member,
