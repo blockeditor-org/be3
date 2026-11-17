@@ -586,12 +586,12 @@ impl<S: ObjectStore> Peer<S> {
         // and changes nothing here.
         match self.keys.served(self.organization, &checked) {
             crate::keys::Served::Take => {}
-            crate::keys::Served::Stale(newer) => return Ok(Some(*newer)),
+            crate::keys::Served::Stale(newer) => return Ok(Some(newer.0)),
             crate::keys::Served::Withheld => {
                 return Err(ClientError::Withheld(self.organization));
             }
         }
-        if let Some(kept) = self.keys.note_log(self.organization, &checked) {
+        if let Some(kept) = self.keys.note_log(self.organization, &checked, &entries) {
             let _ = self.refs.keep_log(self.organization, kept);
         }
         self.keys.set_organization(Some(&checked));

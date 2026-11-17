@@ -77,6 +77,9 @@ struct Roots {
     /// Each block's log as this device last checked it (`KeyBook::note_log`): the heads a key
     /// minted here names, and what a contact's seal is checked against (`sender_may`).
     logs: HashMap<Uuid, Checked>,
+    /// The entries of each of `logs`, root first: what a stale answer is replaced by
+    /// (`KeyBook::served`).
+    entries: HashMap<Uuid, Vec<be_block_keys::Entry>>,
     /// The keys each key this device took through a wrap under another key was opened
     /// through, every one: an epoch opened through an outdated one is outdated too
     /// (`KeyBook::outdated`).
@@ -170,8 +173,8 @@ impl Roots {
 /// What a served log is to this device (`KeyBook::served`).
 pub enum Served {
     Take,
-    /// Short of a log read further in this run: that one stands.
-    Stale(Box<Checked>),
+    /// Short of a log read further in this run: that one stands, with its entries.
+    Stale(Box<(Checked, Vec<be_block_keys::Entry>)>),
     /// Short of what an earlier run kept: the server holds history back.
     Withheld,
 }
@@ -886,7 +889,12 @@ impl KeyBook {
     /// A log that does not reach the head this device kept from an earlier check is withheld
     /// (the server serves a prefix of what it served before, as after a restart): it is not
     /// taken, and epochs stay judged by what was kept. Answers what to keep anew, when it moved.
-    pub fn note_log(&self, block: Uuid, checked: &Checked) -> Option<crate::refs::KeptLog> {
+    pub fn note_log(
+        &self,
+        block: Uuid,
+        checked: &Checked,
+        entries: &[be_block_keys::Entry],
+    ) -> Option<crate::refs::KeptLog> {
         let mut roots = self.roots.lock().unwrap();
         if roots
             .kept
@@ -896,6 +904,7 @@ impl KeyBook {
             return None;
         }
         roots.logs.insert(block, checked.clone());
+        roots.entries.insert(block, entries.to_vec());
         let mut current: Vec<(usize, EntryHash)> = checked
             .positions
             .iter()
@@ -936,8 +945,10 @@ impl KeyBook {
         if checked.holds(&kept.head) {
             return Served::Take;
         }
-        match roots.logs.get(&block) {
-            Some(newer) if newer.holds(&kept.head) => Served::Stale(Box::new(newer.clone())),
+        match (roots.logs.get(&block), roots.entries.get(&block)) {
+            (Some(newer), Some(entries)) if newer.holds(&kept.head) => {
+                Served::Stale(Box::new((newer.clone(), entries.clone())))
+            }
             _ => Served::Withheld,
         }
     }

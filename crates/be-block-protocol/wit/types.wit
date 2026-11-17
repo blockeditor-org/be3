@@ -49,6 +49,10 @@ interface types {
         /// A commit's time is more than `MAX_COMMIT_AHEAD` past the server's
         /// clock: its device stamped it by a clock running fast.
         commit-ahead,
+        /// An edit sealed offline under a key epoch its block's access log
+        /// outdates (plans/signed_access.md, 3d): its device sets it aside
+        /// rather than send it. No server answers it.
+        key-outdated,
     }
 
     /// A connection, as the server numbers them; a session's participants and
