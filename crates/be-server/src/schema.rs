@@ -258,6 +258,8 @@ const SCHEMA: &str = "
     -- Each record in a block's log whose signer's right comes from a block above
     -- (be_block_keys::Authority::Inherited): whose records that block's log serves whole to a
     -- reader of a block below it who may not view it, so the reader checks the signer there.
+    -- Only the chain's last block: the blocks between are proven by their parent records,
+    -- which every path serves whole.
     CREATE TABLE access_log_authorities (
         organization_id TEXT NOT NULL,
         above_id        TEXT NOT NULL,

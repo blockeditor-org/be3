@@ -974,10 +974,10 @@ impl KeyBook {
                 levels.sort();
                 levels
             },
-            above: roots
+            vouched: roots
                 .kept
                 .get(&block)
-                .map(|kept| kept.above.clone())
+                .map(|kept| kept.vouched.clone())
                 .unwrap_or_default(),
         };
         match roots.kept.insert(block, kept.clone()) == Some(kept.clone()) {
@@ -1040,7 +1040,7 @@ impl KeyBook {
             lowering_place: 0,
             current: vec![root],
             levels: vec![(self.account.into_bytes(), Level::Manage)],
-            above: Vec::new(),
+            vouched: Vec::new(),
         };
         self.roots
             .lock()
@@ -1088,25 +1088,27 @@ impl KeyBook {
     /// from a sender the block's log gives Edit or above, or the organization's log has
     /// administer it, as of the head the key names, or as of the log's head here when this
     /// device's log does not reach that head (or the key names none). A sender the block's log
-    /// names, but not as of that head, held nothing then. One it never names is taken only once
-    /// this device found it held Edit or above on a block the signed parent records place the
-    /// block under (`vouch`, plans/signed_access.md, step 4); any key of a block whose log this
-    /// device never checked is taken (its first, which carries the root).
+    /// names, but not as of that head, held nothing then. A key from one it never names is taken
+    /// only once this device found, as that key arrived, that its sender held Edit or above on
+    /// a block the signed parent records place the block under (`vouch`, plans/signed_access.md,
+    /// step 4); any key of a block whose log this device never checked is taken (its first,
+    /// which carries the root).
     ///
     /// A data key is taken from a contact only as an administrator (the settings' data keys,
     /// which key work has them seal to each other): no one else seals one to an account, and
     /// its epoch names its scope's log, which its own block's is not.
-    /// Notes that `account`, whom `block`'s log never names, held Edit or above on a block its
-    /// signed parent records place it under, as `Peer::held_above` found: its seals of the
-    /// block's keys are taken (`sender_may`), across restarts too. Answers what to keep when
-    /// this changed what was kept.
-    pub fn vouch(&self, block: Uuid, account: Uuid) -> Option<crate::refs::KeptLog> {
+    /// Notes that `key`, a key of `block` sealed by an account its log never names, may be
+    /// taken: its sender held Edit or above on a block the signed parent records place the
+    /// block under as it arrived, as `Peer::held_above` found (`sender_may`), across restarts
+    /// too. That key alone: the sender's later seals are judged as they arrive. Answers what to
+    /// keep when this changed what was kept.
+    pub fn vouch(&self, block: Uuid, key: Uuid) -> Option<crate::refs::KeptLog> {
         let mut roots = self.roots.lock().unwrap();
         let kept = roots.kept.get_mut(&block)?;
-        if kept.above.contains(&account.into_bytes()) {
+        if kept.vouched.contains(&key.into_bytes()) {
             return None;
         }
-        kept.above.push(account.into_bytes());
+        kept.vouched.push(key.into_bytes());
         Some(kept.clone())
     }
 
@@ -1123,7 +1125,7 @@ impl KeyBook {
         }
     }
 
-    fn sender_may(&self, sender: Uuid, carried: &CarriedKey, kind: KeyKind) -> bool {
+    fn sender_may(&self, sender: Uuid, key: Uuid, carried: &CarriedKey, kind: KeyKind) -> bool {
         if sender == self.account {
             return true;
         }
@@ -1163,7 +1165,7 @@ impl KeyBook {
         let vouched = roots
             .kept
             .get(&block)
-            .is_some_and(|kept| kept.above.contains(&account));
+            .is_some_and(|kept| kept.vouched.contains(&key.into_bytes()));
         let Some(log) = roots.logs.get(&block) else {
             return roots.kept.get(&block).is_none_or(|kept| {
                 match kept.levels.iter().find(|(named, _)| *named == account) {
@@ -1426,6 +1428,7 @@ impl KeyBook {
                 if self.contact(wrap.sender).is_some()
                     && !self.sender_may(
                         wrap.sender,
+                        wrap.key,
                         &CarriedKey::decode(&plain).ok()?,
                         row.map_or(KeyKind::Data, |row| row.kind),
                     )

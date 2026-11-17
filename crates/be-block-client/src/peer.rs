@@ -960,9 +960,10 @@ impl<S: ObjectStore> Peer<S> {
         }
         // A contact's seal is checked against the block's log as of the head its epoch names
         // (`KeyBook::sender_may`, signed access 3d), so that log is read first for each block a
-        // contact sealed a key of that is new here, when this device pinned its root. A sender
-        // the log never names is taken only once it is found to hold Edit or above on a block
-        // the signed parent records place the block under (`KeyBook::vouch`, signed access 4).
+        // contact sealed a key of that is new here, when this device pinned its root. A key from
+        // a sender the log never names is taken only when the sender is found, as it arrives, to
+        // hold Edit or above on a block the signed parent records place the block under
+        // (`KeyBook::vouch`, signed access 4).
         // A contact's seal of a block this device has not pinned the root of waits until the
         // rest is taken: this account's own keys pin roots, whose logs are then read first.
         let block_of_key = |key: Uuid| {
@@ -989,7 +990,7 @@ impl<S: ObjectStore> Peer<S> {
             });
             keys.wrapped = held_back;
         }
-        let mut sealed_by_contacts: Vec<(Uuid, Uuid)> = keys
+        let mut sealed_by_contacts: Vec<(Uuid, Uuid, Uuid)> = keys
             .wrapped
             .iter()
             .filter(|wrap| {
@@ -1008,15 +1009,15 @@ impl<S: ObjectStore> Peer<S> {
                 Some((row, wrap.sender))
             })
             .filter(|(row, _)| row.kind == KeyKind::Scope)
-            .map(|(row, sender)| (row.block, sender))
-            .filter(|(block, _)| {
+            .map(|(row, sender)| (row.block, sender, row.id))
+            .filter(|(block, _, _)| {
                 matches!(self.keys.root_pin(*block), crate::keys::RootPin::Pinned(_))
             })
             .collect();
         sealed_by_contacts.sort();
         sealed_by_contacts.dedup();
         let mut checked_logs: HashMap<Uuid, Option<be_block_keys::Checked>> = HashMap::new();
-        for (block, sender) in sealed_by_contacts {
+        for (block, sender, key) in sealed_by_contacts {
             if !checked_logs.contains_key(&block) {
                 let checked = self.checked_access(block).await.ok().map(|(_, checked)| checked);
                 checked_logs.insert(block, checked);
@@ -1031,7 +1032,7 @@ impl<S: ObjectStore> Peer<S> {
                 .held_above(checked, sender.into_bytes(), be_block_keys::Level::Edit)
                 .await;
             if let Ok(Some(_)) = above
-                && let Some(kept) = self.keys.vouch(block, sender)
+                && let Some(kept) = self.keys.vouch(block, key)
             {
                 let _ = self.refs.keep_log(block, kept);
             }
