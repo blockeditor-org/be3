@@ -292,11 +292,8 @@ impl WindowLayers {
         next: &WindowLayers,
         damage: impl Fn(&Layer) -> Option<Vec<Rect>>,
     ) -> Vec<Rect> {
-        let before: HashMap<LayerId, &Layer> = self
-            .layers
-            .iter()
-            .map(|layer| (layer.id, layer))
-            .collect();
+        let before: HashMap<LayerId, &Layer> =
+            self.layers.iter().map(|layer| (layer.id, layer)).collect();
         let after: HashMap<LayerId, &Layer> =
             next.layers.iter().map(|layer| (layer.id, layer)).collect();
         // Stacking changed for a layer whose rank among the layers both lists hold differs.
