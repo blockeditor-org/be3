@@ -299,7 +299,7 @@ fn is_ping(frame: &[u8]) -> bool {
     frame.len() <= PING_FRAME_BYTES
         && matches!(
             be_wasm_ops::decode_frame::<be_wasm_ops::Frame>(frame),
-            Ok(be_wasm_ops::Frame::Start { method, .. }) if method == be_block_protocol::__args::CONNECTION_PING
+            Ok(be_wasm_ops::Frame::Start { method, .. }) if method == be_block_protocol::__args::SERVER_PING
         )
 }
 
@@ -315,9 +315,11 @@ fn pong(peer: &be_wasm_ops::net::Peer, frame: &[u8]) -> Vec<Incoming> {
     let mut others = Vec::new();
     for event in events {
         match event {
-            Incoming::Started(started) if embed::connection::Call::accepts(&started) => {
-                let call = embed::connection::Call::accept(&mut peer.lock(), started);
-                if let Some(embed::connection::Call::Ping { reply }) = call {
+            Incoming::Started(started)
+                if started.method == be_block_protocol::__args::SERVER_PING =>
+            {
+                let call = embed::Call::accept(&mut peer.lock(), started);
+                if let Some(embed::Call::Server(embed::server::Call::Ping { reply })) = call {
                     reply.send(&mut peer.lock(), &());
                 }
             }

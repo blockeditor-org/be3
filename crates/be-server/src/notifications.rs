@@ -50,24 +50,6 @@ fn mode_of(name: &str) -> Result<NotifyMode, ServerError> {
     }
 }
 
-/// Forgets a deleted block's modes and what was told about it.
-pub(crate) fn forget(
-    database: &Connection,
-    organization: Uuid,
-    block: Uuid,
-) -> Result<(), ServerError> {
-    let (organization, block) = (organization.to_string(), block.to_string());
-    database.execute(
-        "DELETE FROM notify_modes WHERE organization_id = ?1 AND block_id = ?2",
-        params![organization, block],
-    )?;
-    database.execute(
-        "DELETE FROM told_keys WHERE organization_id = ?1 AND block_id = ?2",
-        params![organization, block],
-    )?;
-    Ok(())
-}
-
 /// Forgets what a member removed from `organization` kept there: their endpoints, modes and
 /// what they told.
 pub(crate) fn forget_member(

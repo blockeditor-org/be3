@@ -67,6 +67,8 @@ pub const LISTING_PAGE_BYTES: usize = MAX_FRAME_BYTES / 8;
 pub const MAX_SEALED_BYTES: usize = 64 * 1024;
 /// Accounts named in one `get-signing-keys`: more than a chat shows at once.
 pub const MAX_SIGNING_KEYS_ASKED: usize = 1_024;
+/// Ops one `write` applies in one transaction, which holds the database meanwhile.
+pub const MAX_OPS_PER_WRITE: usize = 256;
 /// A pairing message between an account's connections.
 pub const MAX_PAIRING_BYTES: usize = 64 * 1024;
 /// A message relayed in a live session. Replicas relay operations of at most 1 MiB and send a

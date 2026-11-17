@@ -829,9 +829,10 @@ async fn one_shot(
         Ok(be_wasm_ops::Frame::Start { method, .. }) => method,
         _ => return refuse(&mut stream, 400, "post a greeting and one call").await,
     };
-    let allowed = method == be_block_protocol::__args::ACCOUNT_BEGIN_BROWSER_LOGIN
-        || method == be_block_protocol::__args::ACCOUNT_POLL_BROWSER_LOGIN
-        || method == be_block_protocol::__args::CONTACTS_READ_INVITATION;
+    // Signing in through the browser, and reading an invitation (`query.invitation`), which
+    // `client::query_rule` lets anyone make: any other read is refused as not signed in.
+    let allowed = method == be_block_protocol::__args::SERVER_DEVICE_LOGIN
+        || method == be_block_protocol::__args::SERVER_READ;
     if !allowed {
         return refuse(
             &mut stream,

@@ -328,11 +328,13 @@ impl ServerStore {
             let mut organizations = Vec::new();
             for row in rows {
                 let (id, name, kind, role) = row?;
+                let id = parse_uuid(&id)?;
                 organizations.push(Organization {
-                    id: parse_uuid(&id)?,
+                    id,
                     name,
                     kind: decode_kind(&kind)?,
                     role: decode_role(&role)?,
+                    escrows: crate::keys::escrow_chain(database, id)?,
                 });
             }
             Ok(organizations)
@@ -385,6 +387,7 @@ impl ServerStore {
                 name,
                 kind: OrganizationKind::Company,
                 role: OrganizationRole::Administrator,
+                escrows: Vec::new(),
             })
         })
         .await
@@ -1054,21 +1057,6 @@ impl ServerStore {
         Ok(made.into_iter().map(|(_, _, name)| name).collect())
     }
 
-    pub async fn opened(
-        &self,
-        account: Uuid,
-        organization: Uuid,
-    ) -> Result<(OrganizationKind, Vec<be_block_protocol::EscrowKey>, Vec<u8>), ServerError> {
-        self.with_database(move |_, database| {
-            Ok((
-                crate::keys::organization_kind(&database, organization)?,
-                crate::keys::escrow_chain(&database, organization)?,
-                crate::keys::pinned_escrow(&database, account, organization)?,
-            ))
-        })
-        .await
-    }
-
     pub async fn issue_session(&self, account: Uuid) -> Result<String, ServerError> {
         self.with_database(move |_, database| issue_token(&database, account))
             .await
@@ -1148,6 +1136,32 @@ impl ServerStore {
         })
         .await
     }
+}
+
+/// The database a `ServerStore::batch` holds, lent to each of its jobs in turn.
+type Batch = Arc<std::sync::Mutex<Option<tokio::sync::OwnedMutexGuard<Connection>>>>;
+
+tokio::task_local! {
+    static BATCH: Batch;
+}
+
+/// Runs `job` with the database `held` by the batch this task is in, and gives it back.
+async fn in_batch<R: Send + 'static>(
+    held: &Batch,
+    job: impl FnOnce(&Connection) -> Result<R, ServerError> + Send + 'static,
+) -> Result<R, ServerError> {
+    let database = held
+        .lock()
+        .expect("a batch's database is never poisoned")
+        .take()
+        .expect("a batch runs one job at a time");
+    let (database, result) = blocking(move || {
+        let result = job(&database);
+        Ok((database, result))
+    })
+    .await?;
+    *held.lock().expect("a batch's database is never poisoned") = Some(database);
+    result
 }
 
 /// Runs file work on tokio's blocking pool.
@@ -1356,11 +1370,6 @@ struct Cached {
     valid: bool,
 }
 
-pub struct Collected {
-    pub blocks: Vec<Uuid>,
-    pub objects: usize,
-}
-
 impl ServerStore {
     /// Runs `action` on the organization's cached graph, under the lock every graph read and
     /// change takes.
@@ -1380,14 +1389,80 @@ impl ServerStore {
     }
 
     /// Runs `job` with the database, alone, on tokio's blocking pool. A job runs to its end even
-    /// when the call that started it is dropped, so a transaction is never cut short.
+    /// when the call that started it is dropped, so a transaction is never cut short. Inside
+    /// `batch`, it runs in the batch's transaction.
     pub(crate) async fn with_database<R: Send + 'static>(
         &self,
         job: impl FnOnce(&ServerStore, &Connection) -> Result<R, ServerError> + Send + 'static,
     ) -> Result<R, ServerError> {
-        let database = Arc::clone(&self.database).lock_owned().await;
         let store = self.clone();
+        if let Ok(held) = BATCH.try_with(Arc::clone) {
+            return in_batch(&held, move |database| job(&store, database)).await;
+        }
+        let database = Arc::clone(&self.database).lock_owned().await;
         blocking(move || job(&store, &database)).await
+    }
+
+    /// Runs `work`, every store job it makes, in one transaction: kept if it succeeds, and
+    /// rolled back whole if it fails, with every graph cached since read again from the
+    /// database. The database is held from start to end, so `work` makes nothing that waits on
+    /// a job another task runs.
+    pub(crate) async fn batch<R, E: From<ServerError>>(
+        &self,
+        work: impl Future<Output = Result<R, E>>,
+    ) -> Result<R, E> {
+        let database = Arc::clone(&self.database).lock_owned().await;
+        let database = blocking(move || {
+            database.execute_batch("BEGIN IMMEDIATE")?;
+            Ok(database)
+        })
+        .await
+        .map_err(E::from)?;
+        let held: Batch = Arc::new(std::sync::Mutex::new(Some(database)));
+        let result = BATCH.scope(Arc::clone(&held), work).await;
+        let database = held
+            .lock()
+            .expect("a batch's database is never poisoned")
+            .take()
+            .expect("a batch's jobs give its database back");
+        let kept = result.is_ok();
+        let ended = blocking(move || {
+            database.execute_batch(match kept {
+                true => "COMMIT",
+                false => "ROLLBACK",
+            })?;
+            Ok(database)
+        })
+        .await;
+        if !kept || ended.is_err() {
+            self.forget_cached();
+            if let Ok(database) = &ended {
+                match load_object_refs(database) {
+                    Ok(refs) => *self.object_refs() = refs,
+                    Err(error) => tracing::error!(%error, "reading object counts again failed"),
+                }
+            }
+        }
+        ended.map_err(E::from)?;
+        result
+    }
+
+    /// Lets go of every cached graph and policy, as after a rollback that undid what jobs
+    /// changed in them.
+    fn forget_cached(&self) {
+        let graphs = std::mem::take(
+            &mut *self
+                .graphs
+                .lock()
+                .expect("the graph cache is never poisoned"),
+        );
+        for cached in graphs.into_values() {
+            cached.write().expect("a cached graph is never poisoned").valid = false;
+        }
+        self.policies
+            .lock()
+            .expect("the policy cache is never poisoned")
+            .clear();
     }
 
     fn in_graph<R>(
@@ -1460,12 +1535,16 @@ impl ServerStore {
         held.valid.then(|| read(&held.graph))
     }
 
-    /// Runs `read` with the read-only connection on tokio's blocking pool.
+    /// Runs `read` with the read-only connection on tokio's blocking pool; inside `batch`, in
+    /// the batch's transaction, so it reads what the batch wrote.
     pub(crate) async fn with_reader<R: Send + 'static>(
         &self,
         read: impl FnOnce(&ServerStore, &Connection) -> Result<R, ServerError> + Send + 'static,
     ) -> Result<R, ServerError> {
         let store = self.clone();
+        if let Ok(held) = BATCH.try_with(Arc::clone) {
+            return in_batch(&held, move |database| read(&store, database)).await;
+        }
         blocking(move || {
             let reader = store.reader.lock().expect("the reader is never poisoned");
             read(&store, &reader)

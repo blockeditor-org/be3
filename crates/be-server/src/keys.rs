@@ -526,21 +526,6 @@ pub(crate) fn current_escrow(
     Ok(escrow_chain(connection, organization)?.pop())
 }
 
-pub(crate) fn pinned_escrow(
-    connection: &Connection,
-    account: Uuid,
-    organization: Uuid,
-) -> Result<Vec<u8>, ServerError> {
-    Ok(connection
-        .query_row(
-            "SELECT sealed FROM pinned_escrows WHERE account_id = ?1 AND organization_id = ?2",
-            params![account.to_string(), organization.to_string()],
-            |row| row.get(0),
-        )
-        .optional()?
-        .unwrap_or_default())
-}
-
 pub(crate) fn pin_escrow(
     connection: &Connection,
     account: Uuid,
@@ -870,25 +855,6 @@ fn pending_rotations(
 fn rotated(connection: &Connection, organization: Uuid, block: Uuid) -> Result<(), ServerError> {
     connection.execute(
         "DELETE FROM rotations WHERE organization_id = ?1 AND block_id = ?2",
-        params![organization.to_string(), block.to_string()],
-    )?;
-    Ok(())
-}
-
-pub(crate) fn forget_block_keys(
-    connection: &Connection,
-    organization: Uuid,
-    block: Uuid,
-) -> Result<(), ServerError> {
-    for row in keys_of_block(connection, organization, block)? {
-        connection.execute(
-            "DELETE FROM wrapped_keys
-             WHERE organization_id = ?1 AND (key_id = ?2 OR wrapped_by = ?2)",
-            params![organization.to_string(), row.id.to_string()],
-        )?;
-    }
-    connection.execute(
-        "DELETE FROM keys WHERE organization_id = ?1 AND block_id = ?2",
         params![organization.to_string(), block.to_string()],
     )?;
     Ok(())
