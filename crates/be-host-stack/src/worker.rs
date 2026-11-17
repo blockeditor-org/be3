@@ -3986,10 +3986,7 @@ async fn apply(
                     replicas.change(ctx, block, Change::Replace(bytes)).await;
                     Ok(())
                 }
-                false => match peer
-                    .ensure_type(block, content_type, BlockParent::Detached)
-                    .await
-                {
+                false => match ensure_type(peer, shared, block, content_type).await {
                     Ok(()) => {
                         publish_bytes(peer, replicas, shared, block, content_type, bytes, true)
                             .await
@@ -4189,6 +4186,23 @@ pub(super) async fn has_later_parts(peer: &Peer<Store>, block: Uuid) -> Result<b
     Ok((first.bytes.len() as u64) < commit.manifest.length())
 }
 
+/// Makes `block` on the server unless it is there (`Peer::ensure_type`), and has the graph read
+/// its place again as a replica's own creation does (`Host::created`): the one route every
+/// creation made online, not through the outbox, takes.
+async fn ensure_type(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    block: Uuid,
+    content_type: Uuid,
+) -> Result<(), ClientError> {
+    peer.ensure_type(block, content_type, BlockParent::Detached)
+        .await?;
+    if peer.is_attached() {
+        <Shared as be_block_type_host::Host>::created(shared, block, BlockParent::Detached);
+    }
+    Ok(())
+}
+
 async fn seed(
     peer: &Arc<Peer<Store>>,
     replicas: &mut Replicas,
@@ -4200,8 +4214,7 @@ async fn seed(
     if !be_block_type_host::is_known(content_type) {
         return Ok(());
     }
-    peer.ensure_type(block, content_type, BlockParent::Detached)
-        .await?;
+    ensure_type(peer, shared, block, content_type).await?;
     if peer.newest_head(block).await?.is_some() {
         return Ok(());
     }

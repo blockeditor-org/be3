@@ -894,7 +894,10 @@ impl Refs {
         }
         self.write(rows)?;
         // This device's own head, or one it has sealed on top of since, read before its publish
-        // was answered, is no news. Judged with the state let go, as `behind` reads commits.
+        // was answered, is no news. Judged with the state let go, as `behind` reads commits. Any
+        // path that sets the local head from a read must observe that read first (`Peer::open`
+        // notes the summary before it remembers the head), or the read's head would pass here as
+        // this device's own.
         Ok(moved
             .into_iter()
             .filter(|(_, head, local)| {
