@@ -130,7 +130,11 @@ async fn a_demoted_administrator_with_the_server_reads_nothing_written_after_the
         .unwrap();
     let opened = opened_with_the_server(&harness, &promoted);
     for (commit, what) in [(after, "inner"), (saved, "note")] {
-        let key = member.commits().vault().sealed_under(commit.hash()).unwrap();
+        let key = member
+            .commits()
+            .vault()
+            .sealed_under(commit.hash())
+            .unwrap();
         assert!(
             !opened.contains(&key.to_string()),
             "the demoted administrator, with the server, opens the {what} written after the demotion"

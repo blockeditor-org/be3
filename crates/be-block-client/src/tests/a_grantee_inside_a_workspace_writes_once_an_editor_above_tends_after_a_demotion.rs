@@ -76,14 +76,21 @@ async fn a_grantee_inside_a_workspace_writes_once_an_editor_above_tends_after_a_
         .unwrap()
         .published()
         .unwrap();
-    let written = grantee.commits().vault().sealed_under(saved.hash()).unwrap();
+    let written = grantee
+        .commits()
+        .vault()
+        .sealed_under(saved.hash())
+        .unwrap();
     let opened = opened_with_the_server(&harness, &promoted);
     assert!(
         !opened.contains(&written.to_string()),
         "the demoted administrator, with the server, opens what the grantee wrote"
     );
     let scope = grantee.keys().scope_key(inner).unwrap();
-    assert_ne!(scope, old, "the epoch reached through escrow is still the newest");
+    assert_ne!(
+        scope, old,
+        "the epoch reached through escrow is still the newest"
+    );
     assert!(!opened.contains(&scope.to_string()));
     assert_eq!(text(&manager, inner).await, "after");
 
