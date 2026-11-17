@@ -34,7 +34,9 @@ pub use be_sdk_type_api as api;
 pub use be_wasm_guest_abi as abi;
 pub use file::{BlobFile, DocumentFile, FileForm};
 pub use record::{NoHistory, Recorder};
-pub use replica::{COMMIT_INTERVAL, HEARTBEAT_INTERVAL, JOURNAL_BYTES, QUIET_INTERVAL};
+pub use replica::{
+    COMMIT_INTERVAL, HEARTBEAT_INTERVAL, JOURNAL_BYTES, QUIET_INTERVAL, RESTART_STATE_BYTES,
+};
 
 use effect::{Answer, Effect, HeadEvent, RequestId};
 use replica::{AnyReplica, Input, Opened, Replica};
