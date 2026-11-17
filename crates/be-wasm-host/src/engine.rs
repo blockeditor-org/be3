@@ -312,9 +312,25 @@ pub(crate) struct Compiled {
 pub(crate) type Module = Arc<Compiled>;
 
 pub(crate) fn compile(scope: &mut v8::PinScope<'_, '_>, bytes: &[u8]) -> Result<Module, String> {
+    compile_with_cache(scope, bytes, crate::cache::entry(bytes))
+}
+
+/// Compiles `bytes` past the code cache: nothing is read from it or written to it, and the module
+/// is held only by whoever holds it (the sandbox's modules from bytes).
+pub(crate) fn compile_uncached(
+    scope: &mut v8::PinScope<'_, '_>,
+    bytes: &[u8],
+) -> Result<Module, String> {
+    compile_with_cache(scope, bytes, None)
+}
+
+fn compile_with_cache(
+    scope: &mut v8::PinScope<'_, '_>,
+    bytes: &[u8],
+    entry: Option<std::path::PathBuf>,
+) -> Result<Module, String> {
     let shape = Shape::read(bytes)?;
     shape.bounded()?;
-    let entry = crate::cache::entry(bytes);
     let _compiling = entry.as_ref().and_then(|_| crate::cache::compiling());
     if let Some(module) = entry.as_deref().and_then(crate::cache::compiled) {
         return Ok(module);
@@ -350,13 +366,14 @@ pub(crate) fn compile(scope: &mut v8::PinScope<'_, '_>, bytes: &[u8]) -> Result<
 /// growing past any maximum does.
 pub(crate) fn pure(bytes: &[u8], limit: Option<usize>) -> Result<Vec<u8>, String> {
     // No garbage-collected objects or strings either, which live on V8's heap where the memory cap
-    // does not reach, and one memory, so the cap is the guest's whole memory.
+    // does not reach, and one 32-bit memory, so the cap is the guest's whole memory.
     let features = WasmFeatures::default()
         - WasmFeatures::THREADS
         - WasmFeatures::SHARED_EVERYTHING_THREADS
         - WasmFeatures::RELAXED_SIMD
         - WasmFeatures::GC
-        - WasmFeatures::MULTI_MEMORY;
+        - WasmFeatures::MULTI_MEMORY
+        - WasmFeatures::MEMORY64;
     Validator::new_with_features(features)
         .validate_all(bytes)
         .map_err(|error| format!("the guest uses what a pure guest may not: {error}"))?;

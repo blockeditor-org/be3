@@ -3,6 +3,11 @@
 //! own, and instances of it, each on a thread and isolate of its own with only the transport,
 //! talking to their spawner by frames over a `be_wasm_guest_host::Channel`. What an instance may do
 //! beside computing, its spawner serves it over those frames.
+//!
+//! A module from bytes never reaches the code cache (cache.rs): it is compiled anew in each
+//! process and freed once nothing holds it. A stopped instance's thread is reaped lazily by the
+//! thread that dropped it (`be_wasm_guest_host::thread::wait_for_workers`), and nothing waits for
+//! it at exit.
 
 use std::{
     collections::HashMap,
@@ -123,7 +128,7 @@ fn compile_now(id: ModuleId, bytes: Vec<u8>) -> Result<Module, String> {
         v8::scope!(let scope, &mut *locker);
         let local = v8::Local::new(scope, &context);
         let scope = &mut v8::ContextScope::new(scope, local);
-        engine::compile(scope, &bytes)
+        engine::compile_uncached(scope, &bytes)
     };
     drop(context);
     drop(isolate);

@@ -149,8 +149,9 @@ by a *remapper*: a WebAssembly module an app ships as data, given a config the a
 - **The protocol.** A module is a pure guest (guides/app_libraries.md, Pure guests): each frame it
   is sent is a bincode `be_lib_remap::protocol` request, answered with one frame.
   `be-host-remap-host` runs it in the sandbox (`be_wasm_host::sandbox`), on a thread and isolate
-  of its own with a memory cap, and waits for each answer: one not given within `START_TIME`
-  (for `Start`) or `CALL_TIME` is a failure, and dropping the instance terminates it.
+  of its own with a memory cap, and waits for each answer: one not given within its `Limits`
+  (generous for `Start`, 100 ms for anything else, since input waits) is a failure, and dropping
+  the instance terminates it.
 - **Failing open.** On any failure the host releases everything the module held, passes the input
   through, toasts, and restarts the module on the next input; after three failures in a minute, or
   an unreadable config, it stays off until the remapper changes. Ctrl+Alt+Backspace, Ctrl+Alt+F<n>,
@@ -160,7 +161,8 @@ by a *remapper*: a WebAssembly module an app ships as data, given a config the a
   make of it. The release of a key the remapper never saw go down (it was installed, or the session
   came back to its terminal, while the key was held) passes through as it is.
 - **In the host.** be-host-desktop's `remap/linux.rs` fetches the module (only from an app with an
-  `InputRemapper` editor), reconfigures it when only the config changes (the next input runs
+  `InputRemapper` editor), compiles it off the session's thread and installs it in the frame the
+  compile wakes, reconfigures it when only the config changes (the next input runs
   the new rules), fetches it again with the next change if it could not be fetched or loaded, and caches the last module
   and config in its database so remapping works from the first input. The DRM platform passes input
   through the `InputFilter` on `InputControl` after the `WakeGate`, delivers its output as if

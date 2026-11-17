@@ -410,25 +410,19 @@ Each step lands on its own.
 
 1. Built: the sandbox API for modules from bytes, natively, and the remapper on it (its fuel
    became a time limit, past which its isolate is terminated).
-2. Spawning staged apps. A test guest embeds one editor without the host's compositor. This is
-   more than its line suggests, and needs:
-   - `spawn` by app id, served by the host's staged-app loader (be-host-runtime's `wasm.rs`, with
-     the manifest, libraries, WASI, threads and the gpu device), so a variant of the `instance`
-     constructor served from the be-host family rather than from be-wasm-sandbox-host, with
-     `config`'s threads and libraries;
-   - the host side of the app protocol in a guest: configuring screens, the editor's watches
-     (preferences, fonts, input) and a block's content. Today that is be-host-runtime, native and
-     tied to beui; the test guest could start from be-sdk-test's host half (`ContentStore`,
-     `link.rs`), which already runs in wasm but in process with the editor, not over a channel;
-   - a surface for the editor that never leaves the GPU: the host attaches textures from its own
-     device to an app's surfaces (`App::attach_surface`), and the spawner can only name them by
-     handle. Nothing shows a surface a guest names until step 3's layer list, so either step 3
-     comes first, or this step's test checks only that the editor laid out and presented to the
-     surface it was given.
+2. Spawning staged apps by app id: a staged module with its manifest's libraries and WASI, and
+   no display, which is all plans/single_threaded_guests.md needs. The `instance` constructor
+   takes a source, `module(module-id) | app(app-id)`, served by the one `Server` with a loader
+   the host plugs in (be-host-runtime's staged-app loading lives above be-wasm); `config` gains
+   no threads field.
 3. The layer list and the forwarding router, and how native and the web realize them, with the
    host's current UI as their only producer, so nothing changes visibly.
-4. The synchronous, resumable root entry. The compositor takes over `src/compositor`,
-   `src/ui`, the camera and the orchestration.
+4. The synchronous, resumable root entry. The compositor takes over `src/compositor`, `src/ui`,
+   the camera and the orchestration. Embedding an editor without the host's compositor starts
+   here, once the layer list can show a surface a guest names: it needs the host side of the
+   app protocol in a guest (configuring screens, the editor's watches, a block's content;
+   be-sdk-test's `ContentStore` and `link.rs` already run in wasm, in process), and a surface on
+   the host's device that the spawner names only by handle (`App::attach_surface`).
 5. The block stack as an instance the root guest spawns, behind capabilities, building on the
    web's stack worker with a memory of its own, and sending smaller updates.
 6. Space as a guest, offscreen windows, and the host's OpenXR part, with late latching.
