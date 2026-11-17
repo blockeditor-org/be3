@@ -165,6 +165,21 @@ impl<S: ObjectStore> Peer<S> {
         parent: BlockParent,
         scopes: &mut HashMap<Uuid, (Uuid, bool)>,
     ) -> Result<Prepared, ClientError> {
+        let made = self.keys.holds_log(block.id);
+        let prepared = self.prepare_made(block, parent, scopes).await;
+        // A root `new_log` made for a block that is not then kept is let go (`forget_made`).
+        if prepared.is_err() && !made && self.keys.holds_log(block.id) {
+            self.keys.forget_made(block.id);
+        }
+        prepared
+    }
+
+    async fn prepare_made(
+        &self,
+        block: &Saved,
+        parent: BlockParent,
+        scopes: &mut HashMap<Uuid, (Uuid, bool)>,
+    ) -> Result<Prepared, ClientError> {
         // Each block's scope key, and whether it was taken unchecked (`scope_key_making`), as
         // is everything below it.
         let under = match parent {
