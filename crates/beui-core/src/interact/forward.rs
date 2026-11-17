@@ -41,9 +41,25 @@ pub(crate) fn pointer(id: PointerId) -> Pointer {
         PointerId::Mouse => Pointer::Mouse,
         PointerId::Pen => Pointer::Pen,
         PointerId::Touch(id) => Pointer::Touch(id),
-        PointerId::Keyboard => Pointer::Other(0),
-        PointerId::Relayed => Pointer::Other(1),
+        PointerId::Keyboard => Pointer::Keyboard,
+        PointerId::Relayed => Pointer::Relayed,
     }
+}
+
+/// The catcher a wheel, pinch or touchpad gesture at `at` is for, `found` being the one beui's
+/// hit test finds there. A held gesture latched to a catcher that went lets go first.
+pub(crate) fn gesture(
+    doc: &mut Document,
+    found: Option<NodeId>,
+    at: Pos2,
+    phase: be_lib_input_router::Phase,
+) -> Option<NodeId> {
+    if let Some(Some(latched)) = doc.forward.router.latched()
+        && !(doc.arena.contains(latched) && wants_forward(doc.arena.get(latched)))
+    {
+        doc.forward.router.forget(latched);
+    }
+    doc.forward.router.gesture(&Catchers::at(found), at, phase)
 }
 
 /// The router's hit test over a document's catchers, for one pointer event: beui's hit test
@@ -228,6 +244,10 @@ pub(super) fn route(
             | Event::PointerMotion(_)
             | Event::Focus(_) => deliver(focused, Forwarded::Input(event.clone())),
             _ => {}
+        }
+        // A held gesture whose end will not come: the window lost the keyboard or the pointer.
+        if matches!(event, Event::Focus(false) | Event::PointerGone) {
+            doc.forward.router.end_gesture();
         }
     }
     for sink in entered {

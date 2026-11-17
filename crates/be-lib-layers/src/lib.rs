@@ -18,6 +18,17 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct LayerId(pub u64);
 
+impl LayerId {
+    /// The layer showing the root's surface `Surface::Root(index)`: hashed from its index under
+    /// a tag of its own, as the host hashes a drawing's pieces, so it is no other layer's id.
+    pub fn root(index: u32) -> Self {
+        Self(std::hash::BuildHasher::hash_one(
+            &be_lib_stable_hash::State::default(),
+            ("root", index),
+        ))
+    }
+}
+
 /// What a layer shows, by handle.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Surface {
