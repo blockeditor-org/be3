@@ -10,7 +10,7 @@ use be_lib_stable_hash::HashMap;
 use beui_components_unstyled::drag_board;
 use beui_components_unstyled::{DragPoint, ReorderGap};
 use beui_macros::{component, view};
-use beui_view::drag::{Candidate, DragSpec, closest, custom};
+use beui_view::drag::{Candidate, DragSpec, Edge, closest, custom};
 use beui_view::measure::measure;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -91,11 +91,21 @@ impl State {
                 node,
                 out: &mut candidates,
             };
-            self.zones_in(&mut zones, Tree::Surface(surface), split);
+            // A window of one pane is that pane wherever the pointer is in it, its own bar
+            // included, as the pane's own tab bar is the bar's.
+            let whole = window
+                .and_then(|window| window.try_get())
+                .and_then(|window| measure(window).get_untracked())
+                .map(|measured| measured.rect);
+            self.zones_in(&mut zones, Tree::Surface(surface), split, whole);
             if candidates.is_empty() {
                 continue;
             }
-            places.push(closest(candidates).open_where(move |point| dock.reaches(node, point)));
+            places.push(
+                closest(candidates)
+                    .shaped(node)
+                    .open_where(move |point| dock.reaches(node, point)),
+            );
         }
         let floats = custom(tiles, move |local: Pos2| {
             let (window, pos) = dock.open_at(tiles, local)?;
@@ -109,19 +119,21 @@ impl State {
             let state = dock.state.get_untracked();
             dock.place(&state, dragged, DockDrop::Window { pos: origin }, None)
         });
-        closest(places)
-            .shaped()
-            .when_held(Modifiers::ALT, floats)
+        closest(places).when_held(Modifiers::ALT, floats)
     }
 
     /// The places of `tree`'s panes, inner ones (a group a pane hosts) before the pane's own.
-    fn zones_in(&self, zones: &mut Zones, tree: Tree, split: bool) {
+    fn zones_in(&self, zones: &mut Zones, tree: Tree, split: bool, whole: Option<Rect>) {
         let Some(area) = self.pane_rect(tree) else {
             return;
         };
         let layout = layout_tree(zones.state, tree, area, self.thickness);
+        let alone = layout.leaves.len() == 1;
         for (leaf, rect) in layout.leaves {
-            let body = self.body_of(zones.state, leaf, rect);
+            let body = match whole.filter(|_| alone) {
+                Some(whole) => self.body_of(zones.state, leaf, whole),
+                None => self.body_of(zones.state, leaf, rect),
+            };
             let hosted = zones
                 .state
                 .active_entry(leaf)
@@ -130,10 +142,11 @@ impl State {
             if let Some(group) = hosted {
                 if split {
                     for side in SIDES {
-                        self.zone(zones, DockDrop::Split { leaf, side }, band(body, side, OUTER_EDGE));
+                        let edge = band(body, side, OUTER_EDGE);
+                        self.zone(zones, DockDrop::Split { leaf, side }, edge, Some(rect));
                     }
                 }
-                self.zones_in(zones, Tree::Group(group), true);
+                self.zones_in(zones, Tree::Group(group), true, None);
             }
             if split {
                 for side in SIDES {
@@ -141,16 +154,11 @@ impl State {
                         Direction::Horizontal => rect.width(),
                         Direction::Vertical => rect.height(),
                     } * EDGE_ZONE;
-                    let edge = band(rect, side, reach);
-                    // Corners go to the sides, so the bands above and below stop at theirs.
-                    let edge = match side {
-                        Side::Above | Side::Below => edge.expand2(Vec2::new(-rect.width() * EDGE_ZONE, 0.0)),
-                        Side::Left | Side::Right => edge,
-                    };
-                    self.zone(zones, DockDrop::Split { leaf, side }, edge.intersect(body));
+                    let edge = band(rect, side, reach).intersect(body);
+                    self.zone(zones, DockDrop::Split { leaf, side }, edge, Some(rect));
                 }
             }
-            self.zone(zones, middle_target(zones.state, leaf), body);
+            self.zone(zones, middle_target(zones.state, leaf), body, None);
         }
     }
 
@@ -170,7 +178,9 @@ impl State {
         body
     }
 
-    fn zone(&self, zones: &mut Zones, drop: DockDrop, zone: Rect) {
+    /// A place chosen in `zone`; a split's only where the pointer is nearer its side of
+    /// `pane` than any other, in proportion, so each corner splits along its diagonal.
+    fn zone(&self, zones: &mut Zones, drop: DockDrop, zone: Rect, pane: Option<Rect>) {
         if zone.width() <= 0.0 || zone.height() <= 0.0 {
             return;
         }
@@ -180,11 +190,19 @@ impl State {
         let rest = place.rest.unwrap_or(zone);
         let label = self.place_label(zones.state, drop);
         let local = -zones.origin.to_vec2();
-        zones.out.push(
-            Candidate::new(place, rest.translate(local), zones.node)
-                .zoned(zone.translate(local))
-                .labelled(label),
-        );
+        let mut candidate = Candidate::new(place, rest.translate(local), zones.node)
+            .zoned(zone.translate(local))
+            .labelled(label);
+        if let (DockDrop::Split { side, .. }, Some(pane)) = (drop, pane) {
+            let edge = match side {
+                Side::Left => Edge::Left,
+                Side::Right => Edge::Right,
+                Side::Above => Edge::Top,
+                Side::Below => Edge::Bottom,
+            };
+            candidate = candidate.nearest_edge(edge, pane.translate(local));
+        }
+        zones.out.push(candidate);
     }
 
     /// What a screen reader says for a place: "left of Files", "with Files".
@@ -547,14 +565,20 @@ impl Parting {
                 .moving
                 .with_untracked(|moving| moving.get(&key).copied())
                 .unwrap_or_default();
-            let moved = Moving {
-                min: from.min - rect.min,
-                max: from.max - rect.max,
-                ..speed
-            };
-            if moved != Moving::default() {
-                next.insert(key, moved);
+            let (min, max) = (from.min - rect.min, from.max - rect.max);
+            // An item already where the new layout puts it stays there; one still away
+            // keeps the speed it had, so a change of place mid-flight bends its path.
+            if min == Vec2::ZERO && max == Vec2::ZERO {
+                continue;
             }
+            next.insert(
+                key,
+                Moving {
+                    min,
+                    max,
+                    ..speed
+                },
+            );
         }
         self.moving.set(Rc::new(next));
         self.frames.start();

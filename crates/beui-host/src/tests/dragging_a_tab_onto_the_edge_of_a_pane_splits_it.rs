@@ -13,6 +13,8 @@ fn dragging_a_tab_onto_the_edge_of_a_pane_splits_it() {
 
     harness.drag(from, pos2(WIDE_VIEWPORT.x - 20.0, WIDE_VIEWPORT.y / 2.0));
     harness.frame(Vec::new());
+    // The panes glide from where the preview drew them into the split.
+    harness.frames_to_settle();
 
     let state = harness.document().api::<DockApi>(dock).state();
     let leaves = state.leaves(state.main());

@@ -33,8 +33,44 @@ pub struct Candidate<D> {
     pub drop: D,
     pub rest: Rect,
     pub zone: Option<Rect>,
+    /// Within its zone, chosen only while the pointer is nearer this edge of the rect than any
+    /// other, each measured as a fraction of the rect's width or height (relative to `node`).
+    pub nearest: Option<(Edge, Rect)>,
     pub node: NodeRef,
     pub label: Option<String>,
+}
+
+/// An edge of a rect.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Edge {
+    Left,
+    Right,
+    Top,
+    Bottom,
+}
+
+impl Edge {
+    /// The edge of `rect` nearest `pos`, each measured as a fraction of `rect`'s width or
+    /// height, so a corner splits along its diagonal: ties go to the first of left, right,
+    /// top, bottom.
+    pub fn nearest(rect: Rect, pos: Pos2) -> Option<Edge> {
+        if rect.width() <= 0.0 || rect.height() <= 0.0 {
+            return None;
+        }
+        let edges = [
+            ((pos.x - rect.min.x) / rect.width(), Edge::Left),
+            ((rect.max.x - pos.x) / rect.width(), Edge::Right),
+            ((pos.y - rect.min.y) / rect.height(), Edge::Top),
+            ((rect.max.y - pos.y) / rect.height(), Edge::Bottom),
+        ];
+        edges
+            .into_iter()
+            .reduce(|nearest, edge| match edge.0 < nearest.0 {
+                true => edge,
+                false => nearest,
+            })
+            .map(|(_, edge)| edge)
+    }
 }
 
 impl<D> Candidate<D> {
@@ -43,8 +79,19 @@ impl<D> Candidate<D> {
             drop,
             rest,
             zone: None,
+            nearest: None,
             node,
             label: None,
+        }
+    }
+
+    /// Chosen in its zone only while the pointer is nearer `edge` of `of` than any other, in
+    /// proportion to `of`'s size: a pane's edge bands, which split each corner along its
+    /// diagonal.
+    pub fn nearest_edge(self, edge: Edge, of: Rect) -> Self {
+        Self {
+            nearest: Some((edge, of)),
+            ..self
         }
     }
 
@@ -112,9 +159,12 @@ pub enum DragSpec<D> {
         otherwise: Box<DragSpec<D>>,
     },
     /// `spec`'s place, drawn under the pointer at the size of the place, held at the same
-    /// fraction of it as the item was grabbed: a dock's tab takes the shape of the pane it
-    /// would open while the pointer still carries it.
-    Shaped(Box<DragSpec<D>>),
+    /// fraction of it as the item was grabbed and kept inside `within`: a dock's tab takes the
+    /// shape of the pane it would open while the pointer still carries it.
+    Shaped {
+        spec: Box<DragSpec<D>>,
+        within: NodeRef,
+    },
     /// `spec`'s places only at points `open` lets through (where nothing covers the site, a
     /// menu or another window over it); elsewhere the item floats.
     Open {
@@ -216,9 +266,13 @@ impl<D> DragSpec<D> {
         }
     }
 
-    /// The place this chooses, with the item drawn under the pointer at the place's size.
-    pub fn shaped(self) -> Self {
-        DragSpec::Shaped(Box::new(self))
+    /// The place this chooses, with the item drawn under the pointer at the place's size,
+    /// kept inside `within`.
+    pub fn shaped(self, within: NodeRef) -> Self {
+        DragSpec::Shaped {
+            spec: Box::new(self),
+            within,
+        }
     }
 
     /// These places only at points `open` lets through.
@@ -276,6 +330,7 @@ impl<D: 'static> DragSpec<D> {
                 drop: drop(candidate.drop),
                 rest: candidate.rest,
                 zone: candidate.zone,
+                nearest: candidate.nearest,
                 node: candidate.node,
                 label: candidate.label,
             }),
@@ -322,7 +377,10 @@ impl<D: 'static> DragSpec<D> {
                 spec: Box::new(spec.map(drop)),
                 along,
             },
-            DragSpec::Shaped(spec) => DragSpec::Shaped(Box::new(spec.map(drop))),
+            DragSpec::Shaped { spec, within } => DragSpec::Shaped {
+                spec: Box::new(spec.map(drop)),
+                within,
+            },
             DragSpec::Open { spec, open } => DragSpec::Open {
                 spec: Box::new(spec.map(drop)),
                 open,
@@ -586,7 +644,15 @@ fn walk<'s, D: Clone>(
             let distance = match candidate.zone {
                 Some(zone) => {
                     let zone = evaluation.place(&candidate.node, zone)?;
-                    match zone.contains(evaluation.point.pos) {
+                    let pos = evaluation.point.pos;
+                    let nearest = match candidate.nearest {
+                        Some((edge, of)) => {
+                            let of = evaluation.place(&candidate.node, of)?;
+                            Edge::nearest(of, pos) == Some(edge)
+                        }
+                        None => true,
+                    };
+                    match zone.contains(pos) && nearest {
                         true => 0.0,
                         false => f32::INFINITY,
                     }
@@ -781,7 +847,7 @@ fn walk<'s, D: Clone>(
             };
             Some(Found { item, ..found })
         }
-        DragSpec::Shaped(spec) => {
+        DragSpec::Shaped { spec, within } => {
             let found = walk(spec, evaluation, last, carried, next, along)?;
             if !found.placed() || found.floating {
                 return Some(found);
@@ -798,10 +864,12 @@ fn walk<'s, D: Clone>(
                 fraction(grabbed.min.x, grabbed.width()) * size.x,
                 fraction(grabbed.min.y, grabbed.height()) * size.y,
             );
-            Some(Found {
-                item: Rect::from_min_size(evaluation.point.pos - held, size),
-                ..found
-            })
+            let item = Rect::from_min_size(evaluation.point.pos - held, size);
+            let item = match within.try_get().and_then(evaluation.placed) {
+                Some((area, _)) => clamp_into(item, area),
+                None => item,
+            };
+            Some(Found { item, ..found })
         }
         DragSpec::Open { spec, open } => {
             // Ids stay the same whether or not the point is open, so walk it either way.
@@ -912,7 +980,7 @@ pub fn rests<D>(spec: &DragSpec<D>, placed: &dyn Fn(NodeId) -> Option<(Rect, f32
             DragSpec::SnapRadius { spec, .. }
             | DragSpec::Thrown { spec, .. }
             | DragSpec::Following { spec, .. }
-            | DragSpec::Shaped(spec)
+            | DragSpec::Shaped { spec, .. }
             | DragSpec::Open { spec, .. } => walk(spec, placed, next, into),
             DragSpec::Free { .. }
             | DragSpec::Floating
@@ -945,8 +1013,11 @@ pub fn nodes<D>(spec: &DragSpec<D>) -> Vec<NodeRef> {
             DragSpec::SnapRadius { spec, .. }
             | DragSpec::Thrown { spec, .. }
             | DragSpec::Following { spec, .. }
-            | DragSpec::Shaped(spec)
             | DragSpec::Open { spec, .. } => walk(spec, into),
+            DragSpec::Shaped { spec, within } => {
+                into.push(*within);
+                walk(spec, into);
+            }
             DragSpec::Free { area, .. } => into.push(*area),
             DragSpec::Into { region, .. } => into.push(*region),
             DragSpec::Custom { node, .. } => into.push(*node),

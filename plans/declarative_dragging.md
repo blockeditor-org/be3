@@ -259,7 +259,7 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
    - **3b (done): the fluid preview.** The candidates, the preview, the carried tab, panels keeping their
      size and bars moving with their pane, below; the highlight and `resolve` are gone. The dock
      previews from `over`, so it needs no tentative gesture: its layout is view state. The spec
-     language gained `shaped()` (the item drawn the size of its place, under the pointer) and
+     language gained `Candidate::nearest_edge` (edge bands that split corners along the diagonal), `shaped(within)` (the item drawn the size of its place, under the pointer, kept inside `within`) and
      `open_where` (places reached only where nothing covers their site). A tab bar parting for a
      tab from another pane parts the dock too. Panes keep showing their real tabs until the drop.
    - **3c: panels stay built, and keyboard carries between bars**, below.
