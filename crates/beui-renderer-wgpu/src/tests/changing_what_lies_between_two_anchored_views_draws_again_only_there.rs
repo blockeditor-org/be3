@@ -68,9 +68,10 @@ fn changing_what_lies_between_two_anchored_views_draws_again_only_there() {
         .expect("the window is drawn again in part")
         .to_vec();
     assert!(
-        scissors
-            .iter()
-            .all(|[x, y, width, height]| *x >= 40 && *y >= 4 && x + width <= 48 && y + height <= 12),
+        scissors.iter().all(|[x, y, width, height]| *x >= 40
+            && *y >= 4
+            && x + width <= 48
+            && y + height <= 12),
         "only where the UI changed is drawn again: {scissors:?}"
     );
     let capture = target.read();

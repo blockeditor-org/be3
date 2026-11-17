@@ -8,7 +8,12 @@ fn a_middle_press_that_pans_goes_to_no_surface_even_one_the_mouse_holds() {
     let mut test = canvas_with_editor();
     test.pans = Some(rect(100.0, 100.0, 600.0, 600.0));
     let mut router = Router::default();
-    let pressed = router.press(&test, Pointer::Mouse, PointerButton::Middle, pos2(250.0, 250.0));
+    let pressed = router.press(
+        &test,
+        Pointer::Mouse,
+        PointerButton::Middle,
+        pos2(250.0, 250.0),
+    );
     assert_eq!(pressed, None, "the pan is no surface's");
     assert!(router.pressing(Pointer::Mouse));
     assert_eq!(
@@ -19,11 +24,21 @@ fn a_middle_press_that_pans_goes_to_no_surface_even_one_the_mouse_holds() {
     assert_eq!(router.release(Pointer::Mouse, PointerButton::Middle), None);
 
     test.pans = None;
-    let held = router.press(&test, Pointer::Mouse, PointerButton::Primary, pos2(250.0, 250.0));
+    let held = router.press(
+        &test,
+        Pointer::Mouse,
+        PointerButton::Primary,
+        pos2(250.0, 250.0),
+    );
     assert_eq!(held, Some(EDITOR));
     test.pans = Some(rect(100.0, 100.0, 600.0, 600.0));
     assert_eq!(
-        router.press(&test, Pointer::Mouse, PointerButton::Middle, pos2(250.0, 250.0)),
+        router.press(
+            &test,
+            Pointer::Mouse,
+            PointerButton::Middle,
+            pos2(250.0, 250.0)
+        ),
         None
     );
     assert_eq!(
@@ -31,6 +46,9 @@ fn a_middle_press_that_pans_goes_to_no_surface_even_one_the_mouse_holds() {
         Some(EDITOR),
         "the pan's release goes where the primary button holds the pointer"
     );
-    assert_eq!(router.release(Pointer::Mouse, PointerButton::Primary), Some(EDITOR));
+    assert_eq!(
+        router.release(Pointer::Mouse, PointerButton::Primary),
+        Some(EDITOR)
+    );
     assert!(!router.pressing(Pointer::Mouse));
 }

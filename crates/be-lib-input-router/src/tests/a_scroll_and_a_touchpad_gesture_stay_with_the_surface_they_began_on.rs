@@ -35,7 +35,10 @@ fn a_scroll_and_a_touchpad_gesture_stay_with_the_surface_they_began_on() {
         "the next gesture begins where the pointer is now"
     );
     assert_eq!(
-        targets(&router.route(&scrolled, Input::Touchpad(TouchpadGesture::PinchEnded(false)))),
+        targets(&router.route(
+            &scrolled,
+            Input::Touchpad(TouchpadGesture::PinchEnded(false))
+        )),
         vec![CANVAS]
     );
     router.route(&test, Input::PointerMoved(pos2(250.0, 250.0)));

@@ -12,8 +12,14 @@ fn a_scroll_begun_where_a_camera_claims_it_stays_with_the_camera() {
         Some(CANVAS),
         "the editor grants the canvas the gesture along its top edge"
     );
-    assert_eq!(router.gesture(&test, pos2(250.0, 250.0), Phase::Moved), Some(CANVAS));
-    assert_eq!(router.gesture(&test, pos2(250.0, 250.0), Phase::Ended), Some(CANVAS));
+    assert_eq!(
+        router.gesture(&test, pos2(250.0, 250.0), Phase::Moved),
+        Some(CANVAS)
+    );
+    assert_eq!(
+        router.gesture(&test, pos2(250.0, 250.0), Phase::Ended),
+        Some(CANVAS)
+    );
     assert_eq!(
         router.gesture(&test, pos2(250.0, 250.0), Phase::Moved),
         Some(EDITOR),
