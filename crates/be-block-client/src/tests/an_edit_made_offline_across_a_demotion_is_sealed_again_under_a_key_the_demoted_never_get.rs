@@ -11,7 +11,7 @@ use be_block_protocol::OrganizationRole;
 /// server, does not open; what was first sealed never leaves the device (signed access 8).
 #[tokio::test]
 async fn an_edit_made_offline_across_a_demotion_is_sealed_again_under_a_key_the_demoted_never_get()
- {
+{
     let harness = Harness::start().await;
     let admin = harness.owner("admin@example.com").await;
     let deputy = harness.member(&admin, "deputy@example.com").await;
@@ -47,9 +47,7 @@ async fn an_edit_made_offline_across_a_demotion_is_sealed_again_under_a_key_the_
     admin.tend().await.unwrap();
 
     let offline = harness.offline(&member, &refs, &store);
-    let saved = offline
-        .save(note, &TextBlock::of("offline"), head)
-        .await;
+    let saved = offline.save(note, &TextBlock::of("offline"), head).await;
     let Ok(Saved::Kept(kept)) = saved else {
         panic!("an edit made offline was refused: {saved:?}");
     };
