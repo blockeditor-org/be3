@@ -545,7 +545,10 @@ Each step lands on its own.
        published interfaces' lookups moved into it, with the platform's be3:desktop offer
        passed in (`Wire::offering`), and be-host-runtime uses it. A sandbox instance keeps a
        surface's texture only until its app lets the surface go: the gpu host reports what was
-       released (`Produced::released`), so the instance never outgrows what its app holds.
+       released (`Produced::released`). A be-sdk app lets go of every screen surface its new
+       layout no longer names (`Surfaces::place` calls `release_surface`), so its instance holds
+       only what its layout names; any other guest is trimmed only as far as it drops its own
+       surfaces, and then holds no texture its guest does not.
      - 4e3. An editor's watches and a block's content in the library, and be-sdk-test on it:
        the host side of `be3:blocks` (watches, replicas, opens, commands) over a store trait,
        which be-host-runtime implements over be-host-stack and be-sdk-test over its

@@ -70,7 +70,9 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
     loads that app, with WASI and, unless its `Config::display` gives it the host's device, no
     display (its gpu calls fail). An instance with a display keeps what each of its surfaces
     presented last (`Instance::surface`) until the app lets that surface go, which the gpu host
-    reports with what it presented (`Produced::released`): an app run as `Presenting` reports what it presented
+    reports with what it presented (`Produced::released`). A be-sdk app lets go of each screen
+    surface its new layout drops (`Surfaces::place`); another guest, only of those it drops
+    itself. An app run as `Presenting` reports what it presented
     each step (`PresentedTexture`), for an instance as for be-host-runtime's apps. A type module
     runs as a plain `App`, which presents nothing.
     be-host-runtime's `staged_app(app id, module)` is the one place that maps a
