@@ -61,7 +61,10 @@ async fn an_owner_only_blocks_keys_are_sealed_to_nobody_key_work_lists() {
             |row| row.get(0),
         )
         .unwrap();
-    assert_eq!(sealed, 0, "an owner-only block's key was sealed to another account");
+    assert_eq!(
+        sealed, 0,
+        "an owner-only block's key was sealed to another account"
+    );
     let escrowed: i64 = harness
         .database()
         .query_row(

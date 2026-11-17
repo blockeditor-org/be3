@@ -14,8 +14,8 @@ mod a_keyring_opens_by_the_id_sealed_bytes_carry;
 mod a_manifest_round_trips_through_the_vault;
 mod a_part_kept_across_a_rotation_is_resealed_under_the_new_key;
 mod a_part_reused_from_the_loaded_head_is_not_sealed_again;
-mod a_seal_opens_only_with_its_header_and_its_keys_block;
 mod a_ranged_read_only_fetches_overlapping_chunks;
+mod a_seal_opens_only_with_its_header_and_its_keys_block;
 mod a_stored_value_with_bytes_after_it_is_not_decoded;
 mod a_truncated_object_reads_as_missing_and_a_put_repairs_it;
 mod chunking_is_content_defined;
@@ -31,7 +31,11 @@ fn id(seed: u8) -> Uuid {
 
 fn keys(seed: u8) -> Keyring {
     let keys = Keyring::new();
-    keys.insert(id(seed), ContentKey::from_bytes([seed; 32]), uuid::Uuid::nil());
+    keys.insert(
+        id(seed),
+        ContentKey::from_bytes([seed; 32]),
+        uuid::Uuid::nil(),
+    );
     keys
 }
 

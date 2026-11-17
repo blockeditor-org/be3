@@ -335,7 +335,11 @@ const SEALING: Uuid = Uuid::from_u128(0x5ea1);
 
 fn vault() -> be_block_store::Vault<be_block_store::MemoryStore> {
     let keys = be_block_store::Keyring::new();
-    keys.insert(SEALING, be_block_store::ContentKey::from_bytes([7; 32]), uuid::Uuid::nil());
+    keys.insert(
+        SEALING,
+        be_block_store::ContentKey::from_bytes([7; 32]),
+        uuid::Uuid::nil(),
+    );
     be_block_store::Vault::new(be_block_store::MemoryStore::new(), keys)
         .with_chunker(be_block_store::ChunkerConfig::SMALL)
 }

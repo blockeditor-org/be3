@@ -22,9 +22,11 @@ async fn a_key_the_server_wraps_under_the_settings_key_and_names_current_seals_n
     let scope_plain = admin.keys().ring().get(scope).unwrap();
     let server: Uuid = harness
         .database()
-        .query_row("SELECT account_id FROM server_account WHERE id = 1", [], |row| {
-            row.get::<_, String>(0)
-        })
+        .query_row(
+            "SELECT account_id FROM server_account WHERE id = 1",
+            [],
+            |row| row.get::<_, String>(0),
+        )
         .unwrap()
         .parse()
         .unwrap();
@@ -57,7 +59,11 @@ async fn a_key_the_server_wraps_under_the_settings_key_and_names_current_seals_n
             .execute(
                 "INSERT INTO keys (organization_id, id, block_id, kind, epoch, created)
                  VALUES (?1, ?2, ?3, 'data', 99, 0)",
-                rusqlite::params![organization.to_string(), planted.to_string(), note.to_string()],
+                rusqlite::params![
+                    organization.to_string(),
+                    planted.to_string(),
+                    note.to_string()
+                ],
             )
             .unwrap();
         database
@@ -86,7 +92,10 @@ async fn a_key_the_server_wraps_under_the_settings_key_and_names_current_seals_n
             !matches!(device.sealing_key(note).await, Ok(key) if key == planted),
             "{who} would seal the note under the server's key"
         );
-        assert!(!device.keys().trusted(planted), "{who} trusted the server's key");
+        assert!(
+            !device.keys().trusted(planted),
+            "{who} trusted the server's key"
+        );
         let saved = device.save(note, &TextBlock::of("second"), head).await;
         assert!(
             saved.is_err() || device.current_key(note) != Some(planted),

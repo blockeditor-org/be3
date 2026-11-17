@@ -1,7 +1,7 @@
 use std::fmt;
 
-pub mod aead;
 mod access;
+pub mod aead;
 pub use access::{
     Administrator, Authority, CarriedKey, Checked, Entry, EntryHash, Grant, Level, LogKind, Logs,
     Member, Named, Record, Retirement, Root, agent_account, answer, check_log, check_log_as_of,
@@ -245,7 +245,12 @@ impl RecoverySecret {
             &[ephemeral, self.public().0].concat(),
             SEAL_INFO,
         );
-        open_with(&key, &[SEAL_INFO, &ephemeral].concat(), rest, KeyError::Corrupt)
+        open_with(
+            &key,
+            &[SEAL_INFO, &ephemeral].concat(),
+            rest,
+            KeyError::Corrupt,
+        )
     }
 
     pub fn seal_for(&self, from: [u8; 16], to: &Party, context: &[u8], plain: &[u8]) -> Vec<u8> {
@@ -264,7 +269,11 @@ impl RecoverySecret {
             context,
         );
         let mut sealed = ephemeral_public.to_vec();
-        sealed.extend(seal_with(&key, &[FROM_INFO, &ephemeral_public].concat(), plain));
+        sealed.extend(seal_with(
+            &key,
+            &[FROM_INFO, &ephemeral_public].concat(),
+            plain,
+        ));
         sealed
     }
 
@@ -295,7 +304,12 @@ impl RecoverySecret {
             &me,
             context,
         );
-        open_with(&key, &[FROM_INFO, &ephemeral].concat(), rest, KeyError::Sender)
+        open_with(
+            &key,
+            &[FROM_INFO, &ephemeral].concat(),
+            rest,
+            KeyError::Sender,
+        )
     }
 }
 
@@ -360,7 +374,11 @@ impl RecoveryPublic {
             SEAL_INFO,
         );
         let mut sealed = ephemeral_public.to_vec();
-        sealed.extend(seal_with(&key, &[SEAL_INFO, &ephemeral_public].concat(), plain));
+        sealed.extend(seal_with(
+            &key,
+            &[SEAL_INFO, &ephemeral_public].concat(),
+            plain,
+        ));
         sealed
     }
 }

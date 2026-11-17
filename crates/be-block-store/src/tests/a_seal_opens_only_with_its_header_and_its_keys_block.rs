@@ -12,7 +12,11 @@ fn a_seal_opens_only_with_its_header_and_its_keys_block() {
     assert_eq!(sealer.open(&sealed).unwrap(), b"a key's own block");
 
     let elsewhere = Keyring::new();
-    elsewhere.insert(id(1), ContentKey::from_bytes([1; 32]), Uuid::from_u128(0xe15e));
+    elsewhere.insert(
+        id(1),
+        ContentKey::from_bytes([1; 32]),
+        Uuid::from_u128(0xe15e),
+    );
     assert!(
         matches!(elsewhere.open(&sealed), Err(StoreError::Corrupt)),
         "the key held as another block's opened it"
