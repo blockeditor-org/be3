@@ -8,9 +8,8 @@ use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{
     AccountStorage, Authenticated, BrowserLogin, BrowserLoginState, Collected, Contents,
     CreatedAgent, Error, ErrorCode, Header, LinkKind, OrganizationOpened, PairingMessage,
-    RecoveryKey, RelayKind, SessionEvent, SessionState, TreeAdvanced, TreeChange, UploadUrl, embed,
+    RecoveryKey, SessionEvent, TreeAdvanced, TreeChange, UploadUrl, embed,
 };
-use be_block_session::Claim;
 use be_wasm_ops::{Backlog, Incoming, OpError, OpId, Outlets, Reply, Started, net::Peer};
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -160,19 +159,11 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
         Call::Sessions(call) => match call {
             embed::sessions::Call::SessionNew { .. } => Rule::SignedIn,
             embed::sessions::Call::SessionJoin { this, .. }
-            | embed::sessions::Call::SessionHeartbeat { this, .. }
-            | embed::sessions::Call::SessionRelay {
-                this,
-                kind: RelayKind::Peer,
-                ..
-            } => Rule::Session(this.op(), Access::View),
-            // An `edit` relay carries operations or session state, so needs edit access.
-            embed::sessions::Call::SessionRelay { this, .. } => {
-                Rule::Session(this.op(), Access::Edit)
+            | embed::sessions::Call::SessionRelay { this, .. } => {
+                Rule::Session(this.op(), Access::View)
             }
-            embed::sessions::Call::SessionClaimLease { this, .. }
-            | embed::sessions::Call::SessionSubmit { this, .. }
-            | embed::sessions::Call::SessionRebaseJournal { this, .. } => {
+            embed::sessions::Call::SessionClaim { this, .. }
+            | embed::sessions::Call::SessionSubmit { this, .. } => {
                 Rule::Session(this.op(), Access::Edit)
             }
         },
@@ -291,11 +282,9 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
         Call::Sessions(call) => match call {
             sessions::Call::SessionNew { .. }
             | sessions::Call::SessionJoin { .. }
-            | sessions::Call::SessionHeartbeat { .. }
             | sessions::Call::SessionRelay { .. }
-            | sessions::Call::SessionClaimLease { .. }
-            | sessions::Call::SessionSubmit { .. }
-            | sessions::Call::SessionRebaseJournal { .. } => true,
+            | sessions::Call::SessionClaim { .. }
+            | sessions::Call::SessionSubmit { .. } => true,
         },
         Call::Keys(call) => match call {
             keys::Call::GetKeys { .. }
@@ -668,15 +657,7 @@ impl Client {
             hub.leave_live(account, client);
         }
         self.peer.close();
-        for (block, state) in registry.leave_all(client).await {
-            let participants = registry.participants(block).await;
-            hub.send_all(
-                &participants,
-                client,
-                &Push::SessionChanged { block, state },
-            )
-            .await;
-        }
+        registry.leave_all(client).await;
         hub.remove(client).await;
     }
 
@@ -709,13 +690,32 @@ impl Client {
                     *route == Route::Changes
                 })?;
             }
-            Push::SessionChanged { block, state } => {
-                streams.send(&mut lock, SessionEvent::Changed(state), sessions(block))?;
+            Push::Membership { block, entry } => {
+                streams.send(
+                    &mut lock,
+                    SessionEvent::Membership((*entry).clone()),
+                    sessions(block),
+                )?;
+            }
+            Push::Sealed {
+                block,
+                commit,
+                through,
+                run,
+            } => {
+                streams.send(
+                    &mut lock,
+                    SessionEvent::Sealed {
+                        commit,
+                        through,
+                        run,
+                    },
+                    sessions(block),
+                )?;
             }
             Push::Relayed {
                 block,
                 from,
-                kind,
                 payload,
                 received,
             } => {
@@ -723,7 +723,6 @@ impl Client {
                     &mut lock,
                     SessionEvent::Relayed {
                         from,
-                        kind,
                         payload: payload.to_vec(),
                         received,
                     },
@@ -811,9 +810,7 @@ impl Client {
         };
         if let Some(block) = left {
             let connection = &self.connection;
-            if let Some(state) = connection.registry.leave(block, connection.client).await {
-                connection.announce(block, &state).await;
-            }
+            connection.registry.leave(block, connection.client).await;
         }
     }
 
@@ -1250,6 +1247,13 @@ impl Client {
                         .store
                         .set_role(identity, account, role, signed)
                         .await?;
+                    // A role changes edit access across the organization: each session the
+                    // account is in hears it, the caller's own connections included. Another
+                    // account's connections are dropped below, which leaves their sessions as
+                    // they close.
+                    connection
+                        .recheck_sessions(identity.organization, Some(account), None)
+                        .await;
                     if account != identity.account {
                         connection
                             .hub
@@ -1715,21 +1719,54 @@ impl Client {
                 references,
                 metadata,
                 objects,
+                journal,
             } => {
                 let published = async {
                     prelude?;
                     let identity = connection.identity()?;
+                    let place = Place {
+                        organization: identity.organization,
+                        block,
+                    };
+                    // A seal trims as it wins the head, from whichever connection sends it (an
+                    // outbox drains before its replica joins again); a trim with no new commit
+                    // only while the caller holds the lease, which the store checks with the
+                    // registry held.
+                    // Told only when the head moved: a trim with no new commit is no news of
+                    // which head holds which number.
+                    let told = journal
+                        .as_ref()
+                        .filter(|_| expected != Some(commit))
+                        .map(|seal| (seal.base.sequence, seal.run));
+                    let trim = journal.map(|seal| {
+                        let (registry, client) = (Arc::clone(&connection.registry), connection.client);
+                        crate::journal::Asked {
+                            tag: seal.tag,
+                            run: seal.run,
+                            base: seal.base,
+                            holding: Box::new(move || registry.holding(place, client)),
+                        }
+                    });
                     connection.store.put_objects(identity, objects).await?;
                     let outcome = connection
                         .store
                         .publish(
                             identity, block, commit, expected, parents, held, time, pinned,
-                            references, metadata,
+                            references, metadata, trim,
                         )
                         .await?;
+                    if let PublishOutcome::Published(head, _, Some(trimmed)) = &outcome {
+                        connection
+                            .registry
+                            .sealed(place, *head, told, trimmed)
+                            .await;
+                    }
                     // Its tree advanced, and so did those of the blocks it started or stopped
-                    // referencing.
-                    if let PublishOutcome::Published(_, relinked) = &outcome {
+                    // referencing; a publish of the head on itself (a trim with no new commit)
+                    // moved nothing.
+                    if let PublishOutcome::Published(_, relinked, _) = &outcome
+                        && expected != Some(commit)
+                    {
                         let mut changed = vec![block];
                         changed.extend(relinked.iter().copied());
                         connection
@@ -1737,7 +1774,7 @@ impl Client {
                             .await;
                     }
                     Ok(match outcome {
-                        PublishOutcome::Published(head, _) => {
+                        PublishOutcome::Published(head, ..) => {
                             be_block_protocol::PublishOutcome::Published(head)
                         }
                         PublishOutcome::Rejected(head) => {
@@ -1817,21 +1854,13 @@ impl Client {
                         connection
                             .key_work_changed(identity.organization, before.clone())
                             .await;
-                        for account in lost {
-                            connection
-                                .evict_sessions(identity.organization, account, None)
-                                .await;
-                        }
                     }
-                    if parent == BlockParent::Detached {
-                        // Trash is reversible, so no keys rotate; but whoever can no longer view
-                        // the block stops watching it and leaves its sessions.
-                        for account in before {
-                            connection
-                                .evict_sessions(identity.organization, account, Some(block))
-                                .await;
-                        }
-                    }
+                    // Whoever can no longer view the block leaves its sessions, and a change
+                    // of edit access is written into each (trash is reversible, so no keys
+                    // rotate for it).
+                    connection
+                        .recheck_sessions(identity.organization, None, Some(block))
+                        .await;
                     Ok(())
                 }
                 .await;
@@ -1985,6 +2014,10 @@ impl Client {
                             )
                             .await;
                     }
+                    // A grant can give edit access as well as take it.
+                    connection
+                        .recheck_sessions(identity.organization, None, Some(block))
+                        .await;
                     Ok(())
                 }
                 .await;
@@ -2054,10 +2087,9 @@ impl Client {
                         .require_access(connection.identity()?, vec![block], Access::View)
                         .await
                     {
-                        connection.left_session(place, connection.client).await;
+                        connection.registry.leave(place, connection.client).await;
                         return Err(error);
                     }
-                    connection.announce(place, &state).await;
                     let journal = connection
                         .store
                         .read_journal(place.organization, place.block)
@@ -2110,76 +2142,29 @@ impl Client {
                 };
                 let _ = streams.send(&mut lock, event, only);
             }
-            Call::SessionClaimLease {
-                this,
-                reply,
-                generation,
-            } => {
+            Call::SessionClaim { this, reply } => {
                 let block = self.joined(this.op());
                 let connection = &self.connection;
                 let claimed = async {
                     prelude?;
                     let block = block?;
-                    let (claim, state) = connection
+                    // The call's rule found it may edit: the order says so before its claim.
+                    connection
                         .registry
-                        .claim(block, connection.client, generation)
+                        .access(block, connection.client, true)
                         .await;
-                    if matches!(claim, Claim::Granted { .. }) {
-                        connection.announce(block, &state).await;
+                    match connection.registry.claim(block, connection.client).await {
+                        true => Ok(()),
+                        false => Err(not_joined()),
                     }
-                    Ok(state)
                 }
                 .await;
                 self.reply(reply, claimed);
-            }
-            Call::SessionHeartbeat {
-                this,
-                reply,
-                generation,
-                clean_at,
-            } => {
-                let block = self.joined(this.op());
-                let connection = &self.connection;
-                let beat = async {
-                    prelude?;
-                    let block = block?;
-                    // An owner that lost edit access since it took the lease hands it on, so
-                    // the session is not held by one whose edits are refused.
-                    if connection
-                        .registry
-                        .state(block)
-                        .await
-                        .is_holder(connection.client)
-                        && connection
-                            .store
-                            .require_access(connection.identity()?, vec![block.block], Access::Edit)
-                            .await
-                            .is_err()
-                        && let Some(state) =
-                            connection.registry.demote(block, connection.client).await
-                    {
-                        connection.announce(block, &state).await;
-                        return Ok(state);
-                    }
-                    Ok::<SessionState, ServerError>(
-                        match connection
-                            .registry
-                            .heartbeat(block, connection.client, generation, clean_at)
-                            .await
-                        {
-                            Some(state) => state,
-                            None => connection.registry.state(block).await,
-                        },
-                    )
-                }
-                .await;
-                self.reply(reply, beat);
             }
             Call::SessionRelay {
                 this,
                 reply,
                 to,
-                kind,
                 payload,
             } => {
                 let block = self.joined(this.op());
@@ -2187,16 +2172,14 @@ impl Client {
                 let relayed = async {
                     prelude?;
                     let block = block?;
-                    let state = connection.registry.state(block).await;
-                    if !state.participants.contains(&connection.client) {
+                    let participants = connection.registry.participants(block).await;
+                    if !participants.contains(&connection.client) {
                         return Err(not_joined());
                     }
-                    let participants = state.participants;
                     crate::limits::at_most("a relayed message", payload.len(), MAX_RELAY_BYTES)?;
                     let message = Push::Relayed {
                         block,
                         from: connection.client,
-                        kind,
                         payload: payload.into(),
                         received: be_block_commit::now_milliseconds(),
                     };
@@ -2261,49 +2244,14 @@ impl Client {
                         .submit_journal(block.organization, block.block, tag?, submission)
                         .await?;
                     if let crate::journal::Submitted::Numbered(entry) = numbered {
-                        // Read after the entry is kept, so a connection joining meanwhile either
-                        // reads it in the journal or hears it here.
-                        let participants = connection.registry.participants(block).await;
-                        let message = Push::Sequenced {
-                            block,
-                            entry: std::sync::Arc::new(entry),
-                        };
-                        connection.hub.send_every(&participants, &message).await;
+                        // Sent after the entry is kept, so a connection joining meanwhile
+                        // either reads it in the journal or hears it here.
+                        connection.registry.sequenced(block, entry).await;
                     }
                     Ok(())
                 }
                 .await;
                 self.reply(reply, submitted);
-            }
-            Call::SessionRebaseJournal {
-                this,
-                reply,
-                generation,
-                base,
-            } => {
-                let block = self.joined(this.op());
-                let tag = self.tag_of(this.op());
-                let connection = &self.connection;
-                let rebased = async {
-                    prelude?;
-                    let block = block?;
-                    let state = connection.registry.state(block).await;
-                    if !state.participants.contains(&connection.client) {
-                        return Err(not_joined());
-                    }
-                    // Kept only from the current holder of its generation: one whose lease
-                    // lapsed or passed seals until the next `Lease` tells it, and the journal is
-                    // the new holder's to trim.
-                    if !state.is_holder(connection.client) || state.generation != generation {
-                        return Ok(());
-                    }
-                    connection
-                        .store
-                        .rebase_journal(block.organization, block.block, tag?, base)
-                        .await
-                }
-                .await;
-                self.reply(reply, rebased);
             }
         }
     }
@@ -2647,9 +2595,7 @@ impl Connection {
             // The replaced connection closes at its next sign-in check; its sessions are left
             // now, so this one takes them over at once.
             self.store.sessions_changed();
-            for (block, state) in self.registry.leave_all(replaced).await {
-                self.announce(block, &state).await;
-            }
+            self.registry.leave_all(replaced).await;
         }
         self.hub.join_account(self.client, profile.account).await;
         self.account = Some(profile.account);
@@ -2832,7 +2778,8 @@ impl Connection {
         }
         for organization in organizations {
             for account in accounts {
-                self.evict_sessions(organization, *account, None).await;
+                self.recheck_sessions(organization, Some(*account), None)
+                    .await;
             }
         }
     }
@@ -2845,54 +2792,42 @@ impl Connection {
         }
     }
 
-    /// Ends what `account` holds on blocks it can no longer view: its sessions. With `within`,
-    /// only what it holds on that block and below it.
-    async fn evict_sessions(&self, organization: Uuid, account: Uuid, within: Option<Uuid>) {
-        for (client, identity) in self.hub.clients_of(organization, account).await {
-            let mut held = self.registry.blocks_of(client).await;
-            if let Some(root) = within {
-                let ids = held
-                    .iter()
-                    .filter(|place| place.organization == organization)
-                    .map(|place| place.block)
-                    .collect();
-                // A store error keeps everything held: each block is checked just below.
-                if let Ok(below) = self.store.within(organization, root, ids).await {
-                    held.retain(|place| {
-                        place.organization == organization && below.contains(&place.block)
-                    });
-                }
-            }
-            for block in held {
-                let kept = block.organization != organization
-                    || self
-                        .store
-                        .require_access(identity, vec![block.block], Access::View)
-                        .await
-                        .is_ok();
-                if kept {
-                    continue;
-                }
-                self.left_session(block, client).await;
+    /// Checks again what each participant of the sessions in `organization` may do there,
+    /// those of `account`'s connections only with one, and with `within` only on that block and
+    /// below it: one that can no longer view the block leaves its session, and a change of
+    /// edit access is written into the session's order (`Membership`).
+    async fn recheck_sessions(
+        &self,
+        organization: Uuid,
+        account: Option<Uuid>,
+        within: Option<Uuid>,
+    ) {
+        let mut held = self.registry.sessions_in(organization).await;
+        if let Some(root) = within {
+            let ids = held.iter().map(|(place, _)| place.block).collect();
+            // A store error keeps everything held: each block is checked just below.
+            if let Ok(below) = self.store.within(organization, root, ids).await {
+                held.retain(|(place, _)| below.contains(&place.block));
             }
         }
-    }
-
-    /// Takes `client` out of the session of `block` and tells the rest.
-    async fn left_session(&self, block: Place, client: u64) {
-        if let Some(state) = self.registry.leave(block, client).await {
-            let mut told = state.participants.clone();
-            told.push(client);
-            self.hub
-                .send_all(
-                    &told,
-                    0,
-                    &Push::SessionChanged {
-                        block,
-                        state: state.clone(),
-                    },
-                )
-                .await;
+        for (block, clients) in held {
+            for client in clients {
+                let Some(identity) = self.hub.identity(client).await else {
+                    continue;
+                };
+                if identity.organization != organization
+                    || account.is_some_and(|account| identity.account != account)
+                {
+                    continue;
+                }
+                let access = |level| self.store.require_access(identity, vec![block.block], level);
+                if access(Access::View).await.is_err() {
+                    self.registry.leave(block, client).await;
+                    continue;
+                }
+                let may_edit = access(Access::Edit).await.is_ok();
+                self.registry.access(block, client, may_edit).await;
+            }
         }
     }
 
@@ -2967,19 +2902,6 @@ impl Connection {
         self.advance(organization, vec![block], true, Vec::new())
             .await;
         self.roots(organization, vec![block], before).await;
-    }
-
-    async fn announce(&self, block: Place, state: &SessionState) {
-        self.hub
-            .send_all(
-                &state.participants,
-                self.client,
-                &Push::SessionChanged {
-                    block,
-                    state: state.clone(),
-                },
-            )
-            .await;
     }
 }
 

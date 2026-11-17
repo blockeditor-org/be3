@@ -8,7 +8,7 @@ use std::{
 
 use be_block_commit::CommitId;
 use be_block_protocol::{
-    ClientId, Journal, JournalBase, JournalEntry, PairingMessage, RelayKind, SessionEvent,
+    ClientId, Journal, JournalEntry, MembershipEntry, PairingMessage, SessionEvent,
     SessionState, client, hello, read_hello,
 };
 use be_block_store::Hash;
@@ -74,15 +74,22 @@ pub enum Event {
     /// What lies at the top of the organization, in the trash or is shared with this account may
     /// have changed: list them again.
     Roots,
-    SessionChanged {
+    /// The server wrote a membership entry into a block's session (`session-event.membership`).
+    Membership {
         block: Uuid,
-        state: SessionState,
+        entry: MembershipEntry,
+    },
+    /// A seal moved a block's head to `commit`, holding its session's order through `through`
+    /// in its `run` (`session-event.sealed`).
+    Sealed {
+        block: Uuid,
+        commit: CommitId,
+        through: u64,
+        run: u64,
     },
     Relayed {
         block: Uuid,
         from: ClientId,
-        /// What the server checked the sender may send (`relayed.kind`).
-        kind: RelayKind,
         payload: Vec<u8>,
         /// When the server took it, by its clock (`relayed.received`).
         received: i64,
@@ -332,9 +339,10 @@ impl Connection {
                 }) => Ok((client, state, journal, may_edit)),
                 Some(SessionEvent::Refused(error)) => Err(ClientError::from(error)),
                 Some(
-                    SessionEvent::Changed(_)
+                    SessionEvent::Membership(_)
                     | SessionEvent::Relayed { .. }
-                    | SessionEvent::Sequenced(_),
+                    | SessionEvent::Sequenced(_)
+                    | SessionEvent::Sealed { .. },
                 ) => Err(ClientError::Unexpected),
                 None => Err(joining
                     .ended()
@@ -349,16 +357,24 @@ impl Connection {
             connection.pump(async move {
                 while let Some(event) = joining.recv().await {
                     let _ = events.send(match event {
-                        SessionEvent::Changed(state) => Event::SessionChanged { block, state },
+                        SessionEvent::Membership(entry) => Event::Membership { block, entry },
+                        SessionEvent::Sealed {
+                            commit,
+                            through,
+                            run,
+                        } => Event::Sealed {
+                            block,
+                            commit,
+                            through,
+                            run,
+                        },
                         SessionEvent::Relayed {
                             from,
-                            kind,
                             payload,
                             received,
                         } => Event::Relayed {
                             block,
                             from,
-                            kind,
                             payload,
                             received,
                         },
@@ -405,35 +421,16 @@ impl Connection {
         })
     }
 
-    pub fn claim_lease(&self, block: Uuid, generation: u64) -> Answer<SessionState> {
-        let claimed = self
-            .session(block)
-            .map(|session| session.claim_lease(generation));
+    /// Claims the lease of `block`'s session: the server writes the claim into its order.
+    pub fn claim(&self, block: Uuid) -> Answer<()> {
+        let claimed = self.session(block).map(|session| session.claim());
         Box::pin(async move { Ok(claimed?.await??) })
     }
 
-    pub fn heartbeat(
-        &self,
-        block: Uuid,
-        generation: u64,
-        clean_at: Option<CommitId>,
-    ) -> Answer<SessionState> {
-        let beat = self
-            .session(block)
-            .map(|session| session.heartbeat(generation, clean_at));
-        Box::pin(async move { Ok(beat?.await??) })
-    }
-
-    pub fn relay(
-        &self,
-        block: Uuid,
-        to: Option<ClientId>,
-        kind: RelayKind,
-        payload: Vec<u8>,
-    ) -> Answer<()> {
+    pub fn relay(&self, block: Uuid, to: Option<ClientId>, payload: Vec<u8>) -> Answer<()> {
         let relayed = self
             .session(block)
-            .map(|session| session.relay(to, kind, payload));
+            .map(|session| session.relay(to, payload));
         Box::pin(async move { Ok(relayed?.await??) })
     }
 
@@ -451,13 +448,6 @@ impl Connection {
             )
         });
         Box::pin(async move { Ok(submitted?.await??) })
-    }
-
-    pub fn rebase_journal(&self, block: Uuid, generation: u64, base: JournalBase) -> Answer<()> {
-        let rebased = self
-            .session(block)
-            .map(|session| session.rebase_journal(generation, base));
-        Box::pin(async move { Ok(rebased?.await??) })
     }
 
     pub fn closed(&self) -> watch::Receiver<bool> {

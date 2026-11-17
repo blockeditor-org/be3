@@ -38,6 +38,7 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
                 listing(&[], Vec::new()),
                 b"sealed with content".to_vec(),
                 Vec::new(),
+                None,
             )
         })
         .await;

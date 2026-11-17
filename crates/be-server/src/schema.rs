@@ -495,6 +495,7 @@ const SCHEMA: &str = "
         sequence        INTEGER NOT NULL,
         barrier         INTEGER NOT NULL,
         lost            INTEGER NOT NULL DEFAULT 0,
+        run             INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (organization_id, block_id)
     );
 

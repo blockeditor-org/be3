@@ -12,8 +12,8 @@ use be_block_graph::{Access, BlockParent};
 use be_block_keys::{RecoveryPublic, RecoverySecret};
 use be_block_protocol::{
     AccessList, BlockSummary, ChangeCursor, ChangedPage, ClientId, ErrorCode, EscrowKey,
-    HistoryEntry, KeyKind, KeySet, Listing, ObjectChange, OrganizationKind, OrganizationRole,
-    PublishOutcome, ReferenceChange, RelayKind, ServerAccount, WrappedBy, client,
+    HistoryEntry, JournalBase, JournalSeal, KeyKind, KeySet, Listing, ObjectChange, OrganizationKind, OrganizationRole,
+    PublishOutcome, ReferenceChange, ServerAccount, WrappedBy, client,
 };
 use be_block_store::{
     ChunkerConfig, Hash, Keyring, Manifest, ObjectStore, Part, StoreError, Stored, Vault,
@@ -172,6 +172,18 @@ pub struct Write<'a> {
     merging: Option<(Option<CommitId>, CommitId)>,
     bookmark: Option<String>,
     sealed_through: Option<be_block_commit::SealedThrough>,
+    journal: Option<SealsJournal>,
+}
+
+/// A seal of a block's live session, as a write carries it (`Write::seals_journal`): the build
+/// that sealed it, the run of the order (`journal-seal.run`), the last sequence number it holds
+/// and the session state as of it.
+#[derive(Clone, Debug)]
+pub struct SealsJournal {
+    pub tag: Hash,
+    pub run: u64,
+    pub through: u64,
+    pub state: Vec<u8>,
 }
 
 impl<'a> Write<'a> {
@@ -198,6 +210,7 @@ impl<'a> Write<'a> {
             merging: None,
             bookmark: None,
             sealed_through: None,
+            journal: None,
         }
     }
 
@@ -226,6 +239,14 @@ impl<'a> Write<'a> {
     /// (`Commit::sealed_through`).
     pub fn sealed_through(mut self, sealed: Option<be_block_commit::SealedThrough>) -> Self {
         self.sealed_through = sealed;
+        self
+    }
+
+    /// The commit seals its block's live session: the server's journal starts from it only if
+    /// it wins the head (`publish`'s `journal`). None for a seal made outside the server's
+    /// session.
+    pub fn seals_journal(mut self, journal: Option<SealsJournal>) -> Self {
+        self.journal = journal;
         self
     }
 }
@@ -2828,6 +2849,7 @@ impl<S: ObjectStore> Peer<S> {
             expected,
             bookmark,
             sealed_through,
+            journal,
             ..
         } = write;
         // The commit it goes on, to tell a write that changes nothing: unknown offline when only
@@ -2880,6 +2902,19 @@ impl<S: ObjectStore> Peer<S> {
             .with_sealed_through(sealed_through);
         let id = self.commits.put(key, &commit)?;
         let sealed = self.commits.vault().seal(key, &metadata.encode())?;
+        let journal = journal
+            .map(|seal| {
+                Ok::<_, ClientError>(JournalSeal {
+                    tag: seal.tag,
+                    run: seal.run,
+                    base: JournalBase {
+                        commit: Some(id),
+                        sequence: seal.through,
+                        state: self.commits.vault().seal(key, &seal.state)?,
+                    },
+                })
+            })
+            .transpose()?;
         self.commits.vault().store().sync()?;
         let queued = self.refs.push_publish(Pending {
             block,
@@ -2891,6 +2926,7 @@ impl<S: ObjectStore> Peer<S> {
             pinned,
             references: listed.clone(),
             metadata: sealed.clone(),
+            journal,
         })?;
         // Discarded while it was sealed: as if the discard had come first.
         if queued.is_none() {
@@ -2963,6 +2999,7 @@ impl<S: ObjectStore> Peer<S> {
             pinned,
             ref references,
             ref metadata,
+            ref journal,
         } = *pending;
         // Sealed offline under a key judged then by what was kept, or not at all: judged again
         // now, and never sent under an epoch the logs show outdated (signed access 3d). Refused
@@ -3008,6 +3045,7 @@ impl<S: ObjectStore> Peer<S> {
                     listed.clone(),
                     metadata.clone(),
                     objects,
+                    journal.clone(),
                 ))
             };
             match carried.take() {
@@ -3555,12 +3593,11 @@ impl<S: ObjectStore> Peer<S> {
         &self,
         block: Uuid,
         to: Option<ClientId>,
-        kind: RelayKind,
         payload: &[u8],
     ) -> Result<Answer<()>, ClientError> {
         let key = self.sealing_key(block).await?;
         let sealed = self.commits.vault().seal(key, payload)?;
-        Ok(self.connection().relay(block, to, kind, sealed))
+        Ok(self.connection().relay(block, to, sealed))
     }
 
     /// A relay of `block`'s session (`Peer::open_for`).

@@ -51,6 +51,7 @@ fn a_block_this_account_lost_is_forgotten_once_what_was_set_aside_is_discarded()
         pinned: false,
         references: Vec::new(),
         metadata: Vec::new(),
+        journal: None,
     }))
     .unwrap();
     assert!(refs.move_to_unsent(block, 0, None).unwrap());

@@ -18,7 +18,6 @@ fn a_replica_that_ended_uncounts_only_the_operations_it_never_took() {
         from: Endpoint::Editor(editor),
         bytes: sent.encode(),
         at: 0,
-        delivery: None,
     };
     let replay = [
         message(FromEditor::Operate(vec![1])),

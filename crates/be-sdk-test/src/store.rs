@@ -210,13 +210,16 @@ impl Default for Inner {
     }
 }
 
-fn session() -> SessionState {
+fn session(tag: SessionTag) -> SessionState {
     SessionState {
-        generation: 1,
-        owner: Some(THIS_DEVICE),
-        participants: vec![THIS_DEVICE],
-        clean_at: None,
-        tag: None,
+        index: 1,
+        after: 0,
+        participants: vec![be_sdk_type_guest::api::Participant {
+            client: THIS_DEVICE,
+            tag: Hash::from_bytes(tag.0),
+            may_edit: true,
+            claimed: None,
+        }],
     }
 }
 
@@ -520,8 +523,7 @@ impl Inner {
                 reply.send(&mut self.host, &());
             }
             Call::Send { reply, .. }
-            | Call::ClaimLease { reply, .. }
-            | Call::ReportClean { reply, .. }
+            | Call::Claim { reply }
             | Call::ReportStatus { reply, .. }
             | Call::InStepAt { reply, .. }
             | Call::Conflict { reply, .. }
@@ -607,7 +609,7 @@ impl Inner {
                 kept_submitted: 0,
                 kept_submissions: Vec::new(),
                 head,
-                session: session(),
+                session: session(TAG),
                 journal: None,
                 lost_edits: false,
                 journal_kept: false,
@@ -684,16 +686,7 @@ impl Inner {
         let bytes = be_sdk_type_guest::wire::encode(&message);
         let now = self.now;
         self.on_replica(replica, |replica, host| {
-            replica.message(
-                host,
-                Endpoint::Peer(client),
-                bytes,
-                now,
-                Some(be_sdk_type_guest::api::Delivery {
-                    kind: be_sdk_type_guest::api::RelayKind::Seal,
-                    received: now as i64,
-                }),
-            );
+            replica.message(host, Endpoint::Peer(client), bytes, now);
         });
     }
 
@@ -900,7 +893,7 @@ impl Inner {
         let send = move |inner: &mut Self| {
             let now = inner.now;
             inner.on_replica(replica, |replica, host| {
-                replica.message(host, Endpoint::Editor(editor), frame, now, None);
+                replica.message(host, Endpoint::Editor(editor), frame, now);
             });
         };
         match message {

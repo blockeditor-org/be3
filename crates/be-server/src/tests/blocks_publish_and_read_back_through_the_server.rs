@@ -29,6 +29,7 @@ async fn blocks_publish_and_read_back_through_the_server() {
                 listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await;
@@ -63,6 +64,7 @@ async fn blocks_publish_and_read_back_through_the_server() {
                 listing(&[], Vec::new()),
                 Vec::new(),
                 carried,
+                None,
             )
         })
         .await;

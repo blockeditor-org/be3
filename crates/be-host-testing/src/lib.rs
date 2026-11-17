@@ -40,7 +40,6 @@ impl Harness {
         let server = be_host_server::start_embedded_server_at(
             "127.0.0.1:0",
             directory.join("server"),
-            be_server::ServerConfig::OPEN.lease,
             be_server::push::PushConfig::DEFAULT,
         )
         .expect("the embedded block server starts");

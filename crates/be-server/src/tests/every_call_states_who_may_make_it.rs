@@ -280,6 +280,7 @@ impl TestClient {
                         listing(&[], Vec::new()),
                         Vec::new(),
                         vec![b"an object".to_vec()],
+                        None,
                     )
                     .await,
                 ),
@@ -510,36 +511,14 @@ impl TestClient {
             Some(other) => panic!("joining answered {other:?}"),
         };
         answers.push(("session-join", joined));
-        answers.push((
-            "session-claim-lease",
-            answered(session.claim_lease(1).await),
-        ));
-        answers.push((
-            "session-heartbeat",
-            answered(session.heartbeat(1, None).await),
-        ));
+        answers.push(("session-claim", answered(session.claim().await)));
         answers.push((
             "session-relay",
-            answered(session.relay(None, RelayKind::Peer, sealed()).await),
+            answered(session.relay(None, sealed()).await),
         ));
         answers.push((
             "session-submit",
             answered(session.submit(1, 1, 0, false, sealed()).await),
-        ));
-        answers.push((
-            "session-rebase-journal",
-            answered(
-                session
-                    .rebase_journal(
-                        1,
-                        be_block_protocol::JournalBase {
-                            commit: None,
-                            sequence: 0,
-                            state: Vec::new(),
-                        },
-                    )
-                    .await,
-            ),
         ));
         answers.push((
             "logout",
@@ -641,11 +620,9 @@ async fn every_call_states_who_may_make_it() {
         "set-access",
         "rotate",
         "session-join",
-        "session-claim-lease",
-        "session-heartbeat",
+        "session-claim",
         "session-relay",
         "session-submit",
-        "session-rebase-journal",
         "set-notify-mode",
         "notify",
     ];

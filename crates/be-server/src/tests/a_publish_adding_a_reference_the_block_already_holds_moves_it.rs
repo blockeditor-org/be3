@@ -30,6 +30,7 @@ async fn publish_references(
                 references,
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await
