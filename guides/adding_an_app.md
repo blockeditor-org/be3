@@ -276,9 +276,10 @@ staged data), or uses wasm-bindgen. It links against the shared libraries
 (guides/app_libraries.md); `app(libraries = [...])` overrides that. A C or C++
 library links in as a position-independent static library through
 `app(extra_deps = [...])`, or a worker's `cargo_library(extra_deps = [...])`
-(PDFium, `third-party/pdfium`, in crates/be-worker-pdf-render). `std::thread` works,
-but only the app's first thread may call the GPU. An app has no fonts of its
-own; the host sends them.
+(PDFium, `third-party/pdfium`, in crates/be-worker-pdf-render). An app is
+single-threaded `wasm32-wasip1` (decisions/guests_are_single_threaded.md):
+`std::thread::spawn` fails, so work off the app's frames is a worker (below).
+An app has no fonts of its own; the host sends them.
 
 Data an app ships rather than keeps in a workspace goes in its `app()`'s
 `data`, staged under `data/<app id>/` and read with `list_data`/`read_data`
@@ -321,8 +322,13 @@ crates/be-sdk-worker; plans/single_threaded_guests.md). The map's
   answers with `try_receive` once `wake` is called. The worker starts with the
   first and stops with the last; one that stopped (a job it failed stops it)
   fails what each editor had in flight, and the next `send` starts it anew.
+  Each instance is a `Generation`: `send` answers the one a message went to
+  and each `Answer` names the one it came from, so a stop fails only what was
+  sent to that generation, even when a `send` started the next before the
+  editor heard the stop.
   Each message carries its client, so a `Work` answers whoever asked without
-  the app's messages naming them. The map and the PDF editor work this way.
+  the app's messages naming them; it answers inside `receive`, through the
+  `App` it is handed, which lasts only for that call. The map and the PDF editor work this way.
 - A worker has WASI and its libraries but no gpu and no host services: it
   computes and sends back bytes, which the app uploads or shows. It may block
   its own thread as long as a job needs.

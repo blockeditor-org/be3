@@ -11,9 +11,25 @@ use std::{
 
 use be_wasm_sandbox_api::ops::guest;
 
-use crate::{Sender, Worker};
+use crate::{Received, Sender, Worker};
 
-type Answers = Rc<RefCell<VecDeque<Result<Vec<u8>, String>>>>;
+/// Which instance of a shared worker a message went to and an answer came from. A worker that
+/// stopped is started anew by the next `send`, as the next generation, so an editor can tell what
+/// a stop fails (what it sent to that generation) from what it sent since.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Generation(u64);
+
+/// An answer to one client of a shared worker (`Shared::try_receive`): a message the worker sent
+/// it, or why the worker stopped, from the generation it came from.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Answer {
+    pub generation: Generation,
+    /// The worker's message, or why the generation stopped: nothing more sent to it will be
+    /// answered.
+    pub result: Result<Vec<u8>, String>,
+}
+
+type Answers = Rc<RefCell<VecDeque<Answer>>>;
 
 /// Where a client's answers go, and how it hears they came.
 struct Route {
@@ -27,11 +43,15 @@ thread_local! {
     /// The running worker of each module, by the executor whose app spawned it (so one test's app
     /// never finds another's) and the module.
     static RUNNING: RefCell<HashMap<(u64, String), Weak<Running>>> = RefCell::new(HashMap::new());
+
+    /// The generation the next worker started is.
+    static NEXT_GENERATION: Cell<u64> = const { Cell::new(1) };
 }
 
 /// A worker module's one instance, while any client holds it, and the task that hears it and
 /// hands each client its answers.
 struct Running {
+    generation: Generation,
     sender: Sender,
     routes: Routes,
     next: Cell<u64>,
@@ -59,6 +79,7 @@ impl Running {
     }
 
     fn start(module: &str) -> Self {
+        let generation = Generation(NEXT_GENERATION.replace(NEXT_GENERATION.get() + 1));
         let mut worker = Worker::spawn(module);
         let sender = worker.sender();
         let routes = Routes::default();
@@ -69,25 +90,35 @@ impl Running {
             loop {
                 let answer = worker.receive_framed().await;
                 let routes = heard.borrow();
-                match answer {
-                    Ok((client, message)) => {
+                let why = match answer {
+                    Received::Message(client, message) => {
                         if let Some(route) = routes.get(&client) {
-                            route.answers.borrow_mut().push_back(Ok(message));
+                            route.answers.borrow_mut().push_back(Answer {
+                                generation,
+                                result: Ok(message),
+                            });
                             (route.wake)();
                         }
+                        continue;
                     }
-                    Err(why) => {
-                        stops.set(true);
-                        for route in routes.values() {
-                            route.answers.borrow_mut().push_back(Err(why.clone()));
-                            (route.wake)();
-                        }
-                        return;
-                    }
+                    Received::Stopped(why) => why,
+                    // Which client it answers is lost, so it fails every client's, and the
+                    // generation is dropped as one that stopped.
+                    Received::Unframed => crate::UNFRAMED.to_owned(),
+                };
+                stops.set(true);
+                for route in routes.values() {
+                    route.answers.borrow_mut().push_back(Answer {
+                        generation,
+                        result: Err(why.clone()),
+                    });
+                    (route.wake)();
                 }
+                return;
             }
         });
         Self {
+            generation,
             sender,
             routes,
             next: Cell::new(1),
@@ -136,9 +167,10 @@ impl Shared {
         }
     }
 
-    /// Sends the worker one message. If it stopped (a job it could not do stops it), this starts
-    /// it anew first, so one bad job fails only what was in flight.
-    pub fn send(&mut self, message: &[u8]) {
+    /// Sends the worker one message, and answers the generation it went to. If the worker
+    /// stopped (a job it could not do stops it), this starts it anew first, as the next
+    /// generation, so one bad job fails only what was in flight.
+    pub fn send(&mut self, message: &[u8]) -> Generation {
         if self.running.stopped.get() {
             self.leave();
             self.running = Running::of(&self.module);
@@ -148,11 +180,13 @@ impl Shared {
             });
         }
         self.running.sender.send_as(self.client, message);
+        self.running.generation
     }
 
-    /// The next answer to this client, once it came, or why the worker stopped, which fails
-    /// everything this client still waits on: none of it will be answered.
-    pub fn try_receive(&self) -> Option<Result<Vec<u8>, String>> {
+    /// The next answer to this client, once it came. An error says why a generation stopped,
+    /// which fails everything this client sent to that generation, and nothing sent to a later
+    /// one: none of it will be answered.
+    pub fn try_receive(&self) -> Option<Answer> {
         self.answers.borrow_mut().pop_front()
     }
 

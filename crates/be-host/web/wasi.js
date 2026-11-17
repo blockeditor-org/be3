@@ -18,9 +18,10 @@
 // worker binds one: be-host's page refuses every file call loudly (refuseFiles),
 // since it may not wait. An app binds no channel and has no file system at all.
 //
-// The memory is shared, so it is a SharedArrayBuffer. TextDecoder and
-// getRandomValues both refuse to look at one, and every call that reads or
-// writes bytes copies through an unshared buffer for that reason.
+// The memory may be shared (be-host's own; an app's never is), and then it is a
+// SharedArrayBuffer. TextDecoder and getRandomValues both refuse to look at
+// one, and every call that reads or writes bytes copies through an unshared
+// buffer for that reason.
 
 /** @type {WebAssembly.Memory | null} */
 let memory = null;

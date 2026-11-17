@@ -16,6 +16,12 @@ prebuilt_cxx_library(
             "-lc++abi",
             "$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/libsetjmp.a",
         ],
+        # A guest is single-threaded wasm32-wasip1 (decisions/guests_are_single_threaded.md).
+        "root//buck/platforms:wasi_guest_setting": [
+            "-L$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1/noeh",
+            "-lc++abi",
+            "$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1/libsetjmp.a",
+        ],
     }),
 )
 

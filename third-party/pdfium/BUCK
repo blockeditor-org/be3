@@ -79,7 +79,9 @@ cxx_library(
     exported_deps = [":" + name for name in libraries] + ["root//third-party/system:stdc++"],
     exported_linker_flags = ["-lc++"]
     + [
-        "$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/libwasi-emulated-{}.a".format(library) for library in ["getpid", "mman", "signal"]
+        # PDFium is linked only by a guest, which is single-threaded wasm32-wasip1.
+        "$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1/libwasi-emulated-{}.a".format(library)
+        for library in ["getpid", "mman", "signal"]
     ],
     preferred_linkage = "static",
     target_compatible_with = ["prelude//os/constraints:os[wasi]"],

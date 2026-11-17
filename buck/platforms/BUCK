@@ -64,8 +64,9 @@ target_platform(
     ],
 )
 
-# The same triple as above, and what tells the two apart. An app is built for
-# this one; be-host's web bundle is built for the one above. Its setting is the
+# An app, its libraries and workers: wasm32-wasip1 rather than the threaded
+# triple above (decisions/guests_are_single_threaded.md), which be-host's web
+# bundle is built for. Its setting is the
 # one above's with one more constraint, so select() takes it as the more
 # specific (cross.bzl's PLAN_SETTINGS).
 target_platform(

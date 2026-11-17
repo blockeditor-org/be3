@@ -130,8 +130,8 @@ export async function link({ bytes, module: app, guest, imports, initialize, wak
     const modules = [...libraries.map(({ module }) => module), app];
     const first = modules[0];
     const imported = importedMemory(libraries[0]?.bytes ?? bytes);
-    if (libraries.length > 0 && !imported?.shared) {
-        throw new Error("the root library does not import a shared memory");
+    if (libraries.length > 0 && imported === null) {
+        throw new Error("the root library does not import its memory");
     }
     let memory = imported === null ? null : new WebAssembly.Memory(imported);
     const current = () => memory;
@@ -153,7 +153,8 @@ export async function link({ bytes, module: app, guest, imports, initialize, wak
         threads.bindLinked(modules, plan);
         const thread = {
             blocks: dylink.takeBlocks(memory, plan),
-            rootBlock: runtime.exports.__tls_base.value >>> 0,
+            // A single-threaded guest has no thread-local block (decisions/guests_are_single_threaded.md).
+            rootBlock: (runtime.exports.__tls_base?.value ?? 0) >>> 0,
             main: true,
         };
         exports = dylink.link(modules, plan, runtime, thread, resolve).exports;
