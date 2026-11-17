@@ -91,7 +91,7 @@ fn parse(arguments: &[String], usage: &str) -> Result<Launch, String> {
             }
         }
     }
-    if launch.program.is_none() {
+    if launch.program.is_none() || (launch.archive.is_none() && !launch.beside.is_empty()) {
         return Err(usage.to_owned());
     }
     Ok(launch)

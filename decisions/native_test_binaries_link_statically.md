@@ -9,7 +9,7 @@ Linking is the largest part of rebuilding a big native test binary: in November 
 It was not done because the prelude cannot do it for tests alone:
 
 - `link_style = "shared"` on a Rust binary makes only its native (C) dependencies shared. Rust dependencies stay static unless the Rust toolchain sets `advanced_unstable_linking` (`_adjust_link_strategy_for_rust_dependencies` in the prelude's rust/link_info.bzl).
-- That is a field of the toolchain, not of a target. With it on, every Rust binary, dylib and cdylib links through the C++ toolchain from rlib objects: be-host, the apps and libraries be-wasm-link links, the release and LTO builds, on every platform.
+- That is a field of the toolchain, not of a target. With it on, every Rust binary, dylib and cdylib links through the C++ toolchain from rlib objects: be-host, the apps and libraries be-wasm-link links, the release builds, on every platform.
 - It also requires the toolchain to name the standard library's crates (std, core, alloc and the rest) as explicit sysroot dependencies, for every platform built: Linux x86_64 and arm64, wasi and wasi_guest, wasm32, Android, Windows and macOS. Without them analysis fails ("Explicit sysroot deps are required when advanced_unstable_linking is on"), as tried on be-server's test binary.
 - A shared object per crate, std included, would then have to reach each test on a worker: buck/dev/test.bzl's `--library-path` and the test's runtime inputs.
 

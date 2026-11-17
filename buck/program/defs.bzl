@@ -106,7 +106,7 @@ def _lay_out(ctx: AnalysisContext, layout: list, arguments: list, beside: list, 
 # and where everything goes; the directory is then laid out from that
 # (_lay_out), each file a symlink to the artifact it is, so programs that
 # share the apps' modules share their bytes too. `[archive]`
-# is the whole directory but its source files, links followed, as one
+# is the whole directory (but an executable's source files), links followed, as one
 # compressed file (crates/be-host-archive), a quarter of its size or less, made on a
 # worker. `buck2 run` runs the executable from it, unpacked into target/apps
 # once for each new archive, with the source files copied in (--beside), so a run
@@ -132,13 +132,14 @@ def _program_impl(ctx: AnalysisContext) -> list[Provider]:
         executable = ctx.attrs.binary[DefaultInfo].default_outputs[0]
         name = ctx.attrs.executable_name + executable.extension
         add("--executable={}={}".format(executable.basename, name), [executable])
-    # A source file among `files` is kept out of the archive and copied in beside
-    # it when it is unpacked: buck/program/build-info.json changes with every
-    # build id, which is every change to the working tree, and in the archive it
-    # would pack, download and unpack the whole program again for it.
+    # In a program with an executable, a source file among `files` is kept out of
+    # the archive and copied in beside it when `buck2 run` unpacks it:
+    # buck/program/build-info.json changes with every build id, which is every
+    # change to the working tree, and in the archive it would pack, download and
+    # unpack the whole program again for it. Any other program's archive is whole.
     beside = []
     for file in ctx.attrs.files:
-        if file.is_source:
+        if ctx.attrs.binary and file.is_source:
             beside.append(len(arguments))
         add("--file=" + file.basename, [file])
     libraries = []
