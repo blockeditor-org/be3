@@ -1621,41 +1621,29 @@ impl TestClient {
         account: Uuid,
         role: be_block_protocol::OrganizationRole,
     ) -> Result<(), Error> {
-        use be_block_keys::{Administrator, Entry, LogKind, Record};
-        let entries: Vec<Entry> = self
-            .call(client::organizations::get_organization_log)
-            .await
-            .unwrap_or_default()
-            .iter()
-            .filter_map(|entry| Entry::decode(entry).ok())
-            .collect();
+        use be_block_keys::{Administrator, Record};
         let administrator = role == be_block_protocol::OrganizationRole::Administrator;
-        let named = entries.first().and_then(|root| {
-            be_block_keys::check_log(
-                LogKind::Organization,
-                root.log,
-                root.hash(),
-                &entries,
-                &|_, _| None,
-            )
-            .ok()
-            .map(|checked| checked.administrators.contains_key(&account.into_bytes()))
-        });
-        let signed = match (named, self.account) {
-            (Some(named), Some(me)) if named != administrator => Some(
-                Entry::sign(
-                    &test_secret(me),
-                    me.into_bytes(),
-                    entries[0].log,
-                    entries.last().map(Entry::hash),
-                    Record::Administrator(Administrator {
-                        account: account.into_bytes(),
-                        identity: test_secret(account).identity(),
-                        administrator,
-                    }),
-                )
-                .encode(),
-            ),
+        let checked = self.organization_log().await;
+        let signed = match (checked, self.account) {
+            (Some((log, checked)), Some(me))
+                if checked
+                    .administrators
+                    .contains_key(&account.into_bytes())
+                    != administrator =>
+            {
+                checked
+                    .next(
+                        &test_secret(me),
+                        me.into_bytes(),
+                        log,
+                        Record::Administrator(Administrator {
+                            account: account.into_bytes(),
+                            identity: test_secret(account).identity(),
+                            administrator,
+                        }),
+                    )
+                    .map(|entry| entry.encode())
+            }
             _ => None,
         };
         self.call(|peer| client::members::set_role(peer, account, role, signed.clone()))
@@ -1672,31 +1660,41 @@ impl TestClient {
         member: bool,
         agent: bool,
     ) -> Option<Vec<u8>> {
-        use be_block_keys::{Entry, Member, Record};
+        use be_block_keys::{Member, Record};
         let me = self.account?;
-        let entries: Vec<Entry> = self
-            .call(client::organizations::get_organization_log)
-            .await
-            .ok()?
-            .iter()
-            .filter_map(|entry| Entry::decode(entry).ok())
-            .collect();
-        let last = entries.last()?;
-        Some(
-            Entry::sign(
-                &test_secret(me),
-                me.into_bytes(),
-                last.log,
-                Some(last.hash()),
-                Record::Member(Member {
-                    account: account.into_bytes(),
-                    identity,
-                    member,
-                    agent,
-                }),
-            )
-            .encode(),
+        let (log, checked) = self.organization_log().await?;
+        let entry = checked.next(
+            &test_secret(me),
+            me.into_bytes(),
+            log,
+            Record::Member(Member {
+                account: account.into_bytes(),
+                identity,
+                member,
+                agent,
+            }),
+        )?;
+        Some(entry.encode())
+    }
+
+    /// The organization open's log as served to this client, checked from its root: its id and
+    /// what it gives. None in an organization with no log.
+    async fn organization_log(&mut self) -> Option<([u8; 16], be_block_keys::Checked)> {
+        let steps = decode_steps(
+            self.call(client::organizations::get_organization_log)
+                .await
+                .ok()?,
+        );
+        let root = steps.first()?.entry()?.clone();
+        let checked = be_block_keys::check_log(
+            be_block_keys::LogKind::Organization,
+            root.log,
+            root.hash(),
+            &steps,
+            &|_, _| None,
         )
+        .ok()?;
+        Some((root.log, checked))
     }
 
     /// Makes an agent of this client's in the organization open, with test keys of its own, as
@@ -1736,23 +1734,7 @@ impl TestClient {
     /// Removes `account` from the organization open, signing it out of the log as a device does
     /// (`Peer::remove_member`) when the log names it.
     async fn remove_member(&mut self, account: Uuid) -> Result<(), Error> {
-        use be_block_keys::{Entry, LogKind};
-        let entries: Vec<Entry> = self
-            .call(client::organizations::get_organization_log)
-            .await
-            .unwrap_or_default()
-            .iter()
-            .filter_map(|entry| Entry::decode(entry).ok())
-            .collect();
-        let named = entries.first().and_then(|root| {
-            let checked = be_block_keys::check_log(
-                LogKind::Organization,
-                root.log,
-                root.hash(),
-                &entries,
-                &|_, _| None,
-            )
-            .ok()?;
+        let named = self.organization_log().await.and_then(|(_, checked)| {
             let identity = checked.member(account.into_bytes())?;
             let agent = checked
                 .members
@@ -1819,15 +1801,10 @@ impl TestClient {
         account: Uuid,
         access: be_block_graph::Access,
     ) -> Option<Vec<u8>> {
-        use be_block_keys::{Authority, Entry, Grant, LogKind, Opening, Record};
+        use be_block_keys::{Authority, Grant, LogKind, Opening, Record, Step};
         let opening = account == be_block_graph::ANYONE_INSIDE;
         let me = self.account?;
-        let decode = |served: Vec<Vec<u8>>| -> Vec<Entry> {
-            served
-                .iter()
-                .filter_map(|entry| Entry::decode(entry).ok())
-                .collect()
-        };
+        let decode = decode_steps;
         let log = decode(
             self.call(|peer| client::blocks::get_access_log(peer, block))
                 .await
@@ -1839,12 +1816,12 @@ impl TestClient {
                 .unwrap_or_default(),
         );
         let level = crate::access::level(access);
-        let check = |kind, of: [u8; 16], entries: &[Entry]| {
+        let check = |kind, of: [u8; 16], entries: &[Step]| {
             let pinned = entries.first()?.hash();
             be_block_keys::check_log(kind, of, pinned, entries, &|_, _| None).ok()
         };
         // The last grant the log names for them; the server checks the whole log.
-        let named = log.iter().rev().find_map(|entry| match &entry.record {
+        let named = log.iter().rev().filter_map(Step::entry).find_map(|entry| match &entry.record {
             Record::Grant(grant) if grant.grantee == account.into_bytes() => Some(grant.level),
             Record::Opening(opened) if opening => Some(opened.level),
             _ => None,
@@ -1889,11 +1866,14 @@ impl TestClient {
             (None, Some(head)) => Authority::Organization(head.hash()),
             (None, None) => Authority::Log,
         };
-        let entry = Entry::sign(
+        // As `Checked::lowers` finds it: below the level the log last named.
+        let lowers = named.is_some_and(|named| level < named);
+        let entry = be_block_keys::Entry::sign(
             &test_secret(me),
             me.into_bytes(),
             block.into_bytes(),
             Some(log.last()?.hash()),
+            lowers,
             match opening {
                 true => Record::Opening(Opening { level, authority }),
                 false => Record::Grant(Grant {
@@ -1906,6 +1886,14 @@ impl TestClient {
         );
         Some(entry.encode())
     }
+}
+
+/// A served log's steps (`be_block_keys::Step`), root first; any that does not read is left out.
+fn decode_steps(served: Vec<Vec<u8>>) -> Vec<be_block_keys::Step> {
+    served
+        .iter()
+        .filter_map(|step| be_block_keys::Step::decode(step).ok())
+        .collect()
 }
 
 fn poll<F: Future + Unpin>(future: &mut F) -> std::task::Poll<F::Output> {

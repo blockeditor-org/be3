@@ -54,6 +54,7 @@ async fn a_grantee_who_never_signed_retires_its_old_key_too() {
         member.account().into_bytes(),
         team.into_bytes(),
         retired.last().map(Entry::hash),
+        false,
         Record::Grant(Grant {
             grantee: [9; 16],
             identity: thief.identity(),

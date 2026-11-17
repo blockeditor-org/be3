@@ -394,13 +394,18 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   is a contact of the granter (guides/blocks/keys.md). Anyone may revoke their
   own grant. `ListAccess` never lists the rest of the membership.
 - Each block has an access log (plans/signed_access.md; table `access_log`,
-  `be-server/src/access.rs`), served to its viewers by `get-access-log`. So far
-  it holds the root: `CreateBlock` carries it, and the server takes it only
-  signed by the caller with the keys `recovery_keys` holds for it now, so a
-  good server and a device never disagree (guides/blocks/keys.md, "Access
-  logs"). A company organization's log (`organization_log`) is rooted the same
-  way by `create-organization`, whose caller picks the organization's id, and
-  served to its members by `get-organization-log`.
+  `be-server/src/access.rs`), served to its viewers by `get-access-log`. Its
+  root comes with `CreateBlock`, and the server takes it only signed by the
+  caller with the keys `recovery_keys` holds for it now, so a good server and a
+  device never disagree (guides/blocks/keys.md, "Access logs"). A company
+  organization's log (`organization_log`) is rooted the same way by
+  `create-organization`, whose caller picks the organization's id, and served
+  to its members by `get-organization-log`. Each is served whole to a caller
+  with Edit or above (on the block or one below it, `Visibility::served_whole`;
+  on any block, or administering, for the organization's), and to anyone else
+  as a proof path (`access::served_log`, `be_block_keys::proof_path`) whole
+  only where it proves the caller's right and that of each account that sealed
+  it a key (`wrapped_keys.sender`).
 
 No check maps the whole graph. `BlockGraph` indexes children by parent and
 blocks by the accounts that authored or were granted them; `inherited` walks

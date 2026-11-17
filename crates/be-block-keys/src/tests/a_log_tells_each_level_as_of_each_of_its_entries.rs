@@ -15,6 +15,7 @@ fn a_log_tells_each_level_as_of_each_of_its_entries() {
             creator_id,
             block,
             Some(previous),
+            level == Level::None,
             Record::Grant(Grant {
                 grantee: member_id,
                 identity: member.identity(),

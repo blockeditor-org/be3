@@ -102,9 +102,12 @@ Readers below Edit (View, and Join in plans/hosted_blocks.md), who never
 seal, are served **proof paths**: the entries that prove one right, and the
 chain they hang from, and nothing about other members.
 
-- **A direct grant**: the root, the grant, and the log entries between them,
-  each reduced to its hash where the reader needs only the chain (the signed
-  entry it names and the hash of the one before).
+- **A direct grant**: the root, the grant, and the log entries between them
+  and after it to the head, each reduced where the reader needs only the
+  chain: the hash of the one before, whether it lowered anyone, and a digest
+  of the rest, which together hash as the whole entry does. Every entry says
+  whether it lowered anyone, checked where it is whole, so a reader still
+  tells which epochs a revocation it cannot read outdates.
 - **An inherited right**: the signed parent records from the block up to the
   ancestor that grants it, and that ancestor's proof path for the one grant.
   Siblings and the ancestors' other members are not on it.
@@ -113,11 +116,20 @@ chain they hang from, and nothing about other members.
 - **An administrator**, for a reader below Edit: the organization log's path
   from its root to the record that made them one.
 
-A reader below Edit is served the path of its own grant. Hosted blocks add
-the host's grant and bans (plans/hosted_blocks.md). A proof path can hide a
-later revocation behind a hash; for a reader who never seals, that only
-matters for a hosted block's host (plans/hosted_blocks.md, "Accepted
-limits").
+A reader below Edit is served the path of its own grant, and of the grant of
+each account that sealed it a key of the block, which it judges the seal by,
+in the same answer (`get-access-log`), with each whole entry's signer's own
+records, so every whole entry checks at its place. Openings of a kind to
+anyone inside name no one and are always whole; the records the reader
+signed (its own leaving, an agent it made) are too. A member with Edit on a
+block below gets the whole log, as an ancestor's sealer. Of the
+organization's log, a member below Edit everywhere is served its own and its
+sealers' records whole, and every administrator record and every record
+about anyone who ever administered, so no demotion is hidden: an honest path
+of it reduces nothing that lowered anyone. Hosted blocks add the host's grant
+and bans (plans/hosted_blocks.md). A proof path can hide a later revocation
+behind a reduced entry; for a reader who never seals, that only matters for a
+hosted block's host (plans/hosted_blocks.md, "Accepted limits").
 
 ## Sealing to someone who is not a contact
 
@@ -130,7 +142,7 @@ grant. A receiving device accepts a key sealed by any sender holding `Edit`
 or above as of the epoch's head, not only by a contact: key work is done by
 whichever editor runs `tend`, which is often not the receiver's granter. An
 editor receiving it checks the sender in the whole log it holds; a reader
-below Edit is served the sender's proof path beside the sealed key. `get-signing-keys` stays only for showing authors
+below Edit is served the sender's proof path in its path of the log. `get-signing-keys` stays only for showing authors
 (`Signer::Unverified`).
 
 ## What changes
@@ -307,8 +319,25 @@ did not sign.
   different order through that sequence reports the fork. A participant who
   leaves before the next seal is not checked against it.
 - A reader below Edit checks a sealer on a proof path, which can hide a later
-  revocation of the sealer. That only lets a revoked editor hand a reader a
-  key, and a reader below Edit never seals or wraps with it.
+  revocation of the sealer: it shows the reader that someone was lowered, not
+  whom. That lets a revoked editor, with the server, hand a reader a key they
+  made up, naming the head now, which the reader then reads and relays under
+  (peer messages: presence, cursors), but never seals, wraps or writes content
+  under: nothing is sealed to anyone, nor any record but the reader's own
+  signed, by a partial log. Refusing such a seal instead would refuse every
+  honest epoch made by an editor granted before any revocation. Each check of
+  3d otherwise reads a path as a whole log: `holds`, `current_at` and
+  `outdates`, kept state and withheld or stale answers are exact; a kind's
+  opening counts as closed by any reduced lowering after it; and no escrow
+  epoch is used while the organization's path hides a lowering
+  (guides/blocks/keys.md, "Proof paths").
+- **A proof path's shape.** A reader learns how long the log is, where in it
+  someone was lowered, and the grants of whoever sealed it a key and of those
+  who granted them. Fixing the length would need a commitment to the log's
+  state instead of a chain.
+- **An ancestor's whole log** goes to a member with Edit below it only if they
+  may view the ancestor (`get-access-log` needs View, as before); otherwise
+  they read none of it, as before 3e.
 - **A leaked phrase** lets whoever holds it act as the account until it
   retires the key: read and write what it may, sign records, host a hosted
   block it has Edit on, or join one as a player.
@@ -520,8 +549,14 @@ instead.
      their revocation, or none, is not taken; and one where a demoted
      administrator's made-up escrow epoch installs nothing.
    - **3e. Proof paths.** Whole logs to Edit and above, proof paths to
-     readers below Edit ("Who is served what"). Done: a test where a member
-     with View is served no other member's grant.
+     readers below Edit ("Who is served what"). Built: `get-access-log` and
+     `get-organization-log` serve `be_block_keys::Step`s, whole or reduced
+     (`proof_path`); every entry says whether it lowered anyone
+     (`Entry::lowers`), so epochs are judged on a path as on a whole log; a
+     partial log seals, signs and escrows nothing but a reader's own records
+     (guides/blocks/keys.md, "Proof paths"). Done: a test where a member with
+     View is served no other member's grant, and a revocation it is served
+     reduced still outdates the epochs before it.
 4. **Signed parents.** Done: a test where the server claims a block moved under
    a scope a contact manages and the next rotation wraps nothing under it.
 5. **Owner transfer.** Owner records, and transferring ownership in the shell.
