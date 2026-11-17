@@ -222,13 +222,23 @@ such a window by its bar. A carry's payload is a
 may coincide, neither takes it nor hides a tab for it. Tool bars still ride the old `DropTarget`
 (plans/declarative_dragging.md, step 4).
 
+**From the keyboard.** A tab's row is a drag source whose tab button holds the focus, so a
+focused tab moves with the carry keys (guides/beui_keyboard.md): Ctrl+Shift and an arrow move it
+one place at once, along its bar or past its end into the nearest of the dock's places that
+way, and Move in the palette lifts it for the arrows to step between every place, each said by
+its label ("right of Files", "with Files"), until Enter drops it. Carried off its bar, its row
+keeps the focus (hidden and shrunk, not collapsed). Pane grips are not focusable, so a pane
+moves only by the pointer.
+
 **The preview.** Nothing is written until the release. While a place is chosen (or a tab bar parts
 for a tab from another pane, `part_for_bar`), each tree canvas lays its panes and splitters out
 as the place's state would (`State::previewed`) and springs every rect from where it is drawn
 (`Parting`, on `DockCurves::settle`): a pane that would close shrinks into its edge away from the
 neighbour taking its room, and a pane that only the drop makes is left open, empty. A pane's panel
 keeps the size it was laid out at while the dock carries anything (`DockHeldSize`), clipped by
-the pane as it moves, so no app or program in it lays out again until the drop commits (a window resized mid-carry resizes its panels only then too); its
+the pane as it moves, so no app or program in it lays out again until the drop commits; a panel
+dropped into another pane moves there through its `Kept`, built once, and an app in it is placed
+at its new size once, never unplaced on the way (a window resized mid-carry resizes its panels only then too); its
 docked tool bars are the pane's and move with it. The carried tab is drawn the size of where it
 would rest (`shaped`), under the pointer but inside its surface (`DockGhost`, the `preview` face with
 `opening`), and glides into that rest on release. A pane keeps showing the tab it shows until the
