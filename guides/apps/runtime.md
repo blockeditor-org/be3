@@ -74,10 +74,20 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   (`crates/be-wasm-sandbox-api`), whose `instance` constructor takes a
   `source`, `module(module-id)` or `app(app-id)`. Its `Server` is given a
   `Loader` for apps by id, which the host plugs in (`staged_app`), since
-  finding staged apps lies above be-wasm. It will serve the root guest
-  (step 4) and apps (plans/single_threaded_guests.md); only its tests use it
-  today. The input remapper runs on `be_wasm_host::sandbox`
-  (guides/desktop/login_session.md, Input remaps). The web has no half yet.
+  finding staged apps lies above be-wasm. `crates/be-wasm-root-host`
+  serves it to the root guest, and it will serve apps
+  (plans/single_threaded_guests.md). The input remapper runs on
+  `be_wasm_host::sandbox` (guides/desktop/login_session.md, Input remaps).
+  The web has no half yet.
+- **The root guest.** `crates/be-wasm-root-host`'s `Root` runs a root guest
+  (plans/host_as_platform_adapter.md, The root guest) on the calling thread,
+  stepping a `be_wasm_host::App` inline rather than on a thread of its own.
+  `Root::frame` starts the root's `frames.frame` op (`be3:root`,
+  `crates/be-wasm-root-api`) and steps the root until it answers; while the
+  frame is unanswered (pending) it serves the root's calls (the sandbox, and
+  `host.deadline`, held until the frame's deadline passes) and waits on a bell
+  that the root's instances, compiles and own wakes ring. Only its tests run a
+  root today, and the web has no half yet.
 - **V8's heap.** No guest may declare garbage-collected types (structs,
   arrays) or more than one table, and a table holds at most a million entries
   (`engine::Shape::bounded`): V8 stops delivering a termination once an

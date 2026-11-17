@@ -11,14 +11,15 @@ use be_lib_geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use be_lib_input_router::HitTest;
 use be_lib_stable_hash::HashMap;
 use be_lib_ui_types::WindowId;
+use serde::{Deserialize, Serialize};
 
 /// A layer's identity, stable across frames while it shows the same thing, so damage can tell
 /// a layer that moved from one that came.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct LayerId(pub u64);
 
 /// What a layer shows, by handle.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Surface {
     /// One of the root's own surfaces: the host's UI today, the root guest's from step 4. It
     /// may have several, such as one below its children and one above.
@@ -43,7 +44,7 @@ impl Surface {
 
 /// A 2D affine transform, from a surface's pixels to its window's points:
 /// `x' = xx·x + yx·y + x`, `y' = xy·x + yy·y + y`, CSS's `matrix(xx, xy, yx, yy, x, y)`.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Affine {
     pub xx: f32,
     pub xy: f32,
@@ -154,7 +155,7 @@ impl Affine {
 }
 
 /// Where a layer takes input, in its surface's pixels.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub enum Area {
     /// All of what the layer shows.
     #[default]
@@ -176,7 +177,7 @@ impl Area {
 }
 
 /// How a layer takes input (plans/host_as_platform_adapter.md, Input).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LayerInput {
     /// Where a pointer lands on it.
     pub hit: Area,
@@ -204,7 +205,7 @@ impl Default for LayerInput {
 }
 
 /// One surface placed in a window.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Layer {
     pub id: LayerId,
     pub surface: Surface,
@@ -271,7 +272,7 @@ impl Layer {
 }
 
 /// One window's layers, bottom first.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct WindowLayers {
     pub window: Option<WindowId>,
     pub layers: Vec<Layer>,
@@ -387,9 +388,21 @@ impl HitTest for WindowLayers {
 }
 
 /// The layers of every window the root shows, the root's answer each frame.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct LayerList {
     pub windows: Vec<WindowLayers>,
+}
+
+impl LayerList {
+    /// The list as the root guest's frame carries it (be-wasm-root-api's `frame-done`).
+    pub fn encode(&self) -> Vec<u8> {
+        postcard::to_allocvec(self).unwrap_or_default()
+    }
+
+    /// A list `encode` made, or why the bytes are not one.
+    pub fn decode(bytes: &[u8]) -> Result<Self, String> {
+        postcard::from_bytes(bytes).map_err(|error| format!("not a layer list: {error}"))
+    }
 }
 
 #[cfg(test)]

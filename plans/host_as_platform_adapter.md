@@ -103,6 +103,18 @@ passes. The engine needs no async support of its own, so this works on V8 native
 main thread alike. If that proves awkward, the fallback is two exports, `layout` and `present`,
 with the host waiting between them.
 
+Built natively (step 4a): the entry is `be3:root` (`crates/be-wasm-root-api`). The root exports
+`frames.frame`, an async op the host starts and steps the root through until it answers, and
+imports `host.deadline`, which answers once the frame's deadline passes, so the root races its
+children against it. A step that leaves `frame` unanswered is `Pending`, and what it waits for is
+the ops it left open. `crates/be-wasm-root-host`'s `Root` runs the root on the calling thread
+(`be_wasm_host::App`, stepped inline), serves it the sandbox and `deadline`, and between steps
+waits on a bell its instances, compiles and own wakes ring, up to the deadline, then up to
+`STEP_TIMEOUT` past it for the root itself. `frame-done` carries the layer list in be-lib-layers'
+encoding (`LayerList::encode`). `crates/be-wasm-root-testing` is the root its tests run, which
+settles one echo child. Nothing runs a root in be-host yet; there is no `input` export, and no web
+half.
+
 Its rules:
 
 - It is be-host's own module, staged with it, never one from user bytes.
@@ -167,15 +179,16 @@ whether it is shown. The surfaces are:
 Built (step 3): the list is `be-lib-layers` (`LayerList`, `WindowLayers`, `Layer`), naming
 surfaces by handle (`Surface::Root`, `Screen`, `Anchored`, `Host`), with the transform from a
 surface's pixels to the window's points, the clip in the surface's pixels, the rounding of the
-surface's own corners, and `WindowLayers::damage`. The host's own UI is its only producer
+surface's own corners, and `WindowLayers::damage`. It serializes (`LayerList::encode`), as the
+root's frame carries it (step 4a). The host's own UI is its only producer
 (`be-host-runtime/src/layers.rs`): natively each app surface the host's frame shows is drawn
 from its layer as a texture quad in the host's pass, in the host UI's paint order, so the root's
 surface is that pass rather than a texture; the web builds the frame's list (screens under
 `Surface::Root(0)`, anchored views and what lies over them above it) and applies it as CSS to
-its canvases. Not built yet, and part of step 4 since each needs the root guest's surfaces or
-declarations: drawing the list in a pass of its own over textures of the root's surfaces, a
-list for each OS window (the host's frame makes one, with no `window`), program windows as
-`Surface::Host`, and the damage the e-paper display reads coming from the list rather than
+its canvases. Not built yet (step 4b): drawing the list in a pass of its own over textures of
+the root's surfaces, a list for each OS window (the host's frame makes one, with no `window`),
+program windows as `Surface::Host`, and the damage the e-paper display reads coming from the
+list rather than
 from beui's retained tree. Two gaps to close then: natively `texture_quad` rounds every corner
 of a layer's clip, where the web and `Layer::corner_radius` round only those that meet the
 surface's edges (`Layer::rounded`), so the texture quad needs a radius per corner; and
@@ -234,8 +247,8 @@ Built (step 3): the router is `be-lib-input-router` (`Router`, over a `HitTest`)
 landing for an outer claim, keys with the compositor's chords, focus on press, the pointer lock,
 handing over a press and drag and drop. It does not route the host's input yet: the host's UI is
 one beui document whose forwarding catchers route as before, and the layers it produces take
-the default `LayerInput`. The router takes over in step 4, with the compositor declaring each
-layer's input, and with the IME area, accessibility actions by node id and drive's presses
+the default `LayerInput`. The router takes over in step 4c, with the host's UI (later the compositor)
+declaring each layer's input, and with the IME area, accessibility actions by node id and drive's presses
 going through it.
 
 On the web, a focused cross-origin iframe keeps its keys, so the compositor's chords reach it only
@@ -277,9 +290,9 @@ Built natively (steps 1 and 2): the WIT is `be3:sandbox` (`crates/be-wasm-sandbo
 `crates/be-wasm-sandbox-host` serves it to a guest (guides/apps/runtime.md, Backends). A compile
 turns the memory a module defines into an import, so one compile serves instances given different
 memory limits. A staged app is found by a loader the host gives the `Server`
-(be-host-runtime's `staged_app`), and runs with its libraries and WASI but no display. The web's
-half is not built: it lands with the first guest on the web that spawns (step 4, or
-plans/single_threaded_guests.md).
+(be-host-runtime's `staged_app`), and runs with its libraries and WASI but no display.
+`crates/be-wasm-root-host` serves it to the root (step 4a). The web's half is not built: it lands
+with the first guest on the web that spawns (step 4c, or plans/single_threaded_guests.md).
 
 An app's platform calls (clipboard, drag and drop, file dialogs, opening URLs) are served by the
 host directly for that app, and the compositor can turn them off for it.
@@ -446,14 +459,37 @@ Each step lands on its own.
 3. Built: the layer list and the forwarding router, and how native and the web realize them,
    with the host's current UI as their only producer, so nothing changes visibly (The layer list
    and Input say what is left for step 4).
-4. The synchronous, resumable root entry. The compositor takes over `src/compositor`, `src/ui`,
-   the camera and the orchestration. It produces the layer list with its own surfaces as
-   textures, which the host draws in a pass of its own, one list per OS window, and declares
-   each layer's input, so the router routes the host's input. Embedding an editor without the host's compositor starts
-   here, once the layer list can show a surface a guest names: it needs the host side of the
-   app protocol in a guest (configuring screens, the editor's watches, a block's content;
-   be-sdk-test's `ContentStore` and `link.rs` already run in wasm, in process), and a surface on
-   the host's device that the spawner names only by handle (`App::attach_surface`).
+4. The synchronous, resumable root entry and the compositor in it, in sub-steps that each land
+   on their own and keep be-host working, with nothing changing visibly:
+   - 4a. Built: the root entry natively (The root guest): `be3:root`, `Root` running a root
+     inline and serving it the sandbox and the frame's deadline, and the layer list as the
+     frame's answer, tested with a root that settles one child. be-host runs no root yet.
+   - 4b. The host draws the layer list in a pass of its own: its UI painted to a texture as
+     `Surface::Root(0)` (and `Root(1)` for what lies over anchored views, as the web stacks
+     `#layers`), app surfaces composited from the list, one list per OS window, program windows
+     as `Surface::Host`, the e-paper damage from `WindowLayers::damage`, a radius per corner in
+     the texture quad, and restacking damaging only the pairs that overlap and swapped order.
+   - 4c. The router routes the host's input: `AppView` declares each layer's `LayerInput` (hit
+     and gesture areas, scrims and popups, placers), and be-host's input goes through `Router`
+     over the last committed `WindowLayers` rather than through beui's forwarding catchers, with
+     the IME area, accessibility actions by node id and drive's presses on the same path. The
+     web's half of the sandbox and of the root entry (the page calling the root from
+     `requestAnimationFrame`) lands here too.
+   - 4d. A surface a guest names, and the app host in a guest: an app the root spawns gets the
+     gpu on the host's device, its presented textures named to the root only by handle
+     (`App::attach_surface`, a `Surface::Screen` of a sandbox instance). The host side of the
+     app protocol (configuring screens, an editor's watches, a block's content; be-sdk-test's
+     `ContentStore` and `link.rs` already run in wasm, in process) and be-host-runtime's
+     orchestration (pacing, settle, restarts, grafting accessibility trees) become a guest
+     library, and a root built on it embeds an editor without the host's compositor, shown by
+     a host test. The root gets its `input` export here.
+   - 4e. The compositor moves into the root: `src/compositor`, `src/ui`, the camera and
+     be-host-accounts-ui, talking to the native block stack by the messages it uses today
+     (`ChangeWatch`) until step 5 moves the stack. drive's commands split as The root guest
+     says. be-host runs the root through 4a's entry, draws its layer list (4b) and routes by
+     its declared input (4c), and its own beui UI goes. This is most of step 4 and may split
+     further by area: the lock screen and onboarding, dialogs and toasts, the debug panels,
+     the editors and the camera.
 5. The block stack as an instance the root guest spawns, behind capabilities, building on the
    web's stack worker with a memory of its own, and sending smaller updates.
 6. Space as a guest, offscreen windows, and the host's OpenXR part, with late latching.

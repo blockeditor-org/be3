@@ -17362,7 +17362,12 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {},
+            "wasm32": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "features": [
                     "default",

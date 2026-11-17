@@ -1,0 +1,44 @@
+package be3:root@0.1.0;
+
+/// What the host serves the root guest beside the sandbox
+/// (plans/host_as_platform_adapter.md, The root guest).
+interface host {
+    /// Answers once the frame being drawn reaches its deadline: the display's
+    /// next present less the time the host's own work after the frame takes.
+    /// Until then the root waits for its children's answers; after it, it
+    /// draws what it has. The root's own calls have no deadline. Called
+    /// outside a frame, it answers at once.
+    deadline: async func();
+}
+
+/// The root's frame entry, which the host calls inline on its frame thread.
+interface frames {
+    /// What the host asks a frame for.
+    record frame-request {
+        /// The frame clock's time, in nanoseconds: what the frame is drawn
+        /// for. It moves only when the host's clock does, so a stopped clock
+        /// (drive's) draws every frame for the same time.
+        time: u64,
+    }
+
+    /// A drawn frame.
+    record frame-done {
+        /// Its layer list, each window's surfaces in z-order
+        /// (plans/host_as_platform_adapter.md, The layer list), in
+        /// be-lib-layers' encoding (`LayerList::encode`).
+        layers: list<u8>,
+    }
+
+    /// Draws a frame. The host steps the root until it answers: between
+    /// steps it waits for the calls the root waits on (its children's
+    /// frames, `deadline`), so the frame may await its children as ordinary
+    /// async code, and answers within one host frame.
+    frame: async func(request: frame-request) -> frame-done;
+}
+
+/// The root guest: be-host's own module, which the host calls synchronously
+/// and serves the sandbox (`be3:sandbox/spawner`) and `host`.
+world root {
+    import host;
+    export frames;
+}
