@@ -26,7 +26,10 @@ async fn a_key_wrapped_under_the_settings_key_seals_no_other_block() {
         .keys()
         .scope_key(settings)
         .expect("the owner holds the settings key");
-    assert!(admin.keys().trusted(scope), "the owner minted the settings key");
+    assert!(
+        admin.keys().trusted(scope),
+        "the owner minted the settings key"
+    );
 
     // The server, which holds the settings key, wraps a key it chose under it as the note's.
     let planted = Uuid::new_v4();
@@ -43,15 +46,21 @@ async fn a_key_wrapped_under_the_settings_key_seals_no_other_block() {
     let server: Uuid = {
         let database = harness.database();
         let server: String = database
-            .query_row("SELECT account_id FROM server_account WHERE id = 1", [], |row| {
-                row.get(0)
-            })
+            .query_row(
+                "SELECT account_id FROM server_account WHERE id = 1",
+                [],
+                |row| row.get(0),
+            )
             .unwrap();
         database
             .execute(
                 "INSERT INTO keys (organization_id, id, block_id, kind, epoch, created)
                  VALUES (?1, ?2, ?3, 'data', 99, 0)",
-                rusqlite::params![organization.to_string(), planted.to_string(), note.to_string()],
+                rusqlite::params![
+                    organization.to_string(),
+                    planted.to_string(),
+                    note.to_string()
+                ],
             )
             .unwrap();
         server.parse().unwrap()

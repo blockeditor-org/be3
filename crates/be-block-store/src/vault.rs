@@ -243,7 +243,8 @@ impl<S: ObjectStore> Vault<S> {
                 for range in split(bytes, self.chunker) {
                     let length =
                         u32::try_from(range.len()).map_err(|_| StoreError::ChunkTooLarge)?;
-                    let hash = self.put_sealed(key, &sealing.0.seal(key, sealing.1, &bytes[range], true))?;
+                    let hash =
+                        self.put_sealed(key, &sealing.0.seal(key, sealing.1, &bytes[range], true))?;
                     chunks.push(PartRef::Chunk(ChunkRef { hash, length }));
                 }
                 self.group(key, sealing, chunks)
@@ -420,9 +421,17 @@ impl<S: ObjectStore> Vault<S> {
         }
     }
 
-    fn put_node(&self, key: Uuid, sealing: &(ContentKey, Uuid), node: Node) -> Result<NodeRef, StoreError> {
+    fn put_node(
+        &self,
+        key: Uuid,
+        sealing: &(ContentKey, Uuid),
+        node: Node,
+    ) -> Result<NodeRef, StoreError> {
         let length = node.parts.iter().map(|part| part.length()).sum();
-        let hash = self.put_sealed(key, &sealing.0.seal(key, sealing.1, &encode_value(&node)?, true))?;
+        let hash = self.put_sealed(
+            key,
+            &sealing.0.seal(key, sealing.1, &encode_value(&node)?, true),
+        )?;
         Ok(NodeRef { hash, length })
     }
 
@@ -688,7 +697,8 @@ impl<S: ObjectStore> Vault<S> {
     /// are encrypted, so only a client could rewrite one, and that would change its hash and
     /// every id naming it: read them as they were written, forever.
     pub fn put_value<T: Serialize>(&self, key: Uuid, value: &T) -> Result<Hash, StoreError> {
-        self.store.put(&self.keys.seal_content(key, &encode_value(value)?)?)
+        self.store
+            .put(&self.keys.seal_content(key, &encode_value(value)?)?)
     }
 
     pub fn get_value<T: DeserializeOwned>(&self, hash: Hash) -> Result<T, StoreError> {

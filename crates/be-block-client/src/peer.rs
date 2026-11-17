@@ -1023,8 +1023,7 @@ impl<S: ObjectStore> Peer<S> {
         // settings block itself, which the server reads by design: never a block the server's
         // graph places there, since the server could place any block there.
         let settings = block == self.organization_settings();
-        let usable =
-            |key: Uuid| self.keys.trusted(key) || (settings && self.keys.server_held(key));
+        let usable = |key: Uuid| self.keys.trusted(key) || (settings && self.keys.server_held(key));
         if !usable(key) {
             self.refresh_keys(Some(vec![block])).await?;
         }
