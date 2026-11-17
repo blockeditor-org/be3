@@ -51,7 +51,7 @@ fn an_edit_carried_over_a_restart_keeps_the_identity_it_goes_again_under_across_
             &shared,
             &mut replicas,
             "settled the edit",
-            |replicas| {
+            |replicas, _| {
                 replicas
                     .submissions_of(block)
                     .is_some_and(|(submitting, ..)| submitting == 0)
