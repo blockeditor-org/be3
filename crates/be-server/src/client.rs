@@ -1742,16 +1742,8 @@ impl Client {
                 references,
                 metadata,
                 objects,
-                journal_base,
+                journal,
             } => {
-                // The build of the session this connection joined on the block, whose journal a
-                // seal trims.
-                let tag = self
-                    .streams
-                    .sessions
-                    .iter()
-                    .find(|(op, (of, _))| *of == block && self.streams.events(**op).is_some())
-                    .map(|(_, (_, tag))| *tag);
                 let published = async {
                     prelude?;
                     let identity = connection.identity()?;
@@ -1759,11 +1751,11 @@ impl Client {
                         organization: identity.organization,
                         block,
                     };
-                    // A seal from a connection out of the session (one an outbox drains after its
-                    // replica closed) publishes, and leaves the journal to the next seal.
-                    let trim = match journal_base.zip(tag) {
-                        Some((base, tag)) => {
-                            // A trim with no new commit is the holder's alone.
+                    let trim = match journal {
+                        Some(seal) => {
+                            // A trim with no new commit is the holder's alone. A seal with one
+                            // trims as it wins the head, from whichever connection sends it (an
+                            // outbox drains before its replica joins again).
                             if expected == Some(commit)
                                 && !connection.registry.holds(place, connection.client).await
                             {
@@ -1772,7 +1764,7 @@ impl Client {
                                     "only the session's lease holder trims its journal".into(),
                                 ));
                             }
-                            Some((tag, base))
+                            Some((seal.tag, seal.base))
                         }
                         None => None,
                     };

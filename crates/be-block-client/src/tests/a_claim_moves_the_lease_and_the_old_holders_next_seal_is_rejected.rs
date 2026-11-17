@@ -67,7 +67,7 @@ async fn a_claim_moves_the_lease_and_the_old_holders_next_seal_is_rejected() {
     trimmed.await.unwrap();
     assert_eq!(
         server_journal(&laptop, note).await,
-        (Some(sealed), 1, vec![2]),
+        Some((Some(sealed), 1, vec![2])),
         "the claimant's seal holds the journal, which the old holder's trim left as it was"
     );
     harness.stop().await;

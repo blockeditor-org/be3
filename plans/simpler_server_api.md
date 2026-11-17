@@ -60,7 +60,7 @@ offered, the server's account, its clock), `Session(block, tag)` (joining:
 with `follow`, the session's entries arrive as events until `unfollow`).
 
 **Write ops**: `CreateBlock`, `Publish` (an optional commit, metadata and a
-reference change, and an optional `journal-base`; covers `set-metadata` and
+reference change, and an optional `journal-seal`; covers `set-metadata` and
 `rebase-journal`), `Move` (`set-parent`, with its signed parent record),
 `AppendLog` (grant, revocation, administrator, member and, once
 plans/signed_access.md step 5 lands, owner records: covers `set-access`,
@@ -136,15 +136,15 @@ The server writes membership entries (join, leave, a change of edit access, a
 claim) into each session's order, in memory, stamped `after` the order's last
 number and counted by `index`; the server and every replica derive the holder
 with `be_block_session::Membership::holder`. A seal is `publish` with a
-`journal-base`, trimmed in the publish's transaction and told as
+`journal-seal`, trimmed in the publish's transaction and told as
 `session-event.sealed`; a trim with no new commit is a publish of the head on
 itself, from the holder. `claim-lease`, `heartbeat`, `rebase-journal`,
 `relay-kind::seal`, `SessionMessage::Sealed`, the lease's generation, expiry and
 `clean-at`, `ServerConfig::lease` and the registry's empty-session memory are
 gone (guides/blocks/server.md, "Membership"). Where it differs from the plan:
 a claim is the session call `claim` until 3a makes it an ordered send; a seal
-kept in the outbox carries its base with it (`Pending::journal_base`); a publish
-from a connection out of the session trims nothing; and
+names the build that made it (`journal-seal`), so one kept in the outbox and
+drained before its replica rejoins still trims; and
 `ServerConfig::idle_timeout` lets a test wait less than `IDLE_TIMEOUT` for a
 silent holder's leave.
 

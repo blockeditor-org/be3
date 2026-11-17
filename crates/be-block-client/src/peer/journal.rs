@@ -114,7 +114,7 @@ impl<S: ObjectStore> Peer<S> {
             Default::default(),
             Vec::new(),
             Vec::new(),
-            Some(sealed),
+            Some(be_block_protocol::JournalSeal { tag, base: sealed }),
         );
         // Best effort: a trim the server refuses (from a replica that no longer holds the lease
         // by the server's derivation) leaves the journal to the next seal.

@@ -283,6 +283,13 @@ interface types {
         state: list<u8>,
     }
 
+    /// A seal of a block's live session, which a publish carries: the base the
+    /// journal starts from, and the build of the block's type that sealed it.
+    record journal-seal {
+        tag: hash,
+        base: journal-base,
+    }
+
     /// A block's session's order since its base, which no commit holds yet,
     /// written by the build of the block's type that `tag` names.
     record journal {

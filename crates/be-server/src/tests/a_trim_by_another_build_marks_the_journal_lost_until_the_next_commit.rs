@@ -19,7 +19,7 @@ async fn a_trim_by_another_build_marks_the_journal_lost_until_the_next_commit() 
         .publish(&author, block, first.0, first.1.clone(), None, 1_000)
         .await;
     let old_build = Hash::from_bytes([1; 32]);
-    let new_build = Hash::from_bytes([2; 32]);
+    let new_build = TYPE_BUILD;
     let base = |commit, sequence| JournalBase {
         commit: Some(commit),
         sequence,

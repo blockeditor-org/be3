@@ -30,7 +30,7 @@ fn discarding_puts_the_head_back_on_the_servers() {
         pinned: false,
         references: Vec::new(),
         metadata: Vec::new(),
-        journal_base: None,
+        journal: None,
     })
     .unwrap();
     assert_eq!(refs.head(block), Some(discarded));

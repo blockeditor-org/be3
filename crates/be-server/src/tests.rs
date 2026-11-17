@@ -1118,7 +1118,7 @@ impl TestClient {
             .await
     }
 
-    /// Publishes as `publish` does, with `base` a seal of the block's session.
+    /// Publishes as `publish` does, with `base` a seal of the block's session by `TYPE_BUILD`.
     #[allow(clippy::too_many_arguments)]
     async fn seal(
         &mut self,
@@ -1146,7 +1146,10 @@ impl TestClient {
                 listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
-                base.clone(),
+                base.clone().map(|base| be_block_protocol::JournalSeal {
+                    tag: TYPE_BUILD,
+                    base,
+                }),
             )
         })
         .await

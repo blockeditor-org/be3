@@ -228,7 +228,7 @@ impl<S: ObjectStore> Peer<S> {
                 pinned: false,
                 references,
                 metadata: vault.seal(key, &encoded)?,
-                journal_base: None,
+                journal: None,
             }),
             objects,
             queued: Vec::new(),

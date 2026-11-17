@@ -69,13 +69,17 @@ async fn the_next_editor_seals_once_the_server_writes_a_silent_holders_leave() {
     assert!(seen.is_holder(next), "the next editor holds the lease");
 
     let sealed = TextBlock::of("sealed by the next editor");
-    let Saved::Published(sealed) = laptop
+    let Saved::Published(_) = laptop
         .write(note, sealing(&sealed, head, 1))
         .await
         .unwrap()
     else {
         panic!("the next editor's seal is taken");
     };
-    assert_eq!(server_journal(&laptop, note).await, (Some(sealed), 1, vec![]));
+    assert_eq!(
+        server_journal(&laptop, note).await,
+        None,
+        "the next editor's seal trimmed the journal"
+    );
     harness.stop().await;
 }

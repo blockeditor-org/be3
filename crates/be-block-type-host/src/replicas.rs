@@ -4358,7 +4358,8 @@ impl<H: Host> Replicas<H> {
                     .seals_journal(
                         sealed_through
                             .zip(journal_state.clone())
-                            .filter(|_| !made_up),
+                            .filter(|_| !made_up)
+                            .map(|(sequence, state)| (tag, sequence, state)),
                     );
                     if let Some(merging) = merging {
                         write = write.merging(merging.base, merging.ours);

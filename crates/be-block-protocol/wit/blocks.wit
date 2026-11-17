@@ -63,7 +63,7 @@ interface objects {
 interface blocks {
     use types.{
         access-level, account-id, block-id, block-parent, block-summary, client-id, commit-id,
-        content-type-id, error, hash, journal, journal-base, key-id, key-set, listing, organization-role,
+        content-type-id, error, hash, journal, journal-seal, key-id, key-set, listing, organization-role,
     };
 
     variant publish-outcome {
@@ -252,12 +252,12 @@ interface blocks {
     /// `held` and `references` are changes from what `expected` holds and
     /// references, so a commit that changes little sends little.
     ///
-    /// With `journal-base`, a seal of the block's live session: the base
-    /// names `commit`, and the journal starts from it only if this publish
-    /// moves the head, in the same transaction, which every participant
-    /// hears as `session-event.sealed`. A trim with no new commit (`commit`
-    /// is `expected` and the head) needs the caller to be in the session and
-    /// its lease holder at the order's tip.
+    /// With `journal`, a seal of the block's live session: its base names
+    /// `commit`, and the journal starts from it only if this publish moves
+    /// the head, in the same transaction, which every participant hears as
+    /// `session-event.sealed`. A trim with no new commit (`commit` is
+    /// `expected` and the head) needs the caller to be in the session and its
+    /// lease holder at the order's tip.
     publish: async func(
         block: block-id,
         commit: commit-id,
@@ -269,7 +269,7 @@ interface blocks {
         references: reference-change,
         metadata: list<u8>,
         objects: list<list<u8>>,
-        journal-base: option<journal-base>,
+        journal: option<journal-seal>,
     ) -> result<publish-outcome, error>;
 
     /// What changed in the tree of `root`, a page at a time from the cursor

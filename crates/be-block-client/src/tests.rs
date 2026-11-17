@@ -611,24 +611,24 @@ fn sealing<C: BlockContent>(
     through: u64,
 ) -> Write<'_> {
     Write::encoded(C::CONTENT_TYPE, content.parts(), Some(expected))
-    .seals_journal(Some((through, format!("state through {through}").into_bytes())))
+    .seals_journal(Some((
+        BUILD,
+        through,
+        format!("state through {through}").into_bytes(),
+    )))
 }
 
 /// The server's journal of `block` as `peer` reads it: its base's commit and sequence, and the
-/// sequence of each entry after it.
+/// sequence of each entry after it; none when it holds no entries.
 async fn server_journal(
     peer: &Peer<MemoryStore>,
     block: Uuid,
-) -> (Option<be_block_commit::CommitId>, u64, Vec<u64>) {
+) -> Option<(Option<be_block_commit::CommitId>, u64, Vec<u64>)> {
     let read = peer.read_contents(&[(block, None)]).await.unwrap();
-    let journal = read
-        .into_iter()
-        .next()
-        .and_then(|read| read.journal)
-        .expect("the block has a journal");
-    (
+    let journal = read.into_iter().next().and_then(|read| read.journal)?;
+    Some((
         journal.base.commit,
         journal.base.sequence,
         journal.entries.iter().map(|entry| entry.sequence).collect(),
-    )
+    ))
 }

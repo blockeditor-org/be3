@@ -163,7 +163,7 @@ arrives.
 - A seal trims it: the journal starts from the seal's commit at the sequence it
   holds, keeping what came after. The server's is trimmed by the seal's publish
   itself (`Write::seals_journal`, kept with the commit in the outbox
-  (`Pending::journal_base`) so a drained seal trims too), only as it wins the
+  (`Pending::journal`, with the build that sealed it) so a drained seal trims too), only as it wins the
   head; `Peer::rebase_journal` trims this device's, and with `trim` the
   server's with no new commit (a publish of the head on itself, which the server
   takes only from the holder). A base that goes back while nothing after the
@@ -178,9 +178,8 @@ arrives.
 - **A seal on its way.** The holder goes on applying the order while its seal
   waits on the server. The seal's commit records the last sequence it holds
   (`Commit::sealed_through`), and the server trims the journal to it as the
-  commit lands. A seal kept in the outbox, or one from a connection out of the
-  session, leaves the journal on the commit the seal was made on until a seal
-  trims it: a replica opening on the
+  commit lands. A seal that has not landed yet leaves the journal on the commit
+  the seal was made on: a replica opening on the
   seal replays the journal there and takes the seal as its head when the journal
   reaches the seal's last entry (`reaches_seal`, `journal_for`), and is answered as
   the replica's news (`Resume::Sealed`) only when the seal counts the same restarts

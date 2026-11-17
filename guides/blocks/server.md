@@ -574,7 +574,7 @@ Each block's journal (guides/blocks/client.md, "The journal") is two tables,
 `journal_entries` (an id unique per block), written by `be_server::journal` and
 deleted with the block. It is kept whether or not anyone is in the session, so
 what nobody sealed waits for the next holder. A seal trims it: `publish` with a
-`journal-base` naming the commit published trims the journal to the base only
+`journal-seal` whose base names the commit published trims the journal to the base only
 if the publish wins the head's compare-and-swap, in the same transaction
 (`journal::rebase`), and every participant hears which head holds which number
 (`Push::Sealed`). Content never rested on the lease, since every replica applies
@@ -586,8 +586,8 @@ starting the journal over: a publish of the head on itself) needs the head to be
 the base's commit and the caller to be the holder at the order's tip, by the
 server's derivation. A base past the order's last number is refused; one that
 goes back starts the order afresh only when nothing past the journal's base was
-numbered. A publish from a connection out of the block's session (an outbox
-draining after its replica closed) publishes and trims nothing. A submission is
+numbered. A seal names the build that made it (`journal-seal.tag`), so one
+the outbox sends before its replica joins again still trims. A submission is
 refused while the journal holds another build's entries, and bounded by
 `MAX_JOURNAL_BYTES`; `read-contents` answers journals while they fit in a
 quarter of a frame.
