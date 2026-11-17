@@ -1,7 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 
 use be_block_commit::{CommitId, MergeResult};
-use be_block_content::{Landed, LiveEdit, Merge, Settling};
+use be_block_content::{
+    Landed, LiveEdit, Merge, Settling,
+    history::{GestureId, GestureKind, Stepped},
+};
 use be_block_protocol::{ClientId, SessionState};
 use be_block_session::Membership;
 use be_block_session::{OpId, Payload, Resume, SessionMessage, SessionOp, Submission};
@@ -13,6 +16,10 @@ use be_sdk_type_api::{
 use uuid::Uuid;
 
 use crate::lacking::{Carried, Lacking};
+
+/// The id every gesture and edit of an editor goes under until the app protocol names its
+/// gestures (plans/tentative_gestures.md, step 3): an editor holds one gesture at a time.
+const EDITOR_GESTURE: u64 = 0;
 use crate::{
     FromFileFn, Recorder,
     editor::{EditorOperation, FromEditor, Gesture, PeerMessage, PeerPresence, Snapshot, ToEditor},
@@ -2381,7 +2388,7 @@ where
                                 // This replica's own, made before it opened again: undo steps
                                 // back through it, as through one made here.
                                 self.history
-                                    .record(&self.confirmed, &operation, None, self.now);
+                                    .record(&self.confirmed, &operation, None, None, self.now);
                             }
                             self.confirmed.apply(&operation);
                             self.log_operation(sequence, operation, mine);
@@ -3211,7 +3218,7 @@ where
 
     fn record_and_edit(&mut self, operation: C::Op, origin: Option<EditorId>) -> bool {
         self.history
-            .record(&self.visible, &operation, origin, self.now);
+            .record(&self.visible, &operation, origin, Some(EDITOR_GESTURE), self.now);
         self.edit(operation, origin)
     }
 
@@ -3238,16 +3245,20 @@ where
             FromEditor::FollowLacking => self.lacking.follow(editor),
             FromEditor::DismissLacking(id) => self.lacking.dismiss(id),
             FromEditor::Gesture(phase) if editable => {
+                let gesture = GestureId {
+                    editor: Some(editor),
+                    id: EDITOR_GESTURE,
+                };
                 let operations = match phase {
                     Gesture::Begin => {
-                        self.history.begin(Some(editor));
+                        self.history.begin(gesture, GestureKind::Group);
                         Vec::new()
                     }
                     Gesture::Commit => {
-                        self.history.commit(Some(editor));
+                        self.history.commit(gesture);
                         Vec::new()
                     }
-                    Gesture::Cancel => self.history.cancel(&self.visible, Some(editor)),
+                    Gesture::Cancel => self.history.cancel(&self.visible, gesture),
                     Gesture::Break => {
                         self.history.split(Some(editor));
                         Vec::new()
@@ -3463,19 +3474,19 @@ where
                 self.replace_with(id, content);
             }
             Change::Undo => {
-                let operations = self.history.undo(&self.visible);
-                self.step_history(id, operations);
+                let stepped = self.history.undo(&self.visible);
+                self.step_history(id, stepped);
             }
             Change::Redo => {
-                let operations = self.history.redo(&self.visible);
-                self.step_history(id, operations);
+                let stepped = self.history.redo(&self.visible);
+                self.step_history(id, stepped);
             }
         }
     }
 
-    fn step_history(&mut self, id: RequestId, operations: Vec<C::Op>) {
-        let changed = !operations.is_empty();
-        for operation in operations {
+    fn step_history(&mut self, id: RequestId, stepped: Stepped<C::Op>) {
+        let changed = stepped.changed();
+        for operation in stepped.operations {
             self.edit(operation, None);
         }
         self.reply(id, Answer::Changed(changed));

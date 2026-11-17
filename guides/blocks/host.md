@@ -776,7 +776,12 @@ cancel reverts and leaves no step), and ends its burst with `break_step`
 editor breaks where its core ends a group: at word boundaries (so quick typing
 undoes a word at a time), a paste, a caret move, formatting, blur; never for a
 peer's edit. A break leaves the editor's own open gesture alone, and another
-editor's burst. Apps call `act(block, block-command::undo)`
+editor's burst. `History` keeps each gesture under `GestureId` (its editor and an id
+of the editor's; the protocol has no ids yet, so each editor holds one), so editors'
+gestures stay open side by side and each commits or cancels on its own. It also
+keeps tentative gestures (`GestureKind::Tentative`; plans/tentative_gestures.md),
+which nothing opens yet. An undo commits open gestures first; a session restart keeps
+them open with what they recorded. Apps call `act(block, block-command::undo)`
 and watch a block's `history` with a `block-watch`. A session restart (guides/type_modules.md, Peers)
 drops every step, since none applies to the reloaded content: `block-history`
 says `restarted-at`, and the frame answers an undo with nothing left by saying
