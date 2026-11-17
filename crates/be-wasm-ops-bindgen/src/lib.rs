@@ -1487,6 +1487,7 @@ impl Generator {
         let mut started_methods: Vec<TokenStream> = Vec::new();
         let mut arms = Vec::new();
         let mut refusals = Vec::new();
+        let mut ops = Vec::new();
         let mut handles = BTreeSet::new();
         for method in methods {
             let resource = method.function.kind.resource().map(|resource| {
@@ -1568,6 +1569,13 @@ impl Generator {
                 (Shape::Call(_), _, _) => quote!(Call::#case { reply, .. } => reply.into_op()),
                 (Shape::Stream(_), _, _) => quote!(Call::#case { stream, .. } => stream.op()),
             });
+            ops.push(match (&method.shape, &resource, &method.function.kind) {
+                (_, Some(_), FunctionKind::Constructor(_)) => {
+                    quote!(Call::#case { resource, .. } => resource.op())
+                }
+                (Shape::Call(_), _, _) => quote!(Call::#case { reply, .. } => reply.op()),
+                (Shape::Stream(_), _, _) => quote!(Call::#case { stream, .. } => stream.op()),
+            });
             started_methods.push(quote!(crate::__args::#constant));
             arms.push(quote! {
                 crate::__args::#constant => {
@@ -1625,6 +1633,10 @@ impl Generator {
                 })
             },
         };
+        let op_body = match ops.is_empty() {
+            true => quote!(match *self {}),
+            false => quote!(match self { #(#ops,)* }),
+        };
         quote! {
             #(#handles)*
 
@@ -1654,6 +1666,11 @@ impl Generator {
                         #(#refusals,)*
                     };
                     (op, ::be_wasm_ops::Outcome::Err(error))
+                }
+
+                /// The op the call was started as, which its answer completes.
+                pub fn op(&self) -> ::be_wasm_ops::OpId {
+                    #op_body
                 }
             }
         }

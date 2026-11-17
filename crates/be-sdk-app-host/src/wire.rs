@@ -507,7 +507,7 @@ impl Wire {
         watch.opened(started.op);
         self.published
             .insert(started.op, (instance, watching.open, watch));
-        heard.push(Heard::Watch(instance, watching.open));
+        heard.push(Heard::Watch(instance, watching.open, started.op));
     }
 
     fn refusal(&self, interface: &str) -> Option<OpError> {
@@ -758,6 +758,14 @@ impl Wire {
     /// through the wire's own calls, which keep its bookkeeping.
     pub fn connection(&mut self) -> &mut Connection {
         &mut self.connection
+    }
+
+    /// Tells the one published watch `watch` (`Heard::Watch`) `value`, rather than every watch of
+    /// its kind the editor holds (`EditorCall::Watched`).
+    pub fn set_published(&mut self, watch: OpId, value: Vec<u8>) {
+        if let Some((_, _, watch)) = self.published.get_mut(&watch) {
+            watch.set(&mut self.connection, value);
+        }
     }
 
     /// Whether the app holds a published watch open that `open` opens.
