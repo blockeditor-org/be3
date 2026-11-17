@@ -42,7 +42,7 @@ async fn a_connection_holds_a_bounded_number_of_streams_and_sessions() {
         "{relayed:?}"
     );
     let paired = member
-        .call(|peer| client::account::pair(peer, None, vec![0; MAX_PAIRING_BYTES + 1]))
+        .call(|peer| peer.send(be_block_protocol::Target::Devices(None), vec![0; MAX_PAIRING_BYTES + 1]))
         .await;
     assert!(refused_as(&paired, ErrorCode::InvalidRequest), "{paired:?}");
 

@@ -21,16 +21,10 @@ async fn a_page_that_reads_on_through_another_trees_change_stops_at_its_own_next
     }
     let start = owner
         .call(|peer| {
-            client::blocks::changed_since(
-                peer,
-                work,
-                ChangeCursor {
+            peer.ask::<be_block_protocol::ChangedPage>(be_block_protocol::Query::Tree { entry: work, after: ChangeCursor {
                     changed: 0,
                     block: Uuid::max(),
-                },
-                1000,
-                false,
-            )
+                }, limit: 1000 }, false)
         })
         .await
         .expect("changed-since failed");
@@ -48,7 +42,7 @@ async fn a_page_that_reads_on_through_another_trees_change_stops_at_its_own_next
     let mut pages = 0;
     loop {
         let page = owner
-            .call(|peer| client::blocks::changed_since(peer, work, after.clone(), 1000, false))
+            .call(|peer| peer.ask::<be_block_protocol::ChangedPage>(be_block_protocol::Query::Tree { entry: work, after: after.clone(), limit: 1000 }, false))
             .await
             .expect("changed-since failed");
         pages += 1;

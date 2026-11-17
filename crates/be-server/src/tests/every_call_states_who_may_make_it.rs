@@ -27,7 +27,7 @@ impl TestClient {
         &mut self,
         mut stream: Stream<T, S>,
     ) -> Answered {
-        let _ = client::organizations::list_organizations(&self.peer).await;
+        let _ = self.peer.read::<Vec<be_block_protocol::Organization>>(be_block_protocol::Query::Organizations).await;
         let mut context = std::task::Context::from_waker(std::task::Waker::noop());
         match stream.poll_recv(&mut context) {
             std::task::Poll::Ready(None) => Answered::Denied,
@@ -54,7 +54,7 @@ impl TestClient {
         let mut answers = vec![
             (
                 "ping",
-                match client::connection::ping(peer).await {
+                match be_block_protocol::client::server::ping(peer).await {
                     Ok(()) => Answered::Allowed,
                     Err(_) => Answered::Denied,
                 },
@@ -75,276 +75,207 @@ impl TestClient {
             ),
             (
                 "authenticate",
-                answered(client::account::authenticate(peer, Some("not a token".into())).await),
+                answered(be_block_protocol::client::server::authenticate(peer, Some("not a token".into())).await),
             ),
             (
                 "pair",
-                answered(client::account::pair(peer, None, sealed()).await),
+                answered(peer.send(be_block_protocol::Target::Devices(None), sealed()).await),
             ),
             (
                 "account-notices",
-                answered(client::account::account_notices(peer).await),
+                answered(peer.read::<Vec<be_block_protocol::AccountNotice>>(be_block_protocol::Query::Notices).await),
             ),
             (
                 "dismiss-account-notice",
-                answered(client::account::dismiss_account_notice(peer, 1).await),
+                answered(peer.write::<()>(be_block_protocol::Op::DismissNotice(1)).await),
             ),
             (
                 "list-organizations",
-                answered(client::organizations::list_organizations(peer).await),
+                answered(peer.read::<Vec<be_block_protocol::Organization>>(be_block_protocol::Query::Organizations).await),
             ),
             (
                 "create-organization",
                 answered({
                     let (id, root) = organization_root(self.account.unwrap_or_default());
-                    client::organizations::create_organization(
-                        peer,
-                        id,
-                        "mine".into(),
-                        root,
-                        Vec::new(),
-                    )
+                    peer.write::<be_block_protocol::Organization>(be_block_protocol::Op::CreateOrganization { id: id, name: "mine".into(), root: root, pinned: Vec::new() })
                     .await
                 }),
             ),
             (
                 "create-link (invitation)",
                 answered(
-                    client::contacts::create_link(
-                        peer,
-                        other,
-                        sealed(),
-                        sealed(),
-                        be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
+                    peer.write::<()>(be_block_protocol::Op::CreateLink { link: other, card: sealed(), code: sealed(), kind: be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                             organization,
                             escrow: sealed(),
-                        }),
-                    )
+                        }) })
                     .await,
                 ),
             ),
             (
                 "list-members",
-                answered(client::members::list_members(peer).await),
+                answered(peer.read::<Vec<be_block_protocol::Member>>(be_block_protocol::Query::Members).await),
             ),
             (
                 "set-role",
                 answered(
-                    client::members::set_role(peer, other, OrganizationRole::Administrator, None)
+                    peer.write::<()>(be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Role { account: other, role: OrganizationRole::Administrator, signed: None }))
                         .await,
                 ),
             ),
             (
                 "remove-member",
-                answered(client::members::remove_member(peer, other, None, Vec::new()).await),
+                answered(peer.write::<()>(be_block_protocol::Op::RemoveMember { account: other, signed: None, revocations: Vec::new() }).await),
             ),
             (
                 "removal-revocations",
-                answered(client::keys::removal_revocations(peer, other, false).await),
+                answered(peer.read::<Vec<be_block_protocol::Revocation>>(be_block_protocol::Query::Revocations { account: other, contact: false }).await),
             ),
             (
                 "sign-member",
-                answered(client::members::sign_member(peer, sealed()).await),
+                answered(peer.write::<()>(be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Member(sealed()))).await),
             ),
             (
                 "create-agent",
                 answered(
-                    client::members::create_agent(
-                        peer,
-                        organization,
-                        Uuid::new_v4(),
-                        "agent".into(),
-                        [7; 32],
-                        [7; 32],
-                        sealed(),
-                        sealed(),
-                        None,
-                        None,
-                    )
+                    peer.write_in::<be_block_protocol::CreatedAgent>(Some(organization), be_block_protocol::Op::CreateAgent { account: Uuid::new_v4(), name: "agent".into(), recovery: [7; 32], signing: [7; 32], contact: sealed(), escrow: sealed(), bound_to: None, member: None })
                     .await,
                 ),
             ),
             (
                 "rotate-agent-token",
-                answered(client::members::rotate_agent_token(peer, organization, other).await),
+                answered(peer.write_in::<String>(Some(organization), be_block_protocol::Op::RotateAgentToken(other)).await),
             ),
             (
                 "create-link",
                 answered(
-                    client::contacts::create_link(
-                        peer,
-                        other,
-                        sealed(),
-                        sealed(),
-                        be_block_protocol::LinkKind::Contact(None),
-                    )
+                    peer.write::<()>(be_block_protocol::Op::CreateLink { link: other, card: sealed(), code: sealed(), kind: be_block_protocol::LinkKind::Contact(None) })
                     .await,
                 ),
             ),
             (
                 "get-link",
-                answered(client::contacts::get_link(peer, other).await),
+                answered(peer.read::<be_block_protocol::Link>(be_block_protocol::Query::Link(other)).await),
             ),
             (
                 "read-invitation",
-                answered(client::contacts::read_invitation(peer, other).await),
+                answered(peer.read::<be_block_protocol::InvitationPreview>(be_block_protocol::Query::Invitation(other)).await),
             ),
             (
                 "list-invitations",
-                answered(client::contacts::list_invitations(peer, organization).await),
+                answered(peer.read_in::<Vec<be_block_protocol::InvitationRow>>(Some(organization), be_block_protocol::Query::Invitations).await),
             ),
             (
                 "accept-link",
                 answered(
-                    client::contacts::accept_link(peer, other, sealed(), sealed(), sealed()).await,
+                    peer.write::<()>(be_block_protocol::Op::AcceptLink { link: other, card: sealed(), contact: sealed(), key: sealed() }).await,
                 ),
             ),
             (
                 "list-links",
-                answered(client::contacts::list_links(peer).await),
+                answered(peer.read::<Vec<be_block_protocol::OwnLink>>(be_block_protocol::Query::Links).await),
             ),
             (
                 "delete-link",
-                answered(client::contacts::delete_link(peer, other).await),
+                answered(peer.write::<()>(be_block_protocol::Op::DeleteLink(other)).await),
             ),
             (
                 "put-contact",
-                answered(client::contacts::put_contact(peer, other, sealed()).await),
+                answered(peer.write::<()>(be_block_protocol::Op::PutContact { contact: other, sealed: sealed() }).await),
             ),
             (
                 "list-contacts",
-                answered(client::contacts::list_contacts(peer).await),
+                answered(peer.read::<Vec<be_block_protocol::ContactRow>>(be_block_protocol::Query::Contacts).await),
             ),
             (
                 "remove-contact",
-                answered(client::contacts::remove_contact(peer, other, Vec::new()).await),
+                answered(peer.write::<()>(be_block_protocol::Op::RemoveContact { account: other, revocations: Vec::new() }).await),
             ),
             (
                 "upload-urls",
                 answered(
-                    client::objects::upload_urls(
-                        peer,
-                        vec![be_block_protocol::ObjectLength {
+                    peer.write::<Vec<Option<be_block_protocol::UploadUrl>>>(be_block_protocol::Op::ReserveUploads(vec![be_block_protocol::ObjectLength {
                             hash,
                             length: Some(9),
-                        }],
-                    )
+                        }]))
                     .await,
                 ),
             ),
             (
                 "download-urls",
-                answered(client::objects::download_urls(peer, vec![hash]).await),
+                answered(peer.read::<Vec<Option<String>>>(be_block_protocol::Query::DownloadUrls(vec![hash])).await),
             ),
             (
                 "hold-objects",
                 answered(
-                    client::objects::hold_objects(peer, block, vec![hash], Hold::Lasting).await,
+                    peer.write::<()>(be_block_protocol::Op::HoldObjects { block: block, objects: vec![hash], hold: Hold::Lasting }).await,
                 ),
             ),
             (
                 "create-block",
                 answered(
-                    client::blocks::create_block(
-                        peer,
-                        other,
-                        CONTENT,
-                        BlockParent::Block(block),
-                        Vec::new(),
-                        Vec::new(),
-                        KEY,
-                        KeySet {
+                    peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::CreateBlock { block: other, content_type: CONTENT, parent: BlockParent::Block(block), metadata: Vec::new(), references: Vec::new(), key: KEY, keys: KeySet {
                             keys: vec![row(KEY, other, KeyKind::Data)],
                             wrapped: Vec::new(),
-                        },
-                        false,
-                        root,
-                        placement,
-                    )
+                        }, owner_only: false, root: root, placement: placement })
                     .await,
                 ),
             ),
             (
                 "set-metadata",
-                answered(client::blocks::set_metadata(peer, block, sealed(), Vec::new()).await),
+                answered(peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata { block: block, metadata: sealed(), references: Vec::new() }).await),
             ),
             (
                 "publish",
                 answered(
-                    client::blocks::publish(
-                        peer,
-                        block,
-                        commit,
-                        None,
-                        Vec::new(),
-                        objects_change(&[], Vec::new()),
-                        1_000,
-                        false,
-                        listing(&[], Vec::new()),
-                        Vec::new(),
-                        vec![b"an object".to_vec()],
-                        None,
-                    )
+                    peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: block, commit: commit, expected: None, parents: Vec::new(), held: objects_change(&[], Vec::new()), time: 1_000, pinned: false, references: listing(&[], Vec::new()), metadata: Vec::new(), objects: vec![b"an object".to_vec()], journal: None })
                     .await,
                 ),
             ),
             (
                 "read-contents",
-                answered(client::blocks::read_contents(peer, vec![block], Vec::new()).await),
+                answered(peer.read::<be_block_protocol::Contents>(be_block_protocol::Query::Blocks { blocks: vec![block], contents: true, held: Vec::new() }).await),
             ),
             (
                 "read-summaries",
-                answered(client::blocks::read_summaries(peer, vec![block]).await),
+                answered(peer.read::<Vec<Option<be_block_protocol::BlockSummary>>>(be_block_protocol::Query::Blocks { blocks: vec![block], contents: false, held: Vec::new() }).await),
             ),
             (
                 "set-parent",
                 answered(
-                    client::blocks::set_parent(
-                        peer,
-                        block,
-                        BlockParent::Root,
-                        KeySet::default(),
-                        moving,
-                    )
+                    peer.write::<()>(be_block_protocol::Op::Move { block: block, parent: BlockParent::Root, keys: KeySet::default(), placement: moving })
                     .await,
                 ),
             ),
             (
                 "list-blocks",
                 answered(
-                    client::blocks::list_blocks(peer, Listing::Children(BlockParent::Root), None)
+                    peer.read::<be_block_protocol::Listed>(be_block_protocol::Query::List { listing: Listing::Children(BlockParent::Root), after: None })
                         .await,
                 ),
             ),
             (
                 "unfollow",
-                answered(client::blocks::unfollow(peer, block).await),
+                answered(peer.unfollow(be_block_protocol::Topic::Tree(block)).await),
             ),
             (
                 "get-organization-log",
-                answered(client::organizations::get_organization_log(peer).await),
+                answered(peer.read::<Vec<Vec<u8>>>(be_block_protocol::Query::Log(None)).await),
             ),
             (
                 "list-history",
-                answered(client::blocks::list_history(peer, block).await),
+                answered(peer.read::<Vec<be_block_protocol::HistoryEntry>>(be_block_protocol::Query::History(block)).await),
             ),
             (
                 "get-access-log",
-                answered(client::blocks::get_access_log(peer, block).await),
+                answered(peer.read::<Vec<Vec<u8>>>(be_block_protocol::Query::Log(Some(block))).await),
             ),
             (
                 "changed-since",
                 answered(
-                    client::blocks::changed_since(
-                        peer,
-                        block,
-                        ChangeCursor {
+                    peer.ask::<be_block_protocol::ChangedPage>(be_block_protocol::Query::Tree { entry: block, after: ChangeCursor {
                             changed: 0,
                             block: Uuid::max(),
-                        },
-                        10,
-                        false,
-                    )
+                        }, limit: 10 }, false)
                     .await,
                 ),
             ),
@@ -355,55 +286,47 @@ impl TestClient {
             (
                 "set-access",
                 answered(
-                    client::blocks::set_access(peer, block, other, Access::Manage, None).await,
+                    peer.write::<()>(be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Grant { block: block, account: other, access: Access::Manage, signed: None })).await,
                 ),
             ),
             (
                 "list-access",
-                answered(client::blocks::list_access(peer, block).await),
+                answered(peer.read::<be_block_protocol::AccessList>(be_block_protocol::Query::Access(block)).await),
             ),
             (
                 "get-keys",
-                answered(client::keys::get_keys(peer, Some(vec![block]), None).await),
+                answered(peer.read::<be_block_protocol::KeyPage>(be_block_protocol::Query::Keys { blocks: Some(vec![block]), after: None }).await),
             ),
             (
                 "put-keys",
-                answered(client::keys::put_keys(peer, KeySet::default()).await),
+                answered(peer.write::<()>(be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet::default()))).await),
             ),
             (
                 "get-recovery-key",
-                answered(client::keys::get_recovery_key(peer).await),
+                answered(peer.read::<be_block_protocol::RecoveryKey>(be_block_protocol::Query::RecoveryKey).await),
             ),
             (
                 "set-recovery-key",
                 answered(
-                    client::keys::set_recovery_key(
-                        peer,
-                        [7; 32],
-                        [7; 32],
-                        Vec::new(),
-                        Vec::new(),
-                        Vec::new(),
-                        Vec::new(),
-                    )
+                    peer.write::<()>(be_block_protocol::Op::SetRecoveryKey { public: [7; 32], signing: [7; 32], sealed: Vec::new(), own: Vec::new(), changes: Vec::new(), retirements: Vec::new() })
                     .await,
                 ),
             ),
             (
                 "get-signing-keys",
-                answered(client::keys::get_signing_keys(peer, vec![other]).await),
+                answered(peer.read::<Vec<be_block_protocol::SigningKey>>(be_block_protocol::Query::SigningKeys(vec![other])).await),
             ),
             (
                 "reseal-keys",
-                answered(client::keys::reseal_keys(peer, Vec::new()).await),
+                answered(peer.write::<()>(be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Reseal(Vec::new()))).await),
             ),
             (
                 "rotate",
-                answered(client::keys::rotate(peer, vec![block], KeySet::default()).await),
+                answered(peer.write::<()>(be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rotate { roots: vec![block], keys: KeySet::default() })).await),
             ),
             (
                 "pin-escrow",
-                answered(client::keys::pin_escrow(peer, sealed()).await),
+                answered(peer.write::<()>(be_block_protocol::Op::PinEscrow(sealed())).await),
             ),
             (
                 "push-key",
@@ -416,47 +339,37 @@ impl TestClient {
             (
                 "register-endpoint",
                 answered(
-                    client::notifications::register_endpoint(
-                        peer,
-                        be_block_protocol::PushEndpoint {
+                    peer.write::<()>(be_block_protocol::Op::SetPushEndpoint(be_block_protocol::PushEndpointChange::Register(be_block_protocol::PushEndpoint {
                             service: be_block_protocol::PushService::WebPush,
                             address: "https://fcm.googleapis.com/fcm/send/endpoint".into(),
                             p256dh: vec![4; 65],
                             auth: vec![0; 16],
-                        },
-                    )
+                        })))
                     .await,
                 ),
             ),
             (
                 "unregister-endpoint",
                 answered(
-                    client::notifications::unregister_endpoint(
-                        peer,
-                        "https://fcm.googleapis.com/fcm/send/endpoint".into(),
-                    )
+                    peer.write::<()>(be_block_protocol::Op::SetPushEndpoint(be_block_protocol::PushEndpointChange::Forget("https://fcm.googleapis.com/fcm/send/endpoint".into())))
                     .await,
                 ),
             ),
             (
                 "notify-modes",
-                answered(client::notifications::notify_modes(peer).await),
+                answered(peer.read::<Vec<be_block_protocol::BlockNotifyMode>>(be_block_protocol::Query::NotifyModes).await),
             ),
             (
                 "set-notify-mode",
                 answered(
-                    client::notifications::set_notify_mode(
-                        peer,
-                        block,
-                        be_block_protocol::NotifyMode::Off,
-                    )
+                    peer.write::<()>(be_block_protocol::Op::SetNotifyMode { block: block, mode: be_block_protocol::NotifyMode::Off })
                     .await,
                 ),
             ),
             (
                 "notify",
                 answered(
-                    client::notifications::notify(peer, block, sealed(), Vec::new(), Vec::new())
+                    peer.send(be_block_protocol::Target::Push { block: block, mentions: Vec::new(), keys: Vec::new() }, sealed())
                         .await,
                 ),
             ),
@@ -472,7 +385,7 @@ impl TestClient {
         };
         answers.push((
             "create-escrow",
-            answered(client::keys::create_escrow(peer, escrow, KeySet::default()).await),
+            answered(peer.write::<()>(be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Escrow { escrow: escrow, keys: KeySet::default() })).await),
         ));
         for (name, stream) in [
             ("changes", Opened::Changes(client::blocks::changes(peer))),
@@ -531,7 +444,7 @@ impl TestClient {
         ));
         answers.push((
             "logout",
-            answered(client::account::logout(peer, None).await),
+            answered(peer.write::<()>(be_block_protocol::Op::RevokeToken(None)).await),
         ));
         answers
     }
@@ -595,22 +508,10 @@ async fn every_call_states_who_may_make_it() {
     let placement = knower.placement(referrer, BlockParent::Root).await;
     let response = knower
         .call(|peer| {
-            client::blocks::create_block(
-                peer,
-                referrer,
-                CONTENT,
-                BlockParent::Root,
-                Vec::new(),
-                vec![block],
-                key,
-                KeySet {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::CreateBlock { block: referrer, content_type: CONTENT, parent: BlockParent::Root, metadata: Vec::new(), references: vec![block], key: key, keys: KeySet {
                     keys: vec![row(key, referrer, KeyKind::Data)],
                     wrapped: Vec::new(),
-                },
-                false,
-                root,
-                placement,
-            )
+                }, owner_only: false, root: root, placement: placement })
         })
         .await;
     assert!(response.is_ok(), "{response:?}");

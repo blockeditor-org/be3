@@ -33,20 +33,7 @@ async fn a_trashed_block_reaches_its_reader_as_detached() {
         .await;
     let published = trasher
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                block,
-                head,
-                None,
-                Vec::new(),
-                objects_change(&[], chunks),
-                1_000,
-                false,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                Vec::new(),
-                None,
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: block, commit: head, expected: None, parents: Vec::new(), held: objects_change(&[], chunks), time: 1_000, pinned: false, references: listing(&[], Vec::new()), metadata: Vec::new(), objects: Vec::new(), journal: None })
         })
         .await;
     assert!(published.is_ok(), "{published:?}");

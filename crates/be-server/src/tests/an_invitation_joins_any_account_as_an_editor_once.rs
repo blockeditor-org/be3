@@ -13,18 +13,18 @@ async fn an_invitation_joins_any_account_as_an_editor_once() {
     // Bound to no email: whoever holds the link reads and accepts it.
     let mut anyone = harness.member("anyone@elsewhere.example").await;
     let found = anyone
-        .call(|peer| client::contacts::get_link(peer, link))
+        .call(|peer| peer.read::<be_block_protocol::Link>(be_block_protocol::Query::Link(link)))
         .await;
     assert!(
         matches!(&found, Ok(found) if found.organization_name == "team"),
         "{found:?}"
     );
     let accepted = anyone
-        .call(|peer| client::contacts::accept_link(peer, link, Vec::new(), Vec::new(), Vec::new()))
+        .call(|peer| peer.write::<()>(be_block_protocol::Op::AcceptLink { link: link, card: Vec::new(), contact: Vec::new(), key: Vec::new() }))
         .await;
     assert!(matches!(accepted, Ok(())), "{accepted:?}");
     let members = admin
-        .call(|peer| client::members::list_members(peer))
+        .call(|peer| peer.read::<Vec<be_block_protocol::Member>>(be_block_protocol::Query::Members))
         .await
         .expect("the members are listed");
     let joined = members
@@ -35,7 +35,7 @@ async fn an_invitation_joins_any_account_as_an_editor_once() {
     // Opened a second time, by anyone, it is used up.
     let mut second = harness.member("second@example.com").await;
     let again = second
-        .call(|peer| client::contacts::get_link(peer, link))
+        .call(|peer| peer.read::<be_block_protocol::Link>(be_block_protocol::Query::Link(link)))
         .await;
     assert!(
         matches!(&again, Err(error) if error.code == ErrorCode::LinkNotFound
@@ -43,7 +43,7 @@ async fn an_invitation_joins_any_account_as_an_editor_once() {
         "{again:?}"
     );
     let accepted = second
-        .call(|peer| client::contacts::accept_link(peer, link, Vec::new(), Vec::new(), Vec::new()))
+        .call(|peer| peer.write::<()>(be_block_protocol::Op::AcceptLink { link: link, card: Vec::new(), contact: Vec::new(), key: Vec::new() }))
         .await;
     assert!(
         refused_as(&accepted, ErrorCode::LinkNotFound),

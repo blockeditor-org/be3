@@ -51,7 +51,7 @@ async fn a_member_removes_only_the_agents_it_made_while_it_may() {
         "a creator that no longer manages the block removed its agent: {refused:?}"
     );
     let members = admin
-        .call(|peer| client::members::list_members(peer))
+        .call(|peer| peer.read::<Vec<be_block_protocol::Member>>(be_block_protocol::Query::Members))
         .await
         .expect("listing members failed");
     assert!(

@@ -11,22 +11,10 @@ async fn create_index(
     let placement = client.placement(block, BlockParent::Block(parent)).await;
     let response = client
         .call(|peer| {
-            client::blocks::create_block(
-                peer,
-                block,
-                SEARCH_INDEX_TYPE,
-                BlockParent::Block(parent),
-                Vec::new(),
-                Vec::new(),
-                key,
-                KeySet {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::CreateBlock { block: block, content_type: SEARCH_INDEX_TYPE, parent: BlockParent::Block(parent), metadata: Vec::new(), references: Vec::new(), key: key, keys: KeySet {
                     keys: vec![row(key, block, KeyKind::Data)],
                     wrapped: Vec::new(),
-                },
-                false,
-                root,
-                placement,
-            )
+                }, owner_only: false, root: root, placement: placement })
         })
         .await;
     (block, response)
@@ -42,7 +30,7 @@ async fn refer(
     references: Vec<Uuid>,
 ) -> Result<BlockSummary, Error> {
     client
-        .call(|peer| client::blocks::set_metadata(peer, block, Vec::new(), references))
+        .call(|peer| peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata { block: block, metadata: Vec::new(), references: references }))
         .await
 }
 

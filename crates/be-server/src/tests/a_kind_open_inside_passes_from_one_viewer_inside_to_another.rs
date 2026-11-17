@@ -8,22 +8,10 @@ async fn create_under(client: &mut TestClient, content_type: Uuid, parent: Uuid)
     let placement = client.placement(block, BlockParent::Block(parent)).await;
     let response = client
         .call(|peer| {
-            client::blocks::create_block(
-                peer,
-                block,
-                content_type,
-                BlockParent::Block(parent),
-                Vec::new(),
-                Vec::new(),
-                key,
-                KeySet {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::CreateBlock { block: block, content_type: content_type, parent: BlockParent::Block(parent), metadata: Vec::new(), references: Vec::new(), key: key, keys: KeySet {
                     keys: vec![row(key, block, KeyKind::Data)],
                     wrapped: Vec::new(),
-                },
-                false,
-                root.clone(),
-                placement,
-            )
+                }, owner_only: false, root: root.clone(), placement: placement })
         })
         .await;
     assert!(matches!(response, Ok(_)), "{response:?}");
@@ -44,13 +32,10 @@ async fn unsealed(client: &mut TestClient) -> Vec<(Uuid, Uuid)> {
 async fn put(client: &mut TestClient, wrapped: Vec<WrappedKey>) -> Result<(), Error> {
     client
         .call(|peer| {
-            client::keys::put_keys(
-                peer,
-                KeySet {
+            peer.write::<()>(be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
                     keys: Vec::new(),
                     wrapped,
-                },
-            )
+                })))
         })
         .await
 }
@@ -87,13 +72,10 @@ async fn a_kind_open_inside_passes_from_one_viewer_inside_to_another() {
     let key = Uuid::new_v4();
     let stored = owner
         .call(|peer| {
-            client::keys::put_keys(
-                peer,
-                KeySet {
+            peer.write::<()>(be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
                     keys: vec![row(key, kind, KeyKind::Scope)],
                     wrapped: vec![wrap(key, WrappedBy::Account(sharer_id), b"for the sharer")],
-                },
-            )
+                })))
         })
         .await;
     assert!(matches!(stored, Ok(())), "{stored:?}");
@@ -114,17 +96,14 @@ async fn a_kind_open_inside_passes_from_one_viewer_inside_to_another() {
     let other = Uuid::new_v4();
     let stored = owner
         .call(|peer| {
-            client::keys::put_keys(
-                peer,
-                KeySet {
+            peer.write::<()>(be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
                     keys: vec![row(other, note, KeyKind::Scope)],
                     wrapped: vec![wrap(
                         other,
                         WrappedBy::Account(sharer_id),
                         b"for the sharer",
                     )],
-                },
-            )
+                })))
         })
         .await;
     assert!(matches!(stored, Ok(())), "{stored:?}");

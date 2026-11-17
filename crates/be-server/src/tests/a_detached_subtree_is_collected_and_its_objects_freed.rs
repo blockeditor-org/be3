@@ -18,44 +18,18 @@ async fn a_detached_subtree_is_collected_and_its_objects_freed() {
         .await;
     let _ = client
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                child,
-                head,
-                None,
-                Vec::new(),
-                objects_change(&[], chunks.clone()),
-                1_000,
-                false,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                Vec::new(),
-                None,
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: child, commit: head, expected: None, parents: Vec::new(), held: objects_change(&[], chunks.clone()), time: 1_000, pinned: false, references: listing(&[], Vec::new()), metadata: Vec::new(), objects: Vec::new(), journal: None })
         })
         .await;
 
     let _ = client
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                bystander,
-                head,
-                None,
-                Vec::new(),
-                objects_change(&[], chunks.clone()),
-                1_000,
-                false,
-                listing(&[], vec![child]),
-                Vec::new(),
-                Vec::new(),
-                None,
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: bystander, commit: head, expected: None, parents: Vec::new(), held: objects_change(&[], chunks.clone()), time: 1_000, pinned: false, references: listing(&[], vec![child]), metadata: Vec::new(), objects: Vec::new(), journal: None })
         })
         .await;
 
     let response = client
-        .call(|peer| client::blocks::list_blocks(peer, Listing::Backrefs(child), None))
+        .call(|peer| peer.read::<be_block_protocol::Listed>(be_block_protocol::Query::List { listing: Listing::Backrefs(child), after: None }))
         .await;
     let Ok(be_block_protocol::Listed { blocks, .. }) = response else {
         panic!("backrefs failed: {response:?}");

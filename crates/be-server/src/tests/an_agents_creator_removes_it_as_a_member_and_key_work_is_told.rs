@@ -23,7 +23,7 @@ async fn an_agents_creator_removes_it_as_a_member_and_key_work_is_told() {
         panic!("creating an agent failed: {response:?}");
     };
     let members = admin
-        .call(|peer| client::members::list_members(peer))
+        .call(|peer| peer.read::<Vec<be_block_protocol::Member>>(be_block_protocol::Query::Members))
         .await
         .expect("listing members failed");
     assert!(
@@ -44,7 +44,7 @@ async fn an_agents_creator_removes_it_as_a_member_and_key_work_is_told() {
         .expect("removing the agent told the administrator its key work again");
 
     let members = admin
-        .call(|peer| client::members::list_members(peer))
+        .call(|peer| peer.read::<Vec<be_block_protocol::Member>>(be_block_protocol::Query::Members))
         .await
         .expect("listing members failed");
     assert!(members.iter().all(|member| member.account != agent.account));

@@ -31,7 +31,7 @@ async fn a_block_agent_reaches_no_further_than_its_creator() {
             "Bob's agent outlived Bob managing the block ({lowered:?})"
         );
         let response = bob
-            .call(|peer| client::members::rotate_agent_token(peer, organization, agent))
+            .call(|peer| peer.write_in::<String>(Some(organization), be_block_protocol::Op::RotateAgentToken(agent)))
             .await;
         assert!(
             response.is_err(),

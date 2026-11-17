@@ -7,7 +7,7 @@ async fn set_references(
     references: Vec<Uuid>,
 ) -> Result<BlockSummary, Error> {
     client
-        .call(|peer| client::blocks::set_metadata(peer, block, b"named".to_vec(), references))
+        .call(|peer| peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata { block: block, metadata: b"named".to_vec(), references: references }))
         .await
 }
 
@@ -32,22 +32,10 @@ async fn only_a_manager_lets_go_of_a_blocks_settings() {
         .await;
     let created = owner
         .call(|peer| {
-            client::blocks::create_block(
-                peer,
-                settings,
-                SETTINGS_TYPE,
-                BlockParent::Block(workspace),
-                Vec::new(),
-                Vec::new(),
-                key,
-                KeySet {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::CreateBlock { block: settings, content_type: SETTINGS_TYPE, parent: BlockParent::Block(workspace), metadata: Vec::new(), references: Vec::new(), key: key, keys: KeySet {
                     keys: vec![row(key, settings, KeyKind::Data)],
                     wrapped: Vec::new(),
-                },
-                false,
-                root,
-                placement,
-            )
+                }, owner_only: false, root: root, placement: placement })
         })
         .await;
     assert!(matches!(created, Ok(_)), "{created:?}");

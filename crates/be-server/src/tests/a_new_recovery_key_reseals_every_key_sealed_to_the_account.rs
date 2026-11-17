@@ -3,7 +3,7 @@ use be_block_protocol::SealedKey;
 
 async fn recovery(client: &mut TestClient) -> (Option<[u8; 32]>, Vec<SealedKey>) {
     let response = client
-        .call(|peer| client::keys::get_recovery_key(peer))
+        .call(|peer| peer.read::<be_block_protocol::RecoveryKey>(be_block_protocol::Query::RecoveryKey))
         .await;
     let Ok(be_block_protocol::RecoveryKey { public, sealed, .. }) = response else {
         panic!("reading the recovery key failed: {response:?}");
@@ -39,17 +39,14 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
 
     let response = owner
         .call(|peer| {
-            client::keys::put_keys(
-                peer,
-                KeySet {
+            peer.write::<()>(be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
                     keys: Vec::new(),
                     wrapped: vec![wrap(
                         workspace.scope,
                         WrappedBy::Account(account),
                         b"a forgery",
                     )],
-                },
-            )
+                })))
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
@@ -61,15 +58,7 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
 
     let refused = owner
         .call(|peer| {
-            client::keys::set_recovery_key(
-                peer,
-                [2; 32],
-                [2; 32],
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-            )
+            peer.write::<()>(be_block_protocol::Op::SetRecoveryKey { public: [2; 32], signing: [2; 32], sealed: Vec::new(), own: Vec::new(), changes: Vec::new(), retirements: Vec::new() })
         })
         .await;
     assert!(
@@ -81,7 +70,7 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
     let second = be_block_keys::RecoveryPhrase::generate().secret();
     let next = second.identity();
     let logs = owner
-        .call(|peer| client::keys::get_recovery_key(peer))
+        .call(|peer| peer.read::<be_block_protocol::RecoveryKey>(be_block_protocol::Query::RecoveryKey))
         .await
         .unwrap()
         .logs;
@@ -103,20 +92,12 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
     let kept = retirements.pop().unwrap();
     let response = owner
         .call(|peer| {
-            client::keys::set_recovery_key(
-                peer,
-                next.public.0,
-                next.signing.0,
-                vec![SealedKey {
+            peer.write::<()>(be_block_protocol::Op::SetRecoveryKey { public: next.public.0, signing: next.signing.0, sealed: vec![SealedKey {
                     organization,
                     key: workspace.scope,
                     sender: account,
                     sealed: b"resealed to the new phrase".to_vec(),
-                }],
-                Vec::new(),
-                Vec::new(),
-                retirements.clone(),
-            )
+                }], own: Vec::new(), changes: Vec::new(), retirements: retirements.clone() })
         })
         .await;
     assert!(
@@ -127,20 +108,12 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
 
     let response = owner
         .call(|peer| {
-            client::keys::set_recovery_key(
-                peer,
-                next.public.0,
-                next.signing.0,
-                vec![SealedKey {
+            peer.write::<()>(be_block_protocol::Op::SetRecoveryKey { public: next.public.0, signing: next.signing.0, sealed: vec![SealedKey {
                     organization,
                     key: workspace.scope,
                     sender: account,
                     sealed: b"resealed to the new phrase".to_vec(),
-                }],
-                Vec::new(),
-                Vec::new(),
-                retirements,
-            )
+                }], own: Vec::new(), changes: Vec::new(), retirements: retirements })
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");

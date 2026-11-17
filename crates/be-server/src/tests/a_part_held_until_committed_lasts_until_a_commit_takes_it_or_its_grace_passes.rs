@@ -6,7 +6,7 @@ use super::*;
 async fn hold(client: &mut TestClient, block: Uuid, objects: &[Hash], hold: Hold) {
     let objects = objects.to_vec();
     let held = client
-        .call(|peer| client::objects::hold_objects(peer, block, objects, hold))
+        .call(|peer| peer.write::<()>(be_block_protocol::Op::HoldObjects { block: block, objects: objects, hold: hold }))
         .await;
     assert!(matches!(held, Ok(())), "{held:?}");
 }

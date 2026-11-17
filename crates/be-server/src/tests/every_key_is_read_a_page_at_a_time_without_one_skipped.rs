@@ -17,7 +17,7 @@ async fn every_key_is_read_a_page_at_a_time_without_one_skipped() {
     }
 
     let first = owner
-        .call(|peer| client::keys::get_keys(peer, None, None))
+        .call(|peer| peer.read::<be_block_protocol::KeyPage>(be_block_protocol::Query::Keys { blocks: None, after: None }))
         .await
         .unwrap();
     assert!(first.next.is_some(), "the keys fit one page");

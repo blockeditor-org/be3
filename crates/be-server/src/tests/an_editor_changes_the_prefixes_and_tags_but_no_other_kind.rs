@@ -12,22 +12,10 @@ async fn create_under(
     let placement = client.placement(block, BlockParent::Block(parent)).await;
     client
         .call(|peer| {
-            client::blocks::create_block(
-                peer,
-                block,
-                content_type,
-                BlockParent::Block(parent),
-                Vec::new(),
-                Vec::new(),
-                key,
-                KeySet {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::CreateBlock { block: block, content_type: content_type, parent: BlockParent::Block(parent), metadata: Vec::new(), references: Vec::new(), key: key, keys: KeySet {
                     keys: vec![row(key, block, KeyKind::Data)],
                     wrapped: Vec::new(),
-                },
-                false,
-                root,
-                placement,
-            )
+                }, owner_only: false, root: root, placement: placement })
         })
         .await
 }

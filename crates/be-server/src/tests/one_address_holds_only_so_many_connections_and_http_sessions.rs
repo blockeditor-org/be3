@@ -75,7 +75,7 @@ async fn signed_in(harness: &Harness, forwarded: &str, token: &str) -> TestClien
     let mut client = TestClient::over(socket);
     let token = token.to_owned();
     let response = client
-        .call(|peer| client::account::authenticate(peer, Some(token)))
+        .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(token)))
         .await;
     assert!(response.is_ok(), "{response:?}");
     client

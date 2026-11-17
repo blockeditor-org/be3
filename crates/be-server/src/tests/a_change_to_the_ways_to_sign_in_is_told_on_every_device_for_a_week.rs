@@ -12,7 +12,7 @@ async fn a_change_to_the_ways_to_sign_in_is_told_on_every_device_for_a_week() {
         let mut device = harness.client().await;
         let token = store.issue_session(account).await.unwrap();
         let signed_in = device
-            .call(|peer| client::account::authenticate(peer, Some(token)))
+            .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(token)))
             .await;
         assert!(signed_in.is_ok(), "{signed_in:?}");
         device
@@ -28,7 +28,7 @@ async fn a_change_to_the_ways_to_sign_in_is_told_on_every_device_for_a_week() {
         1
     );
     let listed = first
-        .call(|peer| client::account::account_notices(peer))
+        .call(|peer| peer.read::<Vec<be_block_protocol::AccountNotice>>(be_block_protocol::Query::Notices))
         .await
         .unwrap();
     assert_eq!(listed.len(), 1, "{listed:?}");
@@ -37,11 +37,11 @@ async fn a_change_to_the_ways_to_sign_in_is_told_on_every_device_for_a_week() {
     // every other device.
     let id = listed[0].id;
     let dismissed = second
-        .call(|peer| client::account::dismiss_account_notice(peer, id))
+        .call(|peer| peer.write::<()>(be_block_protocol::Op::DismissNotice(id)))
         .await;
     assert!(matches!(dismissed, Ok(())), "{dismissed:?}");
     let listed = first
-        .call(|peer| client::account::account_notices(peer))
+        .call(|peer| peer.read::<Vec<be_block_protocol::AccountNotice>>(be_block_protocol::Query::Notices))
         .await
         .unwrap();
     assert_eq!(listed.len(), 1, "{listed:?}");
@@ -61,22 +61,22 @@ async fn a_change_to_the_ways_to_sign_in_is_told_on_every_device_for_a_week() {
         .unwrap();
     let mut other = harness.member("other@example.com").await;
     let _ = other
-        .call(|peer| client::account::dismiss_account_notice(peer, id))
+        .call(|peer| peer.write::<()>(be_block_protocol::Op::DismissNotice(id)))
         .await;
     assert_eq!(
         first
-            .call(|peer| client::account::account_notices(peer))
+            .call(|peer| peer.read::<Vec<be_block_protocol::AccountNotice>>(be_block_protocol::Query::Notices))
             .await
             .unwrap()
             .len(),
         1
     );
     let dismissed = second
-        .call(|peer| client::account::dismiss_account_notice(peer, id))
+        .call(|peer| peer.write::<()>(be_block_protocol::Op::DismissNotice(id)))
         .await;
     assert!(matches!(dismissed, Ok(())), "{dismissed:?}");
     let listed = first
-        .call(|peer| client::account::account_notices(peer))
+        .call(|peer| peer.read::<Vec<be_block_protocol::AccountNotice>>(be_block_protocol::Query::Notices))
         .await
         .unwrap();
     assert!(listed.is_empty(), "{listed:?}");
