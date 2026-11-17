@@ -20,7 +20,9 @@ async fn a_block_made_under_one_whose_keys_cannot_be_asked_for_is_not_locked() {
     guest.learn(&listed).await.unwrap();
 
     // The keys answered, and none of them is the workspace's.
-    let made = guest.create::<TextContent>(BlockParent::Block(shared)).await;
+    let made = guest
+        .create::<TextContent>(BlockParent::Block(shared))
+        .await;
     assert!(
         matches!(made, Err(ClientError::Locked(locked)) if locked == shared),
         "{made:?}"
@@ -28,7 +30,9 @@ async fn a_block_made_under_one_whose_keys_cannot_be_asked_for_is_not_locked() {
 
     // Offline, nothing answered.
     guest.detach();
-    let made = guest.create::<TextContent>(BlockParent::Block(shared)).await;
+    let made = guest
+        .create::<TextContent>(BlockParent::Block(shared))
+        .await;
     match made {
         Err(error) => assert!(error.is_unreachable(), "{error:?}"),
         Ok(block) => panic!("{block} was made under a parent whose root is not pinned"),

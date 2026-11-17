@@ -868,9 +868,7 @@ impl Searching {
         let due: Vec<Uuid> = self
             .failing
             .iter()
-            .filter(|(_, failing)| {
-                now.is_none_or(|now| failing.due.is_some_and(|due| due <= now))
-            })
+            .filter(|(_, failing)| now.is_none_or(|now| failing.due.is_some_and(|due| due <= now)))
             .map(|(index, _)| *index)
             .collect();
         for index in due {
