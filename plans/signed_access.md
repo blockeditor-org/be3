@@ -278,8 +278,9 @@ did not sign.
 - **A key from a sender the block's log never names** is taken only when
   this device finds, as that key arrives, the sender holding Edit or above on
   a block the signed parent records place it under (`KeyBook::vouch`, step 4),
-  as of those logs' heads then; that key alone is kept as vouched for across
-  restarts, and each later one is judged as it arrives. A server that
+  as of those logs' heads then; that wrap alone (key, sender and digest of
+  what was sealed) is kept as vouched for across restarts, and any other wrap
+  of the key, or later key, is judged as it arrives. A server that
   withholds the sender's revocation above from this device, as for any
   withheld revocation, has a made-up key taken. Such a key is written under only
   while it names a head the log reaches with nothing lowering anyone after
