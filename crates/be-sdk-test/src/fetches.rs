@@ -4,7 +4,7 @@ use be_sdk_api::{
     Failure,
     embed::network::Call,
     network::{Request, ResponseHead},
-    ops::{Connection, OpError, OpId, Outcome, Producer, Reply, wire},
+    ops::{Connection, OpError, OpId, Producer, Reply, wire},
 };
 
 type BodyItem = Result<Vec<u8>, Failure>;
@@ -42,10 +42,6 @@ pub(crate) struct Fetches {
 }
 
 impl Fetches {
-    pub(crate) fn holds(&self, op: OpId) -> bool {
-        self.held.contains_key(&op)
-    }
-
     pub(crate) fn has_sent(&self) -> bool {
         !self.sent.is_empty()
     }
