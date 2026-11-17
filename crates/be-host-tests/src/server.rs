@@ -107,9 +107,19 @@ impl Server {
     /// contact's key back would serve an older one: what a device that saw the newer one
     /// refuses (plans/crypto_audit.md, 4).
     pub fn spoil_contact(&self, of: &Account, contact: &Account) {
+        let store = &self.inner.store;
         self.inner
             .runtime
-            .block_on(self.inner.store.put_contact(of.id, contact.id, vec![7; 64]))
+            .block_on(async {
+                let held = store
+                    .list_contacts(of.id)
+                    .await?
+                    .into_iter()
+                    .find(|row| row.account == contact.id)
+                    .map(|row| row.sealed)
+                    .unwrap_or_default();
+                store.put_contact(of.id, contact.id, vec![7; 64], held).await
+            })
             .unwrap_or_else(|error| {
                 panic!("the test server could not change the contact: {error}")
             });
