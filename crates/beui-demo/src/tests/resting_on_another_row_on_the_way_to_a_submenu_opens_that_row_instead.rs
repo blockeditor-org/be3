@@ -28,10 +28,7 @@ fn resting_on_another_row_on_the_way_to_a_submenu_opens_that_row_instead() {
         test.shown("demo.menu.export.pdf"),
         "resting on Export opens its submenu"
     );
-    assert!(
-        !test.shown("demo.menu.share.email"),
-        "and closes Share's"
-    );
+    assert!(!test.shown("demo.menu.share.email"), "and closes Share's");
 
     test.hover("demo.menu.delete");
     assert!(

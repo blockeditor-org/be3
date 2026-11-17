@@ -17,7 +17,10 @@ fn typing_in_a_menu_moves_to_the_item_its_letters_start() {
     typed(&mut test, "s");
     assert!(focused(&test, "demo.menu.share"));
     typed(&mut test, "h");
-    assert!(focused(&test, "demo.menu.share"), "\"sh\" still starts Share");
+    assert!(
+        focused(&test, "demo.menu.share"),
+        "\"sh\" still starts Share"
+    );
     typed(&mut test, "x");
     assert!(focused(&test, "demo.menu.share"), "\"shx\" starts nothing");
 

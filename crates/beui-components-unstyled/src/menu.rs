@@ -925,9 +925,8 @@ fn pointer_at(state: State, at: Focus, press: &PointerPress) {
         cancel_intent(state);
         return;
     }
-    let heading = open.is_some_and(|open| {
-        from.is_some_and(|from| heading_into(state, open, from, press))
-    });
+    let heading =
+        open.is_some_and(|open| from.is_some_and(|from| heading_into(state, open, from, press)));
     let delay = match (open, heading) {
         (Some(_), true) => SUBMENU_GRACE,
         (Some(_), false) => SUBMENU_DELAY,
@@ -1372,12 +1371,13 @@ fn typeahead(state: State, at: Focus, text: &str) {
     let stops = Stops::of(state);
     let count = stops.stops.len();
     let from = stops.position(at).unwrap_or(count.saturating_sub(1));
-    let matched =
-        state
-            .typeahead
-            .value()
-            .borrow_mut()
-            .matched(text, from, count, |stop| stop_label(state, stops.stops[stop]));
+    let matched = state
+        .typeahead
+        .value()
+        .borrow_mut()
+        .matched(text, from, count, |stop| {
+            stop_label(state, stops.stops[stop])
+        });
     if let Some(matched) = matched {
         cancel_intent(state);
         focus_on(state, stops.stops[matched]);
@@ -1389,8 +1389,9 @@ fn typeahead(state: State, at: Focus, text: &str) {
 fn stop_label(state: State, stop: Focus) -> String {
     let item = match stop {
         Focus::Row(index) => item_at(state, index),
-        Focus::Tile(index, tile) => item_at(state, index)
-            .and_then(|grid| grid.children.get_untracked().get(tile).cloned()),
+        Focus::Tile(index, tile) => {
+            item_at(state, index).and_then(|grid| grid.children.get_untracked().get(tile).cloned())
+        }
         _ => None,
     };
     item.filter(|item| !item.disabled.get_untracked())
