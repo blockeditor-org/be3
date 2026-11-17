@@ -2,13 +2,23 @@ use super::*;
 
 #[test]
 fn left_or_right_an_overlay_fitting_neither_side_keeps_its_width_and_shifts_over_its_anchor() {
-    let shown = placed(Placement::RIGHT_START, rect(100.0, 120.0, 300.0, 150.0), 150.0, 40.0);
+    let shown = placed(
+        Placement::RIGHT_START,
+        rect(100.0, 120.0, 300.0, 150.0),
+        150.0,
+        40.0,
+    );
     assert_eq!(
         shown,
         Rect::from_min_size(pos2(250.0, 120.0), Vec2::new(150.0, 40.0)),
         "with as much room on each side it keeps to its own, shifted in over its anchor"
     );
-    let shown = placed(Placement::LEFT_START, rect(50.0, 120.0, 300.0, 150.0), 150.0, 40.0);
+    let shown = placed(
+        Placement::LEFT_START,
+        rect(50.0, 120.0, 300.0, 150.0),
+        150.0,
+        40.0,
+    );
     assert_eq!(
         shown,
         Rect::from_min_size(pos2(250.0, 120.0), Vec2::new(150.0, 40.0)),

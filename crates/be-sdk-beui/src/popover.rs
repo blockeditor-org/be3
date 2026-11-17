@@ -2,9 +2,7 @@ use be_sdk_api::{ChildLayer, ChildMode};
 use beui::reactive::*;
 use beui::styled::theme::POINTER_REACH;
 use beui::styled::*;
-use beui::{
-    Dismiss, LayerPolicy, NodeId, OverlayAnchor, Placement, Pos2, Rect, Vec2,
-};
+use beui::{Dismiss, LayerPolicy, NodeId, OverlayAnchor, Placement, Pos2, Rect, Vec2};
 
 use crate::{ChildState, Editor, PickAnchor, Subregion, SubregionContent};
 

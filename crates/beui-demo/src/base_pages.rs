@@ -1284,66 +1284,57 @@ fn PlacementSet() -> NodeId {
     let corner = create_signal(false);
     let marker = NodeRef::new();
     let viewport = use_viewport_size();
-    let marked = create_memo(move || {
-        OverlayAnchor::Point(CORNER_MARKER.min + viewport.get())
-    });
+    let marked = create_memo(move || OverlayAnchor::Point(CORNER_MARKER.min + viewport.get()));
     let near_corner = [
-        (Placement::BELOW_START.gap(4).margin(8), "below start", "demo.corner.below"),
-        (Placement::RIGHT_START.gap(4).margin(8), "right start", "demo.corner.right"),
+        (
+            Placement::BELOW_START.gap(4).margin(8),
+            "below start",
+            "demo.corner.below",
+        ),
+        (
+            Placement::RIGHT_START.gap(4).margin(8),
+            "right start",
+            "demo.corner.right",
+        ),
     ];
     let face = theme.control;
     let ink = theme.text;
     view! {
         <Frame padding={Sides::symmetric(120.0, 40.0)}>
             <List direction=Direction::Horizontal spacing=0.0>
-            <Interactive
-                @test_id="demo.placements.trigger"
-                on_click={move || open.update(|open| *open = !*open)}
-            >
-                <Frame
-                    @node_ref=&anchor
-                    @test_id="demo.placements.anchor"
-                    width=320.0
-                    height=110.0
-                    fill=face
-                    radius={Radius::Md.px()}
-                    padding=12.0
-                >
-                    <Text color={ink}>"Show every placement"</Text>
-                </Frame>
-            </Interactive>
-            <Frame padding={Sides { left: 130.0, top: 0.0, right: 0.0, bottom: 0.0 }}>
                 <Interactive
-                    @test_id="demo.placements.corner.trigger"
-                    on_click={move || corner.update(|corner| *corner = !*corner)}
+                    @test_id="demo.placements.trigger"
+                    on_click={move || open.update(|open| *open = !*open)}
                 >
-                    <Frame fill=face radius={Radius::Md.px()} padding={Sides::symmetric(16.0, 10.0)}>
-                        <Text color={ink}>"Near the corner"</Text>
+                    <Frame
+                        @node_ref=&anchor
+                        @test_id="demo.placements.anchor"
+                        width=320.0
+                        height=110.0
+                        fill=face
+                        radius={Radius::Md.px()}
+                        padding=12.0
+                    >
+                        <Text color={ink}>"Show every placement"</Text>
                     </Frame>
                 </Interactive>
-            </Frame>
-            <Overlay
-                anchor={marked}
-                placement=Placement::At
-                policy=LayerPolicy::Inert
-                traps_focus=false
-                dismissable=false
-                open={corner}
-                on_dismiss={|_: Dismiss| {}}
-            >
-                <Frame
-                    @node_ref=&marker
-                    @test_id="demo.placements.corner"
-                    width={CORNER_MARKER.width()}
-                    height={CORNER_MARKER.height()}
-                    fill={theme.control}
-                    radius={Radius::Sm.px()}
-                />
-            </Overlay>
-            <ForEach value={(0..near_corner.len()).collect::<Vec<usize>>()}>|index: usize|
+                <Frame padding={Sides { left: 130.0, top: 0.0, right: 0.0, bottom: 0.0 }}>
+                    <Interactive
+                        @test_id="demo.placements.corner.trigger"
+                        on_click={move || corner.update(|corner| *corner = !*corner)}
+                    >
+                        <Frame
+                            fill=face
+                            radius={Radius::Md.px()}
+                            padding={Sides::symmetric(16.0, 10.0)}
+                        >
+                            <Text color={ink}>"Near the corner"</Text>
+                        </Frame>
+                    </Interactive>
+                </Frame>
                 <Overlay
-                    anchor=marker
-                    placement={near_corner[index].0}
+                    anchor={marked}
+                    placement=Placement::At
                     policy=LayerPolicy::Inert
                     traps_focus=false
                     dismissable=false
@@ -1351,38 +1342,57 @@ fn PlacementSet() -> NodeId {
                     on_dismiss={|_: Dismiss| {}}
                 >
                     <Frame
-                        @test_id={near_corner[index].2}
-                        width=100.0
-                        fill={theme.surface}
-                        outline={move || Some(Outline::new(theme.border.get(), 1.0))}
+                        @node_ref=&marker
+                        @test_id="demo.placements.corner"
+                        width={CORNER_MARKER.width()}
+                        height={CORNER_MARKER.height()}
+                        fill={theme.control}
                         radius={Radius::Sm.px()}
-                        padding={Sides::symmetric(6.0, 2.0)}
-                    >
-                        <Text color={theme.text}>{near_corner[index].1}</Text>
-                    </Frame>
+                    />
                 </Overlay>
-            </ForEach>
-            <ForEach value={(0..PLACEMENTS.len()).collect::<Vec<usize>>()}>|index: usize|
-                <Overlay
-                    anchor=anchor
-                    placement={PLACEMENTS[index].0.gap(4)}
-                    policy=LayerPolicy::Inert
-                    traps_focus=false
-                    dismissable=false
-                    open={open}
-                    on_dismiss={|_: Dismiss| {}}
-                >
-                    <Frame
-                        @test_id={format!("demo.placement.{index}")}
-                        fill={theme.surface}
-                        outline={move || Some(Outline::new(theme.border.get(), 1.0))}
-                        radius={Radius::Sm.px()}
-                        padding={Sides::symmetric(6.0, 2.0)}
+                <ForEach value={(0..near_corner.len()).collect::<Vec<usize>>()}>|index: usize|
+                    <Overlay
+                        anchor=marker
+                        placement={near_corner[index].0}
+                        policy=LayerPolicy::Inert
+                        traps_focus=false
+                        dismissable=false
+                        open={corner}
+                        on_dismiss={|_: Dismiss| {}}
                     >
-                        <Text color={theme.text}>{PLACEMENTS[index].1}</Text>
-                    </Frame>
-                </Overlay>
-            </ForEach>
+                        <Frame
+                            @test_id={near_corner[index].2}
+                            width=100.0
+                            fill={theme.surface}
+                            outline={move || Some(Outline::new(theme.border.get(), 1.0))}
+                            radius={Radius::Sm.px()}
+                            padding={Sides::symmetric(6.0, 2.0)}
+                        >
+                            <Text color={theme.text}>{near_corner[index].1}</Text>
+                        </Frame>
+                    </Overlay>
+                </ForEach>
+                <ForEach value={(0..PLACEMENTS.len()).collect::<Vec<usize>>()}>|index: usize|
+                    <Overlay
+                        anchor=anchor
+                        placement={PLACEMENTS[index].0.gap(4)}
+                        policy=LayerPolicy::Inert
+                        traps_focus=false
+                        dismissable=false
+                        open={open}
+                        on_dismiss={|_: Dismiss| {}}
+                    >
+                        <Frame
+                            @test_id={format!("demo.placement.{index}")}
+                            fill={theme.surface}
+                            outline={move || Some(Outline::new(theme.border.get(), 1.0))}
+                            radius={Radius::Sm.px()}
+                            padding={Sides::symmetric(6.0, 2.0)}
+                        >
+                            <Text color={theme.text}>{PLACEMENTS[index].1}</Text>
+                        </Frame>
+                    </Overlay>
+                </ForEach>
             </List>
         </Frame>
     }

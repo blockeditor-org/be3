@@ -15,14 +15,22 @@ fn near_the_windows_corner_a_placement_flips_and_shifts_clear_of_its_edges() {
         "the marker stands near the bottom right corner"
     );
     let below = test.rect_of("demo.corner.below");
-    assert_eq!(below.bottom(), marker.top() - 4.0, "below flips above its anchor");
+    assert_eq!(
+        below.bottom(),
+        marker.top() - 4.0,
+        "below flips above its anchor"
+    );
     assert_eq!(
         below.right(),
         WIDE.x - 8.0,
         "and shifts left, its margin clear of the window's edge"
     );
     let right = test.rect_of("demo.corner.right");
-    assert_eq!(right.right(), marker.left() - 4.0, "right flips left of its anchor");
+    assert_eq!(
+        right.right(),
+        marker.left() - 4.0,
+        "right flips left of its anchor"
+    );
     assert_eq!(right.top(), marker.top(), "lined up with its start");
     test.snapshot("near_the_windows_corner_a_placement_flips_and_shifts_clear_of_its_edges");
 }
