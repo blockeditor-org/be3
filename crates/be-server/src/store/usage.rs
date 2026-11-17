@@ -678,9 +678,9 @@ impl ServerStore {
             .await
     }
 
-    pub async fn storage_usage(&self, identity: Identity) -> Result<AccountStorage, ServerError> {
+    pub async fn storage_usage(&self, account: Uuid) -> Result<AccountStorage, ServerError> {
         self.with_database(move |store, database| {
-            let usage = usage_of(&database, payer_of(&database, identity.account)?)?;
+            let usage = usage_of(&database, payer_of(&database, account)?)?;
             Ok(AccountStorage {
                 held: usage.held,
                 pending: usage.pending,
