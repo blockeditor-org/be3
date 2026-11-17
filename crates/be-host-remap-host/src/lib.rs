@@ -53,6 +53,9 @@ pub struct Remapper {
     physical: BTreeSet<Source>,
     pressed: BTreeSet<Source>,
     bypassed: BTreeSet<Source>,
+    /// The keys in `bypassed` that were pressed while the remaps started, rather than with a
+    /// session chord: once the remaps start knowing of them, their releases go to the remaps.
+    bypassed_starting: BTreeSet<Source>,
     forced: BTreeSet<Source>,
     locked: bool,
     failures: Vec<u64>,
@@ -65,11 +68,20 @@ pub struct Remapper {
 /// request with one frame.
 struct Running {
     instance: Instance,
-    /// While `Start` is unanswered, when it must be answered by. Input passes through unchanged
+    /// While `Start` is unanswered, the time on the input clock it must be answered by, which
+    /// `deadline` reports so the host's timer comes then. Input passes through unchanged
     /// meanwhile, so it never waits for a start.
-    starting: Option<Deadline>,
-    /// The window `Start` named.
+    starting: Option<u64>,
+    /// What `Start` told them.
+    told: Told,
+}
+
+/// The input and window the remaps were started with.
+#[derive(Clone, PartialEq, Default)]
+struct Told {
     window: Option<Window>,
+    held: BTreeSet<Source>,
+    pressed: BTreeSet<Source>,
 }
 
 impl Remapper {
@@ -92,6 +104,7 @@ impl Remapper {
             physical: BTreeSet::new(),
             pressed: BTreeSet::new(),
             bypassed: BTreeSet::new(),
+            bypassed_starting: BTreeSet::new(),
             forced: BTreeSet::new(),
             locked: false,
             failures: Vec::new(),
@@ -156,6 +169,13 @@ impl Remapper {
     }
 
     fn remap(&mut self, input: Input, now: u64) -> Vec<Output> {
+        // Taking a start's answer first, so a fresh `Start` is not told of this input too.
+        let mut out = self.poll(now);
+        out.extend(self.remap_polled(input, now));
+        out
+    }
+
+    fn remap_polled(&mut self, input: Input, now: u64) -> Vec<Output> {
         match input {
             Input::Press(source) => {
                 self.physical.insert(source);
@@ -193,14 +213,15 @@ impl Remapper {
         {
             return self.deliver(vec![input]);
         }
-        let mut out = self.poll(now);
+        let mut out = Vec::new();
         // Until the remaps answer `Start` (or after it failed), input passes through as it is,
         // and so does the release of a key pressed meanwhile.
         if !self.ready() {
             if let Input::Press(source) = input
                 && self.active()
+                && self.bypassed.insert(source)
             {
-                self.bypassed.insert(source);
+                self.bypassed_starting.insert(source);
             }
             out.extend(self.deliver(vec![input]));
             return out;
@@ -217,13 +238,14 @@ impl Remapper {
 
     /// Starts the remaps when they should run and are not running, and takes their answer to
     /// `Start` once it came, without waiting: the host calls this whenever their instance wakes
-    /// it, and input calls it too. A start not answered within `Limits::start` fails.
+    /// it, and input and the timer call it too. A start not answered by `Limits::start` on the
+    /// input clock fails when the timer `deadline` asks for comes.
     pub fn poll(&mut self, now: u64) -> Vec<Output> {
         if !self.active() {
             return Vec::new();
         }
         let Some(running) = self.running.as_mut() else {
-            return match self.start() {
+            return match self.start(now) {
                 Ok(()) => Vec::new(),
                 Err(error) => self.fail(&error, now),
             };
@@ -236,56 +258,77 @@ impl Remapper {
             Err(error) => return self.fail(&format!("they stopped: {error}"), now),
         };
         let reply = match answers.as_slice() {
-            [] if by.remaining().is_none() => {
-                return self.fail("they did not answer in time", now);
-            }
+            [] if now >= by => return self.fail("they did not answer in time", now),
             [] => return Vec::new(),
-            [reply] if reply.len() > MOST_REPLY_BYTES => {
-                return self.fail("the remaps answered at too great a length", now);
-            }
-            [reply] => decode::<Reply>(reply),
-            _ => return self.fail("they answered more than once", now),
+            [reply] => read(reply),
+            _ => Err("they answered more than once".to_owned()),
         };
-        let reply = match reply {
-            Ok(reply) => reply,
-            Err(error) => {
-                return self.fail(
-                    &format!("the remaps answered with nothing readable: {error}"),
-                    now,
-                );
+        match reply.and_then(|reply| self.started(reply, now)) {
+            Ok(out) => out,
+            Err(error) => self.fail(&error, now),
+        }
+    }
+
+    /// Takes the remaps' answer to `Start`. Should the keys held or pressed, or the window, have
+    /// changed since it was sent, they are started again with what is true now, waiting as for any
+    /// call, so they never act on input they missed.
+    fn started(&mut self, reply: Reply, now: u64) -> Result<Vec<Output>, String> {
+        if !self.take_start(&reply)? {
+            return Ok(Vec::new());
+        }
+        let told = self.told();
+        let Some(running) = self.running.as_mut() else {
+            return Err("the remaps did not start".to_owned());
+        };
+        let reply = match running.told == told {
+            true => reply,
+            false => {
+                let reply = running.call(&start_request(&self.config, &told), self.limits.call)?;
+                if !self.take_start(&reply)? {
+                    return Ok(Vec::new());
+                }
+                // The remaps know now of the keys pressed while they started.
+                for source in std::mem::take(&mut self.bypassed_starting) {
+                    self.bypassed.remove(&source);
+                }
+                reply
             }
         };
-        if let Some(problem) = reply.problem {
+        if let Some(running) = self.running.as_mut() {
+            running.starting = None;
+            running.told = told;
+        }
+        self.bypassed_starting.clear();
+        Ok(self.settle(reply, now))
+    }
+
+    /// Whether the remaps may run after this answer to `Start`: not if their config could not be
+    /// read, which stops them. Remaps that press keys as they start fail.
+    fn take_start(&mut self, reply: &Reply) -> Result<bool, String> {
+        if let Some(problem) = &reply.problem {
             self.running = None;
             self.stopped = true;
             self.problems.push(format!(
                 "The input remaps could not be read, so they stay off until they change: {problem}"
             ));
-            return Vec::new();
+            return Ok(false);
         }
-        if !reply.outputs.is_empty() {
-            return self.fail("the remaps pressed keys while starting", now);
+        match reply.outputs.is_empty() {
+            true => Ok(true),
+            false => Err("the remaps pressed keys while starting".to_owned()),
         }
-        running.starting = None;
-        let started_in = running.window.clone();
-        let mut out = self.settle(reply, now);
-        if started_in != self.window {
-            match self.call(&Request::Focus(self.window.clone()), now) {
-                Ok(outputs) => out.extend(outputs),
-                Err(error) => out.extend(self.fail(&error, now)),
-            }
-        }
-        out
     }
 
-    /// Whether the remaps should run and are still starting (or about to).
-    pub fn starting(&self) -> bool {
-        self.active() && !self.ready()
+    fn told(&self) -> Told {
+        Told {
+            window: self.window.clone(),
+            held: self.physical.clone(),
+            pressed: self.pressed.clone(),
+        }
     }
 
     pub fn timer(&mut self, now: u64) -> Vec<Output> {
         if !self.ready() {
-            self.deadline = None;
             return self.poll(now);
         }
         match self.call(&Request::Timer { now }, now) {
@@ -294,8 +337,13 @@ impl Remapper {
         }
     }
 
+    /// When the host's timer should call `timer`: when the remaps asked, or when their start
+    /// must have been answered by.
     pub fn deadline(&self) -> Option<u64> {
-        self.deadline
+        match self.running.as_ref().and_then(|running| running.starting) {
+            Some(by) => Some(by),
+            None => self.deadline,
+        }
     }
 
     pub fn running(&self) -> bool {
@@ -309,6 +357,7 @@ impl Remapper {
     pub fn forget_held(&mut self) {
         self.running = None;
         self.deadline = None;
+        self.bypassed_starting.clear();
         self.physical.clear();
         self.pressed.clear();
         self.bypassed.clear();
@@ -321,6 +370,12 @@ impl Remapper {
 
     fn active(&self) -> bool {
         self.config.is_some() && !self.locked && !self.stopped
+    }
+
+    /// Whether the remaps should run and are still starting (or about to).
+    #[cfg(test)]
+    fn starting(&self) -> bool {
+        self.active() && !self.ready()
     }
 
     fn ready(&self) -> bool {
@@ -340,21 +395,17 @@ impl Remapper {
     }
 
     /// Spawns the remaps' instance and sends it `Start`, which `poll` takes the answer to.
-    fn start(&mut self) -> Result<(), String> {
+    fn start(&mut self, now: u64) -> Result<(), String> {
         let mut running = Running::new(&self.module, Arc::clone(&self.wake))?;
-        let request = Request::Start {
-            config: self.config.clone().unwrap_or_default(),
-            window: self.window.clone(),
-            held: self.physical.iter().copied().collect(),
-            pressed: self.pressed.iter().copied().collect(),
-        };
+        let told = self.told();
         running
             .instance
-            .send(vec![encode(&request)])
+            .send(vec![start_request(&self.config, &told)])
             .map_err(|error| format!("they stopped: {error}"))?;
-        running.starting = Some(Deadline::after(self.limits.start));
-        running.window = self.window.clone();
+        running.starting = Some(now.saturating_add(micros(self.limits.start)));
+        running.told = told;
         self.running = Some(running);
+        self.deadline = None;
         Ok(())
     }
 
@@ -397,7 +448,7 @@ impl Remapper {
             ));
         } else {
             self.problems.push(format!(
-                "The input remaps failed ({error}) and start again with the next key or button."
+                "The input remaps failed ({error}) and start again."
             ));
         }
         out
@@ -406,6 +457,8 @@ impl Remapper {
     fn release_held(&mut self) -> Vec<Output> {
         self.running = None;
         self.deadline = None;
+        // Keys pressed while the remaps started stay bypassed: their releases pass as they are.
+        self.bypassed_starting.clear();
         let released: Vec<Source> = self
             .pressed
             .iter()
@@ -451,7 +504,7 @@ impl Running {
         Ok(Self {
             instance,
             starting: None,
-            window: None,
+            told: Told::default(),
         })
     }
 
@@ -472,11 +525,29 @@ impl Running {
                 false => "they answered more than once".to_owned(),
             });
         };
-        if reply.len() > MOST_REPLY_BYTES {
-            return Err("the remaps answered at too great a length".to_owned());
-        }
-        decode(reply).map_err(|error| format!("the remaps answered with nothing readable: {error}"))
+        read(reply)
     }
+}
+
+fn read(reply: &[u8]) -> Result<Reply, String> {
+    if reply.len() > MOST_REPLY_BYTES {
+        return Err("the remaps answered at too great a length".to_owned());
+    }
+    decode(reply).map_err(|error| format!("the remaps answered with nothing readable: {error}"))
+}
+
+fn start_request(config: &Option<Vec<u8>>, told: &Told) -> Vec<u8> {
+    encode(&Request::Start {
+        config: config.clone().unwrap_or_default(),
+        window: told.window.clone(),
+        held: told.held.iter().copied().collect(),
+        pressed: told.pressed.iter().copied().collect(),
+    })
+}
+
+/// `duration` on the input clock, which counts microseconds.
+fn micros(duration: Duration) -> u64 {
+    u64::try_from(duration.as_micros()).unwrap_or(u64::MAX)
 }
 
 #[cfg(test)]

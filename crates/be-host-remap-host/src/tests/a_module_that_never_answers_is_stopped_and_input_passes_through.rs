@@ -22,7 +22,7 @@ fn a_module_that_never_answers_is_stopped_and_input_passes_through() {
     assert_eq!(
         remapper.take_problems(),
         vec![
-            "The input remaps failed (they did not answer in time) and start again with the next key or button."
+            "The input remaps failed (they did not answer in time) and start again."
         ]
     );
     assert_eq!(remapper.input(release("A"), NOW), vec![release("A")]);
