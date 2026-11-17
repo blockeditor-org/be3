@@ -278,6 +278,8 @@ the connection a stopping stack closed.
   its kept submissions as it carries its edits over, and reports the restart
   before it submits them again (`Replica::flush`), so the host drops those it
   keeps of before the restart (`Replicas::take_status`) and keeps the new ones.
+  It drops them only on a restart past the one they were made under
+  (`Open::submissions_restart`): a replica reports none before it loads.
   A reload or a stash names as its `through` only what the order holds already
   (`Replica::entry_through`), never edits still unsent, which a replica opened
   again would take as ordered, except those a replacement from elsewhere
