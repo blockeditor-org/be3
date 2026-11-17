@@ -16,6 +16,8 @@ mod a_blur_repaints_the_light_it_spreads_outside_the_damaged_region;
 mod a_blur_thinner_than_a_pixel_spreads_less_light_than_a_whole_one;
 mod a_blurred_region_spreads_light_past_the_shape_that_made_it;
 mod a_bounded_renderer_filters_and_paints_only_within_its_bounds;
+mod changing_what_lies_between_two_anchored_views_draws_again_only_there;
+mod closing_the_second_of_two_anchored_views_leaves_two_roots;
 mod a_clip_rectangle_hides_what_falls_outside_it;
 mod a_colour_glyph_paints_its_own_colours_beside_tinted_text;
 mod a_colour_vision_filter_recolours_the_region_it_covers;
@@ -299,6 +301,12 @@ impl Target {
     }
 
     pub fn read(&self) -> Capture {
+        self.read_texture(&self.texture)
+    }
+
+    /// What `texture`, a texture the target's size such as one of a composited window's roots,
+    /// holds.
+    pub fn read_texture(&self, texture: &wgpu::Texture) -> Capture {
         let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("beui test readback"),
             size: (SIZE * SIZE * 4) as u64,
@@ -312,7 +320,7 @@ impl Target {
             });
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
-                texture: &self.texture,
+                texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,

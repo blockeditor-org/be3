@@ -90,6 +90,8 @@ pub(crate) struct Composition {
     pub(crate) splits_at: Vec<LayerId>,
     /// Where each root after the first begins in the frame's steps.
     pub(crate) splits: Vec<usize>,
+    /// Whether it said once that an anchored view lies inside a group or filter.
+    pub(crate) warned_nested: bool,
     /// The window's layers this frame and last, with the texture of each that is not a root's.
     list: WindowLayers,
     previous: WindowLayers,
@@ -188,6 +190,7 @@ impl Composition {
             size,
             splits_at: Vec::new(),
             splits: Vec::new(),
+            warned_nested: false,
             list: WindowLayers::default(),
             previous: WindowLayers::default(),
             shown: be_lib_stable_hash::HashMap::default(),
