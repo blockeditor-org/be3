@@ -171,7 +171,7 @@ impl Host {
             &wake,
             setup,
         )
-            .map_err(|error| format!("the tests could not be instantiated: {error}"))?;
+        .map_err(|error| format!("the tests could not be instantiated: {error}"))?;
         let entry = match identities.is_empty() {
             true => START,
             false => MAIN,

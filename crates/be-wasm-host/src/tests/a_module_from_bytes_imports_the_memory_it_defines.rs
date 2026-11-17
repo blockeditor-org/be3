@@ -57,11 +57,20 @@ fn a_module_from_bytes_imports_the_memory_it_defines() {
             }
             _ => None,
         });
-    assert_eq!(exported, Some(1), "app_start is still the function after the import");
+    assert_eq!(
+        exported,
+        Some(1),
+        "app_start is still the function after the import"
+    );
     // A memory and nothing else: the import section goes last.
     let alone = engine::importing_memory(&wat::parse_str("(module (memory 1))").unwrap()).unwrap();
     wasmparser::Validator::new().validate_all(&alone).unwrap();
-    assert!(engine::Shape::read(&alone).unwrap().memory_import().is_some());
+    assert!(
+        engine::Shape::read(&alone)
+            .unwrap()
+            .memory_import()
+            .is_some()
+    );
     let unchanged = wat::parse_str(r#"(module (func (export "app_start")))"#).unwrap();
     assert_eq!(engine::importing_memory(&unchanged).unwrap(), unchanged);
 }

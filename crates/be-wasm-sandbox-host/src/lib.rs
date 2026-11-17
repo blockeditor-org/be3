@@ -115,7 +115,11 @@ impl Server {
             return true;
         }
         for served in self.instances.values_mut() {
-            if served.next.as_ref().is_some_and(|(waiting, _)| *waiting == op) {
+            if served
+                .next
+                .as_ref()
+                .is_some_and(|(waiting, _)| *waiting == op)
+            {
                 served.next = None;
                 connection.complete(op, Outcome::Err(OpError::Canceled));
                 return true;

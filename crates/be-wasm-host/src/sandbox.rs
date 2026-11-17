@@ -72,7 +72,11 @@ impl Compiling {
     /// Waits up to `timeout` for the compile to finish. Only a host thread that may block calls
     /// this; a guest's never does.
     pub fn wait(&self, timeout: Duration) -> Option<Result<Module, String>> {
-        let done = self.slot.done.lock().unwrap_or_else(|held| held.into_inner());
+        let done = self
+            .slot
+            .done
+            .lock()
+            .unwrap_or_else(|held| held.into_inner());
         let (done, _) = self
             .slot
             .finished
@@ -100,7 +104,9 @@ pub fn compile(bytes: Vec<u8>, wake: Wake) -> Compiling {
         .name("wasm compile".to_owned())
         .spawn(move || finishing.finish(compile_now(id, bytes)));
     if let Err(error) = started {
-        slot.finish(Err(format!("the module's compile could not start: {error}")));
+        slot.finish(Err(format!(
+            "the module's compile could not start: {error}"
+        )));
     }
     Compiling { slot }
 }
@@ -167,15 +173,13 @@ pub struct Instance {
 pub fn spawn(module: &Module, config: Config, wake: Wake) -> Result<Instance, String> {
     let waiting = Arc::new(AtomicBool::new(false));
     let compiled = Arc::clone(&module.compiled);
-    let channel = Host::pure()?
-        .with_memory_limit(config.memory_limit)
-        .spawn(
-            config.name,
-            move |host| App::new(host, Code::Compiled(compiled), &no_library),
-            wake,
-            Arc::clone(&waiting),
-            be_wasm_guest_host::thread::catch,
-        )?;
+    let channel = Host::pure()?.with_memory_limit(config.memory_limit).spawn(
+        config.name,
+        move |host| App::new(host, Code::Compiled(compiled), &no_library),
+        wake,
+        Arc::clone(&waiting),
+        be_wasm_guest_host::thread::catch,
+    )?;
     Ok(Instance {
         worker: Worker::new(channel, waiting),
         failure: None,

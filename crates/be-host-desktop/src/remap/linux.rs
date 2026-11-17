@@ -6,12 +6,12 @@ use std::time::Duration;
 use be_block_content::be_block_model::Document;
 use be_block_content::{BlockContent, Root};
 use be_block_input::{InputRemapper, InputSettings};
-use be_host_remap_host::{Compiling, Remapper};
 use be_host_remap_host::be_lib_remap::Wheel;
 use be_host_remap_host::be_lib_remap::protocol::{decode, encode};
 use be_host_remap_host::be_lib_remap::rules::exe_name;
 use be_host_remap_host::be_lib_remap::{Input, Output, Source, Window};
 use be_host_remap_host::capture::{Capture, Caught};
+use be_host_remap_host::{Compiling, Remapper};
 use be_sdk_api::{
     CapturedChord, CapturedTrigger, InputCapture, InputCaptureWatch, RemapState, RemapsWatch,
     WheelTurn,

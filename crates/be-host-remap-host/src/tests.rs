@@ -8,6 +8,8 @@ use super::*;
 
 mod a_failure_releases_what_the_remaps_held_down;
 mod a_key_held_before_the_remaps_saw_it_is_released_as_it_is;
+mod a_key_let_go_and_pressed_again_while_the_remaps_start_is_theirs;
+mod a_key_that_bypassed_the_remaps_is_not_told_to_them_as_held_when_they_start_again;
 mod a_modifier_a_session_chord_pressed_is_let_go_with_its_release;
 mod a_module_that_never_answers_is_stopped_and_input_passes_through;
 mod a_module_that_never_starts_holds_up_no_input;
@@ -134,3 +136,8 @@ fn hostile_within(handle: &str, limits: Limits) -> Remaps {
     remaps.configure(Some(Vec::new()));
     remaps
 }
+
+const CTRL_C: &str = r#"
+    [[group]]
+    rules = [{ on = "Ctrl+C", send = "X" }]
+    "#;
