@@ -70,6 +70,16 @@ Fixed items are removed as they land.
   Done: a be-host-stack test that reopens a block after a crash, has its
   made-up session seal while the join is held, and counts exactly what was made.
 
+- **An oversized edit kept across a crash goes again under a new id.** A replica
+  opened again submits the edits a kept submission holds under its id only if
+  they encode to its inline payload again (`Replica::flush`). An operation too
+  large to relay goes by its part (`Payload::Part`), so it never matches, and is
+  given again as a new submission: if the first copy reaches the server late,
+  from the process that crashed, the order takes it twice. Done: a kept
+  submission by part compared by the part's bytes (or its hash) and sent again
+  under its id, with a guest test where its first copy lands after the one given
+  again.
+
 ## 9. Version control's caches
 
 - **Walks that read thinning as a root.** Depends on #686, which rewrites
@@ -241,6 +251,13 @@ Depends on #686 (session catch-ups replaced by server ordering).
   moves. Done: the cause found from a failing run's output and fixed at its
   source, with a test that shows it.
 
+- **A crash test that once never counted 11 after the restart.**
+  `an_edit_to_a_block_made_editable_again_after_its_edits_were_discarded_lands_once_across_a_crash`
+  (be-host-stack) hung once in 2000 local runs (16 at a time, the harness built once and run
+  directly) at the `wait_for_count(block, 11)` after its restart, with nothing owed, undurable or
+  draining. Whether it counted 1 (the edit lost) or 21 (ordered twice) was not recorded;
+  `wait_for_count` now says what it last counted. Done: the cause found from that output and
+  fixed at its source, with a test that shows it.
 - **A take that returns before another's notices are told.** In a test that runs no frames,
   be-host-stack's pump thread (`start`) applies an update under the stack's lock and tells the
   watchers after it lets go (`take_updates`), so a `take_updates` on the test's thread meanwhile
