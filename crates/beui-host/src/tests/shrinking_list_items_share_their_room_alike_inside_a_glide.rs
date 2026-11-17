@@ -10,7 +10,12 @@ fn widths(glided: bool) -> [f32; 2] {
     let document = build_node(move || {
         let item = |node: NodeRef, width: f32| {
             let content = view! {
-                <Scroll @node_ref=&node direction=Direction::Horizontal fit=true style={plain_scroll()}>
+                <Scroll
+                    @node_ref=&node
+                    direction=Direction::Horizontal
+                    fit=true
+                    style={plain_scroll()}
+                >
                     <ListItem shrink=1.0>
                         <Frame width=width height=20.0 />
                     </ListItem>

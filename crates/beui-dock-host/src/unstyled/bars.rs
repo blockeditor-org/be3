@@ -15,9 +15,7 @@ use beui_components_unstyled::{Glide, drag_board};
 use beui_macros::{component, view};
 use beui_view::components::overlay::{Overlay, OverlaysWithin};
 use beui_view::components::root::Root;
-use beui_view::drag::{
-    Candidate, Carry, DragPoint, DragSpec, Driver, closest, custom, floating,
-};
+use beui_view::drag::{Candidate, Carry, DragPoint, DragSpec, Driver, closest, custom, floating};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
@@ -36,8 +34,8 @@ use beui_dock::{
 
 use super::reveal::DockBarHidden;
 use super::{
-    DockAlign, DockBarPlacement, DockDragged, DockEdge, DockMode, DockState, Entry,
-    FLOAT_INSET, Held, LeafId, State, TabId,
+    DockAlign, DockBarPlacement, DockDragged, DockEdge, DockMode, DockState, Entry, FLOAT_INSET,
+    Held, LeafId, State, TabId,
 };
 
 const WINDOW_ROOM: f32 = 4096.0;
@@ -257,7 +255,10 @@ impl State {
             }
             return;
         }
-        let relayed = self.relayed.get_untracked().filter(|(held, _)| *held == bar);
+        let relayed = self
+            .relayed
+            .get_untracked()
+            .filter(|(held, _)| *held == bar);
         let rect = match relayed {
             Some((_, rect)) => Some(rect),
             None => self.bar_home_rect(bar),
@@ -270,7 +271,9 @@ impl State {
         match moved.stage {
             DockDragStage::Move if relayed.is_some() => self.relay(point),
             DockDragStage::Move => {
-                if self.mode.get_untracked() != DockMode::Tiled || self.relayed.get_untracked().is_some() {
+                if self.mode.get_untracked() != DockMode::Tiled
+                    || self.relayed.get_untracked().is_some()
+                {
                     return;
                 }
                 if self.moves_bar_window(bar) {
@@ -480,7 +483,12 @@ impl State {
     /// grabbed while floating over an edge reaches that edge's band only once pulled halfway
     /// from where it was grabbed towards the edge.
     pub(super) fn bar_spec(&self, bar: TabId, tiles: NodeRef) -> DragSpec<BarPlace> {
-        let Some(lift) = self.lifting.lift.get_untracked().filter(|lift| lift.bar == bar) else {
+        let Some(lift) = self
+            .lifting
+            .lift
+            .get_untracked()
+            .filter(|lift| lift.bar == bar)
+        else {
             return floating();
         };
         let Some(origin) = tiles
@@ -506,9 +514,7 @@ impl State {
                 if slots.is_empty() {
                     continue;
                 }
-                let floated = lift
-                    .floated
-                    .filter(|(over, _)| *over == edge && tab == own);
+                let floated = lift.floated.filter(|(over, _)| *over == edge && tab == own);
                 // Reached within `DOCK_REACH` of the edge, from a little past it too, where a
                 // pointer carrying a bar to the edge of the window may end up, and held on to
                 // out to `DOCK_HOLD` once reached.
@@ -523,8 +529,7 @@ impl State {
                         } * thickness;
                         let open = reached.contains(point.pos)
                             && from_edge <= reach
-                            && floated
-                                .is_none_or(|(_, grabbed)| from_edge <= grabbed * FLOAT_HOLD);
+                            && floated.is_none_or(|(_, grabbed)| from_edge <= grabbed * FLOAT_HOLD);
                         held.set(open);
                         open
                     },
@@ -543,9 +548,7 @@ impl State {
             true => float.thrown(),
             false => float,
         };
-        closest(bands)
-            .when_far(float)
-            .with_distance(f32::INFINITY)
+        closest(bands).when_far(float).with_distance(f32::INFINITY)
     }
 
     /// The slots of `edge`'s band of a pane (`areas`: its body and its whole rect, bands
@@ -566,18 +569,16 @@ impl State {
         let rest = |along: f32| {
             let (start, end) = (along - length / 2.0, along + length / 2.0);
             match edge {
-                DockEdge::Top => Rect::from_min_max(
-                    pos2(start, area.top()),
-                    pos2(end, area.top() + thickness),
-                ),
+                DockEdge::Top => {
+                    Rect::from_min_max(pos2(start, area.top()), pos2(end, area.top() + thickness))
+                }
                 DockEdge::Bottom => Rect::from_min_max(
                     pos2(start, area.bottom() - thickness),
                     pos2(end, area.bottom()),
                 ),
-                DockEdge::Left => Rect::from_min_max(
-                    pos2(area.left(), start),
-                    pos2(area.left() + thickness, end),
-                ),
+                DockEdge::Left => {
+                    Rect::from_min_max(pos2(area.left(), start), pos2(area.left() + thickness, end))
+                }
                 DockEdge::Right => Rect::from_min_max(
                     pos2(area.right() - thickness, start),
                     pos2(area.right(), end),

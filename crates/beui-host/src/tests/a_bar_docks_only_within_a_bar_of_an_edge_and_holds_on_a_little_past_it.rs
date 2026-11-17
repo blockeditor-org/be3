@@ -34,10 +34,7 @@ fn a_bar_docks_only_within_a_bar_of_an_edge_and_holds_on_a_little_past_it() {
     );
     harness.hover(from_right(thickness * 0.75));
     harness.pause(Duration::from_millis(200));
-    assert!(
-        docked(&harness),
-        "within a bar of it, the band opens"
-    );
+    assert!(docked(&harness), "within a bar of it, the band opens");
     harness.hover(from_right(thickness * 1.25));
     harness.pause(Duration::from_millis(200));
     assert!(

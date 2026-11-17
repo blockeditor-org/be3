@@ -21,11 +21,11 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use beui_components_unstyled::Choice;
-use beui_components_unstyled::DragPoint;
 use beui_components_unstyled::ChoiceItem;
 use beui_components_unstyled::ChoiceKind;
 use beui_components_unstyled::ChoiceOption;
 use beui_components_unstyled::ChoiceOptionHandle;
+use beui_components_unstyled::DragPoint;
 use beui_components_unstyled::Scroll;
 use beui_components_unstyled::ScrollStyle;
 use beui_components_unstyled::back_slide::{BackSlide, SlideCurves};
@@ -3753,232 +3753,227 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             });
             view! {
                 <Root clear_color=Color::TRANSPARENT>
-                        <Frame width=outer_width height=outer_height>
-                            <Canvas>
-                                <CanvasItem
-                                    x=HANDLE_REACH
-                                    y=HANDLE_REACH
-                                    width={width}
-                                    height={height}
-                                >
-                                    <Frame @node_ref=&frame width=width height=height>
-                                        <Canvas>
-                                            <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                                                <Interactive
-                                                    @node_ref=&catcher
-                                                    capture_presses={window_bar}
-                                                    claims={claimed}
-                                                    on_pointer={beui_components_unstyled::gestures::secondary_drag(resized)}
-                                                    on_press={move |press: PointerPress| {
-                                                        let carried = dock.modifier_held(press.modifiers);
-                                                        let bar = carried || dock.over_window_bar(surface, press.pos);
-                                                        let moving = bar && !handle.begin_move();
-                                                        if moving { bounce.stop(); }
-                                                        grabbed.set(moving.then(|| {
-                                                            let window = placed.get_untracked();
-                                                            let dimensions = dock.rect.get_untracked().size();
-                                                            let stretched = band.value().borrow_mut().grab(dimensions);
-                                                            (window.translate(stretched), press.pos)
-                                                        }));
-                                                        let titled = carried
-                                                            || dock
-                                                                .pane_rect(Tree::Surface(surface))
-                                                                .is_some_and(|pane| !pane.contains(press.pos));
-                                                        dock.edit(|state| {
-                                                            let inside = state
-                                                                .focused_leaf()
-                                                                .and_then(|leaf| state.surface_of(leaf))
-                                                                == Some(surface);
-                                                            if inside && !titled {
-                                                                return;
-                                                            }
-                                                            if let Some(leaf) = state.leaves(surface).first().copied() {
-                                                                state.focus(leaf);
-                                                            }
-                                                        });
-                                                        dock.raise_window(overlay);
-                                                        dock.release_dialog_focus();
-                                                    }}
-                                                    on_drag={move |press: PointerPress| {
-                                                        let Some((start, from)) = grabbed.get() else {
-                                                            return;
-                                                        };
-                                                        let placed =
-                                                            Rect::from_min_size(start.min + (press.pos - from), start.size());
-                                                        let bounds = dock.rect.get_untracked().size();
-                                                        let origin = reachable_origin(placed, bounds, reach(), walls.get_untracked());
-                                                        let banding = motion().animates();
-                                                        let band = band.value();
-                                                        let mut band = band.borrow_mut();
-                                                        band.stretch(origin, placed.min - origin, bounds, banding, beui_view::reactive::now());
-                                                        overshoot.set(band.offset);
-                                                        dock.drag_edit(move |state| {
-                                                            state.set_window_rect(
-                                                                surface,
-                                                                Rect::from_min_size(origin, start.size()),
-                                                            );
-                                                        });
-                                                    }}
-                                                    on_active_change={move |active: bool| {
-                                                        if active || handle.is_window() {
+                    <Frame width=outer_width height=outer_height>
+                        <Canvas>
+                            <CanvasItem x=HANDLE_REACH y=HANDLE_REACH width={width} height={height}>
+                                <Frame @node_ref=&frame width=width height=height>
+                                    <Canvas>
+                                        <CanvasItem x=0.0 y=0.0 width={width} height={height}>
+                                            <Interactive
+                                                @node_ref=&catcher
+                                                capture_presses={window_bar}
+                                                claims={claimed}
+                                                on_pointer={beui_components_unstyled::gestures::secondary_drag(resized)}
+                                                on_press={move |press: PointerPress| {
+                                                    let carried = dock.modifier_held(press.modifiers);
+                                                    let bar = carried || dock.over_window_bar(surface, press.pos);
+                                                    let moving = bar && !handle.begin_move();
+                                                    if moving { bounce.stop(); }
+                                                    grabbed.set(moving.then(|| {
+                                                        let window = placed.get_untracked();
+                                                        let dimensions = dock.rect.get_untracked().size();
+                                                        let stretched = band.value().borrow_mut().grab(dimensions);
+                                                        (window.translate(stretched), press.pos)
+                                                    }));
+                                                    let titled = carried
+                                                        || dock
+                                                            .pane_rect(Tree::Surface(surface))
+                                                            .is_some_and(|pane| !pane.contains(press.pos));
+                                                    dock.edit(|state| {
+                                                        let inside = state
+                                                            .focused_leaf()
+                                                            .and_then(|leaf| state.surface_of(leaf))
+                                                            == Some(surface);
+                                                        if inside && !titled {
                                                             return;
                                                         }
-                                                        band.value().borrow_mut().release(beui_view::reactive::now());
-                                                        bounce.start();
-                                                    }}
-                                                >
-                                                    <List spacing=0.0>
-                                                        <Dynamic
-                                                            value={move || {
-                                                                hoisted.is_some_and(|leaf| state.with(|state| state.is_vertical(leaf)))
-                                                            }}
-                                                        >|vertical: bool| {
-                                                            let dock = dock;
-                                                            let grip_face = dock.grip.call(DockGripHandle {
-                                                                floating: true,
-                                                                vertical,
-                                                                focused,
-                                                                locked: create_memo(|| false),
-                                                            });
-                                                            let grip_face = view! {
-                                                                <GripMenu
-                                                                    menu={dock.menu}
-                                                                    vertical
-                                                                    icons_only
-                                                                    pane={GripPane { menu, closable, close }}
-                                                                    toggle={move || {
-                                                                        if let Some(leaf) = hoisted {
-                                                                            dock.toggle_vertical(leaf);
-                                                                        }
-                                                                    }}
-                                                                    lock={create_memo(|| None)}
-                                                                    toggle_icons={move || {
-                                                                        if let Some(leaf) = hoisted {
-                                                                            dock.toggle_icons_only(leaf);
-                                                                        }
-                                                                    }}
-                                                                    toggle_lock={|| {}}
-                                                                >
-                                                                    {grip_face}
-                                                                </GripMenu>
-                                                            };
-                                                            let grip_id = hoisted.map_or_else(
-                                                                || "dock.window.grip".to_owned(),
-                                                                |leaf| dock.pane_test_id("dock.window.grip", leaf),
-                                                            );
-                                                            let grip = view! {
-                                                                <Interactive
-                                                                    @node_ref=&grip_ref
-                                                                    @test_id={grip_id}
-                                                                    cursor=CursorIcon::Grab
-                                                                    children={grip_face}
-                                                                />
-                                                            };
-                                                            let tabs = hoisted.map(|leaf| {
-                                                                view! {
-                                                                    <DockTabBar
-                                                                        dock={dock}
-                                                                        leaf
-                                                                        vertical
-                                                                    />
-                                                                }
-                                                            });
-                                                            let pane = view! {
-                                                                <DockTreeCanvas
-                                                                    dock={dock}
-                                                                    tree={Tree::Surface(surface)}
-                                                                    hoisted
-                                                                />
-                                                            };
-                                                            let parts = ChromeParts {
-                                                                floating: true,
-                                                                vertical,
-                                                                focused,
-                                                                sidebar_width,
-                                                                sidebar_splitter: hoisted.filter(|_| vertical).map(|leaf| view! {
-                                                                    <DockSidebarSplitter
-                                                                        dock={dock}
-                                                                        leaf
-                                                                    />
-                                                                }),
-                                                                bar: Some(DockBarHandle {
-                                                                    floating: true,
-                                                                    vertical,
-                                                                    icons_only,
-                                                                    focused,
-                                                                    grip,
-                                                                    tabs,
-                                                                    title,
-                                                                    vacant,
-                                                                    closable,
-                                                                    menu,
-                                                                    close,
-                                                                    test_prefix: hoisted.map_or_else(
-                                                                        || "dock".to_owned(),
-                                                                        |leaf| dock.pane_test_id("dock", leaf),
-                                                                    ),
-                                                                }),
-                                                                bar_shown: create_memo(|| true),
-                                                                leaf: hoisted,
-                                                                body: pane,
-                                                            };
-                                                            view! {
-                                                                <ListItem grow=1.0>
-                                                                    <DockChrome dock parts />
-                                                                </ListItem>
-                                                            }
-                                                        }</Dynamic>
-                                                    </List>
-                                                </Interactive>
-                                            </CanvasItem>
-                                        </Canvas>
-                                    </Frame>
-                                </CanvasItem>
-                                <ForEach value={GRIPS.to_vec()}>|(grip, upright): (Grip, bool)| {
-                                    let dock = dock;
-                                    let handle_rect = create_memo(move || grip.rect(upright, size.get(), dock.window_border));
-                                    let x = create_memo(move || handle_rect.get().min.x);
-                                    let y = create_memo(move || handle_rect.get().min.y);
-                                    let width = create_memo(move || handle_rect.get().width());
-                                    let height = create_memo(move || handle_rect.get().height());
-                                    let held: Rc<Cell<Option<(Rect, Pos2)>>> = Rc::new(Cell::new(None));
-                                    let pressed = held.clone();
-                                    view! {
-                                        <CanvasItem x={x} y={y} width={width} height={height}>
-                                            <Interactive
-                                                cursor={grip.cursor()}
-                                                capture_presses=true
-                                                on_press={move |press: PointerPress| {
-                                                    let by_host = handle.begin_resize(grip.edge());
-                                                    pressed.set((!by_host).then(|| (placed.get_untracked(), press.pos)));
-                                                    let leaf = dock.state.with_untracked(|state| {
-                                                        state
-                                                            .focused_leaf()
-                                                            .filter(|leaf| state.surface_of(*leaf) == Some(surface))
-                                                            .or_else(|| state.leaves(surface).first().copied())
+                                                        if let Some(leaf) = state.leaves(surface).first().copied() {
+                                                            state.focus(leaf);
+                                                        }
                                                     });
-                                                    if let Some(leaf) = leaf {
-                                                        dock.edit(|state| state.focus(leaf));
-                                                    }
                                                     dock.raise_window(overlay);
                                                     dock.release_dialog_focus();
-                                                    if let Some(leaf) = leaf {
-                                                        dock.chrome_pressed(leaf, None);
-                                                    }
                                                 }}
                                                 on_drag={move |press: PointerPress| {
-                                                    let Some((start, from)) = held.get() else {
+                                                    let Some((start, from)) = grabbed.get() else {
                                                         return;
                                                     };
-                                                    let resized = grip.resized(start, press.pos - from);
-                                                    dock.drag_edit(move |state| state.set_window_rect(surface, resized));
+                                                    let placed =
+                                                        Rect::from_min_size(start.min + (press.pos - from), start.size());
+                                                    let bounds = dock.rect.get_untracked().size();
+                                                    let origin = reachable_origin(placed, bounds, reach(), walls.get_untracked());
+                                                    let banding = motion().animates();
+                                                    let band = band.value();
+                                                    let mut band = band.borrow_mut();
+                                                    band.stretch(origin, placed.min - origin, bounds, banding, beui_view::reactive::now());
+                                                    overshoot.set(band.offset);
+                                                    dock.drag_edit(move |state| {
+                                                        state.set_window_rect(
+                                                            surface,
+                                                            Rect::from_min_size(origin, start.size()),
+                                                        );
+                                                    });
                                                 }}
-                                            ></Interactive>
+                                                on_active_change={move |active: bool| {
+                                                    if active || handle.is_window() {
+                                                        return;
+                                                    }
+                                                    band.value().borrow_mut().release(beui_view::reactive::now());
+                                                    bounce.start();
+                                                }}
+                                            >
+                                                <List spacing=0.0>
+                                                    <Dynamic
+                                                        value={move || {
+                                                            hoisted.is_some_and(|leaf| state.with(|state| state.is_vertical(leaf)))
+                                                        }}
+                                                    >|vertical: bool| {
+                                                        let dock = dock;
+                                                        let grip_face = dock.grip.call(DockGripHandle {
+                                                            floating: true,
+                                                            vertical,
+                                                            focused,
+                                                            locked: create_memo(|| false),
+                                                        });
+                                                        let grip_face = view! {
+                                                            <GripMenu
+                                                                menu={dock.menu}
+                                                                vertical
+                                                                icons_only
+                                                                pane={GripPane { menu, closable, close }}
+                                                                toggle={move || {
+                                                                    if let Some(leaf) = hoisted {
+                                                                        dock.toggle_vertical(leaf);
+                                                                    }
+                                                                }}
+                                                                lock={create_memo(|| None)}
+                                                                toggle_icons={move || {
+                                                                    if let Some(leaf) = hoisted {
+                                                                        dock.toggle_icons_only(leaf);
+                                                                    }
+                                                                }}
+                                                                toggle_lock={|| {}}
+                                                            >
+                                                                {grip_face}
+                                                            </GripMenu>
+                                                        };
+                                                        let grip_id = hoisted.map_or_else(
+                                                            || "dock.window.grip".to_owned(),
+                                                            |leaf| dock.pane_test_id("dock.window.grip", leaf),
+                                                        );
+                                                        let grip = view! {
+                                                            <Interactive
+                                                                @node_ref=&grip_ref
+                                                                @test_id={grip_id}
+                                                                cursor=CursorIcon::Grab
+                                                                children={grip_face}
+                                                            />
+                                                        };
+                                                        let tabs = hoisted.map(|leaf| {
+                                                            view! {
+                                                                <DockTabBar
+                                                                    dock={dock}
+                                                                    leaf
+                                                                    vertical
+                                                                />
+                                                            }
+                                                        });
+                                                        let pane = view! {
+                                                            <DockTreeCanvas
+                                                                dock={dock}
+                                                                tree={Tree::Surface(surface)}
+                                                                hoisted
+                                                            />
+                                                        };
+                                                        let parts = ChromeParts {
+                                                            floating: true,
+                                                            vertical,
+                                                            focused,
+                                                            sidebar_width,
+                                                            sidebar_splitter: hoisted.filter(|_| vertical).map(|leaf| view! {
+                                                                <DockSidebarSplitter
+                                                                    dock={dock}
+                                                                    leaf
+                                                                />
+                                                            }),
+                                                            bar: Some(DockBarHandle {
+                                                                floating: true,
+                                                                vertical,
+                                                                icons_only,
+                                                                focused,
+                                                                grip,
+                                                                tabs,
+                                                                title,
+                                                                vacant,
+                                                                closable,
+                                                                menu,
+                                                                close,
+                                                                test_prefix: hoisted.map_or_else(
+                                                                    || "dock".to_owned(),
+                                                                    |leaf| dock.pane_test_id("dock", leaf),
+                                                                ),
+                                                            }),
+                                                            bar_shown: create_memo(|| true),
+                                                            leaf: hoisted,
+                                                            body: pane,
+                                                        };
+                                                        view! {
+                                                            <ListItem grow=1.0>
+                                                                <DockChrome dock parts />
+                                                            </ListItem>
+                                                        }
+                                                    }</Dynamic>
+                                                </List>
+                                            </Interactive>
                                         </CanvasItem>
-                                    }
-                                }</ForEach>
-                            </Canvas>
-                        </Frame>
+                                    </Canvas>
+                                </Frame>
+                            </CanvasItem>
+                            <ForEach value={GRIPS.to_vec()}>|(grip, upright): (Grip, bool)| {
+                                let dock = dock;
+                                let handle_rect = create_memo(move || grip.rect(upright, size.get(), dock.window_border));
+                                let x = create_memo(move || handle_rect.get().min.x);
+                                let y = create_memo(move || handle_rect.get().min.y);
+                                let width = create_memo(move || handle_rect.get().width());
+                                let height = create_memo(move || handle_rect.get().height());
+                                let held: Rc<Cell<Option<(Rect, Pos2)>>> = Rc::new(Cell::new(None));
+                                let pressed = held.clone();
+                                view! {
+                                    <CanvasItem x={x} y={y} width={width} height={height}>
+                                        <Interactive
+                                            cursor={grip.cursor()}
+                                            capture_presses=true
+                                            on_press={move |press: PointerPress| {
+                                                let by_host = handle.begin_resize(grip.edge());
+                                                pressed.set((!by_host).then(|| (placed.get_untracked(), press.pos)));
+                                                let leaf = dock.state.with_untracked(|state| {
+                                                    state
+                                                        .focused_leaf()
+                                                        .filter(|leaf| state.surface_of(*leaf) == Some(surface))
+                                                        .or_else(|| state.leaves(surface).first().copied())
+                                                });
+                                                if let Some(leaf) = leaf {
+                                                    dock.edit(|state| state.focus(leaf));
+                                                }
+                                                dock.raise_window(overlay);
+                                                dock.release_dialog_focus();
+                                                if let Some(leaf) = leaf {
+                                                    dock.chrome_pressed(leaf, None);
+                                                }
+                                            }}
+                                            on_drag={move |press: PointerPress| {
+                                                let Some((start, from)) = held.get() else {
+                                                    return;
+                                                };
+                                                let resized = grip.resized(start, press.pos - from);
+                                                dock.drag_edit(move |state| state.set_window_rect(surface, resized));
+                                            }}
+                                        ></Interactive>
+                                    </CanvasItem>
+                                }
+                            }</ForEach>
+                        </Canvas>
+                    </Frame>
                 </Root>
             }
             .child()
