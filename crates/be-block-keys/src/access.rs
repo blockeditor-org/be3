@@ -324,47 +324,77 @@ impl Entry {
 }
 
 /// A key as it travels sealed or wrapped: the key, the block (or, for an escrow key, the
-/// organization) it is a key of, and the hash of that log's root when the sender holds it
-/// pinned. Sealed together, so a server that relabels a key row as another block's, or serves a
-/// block's log rooted elsewhere, is caught by whoever opens it. A sender that holds no pinned
-/// root (it reached the block only through escrow, say) sends none, and the key pins nothing.
+/// organization) it is a key of, the hash of that log's root when the sender holds it pinned,
+/// and the heads of the logs its epoch was made under (`Heads`). Sealed together, so a server
+/// that relabels a key row as another block's, serves a block's log rooted elsewhere, or names
+/// an older head for an epoch, is caught by whoever opens it. A sender that holds no pinned root
+/// (it reached the block only through escrow, say) sends none, and the key pins nothing.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CarriedKey {
     pub key: [u8; 32],
     pub block: [u8; 16],
     pub root: Option<EntryHash>,
+    pub heads: Heads,
+}
+
+/// The heads of the access logs a key's epoch was made under, as its maker held them
+/// (plans/signed_access.md, 3d): a device seals or wraps the epoch only to those granted as of
+/// a head at or after these, once it holds the log up to them, so a server that withholds a
+/// revocation, a closing or a demotion from it gets the epoch sealed to no one meanwhile. Each
+/// is none where its maker held no such log, and an epoch naming none is sealed by that log to
+/// no one.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct Heads {
+    /// The log of the block it is a key of; none for an escrow key.
+    pub block: Option<EntryHash>,
+    /// The organization's log; none in an organization with no log.
+    pub organization: Option<EntryHash>,
 }
 
 impl CarriedKey {
-    const BARE: usize = 32 + 16 + 1;
-
     pub fn encode(&self) -> Vec<u8> {
         let mut bytes = [self.key.as_slice(), &self.block].concat();
-        match &self.root {
-            Some(root) => {
-                bytes.push(1);
-                bytes.extend_from_slice(root);
+        for hash in [self.root, self.heads.block, self.heads.organization] {
+            match hash {
+                Some(hash) => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(&hash);
+                }
+                None => bytes.push(0),
             }
-            None => bytes.push(0),
         }
         bytes
     }
 
     pub fn decode(bytes: &[u8]) -> Result<Self, KeyError> {
-        let (head, root) = bytes
-            .split_at_checked(Self::BARE)
-            .ok_or(KeyError::Corrupt)?;
-        let (key, rest) = head.split_at(32);
-        let (block, flag) = rest.split_at(16);
-        let root = match (flag, root.len()) {
-            ([0], 0) => None,
-            ([1], 32) => Some(root.try_into().map_err(|_| KeyError::Corrupt)?),
-            _ => return Err(KeyError::Corrupt),
+        let (key, rest) = bytes.split_at_checked(32).ok_or(KeyError::Corrupt)?;
+        let (block, mut rest) = rest.split_at_checked(16).ok_or(KeyError::Corrupt)?;
+        let mut hash = || -> Result<Option<EntryHash>, KeyError> {
+            let (flag, after) = rest.split_first().ok_or(KeyError::Corrupt)?;
+            let (found, after) = match flag {
+                0 => (None, after),
+                1 => {
+                    let (hash, after) = after.split_at_checked(32).ok_or(KeyError::Corrupt)?;
+                    (Some(hash.try_into().map_err(|_| KeyError::Corrupt)?), after)
+                }
+                _ => return Err(KeyError::Corrupt),
+            };
+            rest = after;
+            Ok(found)
         };
+        let root = hash()?;
+        let heads = Heads {
+            block: hash()?,
+            organization: hash()?,
+        };
+        if !rest.is_empty() {
+            return Err(KeyError::Corrupt);
+        }
         Ok(Self {
             key: key.try_into().map_err(|_| KeyError::Corrupt)?,
             block: block.try_into().map_err(|_| KeyError::Corrupt)?,
             root,
+            heads,
         })
     }
 }
@@ -391,9 +421,38 @@ pub struct Checked {
     /// grant does.
     pub open_inside: Level,
     pub open_inside_tainted: bool,
+    /// Each entry's place in the log, root first: whether the log reaches a head an epoch
+    /// names (`holds`).
+    pub positions: HashMap<EntryHash, usize>,
+    /// Each account's level as the log changed it, by place (`level_as_of`): for a block's log,
+    /// its grants (the creator's Manage at the root); for an organization's, administering it
+    /// as Manage.
+    pub levels: HashMap<[u8; 16], Vec<(usize, Level)>>,
 }
 
 impl Checked {
+    /// Whether the log as checked reaches `head`: it is one of its entries.
+    pub fn holds(&self, head: &EntryHash) -> bool {
+        self.positions.contains_key(head)
+    }
+
+    /// `account`'s level as of `head`, one of the log's entries: none when the log does not
+    /// reach it or named no level for them by then.
+    pub fn level_as_of(&self, account: [u8; 16], head: &EntryHash) -> Option<Level> {
+        let at = *self.positions.get(head)?;
+        self.levels
+            .get(&account)?
+            .iter()
+            .take_while(|(place, _)| *place <= at)
+            .last()
+            .map(|(_, level)| *level)
+    }
+
+    fn set_level(&mut self, account: [u8; 16], level: Level) {
+        let at = self.positions.len() - 1;
+        self.levels.entry(account).or_default().push((at, level));
+    }
+
     /// Checks that `entry`, a grant or an opening naming `authority`, is signed by someone who
     /// may give access at its place (Manage from this log or from `outside`, or anyone revoking
     /// their own grant), notes its signer's key, and tells whether it rests on the server's tree
@@ -455,8 +514,10 @@ pub fn check_log(
     let mut state = Checked {
         head: pinned,
         signers: HashMap::from([(checked.creator, checked.identity.signing)]),
+        positions: HashMap::from([(pinned, 0)]),
         ..Checked::default()
     };
+    state.set_level(checked.creator, Level::Manage);
     match kind {
         LogKind::Block => {
             state
@@ -473,6 +534,9 @@ pub fn check_log(
         if entry.log != log || entry.previous != Some(state.head) {
             return Err(KeyError::Record);
         }
+        let hash = entry.hash();
+        let place = state.positions.len();
+        state.positions.insert(hash, place);
         let own = state.signers.get(&entry.signer).copied();
         match &entry.record {
             Record::Root(_) => return Err(KeyError::Record),
@@ -523,6 +587,7 @@ pub fn check_log(
                 state
                     .grants
                     .insert(grant.grantee, (grant.level, grant.identity));
+                state.set_level(grant.grantee, grant.level);
             }
             Record::Opening(opening) => {
                 // Open to view, or closed: no other level, so the record has one meaning.
@@ -548,9 +613,11 @@ pub fn check_log(
                         state
                             .administrators
                             .insert(administrator.account, administrator.identity);
+                        state.set_level(administrator.account, Level::Manage);
                     }
                     false => {
                         state.administrators.remove(&administrator.account);
+                        state.set_level(administrator.account, Level::None);
                     }
                 }
             }
@@ -599,12 +666,14 @@ pub fn check_log(
                     // Signed out, an administrator administers no more.
                     false => {
                         state.members.remove(&member.account);
-                        state.administrators.remove(&member.account);
+                        if state.administrators.remove(&member.account).is_some() {
+                            state.set_level(member.account, Level::None);
+                        }
                     }
                 }
             }
         }
-        state.head = entry.hash();
+        state.head = hash;
     }
     Ok(state)
 }

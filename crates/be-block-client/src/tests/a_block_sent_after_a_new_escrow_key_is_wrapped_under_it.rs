@@ -21,7 +21,10 @@ async fn a_block_sent_after_a_new_escrow_key_is_wrapped_under_it() {
         .await
         .unwrap();
 
-    let (minted, keys) = admin.keys().mint_escrow().unwrap();
+    let (minted, keys) = admin
+        .keys()
+        .mint_escrow(admin.checked_organization().await.unwrap().unwrap().head)
+        .unwrap();
     client::keys::create_escrow(&admin.connection(), minted.clone(), keys)
         .await
         .unwrap()

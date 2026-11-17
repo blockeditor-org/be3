@@ -13,6 +13,7 @@ fn substitute(harness: &Harness, organization: Uuid, epoch: u64, previous: Uuid)
         epoch,
         public: secret.public().0,
         signing: secret.signing(),
+        head: [0; 32],
         maker: Uuid::new_v4(),
         signature: Vec::new(),
     };

@@ -67,6 +67,9 @@ mod a_contacts_key_the_server_rolls_back_stays_the_newest_one_seen;
 mod a_creation_the_server_refuses_is_set_aside_and_nothing_waits_behind_it;
 mod a_definition_the_server_refuses_leaves_the_block_as_the_server_has_it;
 mod a_device_reads_every_page_of_its_keys;
+mod a_device_shown_a_kind_still_open_seals_the_new_epoch_to_no_contact;
+mod a_device_shown_a_log_without_a_revocation_seals_the_new_epoch_to_no_one;
+mod a_device_shown_an_administrator_not_yet_demoted_seals_them_no_new_escrow_key;
 mod a_device_that_knows_a_head_only_from_its_summary_saves_on_it_offline;
 mod a_device_that_starts_offline_reads_and_lists_what_it_saved;
 mod a_file_added_to_a_shared_folder_opens_and_saves_for_who_it_was_shared_with;
@@ -75,6 +78,7 @@ mod a_folder_of_blocks_with_large_metadata_reads_in_answers_that_fit_a_frame;
 mod a_folder_shared_with_a_contact_opens_for_them_alone;
 mod a_grantee_who_is_not_a_contact_gets_the_key_by_the_log;
 mod a_grantee_who_never_signed_retires_its_old_key_too;
+mod a_key_a_contact_seals_after_their_revocation_is_not_taken;
 mod a_key_opened_from_escrow_arrives_and_unlocks_its_block;
 mod a_key_sealed_after_the_block_was_listed_unlocks_it;
 mod a_key_sealed_by_a_contact_verified_later_arrives_as_it_is_verified;
@@ -564,8 +568,8 @@ fn put_escrow(harness: &Harness, organization: Uuid, escrow: &be_block_protocol:
         .database()
         .execute(
             "INSERT INTO keys
-                (organization_id, id, block_id, kind, epoch, created, public, signing, maker, signature)
-             VALUES (?1, ?2, ?1, 'escrow', ?3, 0, ?4, ?5, ?6, ?7)",
+                (organization_id, id, block_id, kind, epoch, created, public, signing, maker, signature, head)
+             VALUES (?1, ?2, ?1, 'escrow', ?3, 0, ?4, ?5, ?6, ?7, ?8)",
             rusqlite::params![
                 organization.to_string(),
                 escrow.id.to_string(),
@@ -573,8 +577,132 @@ fn put_escrow(harness: &Harness, organization: Uuid, escrow: &be_block_protocol:
                 escrow.public.to_vec(),
                 escrow.signing.to_vec(),
                 escrow.maker.to_string(),
-                escrow.signature
+                escrow.signature,
+                escrow.head.to_vec()
             ],
         )
         .unwrap();
+}
+
+/// How many wraps the server holds of `key` sealed to `account`.
+fn sealed_to(harness: &Harness, key: Uuid, account: Uuid) -> i64 {
+    harness
+        .database()
+        .query_row(
+            "SELECT COUNT(*) FROM wrapped_keys WHERE key_id = ?1 AND wrapped_by = ?2",
+            [key.to_string(), format!("account:{account}")],
+            |row| row.get(0),
+        )
+        .unwrap()
+}
+
+/// The newest entry of an access log, taken out of the server's database as a server that
+/// withholds it would (`withhold_newest`), to put back with `Withheld::serve`.
+struct Withheld {
+    organization: Uuid,
+    block: Option<Uuid>,
+    position: i64,
+    entry: Vec<u8>,
+}
+
+/// Takes the newest entry of `block`'s log, or with none the organization's, out of the
+/// server's database: what it serves stops before it.
+fn withhold_newest(harness: &Harness, organization: Uuid, block: Option<Uuid>) -> Withheld {
+    let database = harness.database();
+    let (position, entry): (i64, Vec<u8>) = match block {
+        Some(block) => database.query_row(
+            "SELECT position, entry FROM access_log WHERE organization_id = ?1 AND block_id = ?2
+             ORDER BY position DESC LIMIT 1",
+            [organization.to_string(), block.to_string()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        ),
+        None => database.query_row(
+            "SELECT position, entry FROM organization_log WHERE organization_id = ?1
+             ORDER BY position DESC LIMIT 1",
+            [organization.to_string()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        ),
+    }
+    .unwrap();
+    match block {
+        Some(block) => database.execute(
+            "DELETE FROM access_log WHERE organization_id = ?1 AND block_id = ?2 AND position = ?3",
+            rusqlite::params![organization.to_string(), block.to_string(), position],
+        ),
+        None => database.execute(
+            "DELETE FROM organization_log WHERE organization_id = ?1 AND position = ?2",
+            rusqlite::params![organization.to_string(), position],
+        ),
+    }
+    .unwrap();
+    Withheld {
+        organization,
+        block,
+        position,
+        entry,
+    }
+}
+
+impl Withheld {
+    /// The entry as an access log entry, to name its hash.
+    fn hash(&self) -> be_block_keys::EntryHash {
+        be_block_keys::Entry::decode(&self.entry).unwrap().hash()
+    }
+
+    /// Puts the entry back: the server serves the whole log again.
+    fn serve(self, harness: &Harness) {
+        let database = harness.database();
+        match self.block {
+            Some(block) => database.execute(
+                "INSERT INTO access_log (organization_id, block_id, position, entry)
+                 VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![
+                    self.organization.to_string(),
+                    block.to_string(),
+                    self.position,
+                    self.entry
+                ],
+            ),
+            None => database.execute(
+                "INSERT INTO organization_log (organization_id, position, entry)
+                 VALUES (?1, ?2, ?3)",
+                rusqlite::params![self.organization.to_string(), self.position, self.entry],
+            ),
+        }
+        .unwrap();
+    }
+}
+
+/// Makes `accepter` and `maker` each other's verified contacts, by a contact link `maker` makes.
+async fn befriend(maker: &Peer<MemoryStore>, accepter: &Peer<MemoryStore>) {
+    let code = crate::contacts::make_link(
+        &maker.connection(),
+        maker.keys().identity(),
+        &crate::contacts::card(
+            maker.account(),
+            maker.keys().identity(),
+            "Maker",
+            "maker@example.com",
+        ),
+        None,
+    )
+    .await
+    .unwrap();
+    crate::contacts::accept_link(
+        &accepter.connection(),
+        accepter.keys().identity(),
+        &crate::contacts::card(
+            accepter.account(),
+            accepter.keys().identity(),
+            "Accepter",
+            "accepter@example.com",
+        ),
+        &code,
+        crate::contacts::Expected::Contact,
+    )
+    .await
+    .unwrap();
+    maker.finish_links().await.unwrap();
+    maker.refresh_contacts().await.unwrap();
+    accepter.refresh_contacts().await.unwrap();
 }

@@ -21,12 +21,14 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   metadata, session traffic, journals, notifications and wrapped keys draw one
   (decisions/deterministic_seal_nonce.md). An unknown id is
   `StoreError::MissingKey`.
-- **Keys travel with their block and root**: what is sealed or wrapped is
-  `be_block_keys::CarriedKey`, the key, the block it is a key of (the
-  organization, for an escrow key) and the hash of that block's access log
-  root when the sender holds it pinned, so whoever opens it knows which block
-  it is for whatever the server's row says (`KeyBook::opened` drops a key
-  whose block differs) and may pin the root (below).
+- **Keys travel with their block, root and heads**: what is sealed or wrapped
+  is `be_block_keys::CarriedKey`, the key, the block it is a key of (the
+  organization, for an escrow key), the hash of that block's access log root
+  when the sender holds it pinned, and the heads of the logs its epoch was made
+  under (`Heads`, below), so whoever opens it knows which block it is for
+  whatever the server's row says (`KeyBook::opened` drops a key whose block
+  differs), may pin the root, and seals it on only as far as the logs reach
+  those heads.
 - **Data keys (DEKs)**: one per block, made at creation (`CreateBlock` carries
   it; `BlockSummary::key` is the current one). A block keeps every epoch, so its
   history stays readable.
@@ -174,7 +176,30 @@ is not the pinned one. The personal organization has no log.
 A device takes a log only checked from its pinned root to its head
 (`be_block_keys::check_log`): each entry names the hash of the one before and
 is signed by its signer's current key. Every root names its kind
-(`LogKind`), so a block's log never checks as an organization's.
+(`LogKind`), so a block's log never checks as an organization's. A checked
+log (`Checked`) also tells whether it reaches an entry (`holds`) and each
+account's level as of any entry it reaches (`level_as_of`; for an
+organization's log, administering it is Manage).
+
+**Epochs name their heads** (plans/signed_access.md, 3d). A key minted here
+names the heads of its block's log and the organization's as this device last
+checked them (`KeyBook::note_log`, `set_organization`; a block it never
+checked the log of names its pinned root), and a rotation reads the logs of
+the scopes it rekeys first. The heads ride inside the key (`CarriedKey::heads`),
+so they come from its maker through every sender (`KeyBook::heads`). Key work
+seals a key to a grantee or a contact inside only once the block's log, as
+served now, reaches the key's block head, and to an administrator only once
+the organization's log reaches its organization head
+(`Peer::sealing_target`); each then counts as of its head now. So a server
+that withholds a revocation, a kind's closing or a demotion made before an
+epoch has that epoch sealed to no one by that log until it serves the log
+that far. A key a contact seals to this account is taken only if the block's
+log, as far as this device checked it, gives that contact Edit or above as of
+the key's block head, or the organization's log has them administer it as of
+its head (`KeyBook::sender_may`; a contact the block's log does not name,
+with Edit from a block above, is taken); `refresh_keys` reads the log first
+for each block whose root it pinned. `tend` signs key work's revocations
+before the rotations they call for, so the new epochs name heads after them.
 
 ### Rotation
 
@@ -212,7 +237,11 @@ first administrator device
 to open the organization makes it (`CreateEscrow`), and `mint_scope` seals
 every new scope key to it too, so administrators open everything. Demoting or
 removing an administrator records an escrow rotation: the next epoch is signed
-by the current one over `EscrowKey::chained`. A minted escrow key becomes the
+by the current one over `EscrowKey::chained`, which also covers the
+organization log's head it was made under (`EscrowKey::head`): the server
+takes it only at its head now, and a device takes an epoch only once its
+checked organization log reaches that head (`verify_escrow`). `make_escrow`
+seals it to the other administrators the log names who are contacts. A minted escrow key becomes the
 device's escrow (`KeyBook::adopt_escrow`) only once the server holds it, since
 the server refuses a key wrapped under one it does not know. A block made under
 the old escrow is escrowed under the new one too: by the key work the rotation
@@ -434,10 +463,10 @@ data key and which epoch is newest (so a server colluding with someone who lost
 access, or a demoted administrator, can keep a device writing under a key that
 person knows); which block is under which (a grant resting on Manage inherited
 from above is sealed by no one until parents are signed, and a block's own log
-alone decides who its key is sealed to); the log's head (a server that
-withholds a signed revocation can have the next epoch sealed to the revoked
-member, until epochs name the head they were made under,
-plans/signed_access.md 3d); what an escrow-only administrator, or a grantee
+alone decides who its key is sealed to); the log's head, up to the heads an
+epoch names (a server that withholds a signed revocation from the device key
+work hands the rotation to gets an epoch naming a head before it, sealed to
+the revoked member; plans/signed_access.md, "Accepted limits"); what an escrow-only administrator, or a grantee
 who is no contact of the sender, sees of a block whose root only a member's
 wrap carried (a member and the server together can show it a made-up log and
 content, shown unverified: `RootPin::Weak`); which blocks an account knows exist;

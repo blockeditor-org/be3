@@ -7,6 +7,7 @@ fn an_escrow_key_on_the_wire_encodes_as_the_one_clients_seal() {
         epoch: 300,
         public: [1; 32],
         signing: [2; 32],
+        head: [5; 32],
         maker: Uuid::from_u128(0x4444),
         signature: vec![3; 64],
     };
@@ -16,6 +17,7 @@ fn an_escrow_key_on_the_wire_encodes_as_the_one_clients_seal() {
         vec![0xac, 0x02],
         vec![1; 32],
         vec![2; 32],
+        vec![5; 32],
         vec![16],
         Uuid::from_u128(0x4444).as_bytes().to_vec(),
         vec![64],
