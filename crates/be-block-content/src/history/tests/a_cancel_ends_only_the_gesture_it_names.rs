@@ -16,5 +16,9 @@ fn a_cancel_ends_only_the_gesture_it_names() {
     );
     desk.set(1, Some(2), 2, 21);
     desk.commit(1, 2);
-    assert_eq!(desk.undo_all(), [vec![]], "the second finger's gesture is one step");
+    assert_eq!(
+        desk.undo_all(),
+        [vec![]],
+        "the second finger's gesture is one step"
+    );
 }

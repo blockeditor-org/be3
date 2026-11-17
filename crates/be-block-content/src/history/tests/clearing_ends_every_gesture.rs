@@ -15,5 +15,8 @@ fn clearing_ends_every_gesture() {
     assert!(!desk.history.can_undo());
     desk.commit(1, 1);
     desk.commit(1, 2);
-    assert!(!desk.history.can_undo(), "a commit after the clear keeps nothing");
+    assert!(
+        !desk.history.can_undo(),
+        "a commit after the clear keeps nothing"
+    );
 }

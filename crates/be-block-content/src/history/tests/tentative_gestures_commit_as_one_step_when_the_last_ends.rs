@@ -13,7 +13,11 @@ fn tentative_gestures_commit_as_one_step_when_the_last_ends() {
     desk.set(1, Some(1), 1, 11);
     assert!(desk.history.holding());
     assert_eq!(desk.visible(), [(1, 11), (2, 20)]);
-    assert_eq!(desk.written(), [(1, 1), (2, 2)], "held edits are not written");
+    assert_eq!(
+        desk.written(),
+        [(1, 1), (2, 2)],
+        "held edits are not written"
+    );
     desk.commit(1, 1);
     assert_eq!(
         desk.written(),

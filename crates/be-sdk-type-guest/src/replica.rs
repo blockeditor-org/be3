@@ -2387,8 +2387,13 @@ where
                                 }
                                 // This replica's own, made before it opened again: undo steps
                                 // back through it, as through one made here.
-                                self.history
-                                    .record(&self.confirmed, &operation, None, None, self.now);
+                                self.history.record(
+                                    &self.confirmed,
+                                    &operation,
+                                    None,
+                                    None,
+                                    self.now,
+                                );
                             }
                             self.confirmed.apply(&operation);
                             self.log_operation(sequence, operation, mine);
@@ -3217,8 +3222,13 @@ where
     }
 
     fn record_and_edit(&mut self, operation: C::Op, origin: Option<EditorId>) -> bool {
-        self.history
-            .record(&self.visible, &operation, origin, Some(EDITOR_GESTURE), self.now);
+        self.history.record(
+            &self.visible,
+            &operation,
+            origin,
+            Some(EDITOR_GESTURE),
+            self.now,
+        );
         self.edit(operation, origin)
     }
 

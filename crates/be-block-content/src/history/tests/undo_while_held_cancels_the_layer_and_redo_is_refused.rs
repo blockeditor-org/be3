@@ -13,7 +13,10 @@ fn undo_while_held_cancels_the_layer_and_redo_is_refused() {
     desk.set(1, Some(1), 2, 10);
     desk.set(2, Some(1), 3, 20);
     desk.commit(2, 1);
-    assert!(!desk.history.can_redo(), "redo is refused while the layer is held");
+    assert!(
+        !desk.history.can_redo(),
+        "redo is refused while the layer is held"
+    );
     assert!(!desk.redo());
     assert_eq!(desk.visible(), [(1, 1), (2, 10), (3, 20)]);
 
