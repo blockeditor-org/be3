@@ -52,6 +52,7 @@ async fn a_block_referencing_too_many_blocks_is_refused() {
             KeySet::default(),
             false,
             Vec::new(),
+            Vec::new(),
         ))
         .await,
     );

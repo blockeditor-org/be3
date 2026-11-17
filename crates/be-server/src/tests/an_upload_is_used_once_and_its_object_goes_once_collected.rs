@@ -36,9 +36,7 @@ async fn an_upload_is_used_once_and_its_object_goes_once_collected() {
 
     // Once the last block that held them is collected, so are they, and they are asked for again.
     let deleted = client
-        .call(|peer| {
-            client::blocks::set_parent(peer, block, BlockParent::Detached, KeySet::default())
-        })
+        .move_keyed(block, BlockParent::Detached, KeySet::default())
         .await;
     assert!(deleted.is_ok(), "{deleted:?}");
     let collected = client

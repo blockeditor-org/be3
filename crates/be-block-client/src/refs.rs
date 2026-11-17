@@ -257,6 +257,13 @@ pub struct Creation {
     /// The root of the block's access log, made with it (`be_block_keys::Entry::root`).
     #[serde(with = "serde_bytes")]
     pub root: Vec<u8>,
+    /// The log's next entry: the parent record placing the block at `parent`.
+    #[serde(with = "serde_bytes")]
+    pub placement: Vec<u8>,
+    /// Whether its keys are wrapped under the scope a kept summary named, made offline where
+    /// the signed parent records could not be read: checked before it is sent
+    /// (`Peer::send_creation`).
+    pub unchecked: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -317,6 +324,10 @@ pub enum Aside {
     /// someone who lost access may hold, so this device never sent it (plans/signed_access.md,
     /// 3d).
     KeyOutdated,
+    /// It was made offline under a scope the server's tree named, which the signed parent
+    /// records do not place its parent under, so its keys were never sent wrapped there
+    /// (plans/signed_access.md, step 4).
+    Misplaced,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1873,6 +1884,15 @@ impl Refs {
             .outbox
             .values()
             .any(|op| matches!(op, Op::Create(creation) if creation.block == block))
+    }
+
+    /// The parent record of the block's creation waiting in the outbox, signed here.
+    pub fn creation_placement(&self, block: Uuid) -> Option<Vec<u8>> {
+        let state = self.state.lock().unwrap();
+        state.outbox.values().find_map(|op| match op {
+            Op::Create(creation) if creation.block == block => Some(creation.placement.clone()),
+            _ => None,
+        })
     }
 
     /// Whether the block's creation was set aside among the unsent edits.

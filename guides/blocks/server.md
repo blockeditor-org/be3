@@ -391,15 +391,22 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   me).
 - Moving (`SetParent`) needs `Edit` on the block and the new parent, and
   `Manage` to move a workspace or into another workspace, or when the move
-  would raise the mover's own access (`BlockGraph::move_refusal`).
+  would raise the mover's own access (`BlockGraph::move_refusal`). It carries
+  the mover's parent record (`placement`), which the server appends to the
+  block's log as for a grant (`access::append_parent`); `CreateBlock` carries
+  the creator's after the root.
 - `SetAccess` needs `Manage`, and a grant above `None` must name a member who
   is a contact of the granter (guides/blocks/keys.md). Anyone may revoke their
   own grant. `ListAccess` never lists the rest of the membership.
 - Each block has an access log (plans/signed_access.md; table `access_log`,
-  `be-server/src/access.rs`), served to its viewers by `get-access-log`. Its
-  root comes with `CreateBlock`, and the server takes it only signed by the
-  caller with the keys `recovery_keys` holds for it now, so a good server and a
-  device never disagree (guides/blocks/keys.md, "Access logs"). A company
+  `be-server/src/access.rs`), served by `get-access-log` to its viewers and to
+  anyone viewing a block below it (`Visibility::reads_below`), who checks its
+  ancestry and the records resting on it there. Its root comes with
+  `CreateBlock`, and the server takes it only signed by the caller with the
+  keys `recovery_keys` holds for it now, so a good server and a device never
+  disagree (guides/blocks/keys.md, "Access logs"). The server checks a record's
+  authority from the logs alone, which block is above which by their parent
+  records (`access::checked_block_log`), never its own tree. A company
   organization's log (`organization_log`) is rooted the same way by
   `create-organization`, whose caller picks the organization's id, and served
   to its members by `get-organization-log`. Each is served whole to a caller
@@ -407,7 +414,10 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   on any block, or administering, for the organization's), and to anyone else
   as a proof path (`access::served_log`, `be_block_keys::proof_path`) whole
   only where it proves the caller's right and that of each account that sealed
-  it a key (`wrapped_keys.sender`). A block's creator holds Manage on it, so
+  it a key (`wrapped_keys.sender`), and every parent record. A block above what
+  the caller views, but not viewable itself, is always a proof path, which also
+  proves whoever signs below on authority from it (`access_log_authorities`,
+  `access::inherited_signers`). A block's creator holds Manage on it, so
   every member who has made a block is served the organization's whole log,
   and with it its member list.
 

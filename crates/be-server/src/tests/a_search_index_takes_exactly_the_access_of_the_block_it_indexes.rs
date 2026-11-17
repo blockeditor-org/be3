@@ -8,6 +8,7 @@ async fn create_index(
     let block = Uuid::new_v4();
     let key = Uuid::new_v4();
     let root = client.root(block);
+    let placement = client.placement(block, BlockParent::Block(parent)).await;
     let response = client
         .call(|peer| {
             client::blocks::create_block(
@@ -24,6 +25,7 @@ async fn create_index(
                 },
                 false,
                 root,
+                placement,
             )
         })
         .await;
@@ -133,14 +135,9 @@ async fn a_search_index_takes_exactly_the_access_of_the_block_it_indexes() {
     assert!(matches!(created, Ok(_)), "{created:?}");
     for target in [workspace, third, note] {
         let moved = editor
-            .call(|peer| {
-                client::blocks::set_parent(
-                    peer,
-                    loose,
+            .move_keyed(loose,
                     BlockParent::Block(target),
-                    KeySet::default(),
-                )
-            })
+                    KeySet::default())
             .await;
         assert!(
             moved.is_err(),
@@ -151,14 +148,9 @@ async fn a_search_index_takes_exactly_the_access_of_the_block_it_indexes() {
     let child = owner.create_block(BlockParent::Block(second)).await;
     for target in [child, third, workspace] {
         let moved = owner
-            .call(|peer| {
-                client::blocks::set_parent(
-                    peer,
-                    loose,
+            .move_keyed(loose,
                     BlockParent::Block(target),
-                    KeySet::default(),
-                )
-            })
+                    KeySet::default())
             .await;
         assert!(
             refused_with(&moved, "stays under the block it indexes"),

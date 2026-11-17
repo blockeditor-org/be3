@@ -125,6 +125,7 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
                 KeySet::default(),
                 false,
                 Vec::new(),
+                Vec::new(),
             )
         })
         .await;
@@ -132,36 +133,18 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
         refused_as(&response, ErrorCode::PermissionDenied),
         "a block's agent made a block at the root: {response:?}"
     );
-    for (name, call) in [
-        (
-            "moving",
-            client::blocks::set_parent(
-                &agent.peer,
-                terminal,
-                BlockParent::Block(inside),
-                KeySet::default(),
-            ),
-        ),
-        (
-            "deleting",
-            client::blocks::set_parent(
-                &agent.peer,
-                terminal,
-                BlockParent::Detached,
-                KeySet::default(),
-            ),
-        ),
+    for (name, parent) in [
+        ("moving", BlockParent::Block(inside)),
+        ("deleting", BlockParent::Detached),
     ] {
-        let response = call.await.expect("the connection stayed open");
+        let response = agent.move_to(terminal, parent).await;
         assert!(
             refused_as(&response, ErrorCode::PermissionDenied),
             "{name} its own block answered {response:?}"
         );
     }
     let response = agent
-        .call(|peer| {
-            client::blocks::set_parent(peer, terminal, BlockParent::Detached, KeySet::default())
-        })
+        .move_keyed(terminal, BlockParent::Detached, KeySet::default())
         .await;
     assert!(
         refused_as(&response, ErrorCode::PermissionDenied),

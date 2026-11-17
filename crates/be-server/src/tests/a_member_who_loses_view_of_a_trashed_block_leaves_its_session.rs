@@ -23,9 +23,7 @@ async fn a_member_who_loses_view_of_a_trashed_block_leaves_its_session() {
     assert!(state.has(visitor));
 
     let response = owner
-        .call(|peer| {
-            client::blocks::set_parent(peer, note, BlockParent::Detached, KeySet::default())
-        })
+        .move_keyed(note, BlockParent::Detached, KeySet::default())
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
 

@@ -1,10 +1,10 @@
 //! Access logs (plans/signed_access.md): each block's signed records, root first, kept in the
 //! clear and checked here as devices check them, so a good server and a device never disagree.
 
-use be_block_graph::{ANYONE_INSIDE, Access, BlockGraph};
+use be_block_graph::{ANYONE_INSIDE, Access, BlockParent};
 use be_block_keys::{
-    Authority, Checked, Entry, EntryHash, Level, LogKind, Logs, PublicIdentity, Record,
-    RecoveryPublic, SigningPublic, Step,
+    Asked, Authority, Checked, Entry, Level, LogKind, Logs, Placement, PublicIdentity,
+    Record, RecoveryPublic, SigningPublic, Step,
 };
 use be_block_protocol::ErrorCode;
 use be_block_protocol::{Retirement, SignedLog};
@@ -63,17 +63,125 @@ fn checked_root(
     Ok(entry)
 }
 
-/// Stores `root` as the first entry of a new block's log, once it checks (`checked_root`).
+/// Stores `root` as the first entry of a new block's log, once it checks (`checked_root`), and
+/// `placement` after it: the creator's parent record placing it at `parent`
+/// (`append_parent`).
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn store_root(
     connection: &Connection,
     organization: Uuid,
     account: Uuid,
     block: Uuid,
+    parent: BlockParent,
     root: &[u8],
+    placement: &[u8],
 ) -> Result<(), ServerError> {
     let entry = checked_root(connection, account, LogKind::Block, block, root)?;
     insert_entry(connection, LogKind::Block, organization, block, 0, &entry)?;
-    Ok(())
+    append_parent(
+        connection,
+        organization,
+        block,
+        account,
+        parent,
+        placement,
+    )
+}
+
+/// Where `parent` is, as a parent record names it: under a block, with the root of its log as
+/// the server holds it.
+fn placement_of(
+    connection: &Connection,
+    organization: Uuid,
+    parent: BlockParent,
+) -> Result<Placement, ServerError> {
+    Ok(match parent {
+        BlockParent::Root => Placement::Top,
+        BlockParent::Detached => Placement::Detached,
+        BlockParent::Block(above) => Placement::Block {
+            block: above.into_bytes(),
+            root: entries(connection, LogKind::Block, organization, above)?
+                .first()
+                .map(Entry::hash)
+                .ok_or_else(|| refused("the parent has no access log"))?,
+        },
+    })
+}
+
+/// Appends `record`, signed by `signer`, to `block`'s log once it checks at its head: a parent
+/// record placing the block at `parent`, naming the root of the parent's log, on authority
+/// named as of the head of the log it is in (`authority_current`).
+pub(crate) fn append_parent(
+    connection: &Connection,
+    organization: Uuid,
+    block: Uuid,
+    signer: Uuid,
+    parent: BlockParent,
+    record: &[u8],
+) -> Result<(), ServerError> {
+    let entry = Entry::decode(record).map_err(|_| refused("the parent record does not read"))?;
+    let Record::Parent(placed) = &entry.record else {
+        return Err(refused("a block is placed by a parent record"));
+    };
+    if entry.signer != signer.into_bytes()
+        || placed.placement != placement_of(connection, organization, parent)?
+    {
+        return Err(refused(
+            "the parent record is signed by its caller and places the block where the call does",
+        ));
+    }
+    authority_current(connection, organization, placed.authority)?;
+    append_checked(connection, organization, block, entry)
+}
+
+/// Refuses `authority` unless it names the other log as of its head now: a demotion or
+/// revocation there before the record is never stepped round by naming an older entry.
+fn authority_current(
+    connection: &Connection,
+    organization: Uuid,
+    authority: Authority,
+) -> Result<(), ServerError> {
+    let head = |kind, log| {
+        entries(connection, kind, organization, log).map(|entries| entries.last().map(Entry::hash))
+    };
+    let current = match authority {
+        Authority::Log => true,
+        Authority::Organization(at) => head(LogKind::Organization, organization)? == Some(at),
+        Authority::Inherited {
+            block: above,
+            head: at,
+        } => head(LogKind::Block, Uuid::from_bytes(above))? == Some(at),
+    };
+    match current {
+        true => Ok(()),
+        false => Err(refused(
+            "a record names its signer's authority as of the head of the log it is in",
+        )),
+    }
+}
+
+/// Appends `entry` to `block`'s log once the log checks with it at its head.
+fn append_checked(
+    connection: &Connection,
+    organization: Uuid,
+    block: Uuid,
+    entry: Entry,
+) -> Result<(), ServerError> {
+    let mut entries = entries(connection, LogKind::Block, organization, block)?;
+    if entries.is_empty() {
+        return Err(refused("the block has no access log"));
+    }
+    let position = entries.len();
+    entries.push(entry.clone());
+    checked_block_log(connection, organization, block, &entries)?;
+    insert_entry(
+        connection,
+        LogKind::Block,
+        organization,
+        block,
+        position,
+        &entry,
+    )
 }
 
 /// The block's log, root first.
@@ -97,14 +205,17 @@ pub(crate) fn log_of(
 
 /// The `kind` log of `log` as `reader` is served it: whole when none (a member with Edit or
 /// above, `Visibility::served_whole`), else a proof path (`be_block_keys::proof_path`) proving
-/// the reader's own right and that of each account that sealed it a key of the block (or, in the
-/// organization's log, any key), which it judges a seal by, and reducing every other entry.
+/// the reader's own right, that of each account that sealed it a key of the block (or, in the
+/// organization's log, any key), which it judges a seal by, and that of each of `also` (for a
+/// block above the reader's, whoever signs below on authority from it), reducing every other
+/// entry.
 pub(crate) fn served_log(
     connection: &Connection,
     kind: LogKind,
     organization: Uuid,
     log: Uuid,
     reader: Option<Uuid>,
+    also: Vec<Uuid>,
 ) -> Result<Vec<Vec<u8>>, ServerError> {
     let entries = entries(connection, kind, organization, log)?;
     let steps: Vec<Step> = match reader {
@@ -115,10 +226,38 @@ pub(crate) fn served_log(
             reader.into_bytes(),
             sealers(connection, kind, organization, log, reader)?
                 .into_iter()
+                .chain(also)
                 .map(Uuid::into_bytes),
         ),
     };
     Ok(steps.iter().map(Step::encode).collect())
+}
+
+/// Each block whose log holds a record signed on authority from `above`
+/// (`Authority::Inherited`), with its signer.
+pub(crate) fn inherited_signers(
+    connection: &Connection,
+    organization: Uuid,
+    above: Uuid,
+) -> Result<Vec<(Uuid, Uuid)>, ServerError> {
+    let rows: Vec<(String, String)> = connection
+        .prepare_cached(
+            "SELECT block_id, signer FROM access_log_authorities
+             WHERE organization_id = ?1 AND above_id = ?2",
+        )?
+        .query_map(
+            params![organization.to_string(), above.to_string()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?
+        .collect::<Result<_, _>>()?;
+    rows.iter()
+        .map(|(block, signer)| {
+            Ok((
+                crate::store::parse_uuid(block)?,
+                crate::store::parse_uuid(signer)?,
+            ))
+        })
+        .collect()
 }
 
 /// The accounts that sealed `reader` a key: of `log`, a block, or of any block for the
@@ -292,11 +431,24 @@ fn insert_entry(
         Record::Administrator(administrator) => administrator.account,
         Record::Member(member) => member.account,
         Record::Retirement(retirement) => retirement.account,
-        Record::Opening(_) => entry.signer,
+        Record::Opening(_) | Record::Parent(_) => entry.signer,
     };
     let accounts = [entry.signer, named];
     match kind {
         LogKind::Block => {
+            if let Some(Authority::Inherited { block: above, .. }) = entry.record.authority() {
+                connection.execute(
+                    "INSERT OR IGNORE INTO access_log_authorities
+                        (organization_id, above_id, block_id, signer)
+                     VALUES (?1, ?2, ?3, ?4)",
+                    params![
+                        organization.to_string(),
+                        Uuid::from_bytes(above).to_string(),
+                        log.to_string(),
+                        Uuid::from_bytes(entry.signer).to_string()
+                    ],
+                )?;
+            }
             connection.execute(
                 "INSERT INTO access_log (organization_id, block_id, position, entry)
                  VALUES (?1, ?2, ?3, ?4)",
@@ -389,7 +541,7 @@ pub(crate) fn append_retirements(
         }
         let position = entries.len();
         entries.push(entry.clone());
-        be_block_keys::check_log(kind, log.log.into_bytes(), pinned, &entries, &|_, _| None)
+        be_block_keys::check_log(kind, log.log.into_bytes(), pinned, &entries, &|_| None)
             .map_err(|_| refused("the retirement does not follow the log it goes in"))?;
         insert_entry(
             connection,
@@ -414,49 +566,38 @@ pub(crate) fn level(access: Access) -> Level {
     }
 }
 
-/// A log's root, as the server stored it once it checked, and its entries.
-fn held(
-    connection: &Connection,
-    kind: LogKind,
-    organization: Uuid,
-    log: Uuid,
-) -> Option<(EntryHash, Vec<Step>)> {
+/// A log's entries, as the server stored them once each checked.
+fn held(connection: &Connection, kind: LogKind, organization: Uuid, log: Uuid) -> Option<Vec<Step>> {
     let entries = entries(connection, kind, organization, log).ok()?;
-    Some((
-        entries.first()?.hash(),
-        entries.into_iter().map(Step::from).collect(),
-    ))
+    match entries.is_empty() {
+        true => None,
+        false => Some(entries.into_iter().map(Step::from).collect()),
+    }
 }
 
-/// The log of `block` checked to its head, as a device checks it, with the authority each grant
-/// names read from the server's logs and its tree.
+/// The log of `block` checked to its head, as a device checks it, with the authority each
+/// record names read from the server's logs, and which block is above which from their parent
+/// records. The server's tree is not consulted: it never decides what a log's records give.
 pub(crate) fn checked_block_log(
     connection: &Connection,
-    graph: &BlockGraph,
     organization: Uuid,
     block: Uuid,
     entries: &[Entry],
 ) -> Result<Checked, ServerError> {
     let log =
         |kind: LogKind, log: [u8; 16]| held(connection, kind, organization, Uuid::from_bytes(log));
-    let above = |above: [u8; 16], below: [u8; 16]| {
-        let above = Uuid::from_bytes(above);
-        graph
-            .ancestors(Uuid::from_bytes(below))
-            .any(|ancestor| ancestor == above)
-    };
+    let organization_root = held(connection, LogKind::Organization, organization, organization)
+        .and_then(|steps| steps.first().map(Step::hash));
     let logs = Logs {
         organization: organization.into_bytes(),
+        organization_root,
         log: &log,
-        above: &above,
     };
     let pinned = entries
         .first()
         .map(Entry::hash)
         .ok_or(ServerError::Corrupt)?;
-    let outside = |signer: [u8; 16], authority: &Authority| {
-        be_block_keys::answer(&logs, block.into_bytes(), signer, authority)
-    };
+    let outside = |asked: &Asked| be_block_keys::answer(&logs, block.into_bytes(), asked);
     be_block_keys::check_log(
         LogKind::Block,
         block.into_bytes(),
@@ -470,7 +611,6 @@ pub(crate) fn checked_block_log(
 /// The level `block`'s log grants `account`, if it names them (for anyone inside, its last opening).
 pub(crate) fn granted_level(
     connection: &Connection,
-    graph: &BlockGraph,
     organization: Uuid,
     block: Uuid,
     account: Uuid,
@@ -479,7 +619,7 @@ pub(crate) fn granted_level(
     if entries.is_empty() {
         return Ok(None);
     }
-    let checked = checked_block_log(connection, graph, organization, block, &entries)?;
+    let checked = checked_block_log(connection, organization, block, &entries)?;
     if account == ANYONE_INSIDE {
         return Ok(Some(checked.open_inside));
     }
@@ -493,13 +633,12 @@ pub(crate) fn granted_level(
 /// signed for.
 pub(crate) fn names_grant(
     connection: &Connection,
-    graph: &BlockGraph,
     organization: Uuid,
     block: Uuid,
     account: Uuid,
 ) -> Result<bool, ServerError> {
     Ok(
-        granted_level(connection, graph, organization, block, account)?
+        granted_level(connection, organization, block, account)?
             .is_some_and(|level| level > Level::None),
     )
 }
@@ -509,7 +648,6 @@ pub(crate) fn names_grant(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn append_grant(
     connection: &Connection,
-    graph: &BlockGraph,
     organization: Uuid,
     block: Uuid,
     signer: Uuid,
@@ -538,39 +676,8 @@ pub(crate) fn append_grant(
     {
         return Err(refused("a grant names the keys its grantee holds now"));
     }
-    // Authority is named as of the other log's head now: a demotion or revocation there before
-    // this grant is never stepped round by naming an older entry.
-    let head = |kind, log| {
-        entries(connection, kind, organization, log).map(|entries| entries.last().map(Entry::hash))
-    };
-    let current = match authority {
-        Authority::Log => true,
-        Authority::Organization(at) => head(LogKind::Organization, organization)? == Some(at),
-        Authority::Inherited {
-            block: above,
-            head: at,
-        } => head(LogKind::Block, Uuid::from_bytes(above))? == Some(at),
-    };
-    if !current {
-        return Err(refused(
-            "a grant names its signer's authority as of the head of the log it is in",
-        ));
-    }
-    let mut entries = entries(connection, LogKind::Block, organization, block)?;
-    if entries.is_empty() {
-        return Err(refused("the block has no access log"));
-    }
-    let position = entries.len();
-    entries.push(entry.clone());
-    checked_block_log(connection, graph, organization, block, &entries)?;
-    insert_entry(
-        connection,
-        LogKind::Block,
-        organization,
-        block,
-        position,
-        &entry,
-    )?;
+    authority_current(connection, organization, authority)?;
+    append_checked(connection, organization, block, entry)?;
     connection.execute(
         "DELETE FROM unsigned_revocations
          WHERE organization_id = ?1 AND block_id = ?2 AND account_id = ?3",
@@ -604,7 +711,7 @@ pub(crate) fn administrator_signing(
         organization.into_bytes(),
         pinned,
         &entries,
-        &|_, _| None,
+        &|_| None,
     )
     .map_err(|_| ServerError::Corrupt)?;
     Ok(checked.manager(LogKind::Organization, account.into_bytes()))
@@ -630,7 +737,7 @@ pub(crate) fn checked_organization_log(
         organization.into_bytes(),
         pinned,
         &entries,
-        &|_, _| None,
+        &|_| None,
     )
     .map(Some)
     .map_err(|_| ServerError::Corrupt)
@@ -671,7 +778,7 @@ fn append_organization(
         organization.into_bytes(),
         pinned,
         &entries,
-        &|_, _| None,
+        &|_| None,
     )
     .map_err(|_| refused("the record does not follow the log it goes in"))?;
     insert_entry(
@@ -747,13 +854,12 @@ pub(crate) fn append_member(
 /// revocations the remover signs (`removal-revocations`).
 pub(crate) fn named_pairs(
     connection: &Connection,
-    graph: &BlockGraph,
     organization: Uuid,
     pairs: &[(Uuid, Uuid)],
 ) -> Result<Vec<(Uuid, Uuid)>, ServerError> {
     let mut named = Vec::new();
     for (block, grantee) in pairs {
-        if names_grant(connection, graph, organization, *block, *grantee)? {
+        if names_grant(connection, organization, *block, *grantee)? {
             named.push((*block, *grantee));
         }
     }

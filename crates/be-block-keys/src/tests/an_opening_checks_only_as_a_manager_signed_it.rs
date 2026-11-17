@@ -6,7 +6,7 @@ fn an_opening_checks_only_as_a_manager_signed_it() {
     let member = RecoveryPhrase::generate().secret();
     let (creator_id, member_id) = ([1; 16], [2; 16]);
     let block = [7; 16];
-    let none = |_: [u8; 16], _: &Authority| None;
+    let none = |_: &Asked| None;
     let check =
         |entries: &[Entry]| check_log(LogKind::Block, block, entries[0].hash(), entries, &none);
     let opening = |by: &RecoverySecret, signer, previous, level, authority| {
@@ -35,7 +35,6 @@ fn an_opening_checks_only_as_a_manager_signed_it() {
         Level::View,
         "the creator opens the block"
     );
-    assert!(!checked.open_inside_tainted);
 
     let closed = opening(
         &creator,
@@ -87,7 +86,7 @@ fn an_opening_checks_only_as_a_manager_signed_it() {
             head: [0; 32],
         },
     );
-    let above = |_: [u8; 16], _: &Authority| Some(member.identity().signing);
+    let above = |_: &Asked| Some(member.identity().signing);
     let checked = check_log(
         LogKind::Block,
         block,
@@ -96,8 +95,9 @@ fn an_opening_checks_only_as_a_manager_signed_it() {
         &above,
     )
     .unwrap();
-    assert!(
-        checked.open_inside_tainted,
-        "an opening that rests on the server's tree is marked so"
+    assert_eq!(
+        checked.open_inside,
+        Level::View,
+        "a manager from above opens the block, as the logs above answer"
     );
 }

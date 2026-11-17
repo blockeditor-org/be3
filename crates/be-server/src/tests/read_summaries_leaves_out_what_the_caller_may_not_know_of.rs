@@ -45,6 +45,7 @@ async fn read_summaries_leaves_out_what_the_caller_may_not_know_of() {
     let secret = Uuid::new_v4();
     let key = Uuid::new_v4();
     let root = owner.root(secret);
+    let placement = owner.placement(secret, BlockParent::Block(settings)).await;
     let made = owner
         .call(|peer| {
             client::blocks::create_block(
@@ -61,6 +62,7 @@ async fn read_summaries_leaves_out_what_the_caller_may_not_know_of() {
                 },
                 true,
                 root.clone(),
+                placement,
             )
         })
         .await;

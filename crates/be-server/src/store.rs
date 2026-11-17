@@ -406,6 +406,7 @@ impl ServerStore {
                 identity.organization,
                 identity.organization,
                 reader,
+                Vec::new(),
             )
         })
         .await
@@ -581,7 +582,6 @@ impl ServerStore {
             if let Some(bound) = &bound {
                 crate::access::append_grant(
                     &transaction,
-                    graph,
                     organization,
                     bound.block,
                     caller,
@@ -918,7 +918,7 @@ impl ServerStore {
     ) -> Result<Vec<(Uuid, Uuid)>, ServerError> {
         self.with_graph(organization, move |_, graph, database| {
             let pairs = member_grants(graph, account);
-            crate::access::named_pairs(database, graph, organization, &pairs)
+            crate::access::named_pairs(database, organization, &pairs)
         })
         .await
     }
@@ -934,7 +934,7 @@ impl ServerStore {
         self.with_graph(organization, move |store, graph, database| {
             // Each grant a log names is revoked there by the remover's signed record.
             let pairs = member_grants(graph, account);
-            let named = crate::access::named_pairs(database, graph, organization, &pairs)?;
+            let named = crate::access::named_pairs(database, organization, &pairs)?;
             let revoking = crate::access::revocations_for(&named, &revocations)?;
             if !identity.is_administrator() {
                 require_agent_of(graph, database, identity.account, organization, account)?;
@@ -985,7 +985,6 @@ impl ServerStore {
             for ((block, grantee), record) in &revoking {
                 crate::access::append_grant(
                     &transaction,
-                    graph,
                     organization,
                     *block,
                     identity.account,

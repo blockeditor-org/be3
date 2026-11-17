@@ -18,9 +18,7 @@ async fn every_graph_change_advances_a_blocks_version() {
     assert!(renamed.version > created);
 
     let response = owner
-        .call(|peer| {
-            client::blocks::set_parent(peer, block, BlockParent::Block(folder), KeySet::default())
-        })
+        .move_keyed(block, BlockParent::Block(folder), KeySet::default())
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let moved = owner.read_block(block).await;
