@@ -31,5 +31,6 @@ fn polled(worker: &mut Worker<InProcess<Echo>>, steps: usize) -> Result<Vec<Vec<
     Ok(received)
 }
 
+mod a_guest_acting_on_the_hosts_frames_in_a_step_it_woke_for_is_not_settled;
 mod an_in_process_guest_echoes_and_wakes;
 mod an_in_process_guest_that_panics_reports_its_panic_message;
