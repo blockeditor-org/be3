@@ -2,6 +2,7 @@ use super::*;
 use beui::KeyPress;
 use beui::Sides;
 use beui::Vec2;
+use beui::primitives::Blank;
 use beui::primitives::Drawing;
 use beui::primitives::Frame;
 use beui::primitives::Gap;
@@ -152,6 +153,9 @@ pub(crate) fn TextNodesPage() -> NodeId {
             </Sample>
             <Sample title="Line breaks" code={vec![TextBreaks::SOURCE]}>
                 <TextBreaks />
+            </Sample>
+            <Sample title="Blanks" code={vec![TextBlanks::SOURCE]}>
+                <TextBlanks />
             </Sample>
             <Sample title="Icons" code={vec![TextIcons::SOURCE]}>
                 <TextIcons />
@@ -330,6 +334,23 @@ fn TextBreaks() -> NodeId {
                 </Text>
             </Frame>
         </List>
+    }
+}
+
+const BLANKED: &str = "A blank after the last word hangs past the edge";
+
+#[sample]
+#[component]
+fn TextBlanks() -> NodeId {
+    let theme = use_theme();
+    let mark = move || vec![beui::TextMark::new(BLANKED.len()..BLANKED.len() + 1, theme.accent.get())];
+    view! {
+        <Frame width=200.0 fill={theme.control}>
+            <Text color={theme.text} marks={mark}>
+                {BLANKED}
+                <Blank width=16.0 />
+            </Text>
+        </Frame>
     }
 }
 

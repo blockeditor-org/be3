@@ -44,6 +44,7 @@ pub enum SpanKind {
     Text,
     Inline(usize, Vec2),
     Gap(f32),
+    Blank(f32),
     Break,
     Icon(f32),
     Tab,
@@ -162,12 +163,23 @@ impl RichLine {
         self.hang(index, x)
     }
 
-    /// `x` for a byte among the spaces that hang past the line's end, kept at the edge.
+    /// `x` for a byte among the spaces that hang past the line's end, kept at the edge, but
+    /// for the width of each `Piece::Blank` among them before it, which stays its own past the
+    /// edge so a mark or glyph over a blank has room.
     fn hang(&self, index: usize, x: f32) -> f32 {
-        match index > self.hung {
-            true => x.min(self.edge),
-            false => x,
+        if index <= self.hung {
+            return x;
         }
+        let blanks: f32 = self
+            .runs
+            .iter()
+            .filter(|run| run.range.start >= self.hung && run.range.end <= index)
+            .filter_map(|run| match run.kind {
+                SpanKind::Blank(width) => Some(width),
+                _ => None,
+            })
+            .sum();
+        x.min(self.edge + blanks)
     }
 
     pub fn x_after(&self, index: usize) -> f32 {
@@ -465,6 +477,19 @@ impl Builder<'_> {
                 width: size.x,
                 height: size.y,
                 galley: None,
+            },
+            // A blank's galley is empty: it measures the line as text in its font would, and
+            // draws nothing.
+            SpanKind::Blank(width) => RichRun {
+                piece,
+                range,
+                style,
+                kind,
+                x,
+                width,
+                height: 0.0,
+                galley: Some(self.shaper.galley("", style.font)),
+                inner: Vec::new(),
             },
             SpanKind::Gap(_) | SpanKind::Break => RichRun {
                 piece,
@@ -767,6 +792,10 @@ fn spans_of(pieces: &[Piece], fallback: SpanStyle) -> (String, Vec<TextSpan>) {
                 (fallback, SpanKind::Inline(inline, size), false)
             }
             Piece::Gap(width) => (fallback, SpanKind::Gap(width), false),
+            Piece::Blank { width, style } => {
+                text.push_str(beui_types::text::BLANK);
+                (style, SpanKind::Blank(width), false)
+            }
             Piece::Break => (fallback, SpanKind::Break, false),
             Piece::Icon { style, spacing, .. } => (style, SpanKind::Icon(spacing), false),
         };
@@ -939,7 +968,11 @@ impl RichLayout {
     ) {
         for line in &self.lines {
             for run in &line.runs {
-                let Some(galley) = &run.galley else {
+                let Some(galley) = run
+                    .galley
+                    .as_ref()
+                    .filter(|_| !matches!(run.kind, SpanKind::Blank(_)))
+                else {
                     continue;
                 };
                 let left = origin.x + line.run_left(run);
@@ -1129,8 +1162,9 @@ fn line(
     let (mut ascent, mut descent) = (strut.0, strut.1 - strut.0);
     let mut tallest = strut.1;
     let mut middle = strut.1 / 2.0 - strut.0;
+    let metric = |run: &RichRun| run.text() || matches!(run.kind, SpanKind::Blank(_));
     for run in &runs {
-        if let Some(galley) = run.galley.as_ref().filter(|_| run.text()) {
+        if let Some(galley) = run.galley.as_ref().filter(|_| metric(run)) {
             ascent = ascent.max(galley.baseline());
             descent = descent.max(galley.line_height() - galley.baseline());
             if galley.line_height() > tallest {
@@ -1139,7 +1173,7 @@ fn line(
             }
         }
     }
-    for run in runs.iter().filter(|run| !run.text()) {
+    for run in runs.iter().filter(|run| !metric(run)) {
         let half = run.height / 2.0;
         ascent = ascent.max(half - middle);
         descent = descent.max(half + middle);

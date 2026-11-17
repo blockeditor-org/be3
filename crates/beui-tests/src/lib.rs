@@ -75,6 +75,9 @@ pub fn Fixture(name: String) -> Root {
         "text" => view! {
             <TextFixture />
         },
+        "blank" => view! {
+            <BlankFixture />
+        },
         "focus" => view! {
             <FocusFixture />
         },
@@ -378,6 +381,40 @@ fn TextFixture() -> NodeId {
                     count.set(count.get_untracked() + 1);
                 }}
             />
+        </List>
+    }
+}
+
+const BLANK_LINE: &str = "afdjnafndjsk fadsnjknjafkdsl nfjakdjnklafds njafdnjlkafds njkafdsnjlkafds njkafdnjlkfads jnkafldsnlj a";
+
+/// A line in a frame exactly as wide as its words, then a `Blank`, which must hang past the
+/// line's end rather than wrap the last word: the screen says whether the wrapped line is as
+/// tall as the unwrapped one.
+#[component]
+fn BlankFixture() -> NodeId {
+    let free = view! {
+        <Text color={INK} overflow={beui::Overflow::Visible}>{BLANK_LINE}</Text>
+    };
+    let free_rect = measured_rect(free);
+    let fitted = view! {
+        <Text color={INK}>
+            {BLANK_LINE}
+            <Blank width=14.0 />
+        </Text>
+    };
+    let fitted_rect = measured_rect(fitted);
+    let report = create_memo(move || match (free_rect.get(), fitted_rect.get()) {
+        (Some(free), Some(fitted)) if free.height() == fitted.height() => "Blank hangs".to_owned(),
+        (Some(_), Some(_)) => "Blank wraps".to_owned(),
+        _ => "Blank unmeasured".to_owned(),
+    });
+    view! {
+        <List spacing=12.0>
+            {free}
+            <Frame width={move || Extent::px(free_rect.get().map_or(0.0, |rect| rect.width()))}>
+                {fitted}
+            </Frame>
+            <Text color={INK}>{report}</Text>
         </List>
     }
 }

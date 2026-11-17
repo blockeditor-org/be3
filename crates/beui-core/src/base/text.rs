@@ -17,6 +17,7 @@ use crate::child_list::{ChildHost, ChildItem, NodeChildren};
 use crate::document::Document;
 use crate::node::{Element, NodeOf, Rects, SpaceTransform};
 use crate::rich::{OBJECT, RichLayout, Shaper};
+use beui_types::text::BLANK;
 use beui_tree::callback::Callback;
 use beui_tree::child_list::ChildList;
 use beui_types::Direction;
@@ -103,13 +104,15 @@ pub enum TextPart {
     Inline(NodeId),
     Anchored(NodeId),
     Gap(f32),
+    /// A blank `width` wide, in a font of its own or the text's.
+    Blank(f32, Option<FontId>),
     Break,
 }
 
 impl ChildItem for TextPart {
     fn node(&self) -> Option<NodeId> {
         match self {
-            TextPart::Span(_) | TextPart::Gap(_) | TextPart::Break => None,
+            TextPart::Span(_) | TextPart::Gap(_) | TextPart::Blank(..) | TextPart::Break => None,
             TextPart::Inline(node) | TextPart::Anchored(node) => Some(*node),
         }
     }
@@ -129,6 +132,7 @@ enum Entry {
     Span(SpanHandle, u64),
     Inline(Vec2, Option<Rc<str>>),
     Gap(f32),
+    Blank(f32, Option<FontId>),
     Break,
 }
 
@@ -142,6 +146,7 @@ impl PartialEq for Entry {
                 left == right && stands == other
             }
             (Entry::Gap(left), Entry::Gap(right)) => left == right,
+            (Entry::Blank(left, font), Entry::Blank(right, other)) => left == right && font == other,
             (Entry::Break, Entry::Break) => true,
             _ => false,
         }
@@ -309,6 +314,7 @@ enum Flow<'a> {
     Span(Ref<'a, SpanContent>),
     Inline(usize, Vec2, &'a str),
     Gap(f32),
+    Blank(f32, Option<FontId>),
     Break,
 }
 
@@ -327,9 +333,11 @@ impl TextNode {
                     && !content.text.is_empty()
                     && seen(content.color.unwrap_or(self.color))
             }
-            TextPart::Inline(_) | TextPart::Anchored(_) | TextPart::Gap(_) | TextPart::Break => {
-                false
-            }
+            TextPart::Inline(_)
+            | TextPart::Anchored(_)
+            | TextPart::Gap(_)
+            | TextPart::Blank(..)
+            | TextPart::Break => false,
         };
         let string_spoken = !string.text.is_empty() && seen(self.color);
         if !string_spoken && !self.parts.iter().any(spoken) {
@@ -338,6 +346,7 @@ impl TextNode {
         let silent = |part: &TextPart| match part {
             TextPart::Span(span) => span.content().icon.is_none() && !spoken(part),
             TextPart::Inline(_) => true,
+            TextPart::Blank(..) => true,
             TextPart::Anchored(_) | TextPart::Gap(_) | TextPart::Break => false,
         };
         if (string_spoken || string.text.is_empty()) && !self.parts.iter().any(silent) {
@@ -364,7 +373,11 @@ impl TextNode {
                     apart = false;
                     text.push_str(&content.text);
                 }
-                TextPart::Span(_) | TextPart::Anchored(_) | TextPart::Gap(_) | TextPart::Break => {}
+                TextPart::Span(_)
+                | TextPart::Anchored(_)
+                | TextPart::Gap(_)
+                | TextPart::Blank(..)
+                | TextPart::Break => {}
             }
         }
         Some(Cow::Owned(text))
@@ -377,6 +390,7 @@ impl TextNode {
                 TextPart::Span(span) if span.content().icon.is_some() => {}
                 TextPart::Span(span) => content.push_str(&span.content().text),
                 TextPart::Inline(_) => content.push_str(OBJECT),
+                TextPart::Blank(..) => content.push_str(BLANK),
                 TextPart::Anchored(_) | TextPart::Gap(_) | TextPart::Break => {}
             }
         }
@@ -425,6 +439,7 @@ impl TextNode {
                         .clone(),
                 )),
                 TextPart::Gap(width) => entries.push(Entry::Gap(*width)),
+                TextPart::Blank(width, font) => entries.push(Entry::Blank(*width, *font)),
                 TextPart::Break => entries.push(Entry::Break),
                 TextPart::Anchored(_) => {}
             }
@@ -528,6 +543,7 @@ impl TextNode {
                         Flow::Inline(inline - 1, *size, text.as_deref().unwrap_or(OBJECT))
                     }
                     Entry::Gap(width) => Flow::Gap(*width),
+                    Entry::Blank(width, font) => Flow::Blank(*width, *font),
                     Entry::Break => Flow::Break,
                 })
                 .collect()
@@ -558,6 +574,13 @@ impl TextNode {
                     text,
                 },
                 Flow::Gap(width) => Piece::Gap(*width),
+                Flow::Blank(width, font) => Piece::Blank {
+                    width: *width,
+                    style: SpanStyle {
+                        font: font.unwrap_or(style.font),
+                        ..style
+                    },
+                },
                 Flow::Break => Piece::Break,
             })
             .collect();
@@ -674,7 +697,7 @@ impl TextNode {
             .flat_map(|shaped| &shaped.entries)
             .map(|entry| match entry {
                 Entry::Span(span, _) => Some(span.clone()),
-                Entry::Inline(..) | Entry::Gap(_) | Entry::Break => None,
+                Entry::Inline(..) | Entry::Gap(_) | Entry::Blank(..) | Entry::Break => None,
             })
             .collect();
         let mut at = 0;
@@ -688,6 +711,7 @@ impl TextNode {
                     Entry::Span(span, _) if span.content().icon.is_some() => 0,
                     Entry::Span(span, _) => span.content().text.len(),
                     Entry::Inline(_, text) => text.as_deref().unwrap_or(OBJECT).len(),
+                    Entry::Blank(..) => BLANK.len(),
                     Entry::Gap(_) | Entry::Break => 0,
                 };
                 at += len;

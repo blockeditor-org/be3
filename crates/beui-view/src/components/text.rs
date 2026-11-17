@@ -3,7 +3,7 @@ use crate::reactive::Child;
 use crate::reactive::Children;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
-pub use crate::text_children::{Break, Gap, Span, SpanText, TextChild, TextItem};
+pub use crate::text_children::{Blank, Break, Gap, Span, SpanText, TextChild, TextItem};
 use crate::types::Color;
 use crate::types::FontFamily;
 use crate::types::FontId;
@@ -103,6 +103,15 @@ pub fn Icon(
 #[component]
 pub fn Gap(width: f32) -> Gap {
     Gap { width }
+}
+
+/// A space `width` wide that holds one byte of the text (a space) and hangs past a line's end
+/// as trailing spaces do: the room a text area keeps for a newline's marker, which never wraps
+/// the line's last word and keeps its width beyond the edge for a mark or glyph over it. Its
+/// line is as tall as text in `font` (the text's own when `None`) would make it.
+#[component]
+pub fn Blank(width: f32, #[prop(default = None)] font: Option<FontId>) -> Blank {
+    Blank { width, font }
 }
 
 #[component]

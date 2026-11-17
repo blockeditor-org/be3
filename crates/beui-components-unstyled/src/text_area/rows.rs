@@ -9,6 +9,7 @@ use beui_view::reactive::*;
 use beui_view::types::Color;
 use beui_view::types::SpanStyle;
 use beui_view::types::Vec2;
+use beui_view::types::text::BLANK;
 use beui_view::types::{DEFAULT_FONT_SIZE, Piece};
 use beui_view::types::{FontId, TextAlign, TextLayout};
 
@@ -26,10 +27,6 @@ pub const CODE_SIZE: f32 = BODY_SIZE;
 const MASK: &str = "*";
 const OBJECT: &str = "\u{fffc}";
 const NEWLINE_MARKER: &str = "\u{23ce}";
-/// The room a line's newline marker is drawn in: whitespace, so it hangs past the line's end
-/// as trailing spaces do (guides/beui/text.md, "Wrapping") and never wraps the last word, or
-/// itself, onto another row.
-const NEWLINE_SLOT: &str = "\u{2003}\u{2003}";
 const ELLIPSIS: &str = "...";
 const CONTROL_NAME_EM: f32 = 0.7;
 /// Set either side of a control character's name, so it does not run into the text.
@@ -137,6 +134,8 @@ pub struct Segment {
 pub enum SpanKind {
     Text,
     Space(f32),
+    /// A `Piece::Blank`: room holding one display byte that hangs past the row's end.
+    Blank(f32),
     Inline(usize),
 }
 
@@ -296,6 +295,10 @@ impl Row {
                 match span.kind {
                     SpanKind::Text => Piece::text(text, span.style),
                     SpanKind::Space(width) => Piece::Gap(width),
+                    SpanKind::Blank(width) => Piece::Blank {
+                        width,
+                        style: span.style,
+                    },
                     SpanKind::Inline(_) => {
                         flow += 1;
                         Piece::Inline {
@@ -404,7 +407,7 @@ fn invisible_marker(byte: u8) -> Option<&'static str> {
 
 /// The name shown for a control character with no width of its own (NUL, BEL, CR and the
 /// rest of C0, and DEL), its ASCII abbreviation, which takes its place, and so its width, in
-/// the row. Tab and newline have markers of their own (a newline's room hangs, `NEWLINE_SLOT`). The abbreviations are text,
+/// the row. Tab and newline have markers of their own; a newline's is drawn in a hanging blank. The abbreviations are text,
 /// not Control Pictures symbols, which the bundled fonts do not have.
 fn control_marker(byte: u8) -> Option<&'static str> {
     const NAMES: [&str; 32] = [
@@ -972,7 +975,11 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
             ..builder.span_style(style_at(end))
         };
         let at = builder.row.display.len();
-        builder.push(NEWLINE_SLOT, end..end + 1, false, style, SpanKind::Text);
+        // The newline's marker is drawn in a blank as wide as it, which hangs past the row's
+        // end, so it never wraps the last word, or itself, onto a row of its own.
+        let width = lay_out_text(NEWLINE_MARKER, style.font, TextLayout::DEFAULT)
+            .map_or(style.font.size, |line| line.size().x);
+        builder.push(BLANK, end..end + 1, false, style, SpanKind::Blank(width));
         builder.row.invisibles.push(Invisible {
             source: end,
             display: at..builder.row.display.len(),

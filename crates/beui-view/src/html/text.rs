@@ -197,6 +197,27 @@ impl TextChild {
                 set_style(node, "width", Some(css::px(gap.width)));
                 (node, Piece::Skip { newline: false })
             }
+            TextChild::Blank(blank) => {
+                // A space in no font, `letter-spacing` wide: the browser hangs it past a line's
+                // end as it does trailing spaces under `pre-wrap`, where a wider space character
+                // (an em space) or an inline block would wrap.
+                let node = inline(
+                    "Blank",
+                    "span",
+                    &[("font-size", "0"), ("vertical-align", "top")],
+                );
+                set_attribute(node, "class", Some("beui-blank".to_owned()));
+                set_style(node, "letter-spacing", Some(css::px(blank.width)));
+                let Some(element) = element(node) else {
+                    return (node, Piece::Skip { newline: false });
+                };
+                let run = Run::new(
+                    &element,
+                    Prop::Static(crate::types::text::BLANK.to_owned()),
+                    glyphed,
+                );
+                (node, Piece::Run(run))
+            }
             TextChild::Break(_) => {
                 let node = create("Break", "span");
                 set_attribute(node, "class", Some("beui-break".to_owned()));

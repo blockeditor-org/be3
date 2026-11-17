@@ -278,6 +278,9 @@ pub fn handle_shape(caret: Rect, handle: CaretHandle) -> (Rect, Corners, f32) {
     }
 }
 
+/// The content a `Piece::Blank` holds.
+pub const BLANK: &str = " ";
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Piece<'a> {
     Text {
@@ -294,6 +297,11 @@ pub enum Piece<'a> {
         text: &'a str,
     },
     Gap(f32),
+    /// A space `width` wide: one byte of content (`BLANK`), so a mark or glyph can cover it,
+    /// and whitespace, so it hangs past a line's end as trailing spaces do (guides/beui/text.md,
+    /// "Wrapping"), taking no room when the line breaks but keeping its width beyond the edge.
+    /// Its line is at least as tall as a line of `style`'s font, as text in it would be.
+    Blank { width: f32, style: SpanStyle },
     Break,
     Icon {
         glyph: &'a str,
@@ -317,6 +325,7 @@ impl<'a> Piece<'a> {
         match self {
             Piece::Text { text, .. } => text.len(),
             Piece::Inline { text, .. } => text.len(),
+            Piece::Blank { .. } => BLANK.len(),
             Piece::Gap(_) | Piece::Break | Piece::Icon { .. } => 0,
         }
     }
