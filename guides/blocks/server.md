@@ -454,11 +454,16 @@ entry until it reads the tree to its end (`changed-since` answering no `next`,
 `WatchHub::read`), and then once more if the tree advanced past what it read
 (`Told`): a burst of a hundred publishes reaches a follower as one or two
 events, and a follower of a sibling subtree hears nothing. Who changed a block
-is not told; a client tells its own publishes from others' by their heads.
+is not told; a client tells its own publishes from others' by their heads. A
+follower that may no longer view what it follows (a grant revoked, a move out
+of view) is told once more (`WatchHub::left`) and unfollowed, so it reads the
+tree, is refused, and lets go of what it showed of it. A failed read resets
+the follow, so the next change is told again (`WatchHub::unread`).
 
 **Roots.** What lies at the top, in the trash and is shared with an account
-changes with a move, a grant or a creation at the top: `tree-change.roots` goes
-to the accounts that could know of the block before and can now
+changes with a grant, a creation at the top, or a move that leaves or reaches
+the top or the trash or changes who may know of the block: `tree-change.roots`
+goes to the accounts that could know of the block before and can now
 (`Connection::roots`, `WatchHub::roots`), and a collection tells every member,
 who list those again.
 
@@ -488,7 +493,12 @@ grant or opens to the blocks inside its owner, the only blocks below the top
 where a view starts) before the move, less those above it after, so a move
 within one tree is a departure from a shared subtree it left. That is bounded by
 the grants on one path, not its depth. A reader away for more than a day misses
-what left in between, moved out, trashed or deleted.
+what left in between, moved out, trashed or deleted. A departure names the
+block to every reader of that entry, a reader granted after it left included
+when it reads from a cursor that old; it learns only an id. A size change
+(`size`, `tree_size`) moves no `changed`, so an ancestor's tree size is as new
+as its last change, and `entry_of` makes O(depth) access checks of O(depth)
+each per summary.
 `blocks.changed-since(entry, after, limit, follow)` asks about the tree of any
 block the caller may view (an entry point, for its departures to be whole) and
 pages through `blocks_changed` and that entry's departures in one order, oldest

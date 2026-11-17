@@ -518,10 +518,16 @@ instance, `Owner::Open` for open blocks' parents, `Owner::Host`,
   shows cost nothing more; a block a page changes has its `Backrefs` listing
   read again (the server touches the blocks a change starts or stops
   referencing); a held block that left the tree is read again wherever it went
-  (`read-summaries`) or forgotten; each head read reaches the open block's
-  replica (`Replicas::heard_head`) with the next pass of the loop.
-  `Event::Roots` lists again the top, the trash and Shared with me
-  (`Graph::roots`). Reconnecting or falling behind re-lists everything and
+  (`read-summaries`) or forgotten. A read refused (the tree is no longer the
+  account's) reads again the listings holding what lies in it
+  (`follow_failed`), so what was shown of it goes. Every head this device
+  learns moved on from one it knew, by any read, reaches the open block's
+  replica with the next pass of the loop (`Peer::take_moved_heads`,
+  `Replicas::heard_head`). `Event::Roots` lists again the top, the trash,
+  Shared with me and the open settings, tries again every tree whose read was
+  refused, and reads again the blocks the account may only know exist, which
+  name no entry and so are in no tree it follows (`Graph::roots`,
+  `known_only`). Reconnecting or falling behind re-lists everything and
   reads every followed tree again from its cursor. The mirror keeps the newest
   `changed` per block (`heard`) and drops anything older, so a late answer
   never undoes a newer one.
