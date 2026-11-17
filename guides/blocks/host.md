@@ -623,7 +623,9 @@ index and search it locally.
   outbox after a drain that ended since is not waited for. Naming is tried at most
   eight times, and a refused define gives up on the root with an error shown, until
   this account's access to it changes; a root whose index could not be made is tried
-  again when the mirror next changes. A root that was left or can no longer be edited
+  again when the mirror next changes or the device connects again, with no error
+  shown when the server could not be reached or did not hold the root yet
+  (`search::not_there_yet`). A root that was left or can no longer be edited
   drops its index and the blocks waiting for it.
   `Searched::complete` is true when nothing this device could index is queued,
   being made or written; an edit on a root it cannot edit is never queued.

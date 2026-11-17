@@ -207,7 +207,8 @@ pub struct Searching {
     /// so the size it shows is the server's with the define in it.
     confirming: HashMap<Uuid, Confirm>,
     /// Roots whose index could not be made for want of a connection or a graph: not tried
-    /// again until the graph moves past the revision they failed at.
+    /// again until the graph moves past the revision they failed at, or the device connects
+    /// again.
     failed: HashMap<Uuid, u64>,
     /// Roots whose index naming was refused or failed eight times, with the access this
     /// account had then: tried again when the access changes.
@@ -289,9 +290,11 @@ pub struct Searching {
 }
 
 impl Searching {
-    /// The new connection lists nothing yet.
+    /// The new connection lists nothing yet. Roots whose index could not be made are tried
+    /// again: one that failed for want of a connection waits for no graph change.
     pub(crate) fn reconnected(&mut self) {
         self.release_failing(None);
+        self.failed.clear();
     }
 
     /// Records that a block was read for a batch: its failures start again from none.
@@ -1755,14 +1758,16 @@ pub(crate) async fn make_index<S: ObjectStore>(
     Ok(())
 }
 
-/// A refusal that passes by itself: the server does not hold the root yet (its own create
-/// still on its way), so the index is made again when the mirror next changes, and no error
-/// is shown.
+/// A failure that passes by itself, so no error is shown: the server does not hold the root
+/// yet (its own create still on its way), and the index is made again when the mirror next
+/// changes; or the server could not be reached (offline, or the keys of the root could not be
+/// asked for), and it is made again on the next connection (`Searching::reconnected`).
 pub(crate) fn not_there_yet(error: &be_block_client::ClientError) -> bool {
-    matches!(
-        error,
-        be_block_client::ClientError::Refused(be_block_protocol::ErrorCode::BlockNotFound, _)
-    )
+    error.is_unreachable()
+        || matches!(
+            error,
+            be_block_client::ClientError::Refused(be_block_protocol::ErrorCode::BlockNotFound, _)
+        )
 }
 
 /// Names a made index in its root's metadata, as a define command does: in the loop, so the
