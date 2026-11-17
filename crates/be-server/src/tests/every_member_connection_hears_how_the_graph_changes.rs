@@ -38,10 +38,13 @@ async fn every_member_connection_hears_how_the_graph_changes() {
 
     let response = author
         .call(|peer| {
-            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
                 block: folder,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &Vec::new()),
                 metadata: b"sealed name".to_vec(),
-                references: Vec::new(),
+                journal: None,
             })
         })
         .await;

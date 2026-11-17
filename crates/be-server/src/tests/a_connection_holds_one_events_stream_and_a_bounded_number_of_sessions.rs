@@ -23,10 +23,10 @@ async fn a_connection_holds_one_events_stream_and_a_bounded_number_of_sessions()
     let mut blocks = Vec::new();
     while blocks.len() <= MAX_SESSIONS_PER_CONNECTION {
         let mut ops = Vec::new();
-        for _ in 0..128 {
-            let (block, op) = member.new_block_op(BlockParent::Root).await;
+        for _ in 0..64 {
+            let (block, made) = member.new_block_op(BlockParent::Root).await;
             blocks.push(block);
-            ops.push(op);
+            ops.extend(made);
         }
         let made = member.call(|peer| peer.writes(ops)).await;
         assert!(made.is_ok(), "{made:?}");

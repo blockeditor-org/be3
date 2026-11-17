@@ -14,10 +14,13 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
 
     let response = author_connection
         .call(|peer| {
-            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
                 block: block,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &Vec::new()),
                 metadata: b"sealed before content".to_vec(),
-                references: Vec::new(),
+                journal: None,
             })
         })
         .await;
@@ -32,15 +35,17 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
                 block: block,
-                commit: head,
                 expected: None,
-                parents: Vec::new(),
-                held: objects_change(&[], chunks),
-                time: 1_000,
-                pinned: false,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: head,
+                    parents: Vec::new(),
+                    held: objects_change(&[], chunks),
+                    time: 1_000,
+                    pinned: false,
+                    objects: Vec::new(),
+                }),
                 references: listing(&[], Vec::new()),
                 metadata: b"sealed with content".to_vec(),
-                objects: Vec::new(),
                 journal: None,
             })
         })
@@ -63,10 +68,13 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
 
     let response = author_connection
         .call(|peer| {
-            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
                 block: block,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &Vec::new()),
                 metadata: b"sealed beside content".to_vec(),
-                references: Vec::new(),
+                journal: None,
             })
         })
         .await;

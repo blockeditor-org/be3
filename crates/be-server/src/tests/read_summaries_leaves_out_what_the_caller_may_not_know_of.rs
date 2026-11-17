@@ -55,21 +55,23 @@ async fn read_summaries_leaves_out_what_the_caller_may_not_know_of() {
     let placement = owner.placement(secret, BlockParent::Block(settings)).await;
     let made = owner
         .call(|peer| {
-            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::CreateBlock {
-                block: secret,
-                content_type: CONTENT,
-                parent: BlockParent::Block(settings),
-                metadata: Vec::new(),
-                references: Vec::new(),
-                key: key,
-                keys: KeySet {
+            peer.write_all::<be_block_protocol::BlockSummary>(vec![
+                be_block_protocol::Op::CreateBlock {
+                    block: secret,
+                    content_type: CONTENT,
+                    parent: BlockParent::Block(settings),
+                    metadata: Vec::new(),
+                    references: Vec::new(),
+                    key: key,
+                    owner_only: true,
+                    root: root.clone(),
+                    placement: placement,
+                },
+                be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
                     keys: vec![row(key, secret, KeyKind::Data)],
                     wrapped: Vec::new(),
-                },
-                owner_only: true,
-                root: root.clone(),
-                placement: placement,
-            })
+                })),
+            ])
         })
         .await;
     assert!(made.is_ok(), "{made:?}");

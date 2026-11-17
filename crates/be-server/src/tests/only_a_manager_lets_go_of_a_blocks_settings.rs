@@ -8,10 +8,13 @@ async fn set_references(
 ) -> Result<BlockSummary, Error> {
     client
         .call(|peer| {
-            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
                 block: block,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &references),
                 metadata: b"named".to_vec(),
-                references: references,
+                journal: None,
             })
         })
         .await
@@ -37,21 +40,23 @@ async fn only_a_manager_lets_go_of_a_blocks_settings() {
         .await;
     let created = owner
         .call(|peer| {
-            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::CreateBlock {
-                block: settings,
-                content_type: SETTINGS_TYPE,
-                parent: BlockParent::Block(workspace),
-                metadata: Vec::new(),
-                references: Vec::new(),
-                key: key,
-                keys: KeySet {
+            peer.write_all::<be_block_protocol::BlockSummary>(vec![
+                be_block_protocol::Op::CreateBlock {
+                    block: settings,
+                    content_type: SETTINGS_TYPE,
+                    parent: BlockParent::Block(workspace),
+                    metadata: Vec::new(),
+                    references: Vec::new(),
+                    key: key,
+                    owner_only: false,
+                    root: root,
+                    placement: placement,
+                },
+                be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
                     keys: vec![row(key, settings, KeyKind::Data)],
                     wrapped: Vec::new(),
-                },
-                owner_only: false,
-                root: root,
-                placement: placement,
-            })
+                })),
+            ])
         })
         .await;
     assert!(matches!(created, Ok(_)), "{created:?}");

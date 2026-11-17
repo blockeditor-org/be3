@@ -178,9 +178,11 @@ counts and records nothing: `reserve-uploads` did before it signed.
   its account's organizations at once; there is no open organization. A query
   is answered by its case of `page`, an op by its case of `done`. Client code
   is `be_block_protocol::read::<KeyPage, _>(&connection, Some(organization),
-  Query::Keys { .. }).await??` (`write` for one op, `ask` to follow, or the
-  generated `client::server::*` for the rest).
-- **Writes are batches.** A `write`'s ops apply in order. More than one is
+  Query::Keys { .. }).await??` (`write` for one op, `write_all` for a batch
+  answered as its first op, `ask` to follow, or the generated
+  `client::server::*` for the rest).
+- **Writes are batches.** A `write`'s ops apply in order. More than one, or
+  one that makes or moves a block, is
   applied in one SQLite transaction (`ServerStore::batch`): every store job its
   ops make runs on the database the batch holds (a task-local lends it to
   `with_database` and `with_reader`, one job at a time, given back even when
@@ -195,7 +197,15 @@ counts and records nothing: `reserve-uploads` did before it signed.
   refusal names the op (`write-error.index`). Each op's rule is applied as it
   comes, inside the batch, so an op sees what the ops before it did (a block
   made, then published), and an op's own checks (a rotation leaves no block
-  below on its old key) refuse the whole write. The caller is admitted by its
+  below on its old key) refuse the whole write. What must hold over several
+  ops is checked once, at the write's end, over everything it wrote
+  (`keys::Whole`, `ServerStore::check_whole`), the refusal naming the op that
+  asked for it: a block made has the data key it names among the rows the
+  write stored (`create-block` carries no keys: `[create-block,
+  put-keys(rows)]`), and a move into another scope leaves every key it took
+  there opening from the new scope's latest key (`[move, put-keys(rows)]`; a
+  move within one scope carries none). So keys have one form, `put-keys`,
+  whatever else the write does. The caller is admitted by its
   role as of the write's start, since the hub takes a role change only once
   the write commits: safe, as no op raises its caller's own role, and the
   store's checks inside the transaction see the write's own ops. What an op does in memory
@@ -323,7 +333,12 @@ counts and records nothing: `reserve-uploads` did before it signed.
   objects and only the edges that changed: `block_edges.position` is spaced
   (`EDGE_SPACING`), so a reference put between two others takes a position
   between theirs and the rest stay. A first commit (no expected head) lists
-  everything, replacing the references its block was made with.
+  everything, replacing the references its block was made with. A publish
+  with no commit sets the metadata and the reference change alone while the
+  head is `expected`, which it leaves the head (`describe`), answered with the
+  block's summary; another head refuses it (`BlockHasContent`). A client sends
+  one only for a block with no content yet: once there is content, its
+  metadata goes in the commit.
 - **Storage** is charged to each block's payer (`blocks.payer`): its parent's
   payer, or at the top its author (an agent's creator), counting each distinct
   object once per payer and every version a block keeps. A move re-charges the
@@ -452,11 +467,11 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   never grants more than that summary.
   A viewable block whose parent is not viewable is an entry point (Shared with
   me).
-- Moving (`SetParent`) needs `Edit` on the block and the new parent, and
+- Moving (`move`) needs `Edit` on the block and the new parent, and
   `Manage` to move a workspace or into another workspace, or when the move
   would raise the mover's own access (`BlockGraph::move_refusal`). It carries
   the mover's parent record (`placement`), which the server appends to the
-  block's log as for a grant (`access::append_parent`); `CreateBlock` carries
+  block's log as for a grant (`access::append_parent`); `create-block` carries
   the creator's after the root.
 - `SetAccess` needs `Manage`, and a grant above `None` must name a member who
   is a contact of the granter (guides/blocks/keys.md). Anyone may revoke their
@@ -469,7 +484,7 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   `be-server/src/access.rs`), served by `query.log(block)` to its viewers and to
   anyone viewing a block below it (`Visibility::reads_below`), who checks its
   ancestry and the records resting on it there. Its root comes with
-  `CreateBlock`, and the server takes it only signed by the caller with the
+  `create-block`, and the server takes it only signed by the caller with the
   keys `recovery_keys` holds for it now, so a good server and a device never
   disagree (guides/blocks/keys.md, "Access logs"). The server checks a record's
   authority from the logs alone, which block is above which by their parent
@@ -704,7 +719,7 @@ quarter of a frame.
 **Answers that fit a frame.** A summary carries metadata of up to
 `MAX_METADATA_BYTES` and at most `MAX_REFERENCES` references (as many as an
 account may author blocks, so a folder of all of them still fits; refused past
-it by `create-block`, `set-metadata` and `publish`, which also refuses a
+it by `create-block` and `publish`, which also refuses a
 `ReferenceChange` `between` never makes, naming an added reference twice or
 with indices that do not increase; `apply` is one pass, and moves an added
 reference the list already holds, since a client diffs against its own view), so one summary fits a

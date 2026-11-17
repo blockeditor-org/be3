@@ -27,10 +27,13 @@ async fn a_rotation_missing_one_blocks_key_is_refused_whole() {
             wrap(top, WrappedBy::Key(scope), b"the new data key"),
         ],
     };
-    let renamed = || Op::SetMetadata {
+    let renamed = || Op::Publish {
         block: shared.block,
+        expected: None,
+        commit: None,
+        references: be_block_protocol::ReferenceChange::between(&[], &Vec::new()),
         metadata: b"renamed".to_vec(),
-        references: Vec::new(),
+        journal: None,
     };
     let stored = Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
         keys: vec![row(extra, shared.block, KeyKind::Data)],

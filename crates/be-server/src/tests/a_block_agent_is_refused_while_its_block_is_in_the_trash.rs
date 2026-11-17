@@ -18,15 +18,17 @@ async fn a_block_agent_is_refused_while_its_block_is_in_the_trash() {
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
                 block: folder,
-                commit: head,
                 expected: None,
-                parents: Vec::new(),
-                held: objects_change(&[], chunks.clone()),
-                time: 1_000,
-                pinned: false,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: head,
+                    parents: Vec::new(),
+                    held: objects_change(&[], chunks.clone()),
+                    time: 1_000,
+                    pinned: false,
+                    objects: Vec::new(),
+                }),
                 references: listing(&[], vec![terminal]),
                 metadata: Vec::new(),
-                objects: Vec::new(),
                 journal: None,
             })
         })

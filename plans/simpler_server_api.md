@@ -197,8 +197,8 @@ In three pieces, each landing whole.
   `list(listing, after)` query (`Children`, `Roots`, `Backrefs`,
   `OpenSettings` are its `Listing` cases); `blocks(blocks, contents, held)`
   answers summaries or contents; a signed-in `link` and the anonymous
-  `invitation` are two queries; `set-metadata` stays an op beside `publish`,
-  and `create-block` and `move` still carry their keys, until 3c; `append-log` takes a
+  `invitation` are two queries; `set-metadata` stayed an op beside `publish`,
+  and `create-block` and `move` carried their keys, until 3c; `append-log` takes a
   grant or an owner record (`grant`, as `set-access` carried both), a role or
   a member record; `put-keys` is `rows`, `rotate`, `escrow` or `reseal`, each with its own
   rule; notices, contacts, links, `put-contact` and `pin-escrow` wait for step
@@ -230,20 +230,36 @@ In three pieces, each landing whole.
   `proxy_account_authentication_never_discloses_the_token`,
   be-tool-cli's `be_signs_in_with_only_an_injected_authorization_header`, and
   the web build's host test.
-- **3c. One form for keys and metadata.** `create-block` and `move` lose
-  their `keys`: a batch carries `put-keys` beside them (`[create-block,
-  put-keys(rows)]`, `[move, put-keys(rows)]`, a move out of a scope with
-  `put-keys(rotate)`), and the rules a batch must keep whole are checked once,
-  at its end, over everything it wrote: a block made names a key the batch
-  stored, a move leaves every moved key wrapped under the new scope's key.
-  `set-metadata` goes into `publish` with an optional commit (none sets the
-  metadata and the reference change alone). be-block-client sends the batches
-  (`Peer::create_with`, `Peer::set_parent`, its metadata saves and offline
-  outbox). Done: a test where `[create-block]` with no key in the batch is
-  refused; one where a move missing one block's wrap under its new scope is
-  refused whole; one where a `publish` with no commit changes the metadata and
-  leaves the head. Guides: guides/blocks/server.md ("Protocol"),
-  guides/blocks/keys.md.
+- **3c. One form for keys and metadata (done).** `create-block` and `move`
+  carry no keys: a write puts `put-keys` beside them (`[create-block,
+  put-keys(rows)]`, `[move, put-keys(rows)]`), and what it must keep whole is
+  checked once, at its end, over everything it wrote (`keys::Whole`,
+  `ServerStore::check_whole`): a block made names a data key the write stored,
+  and a move into another scope leaves every key it took there opening from
+  the new scope's latest key (`KeyMissing` otherwise). `set-metadata` is a
+  `publish` with no commit (`commit: option<new-commit>`), which sets the
+  metadata and the reference change alone. be-block-client sends them
+  (`Creation::ops` for `Peer::create_block`, the outbox and imports;
+  `send_parent`; `Peer::define` and `drain_define`), with
+  `be_block_protocol::write_all` for a write answered as its first op. Where
+  it differs: a publish with no commit is answered with the block's summary
+  (`done.block`, as `set-metadata` was), and a head other than `expected`
+  refuses it with `block-has-content` rather than answering `rejected`; it
+  carries no journal seal, so a trim stays a publish of the head on itself.
+  `create-block` still names its key (`key`), set on the block at once so its
+  answer's summary names it, and the end checks its row. A write that makes or
+  moves a block is a transaction even of one op. The move check skips what
+  takes no key anywhere new (a move within one scope, to the top or the trash,
+  of an owner-only block, or into a scope with no key) and what the mover may
+  not view, as `Peer::rescope` does. The client sends no `[move,
+  put-keys(rotate)]`: a move out of a scope still leaves the rotation to key
+  work (`lost_below`, `Peer::tend`), which the server allows in one write but
+  nothing needs yet. Storing a new block's keys through `put-keys` tells
+  `topic.keys` to its viewers, which `create-block` did not. Tests:
+  `a_block_made_with_no_key_in_its_write_is_refused`,
+  `a_move_missing_one_blocks_wrap_under_its_new_scope_is_refused_whole`,
+  `a_publish_with_no_commit_changes_the_metadata_and_leaves_the_head`, and
+  `every_call_states_who_may_make_it`'s `publish (no commit)`.
 
 Guides: guides/blocks/server.md ("Protocol", "Organizations and access",
 "Accounts", "Notifications"), guides/blocks/client.md ("Connection"),
