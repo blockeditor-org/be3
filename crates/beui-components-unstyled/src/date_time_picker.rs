@@ -7,12 +7,12 @@ use crate::date_time_field::{
     DateDraft, DateSegment, DateSegmentHandle, DateTimeField, DateTimeParts,
 };
 use crate::datetime::{Date, DateTime, HourCycle, Time};
-use crate::popover::{Popover, PopoverHandle, PopoverPlacement};
+use crate::popover::{Popover, PopoverHandle};
 use crate::popup_trigger::PopupTriggerHandle;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::{CursorIcon, PointerPress};
+use beui_view::types::{CursorIcon, Placement, PointerPress};
 
 pub struct DateTimeBoxHandle {
     pub field: NodeId,
@@ -99,7 +99,7 @@ pub fn DateTimePicker(
     #[prop(default = None)] max: Prop<Option<Date>>,
     #[prop(default = None)] today: Prop<Option<Date>>,
     #[prop(default = false)] paged: Prop<bool>,
-    #[prop(default = PopoverPlacement::Below)] placement: PopoverPlacement,
+    #[prop(default = Placement::BELOW_START)] placement: Placement,
     segment: RenderFn<DateSegmentHandle, NodeId>,
     literal: RenderFn<String, NodeId>,
     segments: RenderFn<NodeId, NodeId>,
@@ -155,8 +155,9 @@ pub fn DateTimePicker(
         open_at.call(outer_segment.get_untracked().unwrap_or(first));
         None
     });
-    let refocus_trigger = create_memo(move || !from_field.get());
     let shown = open;
+    // Opened from the field, it moves the focus its layer gave back on to the segment last
+    // focused inside it.
     let open = Binding::new(shown, move |now_open: bool| {
         shown.set(now_open);
         if now_open {
@@ -194,7 +195,6 @@ pub fn DateTimePicker(
                         anchor=anchor
                         placement
                         surface
-                        refocus_trigger
                         trigger={move |handle: PopupTriggerHandle| trigger.call(DateTimeTriggerHandle {
                             popover: handle,
                             label: picker_label,

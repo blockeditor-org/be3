@@ -145,11 +145,14 @@ fn PickerMenu(
             items
             anchor={OverlayAnchor::Point(Pos2::ZERO)}
             placement=Placement::Fill
-            open
+            open={Binding::new(open, move |open: bool| {
+                if !open {
+                    act.call(PickAction::Close);
+                }
+            })}
             sheet
             overlay
             min_width=MENU_WIDTH
-            on_dismiss={move || act.call(PickAction::Close)}
         />
     }
 }

@@ -11,13 +11,15 @@ use crate::theme::field_border;
 use crate::tokens::{Length, Padding, Size, Space, Stroke};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    AnchoredStyle, ChoiceOption, SelectOptionHandle, SelectTriggerHandle, TextInputHandle,
+    AnchoredStyle, ChoiceOption, Dropdown, SelectOptionHandle, SelectTriggerHandle,
+    TextInputHandle,
 };
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::TextAlign;
 use beui_view::types::icons::ICON_CHEVRON_DOWN;
 use beui_view::types::{Align, Direction, Extent};
+use beui_view::types::{Placement, Pos2, Rect};
 
 const TRIGGER_MAX_WIDTH: f32 = 220.0;
 const POPUP_WIDTH: Size = Size::Custom(220.0);
@@ -39,6 +41,11 @@ pub fn Select<T>(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = Length::Extent(Extent::at_most(TRIGGER_MAX_WIDTH)))] width: Prop<Length>,
     #[prop(default = String::new())] name: Prop<String>,
+    #[prop(default = false)] open: Binding<bool>,
+    #[prop(default = None)] at: Binding<Option<Pos2>>,
+    #[prop(default = Placement::Menu)] placement: Prop<Placement>,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
+    #[prop(default = false)] keep_alive: bool,
 ) -> NodeId
 where
     T: Clone + PartialEq + 'static,
@@ -53,6 +60,11 @@ where
             disabled
             label
             name
+            open
+            at
+            placement
+            bounds
+            keep_alive
             search_placeholder="Search"
             search_content={|handle| view! {
                 <SearchField handle />
@@ -68,8 +80,8 @@ where
                 <SelectOption handle />
             }}
             surface={AnchoredStyle::new(
-                |content| view! {
-                    <SelectPopup>{content}</SelectPopup>
+                |dropdown: Dropdown| view! {
+                    <SelectPopup>{dropdown.content}</SelectPopup>
                 },
                 |handle| view! {
                     <AnchoredSheet handle padding=POPUP_PADDING />

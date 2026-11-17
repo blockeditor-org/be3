@@ -4,7 +4,7 @@ use be_sdk_beui::beui::icons::Glyph;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::popover::{PANEL_MAX_WIDTH, PANEL_PADDING};
 use be_sdk_beui::beui::styled::*;
-use beui::Direction;
+use beui::{Direction, Placement};
 
 use super::bar::{bar_bounds, bar_direction};
 
@@ -37,8 +37,8 @@ pub(crate) fn BarPopup(
             max_width=width
             open
             placement={move || match direction.get() {
-                Direction::Horizontal => PopoverPlacement::Below,
-                Direction::Vertical => PopoverPlacement::Beside,
+                Direction::Horizontal => Placement::BELOW_START,
+                Direction::Vertical => Placement::RIGHT_START,
             }}
             band
             bounds

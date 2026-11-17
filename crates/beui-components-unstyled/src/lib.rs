@@ -67,7 +67,9 @@ mod watched;
 
 pub use accessibility::labelled_node;
 pub use action_bar::{ActionBar, ActionBarHandle, ActionLabels, title_action};
-pub use anchored::{Anchored, AnchoredHandle, AnchoredSheetHandle, AnchoredStyle, SheetWhen};
+pub use anchored::{
+    Anchored, AnchoredHandle, AnchoredSheetHandle, AnchoredStyle, Dropdown, SheetWhen,
+};
 pub use back_slide::{BackSlide, SlideCurves};
 pub use banner::Banner;
 pub use beui_view::drag::{DragPoint, DragSource, Take};
@@ -129,7 +131,7 @@ pub use number_input::{
 pub use pan_zoom::{MAX_SCALE, MIN_SCALE, PanZoom, PanZoomApi, PanZoomHandle, PanZoomView};
 pub use picture::Picture;
 pub use pointer_lock::{PointerLock, PointerLockHandle};
-pub use popover::{Popover, PopoverApi, PopoverHandle, PopoverPlacement};
+pub use popover::{Popover, PopoverApi, PopoverHandle};
 pub use popup_trigger::{PopupTrigger, PopupTriggerHandle};
 pub use pressable::Pressable;
 pub use progress::{Progress, ProgressHandle};

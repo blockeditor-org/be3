@@ -18,14 +18,14 @@ use beui_components_unstyled::datetime::{Date, DateTime, HourCycle, Time, Weekda
 use beui_components_unstyled::{
     ButtonHandle, ChoiceOption, DateSegmentHandle, DateTimeBoxHandle, DateTimeCalendarHandle,
     DateTimePage, DateTimePanelHandle, DateTimePanelLayout, DateTimeParts, DateTimeTimesHandle,
-    DateTimeTriggerHandle, PopoverPlacement, PopupTriggerHandle, TimeOptionHandle, grid_columns,
+    DateTimeTriggerHandle, PopupTriggerHandle, TimeOptionHandle, grid_columns,
     narrower_than,
 };
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::icons::{ICON_CALENDAR_DAYS, ICON_CLOCK};
 use beui_view::types::{Align, Direction, Justify, TextAlign};
-use beui_view::types::{Align2, Extent};
+use beui_view::types::{Align2, Extent, Placement};
 
 const HEIGHT: Size = Size::Field;
 const PADDING_HORIZONTAL: Space = Space::Md;
@@ -70,7 +70,7 @@ pub fn DateTimeField(
             max
             today
             paged={narrow}
-            placement={PopoverPlacement::Over(PANEL_PADDING.px() as u16)}
+            placement={Placement::Over(PANEL_PADDING.px() as u16)}
             surface={popover_surface(None)}
             segment={|handle: DateSegmentHandle| view! {
                 <SegmentFace handle />
