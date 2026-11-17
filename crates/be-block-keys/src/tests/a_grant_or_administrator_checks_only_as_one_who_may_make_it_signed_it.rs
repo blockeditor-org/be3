@@ -7,7 +7,7 @@ fn a_grant_or_administrator_checks_only_as_one_who_may_make_it_signed_it() {
     let other = RecoveryPhrase::generate().secret();
     let (creator_id, member_id, other_id) = ([1; 16], [2; 16], [3; 16]);
     let block = [7; 16];
-    let none = |_: [u8; 16], _: &Authority| None;
+    let none = |_: &Asked| None;
 
     let root = Entry::root(&creator, creator_id, LogKind::Block, block);
     let pinned = root.hash();
@@ -156,8 +156,9 @@ fn a_grant_or_administrator_checks_only_as_one_who_may_make_it_signed_it() {
         Level::Manage,
         above,
     );
-    let managing = |account: [u8; 16], authority: &Authority| {
-        (account == other_id && *authority == above).then_some(other.signing())
+    let managing = |asked: &Asked| {
+        (asked.signer == other_id && *asked.authority == above && asked.level == Level::Manage)
+            .then_some(other.signing())
     };
     assert!(
         check_log(
@@ -182,33 +183,14 @@ fn a_grant_or_administrator_checks_only_as_one_who_may_make_it_signed_it() {
         LogKind::Block,
         block,
         pinned,
-        &[root.clone(), from_above.clone(), onward.clone()],
+        &[root.clone(), from_above.clone(), onward],
         &managing,
     )
     .unwrap();
-    assert!(
-        checked.tainted.contains(&other_id) && checked.tainted.contains(&member_id),
-        "a grant resting on the server's tree, directly or through its granter, is marked"
-    );
-    let regranted = grant(
-        &creator,
-        creator_id,
-        onward.hash(),
-        member_id,
-        member.identity(),
-        Level::View,
-    );
-    let checked = check_log(
-        LogKind::Block,
-        block,
-        pinned,
-        &[root.clone(), from_above.clone(), onward, regranted],
-        &managing,
-    )
-    .unwrap();
-    assert!(
-        !checked.tainted.contains(&member_id),
-        "a grant the block's own manager makes again rests on the log alone"
+    assert_eq!(
+        checked.grants.get(&member_id).map(|(level, _)| *level),
+        Some(Level::View),
+        "one granted Manage from above grants onward on the log"
     );
     assert!(
         check_log(

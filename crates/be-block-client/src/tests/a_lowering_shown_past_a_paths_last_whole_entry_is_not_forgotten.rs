@@ -20,7 +20,7 @@ fn a_lowering_shown_past_a_paths_last_whole_entry_is_not_forgotten() {
             block.into_bytes(),
             root.hash(),
             steps,
-            &|_, _| None,
+            &|_| None,
         )
         .unwrap()
     };

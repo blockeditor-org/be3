@@ -255,6 +255,19 @@ const SCHEMA: &str = "
 
     CREATE INDEX access_log_names_account ON access_log_names (account_id);
 
+    -- Each record in a block's log whose signer's right comes from a block above
+    -- (be_block_keys::Authority::Inherited): whose records that block's log serves whole to a
+    -- reader of a block below it who may not view it, so the reader checks the signer there.
+    CREATE TABLE access_log_authorities (
+        organization_id TEXT NOT NULL,
+        above_id        TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        signer          TEXT NOT NULL,
+        PRIMARY KEY (organization_id, above_id, block_id, signer),
+        FOREIGN KEY (organization_id, block_id)
+            REFERENCES blocks(organization_id, id) ON DELETE CASCADE
+    );
+
     -- Grants a block's log names that the server revoked on its own (remove-contact,
     -- remove-member), until a device's signed revocation goes in the log.
     CREATE TABLE unsigned_revocations (

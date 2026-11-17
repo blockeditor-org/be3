@@ -1,7 +1,6 @@
 # A simpler server protocol
 
-Depends on: plans/signed_access.md step 4, for step 3 on (steps 1 and 2 here
-touch none of its calls).
+Depends on: none.
 
 `be3:server` (crates/be-block-protocol/wit) has 76 operations in 10
 interfaces, the session resource's constructor not counted. Eight are
@@ -116,9 +115,12 @@ left, and what it has built that touches these calls:
   serve each entry as a `be_block_keys::Step`, whole or reduced, and decide
   which by the caller's access and who sealed it a key, with no new argument,
   so `Log(block | organization)` takes that serving rule as it is.
-- **4 (signed parents)** makes `set-parent` and `create-block` carry a parent
-  record. It lands before step 3, so `Move` and `CreateBlock` take it from the
-  start.
+- **4 (signed parents)** is built: `set-parent` carries the mover's parent
+  record (`placement`) and `create-block` the creator's after the root, each
+  appended as a grant is, so `Move` and `CreateBlock` take them as they are, and
+  `AppendLog` could take a move's record too. `get-access-log` serves a block
+  to a caller viewing it or a block below it (a proof path of an ancestor), so
+  `Log(block)` takes that rule.
 - **5 (owner transfer)** needs no call of its own once step 3 lands: an owner
   record is one more record `AppendLog` takes. This plan subsumes its protocol
   part; the shell's transfer and its test stay with signed access. Before step

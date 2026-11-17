@@ -13,9 +13,7 @@ async fn a_trashed_block_reaches_its_reader_as_detached() {
         .second_connection(&reader.token.clone(), organization)
         .await;
     let trashed = trasher
-        .call(|peer| {
-            client::blocks::set_parent(peer, block, BlockParent::Detached, KeySet::default())
-        })
+        .move_keyed(block, BlockParent::Detached, KeySet::default())
         .await;
     assert!(matches!(trashed, Ok(())), "{trashed:?}");
     reader
@@ -25,7 +23,7 @@ async fn a_trashed_block_reaches_its_reader_as_detached() {
         .await;
 
     let restored = trasher
-        .call(|peer| client::blocks::set_parent(peer, block, BlockParent::Root, KeySet::default()))
+        .move_keyed(block, BlockParent::Root, KeySet::default())
         .await;
     assert!(matches!(restored, Ok(())), "{restored:?}");
     let author = Author::new(account);
@@ -54,9 +52,7 @@ async fn a_trashed_block_reaches_its_reader_as_detached() {
     reader.heard_head(block, head).await;
 
     let trashed = trasher
-        .call(|peer| {
-            client::blocks::set_parent(peer, block, BlockParent::Detached, KeySet::default())
-        })
+        .move_keyed(block, BlockParent::Detached, KeySet::default())
         .await;
     assert!(matches!(trashed, Ok(())), "{trashed:?}");
     let response = trasher

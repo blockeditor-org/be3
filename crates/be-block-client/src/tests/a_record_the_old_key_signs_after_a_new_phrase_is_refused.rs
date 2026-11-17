@@ -50,8 +50,8 @@ async fn a_record_the_old_key_signs_after_a_new_phrase_is_refused() {
     let retired = laptop.access_log(team).await.unwrap();
     assert_eq!(
         retired.len(),
-        3,
-        "the workspace's log is its root, the grant sharing it and the retirement"
+        4,
+        "the workspace's log is its root, its placement, the grant sharing it and the retirement"
     );
     let organization_log = laptop.organization_log().await.unwrap();
     assert_eq!(
@@ -68,12 +68,12 @@ async fn a_record_the_old_key_signs_after_a_new_phrase_is_refused() {
         &thief,
         owner.account().into_bytes(),
         team.into_bytes(),
-        retired[2].hash(),
+        retired[3].hash(),
     );
     database
         .execute(
             "INSERT INTO access_log (organization_id, block_id, position, entry)
-             VALUES (?1, ?2, 3, ?3)",
+             VALUES (?1, ?2, 4, ?3)",
             rusqlite::params![organization.to_string(), team.to_string(), again.encode()],
         )
         .unwrap();

@@ -127,6 +127,17 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   fresh DEK and rewraps scope roots inside, all in one `SetParent`. A move
   within a scope or to Recently Deleted changes no keys. `Peer::share` grants
   and makes the block a scope root sealed to the grantee's verified key.
+- **Wrapped only under what is above.** A device wraps a key of a block under
+  a scope key only of a block the signed parent records place it at or under
+  (`Peer::signed_below`, Access logs below): making a block, moving one (the
+  destination's scope, and each block listed below the moved one), making a
+  block a scope of its own, and rotating (the top's scope or parent, and each
+  block listed below); a block whose creation waits in the outbox lies where
+  this device's own record placed it. Otherwise it fails with
+  `ClientError::Forged`, wrapping nothing: the server's tree alone never puts
+  a block's keys where someone else reads them. Offline, a creation takes the scope its kept summary names,
+  and is checked so before it is sent; one that does not check is set aside
+  (`refs::Aside::Misplaced`).
 
 ### Access logs
 
@@ -152,13 +163,29 @@ untrusted. A device hands a key on with a root only when it holds that root
 pinned in full (`KeyBook::carried_plain`).
 
 Records after the root: grants (`Record::Grant`, a revocation is a grant to
-`None`) and openings of a kind of settings to anyone inside (`Record::Opening`,
-closing is an opening to `None`) in a block's log, each naming where its
-signer's Manage comes from (`Authority`); administrators and members (`Record::Administrator`,
-`Record::Member`) in the organization's. `set-access`, `set-role`,
-`create-agent`, `sign-member`, `remove-member` and `remove-contact` carry them,
-and the server appends each once it checks at the log's head as devices check
-it. An agent's account id is derived from its maker and its keys
+`None`), openings of a kind of settings to anyone inside (`Record::Opening`,
+closing is an opening to `None`) and parent records (`Record::Parent`) in a
+block's log, each naming where its signer's right comes from (`Authority`);
+administrators and members (`Record::Administrator`, `Record::Member`) in the
+organization's. `set-access`, `set-role`, `set-parent`, `create-agent`,
+`sign-member`, `remove-member` and `remove-contact` carry them, and
+`create-block` carries the creator's parent record after the root; the server
+appends each once it checks at the log's head as devices check it.
+
+**Parent records** (plans/signed_access.md, step 4) place the block (`Placement`:
+the top, Recently Deleted, or under a block with the hash of that block's log
+root, which the signer pinned in full: `Peer::placement`), signed by a member
+with Edit or above on it (from its log, administering the organization, or a
+block above), and never lower anyone. A log's last places the block now
+(`Checked::placement`). A record on `Authority::Inherited` checks only for a
+block its placements reach (`be_block_keys::answer`): the block's own as of the
+record's place, then each block between as it ever placed itself, each log
+checked from the root the placement under it names, at most `MAX_ANCESTRY`
+deep. So the server can neither place a block under an ancestor someone else
+manages nor serve a made-up log for a real ancestor, and a grant or opening
+resting on a manager above seals like any other. A device reads the logs a
+log names (`Peer::logs_around`: its placements and authorities, and theirs, as
+served) only when a record in it names authority outside it. An agent's account id is derived from its maker and its keys
 (`agent_account`). Revocations the server makes on its own wait in key work
 (`unsigned-revocations`) for a manager's device to sign them; members no
 record signed in wait in `unsigned-members`.
@@ -190,8 +217,11 @@ lowered anyone, and the digest of the rest), which hashes as the whole entry
 does. Whole on a path: the root; every entry naming the reader or an account
 that sealed it a key of the block (of any block, in the organization's log),
 and so on for each whole entry's signer, so each checks at its place; what the
-reader signed (its agents); every opening; and in the organization's log every
-administrator record and every record about anyone who ever administered it.
+reader signed (its agents); every opening and parent record; and in the
+organization's log every administrator record and every record about anyone
+who ever administered it. A block above one the reader views, which it may not
+view itself, is served as a path proving too whoever signs below on authority
+from it, so a grant from a manager above checks for its reader.
 So a reader learns no other member's grant. Every entry says whether it
 lowered anyone (`Entry::lowers`, covered by its hash outside the digest),
 which `check_log` refuses unless it is so and devices set by signing through
@@ -328,7 +358,8 @@ on connect, `ContactsChanged`, each `KeyWork` and after its own changes.
 
 `Peer::rotate` sends one `Rotate` for a subtree: new epochs of every scope key,
 every data key rewrapped, a new data key per block. The server takes it only
-whole. Content is not resealed, except that the lease holder of a live session
+whole. Each block it lists must be placed where the server lists it by the
+signed parent records (`Peer::signed_below`), or nothing is sent. Content is not resealed, except that the lease holder of a live session
 on a rekeyed block seals once more (`Session::rekey`), which reseals the parts it
 reuses under the new key (`Vault::write`). A rotation nobody can do yet
 waits until a client that may edit the block tends. A kind its own log opens
@@ -583,9 +614,10 @@ change.
 It still decides, and devices trust it for: which held key is a block's current
 data key and which epoch is newest (so a server colluding with someone who lost
 access, or a demoted administrator, can keep a device writing under a key that
-person knows); which block is under which (a grant resting on Manage inherited
-from above is sealed by no one until parents are signed, and a block's own log
-alone decides who its key is sealed to); the log's head, up to the heads an
+person knows); which blocks lie under a block, as listings and key work name
+them (a device wraps nothing under a scope its block's signed parent records do
+not reach, but may leave a block out of a listing or a rotation), and who views
+a block inside, for a kind opened to anyone inside; the log's head, up to the heads an
 epoch names (a server that withholds a revocation from every device that holds
 an epoch made under a head before it keeps that epoch current for them; a
 made-up key from a contact is taken as their Edit, or administering, as of a

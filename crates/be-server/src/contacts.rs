@@ -1091,7 +1091,7 @@ impl ServerStore {
                 return Ok(Vec::new());
             };
             let pairs = contact_grants(graph, organization, caller, mine, other, theirs);
-            crate::access::named_pairs(database, graph, organization, &pairs)
+            crate::access::named_pairs(database, organization, &pairs)
         })
         .await
     }
@@ -1191,7 +1191,6 @@ impl ServerStore {
                         if let Some(record) = signed.get(&(block, grantee)) {
                             crate::access::append_grant(
                                 &transaction,
-                                graph,
                                 organization,
                                 block,
                                 caller,

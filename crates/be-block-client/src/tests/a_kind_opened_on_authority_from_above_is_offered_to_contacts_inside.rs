@@ -14,10 +14,12 @@ fn sealed(database: &rusqlite::Connection, key: Uuid, account: Uuid) -> i64 {
         .unwrap()
 }
 
-/// A kind opened by a manager of a block above it, on `Authority::Inherited`, rests on the
-/// server's tree until parents are signed: it is offered to no contact (signed access 3c).
+/// A kind opened by a manager of a block above it, on `Authority::Inherited`, is offered to a
+/// contact viewing inside as one its own manager opened: the signed parent records prove the
+/// block above is above, and its log, checked from the root they name, the opener's Manage
+/// (signed access 4 lifts what 3c held back).
 #[tokio::test]
-async fn a_kind_opened_on_authority_from_above_is_sealed_to_no_contact() {
+async fn a_kind_opened_on_authority_from_above_is_offered_to_contacts_inside() {
     let harness = Harness::start().await;
     let admin = harness.owner("admin@example.com").await;
     let deputy = harness.member(&admin, "deputy@example.com").await;
@@ -49,9 +51,18 @@ async fn a_kind_opened_on_authority_from_above_is_sealed_to_no_contact() {
     deputy.open_inside(kind, Access::View).await.unwrap();
     let (_, checked) = admin.checked_access(kind).await.unwrap();
     assert_eq!(checked.open_inside, be_block_keys::Level::View);
+    let opening = admin
+        .access_log(kind)
+        .await
+        .unwrap()
+        .into_iter()
+        .find_map(|entry| match entry.record {
+            be_block_keys::Record::Opening(opening) => Some(opening.authority),
+            _ => None,
+        });
     assert!(
-        checked.open_inside_tainted,
-        "the opening rests on the block above"
+        matches!(opening, Some(be_block_keys::Authority::Inherited { block, .. }) if block == team.into_bytes()),
+        "the opening rests on the block above: {opening:?}"
     );
 
     let mut work = admin.key_work().await.unwrap();
@@ -63,8 +74,8 @@ async fn a_kind_opened_on_authority_from_above_is_sealed_to_no_contact() {
     admin.tend_with(work).await.unwrap();
     assert_eq!(
         sealed(&harness.database(), key, contact.account()),
-        0,
-        "a kind opened on the server's tree was offered to a contact"
+        1,
+        "a kind opened by a manager from above was not offered to a contact inside"
     );
 
     harness.stop().await;

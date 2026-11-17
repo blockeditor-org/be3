@@ -20,9 +20,7 @@ async fn a_member_who_loses_view_when_a_block_is_trashed_is_told_it_is_gone() {
     guest.follow(note).await;
 
     let response = owner
-        .call(|peer| {
-            client::blocks::set_parent(peer, note, BlockParent::Detached, KeySet::default())
-        })
+        .move_keyed(note, BlockParent::Detached, KeySet::default())
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     assert_eq!(

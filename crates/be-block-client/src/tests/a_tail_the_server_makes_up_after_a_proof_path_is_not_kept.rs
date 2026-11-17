@@ -23,7 +23,7 @@ fn a_tail_the_server_makes_up_after_a_proof_path_is_not_kept() {
             block.into_bytes(),
             root.hash(),
             steps,
-            &|_, _| None,
+            &|_| None,
         )
         .unwrap()
     };

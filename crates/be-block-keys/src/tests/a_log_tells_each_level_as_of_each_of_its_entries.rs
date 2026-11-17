@@ -28,7 +28,7 @@ fn a_log_tells_each_level_as_of_each_of_its_entries() {
     let edit = grant(root.hash(), Level::Edit);
     let revoked = grant(edit.hash(), Level::None);
     let entries = [root.clone(), edit.clone(), revoked.clone()];
-    let checked = check_log(LogKind::Block, block, root.hash(), &entries, &|_, _| None).unwrap();
+    let checked = check_log(LogKind::Block, block, root.hash(), &entries, &|_| None).unwrap();
 
     assert!(checked.holds(&root.hash()) && checked.holds(&revoked.hash()));
     assert_eq!(
@@ -56,7 +56,7 @@ fn a_log_tells_each_level_as_of_each_of_its_entries() {
         block,
         root.hash(),
         &entries[..2],
-        &|_, _| None,
+        &|_| None,
     )
     .unwrap();
     assert!(

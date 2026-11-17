@@ -238,11 +238,11 @@ did not sign.
   goes ahead.
 - **Who views inside.** A kind its log opens to anyone inside
   (`Record::Opening`) is offered by a viewer inside to its contacts the server
-  lists as viewing a block inside its owner. That they view inside is the
-  server's tree until parents are signed (step 4): a server can list any of a
-  viewer's contacts for a kind a manager opened, never for a block no
-  opening in its own log opens (the server's `opens_inside` counts for
-  nothing).
+  lists as viewing a block inside its owner. That they view inside stays the
+  server's word after step 4 (a viewer does not walk the grants below for
+  them): a server can list any of a viewer's contacts for a kind a manager
+  opened, never for a block no opening in its own log opens (the server's
+  `opens_inside` counts for nothing).
 - **The standing grant to the server's own account** (the settings scope,
   crypto audit HIGH 1) is a row with no record. It is never a sealing target
   by grant: no record can name the server, which only ever holds the
@@ -269,7 +269,8 @@ did not sign.
   organization log's head now. A device whose log outdates that head writes
   under no such key; one that does not hold the revocation does.
 - **A key from a sender the block's log never names** (Edit from a block
-  above, the server's tree until step 4) is taken, and written under only
+  above, which `sender_may` does not look up in the logs above even since step
+  4) is taken, and written under only
   while it names a head the log reaches with nothing lowering anyone after
   it, or, naming none, only while the log has never lowered anyone. Such a
   sender, revoked above with the server's help, can so have a key they made up
@@ -331,7 +332,7 @@ did not sign.
 - **A reader below Edit checks a sealer only as a contact.** The server picks
   whom a path proves (the sealers it lists): leaving the real sender out
   reduces every entry naming them, and a sender the log then never names is
-  taken as one with Edit from a block above (the server's tree until step 4).
+  taken as one with Edit from a block above, unchecked there.
   It can as well reduce a named sealer's revocation, which shows the reader
   that someone was lowered, not whom. The same holds offline for the levels
   kept from a path (`KeptLog::levels`), which name only whom it proved. So for
@@ -357,8 +358,11 @@ did not sign.
   who granted them. Fixing the length would need a commitment to the log's
   state instead of a chain.
 - **An ancestor's whole log** goes to a member with Edit below it only if they
-  may view the ancestor (`get-access-log` needs View, as before); otherwise
-  they read none of it, as before 3e.
+  may view the ancestor; otherwise, since step 4, they are served a proof path
+  of it, as a reader is, proving also whoever signs below on authority from it
+  (`get-access-log` takes a caller viewing the block or a block below it). It
+  shows them every placement of the ancestor and who made it, and the level
+  history of each such signer there.
 - **A made-up tail.** A server can append reduced entries of its own after a
   path's real head; a device keeps a path only up to its last whole entry,
   whose place the next whole entry's signer fixes, so the honest log served
@@ -385,12 +389,32 @@ did not sign.
   signs nothing after its retirement in the log the grant goes in. Escrow
   epochs are not open to this: a device takes one only from an administrator
   as of the organization log's head it holds.
-- **Ancestors' roots** are taken from the server when this device pinned none
-  (a grant on a child, from a manager above), as the tree they hang in is the
-  server's until parents are signed (step 4). So the server, with anyone
-  managing any block, can make a grant naming `Inherited` authority over an
-  unrelated block check. 3c therefore seals to no grantee whose grant (or
-  whose granter's) rests on `Inherited` authority until step 4 lands.
+- **What a parent record proves on a device.** A device checks that its
+  signer held Edit or above on the moved block; Edit on the destination, and
+  Manage where `BlockGraph::move_refusal` asks for it (moving a workspace,
+  or a move that would raise the mover's own access), are the server's checks
+  alone. So an editor, with the server, can place a block under one they
+  manage and take Manage over it by inheritance: they already read and write
+  it, and could hand its keys to anyone. And the root a placement names is the
+  one its signer pinned: an editor who pinned a wrong one (taken from a member
+  only weakly is refused, `Peer::placement`) misplaces only what they could
+  already leak.
+- **Blocks between as they ever lay.** `Authority::Inherited` checks when the
+  block named is reached from the block's placement at the record's place
+  through any placement the blocks between ever had, so a log never stops
+  checking when a block between moves later. A manager of a block once above
+  one between can therefore, with the server, sign records resting on it after
+  it moved away, as for a stale authority. A record resting on a block no
+  longer above anything the reader views, whose log the reader may not view,
+  does not check for that reader, and the block's log is refused to them until
+  a manager signs the grant again from where it lies.
+- **Moves within the server's tree.** Which blocks lie under a block is still
+  the server's listing (`children`, key work's rotations): a device wraps
+  nothing under a scope a block's signed parent records do not reach, but the
+  server can leave a block out of a listing, so out of a rotation or a move's
+  rewrapping. A rotation over a block whose placement does not check, or whose
+  root this device never pinned, sends nothing, and waits for a device that
+  can do it.
 - **A member roots a block an administrator never pinned.** An escrow wrap
   pins the root it carries when its sender is a member with Edit or above in
   the log rooted there, so a real member, with the server, can root a block
@@ -444,9 +468,9 @@ instead.
 | `Peer::tend`, `unescrowed`, and `make_escrow`'s seal to each administrator (`members()`) | who administers the organization | 3 |
 | `Peer::share` / `seal_share` (`peer.rs`) | nothing new: the sharer chooses the grantee; the record is signed | 3 |
 | `Peer::offer` (pending grant in a contact link) | nothing: sealed with the link's code | 3 (signs its record) |
-| `Peer::rotate` (`peer/rotation.rs`) | the subtree it walks (`children`), each block's parent and scope | 4 |
-| `Peer::set_parent` (`peer.rs`) | the destination's scope and what is inside the moved block | 4 |
-| `Peer::create` / `mint_scope`, `mint_data` (`keys.rs`) | the parent's scope key it wraps under | 4 |
+| `Peer::rotate` (`peer/rotation.rs`) | the subtree it walks (`children`), each block's parent and scope | 4 (built: each placement checked) |
+| `Peer::set_parent` (`peer.rs`) | the destination's scope and what is inside the moved block | 4 (built: each placement checked) |
+| `Peer::create` / `mint_scope`, `mint_data` (`keys.rs`) | the parent's scope key it wraps under | 4 (built: checked, offline before sending) |
 | `KeyBook::absorb` | which block a key row is for, and which epoch is newest | 3 (epochs name heads) |
 | `contacts::new_identity`, `reseal_from` (`ResealKeys`) | nothing: contacts and their verified keys | 2 (retirement entries) |
 | `Peer::share_with_server` (organization settings) | the server's account key (`ServerKey`) | standing exception |
@@ -540,7 +564,7 @@ instead.
      on an ancestor reach a child through the ancestor's scope wrap, so
      nothing is lost before step 4 signs parents), never on a grant resting
      on `Authority::Inherited` directly or through its granters
-     (`Checked::tainted`); the escrow key, and any other key key work lists
+     (`Checked::tainted`, lifted by step 4); the escrow key, and any other key key work lists
      for them (the settings blocks' keys), go to administrators the
      organization's log names, who open all but owner-only keys through
      escrow anyway. A key sealed by a member
@@ -591,14 +615,24 @@ instead.
      is not taken; one where a made-up tail after a path is not kept; one
      where a reader granted by an administrator on Organization authority
      checks its path.
-4. **Signed parents.** Done: a test where the server claims a block moved under
-   a scope a contact manages and the next rotation wraps nothing under it.
-   A reader whose grant rests on `Authority::Inherited` checks it against the
-   ancestor's path, which proves the signer's Manage there only if the signer
-   sealed the reader a key of the ancestor; otherwise the block's path does not
-   check for it. Moot until this step: 3c seals on no grant resting on
-   Inherited authority. Signed parents should serve a reader the ancestor
-   path for the grant's signer.
+4. **Signed parents.** Built (guides/blocks/keys.md, "Access logs"): parent
+   records (`Record::Parent`, a `Placement` naming the parent's log root) made
+   by a member with Edit or above, the creator's carried by `create-block`
+   after the root and a mover's by `set-parent`; `Authority::Inherited`
+   checked only through them (`be_block_keys::answer`), the logs above read
+   from the roots they name, never the server's tree, on the server too; keys
+   wrapped only under the scope of a block they place a block under
+   (`Peer::signed_below`); and the ancestor's path served to a reader below
+   it, proving whoever signs there on authority from it. 3c's hold on grants
+   and openings resting on `Inherited` authority (`Checked::tainted`) is
+   lifted: they seal as any other. Done: a test where the server claims a
+   block moved under a scope a contact manages and the next rotation wraps
+   nothing under it, nor does a block made under it; one where a reader
+   granted by a manager of the workspace above checks the grant on the
+   workspace's path, which proves no one else's grant; one where a kind opened
+   by a manager from above is offered to a contact inside; and a unit test
+   where a made-up log for a real ancestor, or a placement elsewhere, proves no
+   one's Manage.
 5. **Owner transfer.** Owner records, and transferring ownership in the shell.
    Done: a test where ownership moves and the old owner can no longer grant.
 6. **Guides.** guides/blocks/keys.md's server section, and its rule that keys

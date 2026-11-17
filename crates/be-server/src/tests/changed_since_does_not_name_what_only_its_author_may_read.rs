@@ -66,6 +66,7 @@ async fn changed_since_does_not_name_what_only_its_author_may_read() {
     let secret = Uuid::new_v4();
     let key = Uuid::new_v4();
     let root = owner.root(secret);
+    let placement = owner.placement(secret, BlockParent::Block(settings)).await;
     let made = owner
         .call(|peer| {
             client::blocks::create_block(
@@ -82,6 +83,7 @@ async fn changed_since_does_not_name_what_only_its_author_may_read() {
                 },
                 true,
                 root.clone(),
+                placement,
             )
         })
         .await;

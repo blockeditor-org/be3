@@ -140,6 +140,15 @@ impl Visibility {
     /// Whether this caller is served `block`'s whole access log rather than a proof path
     /// (plans/signed_access.md, "Who is served what"): it has Edit or above there, or on a block
     /// below it, whose sealing checks every ancestor's log too.
+    /// Whether a block this caller may view lies below `block`, whose log it is then served to
+    /// check that block's ancestry and the records resting on it (plans/signed_access.md, step 4).
+    pub(crate) fn reads_below(&self, graph: &BlockGraph, block: Uuid) -> bool {
+        graph
+            .entry_points(self.account)
+            .into_iter()
+            .any(|entry| graph.ancestors(entry).any(|above| above == block))
+    }
+
     pub(crate) fn served_whole(&self, graph: &BlockGraph, block: Uuid) -> bool {
         self.can_edit(graph, block)
             || graph.entry_points(self.account).into_iter().any(|entry| {
@@ -500,6 +509,7 @@ impl ServerStore {
         keys: KeySet,
         owner_only: bool,
         root: Vec<u8>,
+        placement: Vec<u8>,
     ) -> Result<BlockSummary, ServerError> {
         let references = distinct(references);
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
@@ -560,7 +570,9 @@ impl ServerStore {
                 identity.organization,
                 identity.account,
                 block,
+                parent,
                 &root,
+                &placement,
             )?;
             // The blocks it references are known to exist by whoever views it: they changed too.
             let mut touched = vec![block];
@@ -587,8 +599,10 @@ impl ServerStore {
         .await
     }
 
-    /// The block's access log, root first (`get-access-log`): whole to a caller with Edit or
-    /// above on it or below it, else a proof path of the caller's own right.
+    /// The block's access log, root first (`get-access-log`), to a caller who may view it or a
+    /// block below it: whole to one with Edit or above on it, or who views it with Edit below,
+    /// else a proof path of the caller's own right, and, for a block above what the caller
+    /// views, of whoever signs below on authority from it.
     pub async fn access_log(
         &self,
         identity: Identity,
@@ -596,14 +610,30 @@ impl ServerStore {
     ) -> Result<Vec<Vec<u8>>, ServerError> {
         self.with_graph(identity.organization, move |_, graph, database| {
             let seen = visibility(identity);
-            require(graph, &seen, block, Access::View, "visible")?;
-            let reader = (!seen.served_whole(graph, block)).then_some(identity.account);
+            let viewed = graph.contains(block) && seen.can_view(graph, block);
+            if !viewed && !seen.reads_below(graph, block) {
+                return Err(refusal(graph, &seen, block, "visible"));
+            }
+            let whole = viewed && seen.served_whole(graph, block);
+            let reader = (!whole).then_some(identity.account);
+            let also = match viewed {
+                true => Vec::new(),
+                false => crate::access::inherited_signers(database, identity.organization, block)?
+                    .into_iter()
+                    .filter(|(below, _)| {
+                        graph.contains(*below)
+                            && (seen.can_view(graph, *below) || seen.reads_below(graph, *below))
+                    })
+                    .map(|(_, signer)| signer)
+                    .collect(),
+            };
             crate::access::served_log(
                 database,
                 be_block_keys::LogKind::Block,
                 identity.organization,
                 block,
                 reader,
+                also,
             )
         })
         .await
@@ -1361,6 +1391,7 @@ impl ServerStore {
         block: Uuid,
         parent: BlockParent,
         keys: KeySet,
+        record: Vec<u8>,
     ) -> Result<Moved, ServerError> {
         self.with_graph(identity.organization, move |store, graph, database| {
             let seen = visibility(identity);
@@ -1425,6 +1456,14 @@ impl ServerStore {
                 )?),
             };
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
+            crate::access::append_parent(
+                &transaction,
+                identity.organization,
+                block,
+                identity.account,
+                parent,
+                &record,
+            )?;
             store_keys(
                 graph,
                 &transaction,
@@ -1941,7 +1980,6 @@ impl ServerStore {
                     if access == Access::None
                         && !crate::access::names_grant(
                             database,
-                            graph,
                             identity.organization,
                             block,
                             account,
@@ -1968,7 +2006,6 @@ impl ServerStore {
                 if let Some(record) = record {
                     crate::access::append_grant(
                         database,
-                        graph,
                         identity.organization,
                         block,
                         identity.account,
@@ -1992,7 +2029,6 @@ impl ServerStore {
             if let Some(record) = record {
                 crate::access::append_grant(
                     &transaction,
-                    graph,
                     identity.organization,
                     block,
                     identity.account,
@@ -2235,7 +2271,7 @@ pub(crate) fn write_grant(
     // the block's log names waits for a device to sign it (`KeyWork::unsigned_revocations`);
     // a signed one, appended after, clears it (`access::append_grant`).
     if access == Access::None
-        && crate::access::names_grant(database, graph, organization, block, account)?
+        && crate::access::names_grant(database, organization, block, account)?
     {
         database.execute(
             "INSERT OR IGNORE INTO unsigned_revocations (organization_id, block_id, account_id)

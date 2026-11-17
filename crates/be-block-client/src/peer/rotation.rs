@@ -122,8 +122,9 @@ impl<S: ObjectStore> Peer<S> {
     /// key, to a grantee its block's own log names with View or above, with the keys the grant
     /// names, contact or not, or, for a kind its log opens to anyone inside, to a contact the
     /// server lists as viewing inside. That log is checked from the root this device pinned in
-    /// full (a weak root is a member's word, plans/signed_access.md), and a grant or opening
-    /// that rests on the server's tree (`Checked::tainted`) counts for nothing. Key work lists
+    /// full (a weak root is a member's word, plans/signed_access.md); a grant or opening on
+    /// authority from a block above counts as the logs above, reached through signed parent
+    /// records, prove it (signed access 4). Key work lists
     /// only accounts the server holds a grant row for, so one it revoked is sealed to no more,
     /// signed or not. `organization` is the organization's log, checked.
     ///
@@ -208,7 +209,6 @@ impl<S: ObjectStore> Peer<S> {
         if !checked.partial
             && let Some((level, identity)) = checked.grants.get(&grantee)
             && *level >= be_block_keys::Level::View
-            && !checked.tainted.contains(&grantee)
         {
             return Target::Seal(identity.public);
         }
@@ -216,9 +216,7 @@ impl<S: ObjectStore> Peer<S> {
         // viewers to their contacts. That the contact views inside is the server's word
         // (plans/signed_access.md, "Grants the server changes first"); that the kind is open is
         // the log's, so a block no manager opened is offered to no one.
-        let open =
-            checked.open_inside >= be_block_keys::Level::View && !checked.open_inside_tainted;
-        match open {
+        match checked.open_inside >= be_block_keys::Level::View {
             true => self.keys.contact(account).into(),
             false => Target::Nobody,
         }
@@ -259,6 +257,27 @@ impl<S: ObjectStore> Peer<S> {
         }
         self.refresh_keys(Some(walked.iter().map(|node| node.id).collect()))
             .await?;
+        // Each key goes under the key of a block the signed parent records place it under, never
+        // one the server only lists it below (signed access 4): the top under the scope or parent
+        // its summary names, each block below under the one that listed it.
+        let top_parent = match super::parent_of(&top)? {
+            BlockParent::Block(parent) => Some(parent),
+            BlockParent::Root | BlockParent::Detached => None,
+        };
+        let top_scope = super::scope_of(&top)?;
+        if top_scope != top.id {
+            self.signed_below(top.id, top_scope).await?;
+        } else if let Some(parent) = top_parent {
+            self.signed_below(top.id, parent).await?;
+        }
+        let placed = futures_util::future::join_all(walked.iter().skip(1).map(|node| async {
+            match super::parent_of(node)? {
+                BlockParent::Block(parent) => self.signed_below(node.id, parent).await,
+                BlockParent::Root | BlockParent::Detached => Err(ClientError::Forged(node.id)),
+            }
+        }))
+        .await;
+        placed.into_iter().collect::<Result<Vec<()>, ClientError>>()?;
         // Each new epoch names the heads of the logs it is made under (signed access 3d): read
         // now, so they are past the revocation that called for the rotation. A log that does
         // not check here leaves the head this device last held.
@@ -268,7 +287,6 @@ impl<S: ObjectStore> Peer<S> {
                 let _ = self.checked_access(node.id).await;
             }
         }
-        let top_scope = super::scope_of(&top)?;
         let outer = match top_scope == top.id {
             true => None,
             false => Some(self.scope_key(top_scope).await?),
@@ -587,7 +605,7 @@ impl<S: ObjectStore> Peer<S> {
             self.organization.into_bytes(),
             pinned,
             &entries,
-            &|_, _| None,
+            &|_| None,
         )
         .map_err(|_| ClientError::Forged(self.organization))?;
         // Kept as a block's is (`KeyBook::note_log`): one short of what was kept is withheld,
