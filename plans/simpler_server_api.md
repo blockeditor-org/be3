@@ -222,6 +222,11 @@ orders summaries by `changed`, the organization's sequence
 carries them until 3a folds it into `events`, and `unfollow` becomes 3a's
 `unfollow(org, topic)`.
 
+Gaps kept until 3a: a block a reader knows only exists (through a reference)
+names no entry, so it is read again only on `roots` or a reconnect; one
+deleted for good by `collect-detached` while known that way stays in the
+mirror until then, which 3a's removal of `collect-detached` ends.
+
 ### 3. The calls merge
 
 In two pieces, each landing whole.
