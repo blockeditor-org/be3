@@ -918,6 +918,26 @@ impl KeyBook {
         {
             return None;
         }
+        // On a proof path, the newest lowering this device was ever shown stands, though a later
+        // path may leave out the reduced tail that held it: a made-up lowering only outdates
+        // keys, which fails closed, and a real one dropped later still outdates what came before
+        // it. A whole log, which keeps its head, tells exactly.
+        let lowers = |step: &be_block_keys::Step| match step {
+            be_block_keys::Step::Entry(entry) => entry.lowers,
+            be_block_keys::Step::Reduced(reduced) => reduced.lowers,
+        };
+        let shown = entries.iter().rposition(lowers).unwrap_or(0);
+        let seen = match checked.partial {
+            true => shown.max(
+                roots
+                    .kept
+                    .get(&block)
+                    .map_or(0, |kept| kept.lowering_place as usize),
+            ),
+            false => shown,
+        };
+        let mut checked = checked.clone();
+        checked.last_lowering = checked.last_lowering.max(seen);
         roots.logs.insert(block, checked.clone());
         roots.entries.insert(block, entries.to_vec());
         // Kept up to the last entry served whole: on a proof path, reduced entries after it
@@ -931,19 +951,17 @@ impl KeyBook {
                 .unwrap_or(0),
             false => entries.len().saturating_sub(1),
         };
-        let lowers = |step: &be_block_keys::Step| match step {
-            be_block_keys::Step::Entry(entry) => entry.lowers,
-            be_block_keys::Step::Reduced(reduced) => reduced.lowers,
-        };
-        let lowering = entries[..=upto]
-            .iter()
-            .rposition(lowers)
-            .unwrap_or(0);
         let kept = crate::refs::KeptLog {
             head: entries[upto].hash(),
             place: upto as u64,
-            lowering_place: lowering as u64,
-            current: entries[lowering..=upto].iter().map(be_block_keys::Step::hash).collect(),
+            lowering_place: seen as u64,
+            // None kept is current when the lowering lies past the last whole entry.
+            current: entries
+                .get(seen..=upto)
+                .unwrap_or_default()
+                .iter()
+                .map(be_block_keys::Step::hash)
+                .collect(),
             levels: {
                 let mut levels: Vec<([u8; 16], Level)> = checked
                     .levels

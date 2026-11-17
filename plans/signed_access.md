@@ -364,7 +364,10 @@ did not sign.
   whose place the next whole entry's signer fixes, so the honest log served
   later is taken, and only a log cut short of that entry counts as withheld.
   Until a reader is shown a whole entry past it, the kept head lags the log's:
-  offline, an epoch named after it counts as outdated.
+  offline, an epoch named after it counts as outdated. And a reduced tail can
+  be dropped later unnoticed; only the newest lowering a path ever showed is
+  kept past the cut (`KeyBook::note_log`), so a dropped lowering still
+  outdates what came before it, and a made-up one only outdates keys.
 - **A leaked phrase** lets whoever holds it act as the account until it
   retires the key: read and write what it may, sign records, host a hosted
   block it has Edit on, or join one as a player.

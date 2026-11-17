@@ -224,7 +224,9 @@ it `partial`. How each check reads one:
   Edit seals, wraps and writes content under nothing, though it relays its
   presence under such a key.
 - A path is kept (`KeptLog`) only up to its last whole entry, so a tail the
-  server made up after the real head never leaves later logs withheld.
+  server made up after the real head never leaves later logs withheld; the
+  newest lowering a path ever showed is kept past that, so a later path that
+  drops the tail outdates the same epochs.
 
 **Epochs name their heads** (plans/signed_access.md, 3d). A key minted here
 names the heads of its scope's log (a scope key's own block; for a data key,
