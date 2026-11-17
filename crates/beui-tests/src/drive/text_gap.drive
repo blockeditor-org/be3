@@ -1,0 +1,4 @@
+# A Gap's share is of the width its Text wraps at: half of it puts the item after it halfway
+# across, and a Text that wraps nowhere gives the share no room.
+clock stop
+wait 'value="Gap shares half the width"'
