@@ -21,6 +21,15 @@ pub fn end(node: NodeId) {
     let _ = node;
 }
 
+/// The element that holds the focus when `active` is: the node a text session
+/// runs for when `active` is the text agent it moved there, else `active`. What
+/// returns the focus later (a closing overlay) keeps this, since the agent moves
+/// on to whatever takes text next (a menu with typeahead).
+#[cfg(target_arch = "wasm32")]
+pub fn holder(active: web_sys::Element) -> web_sys::Element {
+    web::holder(active)
+}
+
 pub fn sync(text: Option<&ImeText>) {
     #[cfg(target_arch = "wasm32")]
     web::sync(text);
@@ -157,6 +166,18 @@ mod web {
             }
             held.as_ref().map(|agent| agent.element.clone())
         })
+    }
+
+    pub(super) fn holder(active: web_sys::Element) -> web_sys::Element {
+        let agent = AGENT.with(|held| held.borrow().as_ref().map(|agent| agent.element.clone()));
+        let is_agent = agent.is_some_and(|agent| {
+            let element: &web_sys::Element = agent.as_ref();
+            *element == active
+        });
+        match is_agent {
+            true => active.parent_element().unwrap_or(active),
+            false => active,
+        }
     }
 
     pub(super) fn begin(node: NodeId, sink: ImeSink) {

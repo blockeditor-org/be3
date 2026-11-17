@@ -1,6 +1,6 @@
 # A menu button opens its menu and a submenu, whose menu stays under the
-# pointer: moving onto another row closes the submenu. It chooses by pointer
-# and by keys;
+# pointer: staying on another row a moment closes the submenu, and staying on
+# Share opens it again. It chooses by pointer and by keys;
 # a select picks an option; a context menu opens on a right click, and on the
 # Menu key or Shift+F10 beneath its card, around the focused button, and only
 # there: the browser's own contextmenu for the key adds no second opening.
@@ -11,8 +11,10 @@ wait 'MenuItem "Copy"'
 click 'MenuItem "Share"'
 wait 'MenuItem "Email"'
 move 'MenuItem "Delete"'
+pause 400
 wait not 'MenuItem "Email"'
 move 'MenuItem "Share"'
+pause 400
 wait 'MenuItem "Email"'
 click 'MenuItem "Email"'
 wait 'value="Chose Email fruit Apple"'

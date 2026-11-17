@@ -973,7 +973,9 @@ mod web {
             match wanted {
                 Some(modal) => {
                     if held.shown.is_none() && !inside {
-                        held.returns_to = active.and_then(|active| active.dyn_into().ok());
+                        held.returns_to = active
+                            .map(crate::ime::holder)
+                            .and_then(|active| active.dyn_into().ok());
                     }
                     listen_globally();
                     show(&dialog, modal);
