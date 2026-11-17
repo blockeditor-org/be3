@@ -2,7 +2,7 @@ use be_lib_stable_hash::HashMap;
 use std::cell::RefCell;
 
 use be_sdk_api::ScreenId;
-use beui::{Color32, pos2};
+use beui::Color32;
 use wasm_bindgen::JsCast;
 
 use super::worker::WorkerChannel;
@@ -29,56 +29,9 @@ pub fn placement(blit: &Blit, order: usize, above: bool, scale: f32) -> Option<P
     }
     let shared = blit.shared.borrow();
     let placement = shared.placement(blit.screen)?;
-    if placement.width == 0 || placement.height == 0 {
-        return None;
-    }
-    let (quad, source) = blit.shown_at(placement, (placement.width, placement.height))?;
-    if !source.is_positive() {
-        return None;
-    }
-    let [first, second, _, fourth] = quad
-        .corners()
-        .map(|corner| pos2(corner.x * scale, corner.y * scale));
-    let across = (second - first) / source.width();
-    let down = (fourth - first) / source.height();
-    let origin = first - across * source.min.x - down * source.min.y;
-    let (width, height) = (across.length(), down.length());
-    if width <= f32::EPSILON || height <= f32::EPSILON {
-        return None;
-    }
-    let percent = |value: f32| (value * 100.0).clamp(0.0, 100.0);
-    let radius = quad.corner_radius.max(0.0) * scale;
-    let round = |left: bool, top: bool| {
-        let reaches = |near: bool, min: f32, max: f32| match near {
-            true => min <= 0.0,
-            false => max >= 1.0,
-        };
-        match reaches(left, source.min.x, source.max.x) && reaches(top, source.min.y, source.max.y)
-        {
-            true => radius,
-            false => 0.0,
-        }
-    };
-    let style = format!(
-        "width:{width}px;height:{height}px;\
-         transform:matrix({},{},{},{},{},{});\
-         clip-path:inset({}% {}% {}% {}% round {}px {}px {}px {}px);opacity:{};z-index:{order}",
-        across.x / width,
-        across.y / width,
-        down.x / height,
-        down.y / height,
-        origin.x,
-        origin.y,
-        percent(source.min.y),
-        percent(1.0 - source.max.x),
-        percent(1.0 - source.max.y),
-        percent(source.min.x),
-        round(true, true),
-        round(false, true),
-        round(false, false),
-        round(true, false),
-        quad.opacity.clamp(0.0, 1.0),
-    );
+    let painted = shared.holds(placement, None)?;
+    let (quad, source) = blit.shown_at(painted)?;
+    let style = crate::presenter::canvas_style(quad, source, painted.size, scale, order)?;
     Some(Placement {
         screen: blit.screen,
         surface: placement.surface,

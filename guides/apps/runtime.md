@@ -209,14 +209,21 @@ An editor that answers late is shown in a later frame without holding the host
 up. Until then its last painting is drawn at the size it was painted, from the
 view's top-left, cropped where the view is smaller and never stretched; where
 the view is larger, the rest shows the view's backdrop (the app's clear colour,
-`Backdrop` in `app_view.rs`, which fills the box the view is laid out in). Every
-path that draws a painting into its view (native, web, paint snapshots, damage)
-places it through `Blit::shown_at` and `presenter::unscaled`, from the size of
-what is drawn (the texture or painting, never the size the layout asked for,
-since a layout commit can land before the present that brings textures of its
-size) and its raster over the view's zoom, so one point always shows the same
-number of its pixels on both axes. In the browser the answer always lands in a
-later frame, since the host cannot block on a worker.
+`Backdrop` in `app_view.rs`, which fills the box the view is laid out in). A
+present says the placement each surface was painted at
+(`presented-frame.painted`), which the host keeps per surface
+(`presenter::Shared::holds`): every path that draws a painting into its view
+(the native texture, the web's canvas and the hole it punches for it, paint
+snapshots, damage) places it through `Blit::shown_at` and `presenter::unscaled`
+from that size and raster over the view's zoom, never from the size the layout
+asked for, since a layout commit can land before the present that brings
+textures of its size. Natively the size is the texture's own; in the browser
+the canvas keeps its natural size, the backing store its worker last showed,
+placed with a matrix from its pixels and clipped in them
+(`presenter::canvas_style`), so the browser never scales it into a box of
+another size. A block preview is a picture and is fitted to each place it is
+shown at. In the browser the answer always lands in a later frame, since the
+host cannot block on a worker.
 
 Each frame an app draws is two steps of its guest: one lays out and sends
 `laid-out`, the next paints. The calls an app makes without waiting on them

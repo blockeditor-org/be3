@@ -556,11 +556,20 @@ impl Presents {
         self.reported.push_back(presented);
     }
 
-    fn damage_through(&mut self, presents: u64) -> Option<Vec<ScreenDamage>> {
+    /// The damage of the presents since the last shown through `presents`, where every one of
+    /// them reported it, and the placements their surfaces were painted at, in order.
+    fn damage_through(
+        &mut self,
+        presents: u64,
+    ) -> (Option<Vec<ScreenDamage>>, Vec<be_sdk_api::ScreenPlacement>) {
         let since = std::mem::replace(&mut self.shown, presents);
         let mut damage = Vec::new();
+        let mut painted = Vec::new();
         let mut found = 0;
         for presented in &self.reported {
+            if presented.sequence <= presents {
+                painted.extend_from_slice(&presented.painted);
+            }
             if presented.sequence > since && presented.sequence <= presents {
                 damage.extend_from_slice(&presented.damage);
                 found += 1;
@@ -568,7 +577,10 @@ impl Presents {
         }
         self.reported
             .retain(|presented| presented.sequence > presents);
-        (presents > since && found == presents - since).then_some(damage)
+        (
+            (presents > since && found == presents - since).then_some(damage),
+            painted,
+        )
     }
 }
 
@@ -1143,7 +1155,9 @@ impl Runtime {
         let previewed = self.export_previews(&frame);
         let mut changed = true;
         if frame.composited() {
-            frame.set_damage(self.presents.damage_through(frame.presents()));
+            let (damage, painted) = self.presents.damage_through(frame.presents());
+            frame.set_damage(damage);
+            self.shared.borrow_mut().paint(&painted);
             changed = frame_changed(frame.damage());
             if !self.kept.is_empty() {
                 self.release_kept();
@@ -1683,6 +1697,10 @@ impl Runtime {
             }
         }
         if let Some(presented) = presented {
+            // The browser's worker shows a present on its canvases as it makes it, so what each
+            // surface holds changes now; natively it changes as the frame is shown (`show_frame`).
+            #[cfg(target_arch = "wasm32")]
+            self.shared.borrow_mut().paint(&presented.painted);
             self.presents.report(presented);
         }
         self.close_anchored();
@@ -1797,6 +1815,7 @@ impl Runtime {
             quad: Quad::upright(Rect::ZERO),
             source: UNIT,
             zoom,
+            picture: placement.is_some_and(|placement| placement.view == ViewId::PREVIEW),
             placed: placement
                 .map(|placement| [placement.surface, placement.width, placement.height]),
             layer: None,

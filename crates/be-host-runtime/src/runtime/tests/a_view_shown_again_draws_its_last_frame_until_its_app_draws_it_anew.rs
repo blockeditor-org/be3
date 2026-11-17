@@ -162,6 +162,7 @@ fn a_view_shown_again_draws_its_last_frame_until_its_app_draws_it_anew() {
             presented: Some(PresentedFrame {
                 sequence: 1,
                 damage: Vec::new(),
+                painted: Vec::new(),
             }),
         });
     });
