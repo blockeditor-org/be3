@@ -22,6 +22,7 @@ fn a_module_from_bytes_compiles_once_and_each_instance_runs_on_its_own() {
     let config = |name: &str| sandbox::Config {
         name: name.to_owned(),
         memory_limit: 16 << 20,
+        display: None,
     };
     let mut one = sandbox::spawn(
         sandbox::Source::Module(first.clone()),

@@ -12,7 +12,7 @@ fn a_composited_window_draws_screens_in_place_and_its_ui_over_anchored_views() {
         beui_draw::drawing(Shows::new(
             texture,
             surface,
-            10 + surface.instance().map_or(0, u64::from),
+            10 + surface.instance().unwrap_or(0),
         ))
     };
     let screen = shows(

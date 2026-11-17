@@ -12,7 +12,7 @@ fn layer(id: u64, at: Pos2, size: (u32, u32)) -> Layer {
     Layer {
         id: LayerId(id),
         surface: Surface::Screen {
-            instance: id as u32,
+            instance: id,
             surface: 0,
         },
         size,

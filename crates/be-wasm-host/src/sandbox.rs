@@ -6,8 +6,10 @@
 //!   of its bytes, on a thread of its own, given only the transport. What it may do beside
 //!   computing, its spawner serves it over its frames; or
 //! - a staged app's module (`Staged`): the app itself or one of its workers, linked against the
-//!   libraries it names and given WASI, as the host runs that app, but with no display: it has no
-//!   gpu, which a worker does not need, since it sends what it made back as bytes
+//!   libraries it names and given WASI, as the host runs that app. Given a display
+//!   (`Config::display`), it draws on the host's device, and what it presents stays there, named
+//!   to the spawner only by the instance and the surface (`Instance::surface`). Without one it has
+//!   no gpu, which a worker does not need, since it sends what it made back as bytes
 //!   (guides/apps/runtime.md, Backends).
 //!
 //! A module from bytes never reaches the code cache (cache.rs): it is compiled anew in each
@@ -16,15 +18,14 @@
 //! it at exit.
 
 use std::{
-    collections::HashMap,
-    convert::Infallible,
+    collections::{BTreeMap, HashMap},
     sync::{Arc, Condvar, LazyLock, Mutex, Weak, atomic::AtomicBool},
     time::Duration,
 };
 
 use be_wasm_guest_host::{Deadline, Wake, Worker, thread::Threaded};
 
-use crate::{App, Code, Host, Stored, engine};
+use crate::{App, Code, Host, PresentedTexture, Stored, engine};
 
 /// A module, by the SHA-256 of the bytes it was compiled from.
 pub type ModuleId = [u8; 32];
@@ -165,6 +166,9 @@ pub struct Config {
     pub name: String,
     /// The most bytes its memory may hold.
     pub memory_limit: usize,
+    /// The device a staged app draws on: the host's, so what it presents never leaves the GPU.
+    /// None gives it no display, so its gpu calls fail. A module from bytes never has one.
+    pub display: Option<(wgpu::Device, wgpu::Queue)>,
 }
 
 /// What an instance runs.
@@ -209,9 +213,11 @@ const NO_DISPLAY: &str = "an app spawned in the sandbox has no display";
 /// An instance of a source on a thread and isolate of its own. Dropping it stops it, even
 /// mid-step, by terminating its isolate.
 pub struct Instance {
-    worker: Worker<Threaded<Infallible>>,
+    worker: Worker<Threaded<PresentedTexture>>,
     /// Why it stopped, once it did.
     failure: Option<String>,
+    /// What each of its surfaces shows: the texture it presented last.
+    presented: BTreeMap<u32, PresentedTexture>,
 }
 
 /// Starts an instance of `source`, which calls `wake` whenever it has sent frames or stopped. A
@@ -220,7 +226,10 @@ pub fn spawn(source: Source, config: Config, wake: Wake) -> Result<Instance, Str
     let waiting = Arc::new(AtomicBool::new(false));
     let host = match &source {
         Source::Module(_) => Host::pure()?,
-        Source::App(_) => Host::on_demand(|| Err(NO_DISPLAY.to_owned()))?,
+        Source::App(_) => match config.display {
+            Some((device, queue)) => Host::new(device, queue)?,
+            None => Host::on_demand(|| Err(NO_DISPLAY.to_owned()))?,
+        },
     };
     let channel = host.with_memory_limit(config.memory_limit).spawn(
         config.name,
@@ -235,6 +244,7 @@ pub fn spawn(source: Source, config: Config, wake: Wake) -> Result<Instance, Str
     Ok(Instance {
         worker: Worker::new(channel, waiting),
         failure: None,
+        presented: BTreeMap::new(),
     })
 }
 
@@ -260,11 +270,22 @@ impl Instance {
         if self.failure.is_none() {
             self.failure = self.worker.poll();
         }
+        if let Some((presented, _)) = self.worker.take_presented() {
+            for presented in presented {
+                self.presented.insert(presented.surface, presented);
+            }
+        }
         let received = self.worker.take_received();
         match &self.failure {
             Some(failure) if received.is_empty() => Err(failure.clone()),
             _ => Ok(received),
         }
+    }
+
+    /// What the instance's surface `surface` shows: the texture it presented last, on the device
+    /// its display gave it, or None if it never presented that surface.
+    pub fn surface(&self, surface: u32) -> Option<&PresentedTexture> {
+        self.presented.get(&surface)
     }
 
     /// Waits until the instance sends a frame or `deadline` passes, and answers what it sent:

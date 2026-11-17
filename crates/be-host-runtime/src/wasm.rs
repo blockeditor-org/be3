@@ -1,6 +1,5 @@
 use std::{
     cell::RefCell,
-    convert::Infallible,
     sync::{Arc, Condvar, Mutex, PoisonError, atomic::AtomicBool},
     time::Duration,
 };
@@ -10,15 +9,11 @@ use be_host_stack::discovery;
 use super::backend::{worker_file, worker_path};
 
 use be_sdk_manifest::AppManifest;
-use be_wasm_guest_host::{
-    Presented, Produced,
-    thread::{self, Runnable, Threaded},
-};
-use be_wasm_host::{App, Host, sandbox::Staged};
+use be_wasm_guest_host::thread::{self, Threaded};
+use be_wasm_host::{Host, PresentedTexture, sandbox::Staged};
 
 use super::{
-    backend::StepTime,
-    surface::{PresentedTexture, SurfaceFrame, gpu},
+    surface::{SurfaceFrame, gpu},
     wire::Wire,
 };
 
@@ -76,12 +71,6 @@ impl Handover {
 
 pub(super) fn wait_for_workers(within: Duration) {
     thread::wait_for_workers(within);
-}
-
-impl Presented for PresentedTexture {
-    fn surface(&self) -> u32 {
-        self.surface
-    }
 }
 
 pub(super) fn frame(textures: Vec<PresentedTexture>, presents: u64) -> SurfaceFrame {
@@ -222,7 +211,7 @@ fn start(
     let mailbox = host.imports();
     let channel = host.spawn(
         format!("app {}", app.identity.id),
-        move |host| staged.load(host).map(Editor),
+        move |host| staged.load(host),
         Arc::new(be_host_base::host::wake),
         Arc::clone(&waiting),
         |run| be_host_base::panic_guard::contain(run),
@@ -260,60 +249,6 @@ pub(super) fn pictures(frame: &SurfaceFrame, surfaces: &[u32]) -> Vec<(u32, Pict
             ))
         })
         .collect()
-}
-
-struct Editor(App);
-
-impl Runnable for Editor {
-    type Presented = PresentedTexture;
-
-    fn start(&mut self) -> Result<Produced<PresentedTexture>, String> {
-        let sent = Runnable::start(&mut self.0)?;
-        Ok(produced(&mut self.0, sent))
-    }
-
-    fn step(&mut self, frames: Vec<Vec<u8>>) -> Result<Produced<PresentedTexture>, String> {
-        let sent = Runnable::step(&mut self.0, frames)?;
-        Ok(produced(&mut self.0, sent))
-    }
-
-    fn take_wake(&mut self) -> bool {
-        self.0.take_wake()
-    }
-
-    fn on_wake(&self, wake: be_wasm_guest_host::Wake) {
-        Runnable::on_wake(&self.0, wake);
-    }
-
-    fn stop(&mut self) {
-        self.0.stop();
-    }
-}
-
-fn produced(app: &mut App, sent: Produced<Infallible>) -> Produced<PresentedTexture> {
-    let (gpu, submit) = app.take_gpu_time();
-    let mut presented: Vec<PresentedTexture> = Vec::new();
-    for surface in app.take_presented() {
-        let Some((texture, generation)) = app.surface(surface) else {
-            continue;
-        };
-        presented.retain(|held| held.surface != surface);
-        presented.push(PresentedTexture {
-            surface,
-            texture,
-            generation,
-        });
-    }
-    Produced {
-        painted: !presented.is_empty(),
-        outbound: sent.outbound,
-        presented,
-        took: StepTime {
-            gpu,
-            submit,
-            ..sent.took
-        },
-    }
 }
 
 #[cfg(test)]
