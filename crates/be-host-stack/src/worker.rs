@@ -1622,8 +1622,7 @@ impl Session<'_> {
                                 after_order.push(command);
                             }
                             command => {
-                                if let Some(command) =
-                                    admit(&mut self.uploads, ran.served, command)
+                                if let Some(command) = admit(&mut self.uploads, ran.served, command)
                                 {
                                     applied |= ran.carry_out(command).await;
                                 }
