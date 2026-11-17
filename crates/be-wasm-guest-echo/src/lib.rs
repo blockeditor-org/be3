@@ -8,7 +8,7 @@ pub const WAKE: &[u8] = b"wake";
 pub const GROW: &[u8] = b"grow";
 pub const FINISH: &[u8] = b"finish";
 /// Asks for the wall clock through WASI, which only the staged app build (:app) has: answered with
-/// `CLOCK_READ` once the clock reads after 2020.
+/// `CLOCK_READ` once the clock reads after 2020. The pure build echoes it.
 pub const CLOCK: &[u8] = b"clock";
 pub const CLOCK_READ: &[u8] = b"the clock reads after 2020";
 
@@ -48,6 +48,7 @@ impl Guest for Echo {
                     outbound.push(vec![grown[GROWTH - 1]]);
                 }
                 FINISH => return Ok(Flow::Finished),
+                #[cfg(target_os = "wasi")]
                 CLOCK => {
                     let since = std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)

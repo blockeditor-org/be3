@@ -64,8 +64,10 @@ not write its own.
 
 1. Serve the sandbox API to apps. An app may spawn only its own staged module, at another entry
    point, with the imports the host serves that app. The `app(app-id)` source starts the
-   manifest's module at its usual `app_start`, so the source or `config` gains the entry point to
-   start, and the host serves the spawning app's `Server` a loader that answers only its own id.
+   manifest's module at its usual `app_start`, so a worker widens the source to
+   `app { id, module }` and the loader to `(app-id, module)`, rather than adding an entry point to
+   `config`, which keeps be-host-runtime's `staged_app` the one place that maps names to files.
+   The host serves the spawning app's `Server` a loader that answers only its own id.
    A spawned app has no display today, so whether a worker gets the gpu is this step's choice.
    Modules from bytes stay the root guest's until a plan gives apps a reason for them (the Games
    app's game modules would be one).

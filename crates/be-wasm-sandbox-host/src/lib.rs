@@ -20,8 +20,9 @@ type Answer<T> = Box<dyn FnOnce(&T) -> (OpId, Outcome)>;
 
 type Frames = Result<Vec<Vec<u8>>, String>;
 
-/// Finds a staged app by its id, or says why there is none to spawn.
-pub type Loader = Box<dyn Fn(&str) -> Result<Staged, String>>;
+/// Finds a staged app by its id, or says why there is none to spawn. It is `Send`, so a `Server`
+/// may move to the thread of the guest it serves.
+pub type Loader = Box<dyn Fn(&str) -> Result<Staged, String> + Send>;
 
 /// Serves one guest the sandbox. Every module it compiled stays compiled, and every instance it
 /// spawned runs, while the server is held.
