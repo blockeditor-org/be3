@@ -1854,7 +1854,7 @@ impl Session<'_> {
                 self.replicas.stop_keeping(block);
                 set_marked(shared, block, peer.discarded(block));
             }
-            let typing = !self.replicas.modules.settled();
+            let typing = self.replicas.modules.unsettled();
             // A held clock is moved to a module's timer only when nothing but that timer can
             // make progress: the line is up, nothing sent waits for an answer, and no module is
             // still working. Offline, the reconnect is what's next, not a module's timer.
@@ -1862,10 +1862,11 @@ impl Session<'_> {
                 && self.line.quiet()
                 && !self.tasks.0.syncing()
                 && self.uploads.is_empty()
-                && !typing;
-            let (was_typing, was_due, due) = {
+                && typing.is_empty();
+            let (typing_changed, was_due, due) = {
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-                if moved || held.typing != typing {
+                let typing_changed = held.typing != typing;
+                if moved || typing_changed {
                     held.progressed += 1;
                 }
                 // A listing read again waits on the server, whose answer can make progress.
@@ -1876,14 +1877,15 @@ impl Session<'_> {
                     && !held.graph.refreshing())
                 .then(|| self.replicas.modules.held_due())
                 .flatten();
+                held.typing = typing;
                 (
-                    std::mem::replace(&mut held.typing, typing),
+                    typing_changed,
                     std::mem::replace(&mut held.modules_due, due),
                     due,
                 )
             };
             self.changed.notify_all();
-            if moved || was_typing != typing || was_due != due {
+            if moved || typing_changed || was_due != due {
                 crate::changes::wake();
             }
             // The pass is over: the page reads what it did, and hears of it.
@@ -2469,7 +2471,7 @@ fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
     // waits to be sent and nothing was set aside.
     if held.connected
         && !held.draining
-        && held.waiting + held.unsealed == 0
+        && held.waiting + held.unsealed() == 0
         && held.unsent.is_empty()
         && held.sync_error.take().is_some()
     {
@@ -2965,15 +2967,15 @@ impl Ran<'_> {
             let mut held = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.log_dropped();
             held.done += 1;
-            let (owing, undurable);
-            (held.unsealed, owing, undurable) = self.replicas.counts();
+            let (unsealed, owing, undurable) = self.replicas.counts();
+            held.unsealed_blocks = unsealed;
             held.owing = owing.len();
             held.owing_blocks = owing;
             held.undurable = undurable.len();
             held.undurable_blocks = undurable;
             held.seals_owed += u64::from(sealed_owed);
             held.recounting = true;
-            held.typing = !self.replicas.modules.settled();
+            held.typing = self.replicas.modules.unsettled();
         }
         crate::changes::wake();
     }

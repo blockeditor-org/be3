@@ -728,6 +728,12 @@ pub struct Owing {
     /// Why its last publish failed, if it did.
     pub publish_error: Option<String>,
     pub journaled: bool,
+    /// Whether its module reports all its edits committed (`Status::clean`).
+    pub clean: bool,
+    /// Whether its module says it owes a seal (`Status::owes_seal`).
+    pub owes_seal: bool,
+    /// Whether its module says it diverged from the order (`Status::diverged`).
+    pub diverged: bool,
     /// What its module says keeps its edits out of the journal (`Status::unjournaled`).
     pub unjournaled: Option<be_sdk_type_api::Unjournaled>,
     /// The modules' clock as the host last counted (`Modules::now`), which the timers in
@@ -750,6 +756,9 @@ impl Owing {
             content_type: open.content_type,
             publish_error: open.publish_error.clone(),
             journaled: open.status.journaled,
+            clean: open.status.clean,
+            owes_seal: open.status.owes_seal,
+            diverged: open.status.diverged,
             unjournaled: open.status.unjournaled.clone(),
             now,
             unreported: open.unreported(),
@@ -795,6 +804,11 @@ fn unjournaled(held: &be_sdk_type_api::Unjournaled, now: u64) -> String {
     if held.merge_failures > 0 {
         what.push(format!("{} merge failure(s)", held.merge_failures));
     }
+    if let Some(through) = held.resubmits_through {
+        what.push(format!(
+            "an earlier opening's submission waits for the local edits through {through}"
+        ));
+    }
     format!("out of the journal: {}", what.join(", "))
 }
 
@@ -802,9 +816,12 @@ impl std::fmt::Display for Owing {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             formatter,
-            "{} of type {} (journaled: {}{}, unreported: {}, publishes unanswered: {}, joining: {}, closing: {}, last publish failed: {:?}, last keep failed: {:?})",
+            "{} of type {} (clean: {}, owes a seal: {}, diverged: {}, journaled: {}{}, unreported: {}, publishes unanswered: {}, joining: {}, closing: {}, last publish failed: {:?}, last keep failed: {:?})",
             self.block,
             self.content_type,
+            self.clean,
+            self.owes_seal,
+            self.diverged,
             self.journaled,
             self.unjournaled
                 .as_ref()
@@ -1043,6 +1060,9 @@ impl<H: Host> Replicas<H> {
     }
 
     pub async fn woken(&mut self) {
+        if self.modules.kept() {
+            return;
+        }
         let notified = std::pin::pin!(self.modules.notified());
         let answered = std::pin::pin!(self.answers.recv());
         if let futures_util::future::Either::Right((Some(io), _)) =
@@ -3445,8 +3465,18 @@ impl<H: Host> Replicas<H> {
             return;
         }
         // What its made-up session took while the join was on its way, after `created` asked a
-        // seal of what it held, is committed here first: reopened on its head, it would be lost.
-        let unsealed = open.joined_settled && (!open.status.clean || open.unreported());
+        // seal of what it held, is committed here first. Reopening gives again only the local
+        // edits its order does not hold (`reopening` cuts `replay` by `journaled_taken`), and the
+        // server's journal holds none of its made-up session's: those journaled and unsealed
+        // would be lost. The answer comes back here once the seal is answered, and another is
+        // asked only while some are left. An edit it has not submitted (it waits for the order
+        // to number the one before) is not journaled: `replay` gives it again, and no seal
+        // commits it, so asking again for it would never end.
+        let unsealed = open.joined_settled
+            && match open.sealed_joining {
+                false => !open.status.clean || open.unreported(),
+                true => open.status.journaled_taken > open.status.sealed_taken,
+            };
         if unsealed {
             open.sealed_joining = true;
             self.seal_later(block, false);
@@ -4611,13 +4641,14 @@ impl<H: Host> Replicas<H> {
     /// hold edits that are not yet durable: not yet kept on this device, in a journal or in its
     /// kept edits (`refs::OpenEdits`). A kept edit survives a restart, so it is only waiting for
     /// the server and its commit.
-    pub fn counts(&self) -> (usize, Vec<Owing>, Vec<Owing>) {
+    pub fn counts(&self) -> (Vec<Owing>, Vec<Owing>, Vec<Owing>) {
         let now = self.modules.now();
         let unsealed = self
             .open
             .values()
             .filter(|open| !open.status.clean || open.unreported())
-            .count();
+            .map(|open| Owing::of(open, now))
+            .collect();
         let owing = self
             .open
             .values()

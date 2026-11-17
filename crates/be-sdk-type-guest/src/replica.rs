@@ -2456,7 +2456,9 @@ where
         {
             self.apply_entry(next);
         }
-        if self.waiting.is_none() {
+        // A seal out lets the next edit go (`passes_a_seal`): left until it lands, it would wait
+        // for the next edit to come.
+        if self.waiting.is_none() || self.sealing_out() {
             self.flush();
         }
     }
@@ -2723,7 +2725,9 @@ where
         self.rebuild_visible();
         self.cover_if_settled();
         self.take_heard_seal();
-        if self.waiting.is_none() {
+        // A seal out lets the next edit go (`passes_a_seal`): left until it lands, it would wait
+        // for the next edit to come.
+        if self.waiting.is_none() || self.sealing_out() {
             self.flush();
         }
     }
@@ -2971,7 +2975,10 @@ where
     /// Submits the next operation waiting, once nothing of this replica's is in flight: what is
     /// typed meanwhile is absorbed into one edit (decisions/a_replica_keeps_one_edit_in_flight.md).
     fn flush(&mut self) {
+        // A put that failed goes again on its timer (`tick`), whatever asks meanwhile.
         if !self.loaded
+            || self.released
+            || self.put_retry_at.is_some()
             || self.diverged
             || self.putting()
             || self.pending.iter().any(|sent| sent.operation.is_some())
@@ -3707,6 +3714,12 @@ where
             merge_retry_at: self.merge_retry_at,
             seal_retry_at: self.seal_retry_at,
             merge_failures: self.merge_failures,
+            resubmits_through: self
+                .unsent
+                .front()
+                .and_then(|(.., kept)| kept.as_ref())
+                .map(|kept| kept.through)
+                .filter(|through| self.edit_number() < *through),
         }
     }
 

@@ -50,6 +50,7 @@ mod two_hosts_in_one_process_each_send_a_type_to_their_own_module;
 mod what_a_replica_opened_offline_replayed_from_its_journal_survives_a_restart_of_its_module;
 mod what_a_replica_opened_offline_replayed_from_its_journal_survives_rejoining;
 mod what_a_wait_on_a_module_handles_is_taken_as_a_change;
+mod what_a_module_says_during_a_wait_on_it_is_taken_without_another_wake;
 
 /// A host that keeps nothing but which editors it was given frames for, for tests of stateless
 /// requests.
@@ -133,7 +134,12 @@ impl Host for Quiet {
 
     fn conflict(_: &Arc<Mutex<Self>>, _: Uuid, _: Conflict) {}
 
-    fn counted(shared: &Arc<Mutex<Self>>, _: usize, _: Vec<crate::Owing>, _: Vec<crate::Owing>) {
+    fn counted(
+        shared: &Arc<Mutex<Self>>,
+        _: Vec<crate::Owing>,
+        _: Vec<crate::Owing>,
+        _: Vec<crate::Owing>,
+    ) {
         shared.lock().unwrap().counted += 1;
     }
 
