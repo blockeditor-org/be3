@@ -268,8 +268,9 @@ A host call is a function of the same interface made inside `editor.act`:
 On the host, `be_host_base::watches::publish::<W>(&value)` sets a value,
 `watched::<W>()` says whether any watch is open (the host starts PulseAudio
 only then), `openings::<W>()` counts openings and `take_calls(be_sdk_api::requested::power)` takes what instances
-asked. `be-host-runtime/src/wire.rs` refuses an extension the manifest does
-not grant or the platform cannot back. Adding one is a WIT resource or
+asked. `be-sdk-app-host/src/wire.rs` refuses an extension the manifest does
+not grant or the platform cannot back (be-host-runtime's `published::offered`,
+which it passes as `Wire::offering`). Adding one is a WIT resource or
 function, a `publish` or `take_calls` on the host, and `watch` or `act` in the
 editor; nothing else lists them. Tests use `BeuiTest::set_watched::<W>`,
 `host_calls` and `take_host_calls`.
@@ -316,7 +317,7 @@ hosted_blocks' to add.
 An app's workers (guides/adding_an_app.md, Workers) are not an `EditorHost`
 call: `be_sdk::worker::Worker` speaks the sandbox API (`be3:sandbox`,
 `crates/be-wasm-sandbox-api`) on the app's connection, which
-`be-host-runtime/src/wire.rs` hands to the app's
+`be-sdk-app-host/src/wire.rs` hands to the app's
 `be_wasm_sandbox_host::Server` before the `be3:app` calls. The host keeps the
 rule: an app spawns only its own workers and compiles nothing. An editor test's
 `BeuiTest` answers the same calls itself, running each worker the test serves
@@ -344,7 +345,7 @@ its own (guest: `EditorHost::tell` queues each in the order the editor made it, 
   resource. A value delivered outside a runtime step (a watch's `next`) has to
   wake the session's waker, or nothing asks for a frame while a driven host's
   clock is stopped.
-- Host side: `crates/be-host-runtime/src/wire.rs` takes the generated `Call`s.
+- Host side: `crates/be-sdk-app-host/src/wire.rs` takes the generated `Call`s.
   Answer every call where it is handled; a dropped `Reply` answers
   `Unanswered`. Block ids a call carries go through the checkout's scope
   (`calls::BlockIds`).

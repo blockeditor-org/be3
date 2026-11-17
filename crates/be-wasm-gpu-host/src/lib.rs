@@ -62,6 +62,8 @@ pub struct Gpu {
     surfaces: HashMap<u32, Surface>,
     imports: Imports,
     presented: Vec<u32>,
+    /// The surfaces let go of since `take_released`.
+    released: Vec<u32>,
     error: Option<String>,
 }
 
@@ -164,6 +166,7 @@ impl Gpu {
             surfaces: HashMap::new(),
             imports: Imports::default(),
             presented: Vec::new(),
+            released: Vec::new(),
             error: None,
         }
     }
@@ -219,7 +222,15 @@ impl Gpu {
     }
 
     pub fn detach_surface(&mut self, surface: u32) {
-        self.surfaces.remove(&surface);
+        if self.surfaces.remove(&surface).is_some() {
+            self.presented.retain(|presented| *presented != surface);
+            self.released.push(surface);
+        }
+    }
+
+    /// The surfaces let go of since the last call, by the app or the host, each once.
+    pub fn take_released(&mut self) -> Vec<u32> {
+        std::mem::take(&mut self.released)
     }
 
     pub fn surface(&self, surface: u32) -> Option<(&wgpu::Texture, u64)> {
