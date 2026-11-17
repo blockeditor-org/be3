@@ -29,13 +29,13 @@ mod a_replica_that_ended_uncounts_only_the_operations_it_never_took;
 mod a_stateless_request_reads_only_parts_of_the_commits_it_was_handed;
 mod a_stream_of_relays_under_keys_that_cannot_be_got_costs_one_search_per_key;
 mod an_edit_and_a_definition_kept_beside_another_devices_head_both_reach_the_server;
+mod an_edit_carried_over_a_restart_keeps_the_identity_it_goes_again_under_across_a_crash;
 mod an_edit_from_an_editor_that_left_before_its_block_joined_is_kept;
 mod an_edit_made_on_the_content_from_before_a_replica_joins_lands_after;
 mod an_edit_numbered_offline_after_a_seal_survives_joining;
 mod an_edit_ordered_after_a_seal_is_given_once_to_a_restarted_replica;
 mod an_edit_sealed_beside_a_commit_waiting_in_the_outbox_is_merged_with_it;
 mod an_edit_sent_after_its_replica_made_a_clean_status_is_given_again_on_joining;
-mod an_edit_carried_over_a_restart_keeps_the_identity_it_goes_again_under_across_a_crash;
 mod an_edit_submitted_before_its_edits_were_kept_by_an_idle_pass_is_known_after_a_crash;
 mod an_editor_attached_when_its_replica_reopens_is_sent_the_content_again;
 mod an_editor_reads_no_part_of_another_block_its_replica_was_not_handed;
@@ -586,22 +586,34 @@ async fn carry_an_edit_over_a_restart(
     let grow = be_sdk_type_guest::RESTART_STATE_BYTES + 1;
     operate(replicas, block, editor, &mut mirror, TallyOp::Grow(grow));
     replicas.pump((peer, shared)).await;
-    step_until_replicas(peer, shared, replicas, "had the growth ordered", |replicas| {
-        heard_entries_of(peer, block) >= 1
-            && replicas
-                .submissions_of(block)
-                .is_some_and(|(submitting, ..)| submitting == 0)
-    })
+    step_until_replicas(
+        peer,
+        shared,
+        replicas,
+        "had the growth ordered",
+        |replicas| {
+            heard_entries_of(peer, block) >= 1
+                && replicas
+                    .submissions_of(block)
+                    .is_some_and(|(submitting, ..)| submitting == 0)
+        },
+    )
     .await;
     receive_frames(shared, editor, &mut mirror);
 
     // The seal restarts the order; the edit goes before the replica hears the restart.
     replicas.seal((peer, shared), block, false).await;
-    pump_until(peer, shared, replicas, "submitted the restart", |replicas| {
-        replicas
-            .submissions_of(block)
-            .is_some_and(|(submitting, ..)| submitting == 1)
-    })
+    pump_until(
+        peer,
+        shared,
+        replicas,
+        "submitted the restart",
+        |replicas| {
+            replicas
+                .submissions_of(block)
+                .is_some_and(|(submitting, ..)| submitting == 1)
+        },
+    )
     .await;
     let grown = last_kept(replicas, block);
     operate(replicas, block, editor, &mut mirror, TallyOp::Add(10));
@@ -616,9 +628,7 @@ async fn carry_an_edit_over_a_restart(
             .is_some_and(|(_, restarts, _)| restarts >= 1)
     })
     .await;
-    let (_, _, kept) = replicas
-        .submissions_of(block)
-        .expect("the block is open");
+    let (_, _, kept) = replicas.submissions_of(block).expect("the block is open");
     assert_eq!(
         kept,
         [added],

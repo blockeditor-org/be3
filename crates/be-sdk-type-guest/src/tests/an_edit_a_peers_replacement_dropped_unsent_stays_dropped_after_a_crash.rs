@@ -26,7 +26,11 @@ fn an_edit_a_peers_replacement_dropped_unsent_stays_dropped_after_a_crash() {
     replacement.apply(&Counter::add(100));
     sim.send_from_editor(0, 1, FromEditor::Replace(replacement.encode()));
     sim.settle();
-    assert_eq!(count(&sim.content(1)), 100, "the replacement dropped the edit");
+    assert_eq!(
+        count(&sim.content(1)),
+        100,
+        "the replacement dropped the edit"
+    );
     assert!(
         sim.kept(|content| count(content) == 1),
         "the dropped edit was kept as a stash"

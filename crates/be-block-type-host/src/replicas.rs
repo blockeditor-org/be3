@@ -3853,14 +3853,12 @@ impl<H: Host> Replicas<H> {
             // An operation is kept as it went, so a replica opened again submits its edits
             // under the same id; given again, it is kept already.
             let counter = submission.id.counter;
-            if matches!(submitted.entry, be_sdk_type_guest::wire::Entry::Operation(_))
-                && !open
-                    .submissions
-                    .iter()
-                    .any(|kept| kept.counter == counter)
+            if matches!(
+                submitted.entry,
+                be_sdk_type_guest::wire::Entry::Operation(_)
+            ) && !open.submissions.iter().any(|kept| kept.counter == counter)
             {
-                open.submissions
-                    .retain(|kept| kept.through > open.given_up);
+                open.submissions.retain(|kept| kept.through > open.given_up);
                 open.submissions.push(be_block_client::KeptSubmission {
                     counter,
                     through: submitted.through,

@@ -17,16 +17,26 @@ fn an_edit_carried_over_a_restart_keeps_the_identity_it_goes_again_under_across_
             .expect("the block opens");
         // A replica reports no restarts until it loads: that drops none of what it was given,
         // before it submits them again.
-        pump_until(&peer, &shared, &mut replicas, "heard from the reopened replica", |replicas| {
-            replicas
-                .submissions_of(block)
-                .is_some_and(|(_, restarts, _)| restarts == 0)
-        })
+        pump_until(
+            &peer,
+            &shared,
+            &mut replicas,
+            "heard from the reopened replica",
+            |replicas| {
+                replicas
+                    .submissions_of(block)
+                    .is_some_and(|(_, restarts, _)| restarts == 0)
+            },
+        )
         .await;
         let (_, _, kept) = replicas
             .submissions_of(block)
             .expect("the block is open again");
-        assert_eq!(kept, [added], "the reopened replica's first status kept them");
+        assert_eq!(
+            kept,
+            [added],
+            "the reopened replica's first status kept them"
+        );
         assert_eq!(
             replicas.kept_restarts_of(block),
             Some(1),
@@ -36,11 +46,17 @@ fn an_edit_carried_over_a_restart_keeps_the_identity_it_goes_again_under_across_
             replicas.woken().await;
             replicas.pump((&peer, &shared)).await;
         }
-        step_until_replicas(&peer, &shared, &mut replicas, "settled the edit", |replicas| {
-            replicas
-                .submissions_of(block)
-                .is_some_and(|(submitting, ..)| submitting == 0)
-        })
+        step_until_replicas(
+            &peer,
+            &shared,
+            &mut replicas,
+            "settled the edit",
+            |replicas| {
+                replicas
+                    .submissions_of(block)
+                    .is_some_and(|(submitting, ..)| submitting == 0)
+            },
+        )
         .await;
         let bytes = replicas
             .content((&peer, &shared), block)

@@ -11,11 +11,17 @@ fn a_replica_opened_again_after_a_restart_is_told_it_and_its_edit_lands_once() {
         let (block, _) = carry_an_edit_over_a_restart(&peer, &shared, &mut replicas).await;
 
         replicas.modules.restart_type(Tally::CONTENT_TYPE);
-        pump_until(&peer, &shared, &mut replicas, "reopened the replica", |replicas| {
-            replicas
-                .submissions_of(block)
-                .is_some_and(|(_, restarts, _)| restarts == 0)
-        })
+        pump_until(
+            &peer,
+            &shared,
+            &mut replicas,
+            "reopened the replica",
+            |replicas| {
+                replicas
+                    .submissions_of(block)
+                    .is_some_and(|(_, restarts, _)| restarts == 0)
+            },
+        )
         .await;
         let (_, kept_restart, _) = replicas
             .openings
@@ -26,11 +32,17 @@ fn a_replica_opened_again_after_a_restart_is_told_it_and_its_edit_lands_once() {
             kept_restart, 1,
             "the replica opened again is told the restart what it is given was made under"
         );
-        step_until_replicas(&peer, &shared, &mut replicas, "settled the edit", |replicas| {
-            replicas
-                .submissions_of(block)
-                .is_some_and(|(submitting, restarts, _)| submitting == 0 && restarts >= 1)
-        })
+        step_until_replicas(
+            &peer,
+            &shared,
+            &mut replicas,
+            "settled the edit",
+            |replicas| {
+                replicas
+                    .submissions_of(block)
+                    .is_some_and(|(submitting, restarts, _)| submitting == 0 && restarts >= 1)
+            },
+        )
         .await;
         for _ in 0..3 {
             step(&peer, &shared, &mut replicas).await;

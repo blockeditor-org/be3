@@ -6,9 +6,8 @@ use be_block_protocol::{ClientId, SessionState};
 use be_block_session::{OpId, Payload, Resume, SessionMessage, SessionOp, Submission};
 use be_block_store::{Hash, PartRef};
 use be_sdk_type_api::{
-    Change, Delivery, EditorId, Endpoint, FileChange, Journal, JournalBase, KeptSubmission, Merging,
-    Recipients,
-    RelayKind, ReplicaId, SessionTag, Status, UndoState, Unjournaled, Written,
+    Change, Delivery, EditorId, Endpoint, FileChange, Journal, JournalBase, KeptSubmission,
+    Merging, Recipients, RelayKind, ReplicaId, SessionTag, Status, UndoState, Unjournaled, Written,
 };
 use uuid::Uuid;
 
@@ -846,10 +845,9 @@ where
             counter: Uuid::new_v4().as_u64_pair().0 >> 16,
             // In order, each holding the edits after the one before it: one that does not is not
             // as the edits it would hold, and they go anew.
-            kept_submissions: opened
-                .kept_submissions
-                .into_iter()
-                .fold(VecDeque::new(), |mut kept, submission| {
+            kept_submissions: opened.kept_submissions.into_iter().fold(
+                VecDeque::new(),
+                |mut kept, submission| {
                     if kept
                         .back()
                         .is_none_or(|last: &KeptSubmission| last.through < submission.through)
@@ -857,7 +855,8 @@ where
                         kept.push_back(submission);
                     }
                     kept
-                }),
+                },
+            ),
             own_through: 0,
             own_numbered: VecDeque::new(),
             presence: BTreeMap::new(),
@@ -2977,8 +2976,8 @@ where
             !apart
                 && !self
                     .unsent
-                .iter()
-                .any(|(.., held)| held.as_ref().map(|held| held.counter) == counter)
+                    .iter()
+                    .any(|(.., held)| held.as_ref().map(|held| held.counter) == counter)
         });
         self.unsent
             .extend(leftover.map(|operation| (operation, size, 1, through, kept)));

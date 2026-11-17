@@ -19,7 +19,15 @@ fn two_edits_one_submission_held_go_again_as_it_once_both_are_given_again() {
         sim.operate(1, 1, Counter::add(10));
         sim.operate(1, 1, Counter::add(100));
         sim.settle();
-        let Some((_, Call::Submit { submission: first, reply, .. })) = sim.held.pop() else {
+        let Some((
+            _,
+            Call::Submit {
+                submission: first,
+                reply,
+                ..
+            },
+        )) = sim.held.pop()
+        else {
             panic!("the first edit was submitted");
         };
         sim.number(1, first);
@@ -44,7 +52,9 @@ fn two_edits_one_submission_held_go_again_as_it_once_both_are_given_again() {
         }];
         sim.reopen(1);
         let edits: Vec<i64> = [1, 10, 100].into_iter().skip(given).collect();
-        let (last, before) = edits.split_last().expect("the edits behind are given again");
+        let (last, before) = edits
+            .split_last()
+            .expect("the edits behind are given again");
         for by in before {
             sim.send_from_editor(
                 1,

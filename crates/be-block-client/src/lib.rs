@@ -24,7 +24,8 @@ pub use peer::{
     Signer, Write,
 };
 pub use refs::{
-    KeptChange, KeptEdit, KeptSubmission, ListedBlock, OpenEdits, PendingCounts, RefsDb, SetAside, UnsentBlock,
+    KeptChange, KeptEdit, KeptSubmission, ListedBlock, OpenEdits, PendingCounts, RefsDb, SetAside,
+    UnsentBlock,
 };
 #[cfg(not(target_arch = "wasm32"))]
 pub use transport::tls_config;

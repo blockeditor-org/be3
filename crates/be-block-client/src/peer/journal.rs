@@ -159,9 +159,9 @@ impl<S: ObjectStore> Peer<S> {
         Result<(Vec<crate::KeptEdit>, Vec<crate::KeptSubmission>), ClientError>,
     )> {
         let kept = self.refs.open_edits(block)?;
-        let opened = self.open_kept(block, &kept.edits).and_then(|edits| {
-            Ok((edits, self.open_kept(block, &kept.submissions)?))
-        });
+        let opened = self
+            .open_kept(block, &kept.edits)
+            .and_then(|edits| Ok((edits, self.open_kept(block, &kept.submissions)?)));
         Some((kept, opened))
     }
 
@@ -197,7 +197,9 @@ impl<S: ObjectStore> Peer<S> {
                 };
                 let opened = self
                     .open_kept::<crate::KeptEdit>(block, &kept.edits)
-                    .and_then(|_| self.open_kept::<crate::KeptSubmission>(block, &kept.submissions));
+                    .and_then(|_| {
+                        self.open_kept::<crate::KeptSubmission>(block, &kept.submissions)
+                    });
                 if opened.is_ok() && self.refs.tombstone_set_aside(block, entry.id).is_ok() {
                     recovered.push((block, entry.count));
                 }

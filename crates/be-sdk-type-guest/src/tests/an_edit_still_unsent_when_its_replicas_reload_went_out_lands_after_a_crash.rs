@@ -21,7 +21,11 @@ fn an_edit_still_unsent_when_its_replicas_reload_went_out_lands_after_a_crash() 
 
     sim.crash(0);
     let held = std::mem::take(&mut sim.held);
-    assert_eq!(held.len(), 2, "the first edit and the reload were submitted");
+    assert_eq!(
+        held.len(),
+        2,
+        "the first edit and the reload were submitted"
+    );
     for (device, call) in held {
         let Call::Submit { submission, .. } = call else {
             panic!("only submissions are held");

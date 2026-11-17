@@ -16,7 +16,15 @@ fn edits_given_again_with_the_submission_that_held_them_carry_their_announcement
         sim.operate(1, 1, Counter::add(by));
     }
     sim.settle();
-    let Some((_, Call::Submit { submission: first, reply, .. })) = sim.held.pop() else {
+    let Some((
+        _,
+        Call::Submit {
+            submission: first,
+            reply,
+            ..
+        },
+    )) = sim.held.pop()
+    else {
         panic!("the first edit was submitted");
     };
     sim.number(1, first);
@@ -24,7 +32,15 @@ fn edits_given_again_with_the_submission_that_held_them_carry_their_announcement
         reply.send(host, &be_sdk_type_api::host::Submitted::Held)
     });
     sim.settle();
-    let Some((_, Call::Submit { submission, announcements, .. })) = sim.held.pop() else {
+    let Some((
+        _,
+        Call::Submit {
+            submission,
+            announcements,
+            ..
+        },
+    )) = sim.held.pop()
+    else {
         panic!("the two edits behind it were submitted");
     };
     assert_eq!(announcements.len(), 2, "each edit announces");
@@ -63,7 +79,10 @@ fn edits_given_again_with_the_submission_that_held_them_carry_their_announcement
         .collect();
     let [(resubmitted, announcements, reply)] = <[_; 1]>::try_from(again)
         .unwrap_or_else(|again| panic!("{} submissions, not one", again.len()));
-    assert_eq!(resubmitted.counter, submission.counter, "it went under its id");
+    assert_eq!(
+        resubmitted.counter, submission.counter,
+        "it went under its id"
+    );
     assert_eq!(resubmitted.payload, submission.payload, "it went as it was");
     assert_eq!(
         announcements.len(),
