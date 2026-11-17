@@ -100,11 +100,7 @@ impl Server {
     /// What the surface `surface` of the instance the guest spawned with the op `instance` (its
     /// `instance` resource) shows: the texture it presented last, on the host's device.
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn surface(
-        &self,
-        instance: OpId,
-        surface: u32,
-    ) -> Option<&be_wasm_host::PresentedTexture> {
+    pub fn surface(&self, instance: OpId, surface: u32) -> Option<&be_wasm_host::PresentedTexture> {
         self.instances
             .get(&instance)?
             .instance
