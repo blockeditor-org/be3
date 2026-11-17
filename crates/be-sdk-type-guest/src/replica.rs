@@ -983,6 +983,12 @@ where
             };
             self.job(job);
         }
+        // An edit whose turn came while something waited (`ordered` numbered the one before it
+        // during a seal) goes once nothing does, not when the next edit happens to come. A put
+        // that failed goes again on its timer (`tick`), not here.
+        if self.waiting.is_none() && self.put_retry_at.is_none() {
+            self.flush();
+        }
         self.prune_payloads();
         self.tell_lacking();
         self.report();
