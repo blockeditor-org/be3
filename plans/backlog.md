@@ -446,6 +446,13 @@ Depends on #686 (session catch-ups replaced by server ordering).
   row carried off its list, collapsed, says nothing more until it lands, when
   only the receiving list's `ReorderStatus` speaks. Done: the places of a carry
   whose source is collapsed or gone are still announced, on both cores.
+- **An embed moved by a removal a timer makes.** An `Embed` whose old parent is
+  removed during a frame's input, and placed again by its frame's layout, is
+  never heard unplaced (`EmbedState::hold`); one whose old parent goes in a
+  later layout pass of the frame (a removal a timer due in that frame makes)
+  is heard unplaced once, and its app hides and presents again. Done: such an
+  embed is told only where the frame leaves it, shown by a test that moves a
+  kept `Embed` from a timer.
 - **A first measurement that is there at once.** On the HTML core a node's
   `measure` signal is `None` until something has asked for it and a frame has
   passed, so whatever a lift reads with `get_untracked` must be measured from

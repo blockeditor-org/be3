@@ -100,14 +100,26 @@ impl State {
         bar.is_some_and(|bar| bar.focus_is_within())
     }
 
-    /// Before a move that builds the focused tab's row again elsewhere (`focus_on_tab`): the
-    /// pane that shows it next gives its panel the keyboard, as pressing its tab would.
-    pub(super) fn keyboard_follows_move(&self, entry: Entry) {
-        let tab = match entry {
+    /// Before a move that builds the focused tab's row again elsewhere: the tab, if the focus
+    /// is on it in its bar (`focus_on_tab`), from the keyboard or from a pointer's press on it.
+    pub(super) fn focus_moving_with(&self, entry: Entry) -> Option<TabId> {
+        match entry {
             Entry::Tab(tab) if self.focus_on_tab(entry) => Some(tab),
             _ => None,
-        };
-        self.keyboard_after_move.set(tab);
+        }
+    }
+
+    /// Inside the move's edit, on the state it leaves: if `moving` is active in its pane there,
+    /// that pane gives its panel the keyboard as it shows it, as pressing its tab would. It
+    /// lasts only until the next edit (`State::edit` clears it), so a tab shown later, by
+    /// Ctrl+Tab or an app, never takes the keyboard for an old move.
+    pub(super) fn keyboard_follows_move(&self, state: &DockState, moving: Option<TabId>) {
+        let shown = moving.filter(|tab| {
+            state
+                .find(*tab)
+                .is_some_and(|at| state.active_tab(at.leaf) == Some(*tab))
+        });
+        self.keyboard_after_move.set(shown);
     }
 
     pub(super) fn give_keyboard(&self, tab: TabId) {
