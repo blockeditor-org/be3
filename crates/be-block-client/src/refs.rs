@@ -57,10 +57,12 @@ pub(crate) enum Table {
     Dropped,
     /// How far this device last checked each scope's access log (`KeptLog`).
     Logs,
+    /// Roots this device made for a block that no server took (`Refs::unmade`).
+    Unmade,
 }
 
 impl Table {
-    pub const ALL: [Self; 23] = [
+    pub const ALL: [Self; 24] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -84,6 +86,7 @@ impl Table {
         Self::SetAside,
         Self::Dropped,
         Self::Logs,
+        Self::Unmade,
     ];
 
     pub fn code(self) -> u8 {
@@ -111,6 +114,7 @@ impl Table {
             Self::SetAside => 21,
             Self::Dropped => 22,
             Self::Logs => 23,
+            Self::Unmade => 24,
         }
     }
 
@@ -430,6 +434,8 @@ struct State {
     /// and a block forgotten comes back marked.
     dropped: HashSet<Uuid>,
     logs: HashMap<Uuid, KeptLog>,
+    /// Roots this device made for blocks whose creation no server took (`Refs::unmade`).
+    unmade: HashMap<Uuid, [u8; 32]>,
     next: u64,
 }
 
@@ -662,6 +668,9 @@ impl State {
             }
             Table::Logs => {
                 self.logs.insert(uuid_key(&row.key)?, decode(value)?);
+            }
+            Table::Unmade => {
+                self.unmade.insert(uuid_key(&row.key)?, decode(value)?);
             }
             Table::LetGo => {
                 self.let_go.insert(uuid_key(&row.key)?, decode(value)?);
@@ -1384,25 +1393,54 @@ impl Refs {
             .collect()
     }
 
-    /// Drops the log kept of `block` at `root`, made here (`Peer::new_log`), as no server took
-    /// the creation: only while it is still that root's, not one read since.
-    pub fn forget_made_log(&self, block: Uuid, root: [u8; 32]) -> Result<(), StoreError> {
+    /// Notes `root`, made here for `block` (`Peer::new_log`), as no server took the creation,
+    /// and drops the log kept at it, while it is still that root's: the keys the creation
+    /// minted stay, so what was set aside of it still reads, but the root they carry is pinned
+    /// no more (`KeyBook::set_unmade`), across restarts.
+    pub fn unmade_root(&self, block: Uuid, root: [u8; 32]) -> Result<(), StoreError> {
+        let mut rows = Vec::new();
         {
             let mut state = self.state.lock().unwrap();
-            if !state
+            if state
                 .logs
                 .get(&block)
                 .is_some_and(|kept| kept.head == root && kept.place == 0)
             {
-                return Ok(());
+                state.logs.remove(&block);
+                rows.push(Row {
+                    table: Table::Logs,
+                    key: block.as_bytes().to_vec(),
+                    value: None,
+                });
             }
-            state.logs.remove(&block);
+            if state.unmade.insert(block, root) != Some(root) {
+                rows.push(row(Table::Unmade, block.as_bytes().to_vec(), &root));
+            }
+        }
+        self.write(rows)
+    }
+
+    /// `block` is made here again, and kept (`unmade_root`): no root of it is unmade any more.
+    pub fn made_again(&self, block: Uuid) -> Result<(), StoreError> {
+        if self.state.lock().unwrap().unmade.remove(&block).is_none() {
+            return Ok(());
         }
         self.write(vec![Row {
-            table: Table::Logs,
+            table: Table::Unmade,
             key: block.as_bytes().to_vec(),
             value: None,
         }])
+    }
+
+    /// The roots `unmade_root` noted, each with its block.
+    pub fn unmade(&self) -> Vec<(Uuid, [u8; 32])> {
+        self.state
+            .lock()
+            .unwrap()
+            .unmade
+            .iter()
+            .map(|(block, root)| (*block, *root))
+            .collect()
     }
 
     pub fn keep_log(&self, block: Uuid, kept: KeptLog) -> Result<(), StoreError> {

@@ -9,7 +9,10 @@ use super::*;
 #[tokio::test]
 async fn a_creation_discarded_unsent_lets_its_root_go() {
     let harness = Harness::start().await;
-    let owner = harness.owner("owner@example.com").await;
+    let account = harness.owner("owner@example.com").await;
+    let refs = refs::RefsDb::memory();
+    let store = MemoryStore::new();
+    let owner = harness.device(&account, &refs, &store).await;
     let block = Uuid::now_v7();
     owner
         .keep_creation(
@@ -37,6 +40,16 @@ async fn a_creation_discarded_unsent_lets_its_root_go() {
         !owner.keys().holds_log(block),
         "the discarded creation's root and log are gone"
     );
+
+    // Started again: the keys it minted carry its root, which is not pinned again.
+    drop(owner);
+    let owner = harness.offline(&account, &refs, &store);
+    assert!(
+        !owner.keys().holds_log(block),
+        "the discarded creation's root stays let go across a restart"
+    );
+    assert_eq!(owner.keys().root_pin(block), crate::keys::RootPin::Unknown);
+    harness.reconnect(&owner, account.token()).await;
     owner
         .create_block(
             block,
