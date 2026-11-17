@@ -322,6 +322,7 @@ impl<S: ObjectStore> Peer<S> {
         let Some(root) = crate::peer::made_root(creation) else {
             return Ok(());
         };
+        self.refs.made_again(creation.block)?;
         if let Some(kept) = self.keys.kept_log(creation.block)
             && kept.head == root
         {
@@ -336,9 +337,7 @@ impl<S: ObjectStore> Peer<S> {
         let Some(root) = crate::peer::made_root(creation) else {
             return Ok(());
         };
-        self.keys.forget_made(creation.block, root);
-        self.refs.forget_made_log(creation.block, root)?;
-        Ok(())
+        crate::peer::forget_made(&self.keys, &self.refs, creation.block, root)
     }
 
     /// A local account's outbox settled as a server would answer it (`Peer::local`): every
@@ -834,7 +833,9 @@ impl<S: ObjectStore> Peer<S> {
                 let why = crate::refs::Aside::Refused(ErrorCode::BlockAlreadyExists);
                 self.forget_made(&creation)?;
                 self.move_to_unsent(block, Some(why))?;
-                // The block as the server has it, in place of what this device made of it.
+                // The block as the server has it, in place of what this device made of it. Its
+                // answer is not needed here: failing, the block's next listing or summary reads
+                // it, and the creation is set aside either way.
                 let _ = self.server_summary(block).await;
                 Ok(Drained::SetAside { block, why })
             }
@@ -858,12 +859,14 @@ impl<S: ObjectStore> Peer<S> {
     /// Whether the block the server has under `creation`'s id is the one it made: its log
     /// starts at the root made with it. A block this account may not read the log of is
     /// someone else's.
-    async fn made_here(&self, creation: &Creation) -> Result<bool, ClientError> {
+    pub(super) async fn made_here(&self, creation: &Creation) -> Result<bool, ClientError> {
         let Some(root) = crate::peer::made_root(creation) else {
             return Ok(false);
         };
         match self.served_log(creation.block).await {
             Ok(steps) => Ok(steps.first().is_some_and(|first| first.hash() == root)),
+            // Deliberately someone else's: this account made the block it would read the log
+            // of, so one it may not read is not the block it made.
             Err(ClientError::Refused(code, _)) if lost_access(code) => Ok(false),
             Err(error) => Err(error),
         }

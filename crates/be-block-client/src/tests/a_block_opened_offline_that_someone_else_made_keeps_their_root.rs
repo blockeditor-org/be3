@@ -62,6 +62,16 @@ async fn a_block_opened_offline_that_someone_else_made_keeps_their_root() {
         "the block's own root is pinned, not {pinned:?}"
     );
 
+    // Started again: the keys made with the set-aside creation carry its root, which is not
+    // pinned again.
+    drop(offline);
+    let restarted = harness.offline(&guest, &refs, &store);
+    assert_eq!(restarted.keys().root_pin(block), pinned);
+    assert!(restarted.keys().holds_log(block));
+    harness.reconnect(&restarted, guest.token()).await;
+    assert_eq!(text(&restarted, block).await, "shared");
+    assert_eq!(restarted.keys().root_pin(block), pinned);
+
     harness.stop().await;
 }
 
