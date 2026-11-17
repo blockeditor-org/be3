@@ -355,13 +355,15 @@ impl State {
                     .filter_map(NodeRef::try_get),
             )
             .collect();
-        stacked_at(&ours, window, pos).into_iter().find_map(|stacked| {
-            let (_, surface) = surfaces.iter().find(|(node, _)| *node == stacked)?;
-            measure(stacked)
-                .get_untracked()
-                .is_some_and(|measured| measured.rect.contains(pos))
-                .then_some(*surface)
-        })
+        stacked_at(&ours, window, pos)
+            .into_iter()
+            .find_map(|stacked| {
+                let (_, surface) = surfaces.iter().find(|(node, _)| *node == stacked)?;
+                measure(stacked)
+                    .get_untracked()
+                    .is_some_and(|measured| measured.rect.contains(pos))
+                    .then_some(*surface)
+            })
     }
 
     /// `node` and the dock's windows and dialogs: the layers a place in `node` may be under
