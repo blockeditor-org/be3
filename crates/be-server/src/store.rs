@@ -1228,10 +1228,12 @@ impl Ending {
     fn end(store: &ServerStore, held: &Lent, kept: bool) -> Result<(), ServerError> {
         let _unbatching = Unbatching(store);
         let database = held.take();
-        let ended = database.execute_batch(match kept {
-            true => "COMMIT",
-            false => "ROLLBACK",
-        });
+        let ended = match (kept, database.is_autocommit()) {
+            // Nothing began (a BEGIN that failed): nothing to undo.
+            (false, true) => Ok(()),
+            (true, _) => database.execute_batch("COMMIT"),
+            (false, false) => database.execute_batch("ROLLBACK"),
+        };
         if !kept || ended.is_err() {
             if ended.is_err() && !database.is_autocommit() {
                 let _ = database.execute_batch("ROLLBACK");
@@ -1548,6 +1550,10 @@ impl ServerStore {
             held: Some(Arc::clone(&held)),
             begun: false,
         };
+        // Begun from here as far as its end knows: a caller let go of while BEGIN runs still
+        // rolls back what began (`Ending::end` takes a rollback with nothing open as nothing to
+        // undo).
+        ending.begun = true;
         let store = self.clone();
         let lent = Arc::clone(&held);
         blocking(move || {
@@ -1558,8 +1564,8 @@ impl ServerStore {
             Ok(begun?)
         })
         .await
+        .inspect_err(|_| ending.begun = false)
         .map_err(E::from)?;
-        ending.begun = true;
         let result = BATCH.scope(Arc::clone(&held), work).await;
         let held = ending.held.take().expect("a batch ends once");
         let kept = result.is_ok();
