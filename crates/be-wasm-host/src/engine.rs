@@ -437,7 +437,6 @@ fn capped(bytes: &[u8], cap: u64) -> Result<Vec<u8>, String> {
     Ok(module.finish())
 }
 
-
 /// The host functions and values an isolate offers its guests, by module and name.
 #[derive(Default)]
 pub(crate) struct Defined<'s>(HashMap<(String, String), v8::Local<'s, v8::Value>>);
