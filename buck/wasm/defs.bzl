@@ -14,24 +14,33 @@ load("@root//buck/program:defs.bzl", "app_data", "app_types", "program")
 load("@root//buck/wasm:libraries.bzl", "AppWorkersInfo", "WasmLibrariesInfo")
 
 # rustc links a cdylib with --no-entry, which strips the symbols a host needs to
-# lay out a thread's storage and leaves nothing to run libc's constructors; the
-# host does both itself, so a guest exports them.
+# lay out the memory and leaves nothing to run libc's constructors; the host does
+# both itself, so a guest exports them. A guest is single-threaded wasm32-wasip1
+# (decisions/guests_are_single_threaded.md), which rustc links with a memory of
+# its own, so it asks for one the host makes: the loader places every library
+# of an app's closure in it (guides/app_libraries.md).
 _guest_exports = [
+    "-Clink-arg=--import-memory",
+    "-Clink-arg=--export=__heap_base",
+    "-Clink-arg=--export=__wasm_call_ctors",
+]
+
+# A program in the browser: wasm32-wasip1-threads, which wasm-bindgen prepares
+# for threads with the thread-local exports, and wasi-libc's setjmp and
+# no-exceptions libc++ for the C and C++ it links.
+_program_flags = [
     "-Clink-arg=--export=__heap_base",
     "-Clink-arg=--export=__tls_base",
     "-Clink-arg=--export=__tls_size",
     "-Clink-arg=--export=__tls_align",
     "-Clink-arg=--export=__wasm_init_tls",
     "-Clink-arg=--export=__wasm_call_ctors",
-]
-
-# A program in the browser: the same exports, which wasm-bindgen needs to
-# prepare the module for threads, and wasi-libc's setjmp and no-exceptions
-# libc++ for the C and C++ it links.
-_program_flags = _guest_exports + [
     "-Clink-arg=-L$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/noeh",
     "-Clink-arg=$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/libsetjmp.a",
 ]
+
+# Where wasi-libc and libc++ for a guest are in the WASI sysroot.
+GUEST_SYSROOT = "$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1"
 
 # Every role a WebAssembly module has in the build, which is the platform it is
 # built for (buck/platforms/BUCK) and how it is linked. Each has a transition
@@ -47,11 +56,12 @@ _program_flags = _guest_exports + [
 # - bindgen, the same triple with the `bindgen` constraint: the browser's gpu
 #   shim, which wasm-bindgen binds to the page, told apart so that its wgpu and
 #   web-sys stay out of the pure guests.
-# - guest, wasm32-wasip1-threads with the `guest` constraint: an app and its
-#   libraries (guides/app_libraries.md), linked by crates/be-wasm-link. The
-#   same triple as the next two, told apart so that each gets its own wgpu.
-# - program, the same triple: a program in the browser on beui's native core,
-#   run through wasm-bindgen, such as be-host's web bundle.
+# - guest, wasm32-wasip1 with the `guest` constraint: an app, its libraries
+#   (guides/app_libraries.md) and its workers, and a root that links beui
+#   (decisions/a_root_links_beui_as_an_app_does.md), linked by
+#   crates/be-wasm-link, single-threaded (decisions/guests_are_single_threaded.md).
+# - program, wasm32-wasip1-threads: a program in the browser on beui's native
+#   core, run through wasm-bindgen, such as be-host's web bundle.
 # - html, the same with the `html` constraint: a program on beui's HTML core.
 WASM_ROLES = {
     "bindgen": struct(link_flags = [], platform = "root//buck/platforms:wasm32_bindgen", setting = "root//buck/platforms:wasm32_bindgen_setting"),
@@ -258,7 +268,7 @@ _LIBTEST = "root//third-party/libtest:test"
 # root and a standalone app are each a WASI reactor linked at fixed
 # addresses, which the host instantiates as it is.
 _reactor = [
-    "-Clink-arg=$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/crt1-reactor.o",
+    "-Clink-arg={}/crt1-reactor.o".format(GUEST_SYSROOT),
     "-Clink-arg=--export=_initialize",
 ]
 

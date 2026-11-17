@@ -1,7 +1,3 @@
-use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread::JoinHandle;
-
 use be_tool_tls_diamond_base::bump_base;
 use be_tool_tls_diamond_left::{bump_base_from_left, bump_left};
 use be_tool_tls_diamond_right::{bump_base_from_right, bump_right};
@@ -27,9 +23,6 @@ fn sequence() -> [u32; 6] {
     ]
 }
 
-static SPAWNED: Mutex<Option<JoinHandle<[u32; 6]>>> = Mutex::new(None);
-static ENDED: AtomicBool = AtomicBool::new(false);
-
 // unsafe(ffi)
 #[link(wasm_import_module = "be3_host")]
 unsafe extern "C" {
@@ -37,36 +30,22 @@ unsafe extern "C" {
     fn host_wake();
 }
 
+// A guest is single-threaded (decisions/guests_are_single_threaded.md), so the
+// sequence runs on its one thread; it asks for a step, which checks that what
+// it left stayed put between calls.
 // unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "C" fn app_start() {
-    assert_eq!(sequence(), EXPECTED, "on the main thread");
-    let spawned = std::thread::spawn(|| {
-        let seen = sequence();
-        ENDED.store(true, Ordering::Release);
-        // unsafe(ffi)
-        unsafe { host_wake() };
-        seen
-    });
-    *SPAWNED.lock().unwrap() = Some(spawned);
+    assert_eq!(sequence(), EXPECTED, "at the start");
+    // unsafe(ffi)
+    unsafe { host_wake() };
 }
 
 // unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "C" fn app_step() {
-    if !ENDED.load(Ordering::Acquire) {
-        return;
-    }
-    let Some(spawned) = SPAWNED.lock().unwrap().take() else {
-        return;
-    };
-    assert_eq!(spawned.join().unwrap(), EXPECTED, "on a spawned thread");
     let after = [bump_left(Step(0)), bump_right(Step(0)), bump_base(Step(0))];
-    assert_eq!(
-        after,
-        [1001, 2002, 112],
-        "on the main thread after the spawned one"
-    );
+    assert_eq!(after, [1001, 2002, 112], "on the step after the start");
     // unsafe(ffi)
     unsafe { host_send([1].as_ptr(), 1) };
 }

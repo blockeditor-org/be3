@@ -2,7 +2,7 @@ use std::{collections::VecDeque, time::Instant};
 
 use be_sdk_beui::frame_time;
 
-use be_sdk_beui::worker::Shared;
+use be_sdk_beui::worker::{Generation, Shared};
 use be_sdk_beui::{
     PerformanceReporter, Waker,
     beui::{Image, Pos2, Vec2},
@@ -33,8 +33,9 @@ pub(crate) type RenderJobResult = Result<RenderedTile, String>;
 /// it sends the pane's jobs and hears only their answers, in order.
 pub(crate) struct RenderClient {
     renderer: Shared,
-    /// The frame each job still unanswered was sent in, oldest first, by the frame clock.
-    sent: VecDeque<Option<Instant>>,
+    /// The generation of the renderer each job still unanswered went to, and the frame it was
+    /// sent in by the frame clock, oldest first.
+    sent: VecDeque<(Generation, Option<Instant>)>,
 }
 
 impl RenderClient {
@@ -48,23 +49,32 @@ impl RenderClient {
 
     pub(crate) fn send(&mut self, data: Vec<u8>, page: usize, target: RenderTarget) {
         let job = Job { page, target, data };
-        self.renderer.send(&job.encode());
-        self.sent.push_back(frame_time());
+        let generation = self.renderer.send(&job.encode());
+        self.sent.push_back((generation, frame_time()));
     }
 
     /// The answer to the oldest job still unanswered, once it came, with what the renderer
     /// measured recorded to `performance`.
     pub(crate) fn receive(&mut self, performance: &PerformanceReporter) -> Option<RenderJobResult> {
-        let answer = self.renderer.try_receive()?;
-        let sent = self.sent.pop_front();
-        let answer = match answer.and_then(|message| Answer::decode(&message)) {
-            Ok(answer) => answer,
-            Err(why) => {
-                self.sent.clear();
-                return Some(Err(why));
+        let answer = loop {
+            let answer = self.renderer.try_receive()?;
+            let generation = answer.generation;
+            match answer.result.and_then(|message| Answer::decode(&message)) {
+                Ok(answer) => break answer,
+                // That generation stopped: it answers nothing more it was sent, and what went to
+                // a later one (a send that started the renderer anew) is still to come. A stop
+                // fails nothing of this pane's if it sent that generation nothing.
+                Err(why) => {
+                    let before = self.sent.len();
+                    self.sent.retain(|(sent, _)| *sent != generation);
+                    if self.sent.len() != before {
+                        return Some(Err(why));
+                    }
+                }
             }
         };
-        if let (Some(Some(sent)), Some(now)) = (sent, frame_time()) {
+        let sent = self.sent.pop_front().and_then(|(_, sent)| sent);
+        if let (Some(sent), Some(now)) = (sent, frame_time()) {
             performance.record_duration("Round trip", now.saturating_duration_since(sent));
         }
         for measure in answer.measures {
