@@ -65,6 +65,10 @@ fn a_held_clock_is_offered_a_modules_timer_only_while_nothing_is_in_flight() {
     wait_until("the top of the files is listed", |shared| {
         shared.graph.ready(Query::Roots)
     });
+    // Before it, with nothing in flight, the owed seal's timer is offered.
+    wait_until("the worker rests offering the timer", |shared| {
+        shared.parked.is_some() && shared.modules_due.is_some()
+    });
     harness.relay().hold_requests(true);
     refetch(Query::Roots);
     // Taken by a round, which then rests: that round has published what it offers.
@@ -76,7 +80,8 @@ fn a_held_clock_is_offered_a_modules_timer_only_while_nothing_is_in_flight() {
     });
     assert_eq!(due, None, "with a listing read again, no timer is offered");
     harness.relay().hold_requests(false);
-    wait_until("the listing is answered", |shared| {
-        !shared.graph.refreshing()
+    // Answered, nothing is in flight again: the timer is offered again.
+    wait_until("the listing is answered and the timer offered again", |shared| {
+        !shared.graph.refreshing() && shared.modules_due.is_some()
     });
 }
