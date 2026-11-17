@@ -1625,7 +1625,10 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// Whether the server's head of `block`, as this device knows it, has moved on past `head`
-    /// (`behind`): a moved head this device published on top of before it was taken.
+    /// (`behind`): a moved head this device published on top of before it was taken. The host
+    /// skips such a head for an open block's replica on the assumption that only the replica
+    /// publishes on an open, readable block: any path that publishes on one from outside it must
+    /// tell the replica itself.
     pub fn superseded(&self, block: Uuid, head: CommitId) -> bool {
         self.known_remote_head(block)
             .is_some_and(|known| known != head && self.behind()(head, known))
