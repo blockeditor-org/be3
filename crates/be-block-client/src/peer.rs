@@ -329,6 +329,9 @@ pub struct Peer<S: ObjectStore> {
     /// (`take_settled_here`): with no server to list what changed, this is how its host hears
     /// of them (a search index catching up, above all).
     settled_here: Mutex<HashSet<Uuid>>,
+    /// The scope logs read in this run to judge each key (`Peer::outdated`), each asked for
+    /// once.
+    log_reads: Mutex<HashSet<(Uuid, Uuid)>>,
 }
 
 /// What this device knows of the server's clock (`Peer::server_now`).
@@ -467,6 +470,7 @@ impl<S: ObjectStore> Peer<S> {
                 keys.set_server(server.account, RecoveryPublic(server.public));
             }
         }
+        keys.set_kept_logs(refs.kept_logs());
         keys.absorb(refs.keys());
         let peer = Self {
             connection: Arc::new(Mutex::new(connection)),
@@ -494,6 +498,7 @@ impl<S: ObjectStore> Peer<S> {
             }),
             local: false,
             settled_here: Mutex::new(HashSet::new()),
+            log_reads: Mutex::new(HashSet::new()),
         };
         for summary in peer.refs.summaries() {
             if let Some(key) = summary.key {
@@ -932,6 +937,13 @@ impl<S: ObjectStore> Peer<S> {
         }
         let opened = self.keys.absorb(keys);
         self.settle_escrowed().await;
+        // Each scope's log, once, so a write offline later is judged by what was kept of it
+        // (`Peer::outdated`) rather than refused.
+        if !self.local {
+            let unkept = self.keys.unkept_scopes();
+            futures_util::future::join_all(unkept.iter().map(|scope| self.checked_access(*scope)))
+                .await;
+        }
         Ok(opened)
     }
 
@@ -1101,7 +1113,9 @@ impl<S: ObjectStore> Peer<S> {
         if let Some(scope) = kept.and_then(|kept| scope_of(&kept).ok())
             && self.outdated(chosen, scope).await
         {
-            Box::pin(self.rotate(scope)).await?;
+            Box::pin(self.rotate(scope))
+                .await
+                .map_err(|_| ClientError::Locked(block))?;
             let rotated = newest();
             if self.keys.outdated(rotated, scope) {
                 return Err(ClientError::Locked(block));
@@ -1115,9 +1129,19 @@ impl<S: ObjectStore> Peer<S> {
     /// outdate it (`KeyBook::outdated`): each read first when this device holds none of it (as
     /// on a new device, or after a restart: logs are kept in memory alone), or when the key
     /// names a head it does not reach, which may be newer.
+    ///
+    /// A log whose read fails, or that does not reach what this device kept of it, is judged by
+    /// what was kept (`KeyBook::outdated`); each is asked for once per key in a run, so a key
+    /// naming a head no log the server serves reaches is not read for on every save. A local
+    /// account has no server to withhold anything.
     async fn outdated(&self, key: Uuid, scope: Uuid) -> bool {
+        if self.local {
+            return false;
+        }
         for log in self.keys.logs_to_read(key, scope) {
-            let _ = self.checked_access(log).await;
+            if self.log_reads.lock().unwrap().insert((key, log)) {
+                let _ = self.checked_access(log).await;
+            }
         }
         self.keys.outdated(key, scope)
     }
@@ -1134,7 +1158,9 @@ impl<S: ObjectStore> Peer<S> {
             }
         };
         if self.outdated(key, scope).await {
-            Box::pin(self.rotate(scope)).await?;
+            Box::pin(self.rotate(scope))
+                .await
+                .map_err(|_| ClientError::Locked(scope))?;
             return self
                 .keys
                 .scope_key(scope)
@@ -1581,6 +1607,8 @@ impl<S: ObjectStore> Peer<S> {
             block.into_bytes(),
         );
         self.keys.pin_root(block, root.hash());
+        let kept = self.keys.keep_made(block, root.hash());
+        let _ = self.refs.keep_log(block, kept);
         root.encode()
     }
 
@@ -1616,7 +1644,9 @@ impl<S: ObjectStore> Peer<S> {
         let checked = around
             .check(self.organization, block, pinned, &entries)
             .ok_or(ClientError::Forged(block))?;
-        self.keys.note_log(block, &checked);
+        if let Some(kept) = self.keys.note_log(block, &checked) {
+            let _ = self.refs.keep_log(block, kept);
+        }
         Ok((entries, checked))
     }
 

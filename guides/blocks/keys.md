@@ -214,11 +214,18 @@ maker through every sender (`KeyBook::heads`).
   device about to write or wrap under a data or scope key its log outdates
   rotates the scope first (`Peer::sealing_key`, `scope_key`), judging by the
   logs of the scope and of every scope above it the key was opened through
-  (`KeyBook::logs_to_read`, `Roots::through`), as it last checked them (key
-  work, sealing, a contact's seal or a rotation reads them; one it never read
-  since starting, it reads first): until it reads a log again it writes under
-  an epoch a revocation since outdates, and offline, with no log read, it
-  judges nothing. An escrow epoch the organization's log outdates
+  (`KeyBook::logs_to_read`, `Roots::through`, at most `keys::MAX_PATH` deep,
+  longer counting as outdated), as it last checked them (key work, sealing, a
+  contact's seal or a rotation reads them; one it never read since starting,
+  it reads first, each once per key in a run). How far it checked each scope's
+  log is kept with the refs (`refs::KeptLog`, `KeyBook::note_log`;
+  `refresh_keys` reads each scope's log once as its keys arrive, and a block
+  made here is kept at its root): a log served later that does not reach the
+  kept head is withheld and not taken, and with it, a failed read or offline,
+  an epoch is judged by what was kept (only the kept head or lowering is
+  current). A scope neither kept nor readable makes a key opened through
+  another outdated. A rotation that cannot go through fails the save as
+  `Locked`. A local account judges nothing (there is no server). An escrow epoch the organization's log outdates
   is wrapped under no more, so keys wait unescrowed for the next, with no
   warning (the gap after a demotion is no fault). So an epoch a server got a
   withheld device to make, naming a head before a revocation, is not written
