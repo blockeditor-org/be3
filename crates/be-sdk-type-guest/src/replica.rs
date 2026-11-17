@@ -16,16 +16,16 @@ use be_sdk_type_api::{
 use uuid::Uuid;
 
 use crate::lacking::{Carried, Lacking};
-
-/// The id every gesture and edit of an editor goes under until the app protocol names its
-/// gestures (plans/tentative_gestures.md, step 3): an editor holds one gesture at a time.
-const EDITOR_GESTURE: u64 = 0;
 use crate::{
     FromFileFn, Recorder,
     editor::{EditorOperation, FromEditor, Gesture, PeerMessage, PeerPresence, Snapshot, ToEditor},
     effect::{Answer, Effect, HeadEvent, RequestId, Token},
     wire::{self, Entry, Submitted},
 };
+
+/// The id every gesture and edit of an editor goes under until the app protocol names its
+/// gestures (plans/tentative_gestures.md, step 3): an editor holds one gesture at a time.
+const EDITOR_GESTURE: u64 = 0;
 
 /// The lease holder commits once its session has gone this long with no edits: a natural
 /// pause, which is the state retention prefers to keep.
@@ -3251,6 +3251,8 @@ where
                 };
                 let operations = match phase {
                     Gesture::Begin => {
+                        // One already open under this name commits first, as a commit would.
+                        self.history.commit(gesture);
                         self.history.begin(gesture, GestureKind::Group);
                         Vec::new()
                     }

@@ -12,7 +12,9 @@ mod an_edit_outside_any_open_gesture_is_its_own_step;
 mod another_editors_gesture_does_not_commit_an_open_one;
 mod cancelling_one_tentative_gesture_keeps_the_rest_held;
 mod clearing_ends_every_gesture;
+mod ending_a_gesture_that_is_not_open_changes_nothing;
 mod held_edits_wait_while_ordinary_edits_step_beneath_them;
+mod a_split_leaves_an_open_group_whole;
 mod tentative_gestures_commit_as_one_step_when_the_last_ends;
 mod undo_commits_open_undo_groups_first;
 mod undo_while_held_cancels_the_layer_and_redo_is_refused;
@@ -129,6 +131,7 @@ impl Desk {
         }
     }
 
+    /// A begin under a name already open commits that gesture first, as the replica does.
     fn begin(&mut self, editor: u64, id: u64, kind: GestureKind) {
         self.commit(editor, id);
         self.history.begin(gesture(editor, id), kind);
@@ -160,8 +163,9 @@ impl Desk {
 
     fn step(&mut self, stepped: Stepped<Set>) -> bool {
         let changed = stepped.changed();
-        self.layer
-            .retain(|(of, _)| !stepped.cancelled.contains(of));
+        if !stepped.cancelled.is_empty() {
+            self.layer.clear();
+        }
         for operation in stepped.operations {
             self.written.apply(&operation);
         }

@@ -18,14 +18,14 @@ fn undo_while_held_cancels_the_layer_and_redo_is_refused() {
     assert_eq!(desk.visible(), [(1, 1), (2, 10), (3, 20)]);
 
     assert!(desk.history.can_undo());
-    assert_eq!(
-        desk.history.undo(&desk.written).cancelled,
-        [gesture(1, 1)],
-        "undo cancels the open tentative gestures"
-    );
-    desk.layer.clear();
+    assert_eq!(desk.history.tentative(), [gesture(1, 1)]);
+    assert!(desk.undo(), "undo cancels the open tentative gestures");
     assert!(!desk.history.holding());
-    assert_eq!(desk.visible(), [(1, 1)], "the whole layer goes, and only it");
+    assert_eq!(
+        desk.visible(),
+        [(1, 1)],
+        "the whole layer goes, the committed gesture's part with it, and only it"
+    );
     assert!(desk.redo(), "the redo held back is still there");
     assert_eq!(desk.visible(), [(1, 2)]);
     assert_eq!(desk.undo_all(), [vec![(1, 1)], vec![]]);

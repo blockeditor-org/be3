@@ -39,8 +39,11 @@ pub enum GestureKind {
     Tentative,
 }
 
-/// What an undo or redo did: the operations that step it, or the tentative gestures it
-/// cancelled instead, whose edits the caller drops from its tentative layer.
+/// What an undo or redo did: the operations that step it, or, when an undo found a tentative
+/// layer held, the open tentative gestures it ended. A non-empty `cancelled` means the caller
+/// drops its whole layer, with the edits of gestures that committed and were waiting for the
+/// rest; `cancelled` names only the open ones, which are told their gesture ended.
+#[must_use]
 pub struct Stepped<Op> {
     pub operations: Vec<Op>,
     pub cancelled: Vec<GestureId>,
@@ -146,11 +149,15 @@ impl<C: Undo, T: Moment> History<C, T> {
         self.push((step, at.map(|at| Burst { at, origin })));
     }
 
-    /// Opens `gesture`. Every other open gesture stays open; one already open under the same
-    /// name commits first. A caller keeping a tentative layer commits that one itself first, so
-    /// it sees the layer end and writes it.
+    /// Opens `gesture`, which must not be open: a caller given a begin under an open name
+    /// commits that gesture first, so it sees a layer that ends and writes it. Every other open
+    /// gesture stays open.
     pub fn begin(&mut self, gesture: GestureId, kind: GestureKind) {
-        self.commit(gesture);
+        debug_assert!(
+            !self.groups.iter().any(|(open, _)| *open == gesture)
+                && !self.tentative.contains(&gesture),
+            "{gesture:?} is already open"
+        );
         match kind {
             GestureKind::Group => self.groups.push((gesture, None)),
             GestureKind::Tentative => self.tentative.push(gesture),
@@ -258,8 +265,8 @@ impl<C: Undo, T: Moment> History<C, T> {
     }
 
     pub fn can_undo(&self) -> bool {
-        !self.undo.is_empty()
-            || !self.held.is_empty()
+        self.holding()
+            || !self.undo.is_empty()
             || self.groups.iter().any(|(_, step)| step.is_some())
     }
 

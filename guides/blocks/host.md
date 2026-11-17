@@ -780,8 +780,9 @@ editor's burst. `History` keeps each gesture under `GestureId` (its editor and a
 of the editor's; the protocol has no ids yet, so each editor holds one), so editors'
 gestures stay open side by side and each commits or cancels on its own. It also
 keeps tentative gestures (`GestureKind::Tentative`; plans/tentative_gestures.md),
-which nothing opens yet. An undo commits open gestures first; a session restart keeps
-them open with what they recorded. Apps call `act(block, block-command::undo)`
+which nothing opens yet. An undo or redo commits open undo groups first; while a
+tentative gesture is open, an undo cancels the whole tentative layer instead and a redo
+is refused. A session restart keeps open gestures open with what they recorded. Apps call `act(block, block-command::undo)`
 and watch a block's `history` with a `block-watch`. A session restart (guides/type_modules.md, Peers)
 drops every step, since none applies to the reloaded content: `block-history`
 says `restarted-at`, and the frame answers an undo with nothing left by saying

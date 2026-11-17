@@ -11,12 +11,12 @@ they happen.
 
 ## Today
 
-- (Before step 1; `History` now keeps gestures by `(editor, id)`, and one editor beginning twice is fixed once step 3 gives the protocol ids.) `be_block_content::history::History` kept one `gesture: Option<Gesture>` per replica, tagged
-  with the editor (`origin`) that opened it, and `begin` closes (commits) whatever gesture is
-  open, even another editor's. Two windows dragging in one block commit the first gesture early;
-  one editor beginning twice (a second finger, a second controller) does too, and a cancel meant
-  for the first then cancels the second. `undo`, `redo` and `restart` also `close()` an open
-  gesture, committing it.
+- `be_block_content::history::History` keeps gestures by `GestureId { editor, id }`, undo groups
+  and tentative gestures side by side (step 1), but the protocol's gesture messages carry no id,
+  so the replica opens every gesture of an editor under one id (`EDITOR_GESTURE`). Two windows
+  dragging in one block each keep their own gesture; one editor beginning twice (a second
+  finger, a second controller) commits its first gesture, and a cancel meant for the first then
+  cancels the second. Nothing opens a tentative gesture.
 - An open gesture only groups undo. Each edit goes through `Replica::edit` (be-sdk-type-guest
   `replica.rs`) at once: applied to `visible`, told to the other attached editors with
   `journal(Journaled::Edited)` (despite its name, `journal` feeds the editors' projections,
@@ -82,6 +82,11 @@ they happen.
   `History` makes them one undo step. They are already on top of `visible` and stay there, so they
   are not applied again. This is the decision's invariant: no tentative edit goes ahead of one it
   was built on, while ordinary edits may have gone ahead of all of them.
+- **Steps beneath the layer.** A layer edit's undo step is recorded against `visible` with the
+  layer, so an ordinary edit made beneath it to the same item afterwards leaves that step's
+  `before` stale: undoing the commit restores the value from before the drag, not the one the
+  ordinary edit wrote. That is expected; the drag and the edit beneath it touched the same
+  item, and the drag committed last.
 - **Cancel.** Cancelling one gesture removes its edits from the layer and rebuilds `visible`; the
   others stay held.
 - **Undo and redo** while the layer is held cancel the whole layer first, as Escape would, and that
@@ -124,11 +129,14 @@ a carry whose gesture ended, so the item glides home and the site stops previewi
      A cancel of a tentative gesture returns no operations: the caller drops them from its layer.
    - Tentative edits leave the redo stack alone until the layer commits, so an undo that
      cancels the layer leaves redo as it was.
-   - `undo` and `redo` return `Stepped { operations, cancelled }`: `cancelled` names the
-     tentative gestures an undo ended, for `GestureEnded` in step 2. `tentative()` lists the
+   - `undo` and `redo` return `Stepped { operations, cancelled }`. A non-empty `cancelled` means
+     the caller drops its whole layer, committed gestures' waiting edits too; it names only the
+     open tentative gestures, for `GestureEnded` in step 2. `tentative()` lists the
      open ones, for a `clear()` to end.
-   - `begin` under a name already open commits that gesture first; a caller keeping a layer
-     commits it itself first, so it sees the layer end.
+   - `begin` only opens a gesture, and debug-asserts its name is not open. The caller commits
+     a gesture open under that name first, as the replica's `Gesture::Begin` does, so a caller
+     keeping a layer sees it end.
+   - `can_undo` is true while a layer is held, since an undo would cancel it.
 2. The replica (`be-sdk-type-guest`): the `tentative` layer, its commit and cancel, and each
    session event in the table. `be-host-runtime` tracks open gestures per link and cancels them all
    when the instance closes. Tests: a host crash with a held drag saves nothing; a module restart mid-drag keeps the drag;
