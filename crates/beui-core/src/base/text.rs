@@ -17,12 +17,12 @@ use crate::child_list::{ChildHost, ChildItem, NodeChildren};
 use crate::document::Document;
 use crate::node::{Element, NodeOf, Rects, SpaceTransform};
 use crate::rich::{OBJECT, RichLayout, Shaper};
-use beui_types::text::BLANK;
 use beui_tree::callback::Callback;
 use beui_tree::child_list::ChildList;
 use beui_types::Direction;
 use beui_types::LineBox;
 use beui_types::NodeId;
+use beui_types::text::BLANK;
 use beui_types::{
     CaretHandle, Piece, RichOptions, SpanBackground, SpanStyle, TextCaret, TextGlyph, TextMark,
     text::handle_shape,
@@ -147,7 +147,9 @@ impl PartialEq for Entry {
                 left == right && stands == other
             }
             (Entry::Gap(left), Entry::Gap(right)) => left == right,
-            (Entry::Blank(left, font), Entry::Blank(right, other)) => left == right && font == other,
+            (Entry::Blank(left, font), Entry::Blank(right, other)) => {
+                left == right && font == other
+            }
             (Entry::Break, Entry::Break) => true,
             _ => false,
         }

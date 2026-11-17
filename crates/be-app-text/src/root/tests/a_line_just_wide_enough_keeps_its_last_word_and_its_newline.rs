@@ -46,7 +46,10 @@ fn a_line_just_wide_enough_keeps_its_last_word_and_its_newline() {
     editor.click("text.surface");
     let (mut narrow, mut wide) = (400.0, 1400.0);
     assert!(one_row(&mut editor, wide).1, "the line fits a wide view");
-    assert!(!one_row(&mut editor, narrow).1, "the line wraps in a narrow one");
+    assert!(
+        !one_row(&mut editor, narrow).1,
+        "the line wraps in a narrow one"
+    );
     while wide - narrow > 0.25 {
         let middle = (narrow + wide) / 2.0;
         match one_row(&mut editor, middle).1 {

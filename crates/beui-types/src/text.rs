@@ -324,7 +324,10 @@ pub enum Piece<'a> {
     /// and whitespace, so it hangs past a line's end as trailing spaces do (guides/beui/text.md,
     /// "Wrapping"), taking no room when the line breaks but keeping its width beyond the edge.
     /// Its line is at least as tall as a line of `style`'s font, as text in it would be.
-    Blank { width: f32, style: SpanStyle },
+    Blank {
+        width: f32,
+        style: SpanStyle,
+    },
     Break,
     Icon {
         glyph: &'a str,

@@ -40,7 +40,8 @@ pub(crate) fn blank_box(width: f32) -> String {
         return "Blank box unseen".to_owned();
     };
     let found = |css: &str| document.query_selector(css).ok().flatten();
-    let (Some(blank), Some(glyph)) = (found(".beui-blank"), found(".beui-blank .beui-glyph")) else {
+    let (Some(blank), Some(glyph)) = (found(".beui-blank"), found(".beui-blank .beui-glyph"))
+    else {
         return "Blank box unseen".to_owned();
     };
     let Some(text) = blank.parent_element() else {

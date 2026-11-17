@@ -424,22 +424,23 @@ fn BlankFixture() -> NodeId {
         </Text>
     };
     let narrower_rect = measured_rect(narrower);
-    let report = create_memo(move || {
-        match (free_rect.get(), fitted_rect.get(), narrower_rect.get()) {
-            (Some(free), Some(fitted), Some(narrower)) => {
-                let hangs = match free.height() == fitted.height() {
-                    true => "Blank hangs",
-                    false => "Blank wraps",
-                };
-                let wraps = match narrower.height() > free.height() {
-                    true => "narrower wraps",
-                    false => "narrower fits",
-                };
-                format!("{hangs}, {wraps}")
-            }
-            _ => "Blank unmeasured".to_owned(),
-        }
-    });
+    let report =
+        create_memo(
+            move || match (free_rect.get(), fitted_rect.get(), narrower_rect.get()) {
+                (Some(free), Some(fitted), Some(narrower)) => {
+                    let hangs = match free.height() == fitted.height() {
+                        true => "Blank hangs",
+                        false => "Blank wraps",
+                    };
+                    let wraps = match narrower.height() > free.height() {
+                        true => "narrower wraps",
+                        false => "narrower fits",
+                    };
+                    format!("{hangs}, {wraps}")
+                }
+                _ => "Blank unmeasured".to_owned(),
+            },
+        );
     // `free` sits across a row, so it is measured at its own width, not the column's.
     let width = move |less: f32| {
         move || Extent::px(free_rect.get().map_or(0.0, |rect| rect.width()) - less)

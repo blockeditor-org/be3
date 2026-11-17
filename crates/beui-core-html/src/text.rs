@@ -485,7 +485,10 @@ pub fn space_advance(font: FontId) -> Option<f32> {
     #[cfg(target_arch = "wasm32")]
     return web::canvas(|context| {
         context.set_font(&crate::css::font(font));
-        context.measure_text(" ").ok().map(|metrics| metrics.width() as f32)
+        context
+            .measure_text(" ")
+            .ok()
+            .map(|metrics| metrics.width() as f32)
     })
     .flatten();
     #[cfg(not(target_arch = "wasm32"))]

@@ -9,8 +9,8 @@ use beui_view::reactive::*;
 use beui_view::types::Color;
 use beui_view::types::SpanStyle;
 use beui_view::types::Vec2;
-use beui_view::types::{DEFAULT_FONT_SIZE, GapWidth, Piece};
 use beui_view::types::text::BLANK;
+use beui_view::types::{DEFAULT_FONT_SIZE, GapWidth, Piece};
 use beui_view::types::{FontId, TextAlign, TextLayout};
 
 use super::colors::TextAreaColors;

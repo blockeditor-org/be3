@@ -237,7 +237,11 @@ impl TextChild {
                         "line-height",
                         Some(css::px(font_line_height(font.size))),
                     );
-                    set_style(node, "font-family", Some(css::family(font.family).to_owned()));
+                    set_style(
+                        node,
+                        "font-family",
+                        Some(css::family(font.family).to_owned()),
+                    );
                     set_style(
                         node,
                         "font-weight",
