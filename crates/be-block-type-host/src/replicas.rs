@@ -612,10 +612,6 @@ struct Open {
     /// it (`Peer::discarded`): its editors attach read-only, as nothing they made would be kept.
     marked: bool,
     made_up: bool,
-    /// It let go of a held rejoin as it closed (`rejoined`): what it ends holding of the
-    /// journaled edits no seal holds is kept in its open edits (`ended`), since only its made-up
-    /// session's journal holds them, which a replica opened online passes over (`journal_for`).
-    let_go: bool,
     /// The parts its module may read and reuse (`reach`).
     reach: Arc<Mutex<Reach>>,
     early: Vec<Replayed>,
@@ -1787,7 +1783,6 @@ impl<H: Host> Replicas<H> {
                 marked: peer.discarded(block),
                 sealed_joining: false,
                 made_up,
-                let_go: false,
                 reach: Arc::default(),
                 early: Vec::new(),
                 sent,
@@ -3703,11 +3698,10 @@ impl<H: Host> Replicas<H> {
         let early = std::mem::take(&mut open.early);
         // Closed (or reopened) while its rejoin was held (`rejoin_held`): it lets go of the join
         // rather than open again on the server's journal, which would lose the journaled edits
-        // no seal holds, and ends, leaving the session (`ended`), keeping those edits in its
-        // open edits (`Open::let_go`) for a replica opened again; what the session said
+        // no seal holds, and ends, leaving the session (`ended`): the replica seals as it closes,
+        // so the commit it leaves holds them where a seal can take them. What the session said
         // meanwhile is not its own.
         if letting_go {
-            open.let_go = true;
             return self.close_if_asked(replica);
         }
         // What its made-up session sealed while the join was on its way is a commit the server
@@ -4100,12 +4094,8 @@ impl<H: Host> Replicas<H> {
             return false;
         };
         // What opens after it holds the local edits the order holds, as a reopen counts them
-        // (`reopening`); after letting go of a held rejoin, only those its head holds: the rest
-        // are only in its made-up session's journal (`Open::let_go`).
-        let held = match open.let_go {
-            true => open.status.sealed_taken,
-            false => open.journaled_taken.max(open.status.sealed_taken),
-        };
+        // (`reopening`).
+        let held = open.journaled_taken.max(open.status.sealed_taken);
         untaken(
             &mut self.forwarded,
             open.block,
