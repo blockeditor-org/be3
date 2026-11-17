@@ -15,7 +15,26 @@ async fn a_request_stuck_in_a_full_socket_fails_once_the_server_goes_silent() {
 
     relay.jam_at_next_request();
     let heard = relay.heard();
-    let answer = crate::ask(be_block_protocol::write::<be_block_protocol::PublishOutcome, _>(&connection, Some(uuid::Uuid::nil()), be_block_protocol::Op::Publish { block: uuid::Uuid::nil(), commit: be_block_commit::CommitId::from_hash(be_block_store::Hash::of(b"a commit")), expected: None, parents: Vec::new(), held: be_block_protocol::ObjectChange::default(), time: 0, pinned: false, references: be_block_protocol::ReferenceChange::default(), metadata: Vec::new(), objects: vec![vec![7; be_block_protocol::MAX_FRAME_BYTES - 1024]], journal: None }));
+    let answer = crate::ask(be_block_protocol::write::<
+        be_block_protocol::PublishOutcome,
+        _,
+    >(
+        &connection,
+        Some(uuid::Uuid::nil()),
+        be_block_protocol::Op::Publish {
+            block: uuid::Uuid::nil(),
+            commit: be_block_commit::CommitId::from_hash(be_block_store::Hash::of(b"a commit")),
+            expected: None,
+            parents: Vec::new(),
+            held: be_block_protocol::ObjectChange::default(),
+            time: 0,
+            pinned: false,
+            references: be_block_protocol::ReferenceChange::default(),
+            metadata: Vec::new(),
+            objects: vec![vec![7; be_block_protocol::MAX_FRAME_BYTES - 1024]],
+            journal: None,
+        },
+    ));
     relay.heard_beyond(heard).await;
     clock.advance(PING_INTERVAL + PONG_WAIT);
 

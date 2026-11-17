@@ -24,7 +24,11 @@ async fn only_members_who_may_view_and_did_not_mute_a_block_are_notified() {
         member.register_endpoint(endpoint(name)).await;
         member.set_notify_mode(block, mode).await;
         let read = member
-            .call(|peer| peer.read::<Vec<be_block_protocol::BlockNotifyMode>>(be_block_protocol::Query::NotifyModes))
+            .call(|peer| {
+                peer.read::<Vec<be_block_protocol::BlockNotifyMode>>(
+                    be_block_protocol::Query::NotifyModes,
+                )
+            })
             .await
             .unwrap();
         let listed: Vec<_> = read.iter().map(|row| (row.block, row.mode)).collect();
@@ -40,7 +44,12 @@ async fn only_members_who_may_view_and_did_not_mute_a_block_are_notified() {
     assert_eq!(bystander.personal().await, organization);
     bystander.register_endpoint(endpoint("bystander")).await;
     let muted = bystander
-        .call(|peer| peer.write::<()>(be_block_protocol::Op::SetNotifyMode { block: block, mode: NotifyMode::Off }))
+        .call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::SetNotifyMode {
+                block: block,
+                mode: NotifyMode::Off,
+            })
+        })
         .await;
     assert!(
         refused_as(&muted, ErrorCode::BlockNotFound),
@@ -49,7 +58,16 @@ async fn only_members_who_may_view_and_did_not_mute_a_block_are_notified() {
     let (mut viewer, _) = viewer_of(&harness, &mut owner, block, "viewer@example.com").await;
     let sealed = b"sealed".to_vec();
     let notified = viewer
-        .call(|peer| peer.send(be_block_protocol::Target::Push { block: block, mentions: Vec::new(), keys: Vec::new() }, sealed))
+        .call(|peer| {
+            peer.send(
+                be_block_protocol::Target::Push {
+                    block: block,
+                    mentions: Vec::new(),
+                    keys: Vec::new(),
+                },
+                sealed,
+            )
+        })
         .await;
     assert!(
         refused_as(&notified, ErrorCode::PermissionDenied),

@@ -52,12 +52,16 @@ async fn an_invitation_finished_halfway_signs_its_accepter_in_on_the_next_finish
             .is_some()
     };
     let listed = || async {
-        be_block_protocol::read::<Vec<be_block_protocol::OwnLink>, _>(&admin.connection(), None, be_block_protocol::Query::Links)
-            .await
-            .unwrap()
-            .unwrap()
-            .iter()
-            .any(|link| link.accepter == Some(member))
+        be_block_protocol::read::<Vec<be_block_protocol::OwnLink>, _>(
+            &admin.connection(),
+            None,
+            be_block_protocol::Query::Links,
+        )
+        .await
+        .unwrap()
+        .unwrap()
+        .iter()
+        .any(|link| link.accepter == Some(member))
     };
 
     // The device opens the link and stops before signing the member in.

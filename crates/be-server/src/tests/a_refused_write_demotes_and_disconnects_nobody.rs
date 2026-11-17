@@ -36,17 +36,19 @@ async fn a_refused_write_demotes_and_disconnects_nobody() {
     };
     assert!(administers(&mut deputy).await.is_ok());
 
-    let demote = owner
-        .role_op(account, OrganizationRole::Editor)
-        .await;
+    let demote = owner.role_op(account, OrganizationRole::Editor).await;
     let refused = Op::SetMetadata {
         block: Uuid::new_v4(),
         metadata: b"a block that is not there".to_vec(),
         references: Vec::new(),
     };
-    let written = client::server::write(&owner.peer, Some(organization), vec![demote.clone(), refused])
-        .await
-        .expect("the connection stayed open");
+    let written = client::server::write(
+        &owner.peer,
+        Some(organization),
+        vec![demote.clone(), refused],
+    )
+    .await
+    .expect("the connection stayed open");
     assert!(
         matches!(&written, Err(WriteError { index: 1, .. })),
         "{written:?}"

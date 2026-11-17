@@ -3,10 +3,10 @@ use std::{path::PathBuf, time::Duration};
 use be_block_commit::{Commit, CommitId, CommitStore};
 use be_block_graph::BlockParent;
 use be_block_protocol::{
-    Authenticated, DeviceLoginAnswer, DeviceLoginStep, BlockSummary, ChangeCursor, ClientId, Done, Error, ErrorCode, Event,
-    FromDone, FromPage, HistoryEntry, Hold, KeyKind, KeyRow, KeySet, Listing, ObjectLength, Op,
-    OrganizationRole, PairingMessage, Query, SessionEvent, SessionSend, SessionState, Target,
-    Topic, UploadUrl, WrappedBy, WrappedKey, WriteError, client,
+    Authenticated, BlockSummary, ChangeCursor, ClientId, DeviceLoginAnswer, DeviceLoginStep, Done,
+    Error, ErrorCode, Event, FromDone, FromPage, HistoryEntry, Hold, KeyKind, KeyRow, KeySet,
+    Listing, ObjectLength, Op, OrganizationRole, PairingMessage, Query, SessionEvent, SessionSend,
+    SessionState, Target, Topic, UploadUrl, WrappedBy, WrappedKey, WriteError, client,
 };
 use be_block_session::{Resume, resume};
 use be_block_store::{ChunkerConfig, ContentKey, Hash, Keyring, MemoryStore, ObjectStore, Vault};
@@ -687,9 +687,7 @@ impl TestClient {
         &mut self,
         start: impl FnOnce(&At) -> F,
     ) -> Result<T, Error> {
-        let answered = start(&self.peer)
-            .await
-            .expect("the connection stayed open");
+        let answered = start(&self.peer).await.expect("the connection stayed open");
         if let Ok(answer) = &answered
             && let Some(authenticated) =
                 (answer as &dyn std::any::Any).downcast_ref::<Authenticated>()
@@ -758,10 +756,17 @@ impl TestClient {
     async fn follow_entry(&mut self, entry: Uuid) {
         let sequence = self
             .call(|peer| {
-                peer.ask::<be_block_protocol::ChangedPage>(be_block_protocol::Query::Tree { entry: entry, after: ChangeCursor {
-                        changed: u64::MAX >> 1,
-                        block: Uuid::max(),
-                    }, limit: 1 }, true)
+                peer.ask::<be_block_protocol::ChangedPage>(
+                    be_block_protocol::Query::Tree {
+                        entry: entry,
+                        after: ChangeCursor {
+                            changed: u64::MAX >> 1,
+                            block: Uuid::max(),
+                        },
+                        limit: 1,
+                    },
+                    true,
+                )
             })
             .await
             .expect("following failed")
@@ -785,7 +790,16 @@ impl TestClient {
         let (mut summaries, mut removed) = (Vec::new(), Vec::new());
         loop {
             let page = self
-                .call(|peer| peer.ask::<be_block_protocol::ChangedPage>(be_block_protocol::Query::Tree { entry: entry, after: after, limit: 100 }, false))
+                .call(|peer| {
+                    peer.ask::<be_block_protocol::ChangedPage>(
+                        be_block_protocol::Query::Tree {
+                            entry: entry,
+                            after: after,
+                            limit: 100,
+                        },
+                        false,
+                    )
+                })
                 .await
                 .expect("reading changes failed");
             summaries.extend(page.summaries);
@@ -879,9 +893,7 @@ impl TestClient {
 
     /// Leaves `block`'s session (`unfollow` of its topic).
     async fn leave(&mut self, block: Uuid) {
-        let left = self
-            .call(|peer| peer.unfollow(Topic::Session(block)))
-            .await;
+        let left = self.call(|peer| peer.unfollow(Topic::Session(block))).await;
         assert!(left.is_ok(), "leaving the session failed: {left:?}");
     }
 
@@ -934,7 +946,13 @@ impl TestClient {
     /// What a reader of `block` is told of its journal.
     async fn journal_of(&mut self, block: Uuid) -> Option<be_block_protocol::Journal> {
         let response = self
-            .call(|peer| peer.read::<be_block_protocol::Contents>(be_block_protocol::Query::Blocks { blocks: vec![block], contents: true, held: Vec::new() }))
+            .call(|peer| {
+                peer.read::<be_block_protocol::Contents>(be_block_protocol::Query::Blocks {
+                    blocks: vec![block],
+                    contents: true,
+                    held: Vec::new(),
+                })
+            })
             .await;
         let Ok(contents) = response else {
             panic!("reading failed: {response:?}");
@@ -1053,7 +1071,14 @@ impl TestClient {
         let identity = test_secret(account).identity();
         let response = self
             .call(|peer| {
-                peer.write::<()>(be_block_protocol::Op::SetRecoveryKey { public: identity.public.0, signing: identity.signing.0, sealed: Vec::new(), own: Vec::new(), changes: Vec::new(), retirements: Vec::new() })
+                peer.write::<()>(be_block_protocol::Op::SetRecoveryKey {
+                    public: identity.public.0,
+                    signing: identity.signing.0,
+                    sealed: Vec::new(),
+                    own: Vec::new(),
+                    changes: Vec::new(),
+                    retirements: Vec::new(),
+                })
             })
             .await;
         assert!(
@@ -1069,7 +1094,9 @@ impl TestClient {
         let old = test_secret(account);
         let new = be_block_keys::RecoveryPhrase::generate().secret();
         let found = self
-            .call(|peer| peer.read::<be_block_protocol::RecoveryKey>(be_block_protocol::Query::RecoveryKey))
+            .call(|peer| {
+                peer.read::<be_block_protocol::RecoveryKey>(be_block_protocol::Query::RecoveryKey)
+            })
             .await
             .expect("reading the recovery key failed");
         let retirements = found
@@ -1092,7 +1119,14 @@ impl TestClient {
         let identity = new.identity();
         let response = self
             .call(|peer| {
-                peer.write::<()>(be_block_protocol::Op::SetRecoveryKey { public: identity.public.0, signing: identity.signing.0, sealed: Vec::new(), own: Vec::new(), changes: Vec::new(), retirements: retirements })
+                peer.write::<()>(be_block_protocol::Op::SetRecoveryKey {
+                    public: identity.public.0,
+                    signing: identity.signing.0,
+                    sealed: Vec::new(),
+                    own: Vec::new(),
+                    changes: Vec::new(),
+                    retirements: retirements,
+                })
             })
             .await;
         assert!(matches!(response, Ok(())), "{response:?}");
@@ -1119,7 +1153,14 @@ impl TestClient {
         let response = self
             .call(|peer| {
                 let (id, root) = organization_root(account);
-                peer.write::<be_block_protocol::Organization>(be_block_protocol::Op::CreateOrganization { id: id, name: name.into(), root: root, pinned: Vec::new() })
+                peer.write::<be_block_protocol::Organization>(
+                    be_block_protocol::Op::CreateOrganization {
+                        id: id,
+                        name: name.into(),
+                        root: root,
+                        pinned: Vec::new(),
+                    },
+                )
             })
             .await;
         let Ok(organization) = response else {
@@ -1171,9 +1212,7 @@ impl TestClient {
         key: Uuid,
         keys: KeySet,
     ) {
-        let op = self
-            .create_op(block, content_type, parent, key, keys)
-            .await;
+        let op = self.create_op(block, content_type, parent, key, keys).await;
         let response = self
             .call(|peer| peer.write::<be_block_protocol::BlockSummary>(op))
             .await;
@@ -1212,7 +1251,10 @@ impl TestClient {
             keys: vec![row(key, block, KeyKind::Data)],
             wrapped: Vec::new(),
         };
-        (block, self.create_op(block, CONTENT, parent, key, keys).await)
+        (
+            block,
+            self.create_op(block, CONTENT, parent, key, keys).await,
+        )
     }
 
     /// Every page of `get-keys`, as a client reads them.
@@ -1222,7 +1264,12 @@ impl TestClient {
         loop {
             let asked = blocks.clone();
             let page = self
-                .call(|peer| peer.read::<be_block_protocol::KeyPage>(be_block_protocol::Query::Keys { blocks: asked, after: after }))
+                .call(|peer| {
+                    peer.read::<be_block_protocol::KeyPage>(be_block_protocol::Query::Keys {
+                        blocks: asked,
+                        after: after,
+                    })
+                })
                 .await
                 .expect("reading keys failed");
             keys.keys.extend(page.keys.keys);
@@ -1252,8 +1299,12 @@ impl TestClient {
                 length: Some(bytes.len() as u64),
             })
             .collect();
-        self.call(|peer| peer.write::<Vec<Option<be_block_protocol::UploadUrl>>>(be_block_protocol::Op::ReserveUploads(lengths)))
-            .await
+        self.call(|peer| {
+            peer.write::<Vec<Option<be_block_protocol::UploadUrl>>>(
+                be_block_protocol::Op::ReserveUploads(lengths),
+            )
+        })
+        .await
     }
 
     /// The hashes of the `objects` the server asks this client to upload: those it does not hold
@@ -1287,7 +1338,9 @@ impl TestClient {
     /// server answers no URL; a URL that is not found is a failure.
     async fn download(&mut self, hash: Hash) -> Result<Option<Vec<u8>>, Error> {
         let mut urls = self
-            .call(|peer| peer.read::<Vec<Option<String>>>(be_block_protocol::Query::DownloadUrls(vec![hash])))
+            .call(|peer| {
+                peer.read::<Vec<Option<String>>>(be_block_protocol::Query::DownloadUrls(vec![hash]))
+            })
             .await?;
         assert_eq!(urls.len(), 1);
         let Some(url) = urls.pop().unwrap() else {
@@ -1313,10 +1366,15 @@ impl TestClient {
     }
 
     async fn list(&mut self, parent: BlockParent) -> Vec<BlockSummary> {
-        self.call(|peer| peer.read::<be_block_protocol::Listed>(be_block_protocol::Query::List { listing: Listing::Children(parent), after: None }))
-            .await
-            .expect("listing failed")
-            .blocks
+        self.call(|peer| {
+            peer.read::<be_block_protocol::Listed>(be_block_protocol::Query::List {
+                listing: Listing::Children(parent),
+                after: None,
+            })
+        })
+        .await
+        .expect("listing failed")
+        .blocks
     }
 
     async fn publish(
@@ -1348,7 +1406,19 @@ impl TestClient {
             .await;
         let before = author.held_by(expected);
         self.call(|peer| {
-            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: block, commit: commit, expected: expected, parents: expected.into_iter().collect(), held: objects_change(&before, chunks), time: time, pinned: false, references: listing(&[], Vec::new()), metadata: Vec::new(), objects: Vec::new(), journal: journal.clone() })
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
+                block: block,
+                commit: commit,
+                expected: expected,
+                parents: expected.into_iter().collect(),
+                held: objects_change(&before, chunks),
+                time: time,
+                pinned: false,
+                references: listing(&[], Vec::new()),
+                metadata: Vec::new(),
+                objects: Vec::new(),
+                journal: journal.clone(),
+            })
         })
         .await
     }
@@ -1375,9 +1445,13 @@ impl TestClient {
     }
 
     async fn history(&mut self, block: Uuid) -> Vec<HistoryEntry> {
-        self.call(|peer| peer.read::<Vec<be_block_protocol::HistoryEntry>>(be_block_protocol::Query::History(block)))
-            .await
-            .expect("history failed")
+        self.call(|peer| {
+            peer.read::<Vec<be_block_protocol::HistoryEntry>>(be_block_protocol::Query::History(
+                block,
+            ))
+        })
+        .await
+        .expect("history failed")
     }
 }
 
@@ -1388,7 +1462,13 @@ fn read_block(
     peer: &At,
     block: Uuid,
 ) -> impl Future<Output = Result<Result<BlockSummary, Error>, be_wasm_ops::OpError>> + use<> {
-    let read = peer.read::<Vec<Option<be_block_protocol::BlockSummary>>>(be_block_protocol::Query::Blocks { blocks: vec![block], contents: false, held: Vec::new() });
+    let read = peer.read::<Vec<Option<be_block_protocol::BlockSummary>>>(
+        be_block_protocol::Query::Blocks {
+            blocks: vec![block],
+            contents: false,
+            held: Vec::new(),
+        },
+    );
     async move {
         Ok(read.await?.and_then(|mut read| {
             read.pop().flatten().ok_or_else(|| Error {
@@ -1499,7 +1579,19 @@ impl TestClient {
             .await;
         let response = self
             .call(|peer| {
-                peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: parent, commit: head, expected: None, parents: Vec::new(), held: objects_change(&[], chunks), time: 1_000, pinned: false, references: listing(&[], children), metadata: Vec::new(), objects: Vec::new(), journal: None })
+                peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
+                    block: parent,
+                    commit: head,
+                    expected: None,
+                    parents: Vec::new(),
+                    held: objects_change(&[], chunks),
+                    time: 1_000,
+                    pinned: false,
+                    references: listing(&[], children),
+                    metadata: Vec::new(),
+                    objects: Vec::new(),
+                    journal: None,
+                })
             })
             .await;
         assert!(
@@ -1642,7 +1734,11 @@ async fn next_binary(socket: &mut Socket) -> Option<Vec<u8>> {
 impl TestClient {
     async fn personal(&mut self) -> Uuid {
         let organizations = self
-            .call(|peer| peer.read::<Vec<be_block_protocol::Organization>>(be_block_protocol::Query::Organizations))
+            .call(|peer| {
+                peer.read::<Vec<be_block_protocol::Organization>>(
+                    be_block_protocol::Query::Organizations,
+                )
+            })
             .await
             .expect("listing organizations failed");
         let personal = organizations
@@ -1669,7 +1765,12 @@ impl TestClient {
         kind: be_block_protocol::LinkKind,
     ) -> Result<(), Error> {
         self.call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::CreateLink { link: link, card: b"the owner's card".to_vec(), code: b"the code, sealed for the owner".to_vec(), kind: kind })
+            peer.write::<()>(be_block_protocol::Op::CreateLink {
+                link: link,
+                card: b"the owner's card".to_vec(),
+                code: b"the code, sealed for the owner".to_vec(),
+                kind: kind,
+            })
         })
         .await
     }
@@ -1689,22 +1790,31 @@ impl TestClient {
     }
 
     async fn links(&mut self) -> Vec<be_block_protocol::OwnLink> {
-        self.call(|peer| peer.read::<Vec<be_block_protocol::OwnLink>>(be_block_protocol::Query::Links))
-            .await
-            .expect("listing links failed")
+        self.call(|peer| {
+            peer.read::<Vec<be_block_protocol::OwnLink>>(be_block_protocol::Query::Links)
+        })
+        .await
+        .expect("listing links failed")
     }
 
     async fn accept(&mut self, link: Uuid, key: &[u8]) -> Result<(), Error> {
         self.call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::AcceptLink { link: link, card: b"the accepter's card".to_vec(), contact: b"the owner's key, sealed for the accepter".to_vec(), key: key.to_vec() })
+            peer.write::<()>(be_block_protocol::Op::AcceptLink {
+                link: link,
+                card: b"the accepter's card".to_vec(),
+                contact: b"the owner's key, sealed for the accepter".to_vec(),
+                key: key.to_vec(),
+            })
         })
         .await
     }
 
     async fn contacts(&mut self) -> Vec<be_block_protocol::ContactRow> {
-        self.call(|peer| peer.read::<Vec<be_block_protocol::ContactRow>>(be_block_protocol::Query::Contacts))
-            .await
-            .expect("listing contacts failed")
+        self.call(|peer| {
+            peer.read::<Vec<be_block_protocol::ContactRow>>(be_block_protocol::Query::Contacts)
+        })
+        .await
+        .expect("listing contacts failed")
     }
 
     /// Makes an agent bound to `block`; answers its account and token.
@@ -1726,10 +1836,22 @@ impl TestClient {
             .unwrap_or_default();
         let member = self.member_record(account, identity, true, true).await;
         self.call(|peer| {
-            peer.write_in::<be_block_protocol::CreatedAgent>(Some(organization), be_block_protocol::Op::CreateAgent { account: account, name: "Terminal host".into(), recovery: identity.public.0, signing: identity.signing.0, contact: Vec::new(), escrow: Vec::new(), bound_to: Some(be_block_protocol::BoundAgent {
-                    block,
-                    signed: signed.clone(),
-                }), member: member.clone() })
+            peer.write_in::<be_block_protocol::CreatedAgent>(
+                Some(organization),
+                be_block_protocol::Op::CreateAgent {
+                    account: account,
+                    name: "Terminal host".into(),
+                    recovery: identity.public.0,
+                    signing: identity.signing.0,
+                    contact: Vec::new(),
+                    escrow: Vec::new(),
+                    bound_to: Some(be_block_protocol::BoundAgent {
+                        block,
+                        signed: signed.clone(),
+                    }),
+                    member: member.clone(),
+                },
+            )
         })
         .await
         .map(|created| {
@@ -1761,8 +1883,15 @@ impl TestClient {
         keys: KeySet,
     ) -> Result<(), Error> {
         let record = self.signed_parent(block, parent).await;
-        self.call(|peer| peer.write::<()>(be_block_protocol::Op::Move { block: block, parent: parent, keys: keys, placement: record }))
-            .await
+        self.call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::Move {
+                block: block,
+                parent: parent,
+                keys: keys,
+                placement: record,
+            })
+        })
+        .await
     }
 
     /// Where `parent` is, as a parent record names it, with the root of its log as served.
@@ -1773,9 +1902,11 @@ impl TestClient {
             BlockParent::Detached => Placement::Detached,
             BlockParent::Block(above) => {
                 let log = decode_steps(
-                    self.call(|peer| peer.read::<Vec<Vec<u8>>>(be_block_protocol::Query::Log(Some(above))))
-                        .await
-                        .unwrap_or_default(),
+                    self.call(|peer| {
+                        peer.read::<Vec<Vec<u8>>>(be_block_protocol::Query::Log(Some(above)))
+                    })
+                    .await
+                    .unwrap_or_default(),
                 );
                 Placement::Block {
                     block: above.into_bytes(),
@@ -1875,9 +2006,11 @@ impl TestClient {
         {
             at = parent;
             let above = decode_steps(
-                self.call(|peer| peer.read::<Vec<Vec<u8>>>(be_block_protocol::Query::Log(Some(parent))))
-                    .await
-                    .unwrap_or_default(),
+                self.call(|peer| {
+                    peer.read::<Vec<Vec<u8>>>(be_block_protocol::Query::Log(Some(parent)))
+                })
+                .await
+                .unwrap_or_default(),
             );
             let Some(head) = above.last() else {
                 break;
@@ -1912,8 +2045,17 @@ impl TestClient {
         access: be_block_graph::Access,
     ) -> Result<(), Error> {
         let signed = self.signed_grant(block, account, access).await;
-        self.call(|peer| peer.write::<()>(be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Grant { block: block, account: account, access: access, signed: signed.clone() })))
-            .await
+        self.call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::AppendLog(
+                be_block_protocol::LogRecord::Grant {
+                    block: block,
+                    account: account,
+                    access: access,
+                    signed: signed.clone(),
+                },
+            ))
+        })
+        .await
     }
 
     /// Sets `account`'s role as a device does (`Peer::set_role`): making or unmaking an
@@ -2025,7 +2167,19 @@ impl TestClient {
         let member = self.member_record(account, identity, true, true).await;
         let name = name.to_owned();
         self.call(|peer| {
-            peer.write_in::<be_block_protocol::CreatedAgent>(Some(organization), be_block_protocol::Op::CreateAgent { account: account, name: name.clone(), recovery: identity.public.0, signing: identity.signing.0, contact: Vec::new(), escrow: Vec::new(), bound_to: None, member: member.clone() })
+            peer.write_in::<be_block_protocol::CreatedAgent>(
+                Some(organization),
+                be_block_protocol::Op::CreateAgent {
+                    account: account,
+                    name: name.clone(),
+                    recovery: identity.public.0,
+                    signing: identity.signing.0,
+                    contact: Vec::new(),
+                    escrow: Vec::new(),
+                    bound_to: None,
+                    member: member.clone(),
+                },
+            )
         })
         .await
     }
@@ -2047,7 +2201,11 @@ impl TestClient {
         };
         let revocations = self.removal_revocations(account, false).await;
         self.call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::RemoveMember { account: account, signed: signed.clone(), revocations: revocations.clone() })
+            peer.write::<()>(be_block_protocol::Op::RemoveMember {
+                account: account,
+                signed: signed.clone(),
+                revocations: revocations.clone(),
+            })
         })
         .await
     }
@@ -2056,15 +2214,27 @@ impl TestClient {
     /// (`Peer::remove_contact`).
     async fn remove_contact(&mut self, account: Uuid) -> Result<(), Error> {
         let revocations = self.removal_revocations(account, true).await;
-        self.call(|peer| peer.write::<()>(be_block_protocol::Op::RemoveContact { account: account, revocations: revocations.clone() }))
-            .await
+        self.call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::RemoveContact {
+                account: account,
+                revocations: revocations.clone(),
+            })
+        })
+        .await
     }
 
     /// The revocations removing `account` makes in the organization open's logs, signed with
     /// this client's test keys; none when no organization is open.
     async fn removal_revocations(&mut self, account: Uuid, contact: bool) -> Vec<Vec<u8>> {
         let pairs = self
-            .call(|peer| peer.read::<Vec<be_block_protocol::Revocation>>(be_block_protocol::Query::Revocations { account: account, contact: contact }))
+            .call(|peer| {
+                peer.read::<Vec<be_block_protocol::Revocation>>(
+                    be_block_protocol::Query::Revocations {
+                        account: account,
+                        contact: contact,
+                    },
+                )
+            })
             .await
             .unwrap_or_default();
         let mut signed = Vec::new();
@@ -2086,8 +2256,12 @@ impl TestClient {
         let Some(signed) = self.member_record(account, identity, true, false).await else {
             return Ok(());
         };
-        self.call(|peer| peer.write::<()>(be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Member(signed.clone()))))
-            .await
+        self.call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::AppendLog(
+                be_block_protocol::LogRecord::Member(signed.clone()),
+            ))
+        })
+        .await
     }
 
     /// The grant record a device sends with `set-access` (`Peer::grant`), signed with this
@@ -2833,14 +3007,23 @@ impl TestDevice {
 impl TestClient {
     async fn register_endpoint(&mut self, endpoint: be_block_protocol::PushEndpoint) {
         let registered = self
-            .call(|peer| peer.write::<()>(be_block_protocol::Op::SetPushEndpoint(be_block_protocol::PushEndpointChange::Register(endpoint))))
+            .call(|peer| {
+                peer.write::<()>(be_block_protocol::Op::SetPushEndpoint(
+                    be_block_protocol::PushEndpointChange::Register(endpoint),
+                ))
+            })
             .await;
         assert!(registered.is_ok(), "{registered:?}");
     }
 
     async fn set_notify_mode(&mut self, block: Uuid, mode: be_block_protocol::NotifyMode) {
         let set = self
-            .call(|peer| peer.write::<()>(be_block_protocol::Op::SetNotifyMode { block: block, mode: mode }))
+            .call(|peer| {
+                peer.write::<()>(be_block_protocol::Op::SetNotifyMode {
+                    block: block,
+                    mode: mode,
+                })
+            })
             .await;
         assert!(set.is_ok(), "{set:?}");
     }
@@ -2848,7 +3031,16 @@ impl TestClient {
     async fn notify(&mut self, block: Uuid, sealed: &[u8], mentions: Vec<Uuid>) {
         let sealed = sealed.to_vec();
         let notified = self
-            .call(|peer| peer.send(be_block_protocol::Target::Push { block: block, mentions: mentions, keys: Vec::new() }, sealed))
+            .call(|peer| {
+                peer.send(
+                    be_block_protocol::Target::Push {
+                        block: block,
+                        mentions: mentions,
+                        keys: Vec::new(),
+                    },
+                    sealed,
+                )
+            })
             .await;
         assert!(notified.is_ok(), "{notified:?}");
     }
@@ -2861,14 +3053,25 @@ impl TestClient {
             .map(|key| be_block_protocol::told_key(block, key))
             .collect();
         let notified = self
-            .call(|peer| peer.send(be_block_protocol::Target::Push { block: block, mentions: Vec::new(), keys: keys }, sealed))
+            .call(|peer| {
+                peer.send(
+                    be_block_protocol::Target::Push {
+                        block: block,
+                        mentions: Vec::new(),
+                        keys: keys,
+                    },
+                    sealed,
+                )
+            })
             .await;
         assert!(notified.is_ok(), "{notified:?}");
     }
 
     /// Signs out, which leaves the server's record of who is connected before it answers.
     async fn sign_out(&mut self) {
-        let logged_out = self.call(|peer| peer.write::<()>(be_block_protocol::Op::RevokeToken(None))).await;
+        let logged_out = self
+            .call(|peer| peer.write::<()>(be_block_protocol::Op::RevokeToken(None)))
+            .await;
         assert!(logged_out.is_ok(), "{logged_out:?}");
     }
 }

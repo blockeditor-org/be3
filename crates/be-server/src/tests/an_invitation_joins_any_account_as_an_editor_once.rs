@@ -20,7 +20,14 @@ async fn an_invitation_joins_any_account_as_an_editor_once() {
         "{found:?}"
     );
     let accepted = anyone
-        .call(|peer| peer.write::<()>(be_block_protocol::Op::AcceptLink { link: link, card: Vec::new(), contact: Vec::new(), key: Vec::new() }))
+        .call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::AcceptLink {
+                link: link,
+                card: Vec::new(),
+                contact: Vec::new(),
+                key: Vec::new(),
+            })
+        })
         .await;
     assert!(matches!(accepted, Ok(())), "{accepted:?}");
     let members = admin
@@ -43,7 +50,14 @@ async fn an_invitation_joins_any_account_as_an_editor_once() {
         "{again:?}"
     );
     let accepted = second
-        .call(|peer| peer.write::<()>(be_block_protocol::Op::AcceptLink { link: link, card: Vec::new(), contact: Vec::new(), key: Vec::new() }))
+        .call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::AcceptLink {
+                link: link,
+                card: Vec::new(),
+                contact: Vec::new(),
+                key: Vec::new(),
+            })
+        })
         .await;
     assert!(
         refused_as(&accepted, ErrorCode::LinkNotFound),

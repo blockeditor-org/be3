@@ -24,7 +24,9 @@ async fn proxy_account_authentication_never_discloses_the_token() {
                 assert!(matches!(response, Ok(Authenticated { token, .. }) if token.is_empty()));
                 assert!(matches!(
                     client
-                        .call(|peer| peer.read::<Vec<be_block_protocol::Organization>>(be_block_protocol::Query::Organizations))
+                        .call(|peer| peer.read::<Vec<be_block_protocol::Organization>>(
+                            be_block_protocol::Query::Organizations
+                        ))
                         .await,
                     Ok(_)
                 ));
@@ -38,7 +40,10 @@ async fn proxy_account_authentication_never_discloses_the_token() {
     let mut client = harness.client().await;
     assert!(matches!(
         client
-            .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(owner.token.clone())))
+            .call(|peer| be_block_protocol::client::server::authenticate(
+                peer,
+                Some(owner.token.clone())
+            ))
             .await,
         Err(_)
     ));

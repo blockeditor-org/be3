@@ -19,7 +19,11 @@ async fn a_mode_set_on_one_device_is_announced_to_the_others() {
     phone.set_notify_mode(block, NotifyMode::Off).await;
     laptop.heard_changed(Topic::NotifyModes).await;
     let modes = laptop
-        .call(|peer| peer.read::<Vec<be_block_protocol::BlockNotifyMode>>(be_block_protocol::Query::NotifyModes))
+        .call(|peer| {
+            peer.read::<Vec<be_block_protocol::BlockNotifyMode>>(
+                be_block_protocol::Query::NotifyModes,
+            )
+        })
         .await
         .unwrap();
     assert_eq!(

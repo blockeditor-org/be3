@@ -2,7 +2,13 @@ use super::*;
 
 async fn rename(client: &mut TestClient, block: Uuid, name: &[u8]) {
     let response = client
-        .call(|peer| peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata { block: block, metadata: name.to_vec(), references: Vec::new() }))
+        .call(|peer| {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata {
+                block: block,
+                metadata: name.to_vec(),
+                references: Vec::new(),
+            })
+        })
         .await;
     assert!(matches!(response, Ok(_)), "{response:?}");
 }

@@ -94,7 +94,19 @@ async fn an_http_answer_leaves_what_would_overflow_it_for_the_next_post() {
     chunks.extend_from_slice(&large);
     let response = owner
         .call(|peer| {
-            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: block, commit: commit, expected: None, parents: Vec::new(), held: objects_change(&[], chunks), time: 1_000, pinned: false, references: listing(&[], Vec::new()), metadata: Vec::new(), objects: Vec::new(), journal: None })
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
+                block: block,
+                commit: commit,
+                expected: None,
+                parents: Vec::new(),
+                held: objects_change(&[], chunks),
+                time: 1_000,
+                pinned: false,
+                references: listing(&[], Vec::new()),
+                metadata: Vec::new(),
+                objects: Vec::new(),
+                journal: None,
+            })
         })
         .await;
     assert!(response.is_ok(), "{response:?}");
@@ -147,7 +159,8 @@ async fn an_http_answer_leaves_what_would_overflow_it_for_the_next_post() {
     assert_eq!(answered(&frames), large.len());
     posted.heard(&frames);
     for read in &mut reads {
-        let std::task::Poll::Ready(Ok(Ok(be_block_protocol::Page::Contents(contents)))) = poll(read)
+        let std::task::Poll::Ready(Ok(Ok(be_block_protocol::Page::Contents(contents)))) =
+            poll(read)
         else {
             panic!("a read was not answered");
         };

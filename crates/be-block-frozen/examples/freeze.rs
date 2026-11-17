@@ -337,7 +337,14 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     .map_err(text)?;
     let organization = owner.organization();
     let owner_token = owner.token().to_owned();
-    let organizations = ask(be_block_protocol::read::<Vec<be_block_protocol::Organization>, _>(&owner.connection(), None, be_block_protocol::Query::Organizations))
+    let organizations = ask(be_block_protocol::read::<
+        Vec<be_block_protocol::Organization>,
+        _,
+    >(
+        &owner.connection(),
+        None,
+        be_block_protocol::Query::Organizations,
+    ))
     .await?;
     let personal = organizations
         .iter()
@@ -365,7 +372,13 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     )
     .await
     .map_err(text)?;
-    be_block_client::contacts::accept_link(&editor.connection(), editor.keys().identity(), &card(&editor, scene::EDITOR_NAME, scene::EDITOR_EMAIL), &code, be_block_client::contacts::Expected::Invitation)
+    be_block_client::contacts::accept_link(
+        &editor.connection(),
+        editor.keys().identity(),
+        &card(&editor, scene::EDITOR_NAME, scene::EDITOR_EMAIL),
+        &code,
+        be_block_client::contacts::Expected::Invitation,
+    )
     .await
     .map_err(text)?;
     owner.finish_links().await.map_err(text)?;
@@ -400,15 +413,30 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     let be_block_protocol::CreatedAgent {
         agent,
         token: agent_token,
-    } = ask(be_block_protocol::write::<be_block_protocol::CreatedAgent, _>(&owner.connection(), Some(organization), be_block_protocol::Op::CreateAgent { account: agent_account, name: scene::AGENT_NAME.into(), recovery: agent_public.0, signing: agent_phrase.secret().signing().0, contact: be_block_client::contacts::OwnContact::new(owner_card.clone(), 0)
-            .seal(&agent_phrase.secret()), escrow: be_block_client::contacts::seal_pin(
-            &agent_phrase.secret(),
-            organization,
-            &owner.keys().pins(),
-        ), bound_to: None, member: owner
-            .agent_record(agent_account, agent_phrase.secret().identity())
-            .await
-            .map_err(text)? }))
+    } = ask(
+        be_block_protocol::write::<be_block_protocol::CreatedAgent, _>(
+            &owner.connection(),
+            Some(organization),
+            be_block_protocol::Op::CreateAgent {
+                account: agent_account,
+                name: scene::AGENT_NAME.into(),
+                recovery: agent_public.0,
+                signing: agent_phrase.secret().signing().0,
+                contact: be_block_client::contacts::OwnContact::new(owner_card.clone(), 0)
+                    .seal(&agent_phrase.secret()),
+                escrow: be_block_client::contacts::seal_pin(
+                    &agent_phrase.secret(),
+                    organization,
+                    &owner.keys().pins(),
+                ),
+                bound_to: None,
+                member: owner
+                    .agent_record(agent_account, agent_phrase.secret().identity())
+                    .await
+                    .map_err(text)?,
+            },
+        ),
+    )
     .await?;
     let agent_card = be_block_keys::ContactCard {
         account: agent.account.into_bytes(),
@@ -417,7 +445,15 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         display_name: agent.name.clone(),
         email: agent.email.clone(),
     };
-    ask(be_block_protocol::write::<(), _>(&owner.connection(), None, be_block_protocol::Op::PutContact { contact: agent.account, sealed: be_block_client::contacts::OwnContact::new(agent_card, 0).seal(owner.keys().identity()) }))
+    ask(be_block_protocol::write::<(), _>(
+        &owner.connection(),
+        None,
+        be_block_protocol::Op::PutContact {
+            contact: agent.account,
+            sealed: be_block_client::contacts::OwnContact::new(agent_card, 0)
+                .seal(owner.keys().identity()),
+        },
+    ))
     .await?;
     owner.refresh_contacts().await.map_err(text)?;
 
@@ -674,7 +710,13 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     )
     .await
     .map_err(text)?;
-    be_block_client::contacts::accept_link(&friend.connection(), friend.keys().identity(), &card(&friend, scene::FRIEND_NAME, scene::FRIEND_EMAIL), &link, be_block_client::contacts::Expected::Contact)
+    be_block_client::contacts::accept_link(
+        &friend.connection(),
+        friend.keys().identity(),
+        &card(&friend, scene::FRIEND_NAME, scene::FRIEND_EMAIL),
+        &link,
+        be_block_client::contacts::Expected::Contact,
+    )
     .await
     .map_err(text)?;
     owner_personal.finish_links().await.map_err(text)?;
@@ -711,8 +753,17 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         .map_err(text)?;
     let friend_editing = reopen(&socket, &friend, personal, ChunkerConfig::DEFAULT).await?;
     let friend_note = text_block(&friend_editing, holiday, scene::FRIEND_NOTE).await?;
-    let friend_held = ask(be_block_protocol::read::<be_block_protocol::AccountStorage, _>(&friend_editing.connection(), None, be_block_protocol::Query::Storage)).await.map_err(text)?
-        .held;
+    let friend_held = ask(be_block_protocol::read::<
+        be_block_protocol::AccountStorage,
+        _,
+    >(
+        &friend_editing.connection(),
+        None,
+        be_block_protocol::Query::Storage,
+    ))
+    .await
+    .map_err(text)?
+    .held;
     if friend_held != 0 {
         return Err(format!(
             "the friend pays {friend_held} bytes for a note in the owner's folder"
@@ -735,7 +786,14 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     let fresh = RecoveryPhrase::generate();
     let be_block_protocol::RecoveryKey {
         sealed, own, logs, ..
-    } = ask(be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(&friend.connection(), None, be_block_protocol::Query::RecoveryKey)).await?;
+    } = ask(
+        be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
+            &friend.connection(),
+            None,
+            be_block_protocol::Query::RecoveryKey,
+        ),
+    )
+    .await?;
     let resealed = be_block_client::contacts::new_identity(
         friend.account(),
         friend.keys().identity(),
@@ -745,13 +803,31 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         logs,
     )
     .ok_or("the friend's old phrase did not open what was sealed to it")?;
-    ask(be_block_protocol::write::<(), _>(&friend.connection(), None, be_block_protocol::Op::SetRecoveryKey { public: fresh.secret().public().0, signing: fresh.secret().signing().0, sealed: resealed.sealed, own: resealed.own, changes: resealed.changes, retirements: resealed.retirements }))
+    ask(be_block_protocol::write::<(), _>(
+        &friend.connection(),
+        None,
+        be_block_protocol::Op::SetRecoveryKey {
+            public: fresh.secret().public().0,
+            signing: fresh.secret().signing().0,
+            sealed: resealed.sealed,
+            own: resealed.own,
+            changes: resealed.changes,
+            retirements: resealed.retirements,
+        },
+    ))
     .await?;
 
-    let upload = ask(be_block_protocol::write::<Vec<Option<be_block_protocol::UploadUrl>>, _>(&owner.connection(), Some(owner.organization()), be_block_protocol::Op::ReserveUploads(vec![be_block_protocol::ObjectLength {
+    let upload = ask(be_block_protocol::write::<
+        Vec<Option<be_block_protocol::UploadUrl>>,
+        _,
+    >(
+        &owner.connection(),
+        Some(owner.organization()),
+        be_block_protocol::Op::ReserveUploads(vec![be_block_protocol::ObjectLength {
             hash: be_block_store::Hash::of(scene::PENDING_UPLOAD),
             length: Some(scene::PENDING_UPLOAD.len() as u64),
-        }])))
+        }]),
+    ))
     .await?
     .pop()
     .flatten()
@@ -785,7 +861,16 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         )
         .await
         .map_err(text)?;
-    let storage = ask(be_block_protocol::read::<be_block_protocol::AccountStorage, _>(&owner.connection(), None, be_block_protocol::Query::Storage)).await.map_err(text)?;
+    let storage = ask(be_block_protocol::read::<
+        be_block_protocol::AccountStorage,
+        _,
+    >(
+        &owner.connection(),
+        None,
+        be_block_protocol::Query::Storage,
+    ))
+    .await
+    .map_err(text)?;
     let size = |block: Uuid| {
         let owner = &owner;
         async move { owner.summary(block).await.map_err(text) }

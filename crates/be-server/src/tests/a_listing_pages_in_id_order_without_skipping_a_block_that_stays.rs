@@ -7,7 +7,10 @@ async fn page(
 ) -> be_block_protocol::Listed {
     client
         .call(|peer| {
-            peer.read::<be_block_protocol::Listed>(be_block_protocol::Query::List { listing: Listing::Children(BlockParent::Block(parent)), after: after })
+            peer.read::<be_block_protocol::Listed>(be_block_protocol::Query::List {
+                listing: Listing::Children(BlockParent::Block(parent)),
+                after: after,
+            })
         })
         .await
         .expect("listing failed")

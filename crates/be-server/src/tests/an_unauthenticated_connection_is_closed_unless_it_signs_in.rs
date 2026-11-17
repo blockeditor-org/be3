@@ -18,7 +18,9 @@ async fn an_unauthenticated_connection_is_closed_unless_it_signs_in() {
     assert!(response.is_ok(), "{response:?}");
     let mut wrong = harness.client().await;
     let first = wrong.peer.clone();
-    let listed = first.read::<Vec<be_block_protocol::Organization>>(be_block_protocol::Query::Organizations).await;
+    let listed = first
+        .read::<Vec<be_block_protocol::Organization>>(be_block_protocol::Query::Organizations)
+        .await;
     assert!(
         !matches!(listed, Ok(Ok(_))),
         "a connection was answered before it signed in: {listed:?}"

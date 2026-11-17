@@ -77,7 +77,9 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
     let under = owner.create_block(BlockParent::Block(elsewhere)).await;
     let (account, token) = owner.block_agent(organization, terminal).await.unwrap();
 
-    let response = owner.call(|peer| peer.read::<Vec<be_block_protocol::Member>>(be_block_protocol::Query::Members)).await;
+    let response = owner
+        .call(|peer| peer.read::<Vec<be_block_protocol::Member>>(be_block_protocol::Query::Members))
+        .await;
     assert!(
         matches!(&response, Ok(members) if members.iter().any(|member| member.account == account
             && member.created_by == Some(me)
@@ -85,7 +87,9 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
         "a block's agent is listed as its block's: {response:?}"
     );
     let response = owner
-        .call(|peer| peer.read::<be_block_protocol::AccessList>(be_block_protocol::Query::Access(terminal)))
+        .call(|peer| {
+            peer.read::<be_block_protocol::AccessList>(be_block_protocol::Query::Access(terminal))
+        })
         .await;
     let Ok(access) = response else {
         panic!("listing the block's access failed: {response:?}");
@@ -115,7 +119,18 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
     }
     let response = agent
         .call(|peer| {
-            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::CreateBlock { block: Uuid::new_v4(), content_type: CONTENT, parent: BlockParent::Root, metadata: Vec::new(), references: Vec::new(), key: KEY, keys: KeySet::default(), owner_only: false, root: Vec::new(), placement: Vec::new() })
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::CreateBlock {
+                block: Uuid::new_v4(),
+                content_type: CONTENT,
+                parent: BlockParent::Root,
+                metadata: Vec::new(),
+                references: Vec::new(),
+                key: KEY,
+                keys: KeySet::default(),
+                owner_only: false,
+                root: Vec::new(),
+                placement: Vec::new(),
+            })
         })
         .await;
     assert!(
@@ -209,7 +224,9 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
         "a block's agent was given key work outside its block: {work:?}"
     );
     let response = agent
-        .call(|peer| peer.read::<be_block_protocol::RecoveryKey>(be_block_protocol::Query::RecoveryKey))
+        .call(|peer| {
+            peer.read::<be_block_protocol::RecoveryKey>(be_block_protocol::Query::RecoveryKey)
+        })
         .await;
     let Ok(recovery) = response else {
         panic!("reading the recovery key failed: {response:?}");

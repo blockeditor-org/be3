@@ -194,11 +194,15 @@ impl<S: ObjectStore> Peer<S> {
             let verified: Vec<_> = known.iter().filter(|known| known.verified).collect();
             return Ok(by_verified(&verified, made, arrived).unwrap_or(Signer::Bad));
         }
-        let served = be_block_protocol::read::<Vec<be_block_protocol::SigningKey>, _>(&self.connection(), Some(self.organization), be_block_protocol::Query::SigningKeys(vec![account]))
-            .await??
-            .into_iter()
-            .find(|served| served.account == account)
-            .map(|served| served.key);
+        let served = be_block_protocol::read::<Vec<be_block_protocol::SigningKey>, _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Query::SigningKeys(vec![account]),
+        )
+        .await??
+        .into_iter()
+        .find(|served| served.account == account)
+        .map(|served| served.key);
         let Some(served) = served.filter(|served| !known.iter().any(|known| known.key == *served))
         else {
             return Ok(Signer::Bad);

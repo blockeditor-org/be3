@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use be_block_protocol::{
     ErrorCode, EscrowKey, Invitation, KeyChange, Link, LinkKind, OwnKind, OwnSealed, PendingGrant,
-    SealedKey, 
+    SealedKey,
 };
 use uuid::Uuid;
 
@@ -177,7 +177,18 @@ pub async fn create_organization(
         root: Some(root.hash()),
         escrow: None,
     };
-    crate::ask(be_block_protocol::write::<be_block_protocol::Organization, _>(connection, None, be_block_protocol::Op::CreateOrganization { id: id, name: name, root: root.encode(), pinned: seal_pin(identity, id, &pinned) }))
+    crate::ask(
+        be_block_protocol::write::<be_block_protocol::Organization, _>(
+            connection,
+            None,
+            be_block_protocol::Op::CreateOrganization {
+                id: id,
+                name: name,
+                root: root.encode(),
+                pinned: seal_pin(identity, id, &pinned),
+            },
+        ),
+    )
     .await
 }
 
@@ -188,11 +199,13 @@ pub async fn register_identity(
     connection: &Arc<Connection>,
     identity: &RecoverySecret,
 ) -> Result<be_block_protocol::RecoveryKey, ClientError> {
-    let held = crate::ask(be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
-        connection,
-        None,
-        be_block_protocol::Query::RecoveryKey,
-    ))
+    let held = crate::ask(
+        be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
+            connection,
+            None,
+            be_block_protocol::Query::RecoveryKey,
+        ),
+    )
     .await?;
     if held.public.is_some() {
         return Ok(held);
@@ -249,7 +262,12 @@ pub async fn contacts(
     identity: &RecoverySecret,
     pinned: &HashMap<Uuid, OwnContact>,
 ) -> Result<Vec<Contact>, ClientError> {
-    let contacts = be_block_protocol::read::<Vec<be_block_protocol::ContactRow>, _>(connection, None, be_block_protocol::Query::Contacts).await??;
+    let contacts = be_block_protocol::read::<Vec<be_block_protocol::ContactRow>, _>(
+        connection,
+        None,
+        be_block_protocol::Query::Contacts,
+    )
+    .await??;
     let mut held = None;
     let mut listed = Vec::with_capacity(contacts.len());
     for row in contacts {
@@ -288,7 +306,15 @@ pub async fn contacts(
             put = true;
         }
         if let Some(record) = record.as_ref().filter(|_| put) {
-            be_block_protocol::write::<(), _>(connection, None, be_block_protocol::Op::PutContact { contact: row.account, sealed: record.seal(identity) }).await??;
+            be_block_protocol::write::<(), _>(
+                connection,
+                None,
+                be_block_protocol::Op::PutContact {
+                    contact: row.account,
+                    sealed: record.seal(identity),
+                },
+            )
+            .await??;
         }
         listed.push(match record {
             Some(record) => Contact {
@@ -338,7 +364,15 @@ fn changed_key(
 }
 
 async fn sealed_to_me(connection: &Arc<Connection>) -> Result<Vec<SealedKey>, ClientError> {
-    Ok(be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(connection, None, be_block_protocol::Query::RecoveryKey).await??.sealed)
+    Ok(
+        be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
+            connection,
+            None,
+            be_block_protocol::Query::RecoveryKey,
+        )
+        .await??
+        .sealed,
+    )
 }
 
 async fn reseal_from(
@@ -371,7 +405,12 @@ async fn reseal_from(
         })
         .collect();
     if !keys.is_empty() {
-        be_block_protocol::write::<(), _>(connection, None, be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Reseal(keys))).await??;
+        be_block_protocol::write::<(), _>(
+            connection,
+            None,
+            be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Reseal(keys)),
+        )
+        .await??;
     }
     Ok(())
 }
@@ -495,7 +534,16 @@ pub async fn make_link(
         key: offer.key,
         sealed: code.seal_grant(offer.key.into_bytes(), &offer.secret),
     });
-    be_block_protocol::write::<(), _>(connection, None, be_block_protocol::Op::CreateLink { link: link_id(&code), card: me.seal(&code, CardRole::Owner), code: identity.seal_own(&code.to_bytes()), kind: LinkKind::Contact(grant) })
+    be_block_protocol::write::<(), _>(
+        connection,
+        None,
+        be_block_protocol::Op::CreateLink {
+            link: link_id(&code),
+            card: me.seal(&code, CardRole::Owner),
+            code: identity.seal_own(&code.to_bytes()),
+            kind: LinkKind::Contact(grant),
+        },
+    )
     .await??;
     Ok(code)
 }
@@ -531,7 +579,12 @@ pub async fn open_link(
     code: &InviteCode,
     expected: Expected,
 ) -> Result<(Link, ContactCard), ClientError> {
-    let link = be_block_protocol::read::<be_block_protocol::Link, _>(connection, None, be_block_protocol::Query::Link(link_id(code))).await??;
+    let link = be_block_protocol::read::<be_block_protocol::Link, _>(
+        connection,
+        None,
+        be_block_protocol::Query::Link(link_id(code)),
+    )
+    .await??;
     let kind = match link.kind {
         LinkKind::Contact(_) => Expected::Contact,
         LinkKind::Invitation(_) => Expected::Invitation,
@@ -554,14 +607,20 @@ async fn served_verified(
     connection: &Arc<Connection>,
     identity: &RecoverySecret,
 ) -> Result<HashMap<Uuid, u64>, ClientError> {
-    Ok(be_block_protocol::read::<Vec<be_block_protocol::ContactRow>, _>(connection, None, be_block_protocol::Query::Contacts)
+    Ok(
+        be_block_protocol::read::<Vec<be_block_protocol::ContactRow>, _>(
+            connection,
+            None,
+            be_block_protocol::Query::Contacts,
+        )
         .await??
         .into_iter()
         .filter_map(|row| {
             let record = OwnContact::open(identity, &row.sealed, row.account)?;
             Some((row.account, record.verified))
         })
-        .collect())
+        .collect(),
+    )
 }
 
 /// Accepts a link of the kind `expected`: a contact link's grant, or an invitation's escrow
@@ -604,7 +663,16 @@ pub async fn accept_link(
             seal_pin(identity, invitation.organization, &opened)
         }
     };
-    be_block_protocol::write::<(), _>(connection, None, be_block_protocol::Op::AcceptLink { link: link.id, card: me.seal(code, CardRole::Accepter), contact: OwnContact::new(card.clone(), after).seal(identity), key: key })
+    be_block_protocol::write::<(), _>(
+        connection,
+        None,
+        be_block_protocol::Op::AcceptLink {
+            link: link.id,
+            card: me.seal(code, CardRole::Accepter),
+            contact: OwnContact::new(card.clone(), after).seal(identity),
+            key: key,
+        },
+    )
     .await??;
     Ok((link, card))
 }
@@ -614,7 +682,12 @@ pub(crate) async fn finish_links(
     identity: &RecoverySecret,
     organization: Uuid,
 ) -> Result<Vec<Finished>, ClientError> {
-    let links = be_block_protocol::read::<Vec<be_block_protocol::OwnLink>, _>(connection, None, be_block_protocol::Query::Links).await??;
+    let links = be_block_protocol::read::<Vec<be_block_protocol::OwnLink>, _>(
+        connection,
+        None,
+        be_block_protocol::Query::Links,
+    )
+    .await??;
     let served = match links.iter().any(|link| link.accepter.is_some()) {
         true => served_verified(connection, identity).await?,
         false => HashMap::new(),
@@ -632,11 +705,18 @@ pub(crate) async fn finish_links(
             .filter(|card| card.account == accepter.into_bytes());
         let mut kept = opened.is_some();
         if let Some(card) = &opened {
-            let put = crate::ask(be_block_protocol::write::<(), _>(connection, None, be_block_protocol::Op::PutContact { contact: accepter, sealed: OwnContact::new(
-                    card.clone(),
-                    served.get(&accepter).copied().unwrap_or_default(),
-                )
-                .seal(identity) }))
+            let put = crate::ask(be_block_protocol::write::<(), _>(
+                connection,
+                None,
+                be_block_protocol::Op::PutContact {
+                    contact: accepter,
+                    sealed: OwnContact::new(
+                        card.clone(),
+                        served.get(&accepter).copied().unwrap_or_default(),
+                    )
+                    .seal(identity),
+                },
+            ))
             .await;
             match put {
                 Ok(_) => {}
@@ -665,7 +745,14 @@ pub(crate) async fn finish_links(
                 invited,
                 link: link.id,
             }),
-            None => be_block_protocol::write::<(), _>(connection, None, be_block_protocol::Op::DeleteLink(link.id)).await??,
+            None => {
+                be_block_protocol::write::<(), _>(
+                    connection,
+                    None,
+                    be_block_protocol::Op::DeleteLink(link.id),
+                )
+                .await??
+            }
         }
     }
     Ok(finished)
@@ -686,10 +773,19 @@ pub async fn invite(
         true => Vec::new(),
         false => code.seal_escrow(organization.into_bytes(), &pinned.encode()),
     };
-    be_block_protocol::write::<(), _>(connection, Some(organization), be_block_protocol::Op::CreateLink { link: link_id(&code), card: me.seal(&code, CardRole::Owner), code: identity.seal_own(&code.to_bytes()), kind: LinkKind::Invitation(Invitation {
-            organization,
-            escrow,
-        }) })
+    be_block_protocol::write::<(), _>(
+        connection,
+        Some(organization),
+        be_block_protocol::Op::CreateLink {
+            link: link_id(&code),
+            card: me.seal(&code, CardRole::Owner),
+            code: identity.seal_own(&code.to_bytes()),
+            kind: LinkKind::Invitation(Invitation {
+                organization,
+                escrow,
+            }),
+        },
+    )
     .await??;
     Ok(code)
 }
@@ -703,7 +799,11 @@ pub async fn preview_invitation(
 ) -> Result<(be_block_protocol::InvitationPreview, Option<ContactCard>), ClientError> {
     let id = link_id(code);
     let preview = crate::call_once(server_url, move |peer| {
-        be_block_protocol::read::<be_block_protocol::InvitationPreview, _>(peer, None, be_block_protocol::Query::Invitation(id))
+        be_block_protocol::read::<be_block_protocol::InvitationPreview, _>(
+            peer,
+            None,
+            be_block_protocol::Query::Invitation(id),
+        )
     })
     .await?;
     let card = match preview.card.is_empty() {

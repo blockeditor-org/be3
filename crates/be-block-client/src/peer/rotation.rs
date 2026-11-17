@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use be_block_graph::{Access, BlockParent};
 use be_block_keys::RecoveryPublic;
 use be_block_protocol::{
-    BlockSummary, ErrorCode, KeyKind, KeySet, KeyWork, Member, OrganizationRole, 
+    BlockSummary, ErrorCode, KeyKind, KeySet, KeyWork, Member, OrganizationRole,
 };
 use be_block_store::ObjectStore;
 use uuid::Uuid;
@@ -337,7 +337,12 @@ impl<S: ObjectStore> Peer<S> {
             escrow: Some(escrow),
         };
         let sealed = crate::contacts::seal_pin(self.keys.identity(), self.organization, &pinned);
-        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), be_block_protocol::Op::PinEscrow(sealed)).await??;
+        be_block_protocol::write::<(), _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Op::PinEscrow(sealed),
+        )
+        .await??;
         self.adopt_pinned(pinned);
         Ok(())
     }
@@ -443,7 +448,15 @@ impl<S: ObjectStore> Peer<S> {
             let (_, minted) = self.keys.mint_data(node.id, under)?;
             keys.extend(minted);
         }
-        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rotate { roots: vec![root], keys: keys.clone() })).await??;
+        be_block_protocol::write::<(), _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rotate {
+                roots: vec![root],
+                keys: keys.clone(),
+            }),
+        )
+        .await??;
         self.recorded(&keys);
         Ok(())
     }
@@ -473,7 +486,15 @@ impl<S: ObjectStore> Peer<S> {
                 keys.wrapped.push(wrap);
             }
         }
-        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Escrow { escrow: escrow.clone(), keys: keys.clone() })).await??;
+        be_block_protocol::write::<(), _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Escrow {
+                escrow: escrow.clone(),
+                keys: keys.clone(),
+            }),
+        )
+        .await??;
         self.keys.adopt_escrow(escrow);
         self.recorded(&keys);
         self.save_pin().await
@@ -500,7 +521,14 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn members(&self) -> Result<Vec<Member>, ClientError> {
-        Ok(be_block_protocol::read::<Vec<be_block_protocol::Member>, _>(&self.connection(), Some(self.organization), be_block_protocol::Query::Members).await??)
+        Ok(
+            be_block_protocol::read::<Vec<be_block_protocol::Member>, _>(
+                &self.connection(),
+                Some(self.organization),
+                be_block_protocol::Query::Members,
+            )
+            .await??,
+        )
     }
 
     /// Sets a member's role. Making or unmaking an administrator of a company organization is a
@@ -508,7 +536,16 @@ impl<S: ObjectStore> Peer<S> {
     /// unmake one, those the log names).
     pub async fn set_role(&self, account: Uuid, role: OrganizationRole) -> Result<(), ClientError> {
         let signed = self.administrator_record(account, role).await?;
-        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Role { account: account, role: role, signed: signed })).await??;
+        be_block_protocol::write::<(), _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Role {
+                account: account,
+                role: role,
+                signed: signed,
+            }),
+        )
+        .await??;
         Ok(())
     }
 
@@ -574,7 +611,16 @@ impl<S: ObjectStore> Peer<S> {
             None => None,
         };
         let revocations = self.removal_revocations(account, false).await?;
-        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), be_block_protocol::Op::RemoveMember { account: account, signed: signed, revocations: revocations }).await??;
+        be_block_protocol::write::<(), _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Op::RemoveMember {
+                account: account,
+                signed: signed,
+                revocations: revocations,
+            },
+        )
+        .await??;
         Ok(())
     }
 
@@ -582,7 +628,15 @@ impl<S: ObjectStore> Peer<S> {
     /// grants on blocks the other manages that blocks' logs name.
     pub async fn remove_contact(&self, account: Uuid) -> Result<(), ClientError> {
         let revocations = self.removal_revocations(account, true).await?;
-        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), be_block_protocol::Op::RemoveContact { account: account, revocations: revocations }).await??;
+        be_block_protocol::write::<(), _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Op::RemoveContact {
+                account: account,
+                revocations: revocations,
+            },
+        )
+        .await??;
         Ok(())
     }
 
@@ -594,8 +648,15 @@ impl<S: ObjectStore> Peer<S> {
         account: Uuid,
         contact: bool,
     ) -> Result<Vec<Vec<u8>>, ClientError> {
-        let pairs =
-            be_block_protocol::read::<Vec<be_block_protocol::Revocation>, _>(&self.connection(), Some(self.organization), be_block_protocol::Query::Revocations { account: account, contact: contact }).await??;
+        let pairs = be_block_protocol::read::<Vec<be_block_protocol::Revocation>, _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Query::Revocations {
+                account: account,
+                contact: contact,
+            },
+        )
+        .await??;
         let mut signed = Vec::new();
         for revoked in pairs {
             if let Some(record) = self
@@ -631,7 +692,12 @@ impl<S: ObjectStore> Peer<S> {
             if unreachable {
                 continue;
             }
-            let deleted = be_block_protocol::write::<(), _>(&self.connection(), None, be_block_protocol::Op::DeleteLink(done.link)).await;
+            let deleted = be_block_protocol::write::<(), _>(
+                &self.connection(),
+                None,
+                be_block_protocol::Op::DeleteLink(done.link),
+            )
+            .await;
             if let Err(error) = deleted
                 .map_err(ClientError::from)
                 .and_then(|deleted| deleted.map_err(ClientError::from))
@@ -787,7 +853,12 @@ impl<S: ObjectStore> Peer<S> {
         else {
             return Ok(());
         };
-        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Member(signed))).await??;
+        be_block_protocol::write::<(), _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Member(signed)),
+        )
+        .await??;
         Ok(())
     }
 
@@ -830,7 +901,12 @@ impl<S: ObjectStore> Peer<S> {
             if let Some(signed) =
                 self.member_record(checked.as_ref(), account, identity, false, true)
             {
-                be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Member(signed))).await??;
+                be_block_protocol::write::<(), _>(
+                    &self.connection(),
+                    Some(self.organization),
+                    be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Member(signed)),
+                )
+                .await??;
             }
         }
         Ok(())

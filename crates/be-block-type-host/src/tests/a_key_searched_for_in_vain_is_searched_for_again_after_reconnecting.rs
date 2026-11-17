@@ -54,10 +54,14 @@ fn a_key_searched_for_in_vain_is_searched_for_again_after_reconnecting() {
         assert_eq!(replicas.key_searches(), 1);
         assert!(replicas.heard_from_peers().is_empty(), "let go: no key yet");
 
-        be_block_protocol::write::<(), _>(&phone.connection(), Some(phone.organization()), be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(minted)))
-            .await
-            .expect("the server answers")
-            .expect("the server takes the key");
+        be_block_protocol::write::<(), _>(
+            &phone.connection(),
+            Some(phone.organization()),
+            be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(minted)),
+        )
+        .await
+        .expect("the server answers")
+        .expect("the server takes the key");
         replicas.resynchronize((&peer, &shared));
         replicas.heard((&peer, &shared), &relayed(b"after"));
         assert!(

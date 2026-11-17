@@ -269,9 +269,43 @@ impl<S: ObjectStore> Peer<S> {
                 placement,
                 unchecked: _,
             } = ready.creation.clone();
-            let created = be_block_protocol::write::<be_block_protocol::BlockSummary, _>(&self.connection(), Some(self.organization), be_block_protocol::Op::CreateBlock { block: block, content_type: content_type, parent: parent, metadata: metadata, references: references, key: key, keys: keys, owner_only: owner_only, root: root, placement: placement });
+            let created = be_block_protocol::write::<be_block_protocol::BlockSummary, _>(
+                &self.connection(),
+                Some(self.organization),
+                be_block_protocol::Op::CreateBlock {
+                    block: block,
+                    content_type: content_type,
+                    parent: parent,
+                    metadata: metadata,
+                    references: references,
+                    key: key,
+                    keys: keys,
+                    owner_only: owner_only,
+                    root: root,
+                    placement: placement,
+                },
+            );
             let published = ready.publish.clone().map(|pending| {
-                be_block_protocol::write::<be_block_protocol::PublishOutcome, _>(&self.connection(), Some(self.organization), be_block_protocol::Op::Publish { block: pending.block, commit: pending.commit, expected: None, parents: Vec::new(), held: be_block_protocol::ObjectChange::between(&[], &pending.chunks), time: pending.time, pinned: false, references: be_block_protocol::ReferenceChange::between(&[], &pending.references), metadata: pending.metadata, objects: Vec::new(), journal: None })
+                be_block_protocol::write::<be_block_protocol::PublishOutcome, _>(
+                    &self.connection(),
+                    Some(self.organization),
+                    be_block_protocol::Op::Publish {
+                        block: pending.block,
+                        commit: pending.commit,
+                        expected: None,
+                        parents: Vec::new(),
+                        held: be_block_protocol::ObjectChange::between(&[], &pending.chunks),
+                        time: pending.time,
+                        pinned: false,
+                        references: be_block_protocol::ReferenceChange::between(
+                            &[],
+                            &pending.references,
+                        ),
+                        metadata: pending.metadata,
+                        objects: Vec::new(),
+                        journal: None,
+                    },
+                )
             });
             sent.push((ready, created, published));
         }

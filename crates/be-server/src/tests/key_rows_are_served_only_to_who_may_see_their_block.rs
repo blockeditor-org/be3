@@ -42,16 +42,26 @@ async fn key_rows_are_served_only_to_who_may_see_their_block() {
     let guest_id = guest.register("guest@example.com").await;
     let response = owner
         .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::CreateLink { link: Uuid::from_u128(1), card: Vec::new(), code: Vec::new(), kind: be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
+            peer.write::<()>(be_block_protocol::Op::CreateLink {
+                link: Uuid::from_u128(1),
+                card: Vec::new(),
+                code: Vec::new(),
+                kind: be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                     organization,
                     escrow: Vec::new(),
-                }) })
+                }),
+            })
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let _ = guest
         .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::AcceptLink { link: Uuid::from_u128(1), card: Vec::new(), contact: Vec::new(), key: Vec::new() })
+            peer.write::<()>(be_block_protocol::Op::AcceptLink {
+                link: Uuid::from_u128(1),
+                card: Vec::new(),
+                contact: Vec::new(),
+                key: Vec::new(),
+            })
         })
         .await;
     guest.open(organization).await;
@@ -79,14 +89,16 @@ async fn key_rows_are_served_only_to_who_may_see_their_block() {
 
     let refused = guest
         .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
+            peer.write::<()>(be_block_protocol::Op::PutKeys(
+                be_block_protocol::PutKeys::Rows(KeySet {
                     keys: Vec::new(),
                     wrapped: vec![wrap(
                         folder.scope,
                         WrappedBy::Account(guest_id),
                         b"a viewer sealing itself a key",
                     )],
-                })))
+                }),
+            ))
         })
         .await;
     assert!(
@@ -101,14 +113,16 @@ async fn key_rows_are_served_only_to_who_may_see_their_block() {
     );
     let response = owner
         .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
+            peer.write::<()>(be_block_protocol::Op::PutKeys(
+                be_block_protocol::PutKeys::Rows(KeySet {
                     keys: Vec::new(),
                     wrapped: vec![wrap(
                         folder.scope,
                         WrappedBy::Account(guest_id),
                         b"scope sealed to the guest",
                     )],
-                })))
+                }),
+            ))
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
@@ -125,7 +139,9 @@ async fn key_rows_are_served_only_to_who_may_see_their_block() {
         "{narrowed:?}"
     );
     let response = guest
-        .call(|peer| peer.read::<be_block_protocol::RecoveryKey>(be_block_protocol::Query::RecoveryKey))
+        .call(|peer| {
+            peer.read::<be_block_protocol::RecoveryKey>(be_block_protocol::Query::RecoveryKey)
+        })
         .await;
     let Ok(be_block_protocol::RecoveryKey { sealed, .. }) = response else {
         panic!("{response:?}");
@@ -138,7 +154,9 @@ async fn key_rows_are_served_only_to_who_may_see_their_block() {
         "a revoked guest was still served the keys"
     );
     let response = guest
-        .call(|peer| peer.read::<be_block_protocol::RecoveryKey>(be_block_protocol::Query::RecoveryKey))
+        .call(|peer| {
+            peer.read::<be_block_protocol::RecoveryKey>(be_block_protocol::Query::RecoveryKey)
+        })
         .await;
     assert!(
         matches!(&response, Ok(be_block_protocol::RecoveryKey { sealed, .. }) if sealed.is_empty()),

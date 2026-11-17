@@ -10,21 +10,20 @@ fn a_holder_cut_off_before_it_seals_leaves_its_edits_to_the_next_holder() {
     wait_for_count(block, 4);
     flush_and_send();
 
-    let mut submits = harness
-        .relay()
-        .count(|method, args| {
-            method == be_block_protocol::__args::SERVER_SEND
-                && be_wasm_ops::decode::<be_block_protocol::__args::ServerSendArgs>(args)
-                    .is_some_and(|sent| {
-                        matches!(
-                            sent.target,
-                            be_block_protocol::Target::Session {
-                                kind: be_block_protocol::SessionSend::Ordered(_),
-                                ..
-                            }
-                        )
-                    })
-        });
+    let mut submits = harness.relay().count(|method, args| {
+        method == be_block_protocol::__args::SERVER_SEND
+            && be_wasm_ops::decode::<be_block_protocol::__args::ServerSendArgs>(args).is_some_and(
+                |sent| {
+                    matches!(
+                        sent.target,
+                        be_block_protocol::Target::Session {
+                            kind: be_block_protocol::SessionSend::Ordered(_),
+                            ..
+                        }
+                    )
+                },
+            )
+    });
     add(block, 3);
     wait_for_count(block, 7);
     let committed = runtime().block_on(async {

@@ -14,7 +14,19 @@ async fn publish_onto(
     let change = objects_change(held, chunks);
     client
         .call(|peer| {
-            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: block, commit: commit, expected: expected, parents: parents, held: change, time: time, pinned: false, references: listing(&[], Vec::new()), metadata: Vec::new(), objects: Vec::new(), journal: None })
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
+                block: block,
+                commit: commit,
+                expected: expected,
+                parents: parents,
+                held: change,
+                time: time,
+                pinned: false,
+                references: listing(&[], Vec::new()),
+                metadata: Vec::new(),
+                objects: Vec::new(),
+                journal: None,
+            })
         })
         .await
 }

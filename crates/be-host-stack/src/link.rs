@@ -70,7 +70,10 @@ pub async fn signed_in(server_url: &str, token: &str, clock: &Clock) -> Result<L
         return Ok(held.link.clone());
     }
     let connection = open(server_url, clock).await?;
-    let account = be_block_client::ask(be_block_protocol::client::server::authenticate(&connection, Some(token.to_owned())))
+    let account = be_block_client::ask(be_block_protocol::client::server::authenticate(
+        &connection,
+        Some(token.to_owned()),
+    ))
     .await?
     .account;
     let link = Link {

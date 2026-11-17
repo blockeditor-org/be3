@@ -32,11 +32,38 @@ async fn a_block_referencing_too_many_blocks_is_refused() {
     too_many.push(Uuid::new_v4());
 
     refused(
-        crate::ask(be_block_protocol::write::<be_block_protocol::BlockSummary, _>(&author.connection(), Some(author.organization()), be_block_protocol::Op::SetMetadata { block: block, metadata: Vec::new(), references: too_many.clone() }))
+        crate::ask(
+            be_block_protocol::write::<be_block_protocol::BlockSummary, _>(
+                &author.connection(),
+                Some(author.organization()),
+                be_block_protocol::Op::SetMetadata {
+                    block: block,
+                    metadata: Vec::new(),
+                    references: too_many.clone(),
+                },
+            ),
+        )
         .await,
     );
     refused(
-        crate::ask(be_block_protocol::write::<be_block_protocol::BlockSummary, _>(&author.connection(), Some(author.organization()), be_block_protocol::Op::CreateBlock { block: Uuid::now_v7(), content_type: TextContent::CONTENT_TYPE, parent: BlockParent::Block(workspace), metadata: Vec::new(), references: too_many.clone(), key: Uuid::new_v4(), keys: KeySet::default(), owner_only: false, root: Vec::new(), placement: Vec::new() }))
+        crate::ask(
+            be_block_protocol::write::<be_block_protocol::BlockSummary, _>(
+                &author.connection(),
+                Some(author.organization()),
+                be_block_protocol::Op::CreateBlock {
+                    block: Uuid::now_v7(),
+                    content_type: TextContent::CONTENT_TYPE,
+                    parent: BlockParent::Block(workspace),
+                    metadata: Vec::new(),
+                    references: too_many.clone(),
+                    key: Uuid::new_v4(),
+                    keys: KeySet::default(),
+                    owner_only: false,
+                    root: Vec::new(),
+                    placement: Vec::new(),
+                },
+            ),
+        )
         .await,
     );
     refused(
@@ -54,7 +81,17 @@ async fn a_block_referencing_too_many_blocks_is_refused() {
     );
 
     // As many as may be: the block's summary passes every answer alone.
-    let kept = crate::ask(be_block_protocol::write::<be_block_protocol::BlockSummary, _>(&author.connection(), Some(author.organization()), be_block_protocol::Op::SetMetadata { block: block, metadata: Vec::new(), references: most }))
+    let kept = crate::ask(
+        be_block_protocol::write::<be_block_protocol::BlockSummary, _>(
+            &author.connection(),
+            Some(author.organization()),
+            be_block_protocol::Op::SetMetadata {
+                block: block,
+                metadata: Vec::new(),
+                references: most,
+            },
+        ),
+    )
     .await
     .unwrap();
     assert_eq!(kept.references.len(), MAX_REFERENCES);
@@ -74,7 +111,18 @@ async fn a_block_referencing_too_many_blocks_is_refused() {
         .await
         .unwrap();
     assert_eq!(read[1].summary.references.len(), MAX_REFERENCES);
-    let summaries = crate::ask(be_block_protocol::read::<Vec<Option<be_block_protocol::BlockSummary>>, _>(&reader.connection(), Some(author.organization()), be_block_protocol::Query::Blocks { blocks: vec![block, sibling], contents: false, held: Vec::new() }))
+    let summaries = crate::ask(be_block_protocol::read::<
+        Vec<Option<be_block_protocol::BlockSummary>>,
+        _,
+    >(
+        &reader.connection(),
+        Some(author.organization()),
+        be_block_protocol::Query::Blocks {
+            blocks: vec![block, sibling],
+            contents: false,
+            held: Vec::new(),
+        },
+    ))
     .await
     .unwrap();
     assert!(!summaries.is_empty());

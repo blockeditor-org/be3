@@ -30,7 +30,18 @@ async fn removing_a_member_shuts_them_out_and_rotates_what_they_could_read() {
 
     admin.remove_member(removed.account()).await.unwrap();
     assert!(
-        crate::ask(be_block_protocol::read::<Vec<Option<be_block_protocol::BlockSummary>>, _>(&removed.connection(), Some(removed.organization()), be_block_protocol::Query::Blocks { blocks: vec![note], contents: false, held: Vec::new() }))
+        crate::ask(be_block_protocol::read::<
+            Vec<Option<be_block_protocol::BlockSummary>>,
+            _,
+        >(
+            &removed.connection(),
+            Some(removed.organization()),
+            be_block_protocol::Query::Blocks {
+                blocks: vec![note],
+                contents: false,
+                held: Vec::new()
+            }
+        ))
         .await
         .is_err(),
         "a removed member's open connection kept reading"
