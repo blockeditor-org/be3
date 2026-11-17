@@ -3705,8 +3705,7 @@ impl<H: Host> Replicas<H> {
         let arrivals = peer.arrivals();
         let online = !made_up && peer.is_attached();
         if online
-            && let Some(submitted) =
-                be_sdk_type_guest::wire::Submitted::decode(&submission.payload)
+            && let Some(submitted) = be_sdk_type_guest::wire::Submitted::decode(&submission.payload)
             && let Some(open) = self.open.get_mut(&replica)
             && submitted.through > open.submitted_through
         {
