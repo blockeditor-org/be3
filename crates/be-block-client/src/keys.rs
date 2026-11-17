@@ -862,6 +862,17 @@ impl KeyBook {
         }
     }
 
+    /// Whether this device holds anything of `block`'s access log: a root it pinned, took
+    /// weakly or found conflicting, or how far it checked the log (`KeptLog`). A block it does
+    /// is not one it makes (`Peer::new_log`).
+    pub fn holds_log(&self, block: Uuid) -> bool {
+        let roots = self.roots.lock().unwrap();
+        roots.pinned.contains_key(&block)
+            || roots.weak.contains_key(&block)
+            || roots.conflicting.contains(&block)
+            || roots.kept.contains_key(&block)
+    }
+
     /// Pins the root of a block this device makes, before minting its keys, which carry it.
     pub fn pin_root(&self, block: Uuid, root: EntryHash) {
         self.roots.lock().unwrap().pin(block, root);
