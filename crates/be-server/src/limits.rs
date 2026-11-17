@@ -43,9 +43,9 @@ pub const MAX_MENTIONS: usize = 1_024;
 
 /// Live sessions one connection may be joined to at once.
 pub const MAX_SESSIONS_PER_CONNECTION: usize = 1_024;
-/// Listings one connection may hold at once: folders, references and backlinks open. A block's
-/// own listing (`Listing::Block`), which nothing unlists, does not count (`watch.rs`, `counts`).
-pub const MAX_LISTINGS_PER_CONNECTION: usize = 65_536;
+/// Entry points one connection may follow at once (`changed-since`'s `follow`): the top-level
+/// blocks and shared blocks whose trees hold what it shows.
+pub const MAX_FOLLOWS_PER_CONNECTION: usize = 4_096;
 /// Streams (watches, session events, change feeds) one connection may have open at once.
 pub const MAX_STREAMS_PER_CONNECTION: usize = 16_384;
 

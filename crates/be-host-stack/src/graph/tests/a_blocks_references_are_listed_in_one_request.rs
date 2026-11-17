@@ -34,13 +34,13 @@ fn a_blocks_references_are_listed_in_one_request() {
     let added = Uuid::from_u128(500);
     let mut more = rows.clone();
     more.push(added);
-    graph.put(linking(more), 2);
+    graph.put(changed_at(linking(more), 2), 2);
     assert_eq!(
         graph.take_wanted(),
         [Listing::References(view)],
         "a new reference lists the references again"
     );
-    graph.put(node(added), 3);
+    graph.put(changed_at(node(added), 3), 3);
     assert!(
         graph.get(added).is_some(),
         "news of a block the referrer links to is kept"

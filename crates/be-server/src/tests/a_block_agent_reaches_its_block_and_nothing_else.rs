@@ -53,7 +53,7 @@ const CONNECTING: &[&str] = &[
     "download-urls",
     "list-blocks",
     "read-summaries",
-    "unlist",
+    "unfollow",
     "changes",
     "get-keys",
     "put-keys",
@@ -198,8 +198,7 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
     agent.round_trip().await;
     assert!(
         agent.notifications.iter().all(|notice| match notice {
-            Notice::BlockChanged { block, .. } => [terminal, inside].contains(&block.id),
-            Notice::BlockRemoved { block, .. } => [terminal, inside].contains(block),
+            Notice::TreeAdvanced { entry, .. } => [terminal, inside].contains(entry),
             _ => true,
         }),
         "a block's agent heard of another block"

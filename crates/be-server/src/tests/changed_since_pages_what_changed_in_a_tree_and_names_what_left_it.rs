@@ -17,7 +17,7 @@ async fn changes(
     };
     for _ in 0..100 {
         let page = client
-            .call(|peer| client::blocks::changed_since(peer, root, after.clone(), limit))
+            .call(|peer| client::blocks::changed_since(peer, root, after.clone(), limit, false))
             .await
             .expect("changed-since failed");
         changed.extend(page.summaries.iter().map(|summary| summary.id));
@@ -186,6 +186,7 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
                     block: Uuid::max(),
                 },
                 1,
+                false,
             )
         })
         .await
@@ -198,7 +199,7 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     let mut after = page.next;
     while let Some(cursor) = after {
         let page = owner
-            .call(|peer| client::blocks::changed_since(peer, work, cursor.clone(), 1))
+            .call(|peer| client::blocks::changed_since(peer, work, cursor.clone(), 1, false))
             .await
             .expect("a later page");
         left.extend(page.removed);
@@ -256,7 +257,7 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     let mut pages = 0;
     loop {
         let page = owner
-            .call(|peer| client::blocks::changed_since(peer, lone, after.clone(), 100))
+            .call(|peer| client::blocks::changed_since(peer, lone, after.clone(), 100, false))
             .await
             .expect("a page of a tree of its own");
         pages += 1;
@@ -274,22 +275,12 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
         }
     }
 
-    // Only a top-level block's tree can be asked about.
+    // A block below the top is asked about as the tree below it: an entry point of a reader who
+    // may not view its parent.
     let nested = owner.create_block(BlockParent::Block(work)).await;
-    let asked = owner
-        .call(|peer| {
-            client::blocks::changed_since(
-                peer,
-                nested,
-                ChangeCursor {
-                    changed: 0,
-                    block: Uuid::max(),
-                },
-                10,
-            )
-        })
-        .await;
-    assert!(refused_as(&asked, ErrorCode::InvalidRequest), "{asked:?}");
+    let below = owner.create_block(BlockParent::Block(nested)).await;
+    let (changed, _, _) = changes(&mut owner, nested, 0, 100).await;
+    assert_eq!(changed, sorted(vec![nested, below]));
 
     harness.stop().await;
 }

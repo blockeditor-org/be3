@@ -18,7 +18,7 @@ fn a_discarded_blocks_edits_are_kept_again_only_on_the_servers_word() {
     refs.drop_local_edits(block).unwrap();
 
     let editable = BlockSummary::no_access(block, Uuid::new_v4(), be_block_graph::Access::Edit);
-    refs.listed(Listing::Block(block), &[editable], 1).unwrap();
+    refs.note(&editable).unwrap();
     assert!(refs.discarded(block), "a listing is not the server's word");
     assert!(!refs.keep_open_edits(block, OpenEdits::default()).unwrap());
 

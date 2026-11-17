@@ -20,7 +20,7 @@ async fn kept_edits_set_aside_are_bounded_told_once_they_read_and_never_sent() {
         .grant(block, guest.account(), Access::Edit)
         .await
         .unwrap();
-    let listed = guest.list(Listing::Block(block)).await.unwrap();
+    let listed = vec![guest.summary(block).await.unwrap()];
     guest.learn(&listed).await.unwrap();
 
     let kept = OpenEdits {

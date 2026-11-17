@@ -87,7 +87,7 @@ async fn a_folder_of_blocks_with_large_metadata_reads_in_answers_that_fit_a_fram
     );
 
     // What changed in the workspace's tree comes in pages that fit too.
-    let (changed, _, _) = reader.changed_since(workspace, 0).await.unwrap();
+    let (changed, _, _) = reader.changed_since(workspace, 0, false).await.unwrap();
     for id in &wanted {
         assert!(changed.iter().any(|summary| summary.id == *id));
     }

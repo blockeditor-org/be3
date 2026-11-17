@@ -20,7 +20,7 @@ async fn kept_edits_sealed_with_a_key_not_on_the_device_keep_their_origin_until_
         .grant(block, guest.account(), Access::Edit)
         .await
         .unwrap();
-    let listed = guest.list(Listing::Block(block)).await.unwrap();
+    let listed = vec![guest.summary(block).await.unwrap()];
     guest.learn(&listed).await.unwrap();
 
     let edit = KeptEdit::Frame {
