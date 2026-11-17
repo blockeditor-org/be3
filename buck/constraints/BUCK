@@ -29,22 +29,6 @@ constraint_value(
     constraint_setting = ":profile",
 )
 
-# Whether be-host's binary is linked with fat LTO over one codegen unit
-# (crates/be-host/BUCK): a constraint rather than a buckconfig value, so an LTO
-# build has outputs of its own. `-m lto` (the root PACKAGE's modifier) adds it
-# to a command's platform; ./scripts/deploy's native builds have it by their
-# transition (crates/be-tool-local/defs.bzl). Transitions drop it otherwise
-# (keep_profile in buck/platforms/profile.bzl), since nothing else selects on
-# it and the apps would only be built again for nothing.
-constraint_setting(
-    name = "link_time_optimization",
-)
-
-constraint_value(
-    name = "lto",
-    constraint_setting = ":link_time_optimization",
-)
-
 # Which core beui's view layer builds on (guides/beui.md, Two cores): the native one,
 # which lays out and paints itself, without this value, and the HTML one, which
 # hands both to the browser, with it. A constraint rather than a cargo feature,

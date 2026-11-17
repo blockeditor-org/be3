@@ -1,9 +1,8 @@
 # The constraints the root PACKAGE's modifiers add to a command's platform
-# (`-m release`, `-m lto`), each named by what it appends to a configuration's
-# label, in this order: linux_x86_64_release_lto. Every configuration that has
-# one is named so, whether a modifier or a transition made it (with_modifiers).
+# (`-m release`), each named by what it appends to a configuration's label:
+# linux_x86_64_release. Every configuration that has one is named so, whether a
+# modifier or a transition made it (with_modifiers).
 MODIFIERS = {
-    "lto": "root//buck/constraints:lto",
     "release": "root//buck/constraints:release",
 }
 
@@ -31,9 +30,7 @@ def modifiers_of(configuration: ConfigurationInfo, values: list) -> list:
 
 # What every transition in the build does with the platform it replaces: the
 # target platform changes, the profile (buck/constraints:release) does not, so
-# a release build's apps and Android library are release builds too. LTO is
-# dropped: only be-host's binary selects on it, and what deploys that adds it
-# itself (crates/be-tool-local/defs.bzl).
+# a release build's apps and Android library are release builds too.
 def keep_profile(incoming: PlatformInfo, target: PlatformInfo, refs: struct) -> PlatformInfo:
     return with_modifiers(target, modifiers_of(incoming.configuration, [refs.release[ConstraintValueInfo]]))
 

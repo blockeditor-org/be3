@@ -45,12 +45,10 @@ The `.bzl` files carry comments on each rule; read them before changing one.
 
 `-m release` builds with cargo's release profile; it is the `buck/constraints:release`
 constraint, added by a modifier in the root `PACKAGE`, so one build can hold both profiles.
-`-m lto` adds `buck/constraints:lto`, under which be-host's binary is linked with fat LTO over
-one codegen unit (a ten-minute link); `./scripts/deploy`'s native builds have it by their
-transition. Each modifier names the configuration (`linux_x86_64_release_lto`), whether the
-modifier or a transition added it (`MODIFIERS` and `with_modifiers` in
-buck/platforms/profile.bzl). Every transition keeps the profile (`keep_profile`) and drops LTO,
-which nothing but be-host's binary selects on. The default platform is `.buckconfig`'s
+The modifier names the configuration (`linux_x86_64_release`), whether the modifier or a
+transition added it (`MODIFIERS` and `with_modifiers` in buck/platforms/profile.bzl), and every
+transition keeps the profile (`keep_profile`). Nothing is linked with LTO
+(decisions/no_lto.md). The default platform is `.buckconfig`'s
 `target_platform_detector_spec`, not a modifier: the root `PACKAGE` says why.
 Everything else is cargo's dev profile with `Cargo.toml`'s `[profile.dev.package]` overrides.
 `--target-platforms root//buck/platforms:<p>` builds for another platform. Everything is built

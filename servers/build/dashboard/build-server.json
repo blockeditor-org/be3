@@ -605,7 +605,7 @@
    "id": 11,
    "type": "timeseries",
    "title": "Actions by peak memory",
-   "description": "Actions an hour whose most memory used, as NativeLink measured it, fell in each band. NativeLink's buckets go up by four, so the bands are its own. A release build's LTO link uses about 10 GB.",
+   "description": "Actions an hour whose most memory used, as NativeLink measured it, fell in each band. NativeLink's buckets go up by four, so the bands are its own. be-host's fat LTO link, since removed, used about 10 GB.",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"

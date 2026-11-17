@@ -32,17 +32,7 @@ cargo_test(
     run_env = test_environment,
 )
 
-# Fat LTO over one codegen unit, under buck/constraints:lto (`-m lto`, and
-# ./scripts/deploy's native builds): it takes a tenth off be-host's code and two
-# thirds off its symbols (159 MB to 113 in October 2026), but its link takes ten
-# minutes, which every other release build, such as the build helper's for
-# be-launcher, would wait on.
-cargo_binary(
-    rustc_flags = select({
-        "DEFAULT": [],
-        "root//buck/constraints:lto": ["-Clto=fat", "-Ccodegen-units=1"],
-    }),
-)
+cargo_binary()
 
 # be-host with every app beside it: `./scripts/buck run //crates/be-host:native`
 # runs it. buck/program says how it is laid out.

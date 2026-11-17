@@ -103,8 +103,8 @@ in
     networkConfig.DHCP = "ipv4";
   };
 
-  # The worker does not schedule by memory, so a release build's LTO link (about 10 GB) beside 15 other actions can
-  # run out; swap slows that down rather than OOM-killing the link. Swappiness 10 keeps the CAS's files in the page
+  # The worker does not schedule by memory, so a large link (be-host's fat LTO link took about 10 GB before it was
+  # removed) beside 15 other actions can run out; swap slows that down rather than OOM-killing the link. Swappiness 10 keeps the CAS's files in the page
   # cache rather than swapping out what runs.
   swapDevices = [ { device = "/swapfile"; size = 16384; } ];
   boot.kernel.sysctl."vm.swappiness" = 10;

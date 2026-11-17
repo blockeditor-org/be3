@@ -217,11 +217,11 @@ as lines of KiB, each wasm guest's memory too, for plotting elsewhere.
 
 ## Size
 
-What ships is `./scripts/deploy`'s `//crates/be-host:native`, as `-m release -m lto` builds it:
+What ships is `./scripts/deploy`'s `//crates/be-host:native`, as `-m release` builds it:
 be-host and the `.wasm` of every app, library and type module, which V8 compiles as they load. In
 October 2026 on Linux x86_64 the `.wasm` came to 198 MB (mostly apps, each instantiating beui's
 and `beui-reactive`'s generics for its own types; type modules about 1.8 MB each) and be-host to
-102 MB, before linking V8 made it about 36 MB larger.
+102 MB (with fat LTO, since removed: decisions/no_lto.md), before linking V8 made it about 36 MB larger.
 
 To see where it goes: `size -A` and `nm -S --size-sort -C` for be-host, twiggy (`twiggy top -n
 100000 --format csv`) for a module. Attribute a generic

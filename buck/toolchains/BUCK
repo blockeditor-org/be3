@@ -213,15 +213,11 @@ pinned_rust_toolchain(
         }),
         "root//buck/constraints:release": _release,
     })
-    + select({
-        # rustc embeds LLVM bitcode in every object of an rlib for a later LTO
-        # link, and only be-host's LTO link (buck/constraints:lto) reads it.
-        # It was 86% of an object's bytes, which every worker that links or
-        # compiles against the rlib downloads, so it is off elsewhere, as cargo
-        # turns it off for a profile without LTO.
-        "DEFAULT": ["-Cembed-bitcode=no"],
-        "root//buck/constraints:lto": [],
-    })
+    # rustc embeds LLVM bitcode in every object of an rlib for a later LTO
+    # link, which nothing does (decisions/no_lto.md). It was 86% of an object's
+    # bytes, which every worker that links or compiles against the rlib
+    # downloads, so it is off, as cargo turns it off for a profile without LTO.
+    + ["-Cembed-bitcode=no"]
     + select({
         "DEFAULT": [],
         # Line tables were about half of a test binary's sections, and every
