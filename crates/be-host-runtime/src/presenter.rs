@@ -797,6 +797,9 @@ impl Paints for ViewDrawing {
             let Some(screen) = shared.paintings.get(&blit.screen) else {
                 continue;
             };
+            // The view has a painting, so it is drawn even where the painting does not reach a
+            // piece (a view grown before its app drew the new size): the backdrop shows there.
+            found = true;
             let size = (screen.frame.size[0], screen.frame.size[1]);
             let Some((quad, source)) = shared
                 .holds(placement, Some(size))
@@ -805,7 +808,6 @@ impl Paints for ViewDrawing {
                 continue;
             };
             let screen = super::previews::painting(screen.clone());
-            found = true;
             primitives.extend(screen.placed(Placement {
                 source: [source.min.x, source.min.y, source.max.x, source.max.y],
                 corners: quad.corners().map(|corner| [corner.x, corner.y]),
