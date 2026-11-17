@@ -107,6 +107,7 @@ members = [
     "crates/be-wasm-guest-echo",
     "crates/be-wasm-guest-host",
     "crates/be-sdk-api",
+    "crates/be-sdk-app-host",
     "crates/be-sdk-manifest",
     "crates/be-sdk-shell",
     "crates/be-sdk-type-api",

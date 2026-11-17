@@ -91,6 +91,7 @@ members = [
     "crates/be-lib-web-push",
     "crates/be-sdk",
     "crates/be-sdk-api",
+    "crates/be-sdk-app-host",
     "crates/be-sdk-beui",
     "crates/be-sdk-beui-platform",
     "crates/be-sdk-beui-platform-api",

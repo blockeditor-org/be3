@@ -1,7 +1,10 @@
+//! One app's connection, from the host's side: what the host sends it (`AppCall`, `EditorCall`,
+//! the editors it opens and closes, the events around them) and what it hears back (`Heard`),
+//! with the watches it serves the app itself and the sandbox for its workers.
 use be_lib_stable_hash::HashMap;
 use std::collections::BTreeMap;
 
-use super::calls::{AppCall, EditorAnswer, EditorCall, Heard};
+use crate::calls::{AppCall, EditorAnswer, EditorCall, Heard};
 use be_sdk_api::{Encoded, Watch};
 use be_wasm_sandbox_api::embed::sandbox;
 
@@ -30,7 +33,7 @@ use be_sdk_api::{
 /// What the host answers a worker's waiting `receive` with when it stops the app's workers. An
 /// app that stopped has lost its channel by then (`Backend::shutdown`), so only a wire that
 /// outlives its sandbox, as in a test, delivers it.
-pub(super) const WORKERS_STOPPED: &str = "the app stopped, and its workers with it";
+pub const WORKERS_STOPPED: &str = "the app stopped, and its workers with it";
 
 #[derive(Default)]
 struct Held {
@@ -41,12 +44,12 @@ struct Held {
 }
 
 #[derive(Debug)]
-pub(super) struct Service {
-    pub(super) instance: EditorInstanceId,
-    pub(super) call: host_services::Call,
+pub struct Service {
+    pub instance: EditorInstanceId,
+    pub call: host_services::Call,
 }
 
-pub(super) struct Wire {
+pub struct Wire {
     connection: Connection,
     connecting: Option<Reply<be_sdk_api::HelloAccepted>>,
     editors: HashMap<EditorInstanceId, Editor>,
@@ -76,6 +79,9 @@ pub(super) struct Wire {
     /// The sandbox API served to the app, which starts its workers (`Server::for_app`); none
     /// where the host serves none to it: to a wire made for a test.
     sandbox: Option<be_wasm_sandbox_host::Server>,
+    /// Whether the host offers a published interface of an extension the app is granted
+    /// (`offering`); none unless it says so.
+    offered: fn(&str) -> bool,
 }
 
 type PublishedWatch = (EditorInstanceId, MethodId, Watch<Encoded>);
@@ -139,39 +145,46 @@ impl Default for Wire {
             acks: Vec::new(),
             hearing: Vec::new(),
             sandbox: None,
+            offered: |_| false,
         }
     }
 }
 
 impl Wire {
-    pub(super) fn granting(extensions: Vec<String>) -> Self {
+    pub fn granting(extensions: Vec<String>) -> Self {
         Self {
             extensions,
             ..Self::default()
         }
     }
 
+    /// Offers the app the published interfaces of the extensions it is granted that `offered`
+    /// says this host offers (be3:desktop's, where the host is a desktop).
+    pub fn offering(mut self, offered: fn(&str) -> bool) -> Self {
+        self.offered = offered;
+        self
+    }
+
     /// Serves the app the sandbox API through `server`.
-    pub(super) fn with_sandbox(mut self, server: be_wasm_sandbox_host::Server) -> Self {
+    pub fn with_sandbox(mut self, server: be_wasm_sandbox_host::Server) -> Self {
         self.sandbox = Some(server);
         self
     }
 
     /// Answers what the app's workers did since: they sent messages, started or stopped.
-    pub(super) fn poll_sandbox(&mut self) {
+    pub fn poll_sandbox(&mut self) {
         if let Some(server) = &mut self.sandbox {
             server.poll(&mut self.connection);
         }
     }
 
     /// Whether the wire serves the app a sandbox, and so runs the workers it started.
-    #[cfg(test)]
-    pub(super) fn serves_sandbox(&self) -> bool {
+    pub fn serves_sandbox(&self) -> bool {
         self.sandbox.is_some()
     }
 
     /// Stops every worker the app started.
-    pub(super) fn stop_sandbox(&mut self) {
+    pub fn stop_sandbox(&mut self) {
         if let Some(server) = self.sandbox.take() {
             server.stop(WORKERS_STOPPED, &mut self.connection);
         }
@@ -189,19 +202,19 @@ impl Wire {
         self.connection.complete(op, outcome);
     }
 
-    pub(super) fn accept(&mut self, accepted: &HelloAccepted) {
+    pub fn accept(&mut self, accepted: &HelloAccepted) {
         if let Some(reply) = self.connecting.take() {
             reply.send(&mut self.connection, accepted);
         }
     }
 
-    pub(super) fn shutdown(&mut self) {
+    pub fn shutdown(&mut self) {
         self.flush_hearing();
         let done = app::shutdown(&mut self.connection);
         self.draws.insert(done.op(), Awaited::Shutdown);
     }
 
-    pub(super) fn open(&mut self, opening: Opening) {
+    pub fn open(&mut self, opening: Opening) {
         self.flush_hearing();
         let instance = opening.instance;
         let editor = Editor::new(&mut self.connection, opening);
@@ -210,7 +223,7 @@ impl Wire {
         }
     }
 
-    pub(super) fn close(&mut self, instance: EditorInstanceId) {
+    pub fn close(&mut self, instance: EditorInstanceId) {
         self.flush_hearing();
         if let Some(editor) = self.editors.remove(&instance) {
             editor.resource_drop(&mut self.connection);
@@ -220,7 +233,7 @@ impl Wire {
         self.audio.remove(&instance);
     }
 
-    pub(super) fn app_call(&mut self, call: AppCall) {
+    pub fn app_call(&mut self, call: AppCall) {
         self.flush_hearing();
         let connection = &mut self.connection;
         match call {
@@ -268,7 +281,7 @@ impl Wire {
         }
     }
 
-    pub(super) fn call(&mut self, instance: EditorInstanceId, call: EditorCall) {
+    pub fn call(&mut self, instance: EditorInstanceId, call: EditorCall) {
         let Some(editor) = self.editors.get(&instance).copied() else {
             return;
         };
@@ -357,7 +370,7 @@ impl Wire {
     }
 
     /// Queues an event for the editor; it goes out with the others in `flush_hearing`.
-    pub(super) fn event(&mut self, instance: EditorInstanceId, event: EditorEvent) {
+    pub fn event(&mut self, instance: EditorInstanceId, event: EditorEvent) {
         if self.editors.contains_key(&instance) {
             self.hear(instance, event);
         }
@@ -371,7 +384,7 @@ impl Wire {
     }
 
     /// Sends the events queued, in the order they came.
-    pub(super) fn flush_hearing(&mut self) {
+    pub fn flush_hearing(&mut self) {
         let mut queued = std::mem::take(&mut self.hearing).into_iter().peekable();
         while let Some((instance, event)) = queued.next() {
             let mut events = vec![event];
@@ -384,7 +397,7 @@ impl Wire {
         }
     }
 
-    pub(super) fn answer(&mut self, op: OpId, outcome: Outcome) {
+    pub fn answer(&mut self, op: OpId, outcome: Outcome) {
         self.serving.remove(&op);
         self.connection.complete(op, outcome);
     }
@@ -458,12 +471,12 @@ impl Wire {
     }
 
     /// Yields one encoded item on a stream the instance serves, unless it has no credit.
-    pub(super) fn stream_item(&mut self, op: OpId, item: &[u8]) -> bool {
+    pub fn stream_item(&mut self, op: OpId, item: &[u8]) -> bool {
         self.connection.ready(op) && self.connection.yield_item(op, item).is_ok()
     }
 
     fn published_watch(&mut self, started: Started, heard: &mut Vec<Heard>) {
-        let Some(watching) = super::published::watching(started.method) else {
+        let Some(watching) = crate::published::watching(started.method) else {
             return;
         };
         let connection = &mut self.connection;
@@ -499,11 +512,11 @@ impl Wire {
         if !self.extensions.iter().any(|granted| granted == extension) {
             return Some(OpError::Denied);
         }
-        (!super::published::offered(interface)).then_some(OpError::Unsupported)
+        (!(self.offered)(interface)).then_some(OpError::Unsupported)
     }
 
     fn published_call(&mut self, started: Started, heard: &mut Vec<Heard>) {
-        let refused = match super::published::interface_of(&started) {
+        let refused = match crate::published::interface_of(&started) {
             Some(interface) => self.refusal(interface),
             None => Some(OpError::Unsupported),
         };
@@ -574,7 +587,7 @@ impl Wire {
         }
     }
 
-    pub(super) fn waiting(&self) -> Vec<OpId> {
+    pub fn waiting(&self) -> Vec<OpId> {
         self.held
             .watches
             .iter()
@@ -583,20 +596,20 @@ impl Wire {
             .collect()
     }
 
-    pub(super) fn answer_watch(&mut self, watch: OpId, value: Vec<u8>) {
+    pub fn answer_watch(&mut self, watch: OpId, value: Vec<u8>) {
         if let Some(watch) = self.held.watches.get_mut(&watch) {
             watch.set(&mut self.connection, value);
         }
     }
 
-    pub(super) fn relay(&mut self, replica: OpId, frame: &Vec<u8>) -> bool {
+    pub fn relay(&mut self, replica: OpId, frame: &Vec<u8>) -> bool {
         self.held
             .producers
             .get(&replica)
             .is_none_or(|producer| producer.send(&mut self.connection, frame).is_ok())
     }
 
-    pub(super) fn accepted(&mut self, send: OpId) {
+    pub fn accepted(&mut self, send: OpId) {
         if self.held.sends.remove(&send).is_some() {
             self.connection.complete(send, Outcome::returned(&()));
         }
@@ -713,7 +726,7 @@ impl Wire {
         false
     }
 
-    pub(super) fn take_outbound(&mut self) -> Vec<Vec<u8>> {
+    pub fn take_outbound(&mut self) -> Vec<Vec<u8>> {
         // Acks never wait long: every frame the host asks for, and shutting
         // down, sends the app something. Nothing in the app waits on them; they
         // only close the ops it left open.
@@ -725,15 +738,15 @@ impl Wire {
         self.connection.take_outbound()
     }
 
-    pub(super) fn holds_input(&self) -> bool {
+    pub fn holds_input(&self) -> bool {
         self.input.holding()
     }
 
-    pub(super) fn has_outbound(&self) -> bool {
+    pub fn has_outbound(&self) -> bool {
         self.connection.has_outbound()
     }
 
-    pub(super) fn receive(&mut self, frame: &[u8], heard: &mut Vec<Heard>) -> Result<(), String> {
+    pub fn receive(&mut self, frame: &[u8], heard: &mut Vec<Heard>) -> Result<(), String> {
         self.connection
             .receive(frame)
             .map_err(|error| format!("the app sent a frame that did not decode: {error}"))?;
@@ -745,11 +758,11 @@ impl Wire {
 
     fn heard(&mut self, event: Incoming, heard: &mut Vec<Heard>) -> Result<(), String> {
         let call = match event {
-            Incoming::Started(started) if super::published::watching(started.method).is_some() => {
+            Incoming::Started(started) if crate::published::watching(started.method).is_some() => {
                 self.published_watch(started, heard);
                 return Ok(());
             }
-            Incoming::Started(started) if super::published::interface_of(&started).is_some() => {
+            Incoming::Started(started) if crate::published::interface_of(&started).is_some() => {
                 self.published_call(started, heard);
                 return Ok(());
             }

@@ -1,9 +1,11 @@
+//! An app's lifecycle as its host sees it: starting, running, shutting down, and failing when
+//! it takes too long at either end.
 use be_sdk_api::{Hello, HelloAccepted, Preferences, SurfaceSpec, SurfaceSupport};
 
 const LIFECYCLE_TIMEOUT_MILLISECONDS: u64 = 5_000;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum SessionState {
+pub enum SessionState {
     Idle,
     Starting,
     Running,
@@ -13,13 +15,13 @@ pub(super) enum SessionState {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum SessionFailure {
+pub enum SessionFailure {
     Protocol(String),
     StartupTimedOut,
     ShutdownTimedOut,
 }
 
-pub(super) struct Session {
+pub struct Session {
     state: SessionState,
     host_name: String,
     surface: Option<SurfaceSpec>,
@@ -28,7 +30,7 @@ pub(super) struct Session {
 }
 
 impl Session {
-    pub(super) fn new(host_name: impl Into<String>, surface: Option<SurfaceSpec>) -> Self {
+    pub fn new(host_name: impl Into<String>, surface: Option<SurfaceSpec>) -> Self {
         Self {
             state: SessionState::Idle,
             host_name: host_name.into(),
@@ -38,25 +40,25 @@ impl Session {
         }
     }
 
-    pub(super) fn state(&self) -> &SessionState {
+    pub fn state(&self) -> &SessionState {
         &self.state
     }
 
-    pub(super) fn running(&self) -> bool {
+    pub fn running(&self) -> bool {
         self.state == SessionState::Running
     }
 
-    pub(super) fn granted_surface(&self) -> Option<SurfaceSpec> {
+    pub fn granted_surface(&self) -> Option<SurfaceSpec> {
         self.granted
     }
 
-    pub(super) fn start(&mut self, now_milliseconds: u64) {
+    pub fn start(&mut self, now_milliseconds: u64) {
         self.granted = None;
         self.state = SessionState::Starting;
         self.deadline = Some(now_milliseconds + LIFECYCLE_TIMEOUT_MILLISECONDS);
     }
 
-    pub(super) fn connect(&mut self, hello: &Hello, preferences: Preferences) -> HelloAccepted {
+    pub fn connect(&mut self, hello: &Hello, preferences: Preferences) -> HelloAccepted {
         if self.state != SessionState::Starting {
             self.fail(SessionFailure::Protocol(
                 "the app connected twice".to_owned(),
@@ -76,7 +78,7 @@ impl Session {
         }
     }
 
-    pub(super) fn shutdown(&mut self, now_milliseconds: u64) -> bool {
+    pub fn shutdown(&mut self, now_milliseconds: u64) -> bool {
         match self.state {
             SessionState::Idle | SessionState::Closed | SessionState::Failed(_) => {
                 self.state = SessionState::Closed;
@@ -92,7 +94,7 @@ impl Session {
         }
     }
 
-    pub(super) fn shut_down(&mut self) {
+    pub fn shut_down(&mut self) {
         match self.state {
             SessionState::ShuttingDown => {
                 self.state = SessionState::Closed;
@@ -105,16 +107,16 @@ impl Session {
         }
     }
 
-    pub(super) fn fail(&mut self, failure: SessionFailure) {
+    pub fn fail(&mut self, failure: SessionFailure) {
         self.state = SessionState::Failed(failure);
         self.deadline = None;
     }
 
-    pub(super) fn next_deadline(&self) -> Option<u64> {
+    pub fn next_deadline(&self) -> Option<u64> {
         self.deadline
     }
 
-    pub(super) fn tick(&mut self, now_milliseconds: u64) {
+    pub fn tick(&mut self, now_milliseconds: u64) {
         if self
             .deadline
             .is_some_and(|deadline| now_milliseconds >= deadline)
