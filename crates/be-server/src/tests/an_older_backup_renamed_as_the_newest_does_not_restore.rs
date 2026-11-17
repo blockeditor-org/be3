@@ -8,8 +8,8 @@ use crate::backup::{self, BackupKey, Directory};
 #[tokio::test]
 async fn an_older_backup_renamed_as_the_newest_does_not_restore() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("keeper@example.com").await;
+    let mut client = harness.member("keeper@example.com").await;
+    let account = client.id();
     client.organization("notes").await;
     let author = Author::new(account);
     let block = client.create_block(BlockParent::Root).await;

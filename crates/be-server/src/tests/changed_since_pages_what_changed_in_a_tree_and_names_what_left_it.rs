@@ -52,8 +52,7 @@ fn sorted(mut blocks: Vec<Uuid>) -> Vec<Uuid> {
 #[tokio::test]
 async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.organization("notes").await;
 
     let work = owner.create_block(BlockParent::Root).await;

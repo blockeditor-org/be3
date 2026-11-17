@@ -38,7 +38,7 @@ interface server {
     use notifications.{block-notify-mode, notify-mode, push-endpoint};
 
     /// A browser sign-in's step, made as a one-shot call (`POST .../call`):
-    /// a connection's first call is `authenticate`.
+    /// a connection signs in with its greeting.
     variant device-login-step {
         /// Starts one.
         begin,
@@ -679,12 +679,9 @@ interface server {
     ping: async func();
 
     /// A browser sign-in's step. Made as a one-shot call, like the read of an
-    /// invitation: a connection's first call is `authenticate`.
+    /// invitation: a connection signs in with its greeting (`Greeting`, in
+    /// crates/be-block-protocol/src/lib.rs), before any call.
     device-login: async func(step: device-login-step) -> result<device-login-answer, error>;
-
-    /// Signs this connection in with an account token, or with none, the token
-    /// of the request's Authorization header.
-    authenticate: async func(token: option<string>) -> result<authenticated, error>;
 
     /// Answers `query` in `organization`, and with `follow` follows its topic
     /// first, so nothing that changes during the read is missed.

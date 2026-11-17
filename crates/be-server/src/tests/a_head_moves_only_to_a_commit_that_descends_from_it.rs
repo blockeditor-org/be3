@@ -34,8 +34,8 @@ async fn publish_onto(
 #[tokio::test]
 async fn a_head_moves_only_to_a_commit_that_descends_from_it() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("one@example.com").await;
+    let mut client = harness.member("one@example.com").await;
+    let account = client.id();
     client.organization("notes").await;
     let author = Author::new(account);
     let block = client.create_block(BlockParent::Root).await;

@@ -26,8 +26,7 @@ async fn advanced(client: &mut TestClient) -> Uuid {
 #[tokio::test]
 async fn a_connection_hears_only_of_the_trees_it_follows() {
     let harness = Harness::start().await;
-    let mut author = harness.client().await;
-    author.register("author@example.com").await;
+    let mut author = harness.member("author@example.com").await;
     let organization = author.organization("notes").await;
     let mut other = harness
         .second_connection(&author.token.clone(), organization)

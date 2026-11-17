@@ -3,8 +3,8 @@ use super::*;
 #[tokio::test]
 async fn metadata_travels_with_the_content_once_a_block_has_any() {
     let harness = Harness::start().await;
-    let mut author_connection = harness.client().await;
-    let account = author_connection.register("author@example.com").await;
+    let mut author_connection = harness.member("author@example.com").await;
+    let account = author_connection.id();
     let organization = author_connection.organization("notes").await;
     let block = author_connection.create_block(BlockParent::Root).await;
     let mut other = harness

@@ -3,8 +3,7 @@ use super::*;
 #[tokio::test]
 async fn a_member_makes_contact_links_but_only_an_administrator_invites() {
     let harness = Harness::start().await;
-    let mut admin = harness.client().await;
-    admin.register("admin@example.com").await;
+    let mut admin = harness.member("admin@example.com").await;
     let organization = admin.organization("team").await;
     let mut editor = harness.member("editor@example.com").await;
     let invitation = admin

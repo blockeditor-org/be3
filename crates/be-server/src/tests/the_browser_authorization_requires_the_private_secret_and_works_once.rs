@@ -76,11 +76,5 @@ async fn the_browser_authorization_requires_the_private_secret_and_works_once() 
         ),
         "the token was handed out twice"
     );
-    let mut other = harness.client().await;
-    assert!(matches!(
-        other
-            .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(token)))
-            .await,
-        Ok(_)
-    ));
+    assert!(harness.sign_in(&token).await.is_ok());
 }

@@ -7,8 +7,8 @@ use super::*;
 #[tokio::test]
 async fn a_seal_by_the_old_build_after_a_new_build_started_over_trims_nothing() {
     let harness = Harness::start().await;
-    let mut phone = harness.client().await;
-    let account = phone.register("phone@example.com").await;
+    let mut phone = harness.member("phone@example.com").await;
+    let account = phone.id();
     let organization = phone.organization("notes").await;
     let block = phone.create_block(BlockParent::Root).await;
     let author = Author::new(account);

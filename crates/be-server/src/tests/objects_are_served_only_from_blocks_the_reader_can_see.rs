@@ -39,8 +39,8 @@ async fn join(owner: &mut TestClient, guest: &mut TestClient, organization: Uuid
 #[tokio::test]
 async fn objects_are_served_only_from_blocks_the_reader_can_see() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let account = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let account = owner.id();
     let organization = owner.organization("private").await;
     let author = Author::new(account);
     let block = owner.create_block(BlockParent::Root).await;
@@ -73,17 +73,7 @@ async fn objects_are_served_only_from_blocks_the_reader_can_see() {
     join(&mut owner, &mut guest, organization).await;
     assert!(read(&mut guest, commit.hash()).await.is_none());
 
-    let token = guest.token.clone();
-    let response = guest
-        .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(token)))
-        .await;
-    let Ok(Authenticated {
-        account: guest_account,
-        ..
-    }) = response
-    else {
-        panic!("the guest could not re-authenticate: {response:?}");
-    };
+    let guest_account = guest.id();
     guest.open(organization).await;
     let response = owner
         .grant(block, guest_account, be_block_graph::Access::View)

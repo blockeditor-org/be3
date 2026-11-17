@@ -3,8 +3,7 @@ use super::*;
 #[tokio::test]
 async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     let organization = owner.organization("shared").await;
     let mut guest = harness.member("Guest@Example.com").await;
 
@@ -75,11 +74,8 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
         .call(|peer| peer.write::<()>(be_block_protocol::Op::RevokeToken(None)))
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
-    let mut returning = harness.client().await;
-    let response = returning
-        .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(token)))
-        .await;
-    assert!(matches!(response, Err(_)), "{response:?}");
+    let response = harness.sign_in(&token).await;
+    assert!(response.is_err(), "a token logged out still signs in");
 
     harness.stop().await;
 }

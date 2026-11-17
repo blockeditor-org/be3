@@ -41,8 +41,8 @@ async fn publish_references(
 #[tokio::test]
 async fn a_publish_adding_a_reference_the_block_already_holds_moves_it() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("linker@example.com").await;
+    let mut client = harness.member("linker@example.com").await;
+    let account = client.id();
     client.organization("links").await;
     let author = Author::new(account);
     let view = client.create_block(BlockParent::Root).await;

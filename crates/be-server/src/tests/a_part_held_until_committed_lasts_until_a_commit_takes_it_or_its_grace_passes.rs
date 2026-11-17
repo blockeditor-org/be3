@@ -29,8 +29,8 @@ async fn held(directory: &std::path::Path, identity: Identity) -> u64 {
 #[tokio::test]
 async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("indexer@example.com").await;
+    let mut client = harness.member("indexer@example.com").await;
+    let account = client.id();
     let organization = client.organization("index").await;
     let identity = Identity {
         account,

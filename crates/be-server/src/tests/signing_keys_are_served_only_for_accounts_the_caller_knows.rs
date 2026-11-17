@@ -25,14 +25,14 @@ async fn with_new_phrase(client: &mut TestClient, account: Uuid) -> [u8; 32] {
 #[tokio::test]
 async fn signing_keys_are_served_only_for_accounts_the_caller_knows() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let me = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let me = owner.id();
     let organization = owner.organization("team").await;
     let block = owner.create_block(BlockParent::Root).await;
     let (agent, _) = owner.block_agent(organization, block).await.unwrap();
     let owner_key = with_new_phrase(&mut owner, me).await;
-    let mut stranger = harness.client().await;
-    let stranger_account = stranger.register("stranger@example.com").await;
+    let mut stranger = harness.member("stranger@example.com").await;
+    let stranger_account = stranger.id();
     stranger.organization("elsewhere").await;
     with_new_phrase(&mut stranger, stranger_account).await;
     let mut expected = vec![

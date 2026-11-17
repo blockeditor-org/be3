@@ -7,15 +7,10 @@ async fn revoking_an_http_session_removes_its_access() {
     let mut stream = tokio::net::TcpStream::connect(harness.address)
         .await
         .unwrap();
-    let (_, session, _) = post(&mut stream, None, &[&hello(BUILD)]).await;
+    let (status, session, _) = post(&mut stream, None, &[&token_hello(&owner.token)]).await;
+    assert_eq!(status, 200);
     let session = session.unwrap();
     let mut posted = Posted::new();
-    let _authenticating =
-        be_block_protocol::client::server::authenticate(&posted.peer, Some(owner.token.clone()));
-    let sent = posted.frames();
-    let (status, _, frames) = post(&mut stream, Some(&session), &[&sent[0]]).await;
-    assert_eq!(status, 200);
-    posted.heard(&frames);
     let mut browser = Browser::default();
     browser
         .sign_in_by_code(&harness, "http-revoke@example.com")

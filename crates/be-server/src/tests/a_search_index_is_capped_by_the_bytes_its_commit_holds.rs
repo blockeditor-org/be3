@@ -23,8 +23,8 @@ async fn a_search_index_is_capped_by_the_bytes_its_commit_holds() {
         ..ServerConfig::OPEN
     })
     .await;
-    let mut client = harness.client().await;
-    let account = client.register("index@example.com").await;
+    let mut client = harness.member("index@example.com").await;
+    let account = client.id();
     client.organization("index").await;
     let author = Author::new(account);
     let root = client.create_block(BlockParent::Root).await;

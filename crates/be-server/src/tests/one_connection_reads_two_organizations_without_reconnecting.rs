@@ -5,8 +5,7 @@ use super::*;
 #[tokio::test]
 async fn one_connection_reads_two_organizations_without_reconnecting() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    client.register("member@example.com").await;
+    let mut client = harness.member("member@example.com").await;
     let personal = client.personal().await;
     let mine = client.create_block(BlockParent::Root).await;
     client.follow(mine).await;

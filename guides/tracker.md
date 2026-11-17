@@ -33,8 +33,9 @@ overrides the separate `BE3_SERVER`, `BE3_ORGANIZATION`, `BE3_TOKEN` and `BE3_RE
 `BE3_AUTHORIZATION` sets the gateway header; without it `./scripts/be` sends the one in
 `.gateway-authorization` at the checkout's root or `~/.config/be3/gateway-authorization`, and a
 cloud proxy may add it itself. A bundle
-with `"authentication": "proxy"` has no token: the proxy injects it (guides/hosting.md, Proxy
-account credentials).
+with `"authentication": "proxy"` has no token: the proxy injects it into the request's
+Authorization header, and `be` greets the server with no token (`Credentials::Header`), which
+signs it in with that header (guides/hosting.md, Proxy account credentials).
 
 ## Commands
 

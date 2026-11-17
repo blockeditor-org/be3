@@ -8,8 +8,7 @@ use super::*;
 #[tokio::test]
 async fn a_page_that_reads_on_through_another_trees_change_stops_at_its_own_next_block() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.organization("notes").await;
 
     let work = owner.create_block(BlockParent::Root).await;

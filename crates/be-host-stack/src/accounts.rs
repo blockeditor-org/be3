@@ -83,14 +83,8 @@ pub enum LoginEvent {
 /// Signs in with a token the server issued another way: a test's server hands one to each
 /// device of an account (crates/be-host-tests).
 pub async fn token_login(server_url: String, token: String) -> Result<Session, AccountError> {
-    let connection = crate::link::connect(&server_url).await?;
-    let mut session = session_of(
-        ask(be_block_protocol::client::server::authenticate(
-            &connection,
-            Some(token.clone()),
-        ))
-        .await?,
-    );
+    let (connection, authenticated) = crate::link::connect(&server_url, &token).await?;
+    let mut session = session_of(authenticated);
     session.token = token;
     crate::link::adopt(&server_url, &session.token, session.account, connection).await;
     Ok(session)

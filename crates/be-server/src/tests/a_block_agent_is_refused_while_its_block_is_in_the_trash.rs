@@ -3,8 +3,8 @@ use super::*;
 #[tokio::test]
 async fn a_block_agent_is_refused_while_its_block_is_in_the_trash() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let me = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let me = owner.id();
     let organization = owner.organization("team").await;
     let folder = owner.create_block(BlockParent::Root).await;
     let terminal = owner.create_block(BlockParent::Block(folder)).await;
@@ -45,16 +45,11 @@ async fn a_block_agent_is_refused_while_its_block_is_in_the_trash() {
         assert!(response.is_ok(), "{response:?}");
         agent.ended().await;
 
-        let mut again = harness.client().await;
-        let signing = token.clone();
         // Signed in without listening: following its contacts would be refused too.
-        let response = client::server::authenticate(&again.peer, Some(signing))
-            .await
-            .expect("the connection stayed open");
-        assert!(
-            response.is_ok(),
-            "the trash deleted the block's agent: {response:?}"
-        );
+        let again = TestClient::unheard(&harness.socket(), &token).await;
+        let Ok(mut again) = again else {
+            panic!("the trash deleted the block's agent");
+        };
         let response = again
             .call(|peer| {
                 peer.read_in::<be_block_protocol::Listed>(

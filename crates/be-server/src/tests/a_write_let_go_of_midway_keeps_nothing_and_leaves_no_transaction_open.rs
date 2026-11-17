@@ -5,8 +5,8 @@ use super::*;
 #[tokio::test]
 async fn a_write_let_go_of_midway_keeps_nothing_and_leaves_no_transaction_open() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let account = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let account = owner.id();
     owner.personal().await;
     // A second store on the server's database, whose batch holds its write lock as one the
     // server ran would.

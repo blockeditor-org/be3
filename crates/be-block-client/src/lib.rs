@@ -15,11 +15,11 @@ pub mod transfer;
 mod transport;
 
 pub use clock::Clock;
-pub use connection::{Answer, Connection, Event, ask};
+pub use connection::{Answer, Connection, Credentials, Event, ask};
 pub use contacts::{Contact, GrantOffer};
 pub use keys::{EscrowWarning, KeyBook};
 pub use peer::{
-    BlockRead, Credentials, Drained, Listed, MAX_NOTIFICATION_AGE_MILLISECONDS,
+    BlockRead, Drained, Listed, MAX_NOTIFICATION_AGE_MILLISECONDS,
     MAX_NOTIFICATION_TEXT, Notification, OpenedNotification, Peer, PeerConfig, PendingRotation,
     Reconciled, Resolver, Saved, Sealed, SealsJournal, Signer, Write,
 };
@@ -74,7 +74,10 @@ where
         let _ = sending.send(frame);
     });
     let pending = start(&peer);
-    let mut body = transport::framed(&be_block_protocol::hello(ours));
+    let mut body = transport::framed(&be_block_protocol::hello(
+        ours,
+        &be_block_protocol::Greeting::default(),
+    ));
     while let Ok(frame) = sent.try_recv() {
         body.extend_from_slice(&transport::framed(&frame));
     }
@@ -82,14 +85,15 @@ where
         .await
         .map_err(ClientError::Disconnected)?;
     let mut answer = answer.into_iter();
-    let theirs = answer
-        .next()
+    let greeting = answer.next();
+    let theirs = greeting
         .as_deref()
         .and_then(be_block_protocol::read_hello)
         .ok_or_else(|| ClientError::Incompatible {
             ours: ours.to_owned(),
             theirs: "a build that does not greet".to_owned(),
-        })?;
+        })?
+        .build;
     if !be_lib_build_id::compatible(ours, &theirs) {
         return Err(ClientError::Incompatible {
             ours: ours.to_owned(),

@@ -4,11 +4,11 @@ use be_block_graph::Access;
 #[tokio::test]
 async fn a_grant_or_a_key_for_someone_not_a_contact_is_refused() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let owner_id = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let owner_id = owner.id();
     owner.personal().await;
-    let mut stranger = harness.client().await;
-    let stranger_id = stranger.register("stranger@example.com").await;
+    let mut stranger = harness.member("stranger@example.com").await;
+    let stranger_id = stranger.id();
     stranger.personal().await;
     let shared = owner.scope_root(owner_id, BlockParent::Root).await;
 

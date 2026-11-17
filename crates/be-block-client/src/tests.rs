@@ -352,17 +352,11 @@ impl Harness {
     }
 
     async fn reconnect(&self, peer: &Peer<MemoryStore>, token: String) {
-        let connection = Connection::connect(&self.url, &Clock::real())
-            .await
-            .unwrap();
-        let token = crate::ask(be_block_protocol::client::server::authenticate(
-            &connection,
-            Some(token),
-        ))
-        .await
-        .expect("the server signs the device in")
-        .token;
-        peer.attach(connection, token).await.unwrap();
+        let (connection, signed_in) =
+            Connection::connect(&self.url, &Clock::real(), &Credentials::Token(token))
+                .await
+                .expect("the server signs the device in");
+        peer.attach(connection, signed_in.token).await.unwrap();
     }
 
     fn database(&self) -> rusqlite::Connection {

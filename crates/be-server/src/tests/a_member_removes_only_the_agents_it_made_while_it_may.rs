@@ -6,13 +6,12 @@ use be_block_graph::Access;
 #[tokio::test]
 async fn a_member_removes_only_the_agents_it_made_while_it_may() {
     let harness = Harness::start().await;
-    let mut admin = harness.client().await;
-    admin.register("admin@example.com").await;
+    let mut admin = harness.member("admin@example.com").await;
     let organization = admin.organization("team").await;
-    let mut creator = harness.client().await;
-    let creator_id = creator.register("creator@example.com").await;
-    let mut colleague = harness.client().await;
-    let colleague_id = colleague.register("colleague@example.com").await;
+    let mut creator = harness.member("creator@example.com").await;
+    let creator_id = creator.id();
+    let mut colleague = harness.member("colleague@example.com").await;
+    let colleague_id = colleague.id();
     for member in [&mut creator, &mut colleague] {
         let invitation = admin
             .invite(organization)

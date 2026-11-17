@@ -54,8 +54,7 @@ async fn refer(
 #[tokio::test]
 async fn a_search_index_takes_exactly_the_access_of_the_block_it_indexes() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.personal().await;
     let mut accounts = Vec::new();
     for email in [
@@ -63,8 +62,8 @@ async fn a_search_index_takes_exactly_the_access_of_the_block_it_indexes() {
         "viewer@example.com",
         "inside@example.com",
     ] {
-        let mut client = harness.client().await;
-        let account = client.register(email).await;
+        let mut client = harness.member(email).await;
+        let account = client.id();
         client.personal().await;
         let link = owner.link(None).await;
         let _ = client.accept(link, &[]).await;

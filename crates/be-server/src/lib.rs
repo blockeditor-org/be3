@@ -20,7 +20,7 @@ use std::{
     time::Duration,
 };
 
-use be_block_protocol::{ErrorCode, MAX_FRAME_BYTES, embed, hello, read_hello};
+use be_block_protocol::{ErrorCode, Greeting, Hello, MAX_FRAME_BYTES, embed, hello, read_hello};
 use be_wasm_ops::Incoming;
 use futures_util::{
     SinkExt, StreamExt,
@@ -161,8 +161,6 @@ pub struct ServerConfig {
     /// Peers whose `X-Forwarded-For` names the client; anyone else's is ignored. By default
     /// only this host, where the reverse proxy runs.
     pub trusted_proxies: Cow<'static, [IpAddr]>,
-    /// How long a connection may go after its greeting before its first call signs it in.
-    pub sign_in_timeout: Duration,
     /// The fewest seconds between two polls of a browser sign-in, at first; tests that poll
     /// one sign-in again at once set it to zero.
     pub sign_in_poll_interval: Duration,
@@ -196,7 +194,6 @@ impl ServerConfig {
             IpAddr::V4(Ipv4Addr::LOCALHOST),
             IpAddr::V6(Ipv6Addr::LOCALHOST),
         ]),
-        sign_in_timeout: SIGN_IN_TIMEOUT,
         sign_in_poll_interval: browser_auth::POLL_INTERVAL,
         bucket: None,
         public_url: None,
@@ -228,8 +225,6 @@ const MAX_UNSIGNED_CONNECTIONS: usize = MAX_CONNECTIONS / 4;
 /// may hold at once.
 pub(crate) const MAX_UNSIGNED_CONNECTIONS_PER_ADDRESS: usize = 8;
 pub(crate) const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
-/// The default for [`ServerConfig::sign_in_timeout`].
-const SIGN_IN_TIMEOUT: Duration = HANDSHAKE_TIMEOUT;
 const PING_INTERVAL: Duration = Duration::from_secs(30);
 pub(crate) const IDLE_TIMEOUT: Duration = Duration::from_secs(90);
 const DRAIN_TIMEOUT: Duration = Duration::from_secs(30);
@@ -759,30 +754,36 @@ pub(crate) async fn next_heard<M>(
     }
 }
 
-pub(crate) fn greeting(theirs: Option<&str>) -> Result<(Vec<u8>, bool), ServerError> {
+/// Our build, and what a client's greeting (`theirs`) says once its build is ours; none for
+/// another build's client, which is answered with our build and closed. A greeting of our
+/// build that says nothing readable says no token.
+pub(crate) fn greeting(theirs: Option<&Hello>) -> Result<(&'static str, Option<Greeting>), ServerError> {
     let ours = be_lib_build_id::current().map_err(ServerError::Socket)?;
-    let compatible = theirs.is_some_and(|theirs| be_lib_build_id::compatible(ours, theirs));
-    if !compatible {
+    let Some(theirs) = theirs.filter(|theirs| be_lib_build_id::compatible(ours, &theirs.build))
+    else {
         tracing::info!(
             ours,
-            theirs = theirs.unwrap_or("a build from before the greeting"),
+            theirs = theirs.map_or("a build from before the greeting", |theirs| &theirs.build),
             "refused a client of another build"
         );
-    }
-    Ok((hello(ours), compatible))
+        return Ok((ours, None));
+    };
+    Ok((ours, Some(theirs.said().unwrap_or_default())))
 }
 
+/// Reads a client's greeting: our build, and what it says once its build is ours. Another
+/// build's client is answered and closed.
 async fn greet<S>(
     sink: &mut SplitSink<WebSocketStream<S>, Message>,
     source: &mut SplitStream<WebSocketStream<S>>,
-) -> Result<bool, ServerError>
+) -> Result<(&'static str, Option<Greeting>), ServerError>
 where
     S: AsyncRead + AsyncWrite + Unpin + Send,
 {
     let greeting_frame = async {
         loop {
             match source.next().await {
-                Some(Ok(Message::Binary(bytes))) => return Ok(read_hello(&bytes)),
+                Some(Ok(Message::Binary(bytes))) => return Ok(Some(bytes)),
                 Some(Ok(Message::Ping(payload))) => sink.send(Message::Pong(payload)).await?,
                 Some(Ok(Message::Text(_) | Message::Pong(_) | Message::Frame(_))) => {}
                 Some(Ok(Message::Close(_))) | None => return Ok(None),
@@ -790,15 +791,15 @@ where
             }
         }
     };
-    let theirs = tokio::time::timeout(HANDSHAKE_TIMEOUT, greeting_frame)
+    let frame = tokio::time::timeout(HANDSHAKE_TIMEOUT, greeting_frame)
         .await
         .map_err(|_| ServerError::Socket("the client never said which build it is".into()))??;
-    let (ours, compatible) = greeting(theirs.as_deref())?;
-    sink.send(Message::Binary(ours)).await?;
-    if !compatible {
+    let (ours, greeting) = greeting(frame.as_deref().and_then(read_hello).as_ref())?;
+    if greeting.is_none() {
+        sink.send(Message::Binary(hello(ours, &()))).await?;
         sink.send(Message::Close(None)).await?;
     }
-    Ok(compatible)
+    Ok((ours, greeting))
 }
 
 async fn serve_socket<S>(
@@ -813,20 +814,20 @@ where
     S: AsyncRead + AsyncWrite + Unpin + Send,
 {
     let (mut sink, mut source) = socket.split();
-    let greeted = tokio::select! {
+    let (ours, greeting) = tokio::select! {
         greeted = greet(&mut sink, &mut source) => greeted?,
         () = anonymous.1.wait() => return Ok(()),
     };
-    if !greeted {
+    let Some(greeting) = greeting else {
         return Ok(());
-    }
+    };
     let mut pings =
         tokio::time::interval_at(tokio::time::Instant::now() + PING_INTERVAL, PING_INTERVAL);
     let (outgoing, mut sending) = mpsc::unbounded_channel::<Message>();
     let queued = Arc::new(Outbound::default());
     let mut client = {
         let (outgoing, queued) = (outgoing.clone(), Arc::clone(&queued));
-        Client::open(services, address, false, anonymous, move |frame| {
+        Client::open(services, address, move |frame| {
             if queued.queue(frame.len()) {
                 let _ = outgoing.send(Message::Binary(frame));
             }
@@ -835,6 +836,17 @@ where
     };
     let mut session_changes = services.store.session_changes.subscribe();
     client.connection.header_token = bearer(authorization.as_deref());
+    let welcome = client.greeted(greeting.token).await;
+    let signed_in = welcome.is_ok();
+    sink.send(Message::Binary(hello(ours, &welcome))).await?;
+    if !signed_in {
+        tracing::debug!("closing a connection whose greeting did not sign it in");
+        sink.send(Message::Close(None)).await?;
+        client.close().await;
+        return Ok(());
+    }
+    // Signed in, it no longer counts among the connections that are not.
+    drop(anonymous);
     let (arrived, mut arriving) = mpsc::channel::<Arrived>(INBOUND_FRAMES);
     let (finish, mut finished) = tokio::sync::oneshot::channel::<()>();
 
@@ -902,21 +914,7 @@ where
                     return Err(not_reading());
                 }
                 let roomy = queued.roomy();
-                let deadline = client.connection.sign_in_deadline();
-                let eviction = Arc::clone(&client.connection.eviction);
                 tokio::select! {
-                    () = eviction.wait(), if deadline.is_some() => {
-                        tracing::debug!("closing a connection let go of for a newer one that is not signed in");
-                        let _ = outgoing.send(Message::Close(None));
-                        return Ok(());
-                    }
-                    () = sleep_until_some(deadline) => {
-                        if client.connection.sign_in_deadline().is_some_and(|deadline| deadline <= tokio::time::Instant::now()) {
-                            tracing::debug!("closing a connection that did not sign in in time");
-                            let _ = outgoing.send(Message::Close(None));
-                            return Ok(());
-                        }
-                    }
                     _ = session_changes.changed() => {
                         if client.connection.signed_in().await.is_err() {
                             let _ = outgoing.send(Message::Close(None));
@@ -979,13 +977,6 @@ where
 
     client.close().await;
     outcome
-}
-
-async fn sleep_until_some(deadline: Option<tokio::time::Instant>) {
-    match deadline {
-        Some(deadline) => tokio::time::sleep_until(deadline).await,
-        None => std::future::pending().await,
-    }
 }
 
 #[cfg(test)]

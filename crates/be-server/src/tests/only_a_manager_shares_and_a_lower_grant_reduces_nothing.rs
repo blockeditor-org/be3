@@ -4,14 +4,13 @@ use be_block_graph::Access;
 #[tokio::test]
 async fn only_a_manager_shares_and_a_lower_grant_reduces_nothing() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.personal().await;
-    let mut editor = harness.client().await;
-    let editor_id = editor.register("editor@example.com").await;
+    let mut editor = harness.member("editor@example.com").await;
+    let editor_id = editor.id();
     editor.personal().await;
-    let mut third = harness.client().await;
-    let third_id = third.register("third@example.com").await;
+    let mut third = harness.member("third@example.com").await;
+    let third_id = third.id();
     third.personal().await;
     let link = owner.link(None).await;
     let _ = editor.accept(link, &[]).await;

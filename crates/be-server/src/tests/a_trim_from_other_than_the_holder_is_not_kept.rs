@@ -8,8 +8,8 @@ use super::*;
 #[tokio::test]
 async fn a_trim_from_other_than_the_holder_is_not_kept() {
     let harness = Harness::start().await;
-    let mut phone = harness.client().await;
-    let account = phone.register("phone@example.com").await;
+    let mut phone = harness.member("phone@example.com").await;
+    let account = phone.id();
     let organization = phone.organization("notes").await;
     let block = phone.create_block(BlockParent::Root).await;
     let author = Author::new(account);

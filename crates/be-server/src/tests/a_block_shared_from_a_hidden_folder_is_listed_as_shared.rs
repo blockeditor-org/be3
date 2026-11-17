@@ -24,8 +24,7 @@ async fn listed(client: &mut TestClient, shared: bool) -> Vec<Uuid> {
 #[tokio::test]
 async fn a_block_shared_from_a_hidden_folder_is_listed_as_shared() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     let organization = owner.organization("shared").await;
     let folder = owner.create_block(BlockParent::Root).await;
     let inside = owner.create_block(BlockParent::Block(folder)).await;
@@ -57,13 +56,7 @@ async fn a_block_shared_from_a_hidden_folder_is_listed_as_shared() {
         })
         .await;
     guest.open(organization).await;
-    let token = guest.token.clone();
-    let Ok(Authenticated { account, .. }) = guest
-        .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(token)))
-        .await
-    else {
-        panic!("the guest could not re-authenticate");
-    };
+    let account = guest.id();
     let own = guest.create_block(BlockParent::Root).await;
     assert_eq!(listed(&mut guest, false).await, [own]);
     assert!(listed(&mut guest, true).await.is_empty());

@@ -3,11 +3,10 @@ use super::*;
 #[tokio::test]
 async fn an_agents_creator_removes_it_as_a_member_and_key_work_is_told() {
     let harness = Harness::start().await;
-    let mut admin = harness.client().await;
-    admin.register("admin@example.com").await;
+    let mut admin = harness.member("admin@example.com").await;
     let organization = admin.organization("team").await;
-    let mut creator = harness.client().await;
-    let creator_id = creator.register("creator@example.com").await;
+    let mut creator = harness.member("creator@example.com").await;
+    let creator_id = creator.id();
     let invitation = admin
         .invite(organization)
         .await

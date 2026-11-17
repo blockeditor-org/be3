@@ -32,7 +32,6 @@ const CALLS: &[&str] = &[
     "ping",
     "device-login (begin)",
     "device-login (poll)",
-    "authenticate",
     "events",
 ];
 
@@ -329,10 +328,6 @@ impl TestClient {
         calls
             .answers
             .push(("device-login (poll)", answered(polled)));
-        let authenticated = client::server::authenticate(&at, Some("not a token".into())).await;
-        calls
-            .answers
-            .push(("authenticate", answered(authenticated)));
         calls.send(Target::Devices(None), sealed()).await;
         calls.read(Query::Notices).await;
         calls.write(Op::DismissNotice(1)).await;
@@ -675,13 +670,16 @@ impl TestClient {
 #[tokio::test]
 async fn every_call_states_who_may_make_it() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     let organization = owner.personal().await;
     let block = owner.create_block(BlockParent::Root).await;
     let before = owner.read_block(block).await;
 
-    let mut stranger = harness.client().await;
+    let mut socket = greet(&harness.socket(), BUILD, Some("not a token")).await;
+    next_binary(&mut socket)
+        .await
+        .expect("the server's greeting refuses the token");
+    let mut stranger = TestClient::over(socket);
     let answers = stranger.everything(block, organization).await;
     let names: BTreeSet<&str> = answers.iter().map(|(name, _)| *name).collect();
     assert_eq!(names.len(), answers.len(), "a case was made twice");
@@ -690,12 +688,9 @@ async fn every_call_states_who_may_make_it() {
         missed.is_empty(),
         "give these cases a rule in client.rs and make them in `everything`: {missed:?}"
     );
-    // Its first call (after a ping, which the socket answers) did not sign it in, so the
-    // connection was closed: nothing answered it.
+    // Its greeting did not sign it in, so the connection was closed before any call: nothing
+    // answered it.
     for (name, answer) in &answers {
-        if *name == "ping" {
-            continue;
-        }
         assert!(
             matches!(
                 answer,
@@ -705,8 +700,7 @@ async fn every_call_states_who_may_make_it() {
         );
     }
 
-    let mut knower = harness.client().await;
-    knower.register("knower@example.com").await;
+    let mut knower = harness.member("knower@example.com").await;
     assert_eq!(knower.personal().await, organization);
     let referrer = Uuid::new_v4();
     let key = Uuid::new_v4();

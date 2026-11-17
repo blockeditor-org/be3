@@ -1237,18 +1237,14 @@ impl Device {
         let peer = std::sync::Arc::clone(&self.peer.borrow());
         let token = harness.token.clone();
         let drained = self.runtime.block_on(async {
-            let connection =
-                be_block_client::Connection::connect(&self.url, &be_block_client::Clock::real())
-                    .await
-                    .expect("the other device reaches the server again");
-            let token = be_block_client::ask(be_block_protocol::client::server::authenticate(
-                &connection,
-                Some(token),
-            ))
+            let (connection, signed_in) = be_block_client::Connection::connect(
+                &self.url,
+                &be_block_client::Clock::real(),
+                &be_block_client::Credentials::Token(token),
+            )
             .await
-            .expect("the other device signs in again")
-            .token;
-            peer.attach(connection, token)
+            .expect("the other device reaches the server again and signs in");
+            peer.attach(connection, signed_in.token)
                 .await
                 .expect("the other device opens the workspace again");
             peer.drain(|_| false)

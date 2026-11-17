@@ -8,8 +8,9 @@ use std::{
 
 use be_block_commit::CommitId;
 use be_block_protocol::{
-    ClientId, JoinedSession, Journal, JournalEntry, MembershipEntry, PairingMessage, Query,
-    SessionEvent, SessionSend, SessionState, Target, Topic, client, hello, read_hello,
+    Authenticated, ClientId, Greeting, JoinedSession, Journal, JournalEntry, MembershipEntry,
+    PairingMessage, Query, SessionEvent, SessionSend, SessionState, Target, Topic, Welcome, client,
+    hello, read_hello,
 };
 use be_block_store::Hash;
 use be_wasm_ops::{
@@ -129,6 +130,24 @@ struct Registry {
     joining: HashMap<Uuid, Vec<Event>>,
 }
 
+/// What a connection signs in with, in its greeting.
+#[derive(Clone)]
+pub enum Credentials {
+    Token(String),
+    /// The request's Authorization header, which a proxy injects (`authorize`): `be` behind
+    /// one, which never holds the token.
+    Header,
+}
+
+impl Credentials {
+    fn token(&self) -> Option<String> {
+        match self {
+            Self::Token(token) => Some(token.clone()),
+            Self::Header => None,
+        }
+    }
+}
+
 pub struct Connection {
     peer: Peer,
     shut: mpsc::UnboundedSender<()>,
@@ -171,13 +190,23 @@ impl Caller for Connection {
 }
 
 impl Connection {
-    pub async fn connect(url: &str, clock: &Clock) -> Result<Arc<Self>, ClientError> {
+    /// Opens a connection signed in with `credentials`, in its greeting: the connection, and
+    /// who it signed in as. One the server does not sign in fails with its refusal, and is
+    /// closed before any call.
+    pub async fn connect(
+        url: &str,
+        clock: &Clock,
+        credentials: &Credentials,
+    ) -> Result<(Arc<Self>, Authenticated), ClientError> {
+        let greeting = Greeting {
+            token: credentials.token(),
+        };
         let opening = std::pin::pin!(async {
             let (mut writer, mut reader) = connect(url).await.map_err(ClientError::Disconnected)?;
-            greet(&mut writer, &mut reader).await?;
-            Ok::<_, ClientError>((writer, reader))
+            let signed_in = greet(&mut writer, &mut reader, &greeting).await?;
+            Ok::<_, ClientError>((writer, reader, signed_in))
         });
-        let (writer, reader) = match select(opening, clock.sleep(CONNECT_TIMEOUT)).await {
+        let (writer, reader, signed_in) = match select(opening, clock.sleep(CONNECT_TIMEOUT)).await {
             Either::Left((opened, _)) => opened?,
             Either::Right(_) => return Err(ClientError::TimedOut("connecting to the server")),
         };
@@ -216,7 +245,7 @@ impl Connection {
             },
             closing,
         ));
-        Ok(connection)
+        Ok((connection, signed_in))
     }
 
     pub fn offline() -> Arc<Self> {
@@ -464,10 +493,16 @@ impl Connection {
     }
 }
 
-async fn greet(writer: &mut Writer, reader: &mut Reader) -> Result<(), ClientError> {
+/// Greets the server with our build and `greeting`, and answers who its greeting says the
+/// connection signed in as.
+async fn greet(
+    writer: &mut Writer,
+    reader: &mut Reader,
+    greeting: &Greeting,
+) -> Result<Authenticated, ClientError> {
     let ours = be_lib_build_id::current().map_err(ClientError::NoBuild)?;
     writer
-        .send(hello(ours))
+        .send(hello(ours, greeting))
         .await
         .map_err(ClientError::Disconnected)?;
     let Some(bytes) = next_binary(writer, reader).await? else {
@@ -479,14 +514,16 @@ async fn greet(writer: &mut Writer, reader: &mut Reader) -> Result<(), ClientErr
         ours: ours.to_owned(),
         theirs: "a build that does not greet".to_owned(),
     })?;
-    if be_lib_build_id::compatible(ours, &theirs) {
-        Ok(())
-    } else {
-        Err(ClientError::Incompatible {
+    if !be_lib_build_id::compatible(ours, &theirs.build) {
+        return Err(ClientError::Incompatible {
             ours: ours.to_owned(),
-            theirs,
-        })
+            theirs: theirs.build,
+        });
     }
+    let welcome: Welcome = theirs.said().ok_or_else(|| {
+        ClientError::Disconnected("the server's greeting said nothing readable".into())
+    })?;
+    Ok(welcome?)
 }
 
 #[cfg(not(target_arch = "wasm32"))]

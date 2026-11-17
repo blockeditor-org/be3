@@ -113,26 +113,29 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
         .await
         .unwrap();
 
-    let (status, session, frames) = post(&mut stream, None, &[&hello(BUILD)]).await;
+    let mut anonymous = tokio::net::TcpStream::connect(harness.address)
+        .await
+        .unwrap();
+    let (status, session, frames) = post(&mut anonymous, None, &[&one_shot_hello()]).await;
     assert_eq!(status, 200);
-    assert_eq!(read_hello(&frames[0]).as_deref(), Some(BUILD));
-    let session = session.expect("a greeting of the same build opens a session");
+    let refused = welcome_of(&frames[0]);
+    assert!(
+        matches!(&refused, Err(Error { code, .. }) if *code == ErrorCode::NotAuthenticated),
+        "{refused:?}"
+    );
+    assert_eq!(session, None, "a greeting that signs nothing in opened a session");
 
     let (_, token) = ServerStore::open(&harness.directory)
         .unwrap()
         .register("http@example.com", "Http")
         .await
         .unwrap();
+    let (status, session, frames) = post(&mut stream, None, &[&token_hello(&token)]).await;
+    assert_eq!(status, 200);
+    let welcome = welcome_of(&frames[0]);
+    assert!(matches!(welcome, Ok(Authenticated { .. })), "{welcome:?}");
+    let session = session.expect("a greeting that signs in opens a session");
     let mut posted = Posted::new();
-    let mut registering =
-        be_block_protocol::client::server::authenticate(&posted.peer, Some(token));
-    let sent = posted.frames();
-    let (_, _, frames) = post(&mut stream, Some(&session), &refs(&sent)).await;
-    posted.heard(&frames);
-    let std::task::Poll::Ready(Ok(response)) = poll(&mut registering) else {
-        panic!("the post was not answered");
-    };
-    assert!(matches!(response, Ok(Authenticated { .. })), "{response:?}");
 
     let mut list = client::server::read(&posted.peer, None, Query::Organizations, false);
     let mut again = client::server::read(&posted.peer, None, Query::Organizations, false);
@@ -171,36 +174,28 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
     let mut stranger = tokio::net::TcpStream::connect(harness.address)
         .await
         .unwrap();
-    let (status, session, frames) = post(&mut stranger, None, &[&hello("another build")]).await;
+    let (status, session, frames) = post(
+        &mut stranger,
+        None,
+        &[&hello("another build", &be_block_protocol::Greeting::default())],
+    )
+    .await;
     assert_eq!(status, 200);
-    assert_eq!(read_hello(&frames[0]).as_deref(), Some(BUILD));
+    assert_eq!(build_of(&frames[0]).as_deref(), Some(BUILD));
     assert_eq!(session, None, "another build was given a session");
 
-    let Ok(Authenticated { token, .. }) = response else {
-        panic!("not authenticated")
-    };
     let authorization = format!("Bearer {token}");
     let mut proxy = tokio::net::TcpStream::connect(harness.address)
         .await
         .unwrap();
-    let (_, session, _) =
-        post_authorized(&mut proxy, None, &[&hello(BUILD)], Some(&authorization)).await;
+    let (_, session, frames) =
+        post_authorized(&mut proxy, None, &[&one_shot_hello()], Some(&authorization)).await;
+    assert!(
+        matches!(welcome_of(&frames[0]), Ok(Authenticated { token, .. }) if token.is_empty()),
+        "the injected header did not sign the greeting in, or its token was told back"
+    );
     let session = session.unwrap();
     let mut proxied = Posted::new();
-    let mut authenticating = be_block_protocol::client::server::authenticate(&proxied.peer, None);
-    let sent = proxied.frames();
-    let (_, _, frames) = post_authorized(
-        &mut proxy,
-        Some(&session),
-        &refs(&sent),
-        Some(&authorization),
-    )
-    .await;
-    proxied.heard(&frames);
-    assert!(matches!(
-        poll(&mut authenticating),
-        std::task::Poll::Ready(Ok(Ok(Authenticated { token, .. }))) if token.is_empty()
-    ));
     let _listed = proxied
         .peer
         .read::<Vec<be_block_protocol::Organization>>(be_block_protocol::Query::Organizations);

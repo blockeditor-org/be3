@@ -39,11 +39,10 @@ async fn access_of(client: &mut TestClient, block: Uuid) -> Access {
 #[tokio::test]
 async fn a_settings_kind_opens_to_anyone_who_views_a_block_inside() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.personal().await;
-    let mut guest = harness.client().await;
-    let guest_id = guest.register("guest@example.com").await;
+    let mut guest = harness.member("guest@example.com").await;
+    let guest_id = guest.id();
     guest.personal().await;
     let link = owner.link(None).await;
     let _ = guest.accept(link, &[]).await;

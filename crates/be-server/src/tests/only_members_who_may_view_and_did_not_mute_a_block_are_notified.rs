@@ -4,8 +4,8 @@ use be_block_protocol::{NotifyMode, PushService};
 #[tokio::test]
 async fn only_members_who_may_view_and_did_not_mute_a_block_are_notified() {
     let harness = Harness::configured(pushing_locally()).await;
-    let mut owner = harness.client().await;
-    let owner_id = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let owner_id = owner.id();
     let organization = owner.personal().await;
     let block = owner.create_block(BlockParent::Root).await;
     let endpoint = |name: &str| {
@@ -39,8 +39,8 @@ async fn only_members_who_may_view_and_did_not_mute_a_block_are_notified() {
         accounts.push(account);
     }
     // A member of the same organization the block was not shared with.
-    let mut bystander = harness.client().await;
-    let bystander_id = bystander.register("bystander@example.com").await;
+    let mut bystander = harness.member("bystander@example.com").await;
+    let bystander_id = bystander.id();
     assert_eq!(bystander.personal().await, organization);
     bystander.register_endpoint(endpoint("bystander")).await;
     let muted = bystander

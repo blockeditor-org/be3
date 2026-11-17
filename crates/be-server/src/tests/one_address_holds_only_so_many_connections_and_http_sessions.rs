@@ -36,11 +36,16 @@ async fn upgrade(harness: &Harness, forwarded: &str) -> (tokio::net::TcpStream, 
     (stream, status)
 }
 
-async fn greet_over_http(harness: &Harness, forwarded: &str) -> String {
+async fn greet_over_http(harness: &Harness, forwarded: &str, token: &str) -> String {
     let mut stream = tokio::net::TcpStream::connect(harness.address)
         .await
         .unwrap();
-    let hello = hello(BUILD);
+    let hello = hello(
+        BUILD,
+        &be_block_protocol::Greeting {
+            token: Some(token.to_owned()),
+        },
+    );
     let mut body = (hello.len() as u32).to_be_bytes().to_vec();
     body.extend_from_slice(&hello);
     stream
@@ -63,22 +68,16 @@ async fn signed_in(harness: &Harness, forwarded: &str, token: &str) -> TestClien
         .headers_mut()
         .insert("x-forwarded-for", forwarded.parse().unwrap());
     let (mut socket, _) = connect_async(request).await.unwrap();
-    socket.send(WsMessage::Binary(hello(BUILD))).await.unwrap();
-    assert_eq!(
-        next_binary(&mut socket)
-            .await
-            .as_deref()
-            .and_then(read_hello)
-            .as_deref(),
-        Some(BUILD)
-    );
-    let mut client = TestClient::over(socket);
-    let token = token.to_owned();
-    let response = client
-        .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(token)))
-        .await;
-    assert!(response.is_ok(), "{response:?}");
-    client
+    let greeting = be_block_protocol::Greeting {
+        token: Some(token.to_owned()),
+    };
+    socket
+        .send(WsMessage::Binary(hello(BUILD, &greeting)))
+        .await
+        .unwrap();
+    TestClient::welcomed(socket)
+        .await
+        .expect("the greeting signs in")
 }
 
 #[tokio::test]
@@ -109,15 +108,21 @@ async fn one_address_holds_only_so_many_connections_and_http_sessions() {
     let (_other, status) = upgrade(&harness, "198.51.100.2").await;
     assert_eq!(status, "101", "another address is not held back by it");
 
-    for _ in 0..http::MAX_UNSIGNED_HTTP_SESSIONS_PER_ADDRESS {
-        assert_eq!(greet_over_http(&harness, "198.51.100.3").await, "200");
+    for _ in 0..http::MAX_HTTP_SESSIONS_PER_ADDRESS {
+        assert_eq!(
+            greet_over_http(&harness, "198.51.100.3", &token).await,
+            "200"
+        );
     }
     assert_eq!(
-        greet_over_http(&harness, "198.51.100.3").await,
+        greet_over_http(&harness, "198.51.100.3", &token).await,
         "503",
-        "an address holds only so many HTTP sessions not signed in, though each post's connection closed"
+        "an address holds only so many HTTP sessions, though each post's connection closed"
     );
-    assert_eq!(greet_over_http(&harness, "198.51.100.4").await, "200");
+    assert_eq!(
+        greet_over_http(&harness, "198.51.100.4", &token).await,
+        "200"
+    );
     drop(open);
     drop(signed);
     harness.stop().await;

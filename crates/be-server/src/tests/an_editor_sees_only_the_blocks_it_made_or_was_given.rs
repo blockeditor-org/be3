@@ -27,8 +27,7 @@ async fn listed(client: &mut TestClient) -> Vec<(Uuid, Access)> {
 #[tokio::test]
 async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     let organization = owner.organization("shared").await;
     let folder = owner.create_block(BlockParent::Root).await;
     let inside = owner.create_block(BlockParent::Block(folder)).await;
@@ -87,12 +86,5 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
 }
 
 async fn guest_account(guest: &mut TestClient) -> Uuid {
-    let token = guest.token.clone();
-    let response = guest
-        .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(token)))
-        .await;
-    let Ok(Authenticated { account, .. }) = response else {
-        panic!("the guest could not re-authenticate: {response:?}");
-    };
-    account
+    guest.id()
 }

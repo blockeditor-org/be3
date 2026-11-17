@@ -426,13 +426,50 @@ pub fn decode<T: for<'a> Deserialize<'a>>(bytes: &[u8]) -> Result<T, postcard::E
 
 const HELLO: &[u8] = b"be3 hello\n";
 
-pub fn hello(build: &str) -> Vec<u8> {
-    [HELLO, build.as_bytes()].concat()
+/// What a client's greeting says after its build: the token it signs in with. None signs in
+/// with the request's Authorization header instead (`be` behind a proxy that injects it), and
+/// is what a one-shot call, which signs nothing in, says.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct Greeting {
+    pub token: Option<String>,
 }
 
-pub fn read_hello(frame: &[u8]) -> Option<String> {
-    let build = frame.strip_prefix(HELLO)?;
-    String::from_utf8(build.to_vec()).ok()
+/// What the server's greeting says after its build to a connection of the same build: who
+/// the greeting signed it in as, or why it did not, the connection then closed before any call.
+/// A one-shot call's answer says nothing (`()`).
+pub type Welcome = Result<Authenticated, Error>;
+
+/// A greeting: `HELLO`, the build, then, past a zero byte, what it says. Only the build is
+/// read before both ends know they are of one build, so what follows it may change freely.
+pub fn hello(build: &str, said: &impl Serialize) -> Vec<u8> {
+    let mut frame = [HELLO, build.as_bytes(), &[0]].concat();
+    frame.extend(encode(said).unwrap_or_default());
+    frame
+}
+
+/// A greeting's build, and what it says, to decode with `Hello::said` once the build is
+/// known to be ours.
+pub struct Hello<'a> {
+    pub build: String,
+    said: &'a [u8],
+}
+
+impl Hello<'_> {
+    pub fn said<T: for<'b> Deserialize<'b>>(&self) -> Option<T> {
+        decode(self.said).ok()
+    }
+}
+
+pub fn read_hello(frame: &[u8]) -> Option<Hello<'_>> {
+    let rest = frame.strip_prefix(HELLO)?;
+    let (build, said) = match rest.iter().position(|byte| *byte == 0) {
+        Some(at) => (&rest[..at], &rest[at + 1..]),
+        None => (rest, &[][..]),
+    };
+    Some(Hello {
+        build: String::from_utf8(build.to_vec()).ok()?,
+        said,
+    })
 }
 
 /// The case of `Page` a query is answered with, so a read names what it expects.

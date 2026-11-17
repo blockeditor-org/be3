@@ -3,8 +3,8 @@ use super::*;
 #[tokio::test]
 async fn moving_a_block_drops_the_wraps_of_its_old_scope() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let account = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let account = owner.id();
     owner.organization("moves").await;
     let from = owner.scope_root(account, BlockParent::Root).await;
     let to = owner.scope_root(account, BlockParent::Root).await;

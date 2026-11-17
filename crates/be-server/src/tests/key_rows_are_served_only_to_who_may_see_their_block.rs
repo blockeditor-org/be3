@@ -30,16 +30,16 @@ async fn grant(owner: &mut TestClient, block: Uuid, account: Uuid, access: Acces
 #[tokio::test]
 async fn key_rows_are_served_only_to_who_may_see_their_block() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let owner_id = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let owner_id = owner.id();
     let organization = owner.organization("keys").await;
     let folder = owner.scope_root(owner_id, BlockParent::Root).await;
     let (inside, inside_key) = owner.inside(&folder).await;
     owner.lists(owner_id, folder.block, vec![inside]).await;
     let private = owner.scope_root(owner_id, BlockParent::Root).await;
 
-    let mut guest = harness.client().await;
-    let guest_id = guest.register("guest@example.com").await;
+    let mut guest = harness.member("guest@example.com").await;
+    let guest_id = guest.id();
     let response = owner
         .call(|peer| {
             peer.write::<()>(be_block_protocol::Op::CreateLink {

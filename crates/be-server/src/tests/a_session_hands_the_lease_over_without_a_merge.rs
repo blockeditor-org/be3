@@ -6,8 +6,8 @@ use be_block_session::Membership;
 #[tokio::test]
 async fn a_session_hands_the_lease_over_without_a_merge() {
     let harness = Harness::start().await;
-    let mut phone = harness.client().await;
-    let account = phone.register("phone@example.com").await;
+    let mut phone = harness.member("phone@example.com").await;
+    let account = phone.id();
     let organization = phone.organization("notes").await;
     let block = phone.create_block(BlockParent::Root).await;
     let author = Author::new(account);

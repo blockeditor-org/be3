@@ -3,8 +3,8 @@ use super::*;
 #[tokio::test]
 async fn references_keep_the_order_their_block_lists_them_in() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("presenter@example.com").await;
+    let mut client = harness.member("presenter@example.com").await;
+    let account = client.id();
     let organization = client.organization("talks").await;
     let author = Author::new(account);
 
