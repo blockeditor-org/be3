@@ -465,7 +465,11 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             }</Overlay>
         </KeepAlive>
     };
+    dock.dialog_layers.value().borrow_mut().insert(tab, overlay);
     on_cleanup(move || {
+        if let Some(layers) = dock.dialog_layers.try_value() {
+            layers.borrow_mut().remove(&tab);
+        }
         if let Some(overlay) = overlay.try_get() {
             overlay.close_overlay();
         }

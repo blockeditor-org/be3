@@ -282,6 +282,8 @@ struct State {
     placements: Signal<HashMap<SurfaceId, WindowPlacement>>,
     panes: Stored<RefCell<HashMap<Tree, NodeRef>>>,
     windows: Stored<RefCell<HashMap<SurfaceId, NodeRef>>>,
+    /// Each shown dialog's layer, which a carried tab's places count as the dock's own.
+    dialog_layers: Stored<RefCell<HashMap<TabId, NodeRef>>>,
     stacked: Stored<RefCell<HashMap<SurfaceId, NodeRef>>>,
     fullscreen_layer: NodeRef,
     fullscreen_window: NodeRef,
@@ -1302,7 +1304,7 @@ impl State {
     fn spec(&self, dragged: DockDragged, tiles: NodeRef) -> DragSpec<DockDrop> {
         let dock = *self;
         // A place answers only a point over its node that no layer but the dock's own
-        // windows covers: a custom place is asked about every point, wherever the pointer is.
+        // windows and dialogs covers: a custom place is asked about every point, wherever the pointer is.
         let open_at = move |node: NodeRef, local: Pos2| -> Option<(WindowId, Pos2)> {
             let node = node.try_get()?;
             let rect = measure(node).get_untracked()?.rect;
@@ -1316,6 +1318,7 @@ impl State {
                         .value()
                         .borrow()
                         .values()
+                        .chain(dock.dialog_layers.value().borrow().values())
                         .filter_map(NodeRef::try_get),
                 )
                 .collect();
@@ -1930,6 +1933,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     let dock = State {
         state,
         windows: store(RefCell::default()),
+        dialog_layers: store(RefCell::default()),
         stacked: store(RefCell::default()),
         fullscreen_layer: NodeRef::new(),
         fullscreen_window: NodeRef::new(),

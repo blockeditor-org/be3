@@ -182,7 +182,7 @@ a ring outside it, so content gets every press up to its edge.
 `DockState::windows` is bottom to top, the focused window is on top, and `Document::layers()`
 follows. The dock's drop site has a place per window, each resolving the pointer in that
 window's coordinates; the board chooses only places in the window the `DragPoint` names, and each
-place answers only points over its own node that no layer but the dock's windows covers (`State::spec`), so a
+place answers only points over its own node that no layer but the dock's windows and dialogs covers (`State::spec`), so a
 menu over the dock, a tool-bar band or another dock in the window takes no tab.
 
 The window manager (`beui-dock-host/src/unstyled/hosting/manager.rs`, `snap.rs`,

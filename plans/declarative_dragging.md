@@ -251,7 +251,7 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      each answering the drop the dock's `resolve` gives at the point where the state admits it,
      so a locked place is no place and the refused marker is gone, with `Take` and
      `DropTarget`'s `takes`, which nothing else used. Each place answers only points over its
-     own node that no layer but the dock's windows covers, and a carry names its dock (`DockCarry`). `when_held(ALT, ..)` floats,
+     own node that no layer but the dock's windows and dialogs covers, and a carry names its dock (`DockCarry`). `when_held(ALT, ..)` floats,
      and while held its places are the only ones; the board never chooses a place in another
      window than the pointer's; a carry let go outside every window is its source's
      (`Carry::outside`), which floats the tab there. A carried tab is listed once, as its bar's
