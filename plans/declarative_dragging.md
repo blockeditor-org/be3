@@ -323,16 +323,33 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      carry cannot step into it yet (plans/backlog.md, Keyboard steps into a custom site).
    - **logic-grid's hotbar (done):** slots carry onto other slots and folders, each a place from
      `place_on`, which offers a node's whole area.
-   - **infinite canvas:** item moves become `free`.
-   - **game editor:** each `Gesture::Drag { from, to }` is a fixed candidate at `to`'s spot;
-     `drag` answers `None` off a piece, so the same press pans.
-   - **between blocks:** an item dragged into another block of a type that takes it (canvas to
+   - **infinite canvas (waits for plans/tentative_gestures.md):** item moves become `free`.
+     A move writes the document as it goes, so peers and bound lines follow it
+     (guides/canvas.md, Gestures); on the board it previews from `over` in a tentative
+     gesture, which is not built. `free` also clamps the item into its area, which would
+     keep a selection from being moved past the viewport's edge; a canvas site wants its
+     area unbounded (the camera's world, scrolled by the edge band).
+   - **game editor (done):** each `Gesture::Drag { from, to }` is a place at `to`'s spot,
+     zoned to it, with the item drawn there the size it was lifted at; `drag` answers
+     `None` off a piece, so the same press pans. The site draws the lifted piece from the
+     board's frame (`drawn_by_site`); Space lifts the selected piece from the keyboard. Its presses are caught by an `Interactive` laid over
+     the table rather than around it: a drag source's face takes its child's own size, so
+     a child that fills whatever it is given collapses inside one (plans/backlog.md).
+   - **between blocks (a step of its own, after the canvas):** an item dragged into another block of a type that takes it (canvas to
      canvas, list to list) moves on a plain drop and copies with a modifier, through the
      clipboard's typed formats, so a drop is a paste. Without write access to the source it copies.
      The source holds a tentative removal. On drop the target writes the insert first and the
      source then commits its removal, so a crash between the two leaves a copy, never nothing.
-   - **settings' display arrangement:** every touching position is a candidate, `when_far(free)`.
-   - **bottom sheet:** detents are `closest(detents).thrown()`.
+   - **settings' display arrangement (done):** every place a display touches another lined
+     up with its side's start, middle or end (`touching::places`) is a candidate, and within
+     `SNAP` of none it is `free` in the area; a free drop settles against the nearest edge
+     as before.
+   - **bottom sheet (done):** its release chooses among its detents and closing as
+     `closest(detents).thrown_for(..)`, evaluated where it lets go rather than carried: the
+     sheet's height and its content's scroll are one continuous travel under the finger,
+     which stays on `on_drag` (step 8). Closing is a place below the lowest detent, so a
+     release past the close distance takes it; `thrown_for` lets a flick carry on longer
+     than a carried item's throw.
 6. **Across apps.** plans/host_as_platform_adapter.md owns the cross-app session (Input, "Drag
    and drop"): the source starts it with its payload, and the host routes drag-over events to the
    surface under the pointer and the drop to the one under the release, by its forwarding router.

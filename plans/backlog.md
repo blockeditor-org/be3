@@ -460,6 +460,29 @@ Depends on #686 (session catch-ups replaced by server ordering).
   beui-core-html's `watch()` seeds the signal synchronously the first time it
   is made, and those eager `measure` calls at build go.
 
+- **A drag source's face sizes its child as no `Interactive` does.** An
+  `Interactive` given `drag` wraps its children in a list (`CarriedFace`), so
+  its child takes its own height rather than the source's; a child that fills
+  whatever it is given (a canvas) collapses, and the game's stage lays its
+  `Interactive` over the table instead. Making the child grow moves the dock
+  tabs' labels, which rely on the list. Done: the face lays its child out as a
+  plain `Interactive` does, the dock tabs keeping their look.
+- **Selecting a game piece from the keyboard.** Space lifts the selected
+  piece and the arrows step it between its squares, but only a click selects
+  one, so a game cannot be played from the keyboard alone. Done: the arrows
+  move a selection between the movable pieces while nothing is carried, shown
+  by a test that plays a chess move with keys only.
+- **A sheet's detents from the keyboard.** A sheet chooses its detent with
+  `closest(detents).thrown()` only where its drag lets go, so no key steps it
+  between detents. Done: the sheet's handle steps between its detents with the
+  arrows, shown by a test.
+- **The display arrangement refits for a carried display.** The area's view
+  fits the arrangement at the lift and clips what it draws, so a display
+  carried to a place beyond that fit (below a display beside it) is cut off at
+  the area's edge. Done: the area refits to the arrangement the chosen place
+  makes, with places read relative to the refit, shown by a painting of a
+  display carried below another.
+
 ## 18. Keys
 
 - **A new phrase grows with the account.** `set-recovery-key` carries one
