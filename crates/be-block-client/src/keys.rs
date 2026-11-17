@@ -873,29 +873,51 @@ impl KeyBook {
     /// taken, and epochs stay judged by what was kept. Answers what to keep anew, when it moved.
     pub fn note_log(&self, block: Uuid, checked: &Checked) -> Option<crate::refs::KeptLog> {
         let mut roots = self.roots.lock().unwrap();
-        if let Some(kept) = roots.kept.get(&block)
-            && !checked.holds(&kept.head)
+        if roots
+            .kept
+            .get(&block)
+            .is_some_and(|kept| !checked.holds(&kept.head))
         {
             return None;
         }
         roots.logs.insert(block, checked.clone());
-        let place = |head: &EntryHash| checked.positions.get(head).map_or(0, |at| *at as u64);
-        let lowering = checked
+        let mut current: Vec<(usize, EntryHash)> = checked
             .positions
             .iter()
-            .find(|(_, at)| **at == checked.last_lowering)
-            .map(|(head, _)| *head)
-            .unwrap_or(checked.head);
+            .filter(|(_, at)| **at >= checked.last_lowering)
+            .map(|(head, at)| (*at, *head))
+            .collect();
+        current.sort();
         let kept = crate::refs::KeptLog {
             head: checked.head,
-            place: place(&checked.head),
-            lowering,
+            place: checked.positions.get(&checked.head).map_or(0, |at| *at as u64),
             lowering_place: checked.last_lowering as u64,
+            current: current.into_iter().map(|(_, head)| head).collect(),
+            levels: {
+                let mut levels: Vec<([u8; 16], Level)> = checked
+                    .levels
+                    .iter()
+                    .filter_map(|(account, changes)| Some((*account, changes.last()?.1)))
+                    .collect();
+                levels.sort();
+                levels
+            },
         };
-        match roots.kept.insert(block, kept) == Some(kept) {
+        match roots.kept.insert(block, kept.clone()) == Some(kept.clone()) {
             true => None,
             false => Some(kept),
         }
+    }
+
+    /// Whether `checked`, a log the server served for `block`, stops short of what this device
+    /// kept of it from an earlier check: withheld, so nothing is taken from it.
+    pub fn withheld(&self, block: Uuid, checked: &Checked) -> bool {
+        self.roots
+            .lock()
+            .unwrap()
+            .kept
+            .get(&block)
+            .is_some_and(|kept| !checked.holds(&kept.head))
     }
 
     /// The scopes whose keys this device holds trusted, with their roots pinned, whose logs it
@@ -929,15 +951,16 @@ impl KeyBook {
         let kept = crate::refs::KeptLog {
             head: root,
             place: 0,
-            lowering: root,
             lowering_place: 0,
+            current: vec![root],
+            levels: vec![(self.account.into_bytes(), Level::Manage)],
         };
         self.roots
             .lock()
             .unwrap()
             .kept
             .entry(block)
-            .or_insert(kept);
+            .or_insert(kept.clone());
         kept
     }
 
@@ -977,7 +1000,11 @@ impl KeyBook {
     /// names, but not as of that head, held nothing then. One it never names, who may have Edit
     /// from a block above (the server's tree until parents are signed), is taken, as is any
     /// key of a block whose log this device never checked (its first, which carries the root).
-    fn sender_may(&self, sender: Uuid, carried: &CarriedKey) -> bool {
+    ///
+    /// A data key is taken from a contact only as an administrator (the settings' data keys,
+    /// which key work has them seal to each other): no one else seals one to an account, and
+    /// its epoch names its scope's log, which its own block's is not.
+    fn sender_may(&self, sender: Uuid, carried: &CarriedKey, kind: KeyKind) -> bool {
         if sender == self.account {
             return true;
         }
@@ -995,13 +1022,22 @@ impl KeyBook {
             })
         };
         // An escrow key travels as the organization's: only an administrator hands it on.
-        if administered || carried.block == self.organization.into_bytes() {
+        if administered || carried.block == self.organization.into_bytes() || kind != KeyKind::Scope
+        {
             return administered;
         }
         let block = Uuid::from_bytes(carried.block);
         let roots = self.roots.lock().unwrap();
+        // A block checked in an earlier run but whose log this run has not read (a restart,
+        // a refused or short read, offline): judged by the levels kept at the head then, so a
+        // sender revoked by then is refused whatever head the key names.
         let Some(log) = roots.logs.get(&block) else {
-            return true;
+            return roots.kept.get(&block).is_none_or(|kept| {
+                kept.levels
+                    .iter()
+                    .find(|(named, _)| *named == account)
+                    .is_none_or(|(_, level)| *level >= Level::Edit)
+            });
         };
         if !log.levels.contains_key(&account) {
             return true;
@@ -1042,12 +1078,11 @@ impl KeyBook {
                 };
             }
             // No log read in this run (offline, refused, or withheld): judged by how far an
-            // earlier run checked it, where only its head or its last lowering is known to be
-            // after that lowering.
+            // earlier run checked it, whose entries from its last lowering through its head
+            // are known current; a head newer than those is outdated until a log reaches it.
             if let Some(kept) = roots.kept.get(&block) {
                 return kept.lowering_place > 0
-                    && head != Some(kept.head)
-                    && head != Some(kept.lowering);
+                    && !head.is_some_and(|head| kept.current.contains(&head));
             }
             opened_through
         })
@@ -1246,7 +1281,11 @@ impl KeyBook {
                     )
                     .ok()?;
                 if self.contact(wrap.sender).is_some()
-                    && !self.sender_may(wrap.sender, &CarriedKey::decode(&plain).ok()?)
+                    && !self.sender_may(
+                        wrap.sender,
+                        &CarriedKey::decode(&plain).ok()?,
+                        row.map_or(KeyKind::Data, |row| row.kind),
+                    )
                 {
                     return None;
                 }

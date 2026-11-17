@@ -782,8 +782,11 @@ impl<S: ObjectStore> Peer<S> {
             let Ok(around) = self.logs_around(escrowed.block).await else {
                 continue;
             };
-            let granted = around
+            let checked = around
                 .check(self.organization, escrowed.block, pinned, &entries)
+                // A log short of what an earlier check kept is withheld: the key waits.
+                .filter(|checked| !self.keys.withheld(escrowed.block, checked));
+            let granted = checked
                 .and_then(|checked| checked.grants.get(&escrowed.sender.into_bytes()).copied())
                 .is_some_and(|(level, _)| level >= be_block_keys::Level::Edit);
             if granted {
@@ -940,8 +943,12 @@ impl<S: ObjectStore> Peer<S> {
         // Each scope's log, once, so a write offline later is judged by what was kept of it
         // (`Peer::outdated`) rather than refused.
         if !self.local {
+            use futures_util::StreamExt;
             let unkept = self.keys.unkept_scopes();
-            futures_util::future::join_all(unkept.iter().map(|scope| self.checked_access(*scope)))
+            futures_util::stream::iter(unkept)
+                .map(|scope| async move { self.checked_access(scope).await })
+                .buffer_unordered(8)
+                .collect::<Vec<_>>()
                 .await;
         }
         Ok(opened)
@@ -1644,6 +1651,11 @@ impl<S: ObjectStore> Peer<S> {
         let checked = around
             .check(self.organization, block, pinned, &entries)
             .ok_or(ClientError::Forged(block))?;
+        // A log short of what an earlier check kept is withheld: nothing acts on it, and what
+        // waits on it (a seal to judge, an escrowed key to take) waits for a whole one.
+        if self.keys.withheld(block, &checked) {
+            return Err(ClientError::Locked(block));
+        }
         if let Some(kept) = self.keys.note_log(block, &checked) {
             let _ = self.refs.keep_log(block, kept);
         }

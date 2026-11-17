@@ -257,10 +257,11 @@ did not sign.
   last checked each scope's log (its head and its last entry lowering anyone,
   `refs::KeptLog`), reading each once when its keys arrive. A log served later
   that does not reach the kept head counts as withheld; with it, or with no
-  log readable (offline, a failed read), an epoch is judged by what was kept,
-  where only the kept head and the kept lowering are known to be at or after
-  the lowering, so an honest epoch naming any other head costs a rotation, and
-  offline, where none can be made, a refused save (`Locked`). A scope this
+  log readable (offline, a failed read), an epoch is judged by what was kept:
+  current only if it names one of the kept entries from the last lowering
+  through the head, so an honest epoch naming a head newer than those costs a
+  rotation, and offline, where none can be made, a refused save (`Locked`).
+  A contact's seal is then judged by the levels kept at the head. A scope this
   device neither kept nor can read judges a key opened through another as
   outdated, and one made here, or sealed to this account directly, as not.
   What it cannot catch: a revocation it never held in any run.
