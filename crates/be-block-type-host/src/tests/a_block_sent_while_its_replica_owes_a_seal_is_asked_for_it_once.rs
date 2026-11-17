@@ -43,7 +43,7 @@ fn a_block_sent_while_its_replica_owes_a_seal_is_asked_for_it_once() {
         replicas.relay_from_editor(
             block,
             editor,
-            FromEditor::Operate(TextContent::encode_operation(&typed)).encode(),
+            FromEditor::Operate { gesture: None, operation: TextContent::encode_operation(&typed) }.encode(),
             Instant::now(),
         );
         replicas.pump((&peer, &shared)).await;

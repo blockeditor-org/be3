@@ -11,8 +11,12 @@ fn send(replicas: &mut Replicas<Quiet>, block: Uuid, editor: EditorId, message: 
     replicas.relay_from_editor(block, editor, message.encode(), Instant::now());
 }
 
-fn add(by: i64) -> FromEditor {
-    FromEditor::Operate(CounterContent::encode_operation(&Counter::add(by)))
+/// An edit adding `by`, made in the editor's gesture `gesture` or outside any.
+fn add(by: i64, gesture: Option<u64>) -> FromEditor {
+    FromEditor::Operate {
+        gesture,
+        operation: CounterContent::encode_operation(&Counter::add(by)),
+    }
 }
 
 /// The counter its replica shows now, without a held drag.
@@ -55,10 +59,10 @@ fn a_module_restart_mid_drag_keeps_the_drag() {
             &mut replicas,
             block,
             dragging,
-            FromEditor::Gesture(Gesture::BeginTentative),
+            FromEditor::Gesture { id: 0, gesture: Gesture::BeginTentative },
         );
-        send(&mut replicas, block, dragging, add(10));
-        send(&mut replicas, block, typing, add(1));
+        send(&mut replicas, block, dragging, add(10, Some(0)));
+        send(&mut replicas, block, typing, add(1, None));
         while replicas
             .status(block)
             .is_none_or(|status| status.taken < 1 || !status.journaled)
@@ -93,7 +97,7 @@ fn a_module_restart_mid_drag_keeps_the_drag() {
             &mut replicas,
             block,
             dragging,
-            FromEditor::Gesture(Gesture::Commit),
+            FromEditor::Gesture { id: 0, gesture: Gesture::Commit },
         );
         while replicas
             .status(block)

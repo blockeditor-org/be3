@@ -15,7 +15,7 @@ fn a_peers_paste_too_large_to_relay_lands_once_over_the_holders_unsealed_edits_a
     sim.settle();
     sim.type_at(1, 1, 12, "typed\n");
     sim.settle();
-    sim.gesture(1, 1, Gesture::Break);
+    sim.break_step(1, 1);
     let published = sim.publishes;
     assert!(!sim.devices[0].status.clean, "the owner has unsealed edits");
 

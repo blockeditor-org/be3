@@ -41,7 +41,7 @@ fn an_editor_can_read_and_edit_a_block_it_watches() {
     assert!(to_replica(
         &mut instances,
         other,
-        &FromEditor::Operate(add.clone())
+        &FromEditor::Operate { gesture: None, operation: add.clone() }
     ));
     counted(other, 3);
     let sent = replica_sent_until(&mut instances, other, |sent| !sent.is_empty());

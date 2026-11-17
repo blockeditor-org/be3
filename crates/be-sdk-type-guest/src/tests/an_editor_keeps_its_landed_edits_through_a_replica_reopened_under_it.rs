@@ -16,7 +16,7 @@ fn an_editor_keeps_its_landed_edits_through_a_replica_reopened_under_it() {
         let message = sim
             .editors
             .get_mut(&(0, 1))
-            .and_then(|mirror| mirror.operate(add(text)))
+            .and_then(|mirror| mirror.operate(None, add(text)))
             .expect("an editor operates once it has content");
         sim.send_from_editor(0, 1, message.clone());
         sent.push(message);

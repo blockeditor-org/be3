@@ -42,9 +42,9 @@ fn an_instance_watching_a_blocks_history_is_told_when_it_changes() {
     be_host_stack::from_editor(
         block,
         editor,
-        &be_sdk_type_api::encode_frame(&be_sdk_type_guest::editor::FromEditor::Operate(
+        &be_sdk_type_api::encode_frame(&be_sdk_type_guest::editor::FromEditor::Operate { gesture: None, operation: 
             ChecklistContent::encode_operation(&Checklist::add("Standup").1),
-        )),
+         }),
     );
     be_host_stack::wait_until("can undo the edit", |shared| {
         shared

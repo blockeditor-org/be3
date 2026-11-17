@@ -104,6 +104,7 @@ mod an_edit_numbered_while_its_replica_was_deaf_lands_once_after_it_reopens;
 mod an_edit_refused_as_this_account_may_not_edit_fails_and_stops_showing;
 mod an_edit_still_unsent_when_its_replicas_reload_went_out_lands_after_a_crash;
 mod an_edit_whose_origin_aged_out_of_the_base_fails_as_possibly_sent;
+mod an_editor_cancels_a_gesture_the_replica_ended_so_its_late_frames_never_count;
 mod an_editor_is_not_told_again_a_snapshot_it_holds_when_its_replica_reopens;
 mod an_editor_joins_with_a_snapshot_and_follows_operations;
 mod an_editor_keeps_its_landed_edits_through_a_replica_reopened_under_it;
@@ -124,6 +125,7 @@ mod edits_given_again_with_the_submission_that_held_them_carry_their_announcemen
 mod edits_peer_ops_and_a_close_during_a_pending_merge_wait_behind_it_and_land_on_its_result;
 mod every_replica_stamps_an_operation_with_when_the_server_took_it;
 mod frames_a_drag_sends_after_an_undo_cancelled_it_write_nothing;
+mod one_editors_two_drags_end_on_their_own;
 mod peer_messages_reach_one_peer_or_all_of_them;
 mod peers_keep_what_the_holder_typed_while_its_seal_was_out;
 mod presence_reaches_late_joiners_and_leaves_with_its_client;
@@ -538,6 +540,11 @@ struct Sim<C: LiveEdit + Clone + Default> {
     devices: Vec<Device>,
     editors: BTreeMap<(usize, EditorId), EditorMirror<C>>,
     received: BTreeMap<(usize, EditorId), Vec<ToEditor>>,
+    /// Editors not hearing yet: what reaches them waits here until `hear`, as messages still
+    /// on their way would.
+    unheard: BTreeMap<(usize, EditorId), Vec<ToEditor>>,
+    /// What each editor sent its replica, in order.
+    from_editors: BTreeMap<(usize, EditorId), Vec<FromEditor>>,
     queue: VecDeque<(usize, Vec<u8>)>,
     replies: BTreeMap<(usize, OpId), Outcome>,
     publishes: usize,
@@ -629,6 +636,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 .collect(),
             editors: BTreeMap::new(),
             received: BTreeMap::new(),
+            unheard: BTreeMap::new(),
+            from_editors: BTreeMap::new(),
             queue: VecDeque::new(),
             replies: BTreeMap::new(),
             publishes: 0,
@@ -876,20 +885,87 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         self.with_replica(device, |replica, host| replica.detach(host, editor));
     }
 
+    /// An edit `editor` makes in its gesture 0 while that is open (`gesture`), or outside any.
     fn operate(&mut self, device: usize, editor: EditorId, operation: C::Op) {
+        let open = self.editors[&(device, editor)].gesture_open(0);
+        self.operate_in(device, editor, open.then_some(0), operation);
+    }
+
+    /// An edit `editor` makes in its gesture `gesture`, or outside any: whether its mirror
+    /// sent it, which it does not in a gesture the replica ended.
+    fn operate_in(
+        &mut self,
+        device: usize,
+        editor: EditorId,
+        gesture: Option<u64>,
+        operation: C::Op,
+    ) -> bool {
+        let mirror = self
+            .editors
+            .get_mut(&(device, editor))
+            .expect("the editor is attached");
+        assert!(mirror.is_loaded(), "an editor operates once it has content");
+        let Some(message) = mirror.operate(gesture, operation) else {
+            return false;
+        };
+        self.send_from_editor(device, editor, message);
+        true
+    }
+
+    /// Begins or ends `editor`'s gesture 0.
+    fn gesture(&mut self, device: usize, editor: EditorId, gesture: Gesture) {
+        self.gesture_in(device, editor, 0, gesture);
+    }
+
+    /// Begins or ends `editor`'s gesture `id`, as its mirror sends it: an end of one the
+    /// replica ended is not sent.
+    fn gesture_in(&mut self, device: usize, editor: EditorId, id: u64, gesture: Gesture) {
         let message = self
             .editors
             .get_mut(&(device, editor))
-            .and_then(|mirror| mirror.operate(operation))
-            .expect("an editor operates once it has content");
-        self.send_from_editor(device, editor, message);
+            .expect("the editor is attached")
+            .gesture(id, gesture);
+        if let Some(message) = message {
+            self.send_from_editor(device, editor, message);
+        }
     }
 
-    fn gesture(&mut self, device: usize, editor: EditorId, gesture: Gesture) {
-        self.send_from_editor(device, editor, FromEditor::Gesture(gesture));
+    fn break_step(&mut self, device: usize, editor: EditorId) {
+        self.send_from_editor(device, editor, FromEditor::Break);
+    }
+
+    /// Holds what reaches `editor` until `hear`, as messages still on their way.
+    fn deafen(&mut self, device: usize, editor: EditorId) {
+        self.unheard.entry((device, editor)).or_default();
+    }
+
+    /// Gives `editor` what it was sent while deaf, and sends what its mirror answers.
+    fn hear(&mut self, device: usize, editor: EditorId) {
+        for message in self.unheard.remove(&(device, editor)).unwrap_or_default() {
+            let answer = self
+                .editors
+                .get_mut(&(device, editor))
+                .and_then(|mirror| mirror.receive(message));
+            if let Some(answer) = answer {
+                self.send_from_editor(device, editor, answer);
+            }
+        }
+        self.settle();
+    }
+
+    /// What `editor` on `device` sent its replica, in order.
+    fn sent_from(&self, device: usize, editor: EditorId) -> Vec<FromEditor> {
+        self.from_editors
+            .get(&(device, editor))
+            .cloned()
+            .unwrap_or_default()
     }
 
     fn send_from_editor(&mut self, device: usize, editor: EditorId, message: FromEditor) {
+        self.from_editors
+            .entry((device, editor))
+            .or_default()
+            .push(message.clone());
         let now = self.now;
         self.with_replica(device, |replica, host| {
             replica.message(host, Endpoint::Editor(editor), message.encode(), now)
@@ -1230,6 +1306,10 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                             .entry((device, editor))
                             .or_default()
                             .push(message.clone());
+                        if let Some(unheard) = self.unheard.get_mut(&(device, editor)) {
+                            unheard.push(message);
+                            return;
+                        }
                         let Some(mirror) = self.editors.get_mut(&(device, editor)) else {
                             return;
                         };

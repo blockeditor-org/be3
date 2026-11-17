@@ -872,11 +872,11 @@ impl Inner {
         if attached && message == FromEditor::Resend {
             return;
         }
-        if let (FromEditor::Operate(_), Some(deferred)) = (&message, &mut self.deferred) {
+        if let (FromEditor::Operate { .. }, Some(deferred)) = (&message, &mut self.deferred) {
             deferred.push((block, editor, message));
             return;
         }
-        if let FromEditor::Operate(operation) = &message {
+        if let FromEditor::Operate { operation, .. } = &message {
             let Some(held) = self.blocks.get_mut(&block) else {
                 return;
             };
@@ -897,7 +897,7 @@ impl Inner {
         let Some(replica) = self.blocks.get(&block).and_then(|held| held.replica) else {
             return;
         };
-        if let FromEditor::Operate(_) = &message {
+        if let FromEditor::Operate { .. } = &message {
             *self.forwarded.entry((block, editor)).or_default() += 1;
         }
         let send = move |inner: &mut Self| {
@@ -907,7 +907,10 @@ impl Inner {
             });
         };
         match message {
-            FromEditor::Gesture(Gesture::Cancel) => self.reverting(block, send),
+            FromEditor::Gesture {
+                gesture: Gesture::Cancel,
+                ..
+            } => self.reverting(block, send),
             _ => send(self),
         }
     }

@@ -13,16 +13,20 @@ use be_sdk_type_api::EditorId;
 
 use crate::editor::{FromEditor, Gesture};
 
-/// The id every gesture and edit of an editor goes under until the app protocol names its
-/// gestures (plans/tentative_gestures.md, step 3): an editor holds one gesture at a time.
-pub const EDITOR_GESTURE: u64 = 0;
-
-/// The gesture `editor`'s gesture messages name.
-pub fn gesture_of(editor: EditorId) -> GestureId {
-    GestureId {
+/// The gesture `message`, from `editor`, names: the one it begins or ends, or the one an edit
+/// was made in.
+pub fn gesture_of(editor: EditorId, message: &FromEditor) -> Option<GestureId> {
+    let id = match message {
+        FromEditor::Gesture { id, .. } => *id,
+        FromEditor::Operate {
+            gesture: Some(id), ..
+        } => *id,
+        _ => return None,
+    };
+    Some(GestureId {
         editor: Some(editor),
-        id: EDITOR_GESTURE,
-    }
+        id,
+    })
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -61,6 +65,8 @@ pub enum This {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Took {
     pub this: This,
+    /// The gesture the message named.
+    pub gesture: Option<GestureId>,
     /// The tentative gestures it ended, in order, and whether each committed.
     pub ended: Vec<(GestureId, bool)>,
     /// The open tentative gestures an undo cancelled, which stay open until their editors end
@@ -81,11 +87,20 @@ pub struct Took {
 impl Holds {
     /// Follows a message `editor` sent (none when it does not decode).
     pub fn message(&mut self, editor: EditorId, message: Option<&FromEditor>) -> Took {
-        let gesture = gesture_of(editor);
-        let open = self.open.contains(&gesture);
         let mut took = Took::default();
-        match message {
-            Some(FromEditor::Gesture(Gesture::BeginTentative)) => {
+        let Some((message, gesture)) =
+            message.and_then(|message| Some((message, gesture_of(editor, message)?)))
+        else {
+            return took;
+        };
+        took.gesture = Some(gesture);
+        let open = self.open.contains(&gesture);
+        let phase = match message {
+            FromEditor::Gesture { gesture, .. } => Some(*gesture),
+            _ => None,
+        };
+        match phase {
+            Some(Gesture::BeginTentative) => {
                 // One open under this name commits first, as the replica's history does.
                 if open {
                     self.end(gesture, true, &mut took);
@@ -94,10 +109,10 @@ impl Holds {
                 took.opened = Some(gesture);
                 took.this = This::Held(self.hold(gesture, false));
             }
-            Some(FromEditor::Gesture(Gesture::Begin)) if open => {
+            Some(Gesture::Begin) if open => {
                 self.end(gesture, true, &mut took);
             }
-            Some(FromEditor::Gesture(Gesture::Commit)) if open => {
+            Some(Gesture::Commit) if open => {
                 let serial = self.hold(gesture, false);
                 self.end(gesture, true, &mut took);
                 took.this = match took.released.contains(&serial) {
@@ -105,12 +120,12 @@ impl Holds {
                     false => This::Held(serial),
                 };
             }
-            Some(FromEditor::Gesture(Gesture::Cancel)) if open => {
+            Some(Gesture::Cancel) if open => {
                 self.hold(gesture, false);
                 self.end(gesture, false, &mut took);
                 took.this = This::Ended;
             }
-            Some(FromEditor::Operate(_)) if open => {
+            None if open => {
                 took.this = This::Held(self.hold(gesture, true));
             }
             _ => {}
@@ -140,11 +155,16 @@ impl Holds {
         took
     }
 
-    /// `editor` left: its open tentative gesture is cancelled.
+    /// `editor` left: its open tentative gestures are cancelled, in the order they began.
     pub fn detach(&mut self, editor: EditorId) -> Took {
         let mut took = Took::default();
-        let gesture = gesture_of(editor);
-        if self.open.contains(&gesture) {
+        let leaving: Vec<GestureId> = self
+            .open
+            .iter()
+            .copied()
+            .filter(|gesture| gesture.editor == Some(editor))
+            .collect();
+        for gesture in leaving {
             self.end(gesture, false, &mut took);
         }
         took

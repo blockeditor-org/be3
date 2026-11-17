@@ -12,8 +12,8 @@ fn counted(block: Uuid, expected: i64) {
     });
 }
 
-/// A tentative gesture left open when its editor goes is cancelled, and its held edit is
-/// never written (plans/tentative_gestures.md).
+/// The tentative gestures an editor left open when it goes, two here (two fingers), are each
+/// cancelled, and their held edits are never written (plans/tentative_gestures.md).
 #[test]
 fn closing_an_editor_drops_the_tentative_gesture_it_left_open() {
     let harness = be_host_testing::Harness::start();
@@ -35,23 +35,25 @@ fn closing_an_editor_drops_the_tentative_gesture_it_left_open() {
     assert!(to_replica(&mut instances, watched, &FromEditor::Resend));
     counted(watched, 0);
 
-    let add = |amount| CounterContent::encode_operation(&Counter::add(amount));
-    assert!(to_replica(
-        &mut instances,
-        watched,
-        &FromEditor::Operate(add(2))
-    ));
-    assert!(to_replica(
-        &mut instances,
-        watched,
-        &FromEditor::Gesture(Gesture::BeginTentative)
-    ));
-    assert!(to_replica(
-        &mut instances,
-        watched,
-        &FromEditor::Operate(add(3))
-    ));
-    // Held: shown to the editors, but never written, so closing leaves no trace of it.
+    let add = |amount, gesture| FromEditor::Operate {
+        gesture,
+        operation: CounterContent::encode_operation(&Counter::add(amount)),
+    };
+    for id in [4, 9] {
+        assert!(to_replica(
+            &mut instances,
+            watched,
+            &FromEditor::Gesture {
+                id,
+                gesture: Gesture::BeginTentative
+            }
+        ));
+    }
+    assert!(to_replica(&mut instances, watched, &add(3, Some(4))));
+    assert!(to_replica(&mut instances, watched, &add(5, Some(9))));
+    assert!(to_replica(&mut instances, watched, &add(2, None)));
+    // Held: shown to the editors, but never written, so closing leaves no trace of them.
+    counted(watched, 2);
     assert!(instances.remove(INSTANCE));
     be_host_stack::flush_and_send();
     be_host_stack::open(watched, CounterContent::CONTENT_TYPE);

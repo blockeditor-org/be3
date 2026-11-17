@@ -103,18 +103,34 @@ another block.
 An editor writes every change to its block as it happens (a stroke as it grows,
 text as it is typed) so peers see it at once; the client batches saving. A
 gesture that chooses one result on release, such as dragging a layer, which
-nobody would expect kept half done, is decided to be tentative, held locally
-until it commits (decisions/tentative_edits_wait_for_release.md), but
-that is not built yet (plans/tentative_gestures.md): today a drag is written
-each frame too. That decision is about block content; view state is written on
-every change whatever the gesture. Bracket a gesture with
-`begin_gesture` and `commit_gesture` so it undoes as one step;
-`cancel_gesture` puts back what it wrote and leaves no history; `break_step`
-ends the editor's burst of quick edits so its next edit starts a step of its
-own, and inside an open gesture does nothing. The host
-cancels a gesture still open when the instance closes, so a gesture held open
-until something is decided (the canvas's new text, kept only once written in)
-ends with its editor.
+nobody would expect kept half done, is tentative
+(decisions/tentative_edits_wait_for_release.md): open it with
+`ContentProjection::begin_tentative`, make its edits with `operate_in`, and end
+it with `commit_gesture` or `cancel_gesture`. Its edits show at once in every
+view of the block on this device and are sent and saved only when it commits;
+a cancel, the instance closing or a crash leaves no trace. A tentative edit only
+moves or changes what exists: anything a drop creates, create on commit.
+(Moving today's drags, scrubs and the colour picker onto it is
+plans/tentative_gestures.md, step 4.) That decision is about block content;
+view state is written on every change whatever the gesture.
+
+Bracket a gesture that writes as it goes with `begin_gesture` and
+`commit_gesture` so it undoes as one step; `cancel_gesture` puts back what it
+wrote and leaves no history. Each `begin_*` returns a `ContentGesture`, and the
+gesture's edits go through `operate_in(gesture, edit)`; `operate` makes an edit
+outside any gesture. An editor may hold several gestures at once (a second
+finger, a second controller), each ending on its own. `break_step` ends the
+editor's burst of quick edits so its next edit starts a step of its own, and
+leaves open gestures alone. The host cancels every gesture still open when the
+instance closes, so a gesture held open until something is decided (the
+canvas's new text, kept only once written in) ends with its editor.
+
+The replica may end a gesture itself: an undo while a tentative gesture is held
+cancels it, as do a replacement of the content and a session restart that drops
+what it moved. The projection then cancels the gesture for the editor, drops what
+it makes in it after, and runs `ContentProjection::on_gesture_ended(run)` with
+it: stop the gesture there (a drag lets go of what it carried), and end it as
+you would anyway; ending it again sends nothing.
 
 ### What the host says
 

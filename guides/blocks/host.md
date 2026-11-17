@@ -778,22 +778,34 @@ undo: the replica keeps no step of them. A type registered with `undo` keeps
 `be_block_content::history::History` (`HISTORY_STEPS` deep): steps sent within 750 ms
 of the last, by the frame-clock time each relayed frame is stamped with, may
 absorb into one, and `be_host_stack::undo`/`redo` send `Change::Undo`/`Redo`.
-An editor groups a gesture into one step with `FromEditor::Gesture`
-(`ContentProjection::begin_gesture`, `commit_gesture`, `cancel_gesture`; a
-cancel reverts and leaves no step), and ends its burst with `break_step`
-(`Gesture::Break`), so its next edit starts a step however soon it comes. A text
+An editor groups a gesture into one step with `FromEditor::Gesture { id, gesture }`
+(`ContentProjection::begin_gesture`, then `operate_in`, `commit_gesture`,
+`cancel_gesture`; a cancel reverts and leaves no step). Each gesture is named by
+an id the editor picks (be-sdk numbers them per `EditorHost`), and each edit
+names the gesture it was made in (`FromEditor::Operate { gesture, .. }`), so
+one editor holds several gestures at once (two fingers, two controllers), each
+ending on its own; an edit naming none is recorded outside every gesture. An
+editor ends its burst with `break_step` (`FromEditor::Break`), so its next edit
+starts a step however soon it comes. A text
 editor breaks where its core ends a group: at word boundaries (so quick typing
 undoes a word at a time), a paste, a caret move, formatting, blur; never for a
-peer's edit. A break leaves the editor's own open gesture alone, and another
-editor's burst. `History` keeps each gesture under `GestureId` (its editor and an id
-of the editor's; the protocol has no ids yet, so each editor holds one), so editors'
-gestures stay open side by side and each commits or cancels on its own. It also
-keeps tentative gestures (`GestureKind::Tentative`, opened by
-`Gesture::BeginTentative`; guides/type_modules.md, Tentative gestures), whose
-edits are held until the last open one ends and then become one step; no editor
-opens one until the app protocol can (plans/tentative_gestures.md, step 3). An undo or redo commits open undo groups first; while a
+peer's edit. A break leaves the editor's open gestures alone, and another
+editor's burst. `History` keeps each gesture under `GestureId` (its editor and the
+protocol's id), so gestures stay open side by side and each commits or cancels on
+its own. It also keeps tentative gestures (`GestureKind::Tentative`, opened by
+`Gesture::BeginTentative`, `ContentProjection::begin_tentative`;
+guides/type_modules.md, Tentative gestures), whose edits are held until the last
+open one ends and then become one step. When the replica ends a gesture itself
+(an undo cancels the layer, a replacement or a restart drops what it moved) it
+tells its editor `ToEditor::GestureEnded`; `EditorMirror` answers with a cancel
+of that gesture, which is what ends it for the host's `Holds` and the replica
+alike, drops what the editor makes in it after, and the projection runs
+`on_gesture_ended` so the editor stops the gesture. Only a commit already on its
+way when the replica ended it crosses that word. An edit the replica drops in an
+ended gesture is answered with a snapshot, so the editor's mirror lets it go. An
+undo or redo commits open undo groups first; while a
 tentative gesture is open, an undo cancels the whole tentative layer instead and a redo
-is refused. The runtime cancels the gesture a link leaves open when it goes. A session restart keeps open gestures open with what they recorded. Apps call `act(block, block-command::undo)`
+is refused. The runtime keeps the ids of the gestures each link holds open and cancels every one when the link goes. A session restart keeps open gestures open with what they recorded. Apps call `act(block, block-command::undo)`
 and watch a block's `history` with a `block-watch`. A session restart (guides/type_modules.md, Peers)
 drops every step, since none applies to the reloaded content: `block-history`
 says `restarted-at`, and the frame answers an undo with nothing left by saying

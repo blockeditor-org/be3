@@ -387,7 +387,7 @@ fn type_at_start(
     let shown = mirror.content().expect("the editor was shown the text");
     let typed = be_type_text::TextBlock::insert(shown, 3, 0, text.as_bytes())
         .expect("there is somewhere to type");
-    let message = mirror.operate(typed).expect("the editor has content");
+    let message = mirror.operate(None, typed).expect("the editor has content");
     replicas.relay_from_editor(block, editor, message.encode(), std::time::Instant::now());
 }
 
@@ -576,7 +576,7 @@ fn operate(
     mirror: &mut be_sdk_type_guest::editor::EditorMirror<Tally>,
     operation: TallyOp,
 ) {
-    let message = mirror.operate(operation).expect("the editor has content");
+    let message = mirror.operate(None, operation).expect("the editor has content");
     replicas.relay_from_editor(block, editor, message.encode(), std::time::Instant::now());
 }
 

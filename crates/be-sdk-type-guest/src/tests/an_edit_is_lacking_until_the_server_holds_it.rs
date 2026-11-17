@@ -35,7 +35,7 @@ fn an_edit_is_lacking_until_the_server_holds_it() {
     sim.send_from_editor(
         0,
         1,
-        FromEditor::Operate(ChecklistContent::encode_operation(&reopened)),
+        FromEditor::Operate { gesture: None, operation: ChecklistContent::encode_operation(&reopened) },
     );
     sim.settle();
     assert_eq!(sim.lacking(0, 1), 1, "the edit made again is followed once");

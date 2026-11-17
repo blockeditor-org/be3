@@ -8,14 +8,14 @@ fn a_begin_commits_an_undo_cancels_and_leaving_cancels_its_own() {
     gesture(&mut holds, 1, Gesture::BeginTentative);
     let first = serial(&operate(&mut holds, 1));
     let again = gesture(&mut holds, 1, Gesture::BeginTentative);
-    assert_eq!(again.ended, [(gesture_of(1), true)]);
+    assert_eq!(again.ended, [(named(1, 0), true)]);
     assert!(again.settled);
     assert_eq!(again.counted, [first]);
     assert!(matches!(again.this, This::Held(_)));
 
     let group = gesture(&mut holds, 1, Gesture::Begin);
     assert_eq!(group.this, This::Counted);
-    assert_eq!(group.ended, [(gesture_of(1), true)]);
+    assert_eq!(group.ended, [(named(1, 0), true)]);
 
     gesture(&mut holds, 1, Gesture::BeginTentative);
     operate(&mut holds, 1);
@@ -23,7 +23,7 @@ fn a_begin_commits_an_undo_cancels_and_leaving_cancels_its_own() {
     gesture(&mut holds, 1, Gesture::Commit);
     let undo = holds.undo();
     assert!(undo.undone && undo.counted.is_empty() && undo.ended.is_empty());
-    assert_eq!(undo.voided, [gesture_of(2)]);
+    assert_eq!(undo.voided, [named(2, 0)]);
     assert_eq!(undo.released.len(), 4);
     // The voided gesture stays open: what its editor sends before it hears is held, and none
     // of it counts however it ends.

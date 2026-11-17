@@ -38,7 +38,7 @@ fn an_edit_whose_origin_aged_out_of_the_base_fails_as_possibly_sent() {
     sim.send_from_editor(
         1,
         1,
-        FromEditor::Operate(CounterContent::encode_operation(&Counter::add(1000))),
+        FromEditor::Operate { gesture: None, operation: CounterContent::encode_operation(&Counter::add(1000)) },
     );
     sim.settle();
     sim.follow_lacking(1, 1);

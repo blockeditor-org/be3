@@ -200,7 +200,7 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
     }
 
     pub fn edit(&mut self, operation: C::Op) {
-        if let Some(message) = self.mirror.operate(operation) {
+        if let Some(message) = self.mirror.operate(None, operation) {
             self.say(message);
         }
     }

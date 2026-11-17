@@ -535,6 +535,9 @@ pub struct EditorHost {
     on_pushed: Rc<crate::state::Callbacks<Pushed, dyn Fn()>>,
     extensions: Rc<RefCell<HashMap<TypeId, Rc<dyn Any>>>>,
     reads: Rc<Cell<u64>>,
+    /// The last id given a gesture of this editor's (`LiveContent::begin_gesture`), unique
+    /// across the blocks it edits.
+    gestures: Rc<Cell<u64>>,
     opens: Rc<RefCell<Vec<OpenRequest>>>,
     reveal: Rc<RefCell<Option<be_sdk_api::SearchLocation>>>,
     shows: Rc<RefCell<Vec<ShowRequest>>>,
@@ -690,6 +693,12 @@ impl EditorHost {
 
     fn read(&self) {
         self.reads.set(self.reads.get() + 1);
+    }
+
+    /// An id for a new gesture of this editor's.
+    pub(crate) fn next_gesture(&self) -> u64 {
+        self.gestures.set(self.gestures.get() + 1);
+        self.gestures.get()
     }
 
     pub fn performance(&self, group: impl Into<String>) -> PerformanceReporter {
@@ -1382,10 +1391,8 @@ impl EditorHost {
                     })
                     .collect(),
             ),
-            // Followed by `ContentProjection` once editors open tentative gestures
-            // (plans/tentative_gestures.md, step 3).
-            ToEditor::GestureEnded { .. } => {}
             content @ (ToEditor::Snapshot(_)
+            | ToEditor::GestureEnded { .. }
             | ToEditor::Operations(_)
             | ToEditor::Range { .. }
             | ToEditor::PartPut { .. }
@@ -1452,8 +1459,10 @@ impl EditorHost {
                 channel,
                 payload,
             } => self.send_to_peers(block, to, channel, payload),
-            message
-            @ (FromEditor::Operate(_) | FromEditor::Gesture(_) | FromEditor::Replace(_)) => {
+            message @ (FromEditor::Operate { .. }
+            | FromEditor::Gesture { .. }
+            | FromEditor::Break
+            | FromEditor::Replace(_)) => {
                 self.content_operations.borrow_mut().push((block, message));
             }
             message @ (FromEditor::Read { .. }
@@ -1467,7 +1476,13 @@ impl EditorHost {
     }
 
     pub fn operate_content(&self, operation: Vec<u8>) {
-        self.send_to_replica(None, FromEditor::Operate(operation));
+        self.send_to_replica(
+            None,
+            FromEditor::Operate {
+                gesture: None,
+                operation,
+            },
+        );
     }
 
     pub fn take_content_operations(&self) -> Vec<Vec<u8>> {
@@ -1487,7 +1502,7 @@ impl EditorHost {
         taken
             .into_iter()
             .filter_map(|(_, outgoing)| match outgoing {
-                FromEditor::Operate(operation) => Some(operation),
+                FromEditor::Operate { operation, .. } => Some(operation),
                 _ => None,
             })
             .collect()

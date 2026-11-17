@@ -21,15 +21,13 @@ fn a_replica_that_ended_uncounts_only_the_operations_it_never_took() {
         held: None,
     };
     let replay = [
-        message(FromEditor::Operate(vec![1])),
-        message(FromEditor::Operate(vec![2])),
+        message(FromEditor::Operate { gesture: None, operation: vec![1] }),
+        message(FromEditor::Operate { gesture: None, operation: vec![2] }),
         Replayed::Moved {
             head: CommitId::from_hash(be_block_store::Hash::from_bytes([3; 32])),
         },
-        message(FromEditor::Gesture(
-            be_sdk_type_guest::editor::Gesture::Begin,
-        )),
-        message(FromEditor::Operate(vec![3])),
+        message(FromEditor::Gesture { id: 0, gesture: be_sdk_type_guest::editor::Gesture::Begin }),
+        message(FromEditor::Operate { gesture: None, operation: vec![3] }),
     ];
     let mut forwarded = HashMap::from([((block, editor), 6)]);
 

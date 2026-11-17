@@ -12,12 +12,10 @@ they happen.
 ## Today
 
 - `be_block_content::history::History` keeps gestures by `GestureId { editor, id }`, undo groups
-  and tentative gestures side by side (step 1), but the protocol's gesture messages carry no id,
-  so the replica opens every gesture of an editor under one id (`EDITOR_GESTURE`). Two windows
-  dragging in one block each keep their own gesture; one editor beginning twice (a second
-  finger, a second controller) commits its first gesture, and a cancel meant for the first then
-  cancels the second. The replica keeps the tentative layer (step 2), but no editor can open a
-  tentative gesture until the app protocol can (step 3).
+  and tentative gestures side by side (step 1); the replica keeps the tentative layer (step 2);
+  and the app protocol names each gesture by an id of its editor's, so an editor opens
+  tentative gestures and holds several at once (step 3). No editor's gesture is tentative yet:
+  today's drags, scrubs and the colour picker still write as they go (step 4).
 - An open gesture only groups undo. Each edit goes through `Replica::edit` (be-sdk-type-guest
   `replica.rs`) at once: applied to `visible`, told to the other attached editors with
   `journal(Journaled::Edited)` (despite its name, `journal` feeds the editors' projections,
@@ -34,8 +32,8 @@ they happen.
 - `rebuild_visible` rebuilds `visible` as `confirmed`, then `pending`, then `unsent`. A peer's
   entry the order numbers before this replica's own goes beneath them (`apply_beneath`, told to
   editors as `Journaled::Beneath`); with nothing unconfirmed it applies on top.
-- `be-host-runtime` (`instances.rs`) tracks one `gesturing` flag per link and cancels it when the
-  instance closes.
+- `be-host-runtime` (`instances.rs`) tracks the ids of the gestures each link holds open and
+  cancels every one when the instance closes.
 
 ## Shape
 
@@ -139,9 +137,8 @@ a carry whose gesture ended, so the item glides home and the site stops previewi
    cancel. Unit tests (`history::tests`, whose `Desk` models the replica's layer). As built:
    - `GestureId { editor, id }` names a gesture and `begin(gesture, GestureKind)` opens either
      kind; `record` takes the id of the gesture an edit was made in, and an edit naming no open
-     gesture is recorded as one made outside any. The replica passes one id per editor
-     (`EDITOR_GESTURE`) until step 3 puts ids on the protocol, so one editor beginning twice
-     still commits its first gesture; two editors no longer do.
+     gesture is recorded as one made outside any. The replica passed one id per editor
+     (`EDITOR_GESTURE`) until step 3 put ids on the protocol.
    - The layer's steps are kept in edit order with their gesture, a gesture's consecutive edits
      joined, so a cancel drops only its part; a committed gesture's part waits for the rest, and
      when the last open tentative gesture ends, by a commit or a cancel, what is left becomes
@@ -164,10 +161,9 @@ a carry whose gesture ended, so the item glides home and the site stops previewi
    around it; a host crash with a held drag saves nothing) and be-host-runtime (closing an
    editor drops the tentative gesture it left open). As built:
    - `Gesture::BeginTentative` and `ToEditor::GestureEnded { id, cancelled }` are on the type
-     module's editor messages; be-sdk ignores `GestureEnded` until step 3.
-   - `be-host-runtime` still keeps one flag per link, set by either begin, and cancels the
-     gesture when the link goes: with no ids on the protocol an editor holds one gesture
-     (step 3 makes it a set).
+     module's editor messages (step 3 has editors follow `GestureEnded`).
+   - `be-host-runtime` kept one flag per link, set by either begin, and cancelled the
+     gesture when the link went (step 3 made it a set of ids).
    - An editor detaching cancels its own tentative gesture in the replica and the host.
    - The layer folds nothing: each held edit is its own entry, weighing one in `unsettled`.
    - `content`, descriptions, `FromFile` and stashes read the content without the layer.
@@ -178,11 +174,11 @@ a carry whose gesture ended, so the item glides home and the site stops previewi
      sees it: they stay open, what their editors send before hearing is held, and none of it
      counts however they end. Left as is: a second undo while a voided gesture is still open
      is swallowed, and redo is refused, until its editor ends it, alike on host and replica.
-   - Left for step 3: a gesture the replica voids itself (a replacement, an edit that does not
-     carry) is voided only in the replica, since the host cannot see it. Its editor ending it
-     with a commit counts its operations though they were dropped, and a replica opened again
-     from `replay` before a status covers them makes them ordinary edits. Step 3's editor must
-     answer `GestureEnded` with a cancel, which leaves only a commit that crosses it.
+   - A gesture the replica voids itself (a replacement, an edit that does not carry) is voided
+     only in the replica, since the host cannot see it. Its editor ending it with a commit
+     counts its operations though they were dropped, and a replica opened again from `replay`
+     before a status covers them makes them ordinary edits. Step 3's editor answers
+     `GestureEnded` with a cancel, which leaves only a commit that crosses it.
    - Costs left as they are: an ordinary edit made while the layer is held rebuilds `visible`
      and snapshots every editor, per keystroke (`Journaled::Beneath` with the layer as `local`
      would tell them less); and since `unsettled` counts the layer, a peer's entry while it is
@@ -194,9 +190,32 @@ a carry whose gesture ended, so the item glides home and the site stops previewi
      ordering hazard is not about positions: a text or series insert must reach the order in
      the offsets its client allocated, so a tentative edit must allocate none, which a gesture
      that only moves or changes what exists (the decision) never does.
-3. The app protocol and `ContentProjection` (`be-sdk`, `be-sdk-beui`): `begin_tentative`, gesture
-   ids on every gesture message, `GestureEnded`. Update guides/blocks/host.md (Undo) and
-   guides/adding_an_app.md (Gestures).
+3. Built. The app protocol and `ContentProjection` (`be-sdk`, `be-sdk-beui`): `begin_tentative`,
+   gesture ids on every gesture message, `GestureEnded`. Tests in be-sdk-type-guest (`holds::tests`
+   and the replica's `tests`: one editor's two drags ending on their own; an editor cancelling a
+   gesture a replacement ended, so a frame it sent before hearing never counts), be-sdk
+   (`content::tests`: the projection answering `GestureEnded`) and be-host-runtime (a tentative
+   gesture written when it commits through the instance's link; closing cancels two). As built:
+   - `FromEditor::Gesture { id, gesture }` begins or ends the editor's gesture `id`, and
+     `FromEditor::Operate { gesture, operation }` names the gesture an edit was made in, or none.
+     `Gesture::Break` became `FromEditor::Break`, since it names no gesture. `EDITOR_GESTURE`
+     is gone: `Holds`, `History` and the replica take the ids from the messages.
+   - An edit names its gesture explicitly rather than joining whatever its editor holds open:
+     an edit naming none is recorded outside every gesture. be-sdk's `LiveContent` (and
+     `ContentProjection`) return a `ContentGesture` from `begin_gesture` and `begin_tentative`,
+     take it in `operate_in`, `commit_gesture` and `cancel_gesture`, and number gestures per
+     `EditorHost`, so two projections of a block in one instance never share an id. The canvas,
+     the one caller, keeps its open undo group and writes through it.
+   - `EditorMirror` follows the editor's open gestures. On `GestureEnded { cancelled: true }` for
+     one still open it answers with a `Cancel` for it, drops what the editor makes in it after,
+     and sends nothing when the editor ends it; `LiveContent::on_gesture_ended` (and
+     `ContentProjection::on_gesture_ended`) tell the editor, which stops the gesture. A
+     `GestureEnded` with `cancelled: false` is ignored: the replica sends none.
+   - An edit the replica drops in a gesture it ended is answered with a snapshot to its editor,
+     as a refused edit is: otherwise the editor's mirror would keep it as pending, and take its
+     next own edit landing for that one.
+   - The host's `GestureEnded` now reaches the projection through `EditorHost`'s content
+     updates, like a snapshot.
 4. Move today's choosing gestures off writing as they go, each judged by the decision's criterion:
    - the infinite canvas's move, rotate and resize gestures;
    - `NumberInput`'s scrub, which today writes `value` every frame between `on_scrub(true)` and

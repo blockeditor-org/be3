@@ -274,7 +274,7 @@ impl<C: LiveEdit + Clone + Default> Editor<C> {
     fn operate(&mut self, operation: C::Op) {
         let message = self
             .mirror
-            .operate(operation)
+            .operate(None, operation)
             .expect("an editor operates once it has content");
         self.send(message);
     }

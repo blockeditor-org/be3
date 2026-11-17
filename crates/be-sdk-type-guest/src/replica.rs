@@ -15,7 +15,7 @@ use be_sdk_type_api::{
 };
 use uuid::Uuid;
 
-use crate::holds::{EDITOR_GESTURE, Holds, This, Took, gesture_of};
+use crate::holds::{Holds, This, Took};
 use crate::lacking::{Carried, Lacking};
 use crate::{
     FromFileFn, Recorder,
@@ -1356,13 +1356,14 @@ where
     fn follow(&mut self, job: &Job<C>, took: Took, base: u64) {
         if let (
             This::Held(serial),
+            Some(gesture),
             Job::Input(Input::Message {
-                from: Endpoint::Editor(editor),
+                from: Endpoint::Editor(_),
                 ..
             }),
-        ) = (took.this, job)
+        ) = (took.this, took.gesture, job)
         {
-            self.held_now = Some((gesture_of(*editor), serial));
+            self.held_now = Some((gesture, serial));
         }
         if matches!(
             job,
@@ -1490,18 +1491,14 @@ where
             self.reproject();
             return true;
         }
-        // Its gesture ended here: what it moved is gone, so the edit applies as nothing.
+        // Its gesture ended here: what it moved is gone, so the edit applies as nothing. Its
+        // editor, which showed it before hearing, is told what holds now.
         if self.voided.contains(&gesture) {
-            return true;
+            return false;
         }
         if record {
-            self.history.record(
-                &self.visible,
-                &operation,
-                origin,
-                Some(EDITOR_GESTURE),
-                self.now,
-            );
+            self.history
+                .record(&self.visible, &operation, origin, Some(gesture.id), self.now);
         }
         if self.tentative.is_empty() {
             self.beneath = Some(self.visible.clone());
@@ -1639,12 +1636,13 @@ where
                 bytes,
                 ..
             }) => match FromEditor::decode(&bytes) {
-                Some(FromEditor::Operate(operation)) => {
+                Some(FromEditor::Operate { operation, .. }) => {
                     *self.acknowledged.entry(editor).or_default() += 1;
                     self.lacking.add_dropped(operation);
                     self.error(why);
                 }
-                Some(FromEditor::Gesture(_) | FromEditor::Replace(_)) | None => {}
+                Some(FromEditor::Gesture { .. } | FromEditor::Break | FromEditor::Replace(_))
+                | None => {}
                 Some(message) => self.handle_editor(editor, message),
             },
             Job::Input(Input::Change { id, .. }) => self.reply(id, Answer::Changed(false)),
@@ -1661,10 +1659,11 @@ where
                 bytes,
                 ..
             }) => match FromEditor::decode(&bytes) {
-                Some(FromEditor::Operate(_)) => {
+                Some(FromEditor::Operate { .. }) => {
                     *self.acknowledged.entry(editor).or_default() += 1;
                 }
-                Some(FromEditor::Gesture(_) | FromEditor::Replace(_)) | None => {}
+                Some(FromEditor::Gesture { .. } | FromEditor::Break | FromEditor::Replace(_))
+                | None => {}
                 Some(message) => self.handle_editor(editor, message),
             },
             Job::Input(Input::Change { id, .. }) => self.reply(id, Answer::Changed(true)),
@@ -3556,9 +3555,14 @@ where
         }
     }
 
-    /// Records `operation` for undo against the content it is applied to, beneath any tentative
-    /// layer, and makes it.
-    fn record_and_edit(&mut self, operation: C::Op, origin: Option<EditorId>) -> bool {
+    /// Records `operation`, made in its editor's gesture `gesture` or outside any, for undo
+    /// against the content it is applied to, beneath any tentative layer, and makes it.
+    fn record_and_edit(
+        &mut self,
+        operation: C::Op,
+        origin: Option<EditorId>,
+        gesture: Option<u64>,
+    ) -> bool {
         let at = self.now;
         self.unheld();
         let content = match &self.beneath {
@@ -3566,7 +3570,7 @@ where
             _ => &self.visible,
         };
         self.history
-            .record(content, &operation, origin, Some(EDITOR_GESTURE), at);
+            .record(content, &operation, origin, gesture, at);
         self.edit(operation, origin)
     }
 
@@ -3575,7 +3579,10 @@ where
             return;
         };
         match message {
-            FromEditor::Operate(bytes) => {
+            FromEditor::Operate {
+                gesture,
+                operation: bytes,
+            } => {
                 // Counted taken or refused, as the host counts what it relays (`attach`).
                 *self.acknowledged.entry(editor).or_default() += 1;
                 // The host's own edits are no one's to undo (`HOST_EDITOR`).
@@ -3593,7 +3600,7 @@ where
                             (be_sdk_type_api::HOST_EDITOR, None) => {
                                 self.edit(operation, Some(editor))
                             }
-                            _ => self.record_and_edit(operation, Some(editor)),
+                            _ => self.record_and_edit(operation, Some(editor), gesture),
                         }
                     });
                 // A refused operation never lands as the editor's, so it is told what holds
@@ -3604,8 +3611,11 @@ where
             }
             FromEditor::FollowLacking => self.lacking.follow(editor),
             FromEditor::DismissLacking(id) => self.lacking.dismiss(id),
-            FromEditor::Gesture(phase) if editable => {
-                let gesture = gesture_of(editor);
+            FromEditor::Gesture { id, gesture: phase } if editable => {
+                let gesture = GestureId {
+                    editor: Some(editor),
+                    id,
+                };
                 let operations = match phase {
                     // `follow` opened it, and ends a tentative gesture a message ends.
                     Gesture::BeginTentative => Vec::new(),
@@ -3627,15 +3637,12 @@ where
                         };
                         self.history.cancel(content, gesture)
                     }
-                    Gesture::Break => {
-                        self.history.split(Some(editor));
-                        Vec::new()
-                    }
                 };
                 for operation in operations {
                     self.edit(operation, None);
                 }
             }
+            FromEditor::Break if editable => self.history.split(Some(editor)),
             FromEditor::Replace(bytes) if editable => {
                 if let Ok(content) = C::decode(&bytes) {
                     self.clear_history();
@@ -3674,7 +3681,7 @@ where
                     result: Err("the editor is attached read-only".to_owned()),
                 },
             ),
-            FromEditor::Gesture(_) | FromEditor::Replace(_) => {}
+            FromEditor::Gesture { .. } | FromEditor::Break | FromEditor::Replace(_) => {}
         }
     }
 
@@ -3825,7 +3832,7 @@ where
                     return self.reply(id, Answer::Changed(false));
                 };
                 for operation in operations {
-                    self.record_and_edit(operation, None);
+                    self.record_and_edit(operation, None, None);
                 }
                 self.reply(id, Answer::Changed(true));
             }

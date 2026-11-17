@@ -6,7 +6,7 @@ use super::*;
 fn held_operations_count_when_the_layer_commits() {
     let mut holds = Holds::default();
     let begin = gesture(&mut holds, 1, Gesture::BeginTentative);
-    assert_eq!(begin.opened, Some(gesture_of(1)));
+    assert_eq!(begin.opened, Some(named(1, 0)));
     let first = serial(&operate(&mut holds, 1));
     let other = serial(&gesture(&mut holds, 2, Gesture::BeginTentative));
     let second = serial(&operate(&mut holds, 2));

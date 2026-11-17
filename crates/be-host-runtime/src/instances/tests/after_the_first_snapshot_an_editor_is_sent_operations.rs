@@ -48,7 +48,7 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
     assert!(to_replica(
         &mut instances,
         block,
-        &FromEditor::Operate(own.clone())
+        &FromEditor::Operate { gesture: None, operation: own.clone() }
     ));
     counted(block, 2);
     let sent = replica_sent_until(&mut instances, block, |sent| !operations(sent).is_empty());

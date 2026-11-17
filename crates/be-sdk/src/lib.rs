@@ -88,7 +88,7 @@ pub use be_sdk_api::{
 pub use be_sdk_type_guest::editor::{EditorOperation, FromEditor, LackingEdit, ToEditor};
 pub use be_sdk_ui;
 pub use clock::{frame_time, instant_at, utc_offset, wall_clock};
-pub use content::{LiveContent, Objects, Projected};
+pub use content::{ContentGesture, LiveContent, Objects, Projected};
 pub use editor_state::{
     ArtifactsCore, ChildState, ChildTarget, ContentCache, CreationCore, Drag, EditorCore, Fit,
     PlacedChild, PointScale, ShownEditor, SubregionContent, fit_content, short_id,

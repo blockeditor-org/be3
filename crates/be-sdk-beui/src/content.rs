@@ -3,7 +3,9 @@ use std::rc::Rc;
 use be_block_content::be_block_model::{Document, Field, FieldRef, List, Model};
 use be_block_content::{LiveEdit, ObjectId, Root, Touched};
 use be_sdk::LackingEdit;
-use be_sdk::{BlockWatch, EditorHost, LiveContent, Objects, Projected, Subscription, Unready};
+use be_sdk::{
+    BlockWatch, ContentGesture, EditorHost, LiveContent, Objects, Projected, Subscription, Unready,
+};
 use beui::reactive::*;
 
 pub(crate) fn ready<T>(read: Result<T, Unready>) -> Ready<T> {
@@ -296,20 +298,44 @@ impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
         self.inner().live.dismiss_lacking(id);
     }
 
-    pub fn begin_gesture(&self) {
-        self.inner().live.begin_gesture();
+    /// Makes an edit in the open gesture `gesture` (`LiveContent::operate_in`).
+    pub fn operate_in(&self, gesture: ContentGesture, operation: C::Op) {
+        self.inner().live.operate_in(gesture, operation);
     }
 
-    pub fn commit_gesture(&self) {
-        self.inner().live.commit_gesture();
+    /// Opens an undo group (`LiveContent::begin_gesture`).
+    pub fn begin_gesture(&self) -> ContentGesture {
+        self.inner().live.begin_gesture()
+    }
+
+    /// Opens a tentative gesture (`LiveContent::begin_tentative`): its edits show at once in
+    /// every view of the block on this device and are sent only when it commits.
+    pub fn begin_tentative(&self) -> ContentGesture {
+        self.inner().live.begin_tentative()
+    }
+
+    pub fn commit_gesture(&self, gesture: ContentGesture) {
+        self.inner().live.commit_gesture(gesture);
+    }
+
+    pub fn cancel_gesture(&self, gesture: ContentGesture) {
+        self.inner().live.cancel_gesture(gesture);
+    }
+
+    /// Whether `gesture` is open: begun, and ended neither here nor by the replica.
+    pub fn gesture_open(&self, gesture: ContentGesture) -> bool {
+        self.inner().live.gesture_open(gesture)
+    }
+
+    /// Runs `run`, for as long as the current scope lives, for each of this editor's gestures
+    /// the replica ended (`LiveContent::on_gesture_ended`): it is cancelled already, and the
+    /// editor only stops it, as a drag lets go of what it carried.
+    pub fn on_gesture_ended(&self, run: impl Fn(ContentGesture) + 'static) {
+        keep(self.live().on_gesture_ended(run));
     }
 
     pub fn break_step(&self) {
         self.inner().live.break_step();
-    }
-
-    pub fn cancel_gesture(&self) {
-        self.inner().live.cancel_gesture();
     }
 
     pub fn pump(&self) {
