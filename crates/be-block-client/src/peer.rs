@@ -2014,9 +2014,19 @@ impl<S: ObjectStore> Peer<S> {
             ),
         )
         .await;
-        // Refused, the root made for it is let go as `made` drops.
+        // Refused, the root made for it is let go as `made` drops; unless another device of this
+        // account made the block under the id first, whose log starts at the same root.
         let response = match response {
             Err(error) if error.is_unreachable() => return self.create_locally(creation, made),
+            Err(ClientError::Refused(ErrorCode::BlockAlreadyExists, message)) => {
+                if self.made_here(&creation).await? {
+                    made.taken()?;
+                }
+                return Err(ClientError::Refused(
+                    ErrorCode::BlockAlreadyExists,
+                    message,
+                ));
+            }
             response => response?,
         };
         made.taken()?;
@@ -4598,7 +4608,6 @@ impl MadeRoot<'_> {
     /// The outbox keeps the creation: so does the device the log made with it.
     pub(crate) fn kept(mut self) -> Result<(), ClientError> {
         self.armed = false;
-        self.refs.made_again(self.block)?;
         if let Some(kept) = self.keys.kept_log(self.block)
             && kept.head == self.root
         {
@@ -4622,25 +4631,12 @@ impl MadeRoot<'_> {
 
 impl Drop for MadeRoot<'_> {
     fn drop(&mut self) {
+        // Nothing of it was kept on the device: the keys it minted are in memory alone and are
+        // not read again, so only the root and the log made with it go.
         if self.armed {
-            // Dropped, it cannot answer: a write that fails leaves the root unmade in memory
-            // alone, until the device starts again.
-            let _ = forget_made(self.keys, self.refs, self.block, self.root);
+            self.keys.forget_made(self.block, self.root, &[]);
         }
     }
-}
-
-/// Lets go of `root`, made here for `block`, as no server took its creation, in memory and on
-/// the device (`KeyBook::forget_made`, `Refs::unmade_root`).
-pub(crate) fn forget_made(
-    keys: &KeyBook,
-    refs: &Refs,
-    block: Uuid,
-    root: be_block_keys::EntryHash,
-) -> Result<(), ClientError> {
-    keys.forget_made(block, root);
-    refs.unmade_root(block, root)?;
-    Ok(())
 }
 
 /// The root a creation made its block's log at (`Peer::new_log`).
