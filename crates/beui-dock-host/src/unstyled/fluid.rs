@@ -467,13 +467,17 @@ impl State {
                 to,
             }));
         }
-        if let DockDragged::Entry(entry) = dragged {
-            self.keyboard_follows_move(entry);
-        }
-        self.edit(|state| match dragged {
-            DockDragged::Entry(entry) => state.drop_entry(entry, place.drop),
-            DockDragged::Pane(leaf) => state.drop_leaf(leaf, place.drop),
-            DockDragged::Bar(_) => {}
+        let moving = match dragged {
+            DockDragged::Entry(entry) => self.focus_moving_with(entry),
+            _ => None,
+        };
+        self.edit(|state| {
+            match dragged {
+                DockDragged::Entry(entry) => state.drop_entry(entry, place.drop),
+                DockDragged::Pane(leaf) => state.drop_leaf(leaf, place.drop),
+                DockDragged::Bar(_) => {}
+            }
+            self.keyboard_follows_move(state, moving);
         });
     }
 

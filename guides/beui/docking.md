@@ -230,7 +230,8 @@ said by its label ("right of Files", "with Files"), until Enter drops it. A spli
 the arrow its edge faces (`step_toward`), so Right reaches "right of" a pane, never its top
 band. Carried off its bar, its row keeps the focus (hidden and shrunk, not collapsed); dropped
 in another bar or pane, where its row is built again, the pane that shows it gives its panel
-the keyboard (`keyboard_after_move`). Pane grips are not focusable, so a pane
+the keyboard (`keyboard_after_move`, which lasts only for the drop's edit), as pressing its tab
+would; so does a pointer's drop of a tab its press focused. Pane grips are not focusable, so a pane
 moves only by the pointer.
 
 **The preview.** Nothing is written until the release. While a place is chosen (or a tab bar parts

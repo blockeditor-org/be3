@@ -335,8 +335,10 @@ struct State {
     forward: Signal<(u64, Option<TabId>)>,
     remembered: Stored<RefCell<HashMap<TabId, NodeId>>>,
     content_keyboard: StoredCell<Option<TabId>>,
-    /// A tab moved while the focus was on it in its bar (`State::focus_on_tab`), whose pane
-    /// gives its panel the keyboard once it shows it, as its row is built again elsewhere.
+    /// A tab moved while the focus was on it in its bar (`State::focus_on_tab`), by the keyboard
+    /// or a pointer whose press focused it, and active in its pane after the move: that pane
+    /// gives its panel the keyboard as it shows it, since the tab's row is built again
+    /// elsewhere. Set by the move's edit and cleared by the next (`State::edit`).
     keyboard_after_move: StoredCell<Option<TabId>>,
     /// The floating windows the focus is in.
     focused_windows: Signal<Vec<SurfaceId>>,
@@ -540,6 +542,8 @@ impl State {
     }
 
     fn edit(&self, change: impl FnOnce(&mut DockState)) {
+        // A move's hand-over of the keyboard lasts only for the edit that made it.
+        self.keyboard_after_move.set(None);
         let current = self.state.get_untracked();
         let mut next = current.clone();
         change(&mut next);
@@ -1304,14 +1308,17 @@ impl State {
 
     fn move_into_bar(&self, leaf: LeafId, moved: ReorderMove<Entry, DockCarry>) {
         // A tab moved within its own bar keeps its row, and the focus on it.
-        if let DockDragged::Entry(entry) = moved.payload.dragged
-            && self
-                .state
-                .with_untracked(|state| state.locate(entry).map(|(at, _)| at))
-                != Some(leaf)
-        {
-            self.keyboard_follows_move(entry);
-        }
+        let moving = match moved.payload.dragged {
+            DockDragged::Entry(entry)
+                if self
+                    .state
+                    .with_untracked(|state| state.locate(entry).map(|(at, _)| at))
+                    != Some(leaf) =>
+            {
+                self.focus_moving_with(entry)
+            }
+            _ => None,
+        };
         self.edit(|state| {
             let entries = state.entries(leaf);
             match moved.payload.dragged {
@@ -1331,6 +1338,7 @@ impl State {
                 }
                 DockDragged::Bar(_) => {}
             }
+            self.keyboard_follows_move(state, moving);
         });
     }
 
