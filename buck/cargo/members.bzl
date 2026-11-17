@@ -109,6 +109,8 @@ members = [
     "crates/be-sdk-ui",
     "crates/be-sdk-ui-database",
     "crates/be-sdk-window-stack",
+    "crates/be-sdk-worker",
+    "crates/be-sdk-worker-echo",
     "crates/be-server",
     "crates/be-server-bin",
     "crates/be-server-portal",
