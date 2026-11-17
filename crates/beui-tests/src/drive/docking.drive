@@ -5,7 +5,24 @@ clock stop
 wait 'value="([Alpha* Beta] |0.5 [Gamma*])"'
 click '#dock.tab.2'
 wait 'value="([Alpha Beta*] |0.5 [Gamma*])"'
-drag '#dock.tab.2' '#docking.gamma' 6
+# Carried over another pane, a tab is listed once, as its bar's preview under
+# the pointer rather than as its tab, and let go there it joins that pane.
+down '#dock.tab.2'
+move '#docking.gamma'
+wait '#dock.preview' over '#docking.gamma'
+wait not 'Tab "Beta"'
+up
+wait 'value="([Alpha*] |0.5 [Gamma Beta*])"'
+wait not '#dock.preview'
+# A pane carried by its grip is listed once too, as its preview, and Escape
+# puts it down where it was.
+down '#dock.grip.left'
+move '#docking.beta+100,440'
+wait '#dock.preview' over '#docking.beta+100,440'
+find '#dock.preview'
+key Escape
+up
+wait not '#dock.preview'
 wait 'value="([Alpha*] |0.5 [Gamma Beta*])"'
 drag '#dock.splitter.root' '#dock.splitter.root+-180,200' 6
 wait 'value="([Alpha*] |0.3 [Gamma Beta*])"'
