@@ -1385,6 +1385,11 @@ pub(crate) fn unindexed(held: &Shared) -> Vec<Uuid> {
                 && node.access.can_edit()
                 && !node.locked
                 && !node.metadata.contains(&SEARCH_INDEX)
+                // A workspace made here (My files, on signing in) is in the mirror before the
+                // peer kept its creation, which pins the root of its log that the index's own
+                // parent record names: until then an index under it is refused as locked. Its
+                // creation settling moves the graph on, which looks again.
+                && !held.graph.changing(node.id)
         })
         .filter(|node| {
             !held.search.creating.contains_key(&node.id)

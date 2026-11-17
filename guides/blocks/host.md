@@ -603,7 +603,12 @@ index and search it locally.
   newest head and seals the commit into the outbox: it is saved offline-first,
   published by the next drain, and two devices' batches meet as a diverged
   block that merges by parts. A workspace (`WORKSPACE_TYPE` at the top) with no
-  index gets one as soon as a device that may edit it sees it in the mirror:
+  index gets one as soon as a device that may edit it sees it in the mirror,
+  and the mirror has no change made here to it still waiting for the peer
+  (`Graph::changing`): My files is in the mirror before the peer keeps its
+  creation, which pins the root of its log that the index's parent record
+  names, so an index made in between is refused as locked. Settling the
+  change moves the graph on, which looks again. The index is
   made in a task, then named in the root's metadata from the loop once the
   root's open replica has sealed its edits, as a define command is, so the
   define never lands under a moving session. The loop takes one block a round
