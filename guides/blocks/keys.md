@@ -834,7 +834,10 @@ keys the granter verified that way, which every device then seals to.
   mailbox order, and deleted with the record that follows them written; one
   that does not open from it (followed already, or forged) goes too, but none
   while the served record does not open on this device, since the changes may
-  be sealed to a new phrase it lacks (`contacts::contacts`). A
+  be sealed to a new phrase it lacks (`contacts::contacts`). `PutContact`
+  writes a record only over the one the device read (`replaces`), so a device
+  that read fewer changes than another never rolls the record back past a
+  change the other already deleted: refused `RecordChanged`, it reads again. A
   contact who connects again by a new link, as one who lost their phrase
   must, gets a record that follows the newest the server holds, so it
   outranks every device's pin whatever their clocks say, and a new key needs

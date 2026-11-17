@@ -30,7 +30,7 @@ async fn an_account_adds_ways_to_sign_in_only_so_often_a_day_and_always_removes_
         database
             .execute(
                 "INSERT INTO mailbox (account_id, kind, letter, created)
-                 VALUES (?1, 'notice', x'', unixepoch())",
+                 VALUES (?1, 'notice', x'', strftime('%s', 'now') * 1000)",
                 [account.to_string()],
             )
             .unwrap();

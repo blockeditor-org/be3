@@ -452,6 +452,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
             contact: agent.account,
             sealed: be_block_client::contacts::OwnContact::new(agent_card, 0)
                 .seal(owner.keys().identity()),
+            replaces: Vec::new(),
         },
     ))
     .await?;

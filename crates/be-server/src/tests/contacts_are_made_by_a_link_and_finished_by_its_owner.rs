@@ -125,11 +125,27 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     let accepted = ContactCard::open(&code, CardRole::Accepter, card).unwrap();
     let letter = *letter;
     assert_eq!(accepted, other_card);
+    // A record is written only over the one the device read: here, none yet.
+    let sealed = owner_secret.seal_own(&accepted.encode());
     let response = owners_device
         .call(|peer| {
             peer.write::<()>(be_block_protocol::Op::PutContact {
                 contact: other_id,
-                sealed: owner_secret.seal_own(&accepted.encode()),
+                sealed: sealed.clone(),
+                replaces: vec![1],
+            })
+        })
+        .await;
+    assert!(
+        refused_as(&response, ErrorCode::RecordChanged),
+        "{response:?}"
+    );
+    let response = owners_device
+        .call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::PutContact {
+                contact: other_id,
+                sealed: sealed.clone(),
+                replaces: Vec::new(),
             })
         })
         .await;

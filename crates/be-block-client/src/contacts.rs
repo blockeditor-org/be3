@@ -272,8 +272,25 @@ pub async fn mailbox(
 /// changes in the mailbox are followed from the record kept, in order, and deleted once the
 /// record that follows them is written; one that does not open from it (followed already, or
 /// not the contact's) goes too, unless this device could not read the served record, as after a
-/// new phrase taken on another device, whose identity those changes may be sealed to.
+/// new phrase taken on another device, whose identity those changes may be sealed to. Each record
+/// is written only over the one it was read as (`put-contact`'s `replaces`), so a device that read
+/// fewer changes than another never rolls the other's record back: refused, it reads again.
 pub async fn contacts(
+    connection: &Arc<Connection>,
+    account: Uuid,
+    identity: &RecoverySecret,
+    pinned: &HashMap<Uuid, OwnContact>,
+) -> Result<Vec<Contact>, ClientError> {
+    let mut tries = 0;
+    loop {
+        match contacts_once(connection, account, identity, pinned).await {
+            Err(ClientError::Refused(ErrorCode::RecordChanged, _)) if tries < 3 => tries += 1,
+            listed => return listed,
+        }
+    }
+}
+
+async fn contacts_once(
     connection: &Arc<Connection>,
     account: Uuid,
     identity: &RecoverySecret,
@@ -337,6 +354,7 @@ pub async fn contacts(
             ops.push(be_block_protocol::Op::PutContact {
                 contact: row.account,
                 sealed: record.seal(identity),
+                replaces: row.sealed.clone(),
             });
         }
         if record.is_some() && mismatch != Some(Mismatch::Unreadable) {
@@ -640,6 +658,18 @@ async fn served_verified(
     connection: &Arc<Connection>,
     identity: &RecoverySecret,
 ) -> Result<HashMap<Uuid, u64>, ClientError> {
+    Ok(served(connection)
+        .await?
+        .into_iter()
+        .filter_map(|(account, sealed)| {
+            let record = OwnContact::open(identity, &sealed, account)?;
+            Some((account, record.verified))
+        })
+        .collect())
+}
+
+/// Each contact's record as the server holds it, sealed, by contact.
+async fn served(connection: &Arc<Connection>) -> Result<HashMap<Uuid, Vec<u8>>, ClientError> {
     Ok(
         be_block_protocol::read::<Vec<be_block_protocol::ContactRow>, _>(
             connection,
@@ -648,10 +678,7 @@ async fn served_verified(
         )
         .await??
         .into_iter()
-        .filter_map(|row| {
-            let record = OwnContact::open(identity, &row.sealed, row.account)?;
-            Some((row.account, record.verified))
-        })
+        .map(|row| (row.account, row.sealed))
         .collect(),
     )
 }
@@ -741,7 +768,7 @@ pub(crate) async fn finish_links(
         be_block_protocol::write_all::<(), _>(connection, None, stray).await??;
     }
     let served = match links.iter().any(|link| link.accepter.is_some()) {
-        true => served_verified(connection, identity).await?,
+        true => served(connection).await?,
         false => HashMap::new(),
     };
     let mut finished = Vec::new();
@@ -770,9 +797,13 @@ pub(crate) async fn finish_links(
                     contact: accepter,
                     sealed: OwnContact::new(
                         card.clone(),
-                        served.get(&accepter).copied().unwrap_or_default(),
+                        served
+                            .get(&accepter)
+                            .and_then(|sealed| OwnContact::open(identity, sealed, accepter))
+                            .map_or(0, |record| record.verified),
                     )
                     .seal(identity),
+                    replaces: served.get(&accepter).cloned().unwrap_or_default(),
                 },
             ))
             .await;

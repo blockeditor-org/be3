@@ -7,19 +7,32 @@
 //! A notice can't be deleted in its first `NOTICE_HOLD`: whoever it warns about may hold a
 //! session too, so within it a device hides it only for itself. An account keeps at most
 //! `MAX_ACCOUNT_NOTICES` notices, letting go of the oldest past their hold, so one in its hold
-//! always stays.
+//! always stays. Letters from accounts are bounded per sender (`MAX_LETTERS_FROM_ONE`) and in
+//! all (`MAX_LETTERS`): past either, the write that would leave one is refused, since letting an
+//! old one go would break the chain of key changes a device follows. Times are kept in
+//! milliseconds.
 
 use be_block_protocol::{ErrorCode, Letter, Message};
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
 
-use super::{ServerStore, parse_uuid, portal::now};
+use super::{ServerStore, parse_uuid};
 use crate::ServerError;
 
 /// Notices one account keeps past their hold; one in its hold always stays.
 pub const MAX_ACCOUNT_NOTICES: i64 = 20;
-/// How long a notice stays in the mailbox whatever a device deletes, in seconds.
-pub const NOTICE_HOLD: i64 = 7 * 86_400;
+/// How long a notice stays in the mailbox whatever a device deletes, in milliseconds.
+pub const NOTICE_HOLD: i64 = 7 * 86_400_000;
+/// Letters one account may hold from one sender: key changes and accepted cards not yet taken.
+pub const MAX_LETTERS_FROM_ONE: i64 = 16;
+/// Letters one account may hold from all senders.
+pub const MAX_LETTERS: i64 = 1_000;
+
+fn now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| since.as_millis() as i64)
+}
 
 fn kind(letter: &Letter) -> &'static str {
     match letter {
@@ -38,6 +51,28 @@ pub(crate) fn leave(
     letter: &Letter,
 ) -> Result<(), ServerError> {
     let encoded = be_block_protocol::encode(letter).map_err(|_| ServerError::Corrupt)?;
+    if let Some(from) = from {
+        let (one, all): (i64, i64) = connection
+            .prepare_cached(
+                "SELECT (SELECT count(*) FROM mailbox WHERE account_id = ?1 AND sender_id = ?2),
+                        (SELECT count(*) FROM mailbox WHERE account_id = ?1 AND sender_id != '')",
+            )?
+            .query_row(params![to.to_string(), from.to_string()], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })?;
+        if one >= MAX_LETTERS_FROM_ONE {
+            return Err(crate::limits::too_many(
+                "letters one account holds from another not yet taken",
+                MAX_LETTERS_FROM_ONE,
+            ));
+        }
+        if all >= MAX_LETTERS {
+            return Err(crate::limits::too_many(
+                "letters one account holds not yet taken",
+                MAX_LETTERS,
+            ));
+        }
+    }
     connection.execute(
         "INSERT INTO mailbox (account_id, sender_id, kind, letter, created)
          VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -62,7 +97,9 @@ pub(crate) fn leave(
     Ok(())
 }
 
-/// Deletes what `a` and `b` left in each other's mailboxes, as they stop being contacts.
+/// Deletes what `a` and `b` left in each other's mailboxes, as they stop being contacts. An
+/// accepted link's card goes with the link itself, which `remove_contact` deletes in the same
+/// transaction, so no link is left to finish without its card.
 pub(crate) fn forget_between(connection: &Connection, a: Uuid, b: Uuid) -> Result<(), ServerError> {
     connection.execute(
         "DELETE FROM mailbox WHERE (account_id = ?1 AND sender_id = ?2)
@@ -99,7 +136,7 @@ impl ServerStore {
                     },
                     letter: be_block_protocol::decode(&letter)
                         .map_err(|_| ServerError::Corrupt)?,
-                    created: created * 1000,
+                    created,
                 });
             }
             Ok(messages)

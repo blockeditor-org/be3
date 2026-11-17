@@ -30,6 +30,14 @@ async fn a_contact_connected_again_by_a_new_link_outranks_every_devices_pin() {
         be_block_protocol::Op::PutContact {
             contact: rosa.account(),
             sealed: dated_ahead.seal(ahead.keys().identity()),
+            replaces: harness
+                .database()
+                .query_row(
+                    "SELECT sealed FROM contacts WHERE account_id = ?1 AND contact_id = ?2",
+                    [ahead.account().to_string(), rosa.account().to_string()],
+                    |row| row.get(0),
+                )
+                .unwrap(),
         },
     ))
     .await
