@@ -14,6 +14,8 @@ be-sdk-beui-platform = { path = "../be-sdk-beui-platform" }
 be-sdk-beui-platform-api = { path = "../be-sdk-beui-platform-api" }
 be-sdk-beui = { path = "../be-sdk-beui" }
 be-sdk-api = { path = "../be-sdk-api" }
+be-sdk-app-host = { path = "../be-sdk-app-host" }
+be-sdk-manifest = { path = "../be-sdk-manifest" }
 be-sdk-type-guest = { path = "../be-sdk-type-guest" }
 be-sdk-type-host = { path = "../be-sdk-type-host" }
 beui-paint-snapshot = { path = "../beui-paint-snapshot" }

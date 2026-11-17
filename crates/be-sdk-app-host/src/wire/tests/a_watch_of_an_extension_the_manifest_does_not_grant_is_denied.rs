@@ -91,7 +91,7 @@ fn a_watch_of_an_extension_the_manifest_does_not_grant_is_denied() {
         "an app that names no extension may not watch one"
     );
     assert!(
-        matches!(heard.as_slice(), [Heard::Watch(INSTANCE, open)] if *open == AdministratorWatch::OPEN),
+        matches!(heard.as_slice(), [Heard::Watch(INSTANCE, open, _)] if *open == AdministratorWatch::OPEN),
         "the account's watches are core, and the call is dropped: {heard:?}"
     );
     assert_eq!(*administrator.borrow(), None, "it waits for the value");
@@ -104,7 +104,7 @@ fn a_watch_of_an_extension_the_manifest_does_not_grant_is_denied() {
     assert_eq!(*power.borrow(), None, "a granted watch waits for the value");
     assert!(matches!(
         heard.as_slice(),
-        [Heard::Watch(INSTANCE, open), Heard::Published(INSTANCE, _)]
+        [Heard::Watch(INSTANCE, open, _), Heard::Published(INSTANCE, _)]
             if *open == PowerWatch::OPEN
     ));
 

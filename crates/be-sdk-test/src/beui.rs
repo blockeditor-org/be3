@@ -1,7 +1,10 @@
 use be_sdk_api::app::{DialogRequest, EditorEvent, MenuChoice, ViewFrame};
 use be_sdk_api::embed::debug::debug::Call as DebugCall;
-use be_sdk_api::embed::{self, exports::app::Editor, shell::Call as ShellCall};
-use be_sdk_api::ops::{Connection, Incoming, Side};
+use be_sdk_api::embed::shell::Call as ShellCall;
+use be_sdk_app_host::{
+    calls::{AppCall, EditorCall, Heard},
+    wire::{Service, Wire},
+};
 use be_sdk_api::shell_types::{ChildCreation, ChildMenuChoice, ClipOffer, MenuSet, ShellMessage};
 use be_sdk_api::{
     BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameReport, HelloAccepted,
@@ -22,7 +25,6 @@ use be_sdk_beui::{
     EditorInstanceId, Occluder, OwnedEditor, PeerPresence, SeededContent, ShownPresence,
     ViewChange, WebViewCommand, WebViewId,
 };
-use be_wasm_sandbox_api::embed::sandbox;
 use beui::native::Document;
 use beui::{Input, Key, KeyChord, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect, Vec2};
 use beui_host::native::testing::{FRAME_INTERVAL, Gui, Recording, Snapshots, Target, Wakes};
@@ -80,7 +82,8 @@ pub struct AskedPreview {
 
 /// Runs an editor headless through the app's own session (`be_sdk::headless`), acting as
 /// its host: there is no server or block store, and every call goes over a be-wasm-ops
-/// connection encoded as on the wire, so a call the app refuses fails the test.
+/// wire encoded as be-host's runtime speaks it (be-sdk-app-host's `Wire`), so a call the app
+/// refuses fails the test.
 ///
 /// It is a `Gui` (beui's `testing::Gui`): gestures (`click`, `drag`, `type_text`, `tap`, ...)
 /// are drive's and paint the frames that take them before they return. A click reveals an
@@ -106,31 +109,16 @@ pub struct BeuiTest<A: BeuiRoot> {
     /// Whether input is being gathered for `in_one_frame`, so it waits to be painted.
     one_frame: bool,
     inbox: Vec<Inbound>,
-    answered: Vec<Vec<u8>>,
-    acknowledged: std::collections::HashSet<OpId>,
-    connection: Connection,
+    /// The editor's wire, as be-host's runtime holds an app's (be-sdk-app-host).
+    wire: Wire,
     link: crate::link::Link,
-    editor: Option<Editor>,
     calls: Vec<ShellMessage>,
     extension_calls: Vec<be_sdk_api::ops::Started>,
-    web_views: std::collections::HashMap<
-        be_sdk_api::ops::OpId,
-        (WebViewId, be_sdk_api::Watch<Vec<be_sdk_beui::WebViewEvent>>),
-    >,
+    /// The web views the editor shows, by their resource's op.
+    web_views: std::collections::HashMap<be_sdk_api::ops::OpId, WebViewId>,
     web_view_commands: Vec<(WebViewId, WebViewCommand)>,
     published: std::collections::HashMap<be_sdk_api::ops::MethodId, Vec<u8>>,
-    published_watches: std::collections::HashMap<
-        be_sdk_api::ops::OpId,
-        (
-            be_sdk_api::ops::MethodId,
-            be_sdk_api::Watch<be_sdk_api::Encoded>,
-        ),
-    >,
-    child_statuses: be_sdk_api::Watch<Vec<ChildStatus>>,
-    block_types: be_sdk_api::Watch<Catalog>,
     shown_catalog: Option<Catalog>,
-    debug_templates: be_sdk_api::Watch<Vec<be_sdk_api::DebugTemplate>>,
-    completed: std::collections::HashMap<be_sdk_api::ops::OpId, be_sdk_api::ops::Outcome>,
     menu: Vec<MenuEntry>,
     docked: bool,
     anchor_space: Option<be_sdk_api::AnchorSpace>,
@@ -158,7 +146,7 @@ pub struct BeuiTest<A: BeuiRoot> {
     closed_previews: Vec<[u8; 32]>,
     signatures: crate::signatures::Signatures,
     fetches: crate::fetches::Fetches,
-    workers: crate::workers::Workers,
+    workers: crate::workers::Shared,
     wakes: Arc<Wakes>,
     clock: std::time::Duration,
     desk: Option<desk::Desk>,
@@ -298,6 +286,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
         if let Some(source) = signing {
             signatures.set_signing_block(source);
         }
+        let workers = crate::workers::Shared::default();
         let wakes = Arc::new(Wakes::default());
         let woken = Arc::clone(&wakes);
         host.waker().install(move || woken.wake());
@@ -402,22 +391,21 @@ impl<A: BeuiRoot> BeuiTest<A> {
             frames: Vec::new(),
             one_frame: false,
             inbox: Vec::new(),
-            answered: Vec::new(),
-            acknowledged: std::collections::HashSet::new(),
-            connection: Connection::new(Side::Host),
+            wire: Wire::granting(
+                be_sdk_manifest::EXTENSIONS
+                    .iter()
+                    .map(|extension| (*extension).to_owned())
+                    .collect(),
+            )
+            .offering(|_| true)
+            .with_sandbox(workers.clone()),
             link: crate::link::Link::new(INSTANCE),
-            editor: None,
             calls: Vec::new(),
             extension_calls: Vec::new(),
             web_views: std::collections::HashMap::new(),
             web_view_commands: Vec::new(),
             published: std::collections::HashMap::new(),
-            published_watches: std::collections::HashMap::new(),
-            child_statuses: be_sdk_api::Watch::default(),
-            block_types: be_sdk_api::Watch::default(),
             shown_catalog: None,
-            debug_templates: be_sdk_api::Watch::default(),
-            completed: std::collections::HashMap::new(),
             menu: Vec::new(),
             docked: false,
             anchor_space: None,
@@ -442,7 +430,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             closed_previews: Vec::new(),
             signatures,
             fetches: crate::fetches::Fetches::default(),
-            workers: crate::workers::Workers::default(),
+            workers,
             wakes,
             clock: std::time::Duration::ZERO,
             desk: None,
@@ -463,8 +451,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
             "the host's acceptance",
         );
         test.deliver(Inbound::pushed(move |app| app.accept(accepted)));
-        test.editor = Some(Editor::new(&mut test.connection, open));
-        let frames = test.connection.take_outbound();
+        test.wire.open(open);
+        let frames = test.wire.take_outbound();
         test.deliver(Inbound::Frames(frames));
         test.place();
         test.run();
@@ -515,9 +503,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 fit: false,
             }]
         });
-        be_sdk_api::embed::exports::app::screens(&mut self.connection, screens);
-        let frames = self.connection.take_outbound();
-        self.inbox.push(Inbound::Frames(frames));
+        self.wire.app_call(AppCall::Screens(screens));
+        self.send();
     }
 
     pub fn block_id(&self) -> Option<Uuid> {
@@ -583,9 +570,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn set_draft(&mut self, data: Vec<u8>) {
         self.draft.clone_from(&data);
-        self.call(|editor, connection| {
-            editor.hear(connection, vec![EditorEvent::ArtifactSettings(data)]);
-        });
+        self.tell(vec![EditorEvent::ArtifactSettings(data)]);
     }
 
     pub fn with_top_bar(self, closable: bool) -> Self {
@@ -651,16 +636,11 @@ impl<A: BeuiRoot> BeuiTest<A> {
     pub fn pick_menu(&mut self, id: &str) {
         self.menu_entry(id);
         let id = id.to_owned();
-        self.call(|editor, connection| {
-            editor.hear(
-                connection,
-                vec![EditorEvent::MenuPick(MenuChoice {
+        self.tell(vec![EditorEvent::MenuPick(MenuChoice {
                     view: ViewId::MAIN,
                     id,
                     anchor: None,
-                })],
-            );
-        });
+                })]);
         self.run();
     }
 
@@ -678,9 +658,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn dismiss(&mut self) {
-        self.call(|editor, connection| {
-            editor.hear(connection, vec![EditorEvent::Dismiss]);
-        });
+        self.tell(vec![EditorEvent::Dismiss]);
         self.run();
     }
 
@@ -736,9 +714,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     /// The host asks for the details of `child`, from the child's bar.
     pub fn child_details(&mut self, child: ChildId) {
-        self.call(|editor, connection| {
-            editor.hear(connection, vec![EditorEvent::ChildDetails(child)]);
-        });
+        self.tell(vec![EditorEvent::ChildDetails(child)]);
     }
 
     pub fn set_view(&mut self, view: Rect, scale: f32) {
@@ -747,12 +723,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
         if let Some(viewport) = &mut self.viewport {
             viewport.show(view, scale, band, rect.min);
         }
-        self.call(|editor, connection| {
-            editor.hear(
-                connection,
-                vec![EditorEvent::ViewChanged(ViewFrame { view, scale })],
-            );
-        });
+        self.tell(vec![EditorEvent::ViewChanged(ViewFrame { view, scale })]);
     }
 
     pub fn move_view(&mut self, change: ViewChange) {
@@ -798,9 +769,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             action,
             dropped,
         };
-        self.call(|editor, connection| {
-            editor.hear(connection, vec![EditorEvent::Drag(Some(drag))]);
-        });
+        self.tell(vec![EditorEvent::Drag(Some(drag))]);
     }
 
     /// Lays the view out as if its points sat at `origin` in the host, unscaled, so what it
@@ -870,8 +839,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn catalog(&mut self, catalog: Catalog) {
         self.shown_catalog = Some(catalog.clone());
-        self.block_types.change(&mut self.connection, |_| catalog);
-        let frames = self.connection.take_outbound();
+        self.wire.app_call(AppCall::BlockTypes(catalog));
+        let frames = self.wire.take_outbound();
         self.inbox.push(Inbound::Frames(frames));
         self.run();
     }
@@ -935,9 +904,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn presence_visible(&mut self, visible: bool) {
-        self.call(|editor, connection| {
-            editor.hear(connection, vec![EditorEvent::Presence(visible)]);
-        });
+        self.tell(vec![EditorEvent::Presence(visible)]);
         self.run();
     }
 
@@ -949,9 +916,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             x: size.x,
             y: size.y,
         };
-        self.call(|editor, connection| {
-            editor.hear(connection, vec![EditorEvent::Resized(size)]);
-        });
+        self.tell(vec![EditorEvent::Resized(size)]);
         self.run();
     }
 
@@ -1004,14 +969,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn web_view_event(&mut self, web_view: WebViewId, event: be_sdk_beui::WebViewEvent) {
-        if let Some((_, watch)) = self.web_views.values_mut().find(|(id, _)| *id == web_view) {
-            watch.change(&mut self.connection, |held| {
-                let mut events = held.unwrap_or_default();
-                be_sdk_beui::WebViewEvent::queue(&mut events, event);
-                events
-            });
-            let frames = self.connection.take_outbound();
-            self.inbox.push(Inbound::Frames(frames));
+        if self.web_views.values().any(|id| *id == web_view) {
+            self.wire
+                .call(INSTANCE, EditorCall::WebViewEvent { web_view, event });
+            self.send();
         }
     }
 
@@ -1023,20 +984,19 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn set_watched<W: be_sdk_api::Watched>(&mut self, value: &W::Value) {
         let value = be_sdk_api::ops::encode(value);
-        for (open, watch) in self.published_watches.values_mut() {
-            if *open == W::OPEN {
-                watch.set(&mut self.connection, value.clone());
-            }
-        }
+        self.wire.call(
+            INSTANCE,
+            EditorCall::Watched {
+                open: W::OPEN,
+                value: Arc::new(value.clone()),
+            },
+        );
         self.published.insert(W::OPEN, value);
-        let frames = self.connection.take_outbound();
-        self.inbox.push(Inbound::Frames(frames));
+        self.send();
     }
 
     pub fn watches<W: be_sdk_api::Watched>(&self) -> bool {
-        self.published_watches
-            .values()
-            .any(|(open, _)| *open == W::OPEN)
+        self.wire.watching_published(W::OPEN)
     }
 
     /// How `verify` answers a signature `account` made (`be_sdk_test::signature`); a contact's,
@@ -1046,9 +1006,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn answer<T, E: crate::wire::Encode<T>>(&mut self, reply: Reply<T, E>, answer: T) {
-        reply.send(&mut self.connection, &answer);
-        let frames = self.connection.take_outbound();
-        self.inbox.push(Inbound::Frames(frames));
+        let (op, outcome) = reply.answer(&answer);
+        self.wire.answer(op, outcome);
+        self.send();
     }
 
     pub fn report_children(&mut self, report: impl Fn(&ChildPlacement) -> ChildStatus) {
@@ -1061,13 +1021,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 ..status
             })
             .collect();
-        self.child_statuses.change(&mut self.connection, |held| {
-            let mut held = held.unwrap_or_default();
-            held.extend(statuses);
-            held
-        });
-        let frames = self.connection.take_outbound();
-        self.inbox.push(Inbound::Frames(frames));
+        self.wire
+            .call(INSTANCE, EditorCall::ChildStatuses(statuses));
+        self.send();
     }
 
     pub fn available_children(&mut self) {
@@ -1095,25 +1051,20 @@ impl<A: BeuiRoot> BeuiTest<A> {
             .expect("the editor placed the child to report on");
         let mut status = available_status(view, placement);
         change(&mut status);
-        self.child_statuses.change(&mut self.connection, |held| {
-            let mut held = held.unwrap_or_default();
-            held.retain(|held| held.child != child);
-            held.push(status);
-            held
-        });
-        let frames = self.connection.take_outbound();
-        self.inbox.push(Inbound::Frames(frames));
+        self.wire
+            .call(INSTANCE, EditorCall::ChildStatuses(vec![status]));
+        self.send();
     }
 
     /// Paints one frame with exactly these events, ignoring what gestures queued.
     pub fn step(&mut self, events: Vec<Input>) {
         self.store.tick(self.clock.as_millis() as u64);
         let mut inbox = std::mem::take(&mut self.inbox);
-        self.link.answer(&self.store, &mut self.connection);
-        self.fetches.answer(&mut self.connection);
-        self.workers.answer(&mut self.connection);
-        let mut frames = std::mem::take(&mut self.answered);
-        frames.extend(self.connection.take_outbound());
+        self.answer_wire();
+        // The editor steps for this frame anyway, so what the wire holds for the next thing sent
+        // goes now.
+        self.wire.send_acknowledged();
+        let frames = self.wire.take_outbound();
         if !frames.is_empty() {
             inbox.push(Inbound::Frames(frames));
         }
@@ -1125,12 +1076,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             .as_mut()
             .and_then(|viewport| viewport.place(band, rect.min, intrinsic))
         {
-            inbox.push(self.framed(|editor, connection| {
-                editor.hear(
-                    connection,
-                    vec![EditorEvent::ViewChanged(ViewFrame { view, scale })],
-                );
-            }));
+            inbox.push(self.told(vec![EditorEvent::ViewChanged(ViewFrame { view, scale })]));
         }
         self.clock += FRAME_INTERVAL;
         if !events.is_empty() {
@@ -1209,12 +1155,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             viewport.place(band, rect.min, intrinsic)
         });
         if let Some((view, scale)) = placed {
-            let framed = self.framed(|editor, connection| {
-                editor.hear(
-                    connection,
-                    vec![EditorEvent::ViewChanged(ViewFrame { view, scale })],
-                );
-            });
+            let framed = self.told(vec![EditorEvent::ViewChanged(ViewFrame { view, scale })]);
             self.inbox.push(framed);
         }
     }
@@ -1277,264 +1218,204 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.desk_asked(asked, &reports);
     }
 
-    fn call(&mut self, call: impl FnOnce(Editor, &mut Connection)) {
-        let framed = self.framed(call);
-        self.inbox.push(framed);
+    /// Tells the editor `events` (`editor.hear`), with the next frame.
+    fn tell(&mut self, events: Vec<EditorEvent>) {
+        let told = self.told(events);
+        self.inbox.push(told);
     }
 
-    fn framed(&mut self, call: impl FnOnce(Editor, &mut Connection)) -> Inbound {
-        let editor = self.editor.expect("the test opened its editor");
-        call(editor, &mut self.connection);
-        Inbound::Frames(self.connection.take_outbound())
+    /// What tells the editor `events` (`editor.hear`).
+    fn told(&mut self, events: Vec<EditorEvent>) -> Inbound {
+        for event in events {
+            self.wire.event(INSTANCE, event);
+        }
+        self.wire.flush_hearing();
+        Inbound::Frames(self.wire.take_outbound())
     }
 
+    /// Sends what the wire holds for the editor with the next frame.
+    fn send(&mut self) {
+        let frames = self.wire.take_outbound();
+        self.inbox.push(Inbound::Frames(frames));
+    }
+
+    /// Takes what the editor sent: the wire answers what is its own, and hands the rest here.
     fn hear(&mut self) {
+        let mut heard = Vec::new();
         for frame in self.app.take_frames() {
-            self.connection.receive(&frame).unwrap_or_else(|error| {
-                panic!("the app sent a frame that did not decode: {error}")
-            });
+            self.wire
+                .receive(&frame, &mut heard)
+                .unwrap_or_else(|error| panic!("{error}"));
         }
-        while let Some(event) = self.connection.next_event() {
-            let call = match event {
-                Incoming::Started(started) if published(started.method).is_some() => {
-                    let connection = &mut self.connection;
-                    let watching = published(started.method).unwrap_or_else(|| unreachable!());
-                    if watching.open == started.method {
-                        let mut watch = be_sdk_api::Watch::default();
-                        watch.opened(started.op);
-                        if let Some(value) = self.published.get(&watching.open)
-                            && !be_sdk_api::starts_anew(watching.open)
+        for heard in heard {
+            self.heard(heard);
+        }
+        self.answer_wire();
+        let frames = self.wire.take_outbound();
+        if !frames.is_empty() {
+            self.inbox.push(Inbound::Frames(frames));
+        }
+    }
+
+    /// Answers what the store, the fetches and the workers have for the editor since.
+    fn answer_wire(&mut self) {
+        self.link.answer(&self.store, &mut self.wire);
+        self.fetches.answer(self.wire.connection());
+        self.wire.poll_sandbox();
+    }
+
+    /// Sends what the fetches have for the editor.
+    fn answer_fetches(&mut self) {
+        self.answer_wire();
+        self.send();
+    }
+
+    fn heard(&mut self, heard: Heard) {
+        let shell = match heard {
+            Heard::Watch(_, open, watch) => {
+                if let Some(value) = self.published.get(&open)
+                    && !be_sdk_api::starts_anew(open)
+                {
+                    self.wire.set_published(watch, value.clone());
+                }
+                return;
+            }
+            Heard::Published(_, started) => {
+                self.wire.acknowledge(started.op, Outcome::returned(&()));
+                self.extension_calls.push(started);
+                return;
+            }
+            Heard::Ended(op) => {
+                self.link.ended(op, &self.store);
+                if let Some((_, commit)) = self.revision_previews.remove(&op) {
+                    self.closed_previews.push(commit);
+                }
+                self.preview_asks.retain(|(preview, _)| *preview != op);
+                self.fetches.ended(op, self.wire.connection());
+                return;
+            }
+            Heard::Withdrawn(op) => {
+                self.fetches.withdrawn(op, self.wire.connection());
+                self.requests.retain(|(asked, _)| *asked != Some(op));
+                return;
+            }
+            Heard::Blocks(_, call) => {
+                let author = self.host.account_id();
+                self.link.call(call, &self.store, &mut self.wire, author);
+                return;
+            }
+            Heard::Service(Service { call, .. }) => {
+                match call {
+                    HostCall::RevisionPreviewNew {
+                        resource,
+                        block,
+                        commit,
+                    } => {
+                        self.revision_previews
+                            .insert(resource.op(), (block, commit));
+                    }
+                    HostCall::RevisionPreviewOpened { this, reply } => {
+                        self.preview_asks.push((this.op(), reply));
+                    }
+                    call => {
+                        let op = call.op();
+                        let shown = self.block_id();
+                        if let Some(call) = self.signatures.answer(call, self.wire.connection(), shown)
                         {
-                            watch.set(connection, value.clone());
+                            self.requests.push((Some(op), call));
                         }
-                        self.published_watches
-                            .insert(started.op, (watching.open, watch));
-                        continue;
-                    }
-                    match started
-                        .parent
-                        .and_then(|parent| self.published_watches.get_mut(&parent))
-                    {
-                        Some((_, watch)) => watch.next_encoded(connection, started.op),
-                        None => connection.complete(started.op, Outcome::Err(OpError::Canceled)),
-                    }
-                    continue;
-                }
-                Incoming::Canceled { op } if self.link.holds(op) => {
-                    self.link.ended(op, &self.store, &mut self.connection);
-                    continue;
-                }
-                Incoming::Canceled { op } if self.revision_previews.contains_key(&op) => {
-                    if let Some((_, commit)) = self.revision_previews.remove(&op) {
-                        self.closed_previews.push(commit);
-                    }
-                    self.preview_asks.retain(|(preview, _)| *preview != op);
-                    self.connection
-                        .complete(op, Outcome::Err(OpError::Canceled));
-                    continue;
-                }
-                Incoming::Started(started) if sandbox::Call::accepts(&started) => {
-                    let op = started.op;
-                    if let Some(call) = sandbox::Call::accept(&mut self.connection, started)
-                        && !self.workers.call(call, &mut self.connection)
-                    {
-                        self.acknowledged.insert(op);
-                    }
-                    continue;
-                }
-                Incoming::Canceled { op } if self.workers.canceled(op, &mut self.connection) => {
-                    continue;
-                }
-                Incoming::Canceled { op } if self.fetches.holds(op) => {
-                    self.fetches.ended(op, &mut self.connection);
-                    continue;
-                }
-                Incoming::Canceled { op } if self.fetches.withdrawn(op, &mut self.connection) => {
-                    continue;
-                }
-                Incoming::Started(started) if extension_call(started.method) => {
-                    self.connection.complete(started.op, Outcome::returned(&()));
-                    self.acknowledged.insert(started.op);
-                    self.extension_calls.push(started);
-                    continue;
-                }
-                Incoming::Completed { op, outcome } => {
-                    self.completed.insert(op, outcome);
-                    continue;
-                }
-                Incoming::Started(started) => {
-                    let op = started.op;
-                    let shown = self.block_id();
-                    let connection = &mut self.connection;
-                    match embed::Call::accept(connection, started) {
-                        Some(embed::Call::Shell(call)) => match call {
-                            ShellCall::ChildStatusesWatchNew { resource, .. } => {
-                                self.child_statuses.opened(resource.op());
-                                continue;
-                            }
-                            ShellCall::ChildStatusesWatchNext { reply, .. } => {
-                                self.child_statuses.next(connection, reply);
-                                continue;
-                            }
-                            ShellCall::BlockTypesWatchNew { resource } => {
-                                self.block_types.opened(resource.op());
-                                continue;
-                            }
-                            ShellCall::BlockTypesWatchNext { reply, .. } => {
-                                self.block_types.next(connection, reply);
-                                continue;
-                            }
-                            ShellCall::WebViewNew {
-                                resource, id, url, ..
-                            } => {
-                                let mut watch = be_sdk_api::Watch::default();
-                                watch.opened(resource.op());
-                                self.web_views.insert(resource.op(), (id, watch));
-                                self.web_view_commands.push((id, WebViewCommand::Open(url)));
-                                continue;
-                            }
-                            ShellCall::WebViewNextEvents { this, reply } => {
-                                match self.web_views.get_mut(&this.op()) {
-                                    Some((_, watch)) => watch.next(connection, reply),
-                                    None => reply.fail(connection, OpError::Canceled),
-                                }
-                                continue;
-                            }
-                            call => {
-                                connection.complete(op, Outcome::returned(&()));
-                                self.acknowledged.insert(op);
-                                call
-                            }
-                        },
-                        Some(embed::Call::Debug(call)) => {
-                            match call {
-                                DebugCall::DebugTemplatesWatchNew { resource } => {
-                                    self.debug_templates.opened(resource.op())
-                                }
-                                DebugCall::DebugTemplatesWatchNext { reply, .. } => {
-                                    self.debug_templates.next(connection, reply)
-                                }
-                                DebugCall::Performance { reply, .. }
-                                | DebugCall::SimulateAccess { reply, .. } => {
-                                    reply.send(connection, &());
-                                    self.acknowledged.insert(op);
-                                }
-                            }
-                            continue;
-                        }
-                        Some(embed::Call::Blocks(call)) => {
-                            if call.changes() {
-                                self.acknowledged.insert(op);
-                            }
-                            let author = self.host.account_id();
-                            self.link.call(call, &self.store, connection, author);
-                            continue;
-                        }
-                        Some(embed::Call::HostServices(Call::RevisionPreviewNew {
-                            resource,
-                            block,
-                            commit,
-                        })) => {
-                            self.revision_previews
-                                .insert(resource.op(), (block, commit));
-                            continue;
-                        }
-                        Some(embed::Call::HostServices(Call::RevisionPreviewOpened {
-                            this,
-                            reply,
-                        })) => {
-                            self.preview_asks.push((this.op(), reply));
-                            continue;
-                        }
-                        Some(embed::Call::HostServices(call)) => {
-                            if let Some(call) = self.signatures.answer(call, connection, shown) {
-                                self.requests.push((Some(op), call));
-                            }
-                            continue;
-                        }
-                        Some(embed::Call::Network(call)) => {
-                            self.fetches.call(call, connection);
-                            continue;
-                        }
-                        Some(call) => {
-                            let (op, outcome) = call.refuse(OpError::Unsupported);
-                            connection.complete(op, outcome);
-                            continue;
-                        }
-                        None => continue,
                     }
                 }
-                Incoming::Canceled { op } => {
-                    let connection = &mut self.connection;
-                    if self
-                        .published_watches
-                        .values_mut()
-                        .any(|(_, watch)| watch.withdraw(connection, op))
-                    {
-                        continue;
-                    }
-                    self.published_watches.remove(&op);
-                    if let Some((id, _)) = self.web_views.remove(&op) {
-                        self.web_view_commands.push((id, WebViewCommand::Close));
-                    }
-                    self.requests.retain(|(asked, _)| *asked != Some(op));
-                    self.connection
-                        .complete(op, Outcome::Err(OpError::Canceled));
-                    continue;
-                }
-                Incoming::Yielded { .. } | Incoming::Credited { .. } => continue,
-            };
-            let shown = |this: &be_sdk_api::embed::shell::WebView| {
-                self.web_views.get(&this.op()).map(|(id, _)| *id)
-            };
-            let commanded = match &call {
-                ShellCall::WebViewLoad { this, url, .. } => {
-                    shown(this).map(|id| (id, WebViewCommand::Load(url.clone())))
-                }
-                ShellCall::WebViewReload { this, .. } => {
-                    shown(this).map(|id| (id, WebViewCommand::Reload))
-                }
-                ShellCall::WebViewFocusHost { this, .. } => {
-                    shown(this).map(|id| (id, WebViewCommand::FocusHost))
-                }
-                _ => None,
-            };
-            if let Some(commanded) = commanded {
-                self.web_view_commands.push(commanded);
-                continue;
+                return;
             }
-            let ShellCall::Tell { messages, .. } = call else {
-                continue;
-            };
-            for message in messages {
-                match &message {
-                    ShellMessage::Menu(MenuSet { view, items }) if view.is_main() => {
-                        self.menu = MenuEntry::nest(items.clone()).unwrap_or_else(|error| {
-                            panic!("the app sent a menu it may not: {error}")
-                        });
-                    }
-                    ShellMessage::LeaveFrame => self.exited = true,
-                    ShellMessage::ArtifactEdited(data) => self.draft.clone_from(data),
-                    ShellMessage::IntrinsicSize(size) => {
-                        self.intrinsic = *size;
-                    }
-                    _ => {}
-                }
-                self.calls.push(message);
+            Heard::Network(_, call) => {
+                self.fetches.call(call, self.wire.connection());
+                return;
             }
+            Heard::Debug(_, call) => {
+                // The host keeps no performance report and simulates no access in a test.
+                match call {
+                    DebugCall::Performance { reply, .. } | DebugCall::SimulateAccess { reply, .. } => {
+                        let (op, outcome) = reply.answer(&());
+                        self.wire.acknowledge(op, outcome);
+                    }
+                    call => {
+                        let (op, outcome) = call.refuse(OpError::Unsupported);
+                        self.wire.answer(op, outcome);
+                    }
+                }
+                return;
+            }
+            Heard::Shell(call) => call,
+            // The app's session runs in process (`HeadlessApp`), which takes its hello, frames and
+            // the rest without the wire; nothing else reaches the test.
+            Heard::Hello(_)
+            | Heard::Layout(_)
+            | Heard::FrameNeeded
+            | Heard::MissingCharacters(_)
+            | Heard::LaidOut(_)
+            | Heard::Presented(_)
+            | Heard::ShutDown
+            | Heard::Unanswered(_)
+            | Heard::Answer(..)
+            | Heard::Paintings(_)
+            | Heard::Unwatch(..) => return,
+        };
+        let call = match shell {
+            ShellCall::WebViewNew { resource, id, url, .. } => {
+                self.web_views.insert(resource.op(), id);
+                self.web_view_commands.push((id, WebViewCommand::Open(url)));
+                return;
+            }
+            call => call,
+        };
+        let shown = |this: &be_sdk_api::embed::shell::WebView| self.web_views.get(&this.op()).copied();
+        let (commanded, reply) = match call {
+            ShellCall::WebViewLoad { this, url, reply } => {
+                (shown(&this).map(|id| (id, WebViewCommand::Load(url))), reply)
+            }
+            ShellCall::WebViewReload { this, reply } => {
+                (shown(&this).map(|id| (id, WebViewCommand::Reload)), reply)
+            }
+            ShellCall::WebViewFocusHost { this, reply } => {
+                (shown(&this).map(|id| (id, WebViewCommand::FocusHost)), reply)
+            }
+            ShellCall::Tell { reply, messages, .. } => {
+                let (op, outcome) = reply.answer(&());
+                self.wire.acknowledge(op, outcome);
+                self.told_host(messages);
+                return;
+            }
+            call => {
+                let (op, outcome) = call.refuse(OpError::Unsupported);
+                self.wire.answer(op, outcome);
+                return;
+            }
+        };
+        let (op, outcome) = reply.answer(&());
+        self.wire.acknowledge(op, outcome);
+        if let Some(commanded) = commanded {
+            self.web_view_commands.push(commanded);
         }
-        self.link.answer(&self.store, &mut self.connection);
-        self.fetches.answer(&mut self.connection);
-        self.workers.answer(&mut self.connection);
-        let frames = self.connection.take_outbound();
-        let acknowledged = &mut self.acknowledged;
-        match frames.iter().all(|frame| acknowledges(frame, acknowledged)) {
-            true => self.answered.extend(frames),
-            false => {
-                let mut answered = std::mem::take(&mut self.answered);
-                answered.extend(frames);
-                self.inbox.push(Inbound::Frames(answered));
+    }
+
+    /// What the editor told its host (`shell.tell`).
+    fn told_host(&mut self, messages: Vec<ShellMessage>) {
+        for message in messages {
+            match &message {
+                ShellMessage::Menu(MenuSet { view, items }) if view.is_main() => {
+                    self.menu = MenuEntry::nest(items.clone()).unwrap_or_else(|error| {
+                        panic!("the app sent a menu it may not: {error}")
+                    });
+                }
+                ShellMessage::LeaveFrame => self.exited = true,
+                ShellMessage::ArtifactEdited(data) => self.draft.clone_from(data),
+                ShellMessage::IntrinsicSize(size) => {
+                    self.intrinsic = *size;
+                }
+                _ => {}
             }
+            self.calls.push(message);
         }
     }
 
@@ -1692,9 +1573,11 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     /// Runs an action by id as the host's palette does (`app.run-action`).
     pub fn run_action(&mut self, id: &str) {
-        be_sdk_api::embed::exports::app::run_action(&mut self.connection, SCREEN, id.to_owned());
-        let frames = self.connection.take_outbound();
-        self.inbox.push(Inbound::Frames(frames));
+        self.wire.app_call(AppCall::RunAction {
+            screen: SCREEN,
+            id: id.to_owned(),
+        });
+        self.send();
         self.run();
     }
 
@@ -1721,22 +1604,15 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn show_dialog(&mut self, block: Uuid, dialog: be_sdk_api::ShellDialog) {
-        self.call(|editor, connection| {
-            editor.hear(
-                connection,
-                vec![EditorEvent::ShowDialog(DialogRequest {
+        self.tell(vec![EditorEvent::ShowDialog(DialogRequest {
                     block: block.into_bytes(),
                     dialog,
-                })],
-            );
-        });
+                })]);
     }
 
     /// The host tells the editor it was opened at `at` in its block (`editor-event.reveal`).
     pub fn open_at(&mut self, at: be_sdk_api::SearchLocation) {
-        self.call(|editor, connection| {
-            editor.hear(connection, vec![EditorEvent::Reveal(at)]);
-        });
+        self.tell(vec![EditorEvent::Reveal(at)]);
     }
 
     pub fn take_renames(&mut self) -> Vec<(Uuid, Option<String>)> {
@@ -1870,7 +1746,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     /// its own, so each job it is sent is done before the editor next steps. A worker the test
     /// does not serve fails at once.
     pub fn serve_worker<W: be_sdk_beui::worker::Work>(&mut self, module: &str) {
-        self.workers.serve::<W>(module);
+        self.workers.0.borrow_mut().serve::<W>(module);
     }
 
     /// Whether the editor sent a fetch `take_fetches` has not taken yet.
@@ -1893,19 +1769,13 @@ impl<A: BeuiRoot> BeuiTest<A> {
         chunks: impl IntoIterator<Item = Vec<u8>>,
     ) {
         self.fetches.respond(fetch, head, chunks);
-        self.fetches.answer(&mut self.connection);
-        self.workers.answer(&mut self.connection);
-        let frames = self.connection.take_outbound();
-        self.inbox.push(Inbound::Frames(frames));
+        self.answer_fetches();
     }
 
     /// Answers `fetch` with `failure`: no response came, or the body ends with it.
     pub fn fail_fetch(&mut self, fetch: &crate::Fetch, failure: be_sdk_beui::Failure) {
         self.fetches.fail(fetch, failure);
-        self.fetches.answer(&mut self.connection);
-        self.workers.answer(&mut self.connection);
-        let frames = self.connection.take_outbound();
-        self.inbox.push(Inbound::Frames(frames));
+        self.answer_fetches();
     }
 
     /// The links the editor opened with `EditorHost::open_url` since the last call.
@@ -2509,31 +2379,6 @@ impl Viewport {
         self.pan = anchor - (anchor - self.pan) * (zoom / self.zoom);
         self.zoom = zoom;
     }
-}
-
-fn acknowledges(frame: &[u8], acknowledged: &mut std::collections::HashSet<OpId>) -> bool {
-    match be_sdk_api::ops::decode_frame(frame) {
-        Ok(be_sdk_api::ops::Frame::Complete { op, outcome }) => {
-            acknowledged.remove(&op) || outcome == Outcome::Err(OpError::Unanswered)
-        }
-        _ => false,
-    }
-}
-
-fn extension_call(method: be_sdk_api::ops::MethodId) -> bool {
-    be_sdk_api::embed::method_name(method)
-        .and_then(|name| name.split_once('#'))
-        .is_some_and(|(interface, _)| be_sdk_api::is_published(interface))
-}
-
-fn published(method: be_sdk_api::ops::MethodId) -> Option<be_sdk_api::ops::Watching> {
-    be_sdk_api::embed::WATCHES
-        .iter()
-        .find(|watching| {
-            (watching.open == method || watching.next == method)
-                && be_sdk_api::is_published(watching.interface)
-        })
-        .copied()
 }
 
 fn available_status(view: ViewId, placement: &ChildPlacement) -> ChildStatus {

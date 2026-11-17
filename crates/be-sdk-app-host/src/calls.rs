@@ -116,7 +116,8 @@ pub enum Heard {
     Answer(EditorInstanceId, EditorAnswer),
     Paintings(Vec<u8>),
     Blocks(EditorInstanceId, be_sdk_api::embed::blocks::Call),
-    Watch(EditorInstanceId, be_sdk_api::ops::MethodId),
+    /// The app opened a published watch: its editor, what opens it, and the watch's own op.
+    Watch(EditorInstanceId, be_sdk_api::ops::MethodId, be_sdk_api::ops::OpId),
     Unwatch(EditorInstanceId, be_sdk_api::ops::MethodId),
     Published(EditorInstanceId, be_sdk_api::ops::Started),
     Debug(EditorInstanceId, DebugCall),

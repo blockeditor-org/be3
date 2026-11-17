@@ -342,7 +342,7 @@ impl From<Heard> for Answer {
             Heard::Answer(instance, answer) => Self::Editor(instance, answer),
             Heard::Paintings(payload) => Self::Paintings(payload),
             Heard::Blocks(instance, call) => Self::Blocks(instance, call),
-            Heard::Watch(instance, open) => Self::Watch(instance, open),
+            Heard::Watch(instance, open, _) => Self::Watch(instance, open),
             Heard::Unwatch(instance, open) => Self::Unwatch(instance, open),
             Heard::Published(instance, started) => Self::Published(instance, started),
             Heard::Debug(instance, call) => Self::Debug(instance, call),

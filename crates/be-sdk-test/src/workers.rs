@@ -1,4 +1,8 @@
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, HashMap},
+    rc::Rc,
+};
 
 use be_sdk_api::ops::{Connection, OpError, OpId, Outcome};
 use be_sdk_beui::worker::{Hosted, Work};
@@ -37,13 +41,12 @@ impl Workers {
         self.served.insert(module.to_owned(), Hosted::start::<W>);
     }
 
-    /// Takes one of the editor's sandbox calls; answers whether the editor waits on the answer.
-    pub(crate) fn call(&mut self, call: Call, connection: &mut Connection) -> bool {
+    /// Takes one of the editor's sandbox calls.
+    fn call(&mut self, call: Call, connection: &mut Connection) {
         match call {
             Call::Compile { reply, .. } => {
                 let refused: Result<[u8; 32], String> = Err(NO_COMPILES.to_owned());
                 reply.send(connection, &refused);
-                true
             }
             Call::InstanceNew {
                 resource, source, ..
@@ -69,7 +72,6 @@ impl Workers {
                         next: None,
                     },
                 );
-                true
             }
             Call::InstanceSend {
                 this,
@@ -83,7 +85,6 @@ impl Workers {
                     running.work = Err(failure);
                 }
                 reply.send(connection, &());
-                false
             }
             Call::InstanceNext { this, reply } => {
                 match self.running.get_mut(&this.op()) {
@@ -93,13 +94,12 @@ impl Workers {
                     }
                     None => reply.fail(connection, OpError::Canceled),
                 }
-                true
             }
         }
     }
 
     /// Answers each `next` the editor waits on that has something to answer.
-    pub(crate) fn answer(&mut self, connection: &mut Connection) {
+    fn answer(&mut self, connection: &mut Connection) {
         for running in self.running.values_mut() {
             let answer = match &running.work {
                 _ if running.next.is_none() => continue,
@@ -116,7 +116,7 @@ impl Workers {
 
     /// An op the editor canceled: a worker it dropped stops, and a `next` it no longer waits for
     /// is answered as canceled. Answers whether the op was a worker's.
-    pub(crate) fn canceled(&mut self, op: OpId, connection: &mut Connection) -> bool {
+    fn canceled(&mut self, op: OpId, connection: &mut Connection) -> bool {
         if let Some(running) = self.running.remove(&op) {
             if let Some((next, _)) = running.next {
                 connection.complete(next, Outcome::Err(OpError::Canceled));
@@ -132,5 +132,34 @@ impl Workers {
             }
         }
         false
+    }
+}
+
+/// The test's workers as the editor's wire serves them (`Sandbox`), while the test still names
+/// the workers it serves (`BeuiTest::serve_worker`).
+#[derive(Clone, Default)]
+pub(crate) struct Shared(pub(crate) Rc<RefCell<Workers>>);
+
+impl be_sdk_app_host::sandbox::Sandbox for Shared {
+    fn call(&mut self, call: Call, connection: &mut Connection) {
+        self.0.borrow_mut().call(call, connection);
+    }
+
+    fn canceled(&mut self, op: OpId, connection: &mut Connection) -> bool {
+        self.0.borrow_mut().canceled(op, connection)
+    }
+
+    fn poll(&mut self, connection: &mut Connection) {
+        self.0.borrow_mut().answer(connection);
+    }
+
+    fn stop(self: Box<Self>, why: &str, connection: &mut Connection) {
+        let mut workers = self.0.borrow_mut();
+        for running in std::mem::take(&mut workers.running).into_values() {
+            if let Some((_, next)) = running.next {
+                let (op, outcome) = next(&Err(why.to_owned()));
+                connection.complete(op, outcome);
+            }
+        }
     }
 }
