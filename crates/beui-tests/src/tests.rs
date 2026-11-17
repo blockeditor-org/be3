@@ -93,6 +93,7 @@ mod text_area;
 mod text_hooks;
 mod text_input;
 mod text_gap;
+mod text_rule;
 mod text_item;
 mod time_list;
 mod toasts;
