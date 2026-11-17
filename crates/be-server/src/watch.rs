@@ -88,6 +88,11 @@ struct Told {
     outstanding: bool,
     /// The newest sequence the tree advanced to while outstanding.
     latest: Option<u64>,
+    /// The sequence the connection last read the tree to its end at. A change's write reaches
+    /// the hub after it commits, so a read can take the change first: a change at or before
+    /// this is one the connection has, and telling it of one would leave it outstanding for a
+    /// read the connection, already past it, never makes.
+    read: u64,
 }
 
 fn unindex<K: Eq + std::hash::Hash>(index: &mut HashMap<K, HashSet<u64>>, key: K, client: u64) {
@@ -212,7 +217,10 @@ impl WatchHub {
             .get_mut(&client)
             .and_then(|follows| follows.get_mut(&entry))
         {
-            *told = Told::default();
+            *told = Told {
+                read: told.read,
+                ..Told::default()
+            };
         }
     }
 
@@ -274,6 +282,9 @@ impl WatchHub {
             else {
                 return;
             };
+            if sequence <= told.read {
+                return;
+            }
             match told.outstanding {
                 true => {
                     told.latest = Some(told.latest.unwrap_or_default().max(sequence));
@@ -303,6 +314,7 @@ impl WatchHub {
             else {
                 return;
             };
+            told.read = told.read.max(sequence);
             match told.latest.take().filter(|latest| *latest > sequence) {
                 Some(latest) => Some(latest),
                 None => {
