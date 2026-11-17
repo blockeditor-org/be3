@@ -475,6 +475,8 @@ impl<S: ObjectStore> Peer<S> {
         };
         self.refs.add_keys(&creation.keys)?;
         self.recorded(&creation.keys);
+        // The outbox keeps the creation: so does the device the log made with it (`new_log`).
+        self.keep_made_log(creation.block)?;
         self.refs
             .add_to_listing(Listing::Children(creation.parent), &summary)?;
         self.note(&summary);
@@ -1155,7 +1157,20 @@ impl<S: ObjectStore> Peer<S> {
     /// local edits kept beside it go too: they can never reach the block, and kept they would
     /// keep it from being forgotten.
     pub fn discard_unsent(&self, block: Uuid) -> Result<bool, ClientError> {
-        Ok(self.refs.discard_unsent(block)?.is_some())
+        let Some(unsent) = self.refs.discard_unsent(block)? else {
+            return Ok(false);
+        };
+        // A creation discarded unsent never reached a server: the root and log made with it
+        // (`new_log`) are no block's, and kept they would refuse making it again.
+        if unsent
+            .ops
+            .iter()
+            .any(|op| matches!(op, Op::Create(creation) if creation.block == block))
+        {
+            self.keys.forget_made(block);
+            self.refs.forget_log(block)?;
+        }
+        Ok(true)
     }
 }
 
