@@ -54,9 +54,9 @@ unsafe extern "C" {
 
 /// Starts PDFium as the worker starts: once per instance, which is also once for every worker
 /// an app's tests serve in their own (be-sdk-test's `serve_worker`).
-// unsafe(ffi)
 pub(crate) fn start() {
     static STARTED: Once = Once::new();
+    // unsafe(ffi)
     STARTED.call_once(|| unsafe {
         FPDF_InitLibrary();
         FPDF_SetSystemFontInfo(ptr::null_mut());
@@ -164,7 +164,6 @@ fn load_error(code: c_ulong) -> String {
 }
 
 /// Renders `target` of page `page` of the PDF `data`, adding what it measured to `measures`.
-// unsafe(ffi)
 pub(crate) fn render(
     data: &[u8],
     page: usize,

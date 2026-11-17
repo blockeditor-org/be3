@@ -57,8 +57,6 @@ pub(crate) struct Plan {
 /// What the host's plan leaves out: the wasm-only crates.
 const HOST_EXCLUDES: &[Pick] = &[
     AppsWithoutExamples,
-    // PDFium, which it links, is built only for the apps' platform.
-    Named("be-worker-pdf-render"),
     Named("be-sdk"),
     Named("be-sdk-beui"),
     Named("be-wasm-gpu-shim"),
@@ -67,6 +65,8 @@ const HOST_EXCLUDES: &[Pick] = &[
     Named("be-server-bin"),
     Named("beui-demo-html"),
     Named("be-tool-paint-review-web"),
+    // PDFium, which it links, is built only for the apps' platform.
+    Named("be-worker-pdf-render"),
 ];
 
 /// The crates that build on beui's HTML core, for the browser and for the host.
