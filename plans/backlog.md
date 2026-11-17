@@ -381,18 +381,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   of 40 alone. Done: the cause found, from a rerun under the same load that
   keeps its output, and fixed at its source.
 
-- **A new text's editor view block keeps an edit it never submits.**
-  `an_offline_device_says_a_block_it_never_opened_is_not_on_it_yet` times out at the laptop's
-  first `synced` about 4 runs in 100 under `stress --parallel 4 --latency 75`, at the same rate
-  before and after the fixes that took its other timeout away. The busy reason names one
-  unsealed block of type `editor-view-blk1` (the workspace-ui module's), not clean, owing no
-  seal, joined (`joining: false`), with "1 not yet submitted" and nothing in the outbox: the
-  replica holds an edit its `flush` (be-sdk-type-guest's replica.rs) never sends, so it is never
-  clean and nothing seals it. Suspects: a submission in flight whose place in the order never
-  reaches the replica, or a join that reopened it with the edit given again behind one it
-  counts as still in flight. Done: the cause found and fixed at its source, with a test, and the
-  test passes 400 runs under that `stress`.
-
 ## 16. Host test tools
 
 - **Stepping an app's present apart from the poll.** With the clock stopped,
