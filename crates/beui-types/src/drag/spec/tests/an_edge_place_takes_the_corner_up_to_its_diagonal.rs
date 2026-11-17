@@ -8,10 +8,10 @@ fn an_edge_place_takes_the_corner_up_to_its_diagonal() {
     let pane = Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 100.0));
     let left = Candidate::new(1, pane, node)
         .zoned(Rect::from_min_size(pos2(0.0, 0.0), vec2(80.0, 100.0)))
-        .nearest_edge(Edge::Left, pane);
+        .nearest_edge(be_lib_geometry::Side::Left, pane);
     let bottom = Candidate::new(2, pane, node)
         .zoned(Rect::from_min_size(pos2(0.0, 80.0), vec2(400.0, 20.0)))
-        .nearest_edge(Edge::Bottom, pane);
+        .nearest_edge(be_lib_geometry::Side::Below, pane);
     let spec = closest([left, bottom]);
 
     let choose = |pos| frame(&spec, at(pos), &DragFrame::default()).drop;
