@@ -20,6 +20,8 @@ pub(crate) struct Shared {
     /// A description another component gives the node (a tooltip's label), shown where the
     /// node's own accessibility has none.
     description: Option<String>,
+    /// The node `set_description` last described for this one (itself or one within it).
+    describing: Option<(Node, Weak<RefCell<Shared>>)>,
     aria: Vec<(&'static str, String)>,
 }
 
@@ -39,6 +41,9 @@ struct Arena {
     slots: Vec<(u32, Option<Entry>)>,
     free: Vec<u32>,
     extensions: HashMap<std::any::TypeId, Rc<dyn Any>>,
+    /// Every element whose node has accessibility of its own, by `Node::key`, so
+    /// `set_description` finds the first within a subtree by walking only that subtree.
+    accessible: HashMap<usize, (Node, Weak<RefCell<Shared>>)>,
 }
 
 #[derive(Default)]
@@ -118,6 +123,9 @@ fn remove_released() {
                 continue;
             }
             if let Some(entry) = slot.1.take() {
+                if Rc::strong_count(&entry.shared) == 1 {
+                    arena.accessible.remove(&entry.element.key());
+                }
                 dropped.push((node, entry));
             }
             slot.0 = slot.0.wrapping_add(1);
@@ -422,14 +430,31 @@ pub fn set_accessibility(node: NodeId, accessibility: accesskit::Node, rank: u64
     else {
         return;
     };
-    let mut shared = shared.borrow_mut();
     if shared
+        .borrow()
         .described
         .as_ref()
         .is_some_and(|(held, _)| *held > rank)
     {
         return;
     }
+    ARENA.with(|arena| {
+        arena
+            .borrow_mut()
+            .accessible
+            .entry(element.key())
+            .or_insert_with(|| (element.clone(), Rc::downgrade(&shared)));
+    });
+    shared.borrow_mut().described = Some((rank, accessibility));
+    apply_aria(&element, &shared);
+}
+
+/// Writes the ARIA attributes of a node's accessibility, with the description another gave it.
+fn apply_aria(element: &Node, shared: &RefCell<Shared>) {
+    let mut shared = shared.borrow_mut();
+    let Some((_, accessibility)) = shared.described.as_ref() else {
+        return;
+    };
     let mut attributes = match &shared.description {
         Some(description)
             if accessibility.description().is_none()
@@ -439,7 +464,7 @@ pub fn set_accessibility(node: NodeId, accessibility: accesskit::Node, rank: u64
             described.set_description(description.clone());
             crate::aria::attributes(&described, element.tag())
         }
-        _ => crate::aria::attributes(&accessibility, element.tag()),
+        _ => crate::aria::attributes(accessibility, element.tag()),
     };
     if let Some(referenced) = accessibility.active_descendant() {
         let name = format!("beui-{}", referenced.0);
@@ -451,7 +476,6 @@ pub fn set_accessibility(node: NodeId, accessibility: accesskit::Node, rank: u64
             attributes.push(("aria-activedescendant", name));
         }
     }
-    shared.described = Some((rank, accessibility));
     for (name, _) in &shared.aria {
         if !attributes.iter().any(|(set, _)| set == name) {
             element.set_attribute(name, None);
@@ -463,59 +487,43 @@ pub fn set_accessibility(node: NodeId, accessibility: accesskit::Node, rank: u64
     shared.aria = attributes;
 }
 
-/// Describes the first node at or within `node` that has accessibility of its own with
-/// `description`, where that gives no description and another label, as a tooltip describes the
-/// control it wraps; `None` takes it away.
+/// Describes the first node at or within `node` that has accessibility of its own, in child
+/// order, with `description` (`node` itself where none has), where that gives no description
+/// and another label, as a tooltip describes the control it wraps; `None` takes it away. The
+/// node is found when this is called: one that appears within later is not described.
 pub fn set_description(node: NodeId, description: Option<String>) {
-    let Some(shared) = described_within(node) else {
+    let Some((element, own)) =
+        with_entry(node, |entry| (entry.element.clone(), entry.shared.clone()))
+    else {
         return;
     };
-    let held = {
-        let mut shared = shared.borrow_mut();
-        if shared.description == description {
-            return;
-        }
-        shared.description = description;
-        shared.described.take()
-    };
-    if let Some((rank, accessibility)) = held {
-        let node = ARENA.with(|arena| {
+    let (target_element, target) = ARENA
+        .with(|arena| {
             let arena = arena.borrow();
-            arena.slots.iter().enumerate().find_map(|(index, (generation, entry))| {
-                entry
-                    .as_ref()
-                    .filter(|entry| Rc::ptr_eq(&entry.shared, &shared))
-                    .map(|_| NodeId::new(index as u32, *generation))
-            })
-        });
-        match node {
-            Some(node) => set_accessibility(node, accessibility, rank),
-            None => shared.borrow_mut().described = Some((rank, accessibility)),
-        }
+            let found = element.find(&|candidate: &Node| {
+                arena
+                    .accessible
+                    .get(&candidate.key())
+                    .is_some_and(|(_, shared)| shared.strong_count() > 0)
+            })?;
+            let (found, shared) = arena.accessible.get(&found.key())?;
+            Some((found.clone(), shared.upgrade()?))
+        })
+        .unwrap_or((element, own.clone()));
+    let previous = own
+        .borrow_mut()
+        .describing
+        .replace((target_element.clone(), Rc::downgrade(&target)))
+        .and_then(|(element, previous)| Some((element, previous.upgrade()?)));
+    if let Some((element, previous)) = previous.filter(|(_, previous)| !Rc::ptr_eq(previous, &target)) {
+        previous.borrow_mut().description = None;
+        apply_aria(&element, &previous);
     }
-}
-
-/// The shared state of the first element at or within `node`'s that has accessibility of its
-/// own, in document order.
-fn described_within(node: NodeId) -> Option<Rc<RefCell<Shared>>> {
-    let element = element(node)?;
-    let described: Vec<(Node, Rc<RefCell<Shared>>)> = ARENA.with(|arena| {
-        arena
-            .borrow()
-            .slots
-            .iter()
-            .filter_map(|(_, entry)| entry.as_ref())
-            .filter(|entry| entry.shared.borrow().described.is_some())
-            .map(|entry| (entry.element.clone(), entry.shared.clone()))
-            .collect()
-    });
-    let found = element.find(&|candidate: &Node| {
-        described.iter().any(|(element, _)| element.is(candidate))
-    })?;
-    described
-        .into_iter()
-        .find(|(element, _)| element.is(&found))
-        .map(|(_, shared)| shared)
+    if target.borrow().description == description {
+        return;
+    }
+    target.borrow_mut().description = description;
+    apply_aria(&target_element, &target);
 }
 
 pub fn in_document_scope<T>(run: impl FnOnce() -> T) -> T {

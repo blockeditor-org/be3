@@ -10,7 +10,7 @@ use crate::anchored::{Anchored, AnchoredHandle, AnchoredSheetHandle, AnchoredSty
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::PointerPress;
+use beui_view::types::{Key, KeyPhase, PointerPress};
 use beui_view::types::{Placement, Pos2, Rect};
 
 pub const TOOLTIP_DELAY: Duration = Duration::from_millis(450);
@@ -64,7 +64,7 @@ impl Warmth {
 /// Shows `label` after the pointer rests on the child, or at once while the child holds the
 /// keyboard's focus. The bubble is an inert overlay, so the child keeps answering the pointer
 /// and Escape, and the dwell is a timer started on hover, so an unhovered tooltip costs no
-/// frames. Tooltips share one warm-up: while one is shown or just closed, the next skips its
+/// frames. Escape hides a shown one until the pointer or the focus comes back. Tooltips share one warm-up: while one is shown or just closed, the next skips its
 /// delay. The dwell, focus, a press and the pointer leaving write `open`, as an owner may; it
 /// shows only while there is a label and it is not disabled, and its label describes the child
 /// to assistive technology (where the child has no description of its own and another label).
@@ -137,6 +137,30 @@ pub fn Tooltip(
             }
             false if !hovered.get() => open.set(false),
             false => {}
+        });
+    });
+    // Escape hides a shown tooltip (WCAG 1.4.13), whether hover or focus showed it, and it
+    // stays hidden until the pointer comes back or the focus leaves and returns. The window
+    // hears Escape first only while a tooltip is shown, so otherwise it reaches menus and
+    // dialogs untouched.
+    create_effect(move || {
+        if !showing.get() {
+            return;
+        }
+        untrack(|| {
+            on_key(KeyAt::Window, KeyPhase::Capture, KeyReveal::Nothing, move |event| {
+                let Some(press) = event.press() else {
+                    return false;
+                };
+                if press.key != Key::Escape || !showing.get_untracked() {
+                    return false;
+                }
+                if press.pressed {
+                    dwell.stop();
+                    open.set(false);
+                }
+                true
+            });
         });
     });
     let hover = move |now: bool| {

@@ -154,6 +154,11 @@ impl Node {
         let _ = method;
     }
 
+    /// A key no other live node shares, for indexing nodes by identity (as `is` compares them).
+    pub fn key(&self) -> usize {
+        Rc::as_ptr(&self.0) as usize
+    }
+
     pub fn is(&self, other: &Node) -> bool {
         Rc::ptr_eq(&self.0, &other.0)
     }
