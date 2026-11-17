@@ -1,3 +1,5 @@
-# A markdown rule's characters share its line, and its row stays one line tall.
+# A markdown rule's characters share its line, and its row stays one line tall; a quote's
+# prefix takes the room of its gutter.
 clock stop
 wait 'value="Rule is one line"'
+wait 'value="Quote prefix takes its gutter"'

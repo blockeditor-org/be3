@@ -17,6 +17,8 @@ use be_sdk_beui::be_block_content::{EditorView, EditorViewContent};
 use be_type_text::{TextBlock, TextContent};
 use beui::Vec2;
 mod a_bullet_a_peer_makes_a_task_draws_a_checkbox;
+mod nested_and_tight_quotes_take_a_column_per_level;
+mod a_quotes_prefix_takes_the_bar_and_the_gap_beside_it;
 mod a_caret_beside_a_table_pipe_stands_by_the_cells_content;
 mod a_selection_across_a_table_pipe_fills_the_room_between_the_cells;
 mod a_selected_rule_is_filled_across_the_whole_rule;

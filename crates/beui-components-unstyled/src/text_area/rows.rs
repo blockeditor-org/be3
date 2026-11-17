@@ -17,14 +17,21 @@ use super::colors::TextAreaColors;
 use super::look::{BlockGeometry, TextAreaGeometry};
 use super::state::Snapshot;
 
+mod quote;
 mod rule;
 mod table;
+
+pub use quote::gutter_quotes;
 
 pub use table::{CellAlign, RowTable, TableColumns, table_columns};
 
 pub const BODY_SIZE: f32 = DEFAULT_FONT_SIZE;
 pub const CODE_SIZE: f32 = BODY_SIZE;
 
+/// The size markup laid out unseen in a share of the row is set in (a shared rule's
+/// characters, a quote's `>`s), so each is narrower than the room it stands for and a
+/// difference in measuring it cannot push past that room.
+const UNSEEN_SIZE: f32 = 1.0;
 const MASK: &str = "*";
 const OBJECT: &str = "\u{fffc}";
 const NEWLINE_MARKER: &str = "\u{23ce}";
@@ -178,6 +185,9 @@ pub struct Row {
     pub props: MarkSet,
     pub invisibles: Vec<Invisible>,
     pub table: Option<RowTable>,
+    /// How far short of the row's end a shared rule's last share ends (its slack, and the room
+    /// what follows its characters takes), so the rule is drawn only as far as its carets go.
+    pub rule_short: f32,
 }
 
 impl Row {
@@ -453,7 +463,10 @@ fn invisibles_of(
         let Some(span) = row
             .spans
             .iter()
-            .find(|span| span.kind == SpanKind::Text && span.range.contains(&display.start))
+            .find(|span| {
+                matches!(span.kind, SpanKind::Text | SpanKind::Blank(_))
+                    && span.range.contains(&display.start)
+            })
             .filter(|_| real)
         else {
             continue;
@@ -823,7 +836,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         false => highlight.line_look(start),
     };
     builder.row.look = look.clone();
-    let marker = look.marker.start.clamp(start, end)..look.marker.end.clamp(start, end);
+    let mut marker = look.marker.start.clamp(start, end)..look.marker.end.clamp(start, end);
     let mut marked = look.list.is_some() || !marker.is_empty();
     if let (Some(table), Some(columns)) = (look.table, inputs.columns.clone())
         && !options.mask
@@ -851,14 +864,22 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     };
     let run_starts = |at: usize| runs.binary_search_by_key(&at, |run| run.at).is_ok();
     let mut index = start;
+    let shared = marker.is_empty();
+    if gutter_quotes(&look) > 0 && !options.mask {
+        index = builder.quote_prefix(&look, start..end, body);
+        // Spaces past the level's own are text, as wide as they are.
+        marker = index..index;
+        marked = false;
+    }
     let mut rule = None;
     if look.rule && !options.mask {
         if marked {
             builder.marker(&look, marker.clone(), body);
             marked = false;
         }
-        index = trailing_from.max(marker.end);
-        rule = Some(builder.rule(marker.end..index, marker.is_empty(), body));
+        let from = index.max(marker.end);
+        index = trailing_from.max(from);
+        rule = Some(builder.rule(from..index, shared, body));
     }
     while index < end || marked {
         if marked && index >= marker.start {

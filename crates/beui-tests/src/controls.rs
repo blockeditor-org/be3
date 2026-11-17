@@ -265,7 +265,9 @@ pub fn TextAreaFixture() -> NodeId {
 }
 
 /// A markdown rule's row, its characters sharing the line, is one line tall like any other:
-/// the text with a rule is as tall as the text with a one-letter paragraph in its place.
+/// the text with a rule is as tall as the text with a one-letter paragraph in its place. A
+/// quote's `>` and the space after it take the room of its gutter: the caret before, between
+/// and after them stands further right each time.
 #[component]
 pub fn TextRuleFixture() -> NodeId {
     let area = |text: &'static str, id: &'static str| {
@@ -274,6 +276,7 @@ pub fn TextRuleFixture() -> NodeId {
         let state = TextAreaState::new(document);
         state.execute(EditorCommand::SetLanguage(TextLanguage::Markdown));
         let height = create_signal(None::<f32>);
+        let layout = state.layout();
         let area = view! {
             <Frame width=Size::Custom(240.0) height=Size::Custom(160.0)>
                 <TextArea
@@ -285,10 +288,23 @@ pub fn TextRuleFixture() -> NodeId {
                 />
             </Frame>
         };
-        (area, height)
+        (area, height, layout)
     };
-    let (ruled, rule) = area("Above\n\n---\n\nBelow", "text_rule.rule");
-    let (plain, letter) = area("Above\n\nx\n\nBelow", "text_rule.plain");
+    let (ruled, rule, _) = area("Above\n\n---\n\nBelow", "text_rule.rule");
+    let (plain, letter, _) = area("Above\n\nx\n\nBelow", "text_rule.plain");
+    let (quoted, laid, quote) = area("> Quoted\n", "text_rule.quote");
+    let steps = create_memo(move || {
+        // Its carets are read once its rows are laid out, which its content size follows.
+        laid.track();
+        let layout = quote.get();
+        let x = |at: usize| layout.caret_rect(at).map(|rect| rect.left());
+        match (x(0), x(1), x(2)) {
+            (Some(before), Some(mark), Some(text)) if before < mark && mark + 4.0 < text => {
+                "Quote prefix takes its gutter".to_owned()
+            }
+            carets => format!("Quote carets {carets:?}"),
+        }
+    });
     let report = create_memo(move || match (rule.get(), letter.get()) {
         (Some(rule), Some(letter)) if (rule - letter).abs() < 0.5 => "Rule is one line".to_owned(),
         (rule, letter) => format!("Rule {rule:?} letter {letter:?}"),
@@ -297,7 +313,9 @@ pub fn TextRuleFixture() -> NodeId {
         <List spacing=Space::Md>
             {ruled}
             {plain}
+            {quoted}
             <Text>{report}</Text>
+            <Text>{steps}</Text>
         </List>
     }
 }

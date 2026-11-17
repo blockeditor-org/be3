@@ -78,6 +78,7 @@ pub fn text_area_geometry() -> TextAreaGeometry {
             table_space: TABLE_SPACE,
             cell_padding: CELL_PADDING,
             delimiter_size: DELIMITER_SIZE,
+            quote_mark: QUOTE_BAR_INSET * 2.0 + QUOTE_BAR_WIDTH,
         },
     }
 }
@@ -240,6 +241,9 @@ const DELIMITER_SIZE: f32 = 11.0;
 const REMOTE_SELECTION_ALPHA: u8 = 70;
 const RULE_WIDTH: f32 = Stroke::Hairline.px();
 const QUOTE_BAR_WIDTH: f32 = 3.0;
+/// Room each side of a quote's bar, inside the span its `>` owns, so a caret either side of
+/// the `>` is seen beside the bar rather than on it.
+const QUOTE_BAR_INSET: f32 = 3.0;
 const CODE_INSET: f32 = 3.0;
 const CODE_RADIUS: Radius = Radius::Sm;
 const CODE_BLOCK_RADIUS: Radius = Radius::Md;
@@ -375,11 +379,18 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
     let quotes = line.quotes();
     let quote = line.quote_indent();
     let width = create_memo(move || Size::Custom(quote.get()));
-    let room =
-        create_memo(move || Padding::ZERO.right(Space::Custom(quote.get() - QUOTE_BAR_WIDTH)));
+    let room = create_memo(move || {
+        Padding::ZERO
+            .left(Space::Custom(QUOTE_BAR_INSET))
+            .right(Space::Custom(
+                quote.get() - QUOTE_BAR_INSET - QUOTE_BAR_WIDTH,
+            ))
+    });
     let bars = create_memo(move || Padding::ZERO.left(Space::Custom(column.get())));
+    let rule_short = line.rule_short;
     let ruled = create_memo(move || {
-        Padding::horizontal(Space::Custom(column.get())).right(Space::Custom(right.get()))
+        Padding::horizontal(Space::Custom(column.get()))
+            .right(Space::Custom(right.get() + rule_short.get()))
     });
     let rule = create_memo(move || match look.get().rule {
         true => ColorRole::Border,
