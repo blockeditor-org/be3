@@ -709,9 +709,16 @@ fn counted(shared: &Shared, block: Uuid) -> Option<i64> {
 
 #[track_caller]
 fn wait_for_count(block: Uuid, expected: i64) {
-    crate::wait_until(&format!("counted {expected}"), |shared| {
-        (counted(shared, block) == Some(expected)).then_some(())
-    });
+    let last = std::cell::Cell::new(None);
+    let waited = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        crate::wait_until(&format!("counted {expected}"), |shared| {
+            last.set(counted(shared, block));
+            (last.get() == Some(expected)).then_some(())
+        })
+    }));
+    if waited.is_err() {
+        panic!("never counted {expected}: it last counted {:?}", last.get());
+    }
 }
 
 fn ask_for(queries: Vec<Query>) {
