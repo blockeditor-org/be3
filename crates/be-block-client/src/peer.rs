@@ -1299,29 +1299,41 @@ impl<S: ObjectStore> Peer<S> {
     /// when it does not: what `sealing_key` finds, read only, never rotating. A server that
     /// cannot be reached for the block's summary or keys fails as that, not as false.
     pub async fn holds_key(&self, block: Uuid) -> Result<bool, ClientError> {
+        Ok(self
+            .key_now(block)
+            .await?
+            .is_some_and(|(_, usable)| usable))
+    }
+
+    /// The key `block` is sealed with now (`current`, else the one its summary names, offline
+    /// the summary last heard), and whether this device may seal and open with it
+    /// (`usable_key`). One that is not has the block's keys asked for again first; with no
+    /// connection to ask over, that fails as unreachable. None when the summary names no key.
+    async fn key_now(&self, block: Uuid) -> Result<Option<(Uuid, bool)>, ClientError> {
         let known = self.current.lock().unwrap().get(&block).copied();
         let key = match known {
             Some(key) => key,
-            None => match self.refs.summary(block) {
-                Some(summary) => match summary.key {
-                    Some(key) => key,
-                    None => return Ok(false),
-                },
-                None => match self.summary(block).await?.key {
-                    Some(key) => key,
-                    None => return Ok(false),
-                },
+            None => match self.summary(block).await?.key {
+                Some(key) => key,
+                None => return Ok(None),
             },
         };
-        let settings = block == self.organization_settings();
-        let usable = |key: Uuid| self.keys.trusted(key) || (settings && self.keys.server_held(key));
-        if !usable(key) {
+        if !self.usable_key(block, key) {
             if !self.local && !self.is_attached() {
                 return Err(ClientError::Disconnected("offline".into()));
             }
             self.refresh_keys(Some(vec![block])).await?;
         }
-        Ok(usable(key))
+        Ok(Some((key, self.usable_key(block, key))))
+    }
+
+    /// Whether `key` may seal and open `block` here: one this device trusts. A key the server
+    /// holds (the settings' and those opened through them) seals only the settings block
+    /// itself, which the server reads by design: never a block the server's graph places
+    /// there, since the server could place any block there.
+    fn usable_key(&self, block: Uuid, key: Uuid) -> bool {
+        self.keys.trusted(key)
+            || (block == self.organization_settings() && self.keys.server_held(key))
     }
 
     /// `sealing_key` for what goes only into the outbox (a commit and the content it holds),
@@ -1332,25 +1344,12 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     async fn sealing_key_for(&self, block: Uuid, outbox: bool) -> Result<Uuid, ClientError> {
-        let known = self.current.lock().unwrap().get(&block).copied();
-        let key = match known {
-            Some(key) => key,
-            None => {
-                let summary = self.summary(block).await?;
-                summary.key.ok_or(ClientError::Locked(block))?
-            }
+        let key = match self.key_now(block).await? {
+            Some((key, true)) => key,
+            Some((key, false)) => return Err(ClientError::Locked(key)),
+            None => return Err(ClientError::Locked(block)),
         };
-        // A key the server holds (the settings' and those opened through them) seals only the
-        // settings block itself, which the server reads by design: never a block the server's
-        // graph places there, since the server could place any block there.
-        let settings = block == self.organization_settings();
-        let usable = |key: Uuid| self.keys.trusted(key) || (settings && self.keys.server_held(key));
-        if !usable(key) {
-            self.refresh_keys(Some(vec![block])).await?;
-        }
-        if !usable(key) {
-            return Err(ClientError::Locked(key));
-        }
+        let usable = |key: Uuid| self.usable_key(block, key);
         // The server names the current key; a key of another block would seal this one where
         // that block's readers read it.
         if self.keys.block_of(key) != Some(block) {
