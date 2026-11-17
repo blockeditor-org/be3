@@ -32,9 +32,8 @@ async fn a_notice_under_a_week_old_refuses_deletion_and_one_older_deletes() {
         ),
         1
     );
-    let read = |peer: &At| {
-        peer.read::<Vec<be_block_protocol::Message>>(be_block_protocol::Query::Mailbox)
-    };
+    let read =
+        |peer: &At| peer.read::<Vec<be_block_protocol::Message>>(be_block_protocol::Query::Mailbox);
     let listed = notices(first.call(read).await.unwrap());
     assert_eq!(listed.len(), 1, "{listed:?}");
     assert!(listed[0].1.contains("can now sign in"), "{listed:?}");

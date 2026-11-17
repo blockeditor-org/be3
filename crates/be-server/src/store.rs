@@ -1,8 +1,8 @@
-pub(crate) mod identity_changes;
-pub(crate) mod mailbox;
 pub mod codes;
+pub(crate) mod identity_changes;
 pub mod invite_codes;
 pub mod login_links;
+pub(crate) mod mailbox;
 pub(crate) mod passkeys;
 pub(crate) mod portal;
 pub mod providers;
@@ -49,6 +49,7 @@ pub(crate) mod held {
     }
 }
 pub(crate) mod usage;
+pub use mailbox::MAX_LETTERS_FROM_ONE;
 pub use portal::{AccountSession, MailLink};
 use std::{
     collections::{BTreeMap, HashMap, hash_map::Entry},
@@ -56,7 +57,6 @@ use std::{
     sync::Arc,
     time::Instant,
 };
-pub use mailbox::MAX_LETTERS_FROM_ONE;
 pub use usage::{DEFAULT_ACCOUNT_QUOTA, DEFAULT_UPLOAD_GRACE, StorageLimits};
 
 use be_block_commit::CommitId;

@@ -147,8 +147,7 @@ impl ServerStore {
                         true => None,
                         false => Some(parse_uuid(&from)?),
                     },
-                    letter: be_block_protocol::decode(&letter)
-                        .map_err(|_| ServerError::Corrupt)?,
+                    letter: be_block_protocol::decode(&letter).map_err(|_| ServerError::Corrupt)?,
                     created,
                 });
             }

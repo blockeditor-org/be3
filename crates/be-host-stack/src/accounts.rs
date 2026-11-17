@@ -217,7 +217,9 @@ pub async fn account_notices(
     token: String,
 ) -> Result<Vec<(u64, String)>, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    Ok(notices(be_block_client::contacts::mailbox(&connection).await?))
+    Ok(notices(
+        be_block_client::contacts::mailbox(&connection).await?,
+    ))
 }
 
 /// Deletes an account notice from the mailbox for the account's every device. The server

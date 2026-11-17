@@ -257,11 +257,13 @@ fn tampered() -> ClientError {
 pub async fn mailbox(
     connection: &Arc<Connection>,
 ) -> Result<Vec<be_block_protocol::Message>, ClientError> {
-    crate::ask(be_block_protocol::read::<Vec<be_block_protocol::Message>, _>(
-        connection,
-        None,
-        be_block_protocol::Query::Mailbox,
-    ))
+    crate::ask(
+        be_block_protocol::read::<Vec<be_block_protocol::Message>, _>(
+            connection,
+            None,
+            be_block_protocol::Query::Mailbox,
+        ),
+    )
     .await
 }
 
@@ -853,19 +855,20 @@ pub(crate) async fn finish_links(
         let mut kept = opened.is_some();
         if let Some(card) = &opened {
             let mut ops = vec![be_block_protocol::Op::PutContact {
-                    contact: accepter,
-                    sealed: OwnContact::new(
-                        card.clone(),
-                        served
-                            .get(&accepter)
-                            .and_then(|sealed| OwnContact::open(identity, sealed, accepter))
-                            .map_or(0, |record| record.verified),
-                    )
-                    .seal(identity),
-                    replaces: served.get(&accepter).cloned().unwrap_or_default(),
+                contact: accepter,
+                sealed: OwnContact::new(
+                    card.clone(),
+                    served
+                        .get(&accepter)
+                        .and_then(|sealed| OwnContact::open(identity, sealed, accepter))
+                        .map_or(0, |record| record.verified),
+                )
+                .seal(identity),
+                replaces: served.get(&accepter).cloned().unwrap_or_default(),
             }];
             ops.extend(outdated(&held, account, identity, card));
-            let put = crate::ask(be_block_protocol::write_all::<(), _>(connection, None, ops)).await;
+            let put =
+                crate::ask(be_block_protocol::write_all::<(), _>(connection, None, ops)).await;
             match put {
                 Ok(_) => {}
                 Err(ClientError::Refused(ErrorCode::NotAContact, _)) => kept = false,

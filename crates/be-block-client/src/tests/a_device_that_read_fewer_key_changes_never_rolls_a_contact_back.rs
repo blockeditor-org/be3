@@ -127,12 +127,9 @@ async fn a_device_that_read_fewer_key_changes_never_rolls_a_contact_back() {
         ),
         "the slow write went over the newer record: {landed:?}"
     );
-    let held = crate::contacts::OwnContact::open(
-        fast.keys().identity(),
-        &row(&harness),
-        owner.account(),
-    )
-    .unwrap();
+    let held =
+        crate::contacts::OwnContact::open(fast.keys().identity(), &row(&harness), owner.account())
+            .unwrap();
     assert_eq!(held.card.public, second.public(), "the record rolled back");
     slow.refresh_contacts().await.unwrap();
     assert_eq!(

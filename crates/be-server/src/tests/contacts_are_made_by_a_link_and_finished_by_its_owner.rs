@@ -105,7 +105,9 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     let code = InviteCode::from_bytes(&owner_secret.open_own(&links[0].code).unwrap()).unwrap();
     // The accepter's card waits in the owner's mailbox, from the accepter.
     let Ok(mailbox) = owners_device
-        .call(|peer| peer.read::<Vec<be_block_protocol::Message>>(be_block_protocol::Query::Mailbox))
+        .call(|peer| {
+            peer.read::<Vec<be_block_protocol::Message>>(be_block_protocol::Query::Mailbox)
+        })
         .await
     else {
         panic!("reading the mailbox failed");

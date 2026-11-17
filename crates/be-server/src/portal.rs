@@ -4,8 +4,8 @@ use crate::{
     passkeys,
     store::{
         AccountSession, MailLink, Profile, ServerStore,
-        identity_changes::ChangeKind,
         codes::{self, CodePurpose, CodeRequest, MailedCode},
+        identity_changes::ChangeKind,
         providers::{self, Intent, Outcome},
     },
 };
