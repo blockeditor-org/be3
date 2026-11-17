@@ -198,7 +198,12 @@ other import and caps its memory.
 
 `crates/be-wasm-guest-host` runs guests for every host: `Worker` queues
 frames, steps the guest only when frames wait or it woke, and finds a step
-past `STEP_TIMEOUT`; `thread::spawn` runs one on its own thread natively;
+past `STEP_TIMEOUT`. It is settled (which be-host's busy, and so `drive settle`,
+reads) while no frames wait and no step works on frames the host sent; a step
+the guest woke itself for straight after one that took frames counts as working
+on them, since an app takes an answer in one step and acts on it in the next.
+A guest that wakes itself later, on its own, does not keep it busy.
+`thread::spawn` runs one on its own thread natively;
 `InProcess` runs a guest's Rust in-process for tests; `web::WebGuest` runs one
 in a blob worker (`src/guest.js`), which be-host's `app.js` extends for an
 editor with libraries, WASI, threads and the gpu.

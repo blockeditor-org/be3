@@ -133,6 +133,8 @@ pub struct Worker<C: Channel> {
     received: Vec<Vec<u8>>,
     ready: bool,
     stepping: bool,
+    /// Whether the step in flight, or the last one, works on frames the host sent: from a step
+    /// that took them through the steps the guest woke itself for straight after.
     carrying: bool,
     presented: Vec<C::Presented>,
     presents: u64,
@@ -190,9 +192,13 @@ impl<C: Channel> Worker<C> {
             return None;
         }
         if !self.channel.take_woken() && self.pending.is_empty() {
+            self.carrying = false;
             return None;
         }
-        let carrying = !self.pending.is_empty();
+        // A step the guest woke itself for straight after one that took the host's frames
+        // finishes what those frames started (an answer it takes in one step and acts on in the
+        // next), so it is in flight as theirs was. One it wakes for later, on its own, is not.
+        let carrying = !self.pending.is_empty() || self.carrying;
         self.waiting.store(carrying, Ordering::SeqCst);
         if !self.channel.step(std::mem::take(&mut self.pending)) {
             return Some(STOPPED.to_owned());
