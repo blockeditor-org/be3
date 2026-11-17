@@ -3609,6 +3609,7 @@ dependencies = [
  "beui-host-window",
  "beui-html",
  "beui-layer-drive",
+ "beui-text-editor-core",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",

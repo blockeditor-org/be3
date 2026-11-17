@@ -123,6 +123,9 @@ pub fn Fixture(name: String) -> Root {
         "text_gap" => view! {
             <TextGapFixture />
         },
+        "text_rule" => view! {
+            <controls::TextRuleFixture />
+        },
         "text_input" => view! {
             <TextInputFixture />
         },
