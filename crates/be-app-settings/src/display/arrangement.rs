@@ -3,7 +3,9 @@ use be_sdk_beui::be_block::DisplaySettings;
 use be_sdk_beui::be_block::display_settings::{Arrangement, ScreenPlace};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
+use be_sdk_beui::beui::drag::{self, DragSpec};
 use be_sdk_beui::beui::{NodeId, PointerPress, Pos2, Rect, Vec2, pos2, vec2};
+use beui::geometry::Side;
 use beui::geometry::touching;
 use beui::{Align, Align2, TextAlign};
 
@@ -107,10 +109,57 @@ pub(super) fn dropped(tiles: &[Tile], id: &str, rect: Rect, main: Option<String>
     Arrangement { main, places }
 }
 
-struct Held {
-    id: String,
-    grab: Vec2,
-    view: View,
+/// A display carried in the arrangement, by id.
+#[derive(Clone, Debug, PartialEq)]
+struct Carried(String);
+
+/// How far a carried display is pulled onto a place where it lines up with another, in
+/// points on screen (not desktop pixels); beyond it, it moves freely and settles against
+/// the nearest edge when let go.
+const SNAP: f32 = 12.0;
+
+/// The places a carried display can be let go: every place it lines up touching another
+/// display (`touching::places`), and within `SNAP` of none, anywhere in the area. Rests are
+/// in the area's points; what a place means is the display's rect on the desktop.
+fn arrangement_spec(tiles: &[Tile], id: &str, view: View, area: NodeRef) -> DragSpec<Rect> {
+    let Some(size) = tiles
+        .iter()
+        .find(|tile| tile.id == id)
+        .map(|tile| tile.rect.size())
+    else {
+        return drag::floating();
+    };
+    let others: Vec<&Tile> = tiles.iter().filter(|tile| tile.id != id).collect();
+    let rects: Vec<Rect> = others.iter().map(|tile| tile.rect).collect();
+    let in_area = |rect: Rect| Rect::from_min_size(view.to_area(rect.min), rect.size() * view.fit);
+    let places = touching::places(size, &rects).into_iter().map(|place| {
+        drag::Candidate::new(place.rect, in_area(place.rect), area)
+            .labelled(place_label(&others[place.beside].name, place.side, place.line))
+    });
+    drag::closest(places)
+        .when_far(drag::free(area, move |rect: Rect| {
+            Rect::from_min_size(view.to_desktop(rect.min), size)
+        }))
+        .with_distance(SNAP)
+}
+
+/// What a screen reader says of a place: "Right of Laptop, at its top".
+fn place_label(name: &str, side: Side, line: touching::Line) -> String {
+    let beside = match side {
+        Side::Left => "Left of",
+        Side::Right => "Right of",
+        Side::Above => "Above",
+        Side::Below => "Below",
+    };
+    let across = matches!(side, Side::Left | Side::Right);
+    let at = match (line, across) {
+        (touching::Line::Middle, _) => "at its middle",
+        (touching::Line::Start, true) => "at its top",
+        (touching::Line::End, true) => "at its bottom",
+        (touching::Line::Start, false) => "at its left",
+        (touching::Line::End, false) => "at its right",
+    };
+    format!("{beside} {name}, {at}")
 }
 
 #[component]
@@ -124,83 +173,41 @@ pub(super) fn ArrangementRow(
         let arrangement = merged.with(DisplaySettings::arrangement);
         displays.with(|displays| tiles(displays, &arrangement))
     });
-    let dragged = create_signal(None::<(String, Rect)>);
-    let frozen = create_signal(None::<View>);
-    let shown = create_memo(move || {
-        let mut tiles = laid.get();
-        if let Some((id, rect)) = dragged.get() {
-            for tile in &mut tiles {
-                if tile.id == id {
-                    tile.rect = rect;
-                }
-            }
-        }
-        tiles
-    });
     let view = create_memo(move || {
-        frozen.get().unwrap_or_else(|| {
-            laid.with(|tiles| View::of(&tiles.iter().map(|tile| tile.rect).collect::<Vec<_>>()))
-        })
+        laid.with(|tiles| View::of(&tiles.iter().map(|tile| tile.rect).collect::<Vec<_>>()))
     });
     let keys = create_memo(move || {
         laid.with(|tiles| tiles.iter().map(|tile| tile.id.clone()).collect::<Vec<_>>())
     });
     let main = create_memo(move || laid.with(|tiles| tiles.first().map(|tile| tile.id.clone())));
     let save = settings.setter(&DisplaySettings::arrangement_setting());
-    let held = store(std::cell::RefCell::new(None::<Held>));
-    let on_press = move |press: PointerPress| {
-        if read_only.get_untracked() {
-            return;
-        }
-        let view = view.get_untracked();
-        let point = view.to_desktop(press.local);
-        let hit = laid.with_untracked(|tiles| {
-            tiles
-                .iter()
-                .find(|tile| tile.rect.contains(point))
-                .map(|tile| (tile.id.clone(), point - tile.rect.min))
-        });
-        *held.value().borrow_mut() = hit.map(|(id, grab)| Held { id, grab, view });
-    };
-    let on_drag = move |press: PointerPress| {
-        let moved = held.value().borrow().as_ref().map(|held| {
-            let size = laid.with_untracked(|tiles| {
-                tiles
-                    .iter()
-                    .find(|tile| tile.id == held.id)
-                    .map_or(Vec2::ZERO, |tile| tile.rect.size())
+    let area = NodeRef::new();
+    use_drop_site(
+        Func::new(|_: Carried| true),
+        Func::new(move |Carried(id): Carried| {
+            laid.with_untracked(|tiles| {
+                arrangement_spec(tiles, &id, view.get_untracked(), area)
+            })
+        }),
+        Callback::new(move |(Carried(id), rect): (Carried, Rect)| {
+            let arrangement = laid.with_untracked(|tiles| {
+                dropped(
+                    tiles,
+                    &id,
+                    rect,
+                    merged.with_untracked(DisplaySettings::main_screen),
+                )
             });
-            let at = held.view.to_desktop(press.local) - held.grab;
-            (held.id.clone(), Rect::from_min_size(at, size), held.view)
-        });
-        if let Some((id, rect, view)) = moved {
-            frozen.set(Some(view));
-            dragged.set(Some((id, rect)));
-        }
-    };
-    let finish = move || {
-        held.value().borrow_mut().take();
-        frozen.set(None);
-        let Some((id, rect)) = dragged.get_untracked() else {
-            return;
-        };
-        dragged.set(None);
-        let arrangement = laid.with_untracked(|tiles| {
-            dropped(
-                tiles,
-                &id,
-                rect,
-                merged.with_untracked(DisplaySettings::main_screen),
-            )
-        });
-        save.call(Some(arrangement));
-    };
+            save.call(Some(arrangement));
+        }),
+    );
     view! {
         <SettingsRow
             label="Arrangement"
             description="Drag a display to where it stands. Displays meet edge to edge, and the pointer crosses where they meet."
         >
             <Frame
+                @node_ref=&area
                 @test_id={"display.arrangement"}
                 width={Length::Size(Size::Custom(AREA.x))}
                 height={Length::Size(Size::Custom(AREA.y))}
@@ -208,20 +215,22 @@ pub(super) fn ArrangementRow(
                 border={Border::DEFAULT}
                 radius=Radius::Sm
             >
-                <Interactive
-                    on_press={on_press}
-                    on_drag={on_drag}
-                    on_click_at={move |_| finish()}
-                    on_active_change={move |active: bool| if !active { finish() }}
-                >
-                    <Layers>
-                        <ForEach value={keys}>|id: String|
-                            <Frame align=Align2::START>
-                                <ArrangedTile id shown view main />
-                            </Frame>
-                        </ForEach>
-                    </Layers>
-                </Interactive>
+                // A scroll that never overflows, for its clip: a display carried past the
+                // area never draws over the rows around it.
+                <Scroll>
+                    <Frame
+                        width={Length::Size(Size::Custom(AREA.x))}
+                        height={Length::Size(Size::Custom(AREA.y))}
+                    >
+                        <Layers>
+                            <ForEach value={keys}>|id: String|
+                                <Frame align=Align2::START>
+                                    <ArrangedTile id shown={laid} view main read_only />
+                                </Frame>
+                            </ForEach>
+                        </Layers>
+                    </Frame>
+                </Scroll>
             </Frame>
         </SettingsRow>
     }
@@ -233,8 +242,13 @@ fn ArrangedTile(
     shown: Memo<Vec<Tile>>,
     view: Memo<View>,
     main: Memo<Option<String>>,
+    read_only: Memo<bool>,
 ) -> NodeId {
     let key = id.clone();
+    let carried = id.clone();
+    let drag = Func::new(move |_: PointerPress| {
+        (!read_only.get_untracked()).then(|| drag::Carry::new(Carried(carried.clone())))
+    });
     let tile =
         create_memo(move || shown.with(|tiles| tiles.iter().find(|tile| tile.id == key).cloned()));
     let area = create_memo(move || {
@@ -262,26 +276,29 @@ fn ArrangedTile(
     });
     let is_main = create_memo(move || main.get().as_deref() == Some(id.as_str()));
     view! {
-        <Frame
-            @test_id={format!("display.arrangement.{connector}")}
-            width={width}
-            height={height}
-            translate={translate}
-            fill={move || match is_main.get() {
-                true => ColorRole::AccentSoft,
-                false => ColorRole::Surface,
-            }}
-            border={Border::DEFAULT}
-            radius=Radius::Xs
-            align=Align2::CENTER
-            padding={Padding::all(Space::Xs)}
-        >
-            <List spacing=Space::None align=Align::Center>
-                <Text size=TextSize::Xs align=TextAlign::Center>{name}</Text>
-                <Show value={is_main}>
-                    <Text size=TextSize::Xs color=TextColor::Accent>"Main"</Text>
-                </Show>
-            </List>
+        <Frame translate={translate}>
+            <Interactive drag={drag} focusable=true>
+                <Frame
+                    @test_id={format!("display.arrangement.{connector}")}
+                    width={width}
+                    height={height}
+                    fill={move || match is_main.get() {
+                        true => ColorRole::AccentSoft,
+                        false => ColorRole::Surface,
+                    }}
+                    border={Border::DEFAULT}
+                    radius=Radius::Xs
+                    align=Align2::CENTER
+                    padding={Padding::all(Space::Xs)}
+                >
+                    <List spacing=Space::None align=Align::Center>
+                        <Text size=TextSize::Xs align=TextAlign::Center>{name}</Text>
+                        <Show value={is_main}>
+                            <Text size=TextSize::Xs color=TextColor::Accent>"Main"</Text>
+                        </Show>
+                    </List>
+                </Frame>
+            </Interactive>
         </Frame>
     }
 }
