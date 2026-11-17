@@ -3,12 +3,15 @@ use super::*;
 mod a_release_file_is_downloaded_once_then_read_from_the_cache;
 mod a_release_file_that_does_not_match_its_hash_fails_naming_it;
 mod a_file_the_release_does_not_list_fails;
+mod a_list_of_hashes_other_than_the_one_be_ships_with_is_refused;
 
 /// A release at `https://mirror.test/data/build/web` holding `files`, which counts the fetches
-/// of each URL, its hashes listed as `listed` gives them.
+/// of each URL, its hashes listed as `listed` gives them, and `apps` naming that list as a
+/// deployed `be`'s `build-info.json` does.
 struct Fake {
     files: HashMap<String, Vec<u8>>,
     fetched: Mutex<Vec<String>>,
+    apps: ReleaseApps,
 }
 
 const BASE: &str = "https://mirror.test/data/build/web";
@@ -21,14 +24,21 @@ impl Fake {
             .collect();
         let hashes: HashMap<&str, String> =
             listed.iter().map(|(path, bytes)| (*path, sha256(bytes))).collect();
-        held.insert(
-            format!("{BASE}/{HASHES}"),
-            serde_json::to_vec(&hashes).expect("the hashes serialize"),
-        );
+        let hashes = serde_json::to_vec(&hashes).expect("the hashes serialize");
+        let apps = ReleaseApps {
+            url: BASE.to_owned(),
+            sha256: sha256(&hashes),
+        };
+        held.insert(format!("{BASE}/{HASHES}"), hashes);
         Self {
             files: held,
             fetched: Mutex::default(),
+            apps,
         }
+    }
+
+    fn release(&self, cache: PathBuf) -> Release<impl Fn(&str) -> Result<Vec<u8>, String> + '_> {
+        Release::new(self.apps.clone(), cache, |url: &str| self.fetch(url))
     }
 
     fn fetch(&self, url: &str) -> Result<Vec<u8>, String> {

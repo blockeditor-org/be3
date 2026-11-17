@@ -70,6 +70,10 @@ BEUI_LAYERS=space ./scripts/buck run //crates/be-host:dev
 
 # build the APK without a device
 ./scripts/buck run //crates/be-host:android
+
+# `be` built here, with the apps whose host components it runs beside it; `-c be3.apps=NAME,...`
+# stages more (guides/apps/runtime.md, "Headless")
+./scripts/buck run //crates/be-tool-cli:dev -- ARGS
 ```
 
 An agent shows a visual change with a painting (guides/testing_a_gui.md).

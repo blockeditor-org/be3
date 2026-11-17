@@ -287,8 +287,10 @@ platform in release in one buck2 command, then:
    (guides/terminal.md, A terminal host in a boat.dev sandbox);
 2. uploads be-host's downloads (every desktop platform, the web bundle, and the release-signed
    Android APK, id `com.be3.host`) to `data/BUILD/app/` with an index page, and the unpacked
-   web bundle to `data/BUILD/web/`, whose apps and `app-hashes.json` are also where `be`
-   downloads a host app from (guides/apps/runtime.md, "Headless");
+   web bundle to `data/BUILD/web/`, whose apps are also where a deployed `be` downloads a
+   host app from: every `build-info.json` the deploy ships, `be`'s too, names that directory
+   and the SHA-256 of its `app-hashes.json` (`apps`), which `be` checks the apps against
+   (guides/apps/runtime.md, "Headless");
 3. copies `be-server` and `build-info.json` to the VPS, stops the units, swaps the files and
    starts them;
 4. then publishes the mutable files and purges them from the CDN: `/index.html` with a
