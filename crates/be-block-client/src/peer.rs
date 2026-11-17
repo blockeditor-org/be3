@@ -14,7 +14,7 @@ use be_block_protocol::{
     AccessList, BlockSummary, ChangeCursor, ChangedPage, ClientId, ErrorCode, EscrowKey,
     HistoryEntry, JournalBase, JournalSeal, KeyKind, KeySet, Listing, ObjectChange,
     OrganizationKind, OrganizationRole, PublishOutcome, ReferenceChange, ServerAccount, WrappedBy,
-    client,
+    
 };
 use be_block_store::{
     ChunkerConfig, Hash, Keyring, Manifest, ObjectStore, Part, StoreError, Stored, Vault,
@@ -78,6 +78,16 @@ pub enum Credentials {
     Header,
 }
 
+/// Follows `query`'s topic, answering whether the server took it.
+fn followed<T: be_block_protocol::FromPage + Send + 'static>(
+    connection: &Arc<Connection>,
+    organization: Option<Uuid>,
+    query: be_block_protocol::Query,
+) -> std::pin::Pin<Box<dyn Future<Output = bool> + Send>> {
+    let asked = be_block_protocol::ask::<T, _>(connection, organization, query, true);
+    Box::pin(async move { matches!(asked.await, Ok(Ok(_))) })
+}
+
 impl Credentials {
     pub async fn authenticate(
         self,
@@ -87,7 +97,7 @@ impl Credentials {
             Self::Header => None,
             Self::Token(token) => Some(token),
         };
-        Ok(client::account::authenticate(connection, token).await??)
+        Ok(be_block_protocol::client::server::authenticate(connection, token).await??)
     }
 }
 
@@ -648,24 +658,48 @@ impl<S: ObjectStore> Peer<S> {
     async fn open_session(&self) -> Result<(), ClientError> {
         let connection = self.connection();
         let organization = self.organization;
-        let be_block_protocol::OrganizationOpened {
+        // Asked together, answered in one round trip.
+        let info = crate::ask(be_block_protocol::read::<be_block_protocol::ServerInfo, _>(
+            &connection,
+            None,
+            be_block_protocol::Query::ServerInfo,
+        ));
+        let listed = crate::ask(be_block_protocol::read::<
+            Vec<be_block_protocol::Organization>,
+            _,
+        >(&connection, None, be_block_protocol::Query::Organizations));
+        let be_block_protocol::ServerInfo { server, time, .. } = info.await?;
+        let be_block_protocol::Organization {
             role,
             kind,
             escrows,
-            pinned,
-            server,
-            time,
             ..
-        } = client::organizations::open_organization(&connection, organization).await??;
+        } = listed
+            .await?
+            .into_iter()
+            .find(|listed| listed.id == organization)
+            .ok_or_else(|| {
+                ClientError::Refused(
+                    ErrorCode::PermissionDenied,
+                    "that account is not a member of this organization".into(),
+                )
+            })?;
         self.measured_server(time, connection.clock());
         *self.session.lock().unwrap() = (role, kind);
         self.keys
             .set_server(server.account, RecoveryPublic(server.public));
+        self.follow_topics().await;
         let pins = self.refs.contacts().into_iter().collect();
         let verified =
             crate::contacts::contacts(&connection, self.account, self.keys.identity(), &pins)
                 .await?;
-        crate::contacts::register_identity(&connection, self.keys.identity()).await?;
+        let recovery = crate::contacts::register_identity(&connection, self.keys.identity()).await?;
+        let pinned = recovery
+            .own
+            .into_iter()
+            .find(|own| own.kind == be_block_protocol::OwnKind::Escrow && own.id == organization)
+            .map(|own| own.sealed)
+            .unwrap_or_default();
         self.keys.set_pinned(crate::contacts::open_pin(
             self.keys.identity(),
             organization,
@@ -685,6 +719,60 @@ impl<S: ObjectStore> Peer<S> {
             self.ensure_organization_settings().await?;
         }
         self.persist_session()
+    }
+
+    /// Follows what this device hears of the organization and the account as it changes
+    /// (`Event`): its keys, its key work and roots, notification modes, and the account's
+    /// contacts, notices and storage. Each read follows its topic first, answered with what it
+    /// reads, which is left for the readers that want it; one refused (a block's agent follows
+    /// less) is let go.
+    async fn follow_topics(&self) {
+        let connection = self.connection();
+        let organization = Some(self.organization);
+        let follows: Vec<std::pin::Pin<Box<dyn Future<Output = bool> + Send>>> = vec![
+            followed::<be_block_protocol::KeyPage>(
+                &connection,
+                organization,
+                be_block_protocol::Query::Keys {
+                    blocks: Some(Vec::new()),
+                    after: None,
+                },
+            ),
+            followed::<be_block_protocol::KeyWork>(
+                &connection,
+                organization,
+                be_block_protocol::Query::KeyWork,
+            ),
+            followed::<be_block_protocol::Listed>(
+                &connection,
+                organization,
+                be_block_protocol::Query::List {
+                    listing: be_block_protocol::Listing::Children(BlockParent::Root),
+                    after: None,
+                },
+            ),
+            followed::<Vec<be_block_protocol::BlockNotifyMode>>(
+                &connection,
+                organization,
+                be_block_protocol::Query::NotifyModes,
+            ),
+            followed::<Vec<be_block_protocol::ContactRow>>(
+                &connection,
+                None,
+                be_block_protocol::Query::Contacts,
+            ),
+            followed::<Vec<be_block_protocol::AccountNotice>>(
+                &connection,
+                None,
+                be_block_protocol::Query::Notices,
+            ),
+            followed::<be_block_protocol::AccountStorage>(
+                &connection,
+                None,
+                be_block_protocol::Query::Storage,
+            ),
+        ];
+        futures_util::future::join_all(follows).await;
     }
 
     pub fn server(&self) -> Option<ServerAccount> {
@@ -869,9 +957,7 @@ impl<S: ObjectStore> Peer<S> {
     /// invitation it joined by. The personal organization has none. Whole to an administrator or
     /// a member with Edit or above on any of its blocks, else a proof path.
     pub async fn organization_log(&self) -> Result<Vec<be_block_keys::Step>, ClientError> {
-        let served = crate::ask(client::organizations::get_organization_log(
-            &self.connection(),
-        ))
+        let served = crate::ask(be_block_protocol::read::<Vec<Vec<u8>>, _>(&self.connection(), Some(self.organization), be_block_protocol::Query::Log(None)))
         .await?;
         let organization = self.organization;
         let Some(pinned) = self.keys.organization_root() else {
@@ -950,7 +1036,7 @@ impl<S: ObjectStore> Peer<S> {
         let mut keys = KeySet::default();
         let mut after = None;
         loop {
-            let page = client::keys::get_keys(&self.connection(), blocks.clone(), after).await??;
+            let page = be_block_protocol::read::<be_block_protocol::KeyPage, _>(&self.connection(), Some(self.organization), be_block_protocol::Query::Keys { blocks: blocks.clone(), after: after }).await??;
             keys.keys.extend(page.keys.keys);
             keys.wrapped.extend(page.keys.wrapped);
             match page.next {
@@ -1664,7 +1750,7 @@ impl<S: ObjectStore> Peer<S> {
         ),
         ClientError,
     > {
-        let (client, state, journal, may_edit) = self.connection().join_session(block, tag).await?;
+        let (client, state, journal, may_edit) = self.connection().join_session(self.organization, block, tag).await?;
         if may_edit {
             self.refs.may_edit_again(block)?;
         }
@@ -1810,19 +1896,7 @@ impl<S: ObjectStore> Peer<S> {
         {
             return self.create_locally(creation);
         }
-        let response = crate::ask(client::blocks::create_block(
-            &self.connection(),
-            block,
-            content_type,
-            parent,
-            creation.metadata.clone(),
-            creation.references.clone(),
-            creation.key,
-            creation.keys.clone(),
-            owner_only,
-            creation.root.clone(),
-            creation.placement.clone(),
-        ))
+        let response = crate::ask(be_block_protocol::write::<be_block_protocol::BlockSummary, _>(&self.connection(), Some(self.organization), be_block_protocol::Op::CreateBlock { block: block, content_type: content_type, parent: parent, metadata: creation.metadata.clone(), references: creation.references.clone(), key: creation.key, keys: creation.keys.clone(), owner_only: owner_only, root: creation.root.clone(), placement: creation.placement.clone() }))
         .await;
         let response = match response {
             Err(error) if error.is_unreachable() => return self.create_locally(creation),
@@ -2190,7 +2264,7 @@ impl<S: ObjectStore> Peer<S> {
     /// The block's log as the server serves it to this account: whole to a member with Edit or
     /// above, else a proof path (`be_block_keys::proof_path`).
     async fn served_log(&self, block: Uuid) -> Result<Vec<be_block_keys::Step>, ClientError> {
-        let served = crate::ask(client::blocks::get_access_log(&self.connection(), block)).await?;
+        let served = crate::ask(be_block_protocol::read::<Vec<Vec<u8>>, _>(&self.connection(), Some(self.organization), be_block_protocol::Query::Log(Some(block)))).await?;
         served
             .iter()
             .map(|step| be_block_keys::Step::decode(step))
@@ -2398,12 +2472,7 @@ impl<S: ObjectStore> Peer<S> {
                 if !self.is_attached() || self.refs.has_structural(block) {
                     return self.define_locally(summary, sealed, references);
                 }
-                let response = crate::ask(client::blocks::set_metadata(
-                    &self.connection(),
-                    block,
-                    sealed.clone(),
-                    references.clone(),
-                ))
+                let response = crate::ask(be_block_protocol::write::<be_block_protocol::BlockSummary, _>(&self.connection(), Some(self.organization), be_block_protocol::Op::SetMetadata { block: block, metadata: sealed.clone(), references: references.clone() }))
                 .await;
                 match response {
                     Ok(block) => return Ok(block),
@@ -2576,10 +2645,7 @@ impl<S: ObjectStore> Peer<S> {
     /// What the server says of a block, or offline what this device last heard.
     pub(super) async fn server_summary(&self, block: Uuid) -> Result<BlockSummary, ClientError> {
         // A block the caller may not know of reads as none, as one that is not there does.
-        let response = crate::ask(client::blocks::read_summaries(
-            &self.connection(),
-            vec![block],
-        ))
+        let response = crate::ask(be_block_protocol::read::<Vec<Option<be_block_protocol::BlockSummary>>, _>(&self.connection(), Some(self.organization), be_block_protocol::Query::Blocks { blocks: vec![block], contents: false, held: Vec::new() }))
         .await
         .and_then(|mut read| match read.pop() {
             Some(Some(summary)) if read.is_empty() => Ok(summary),
@@ -2664,11 +2730,7 @@ impl<S: ObjectStore> Peer<S> {
         // The listing in order: a summary given, or an id whose summary is read below.
         let mut entries: Vec<Result<BlockSummary, Uuid>> = Vec::new();
         loop {
-            let page = crate::ask(client::blocks::list_blocks(
-                &self.connection(),
-                listing,
-                after,
-            ))
+            let page = crate::ask(be_block_protocol::read::<be_block_protocol::Listed, _>(&self.connection(), Some(self.organization), be_block_protocol::Query::List { listing: listing, after: after }))
             .await?;
             let later = first_sequence.is_some();
             first_sequence.get_or_insert(page.sequence);
@@ -2730,7 +2792,7 @@ impl<S: ObjectStore> Peer<S> {
     /// asked again when an answer holds only its first.
     pub async fn read_summaries(&self, blocks: &[Uuid]) -> Result<Vec<BlockSummary>, ClientError> {
         let ask =
-            |group: &[Uuid]| client::blocks::read_summaries(&self.connection(), group.to_vec());
+            |group: &[Uuid]| be_block_protocol::read::<Vec<Option<be_block_protocol::BlockSummary>>, _>(&self.connection(), Some(self.organization), be_block_protocol::Query::Blocks { blocks: group.to_vec(), contents: false, held: Vec::new() });
         let asked: Vec<_> = blocks
             .chunks(be_block_protocol::MAX_SUMMARIES_ASKED)
             .map(|group| (group, ask(group)))
@@ -2894,7 +2956,7 @@ impl<S: ObjectStore> Peer<S> {
                 .filter_map(|(_, head)| *head)
                 .filter(|head| self.holds(*head))
                 .collect();
-            client::blocks::read_contents(&self.connection(), ids, held)
+            be_block_protocol::read::<be_block_protocol::Contents, _>(&self.connection(), Some(self.organization), be_block_protocol::Query::Blocks { blocks: ids, contents: true, held: held })
         };
         let asked: Vec<_> = blocks
             .chunks(CONTENTS_BLOCKS)
@@ -3357,20 +3419,7 @@ impl<S: ObjectStore> Peer<S> {
         }
         let response = loop {
             let publish = |objects| {
-                crate::ask(client::blocks::publish(
-                    &self.connection(),
-                    block,
-                    id,
-                    expected,
-                    parents.clone(),
-                    held.clone(),
-                    time,
-                    pinned,
-                    listed.clone(),
-                    metadata.clone(),
-                    objects,
-                    journal.clone(),
-                ))
+                crate::ask(be_block_protocol::write::<be_block_protocol::PublishOutcome, _>(&self.connection(), Some(self.organization), be_block_protocol::Op::Publish { block: block, commit: id, expected: expected, parents: parents.clone(), held: held.clone(), time: time, pinned: pinned, references: listed.clone(), metadata: metadata.clone(), objects: objects, journal: journal.clone() }))
             };
             match carried.take() {
                 Some(objects) => match publish(objects).await {
@@ -3446,7 +3495,7 @@ impl<S: ObjectStore> Peer<S> {
         hold: be_block_protocol::Hold,
     ) -> Result<(), ClientError> {
         self.push(objects).await?;
-        client::objects::hold_objects(&self.connection(), block, objects.to_vec(), hold).await??;
+        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), be_block_protocol::Op::HoldObjects { block: block, objects: objects.to_vec(), hold: hold }).await??;
         Ok(())
     }
 
@@ -3540,7 +3589,7 @@ impl<S: ObjectStore> Peer<S> {
     /// (`history_held`).
     pub async fn history(&self, block: Uuid) -> Result<Vec<HistoryEntry>, ClientError> {
         let listed = match self.is_attached() {
-            true => client::blocks::list_history(&self.connection(), block)
+            true => be_block_protocol::read::<Vec<be_block_protocol::HistoryEntry>, _>(&self.connection(), Some(self.organization), be_block_protocol::Query::History(block))
                 .await
                 .map_err(ClientError::from)
                 .and_then(|listed| listed.map_err(ClientError::from)),
@@ -3564,7 +3613,7 @@ impl<S: ObjectStore> Peer<S> {
         follow: bool,
     ) -> Result<ChangedPage, ClientError> {
         Ok(
-            client::blocks::changed_since(&self.connection(), entry, after, limit, follow)
+            be_block_protocol::ask::<be_block_protocol::ChangedPage, _>(&self.connection(), Some(self.organization), be_block_protocol::Query::Tree { entry: entry, after: after, limit: limit }, follow)
                 .await??,
         )
     }
@@ -3600,7 +3649,7 @@ impl<S: ObjectStore> Peer<S> {
 
     /// Stops following `entry` (`changed_page`'s `follow`).
     pub async fn unfollow(&self, entry: Uuid) -> Result<(), ClientError> {
-        Ok(client::blocks::unfollow(&self.connection(), entry).await??)
+        Ok(be_block_protocol::client::server::unfollow(&self.connection(), Some(self.organization), be_block_protocol::Topic::Tree(entry)).await??)
     }
 
     pub async fn set_parent(&self, block: Uuid, parent: BlockParent) -> Result<(), ClientError> {
@@ -3631,7 +3680,7 @@ impl<S: ObjectStore> Peer<S> {
             BlockParent::Root | BlockParent::Block(_) => self.rescope(block, parent, false).await?,
         };
         let placement = self.signed_parent(block, parent).await?;
-        client::blocks::set_parent(&self.connection(), block, parent, keys.clone(), placement)
+        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), be_block_protocol::Op::Move { block: block, parent: parent, keys: keys.clone(), placement: placement })
             .await??;
         self.recorded(&keys);
         Ok(())
@@ -3829,7 +3878,7 @@ impl<S: ObjectStore> Peer<S> {
         if keys.is_empty() {
             return Ok(());
         }
-        client::keys::put_keys(&self.connection(), keys.clone()).await??;
+        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(keys.clone()))).await??;
         self.recorded(&keys);
         Ok(())
     }
@@ -3930,12 +3979,6 @@ impl<S: ObjectStore> Peer<S> {
         self.list(Listing::Children(parent)).await
     }
 
-    pub async fn collect_detached(&self) -> Result<Vec<Uuid>, ClientError> {
-        Ok(client::blocks::collect_detached(&self.connection())
-            .await??
-            .blocks)
-    }
-
     pub async fn grant(
         &self,
         block: Uuid,
@@ -3953,7 +3996,7 @@ impl<S: ObjectStore> Peer<S> {
         identity: Option<be_block_keys::PublicIdentity>,
     ) -> Result<(), ClientError> {
         let signed = self.signed_grant(block, account, access, identity).await?;
-        client::blocks::set_access(&self.connection(), block, account, access, signed).await??;
+        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Grant { block: block, account: account, access: access, signed: signed })).await??;
         Ok(())
     }
 
@@ -4026,7 +4069,7 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn list_access(&self, block: Uuid) -> Result<AccessList, ClientError> {
-        Ok(client::blocks::list_access(&self.connection(), block).await??)
+        Ok(be_block_protocol::read::<be_block_protocol::AccessList, _>(&self.connection(), Some(self.organization), be_block_protocol::Query::Access(block)).await??)
     }
 
     pub async fn relay(
