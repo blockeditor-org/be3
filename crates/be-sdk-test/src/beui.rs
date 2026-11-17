@@ -1061,9 +1061,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.store.tick(self.clock.as_millis() as u64);
         let mut inbox = std::mem::take(&mut self.inbox);
         self.answer_wire();
-        // The editor steps for this frame anyway, so what the wire holds for the next thing sent
-        // goes now.
-        self.wire.send_acknowledged();
         let frames = self.wire.take_outbound();
         if !frames.is_empty() {
             inbox.push(Inbound::Frames(frames));
@@ -1260,7 +1257,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     /// Answers what the store, the fetches and the workers have for the editor since.
     fn answer_wire(&mut self) {
         self.link.answer(&self.store, &mut self.wire);
-        self.fetches.answer(self.wire.connection());
+        self.fetches.answer(&mut self.wire);
         self.wire.poll_sandbox();
     }
 
@@ -1281,7 +1278,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 return;
             }
             Heard::Published(_, started) => {
-                self.wire.acknowledge(started.op, Outcome::returned(&()));
+                // Taken whatever it asks: the test hosts no previews or shell, which are all
+                // be-host denies a published call to.
+                self.wire.answer(started.op, Outcome::returned(&()));
                 self.extension_calls.push(started);
                 return;
             }
@@ -1291,11 +1290,11 @@ impl<A: BeuiRoot> BeuiTest<A> {
                     self.closed_previews.push(commit);
                 }
                 self.preview_asks.retain(|(preview, _)| *preview != op);
-                self.fetches.ended(op, self.wire.connection());
+                self.fetches.ended(op, &mut self.wire);
                 return;
             }
             Heard::Withdrawn(op) => {
-                self.fetches.withdrawn(op, self.wire.connection());
+                self.fetches.withdrawn(op, &mut self.wire);
                 self.requests.retain(|(asked, _)| *asked != Some(op));
                 return;
             }
@@ -1319,17 +1318,16 @@ impl<A: BeuiRoot> BeuiTest<A> {
                     }
                     call => {
                         let op = call.op();
-                        let shown = self.block_id();
-                        if let Some(call) = self.signatures.answer(call, self.wire.connection(), shown)
-                        {
-                            self.requests.push((Some(op), call));
+                        match self.signatures.answer(call, self.block_id()) {
+                            Ok((op, outcome)) => self.wire.answer(op, outcome),
+                            Err(call) => self.requests.push((Some(op), call)),
                         }
                     }
                 }
                 return;
             }
             Heard::Network(_, call) => {
-                self.fetches.call(call, self.wire.connection());
+                self.fetches.call(call, &mut self.wire);
                 return;
             }
             Heard::Debug(_, call) => {
@@ -1337,7 +1335,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 match call {
                     DebugCall::Performance { reply, .. } | DebugCall::SimulateAccess { reply, .. } => {
                         let (op, outcome) = reply.answer(&());
-                        self.wire.acknowledge(op, outcome);
+                        self.wire.answer(op, outcome);
                     }
                     call => {
                         let (op, outcome) = call.refuse(OpError::Unsupported);
@@ -1382,7 +1380,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             }
             ShellCall::Tell { reply, messages, .. } => {
                 let (op, outcome) = reply.answer(&());
-                self.wire.acknowledge(op, outcome);
+                self.wire.answer(op, outcome);
                 self.told_host(messages);
                 return;
             }
@@ -1393,7 +1391,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             }
         };
         let (op, outcome) = reply.answer(&());
-        self.wire.acknowledge(op, outcome);
+        self.wire.answer(op, outcome);
         if let Some(commanded) = commanded {
             self.web_view_commands.push(commanded);
         }
