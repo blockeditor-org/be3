@@ -596,6 +596,10 @@ struct Open {
     /// it (`Peer::discarded`): its editors attach read-only, as nothing they made would be kept.
     marked: bool,
     made_up: bool,
+    /// It let go of a held rejoin as it closed (`rejoined`): what it ends holding of the
+    /// journaled edits no seal holds is kept in its open edits (`ended`), since only its made-up
+    /// session's journal holds them, which a replica opened online passes over (`journal_for`).
+    let_go: bool,
     /// The parts its module may read and reuse (`reach`).
     reach: Arc<Mutex<Reach>>,
     early: Vec<Replayed>,
@@ -1077,6 +1081,7 @@ impl<H: Host> Replicas<H> {
         open.joined_settled = true;
         open.sealed_joining = true;
         open.status.journaled_taken = journaled;
+        open.journaled_taken = journaled;
         open.status.sealed_taken = sealed;
         open.status.clean = journaled == sealed;
         open.status.owes_seal = owes_seal;
@@ -1727,6 +1732,7 @@ impl<H: Host> Replicas<H> {
                 marked: peer.discarded(block),
                 sealed_joining: false,
                 made_up,
+                let_go: false,
                 reach: Arc::default(),
                 early: Vec::new(),
                 sent,
@@ -2195,8 +2201,9 @@ impl<H: Host> Replicas<H> {
     }
 
     /// A rejoin held for journaled edits no seal would take (`rejoin_held`) may hold forever,
-    /// as for a diverged replica: closing its block hands its answer back, and the join is let go
-    /// of (`rejoined`).
+    /// as for a diverged replica: closing (or reopening) its block hands its answer back, and the
+    /// join is let go of (`rejoined`). The answer goes back through the io channel, not `pending`,
+    /// so the loop wakes for it (`woken`): nothing else would after a close.
     fn let_go_if_held(&mut self, replica: ReplicaId) {
         let Some(open) = self.open.get_mut(&replica) else {
             return;
@@ -2281,8 +2288,11 @@ impl<H: Host> Replicas<H> {
             return;
         };
         open.reopen = true;
-        if std::mem::replace(&mut open.closing, true) || open.joining {
+        if std::mem::replace(&mut open.closing, true) {
             return;
+        }
+        if open.joining {
+            return self.let_go_if_held(replica);
         }
         self.with_replica(replica, |handle, connection| {
             handle.resource_drop(connection)
@@ -3599,12 +3609,13 @@ impl<H: Host> Replicas<H> {
         open.joining = false;
         open.rejoining = None;
         let early = std::mem::take(&mut open.early);
-        // Closed while its rejoin was held (`rejoin_held`): it lets go of the join rather than
-        // open again on the server's journal, which would lose the journaled edits no seal
-        // holds, and ends, leaving the session (`ended`). Its made-up session's journal keeps
-        // them on this device for a replica opened again; what the session said meanwhile is not
-        // its own.
+        // Closed (or reopened) while its rejoin was held (`rejoin_held`): it lets go of the join
+        // rather than open again on the server's journal, which would lose the journaled edits
+        // no seal holds, and ends, leaving the session (`ended`), keeping those edits in its
+        // open edits (`Open::let_go`) for a replica opened again; what the session said
+        // meanwhile is not its own.
         if letting_go {
+            open.let_go = true;
             return self.close_if_asked(replica);
         }
         // What its made-up session sealed while the join was on its way is a commit the server
@@ -3997,8 +4008,12 @@ impl<H: Host> Replicas<H> {
             return false;
         };
         // What opens after it holds the local edits the order holds, as a reopen counts them
-        // (`reopening`).
-        let held = open.journaled_taken.max(open.status.sealed_taken);
+        // (`reopening`); after letting go of a held rejoin, only those its head holds: the rest
+        // are only in its made-up session's journal (`Open::let_go`).
+        let held = match open.let_go {
+            true => open.status.sealed_taken,
+            false => open.journaled_taken.max(open.status.sealed_taken),
+        };
         untaken(
             &mut self.forwarded,
             open.block,
