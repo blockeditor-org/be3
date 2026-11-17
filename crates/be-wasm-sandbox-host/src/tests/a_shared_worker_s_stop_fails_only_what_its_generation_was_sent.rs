@@ -36,7 +36,10 @@ fn a_shared_worker_s_stop_fails_only_what_its_generation_was_sent() {
         })
         .await;
         let second = shared.send(b"after");
-        assert_ne!(first, second, "a send after a stop goes to a new generation");
+        assert_ne!(
+            first, second,
+            "a send after a stop goes to a new generation"
+        );
         let stopped = shared.try_receive();
         let answered = poll_fn(|context| match shared.try_receive() {
             Some(answer) => Poll::Ready(answer),
