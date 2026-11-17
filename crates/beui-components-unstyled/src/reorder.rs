@@ -68,7 +68,6 @@ struct State<K: 'static, P: 'static> {
     text: Callback<K, String>,
     on_move: Callback<ReorderMove<K, P>>,
     on_drag_change: Callback<Option<K>>,
-    preview: RenderFn<P, NodeId>,
     /// The row of this list that is carried.
     carried: Signal<Option<K>>,
     /// Whether the carry is on a place in this list.
@@ -617,9 +616,14 @@ where
         state.carried.set(Some(key.clone()));
         state.raised.set(Some(key.clone()));
         state.on_drag_change.call(Some(key.clone()));
-        let preview = state.preview;
-        let shown = payload.clone();
-        Some(Carry::new(payload).preview(move || preview.call(shown.clone())))
+        // The list draws the row's preview itself, at its root, while it floats (the
+        // row is collapsed by then); the row only says it is previewed, so it is not drawn
+        // displaced where it is.
+        Some(Carry::new(payload).preview(|| {
+            view! {
+                <Frame />
+            }
+        }))
     })
 }
 
@@ -666,7 +670,6 @@ where
         text,
         on_move,
         on_drag_change,
-        preview,
         carried,
         over_here,
         folded: create_signal(None),
@@ -766,8 +769,15 @@ where
         direction,
     };
     let face = content.call(handle);
-    // A carry from elsewhere is drawn in the gap it opens, from this list's own `preview`.
-    let visiting = create_memo(move || visited.get() && carrying::<P>().is_some());
+    // A carry from elsewhere is drawn in the gap it opens, from this list's own `preview`;
+    // this list's own row, floating off it, is drawn here too, under the pointer: the row
+    // itself is collapsed then, and what a collapsed row holds is not shown.
+    let floating = create_memo(move || {
+        carried.with(Option::is_some) && drag_board().frame().is_some_and(|frame| frame.floating)
+    });
+    let visiting = create_memo(move || {
+        (visited.get() || floating.get()) && carrying::<P>().is_some()
+    });
     let anchor = create_memo(move || {
         OverlayAnchor::Point(
             drag_board()
