@@ -11,6 +11,7 @@ fn a_failure_releases_what_the_remaps_held_down() {
                 (else (unreachable)))))
         "#,
     );
+    assert_eq!(remapper.started(), vec![]);
 
     assert_eq!(
         remapper.input(press("A"), NOW),

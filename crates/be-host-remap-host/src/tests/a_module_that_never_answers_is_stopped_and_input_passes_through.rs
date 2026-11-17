@@ -16,6 +16,7 @@ fn a_module_that_never_answers_is_stopped_and_input_passes_through() {
             ..Limits::default()
         },
     );
+    assert_eq!(remapper.started(), vec![]);
 
     assert_eq!(remapper.input(press("A"), NOW), vec![press("A")]);
     assert_eq!(

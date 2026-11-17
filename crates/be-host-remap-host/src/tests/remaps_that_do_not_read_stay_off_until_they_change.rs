@@ -18,5 +18,6 @@ fn remaps_that_do_not_read_stay_off_until_they_change() {
     remapper.configure(Some(
         b"[[group]]\nrules = [{ on = \"Q\", send = \"E\" }]".to_vec(),
     ));
+    assert_eq!(remapper.started(), vec![]);
     assert_eq!(remapper.input(press("Q"), NOW), vec![press("E")]);
 }

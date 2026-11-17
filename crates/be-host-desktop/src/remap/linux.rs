@@ -44,7 +44,9 @@ struct State {
     locked: bool,
     save: Option<Option<Vec<u8>>>,
     module: Vec<u8>,
-    /// A module compiling in the sandbox, installed once it is done (`take_compiled`).
+    /// A module compiling in the sandbox, installed once it is done (`take_compiled`). Dropping
+    /// it (the remaps stopped, or another module replaced it) is fine: its compile finishes on
+    /// its own thread and wakes the host for nothing.
     compiling: Option<Pending>,
     published: Option<RemapState>,
     capture_openings: u64,
@@ -54,9 +56,6 @@ struct Pending {
     wanted: Wanted,
     module: Vec<u8>,
     compiling: Compiling,
-    /// Whether it was fetched rather than taken from the last session, and so is kept or
-    /// fetched again with the next change.
-    fetched: bool,
 }
 
 #[derive(Default)]
@@ -157,8 +156,8 @@ pub fn load_cached(cached: Option<Vec<u8>>) {
     else {
         return;
     };
-    install(wanted.clone(), module, false);
-    STATE.with_borrow_mut(|state| state.loader.installed(wanted));
+    STATE.with_borrow_mut(|state| state.loader.compiling(wanted.clone()));
+    install(wanted, module);
 }
 
 pub fn configure(settings: &InputSettings) {
@@ -208,6 +207,8 @@ pub fn frame(store: &HostStateStore) {
     read_chosen();
     take_fetched();
     take_compiled();
+    // Starts the remaps, or takes their answer to starting, without waiting.
+    with_remapper(|remapper, now| remapper.poll(now));
     if let Some(save) = STATE.with_borrow_mut(|state| state.save.take())
         && let Err(error) = store.set_remapper(save.as_deref())
     {
@@ -370,7 +371,7 @@ fn take_fetched() {
     let Some(wanted) = STATE.with_borrow_mut(|state| state.loader.fetched(&app, &module)) else {
         return;
     };
-    install(wanted, bytes, true);
+    install(wanted, bytes);
 }
 
 fn remember() {
@@ -389,14 +390,13 @@ fn remember() {
 
 /// Starts compiling `module` in the sandbox, off this thread; `take_compiled` installs it once
 /// the compile wakes the host. A later install replaces one still compiling.
-fn install(wanted: Wanted, module: Vec<u8>, fetched: bool) {
+fn install(wanted: Wanted, module: Vec<u8>) {
     let compiling = Remapper::compile(module.clone(), Arc::new(be_host_base::host::wake));
     STATE.with_borrow_mut(|state| {
         state.compiling = Some(Pending {
             wanted,
             module,
             compiling,
-            fetched,
         });
     });
 }
@@ -409,33 +409,35 @@ fn take_compiled() {
     let Some((pending, done)) = done else {
         return;
     };
+    // The loader keeps the module on its way while it compiles, so what is wanted now is either
+    // still this module, with the config wanted by now, or another, on its way after it.
+    let wanted = STATE.with_borrow(|state| {
+        let wanted = state.loader.wanted()?;
+        state
+            .loader
+            .wants(&pending.wanted.app, &pending.wanted.module)
+            .then(|| wanted.clone())
+    });
+    let Some(wanted) = wanted else {
+        return;
+    };
     let module = match done {
         Ok(module) => module,
         Err(error) => {
             be_host_base::notices::report(format!(
-                "The input remapper could not be loaded: this is not a remap module: {error}"
+                "The input remapper could not be loaded: {error}"
             ));
-            if pending.fetched {
-                STATE.with_borrow_mut(|state| state.loader.failed());
-            }
+            STATE.with_borrow_mut(|state| state.loader.failed());
             return;
         }
     };
-    let mut remapper = Remapper::new(module);
-    let (window, locked, config) = STATE.with_borrow_mut(|state| {
+    let mut remapper = Remapper::new(module, Arc::new(be_host_base::host::wake));
+    let (window, locked) = STATE.with_borrow_mut(|state| {
         state.module = pending.module;
-        // The config may have changed while the module compiled.
-        let config = match state.loader.wanted() {
-            Some(wanted)
-                if wanted.app == pending.wanted.app && wanted.module == pending.wanted.module =>
-            {
-                wanted.config.clone()
-            }
-            _ => pending.wanted.config.clone(),
-        };
-        (state.window.clone(), state.locked, config)
+        state.loader.installed(wanted.clone());
+        (state.window.clone(), state.locked)
     });
-    remapper.configure(Some(config));
+    remapper.configure(Some(wanted.config));
     remapper.set_locked(locked);
     with_filter(|filter| {
         let now = micros(filter.now);
@@ -448,9 +450,7 @@ fn take_compiled() {
         filter.remapper = Some(remapper);
         outputs
     });
-    if pending.fetched {
-        remember();
-    }
+    remember();
 }
 
 fn with_remapper(change: impl FnOnce(&mut Remapper, u64) -> Vec<Output>) {
