@@ -3315,6 +3315,7 @@ dependencies = [
  "accesskit",
  "be-lib-geometry",
  "be-lib-graphemes",
+ "be-lib-input-router",
  "be-lib-stable-hash",
  "be-lib-ui-types",
  "beui-lucide",

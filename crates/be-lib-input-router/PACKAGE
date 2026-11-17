@@ -47,6 +47,17 @@ write_package_value("be3.cargo", {
             "test_deps": [],
             "test_features": [],
         },
+        "linux-x86_64-html": {
+            "binaries": {},
+            "deps": [
+                "//crates/be-lib-geometry:be-lib-geometry",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
+            ],
+            "examples": {},
+            "features": [],
+            "test_deps": [],
+            "test_features": [],
+        },
         "macos-arm64": {
             "binaries": {},
             "deps": [

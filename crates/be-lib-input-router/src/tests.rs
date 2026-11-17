@@ -8,6 +8,8 @@ use super::*;
 #[derive(Default)]
 struct Rects {
     surfaces: Vec<Surface>,
+    /// Where a press pans the camera rather than pressing anything.
+    pans: Option<Rect>,
 }
 
 struct Surface {
@@ -74,6 +76,10 @@ impl HitTest for Rects {
     fn takes_focus(&self, target: u32) -> bool {
         self.get(target).is_some_and(|surface| surface.focus)
     }
+
+    fn pans(&self, at: Pos2) -> bool {
+        self.pans.is_some_and(|area| area.contains(at))
+    }
 }
 
 const ROOT: u32 = 0;
@@ -93,9 +99,13 @@ fn canvas_with_editor() -> Rects {
 }
 
 fn press(x: f32, y: f32, pressed: bool) -> Input {
+    button(PointerButton::Primary, x, y, pressed)
+}
+
+fn button(button: PointerButton, x: f32, y: f32, pressed: bool) -> Input {
     Input::PointerButton {
         pos: pos2(x, y),
-        button: PointerButton::Primary,
+        button,
         pressed,
     }
 }
@@ -138,11 +148,19 @@ fn inputs_for(routed: &[Routed<u32>], to: u32) -> Vec<Input> {
         .collect()
 }
 
+mod a_desktop_windows_second_button_goes_to_it_while_the_first_holds_it;
+mod a_middle_press_that_pans_goes_to_no_surface_even_one_the_mouse_holds;
+mod a_programs_pen_and_the_mouse_each_hold_the_surface_they_pressed;
+mod an_anchored_view_takes_presses_on_it_and_its_apps_view_those_beside_it;
+mod an_apps_view_hears_the_pointer_leave_once_no_press_holds_it;
+mod the_on_screen_keyboard_takes_presses_while_keys_stay_with_the_focused_field;
+mod a_window_that_never_takes_the_focus_leaves_it_with_the_window_that_had_it;
+mod a_scroll_begun_where_a_camera_claims_it_stays_with_the_camera;
 mod a_drag_goes_over_the_surfaces_under_the_pointer_and_drops_on_the_one_under_the_release;
 mod a_finger_landing_for_a_pinch_its_placer_claims_takes_the_earlier_fingers_with_it;
 mod a_forgotten_surface_holds_nothing_and_hears_nothing;
 mod a_held_press_handed_to_the_placer_ends_cancelled_in_the_editor;
-mod a_keys_release_follows_its_press_after_the_focus_moves;
+mod a_keys_release_goes_to_the_focus_which_the_surface_that_lost_it_heard_of_first;
 mod a_pen_down_holds_its_surface_until_it_lifts;
 mod a_press_captures_the_pointer_for_its_surface_until_every_button_lifts;
 mod a_press_focuses_its_surface_unless_it_never_takes_the_focus;
