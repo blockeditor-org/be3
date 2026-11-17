@@ -79,9 +79,11 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   a `Loader` for staged modules, which the host plugs in (`staged_app`), since
   finding staged apps lies above be-wasm. be-host-runtime serves every app one
   (`Wire::with_sandbox`, polled with the app's frames in `Backend::receive`,
-  dropped when the app stops): `Server::for_app` asks the loader only for the
-  app's own id and refuses compiles, so an app spawns only its own modules, its
-  workers (guides/adding_an_app.md, Workers). A spawned module gets no gpu: a
+  dropped when the app stops or fails): `Server::for_app` asks the loader
+  (`staged_worker`, which answers only workers, never the entry point) only for
+  the app's own id, which an empty `app` names, refuses compiles, caps each
+  worker's memory at `WORKER_MEMORY_LIMIT` and runs at most `WORKERS` at once,
+  so an app spawns only its own workers (guides/adding_an_app.md, Workers). A spawned module gets no gpu: a
   worker computes and sends its result back as bytes, which the app uploads
   itself, so no device is handed to it, and on the web, where each worker
   would need a device of its own, it needs none. The root guest will be served

@@ -82,7 +82,7 @@ pub use runtime::{
     settle_keys, take_gift,
 };
 #[cfg(not(target_arch = "wasm32"))]
-pub use wasm::staged_app;
+pub use wasm::{staged_app, staged_worker};
 pub use windows::{forget_windows, request_windows, take_window_requests};
 
 pub fn exiting() {
