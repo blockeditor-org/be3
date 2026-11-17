@@ -837,10 +837,9 @@ impl std::fmt::Display for Owing {
             self.unreported,
             self.publishing,
             self.joining,
-            self.rejoin_held
-                .map_or_else(String::new, |edits| format!(
-                    " (rejoin held: a seal cannot take {edits} journaled edit(s))"
-                )),
+            self.rejoin_held.map_or_else(String::new, |edits| format!(
+                " (rejoin held: a seal cannot take {edits} journaled edit(s))"
+            )),
             self.closing,
             self.publish_error,
             self.keep_error
@@ -1105,7 +1104,10 @@ impl<H: Host> Replicas<H> {
     pub(crate) fn seal_asked(&self, block: Uuid) -> bool {
         self.asked.values().any(|(replica, asked)| {
             matches!(asked, Asked::Seal(_))
-                && self.open.get(replica).is_some_and(|open| open.block == block)
+                && self
+                    .open
+                    .get(replica)
+                    .is_some_and(|open| open.block == block)
         })
     }
 
