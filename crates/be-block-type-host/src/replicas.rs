@@ -3436,8 +3436,11 @@ impl<H: Host> Replicas<H> {
             .collect();
         // The join answered whether this account may edit it (`Peer::join_session`).
         open.marked = peer.discarded(block);
+        let dbg_head = open.status.head;
+        let dbg_journal = journal.as_ref().map(|(j, _)| (j.base.commit, j.base.sequence, j.entries.iter().map(|e| e.sequence).collect::<Vec<_>>()));
         let loads = reopening(open, peer, journal, true, open.status.head);
         let known = loads.2;
+        eprintln!("DBG rejoined status.head={dbg_head:?} server_head={head:?} journal={dbg_journal:?} sealed_on={:?} load_at={known:?} sealed_head={:?} unsent={:?}", dbg_head.and_then(|h| peer.sealed_on(h)), loads.3.as_ref().map(|s| (s.commit, s.through)), unsent_commits(peer, block));
         let (ordered, early): (Vec<Replayed>, Vec<Replayed>) = early
             .into_iter()
             .partition(|replayed| matches!(replayed, Replayed::Sequenced { .. }));

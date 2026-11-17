@@ -76,7 +76,9 @@ fn discarding_the_unsent_edits_of_a_block_demoted_mid_edit_leaves_nothing_of_it_
             .any(|unsent| unsent.block == block && unsent.refused.is_none())
     });
     // Typed on, as the replica still takes edits it can no longer send.
+    eprintln!("DBG add4 count={:?}", crate::unsent().len());
     add(block, 4);
+    eprintln!("DBG added4");
     wait_for_count(block, 7);
     crate::discard_unsent(block);
     wait_until("discarded the unsent edits", |held| {
