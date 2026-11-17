@@ -140,22 +140,26 @@ window's points, the clip in its pixels, the rounding of its own corners and its
 Natively each of the host's windows is composited from its list (`beui_draw::compose`, which
 `presenter::install` turns on; beui-renderer-wgpu's `composite.rs`). The window's renderer
 (present.rs's, and each display's in beui-platform-drm) renders the host's UI into textures of
-its own: `Surface::Root(0)`, and while an anchored view shows, `Surface::Root(1)` for what the
-UI paints after the first one, as the web stacks `#layers` over its canvas. Every drawing that
+its own: `Surface::Root(0)`, and above each anchored view it shows, one more for what the UI
+paints after that view (`Root(1)` above the first, as the web stacks `#layers` over its canvas). Every drawing that
 shows a surface lists it (`Draw::layers`): `AppDrawing` its screens and anchored views,
 be-host-wayland's `WindowDraw` and a `TextureDraw` made `hosted` (win32's captured windows) their
 program windows as `Surface::Host`. Screens and program windows are still drawn in place, in the
 UI's paint order (`Placed::inline`), so they blend over what lies beneath them and fade with the
 groups they are in; only an anchored view, which lies over the UI, is left to the renderer,
-which draws the window from the list in a pass of its own: `Root(0)`, the anchored views,
-`Root(1)`.
+which draws the window from the list in a pass of its own: `Root(0)`, the first anchored view,
+`Root(1)`, the next, and so on, so what the UI paints between two anchored views (a second
+view's scrim) lies between them. An anchored view inside a group or filter splits the roots
+after it.
 
 The renderer finds every drawing the window shows each frame by walking only the displays
 that hold drawings (`Display::drawings`), and keeps what each placed while it stays where it
 was (`Drawing::identity` and its `DrawAt`), so only a damaged or moved drawing is prepared. It
 visits a drawing that placed an anchored view whether or not it is damaged, so the roots split
-where it paints; when that anchored view changes, the frame is painted whole, since what the UI
-paints after it moves between the roots. A layer's id names the drawing that shows it
+where it paints; when the anchored views change, the frame is painted whole, since what the UI
+paints after them moves between the roots. Finding the drawings costs a walk of the displays
+that hold them and their ancestors each composited frame, on the CPU; keeping the list across
+frames and patching it from the tree's changes would remove it. A layer's id names the drawing that shows it
 (`layers::id`), so a view's parts below and above its children, or a preview shown twice, never
 share one. The pass draws again only where the list's damage against last frame's says
 (`WindowLayers::damage`, each root's own damage through its layer, overlapping rects merged),

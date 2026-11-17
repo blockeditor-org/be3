@@ -71,6 +71,7 @@ mod two_filters_each_change_the_region_they_cover;
 mod two_regions_repainted_under_a_blur_match_a_full_repaint;
 mod two_renderers_on_one_set_of_resources_share_their_glyphs_and_images;
 mod zoomed_text_stretches_the_glyphs_it_was_rasterised_at;
+mod what_the_ui_paints_between_two_anchored_views_lies_between_them;
 
 use std::cell::RefCell;
 

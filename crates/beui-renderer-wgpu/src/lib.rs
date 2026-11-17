@@ -1882,13 +1882,13 @@ impl Renderer {
         (finding.found, finding.forced)
     }
 
-    /// The layers a composited window's drawings place this frame, bottom first, each with
-    /// whether it lies over the lower root: a drawing prepared this frame (`prepared`) says
-    /// them anew, one that is where it was keeps last frame's, and any other is prepared now.
-    /// Splits the frame's steps between the roots at the first drawing that places a composited
-    /// layer (an anchored view): the upper root's steps begin there, cleared first where it is
-    /// damaged. Returns `None` when the upper root would begin at another anchored view than
-    /// last frame's on a frame not painted whole.
+    /// The layers a composited window's drawings place this frame, bottom first, each with the
+    /// segment it lies in (how many anchored views lie under it): a drawing prepared this frame
+    /// (`prepared`) says them anew, one that is where it was keeps last frame's, and any other
+    /// is prepared now. Splits the frame's steps between the roots at each drawing that places a
+    /// composited layer (an anchored view): a new root's steps begin there, cleared first where
+    /// it is damaged. Returns `None` when the anchored views the roots split at are not last
+    /// frame's on a frame not painted whole.
     fn place(
         &mut self,
         device: &wgpu::Device,
@@ -1897,7 +1897,7 @@ impl Renderer {
         prepared: &[(Drawing, DrawAt)],
         steps: &mut Vec<Step>,
         whole: bool,
-    ) -> Option<Vec<(Placed, bool)>> {
+    ) -> Option<Vec<(Placed, usize)>> {
         let fresh: be_lib_stable_hash::HashSet<(usize, u64)> = prepared
             .iter()
             .map(|(drawing, _)| drawing.identity())
@@ -1907,7 +1907,7 @@ impl Renderer {
         let mut known = be_lib_stable_hash::HashMap::default();
         let mut placed = Vec::new();
         let mut lifted = be_lib_stable_hash::HashSet::default();
-        let mut splits_at = None;
+        let mut splits_at = Vec::new();
         for (drawing, at) in found {
             let Some(draw) = drawing.draw::<Rc<dyn Draw>>() else {
                 continue;
@@ -1928,10 +1928,10 @@ impl Renderer {
             };
             if let Some(layer) = layers.iter().find(|placed| !placed.inline) {
                 lifted.insert(drawing.identity().0);
-                splits_at.get_or_insert(layer.layer.id);
+                splits_at.push(layer.layer.id);
             }
-            let above = splits_at.is_some();
-            placed.extend(layers.iter().cloned().map(|layer| (layer, above)));
+            let segment = splits_at.len();
+            placed.extend(layers.iter().cloned().map(|layer| (layer, segment)));
             known.insert(
                 key,
                 composite::Known {
@@ -1959,50 +1959,63 @@ impl Renderer {
             return None;
         }
         composition.splits_at = splits_at;
-        // Where the upper root begins in the steps: the run of the first drawing that placed a
-        // composited layer, or the step after a group or filter holding it.
-        fn lifts(runs: &[Run], lifted: &be_lib_stable_hash::HashSet<usize>) -> Option<usize> {
-            runs.iter().position(|run| {
-                run.drawing
-                    .as_ref()
-                    .is_some_and(|(drawing, _)| lifted.contains(&drawing.identity().0))
-            })
+        // Where each root after the first begins in the steps: at the run of each drawing that
+        // placed a composited layer, or after a group or filter holding one.
+        fn lifts(run: &Run, lifted: &be_lib_stable_hash::HashSet<usize>) -> bool {
+            run.drawing
+                .as_ref()
+                .is_some_and(|(drawing, _)| lifted.contains(&drawing.identity().0))
         }
-        fn nested(steps: &[Step], lifted: &be_lib_stable_hash::HashSet<usize>) -> bool {
-            steps.iter().any(|step| match step {
-                Step::Runs(runs) => lifts(runs, lifted).is_some(),
-                Step::Filter { steps, .. } | Step::Group { steps, .. } => nested(steps, lifted),
-            })
+        fn nested(steps: &[Step], lifted: &be_lib_stable_hash::HashSet<usize>) -> usize {
+            steps
+                .iter()
+                .map(|step| match step {
+                    Step::Runs(runs) => runs.iter().filter(|run| lifts(run, lifted)).count(),
+                    Step::Filter { steps, .. } | Step::Group { steps, .. } => nested(steps, lifted),
+                })
+                .sum()
         }
-        let at = steps
-            .iter()
-            .enumerate()
-            .find_map(|(index, step)| match step {
-                Step::Runs(runs) => lifts(runs, &composition.lifted).map(|run| (index, Some(run))),
-                Step::Filter { steps, .. } | Step::Group { steps, .. } => {
-                    nested(steps, &composition.lifted).then_some((index, None))
+        let lifted = &composition.lifted;
+        let mut split = Vec::with_capacity(steps.len());
+        let mut splits = Vec::new();
+        for step in std::mem::take(steps) {
+            let runs = match step {
+                Step::Runs(runs) => runs,
+                Step::Filter { steps: ref inner, .. } | Step::Group { steps: ref inner, .. } => {
+                    // An anchored view inside a group or filter cannot be lifted out of it: the
+                    // roots split after the step that holds it.
+                    let count = nested(inner, lifted);
+                    split.push(step);
+                    splits.extend(std::iter::repeat_n(split.len(), count));
+                    continue;
                 }
-            });
-        // Without the anchored view in the steps, nothing damaged lies under or over it, so the
-        // damaged steps go on the lower root whole; the upper root is cleared where damaged.
-        composition.split = match (at, splits_at) {
-            (_, None) => None,
-            (None, Some(_)) => Some(steps.len()),
-            (Some((index, Some(run))), Some(_)) => {
-                let Step::Runs(runs) = &mut steps[index] else {
-                    unreachable!("a run is in a step of runs");
-                };
-                let upper = runs.split_off(run);
-                steps.insert(index + 1, Step::Runs(upper));
-                Some(index + 1)
+            };
+            let mut held = Vec::new();
+            for run in runs {
+                if lifts(&run, lifted) {
+                    if !held.is_empty() {
+                        split.push(Step::Runs(std::mem::take(&mut held)));
+                    }
+                    splits.push(split.len());
+                }
+                held.push(run);
             }
-            (Some((index, None)), Some(_)) => Some(index + 1),
-        };
-        if let Some(split) = composition.split
-            && !whole
-        {
-            steps.insert(split, Step::Runs(self.cleared.clone()));
+            if !held.is_empty() {
+                split.push(Step::Runs(held));
+            }
         }
+        *steps = split;
+        // An anchored view not in the steps is not damaged, and nothing damaged lies under or
+        // over it, so the damaged steps stay on the roots below it; the roots above it are
+        // cleared where damaged.
+        splits.resize(composition.splits_at.len(), steps.len());
+        if !whole {
+            for (inserted, at) in splits.iter_mut().enumerate() {
+                *at += inserted;
+                steps.insert(*at, Step::Runs(self.cleared.clone()));
+            }
+        }
+        composition.splits = splits;
         Some(placed)
     }
 
@@ -2095,26 +2108,24 @@ impl Renderer {
             self.render_into(device, queue, encoder, target, load, 0..self.steps.len());
             return;
         };
-        // A composited window: its UI into the roots, below and above its first anchored view,
-        // then the window from its layers.
-        let split = composition
-            .split
-            .unwrap_or(self.steps.len())
-            .min(self.steps.len());
-        let cleared = |load| match (self.whole, load) {
-            (true, wgpu::LoadOp::Clear(color)) => wgpu::LoadOp::Clear(color),
-            (true, _) => wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-            (false, _) => wgpu::LoadOp::Load,
-        };
-        let (lower, upper) = (cleared(load), cleared(wgpu::LoadOp::Load));
-        let view = composition.lower.view.clone();
-        self.render_into(device, queue, encoder, &view, lower, 0..split);
-        match composition.split {
-            Some(_) => {
-                let view = composition.upper(device).view.clone();
-                self.render_into(device, queue, encoder, &view, upper, split..self.steps.len());
-            }
-            None => composition.upper = None,
+        // A composited window: its UI into the roots, one below its first anchored view and one
+        // above each, then the window from its layers.
+        composition.fit_roots(device);
+        let whole = self.whole;
+        let length = self.steps.len();
+        let bounds: Vec<usize> = std::iter::once(0)
+            .chain(composition.splits.iter().map(|at| (*at).min(length)))
+            .chain(std::iter::once(length))
+            .collect();
+        for (index, root) in composition.roots.iter().enumerate() {
+            let load = match (whole, index, load) {
+                (true, 0, wgpu::LoadOp::Clear(color)) => wgpu::LoadOp::Clear(color),
+                (true, _, _) => wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                (false, _, _) => wgpu::LoadOp::Load,
+            };
+            let view = root.view.clone();
+            let steps = bounds[index]..bounds[index + 1].max(bounds[index]);
+            self.render_into(device, queue, encoder, &view, load, steps);
         }
         composition.compose(queue, encoder, target, load);
         self.composition = Some(composition);

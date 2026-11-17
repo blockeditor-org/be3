@@ -1,8 +1,8 @@
 //! The host's layer list (plans/host_as_platform_adapter.md, The layer list), with the host's
 //! own UI as its only producer: every app surface the host's frame shows becomes a `Layer`.
 //! Natively a drawing lists its layers (`Draw::layers`) and the window's renderer composites
-//! the window from them (beui_draw::compose): the host's UI is `Surface::Root(0)`, and `Root(1)`
-//! above the first anchored view, textures of their own. A screen is still drawn in place in
+//! the window from them (beui_draw::compose): the host's UI is `Surface::Root(0)`, and one more
+//! root above each anchored view (`Root(1)` above the first), textures of their own. A screen is still drawn in place in
 //! the UI's paint order (`texture_quad` places it), blending over what lies beneath it; only an
 //! anchored view is composited between the roots. A renderer that does not composite (Space's
 //! panels) has the drawing draw anchored views in place too. On the web the frame's list is

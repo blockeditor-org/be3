@@ -187,18 +187,20 @@ its canvases.
 
 Built (step 4b): natively each window is drawn from its list in a pass of its own
 (`beui_draw::compose`, beui-renderer-wgpu's `composite.rs`; guides/apps/runtime.md, The layer
-list). The window's renderer paints the host's UI into textures, `Surface::Root(0)` and, while an
-anchored view shows, `Root(1)` for what is painted after the first one. Drawings list the
+list). The window's renderer paints the host's UI into textures, `Surface::Root(0)` and one above
+each anchored view it shows (`Root(1)` above the first), for what is painted after that view. Drawings list the
 surfaces they show (`Draw::layers`), program windows as `Surface::Host` (Wayland's `WindowDraw`,
 win32's `TextureDraw::hosted`), one list per renderer, so per OS window and per display, with no
 `window` set yet. Screens and program windows are still drawn in place in the UI's paint order,
 so nothing changes visibly: they blend over the UI beneath them and inside its groups and
-filters. The pass composites only the roots and the anchored views between them, and draws
+filters. The pass composites only the roots and the anchored views between them, in paint order, and draws
 again only where `WindowLayers::damage` says, which is the e-paper display's damage.
 `texture_quad` takes a radius per corner, and restacking damages only where two layers that
-swapped order overlap. Cost: two textures the window's size, the second only while an anchored
-view shows, and a pass over the damaged area drawing one quad per root and anchored view; a
-frame also walks the displays that hold drawings and prepares those that were damaged or moved.
+swapped order overlap. Cost: a texture the window's size, and one more for each anchored view
+that shows, and a pass over the damaged area drawing one quad per root and anchored view; a
+frame also walks the displays that hold drawings and their ancestors (on the CPU), and prepares
+the drawings that were damaged or moved. Keeping the list across frames and patching it from the
+tree's changes would remove the walk.
 Compositing a screen apart from the UI, rather than in place, waits for the root guest (4f),
 which decides what lies under its screens (a hole, as on the web, or a root split around them).
 

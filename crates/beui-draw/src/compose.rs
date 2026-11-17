@@ -3,7 +3,7 @@
 //! surfaces, and the window drawn from its layer list in a pass of its own. Drawings list the
 //! surfaces they show (`Draw::layers`): screens and program windows are drawn in place in the
 //! UI's paint order (`Placed::inline`), and only an anchored view, which lies over the UI, is
-//! composited between the roots. The renderer (beui-renderer-wgpu) does both.
+//! composited between the roots, each with a root of its own above it. The renderer (beui-renderer-wgpu) does both.
 
 use std::cell::Cell;
 

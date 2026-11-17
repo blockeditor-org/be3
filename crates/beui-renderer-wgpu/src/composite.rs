@@ -1,10 +1,11 @@
 //! A composited window (beui_draw::compose; plans/host_as_platform_adapter.md, The layer list):
-//! the window's UI is rendered into textures of its own, the root's surfaces `Surface::Root(0)`
-//! and, while an anchored view shows, `Surface::Root(1)` for what is painted after the first
-//! one, as the web stacks `#layers` over the host's canvas. Screens and program windows are
-//! drawn into the roots in place, in the UI's paint order (`Placed::inline`), and listed for
-//! damage and input. The window is then drawn from its layer list in a pass of its own: the
-//! lower root, the anchored views, and the upper root.
+//! the window's UI is rendered into textures of its own, the root's surfaces: `Surface::Root(0)`,
+//! and above each anchored view the window shows, one more for what the UI paints after that
+//! view (`Root(1)` for the first, as the web stacks `#layers` over the host's canvas). Screens and
+//! program windows are drawn into the roots in place, in the UI's paint order
+//! (`Placed::inline`), and listed for damage and input. The window is then drawn from its layer
+//! list in a pass of its own: `Root(0)`, the first anchored view, `Root(1)`, the next, and so
+//! on, so what the UI paints between two anchored views lies between them.
 
 use be_lib_layers::{Affine, Layer, LayerId, LayerInput, Surface, WindowLayers};
 use beui_draw::compose::Placed;
@@ -53,7 +54,8 @@ impl Root {
 
 /// What a drawing placed when it was last prepared, where it was.
 pub(crate) struct Known {
-    /// Held so the identity it is kept under is never another drawing's.
+    /// Held so the identity it is kept under is never another drawing's: while it is cached,
+    /// no new drawing can be made at the address its identity names.
     #[allow(dead_code)]
     pub(crate) drawing: beui_core::drawing::Drawing,
     pub(crate) at: beui_draw::DrawAt,
@@ -80,13 +82,14 @@ pub(crate) struct Composition {
     fill: (wgpu::Texture, Bound, Option<Color32>),
     format: wgpu::TextureFormat,
     size: (u32, u32),
-    pub(crate) lower: Root,
-    pub(crate) upper: Option<Root>,
-    /// The layer the upper root begins at, the first anchored view's: when it changes, what is
+    /// `Root(0)` and one root above each anchored view the window shows, which holds what the
+    /// UI paints after that view and before the next.
+    pub(crate) roots: Vec<Root>,
+    /// The layers the roots after the first begin at, one per anchored view: when they change,
     /// painted after it moves between the roots, so they are painted whole.
-    pub(crate) splits_at: Option<LayerId>,
-    /// Where the upper root's steps begin, this frame.
-    pub(crate) split: Option<usize>,
+    pub(crate) splits_at: Vec<LayerId>,
+    /// Where each root after the first begins in the frame's steps.
+    pub(crate) splits: Vec<usize>,
     /// The window's layers this frame and last, with the texture of each that is not a root's.
     list: WindowLayers,
     previous: WindowLayers,
@@ -177,15 +180,14 @@ impl Composition {
         let pipelines = Pipelines::new(device);
         let fill = pixel(device, "beui composite background");
         Self {
-            lower: Root::new(device, &pipelines, format, size),
-            upper: None,
+            roots: vec![Root::new(device, &pipelines, format, size)],
             hole: Hole::new(device, queue),
             fill: (fill.clone(), pipelines.bind(&fill), None),
             pipelines,
             format,
             size,
-            splits_at: None,
-            split: None,
+            splits_at: Vec::new(),
+            splits: Vec::new(),
             list: WindowLayers::default(),
             previous: WindowLayers::default(),
             shown: be_lib_stable_hash::HashMap::default(),
@@ -206,20 +208,24 @@ impl Composition {
         self.format == format && self.size == size
     }
 
-    pub(crate) fn upper(&mut self, device: &wgpu::Device) -> &Root {
-        let (format, size) = (self.format, self.size);
-        let pipelines = &self.pipelines;
-        self.upper
-            .get_or_insert_with(|| Root::new(device, pipelines, format, size))
+    /// Makes a root for each of this frame's splits, and drops those it no longer has.
+    pub(crate) fn fit_roots(&mut self, device: &wgpu::Device) {
+        let wanted = self.splits.len() + 1;
+        self.roots.truncate(wanted);
+        while self.roots.len() < wanted {
+            let root = Root::new(device, &self.pipelines, self.format, self.size);
+            self.roots.push(root);
+        }
     }
 
-    /// Takes the frame's layers: `placed`, each in the target's points with whether it lies
-    /// over the lower root, and the roots, with `damaged` the roots' damage in the target's
-    /// pixels (`None`: painted whole). Finds where the window is drawn again (`composed`): the
-    /// list's damage against last frame's, the roots' own damage through their layers.
+    /// Takes the frame's layers: `placed`, each in the target's points with the segment it lies
+    /// in (how many anchored views lie under it), and the roots, with `damaged` the roots'
+    /// damage in the target's pixels (`None`: painted whole). Finds where the window is drawn
+    /// again (`composed`): the list's damage against last frame's, the roots' own damage through
+    /// their layers.
     pub(crate) fn take(
         &mut self,
-        placed: Vec<(Placed, bool)>,
+        placed: Vec<(Placed, usize)>,
         pixels_per_point: f32,
         origin: Vec2,
         damaged: Option<&[[u32; 4]]>,
@@ -236,23 +242,23 @@ impl Composition {
             y: origin.y * per,
             ..Affine::IDENTITY
         };
-        let mut below = Vec::new();
-        let mut above = Vec::new();
+        // Each layer lies under the root of its segment: Root(0) over what is placed before the
+        // first anchored view, Root(n) over the nth anchored view and what follows it.
+        let mut segments: Vec<Vec<Layer>> = vec![Vec::new(); self.splits_at.len() + 1];
         self.shown.clear();
-        for (mut placed, lifted) in placed {
+        for (mut placed, segment) in placed {
             placed.layer.transform = placed.layer.transform.then(&shift);
             let layer = placed.layer.clone();
             self.shown.insert(layer.id, placed);
-            match lifted {
-                true => above.push(layer),
-                false => below.push(layer),
-            }
+            let last = segments.len() - 1;
+            segments[segment.min(last)].push(layer);
         }
-        below.push(root_layer(0, self.size, pixels_per_point, origin));
-        below.extend(above);
-        if self.split.is_some() {
-            below.push(root_layer(1, self.size, pixels_per_point, origin));
+        let mut layers = Vec::new();
+        for (index, segment) in segments.into_iter().enumerate() {
+            layers.extend(segment);
+            layers.push(root_layer(index as u32, self.size, pixels_per_point, origin));
         }
+        let below = layers;
         self.previous = std::mem::replace(
             &mut self.list,
             WindowLayers {
@@ -335,8 +341,7 @@ impl Composition {
             .filter_map(|layer| {
                 let quad = beui_draw::compose::quad(layer, pixels_per_point, origin);
                 match layer.surface {
-                    Surface::Root(0) => Some((&self.lower.bound, quad)),
-                    Surface::Root(_) => Some((&self.upper.as_ref()?.bound, quad)),
+                    Surface::Root(index) => Some((&self.roots.get(index as usize)?.bound, quad)),
                     _ => {
                         let placed = self.shown.get(&layer.id).filter(|placed| !placed.inline)?;
                         Some((
@@ -403,7 +408,7 @@ impl Composition {
     }
 
     pub(crate) fn roots(&self) -> impl Iterator<Item = &wgpu::Texture> {
-        std::iter::once(&self.lower.texture).chain(self.upper.as_ref().map(|root| &root.texture))
+        self.roots.iter().map(|root| &root.texture)
     }
 }
 
