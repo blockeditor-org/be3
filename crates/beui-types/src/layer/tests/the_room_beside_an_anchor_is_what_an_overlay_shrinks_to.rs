@@ -9,7 +9,12 @@ fn the_room_beside_an_anchor_is_what_an_overlay_shrinks_to() {
         Vec2::new(384.0, 138.0),
         "the roomier side less the gap, and the margin off every edge"
     );
-    assert_eq!(room(VIEWPORT, anchor, Placement::RIGHT_START), Vec2::new(150.0, 300.0));
+    assert_eq!(room(VIEWPORT, anchor, Placement::RIGHT_START), VIEWPORT.size());
+    assert_eq!(
+        room(VIEWPORT, rect(150.0, 0.0, 250.0, 300.0), Placement::BELOW_START),
+        VIEWPORT.size(),
+        "an anchor leaving no room either side is covered, with the window's room"
+    );
     assert_eq!(room(VIEWPORT, anchor, Placement::Menu), VIEWPORT.size());
     for side in SIDES {
         for align in ALIGNS {
@@ -20,7 +25,7 @@ fn the_room_beside_an_anchor_is_what_an_overlay_shrinks_to() {
                 room(VIEWPORT, anchor, placement),
                 "{side:?} {align:?} too large for the window shrinks to its room"
             );
-            assert!(!shown.intersects(anchor));
+            assert!(!side.vertical() || !shown.intersects(anchor));
         }
     }
 }

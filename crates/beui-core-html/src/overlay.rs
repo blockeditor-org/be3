@@ -3,9 +3,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
 use beui_tree::reactive::Callback;
-use beui_types::{
-    AnchorAlign, AnchorSide, Color, Dismiss, LayerLevel, LayerPolicy, Placement, Rect,
-};
+use beui_types::{Color, Dismiss, LayerLevel, LayerPolicy, Placement, Rect};
 
 use crate::css::px;
 use crate::document::{set_attribute, set_style, style_value};
@@ -13,7 +11,7 @@ use crate::node::{NodeId, NodeRef};
 
 pub use beui_types::layer::OverlayAnchor;
 
-const PLACED: [&str; 16] = [
+const PLACED: [&str; 12] = [
     "position-anchor",
     "position-area",
     "position-try-fallbacks",
@@ -22,10 +20,6 @@ const PLACED: [&str; 16] = [
     "right",
     "bottom",
     "translate",
-    "margin-top",
-    "margin-bottom",
-    "margin-left",
-    "margin-right",
     "width",
     "height",
     "max-width",
@@ -391,7 +385,7 @@ impl Layer {
         for property in PLACED {
             // `measured` places a menu: leave where it put it, or each placing would move it
             // and ask for another frame.
-            if placement == Placement::Menu && matches!(property, "left" | "top") {
+            if measured_placement(placement) && matches!(property, "left" | "top") {
                 continue;
             }
             let value = styles
@@ -502,17 +496,14 @@ fn anchored_styles(placement: Placement, name: Option<&str>) -> Vec<(&'static st
             put("left", "anchor(center)".to_owned());
             put("translate", "-50% -50%".to_owned());
         }
-        Placement::Beside {
-            side,
-            align,
-            gap,
-            margin,
-        } => beside_styles(&mut put, side, align, gap, margin),
-        // CSS anchor positioning flips but cannot cover the anchor, so a menu is placed from
-        // its measured size (`measured`, `layer::resolve_rect`) as the native core places it.
-        // `max-content` keeps that size its rows' own wherever the menu last stood: a fixed box
-        // of automatic width shrinks to the room right of its `left`.
-        Placement::Menu => {
+        // CSS anchor positioning flips but cannot cover the anchor, and its fallbacks re-align
+        // a box rather than shift it, so menus and `Beside` overlays are placed from their
+        // measured size (`measured`, `layer::resolve_rect`) as the native core places them:
+        // the same flips, shifts and margins, though an open one follows a DOM scroller under
+        // its anchor only when beui lays out again. `max-content` keeps that size its own
+        // wherever it last stood: a fixed box of automatic width shrinks to the room right of
+        // its `left`.
+        Placement::Menu | Placement::Beside { .. } => {
             put("width", "max-content".to_owned());
             put("max-width", "100vw".to_owned());
         }
@@ -547,54 +538,10 @@ fn anchored_styles(placement: Placement, name: Option<&str>) -> Vec<(&'static st
     styles
 }
 
-/// A `Beside` overlay through CSS anchor positioning: `position-area` puts it on its side,
-/// spanning away from the edge it lines up with, and flips to the other side (and, lined up
-/// with an edge, to the other edge) where it overflows; CSS shifts it along its side to stay
-/// in the window as the native core does. The gap is the margin facing the anchor, which a
-/// flip moves to the other side with it.
-fn beside_styles(
-    put: &mut impl FnMut(&'static str, String),
-    side: AnchorSide,
-    align: AnchorAlign,
-    gap: u16,
-    margin: u16,
-) {
-    let (area, facing) = match side {
-        AnchorSide::Above => ("top", "margin-bottom"),
-        AnchorSide::Below => ("bottom", "margin-top"),
-        AnchorSide::Left => ("left", "margin-right"),
-        AnchorSide::Right => ("right", "margin-left"),
-    };
-    let span = match (side.vertical(), align) {
-        (_, AnchorAlign::Center) => None,
-        (true, AnchorAlign::Start) => Some("span-right"),
-        (true, AnchorAlign::End) => Some("span-left"),
-        (false, AnchorAlign::Start) => Some("span-bottom"),
-        (false, AnchorAlign::End) => Some("span-top"),
-    };
-    let (flip, across) = match side.vertical() {
-        true => ("flip-block", "flip-inline"),
-        false => ("flip-inline", "flip-block"),
-    };
-    put(
-        "position-area",
-        span.map_or_else(|| area.to_owned(), |span| format!("{area} {span}")),
-    );
-    put(
-        "position-try-fallbacks",
-        match span {
-            Some(_) => format!("{flip}, {across}, {flip} {across}"),
-            None => flip.to_owned(),
-        },
-    );
-    if gap > 0 {
-        put(facing, format!("{gap}px"));
-    }
-    if margin > 0 {
-        let margins = 2 * u32::from(margin);
-        put("max-width", format!("calc(100vw - {margins}px)"));
-        put("max-height", format!("calc(100vh - {margins}px)"));
-    }
+/// Whether an overlay at `placement` is placed from its measured size through
+/// `layer::resolve_rect` rather than by CSS anchor positioning.
+fn measured_placement(placement: Placement) -> bool {
+    matches!(placement, Placement::Menu | Placement::Beside { .. })
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -622,7 +569,6 @@ mod web {
     thread_local! {
         static GLOBAL: RefCell<Vec<Listener>> = RefCell::default();
         static ANCHORS: Cell<Option<bool>> = const { Cell::new(None) };
-        static QUERIES: Cell<Option<bool>> = const { Cell::new(None) };
     }
 
     fn supported(
@@ -642,10 +588,6 @@ mod web {
 
     fn anchors_supported() -> bool {
         supported(&ANCHORS, "anchor-name", "--beui")
-    }
-
-    fn queries_supported() -> bool {
-        supported(&QUERIES, "container-type", "anchored")
     }
 
     fn within(element: &web_sys::Element, target: Option<&web_sys::Node>) -> bool {
@@ -876,7 +818,7 @@ mod web {
 
     fn fit(layer: &Layer) {
         let placement = layer.placement.get();
-        if !matches!(placement, Placement::Beside { .. } | Placement::Menu) {
+        if !super::measured_placement(placement) {
             return;
         }
         let Some(anchor) = anchor_rect(layer) else {
@@ -898,7 +840,7 @@ mod web {
         let Some(anchor) = anchor_rect(layer) else {
             return;
         };
-        if placement != Placement::Menu {
+        if !super::measured_placement(placement) {
             for property in PLACED {
                 if !matches!(property, "width" | "height" | "max-width" | "max-height") {
                     set_style(layer.parts.dialog, property, None);
@@ -911,7 +853,7 @@ mod web {
         set_style(layer.parts.dialog, "top", Some(px(rect.top())));
     }
 
-    fn point_beak(layer: &Layer, dialog: &web_sys::Element, anchors: bool) {
+    fn point_beak(layer: &Layer, dialog: &web_sys::Element) {
         let Some(beak) = crate::dom::element(layer.parts.beak) else {
             return;
         };
@@ -928,17 +870,6 @@ mod web {
             "left",
             Some(px(anchor.center().x - rect.left() - size / 2.0)),
         );
-        let queries = anchors && queries_supported();
-        set_style(
-            layer.parts.dialog,
-            "container-type",
-            queries.then(|| "anchored".to_owned()),
-        );
-        if queries {
-            set_style(layer.parts.beak, "top", None);
-            set_style(layer.parts.beak, "bottom", None);
-            return;
-        }
         let (top, bottom) = match (rect.top() >= anchor.bottom(), rect.bottom() <= anchor.top()) {
             (true, _) => (Some(px(-size / 2.0)), None),
             (false, true) => (None, Some(px(-size / 2.0))),
@@ -1042,10 +973,10 @@ mod web {
         }
         fit(layer);
         let anchors = anchors_supported();
-        if !anchors || layer.placement.get() == Placement::Menu {
+        if !anchors || super::measured_placement(layer.placement.get()) {
             measured(layer, &dialog);
         }
-        point_beak(layer, &dialog, anchors);
+        point_beak(layer, &dialog);
         changed
     }
 }

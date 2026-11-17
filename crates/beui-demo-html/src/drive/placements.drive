@@ -1,0 +1,14 @@
+# Near the window's corner a placement flips and shifts as the native core places it
+# (beui-demo's near_the_windows_corner_a_placement_flips_and_shifts_clear_of_its_edges):
+# below its marker flips above it and shifts left to 8 points short of the window's right
+# edge, where CSS anchor fallbacks would re-align it with the marker or let it touch the
+# edge; right of it flips to its left.
+clock stop
+click '#demo.catalog.Layering'
+click '#demo.placements.corner.trigger'
+wait '#demo.placements.corner'
+wait '#demo.corner.below' over '#demo.placements.corner+70,-10'
+wait not '#demo.corner.below' over '#demo.placements.corner+76,-10'
+wait not '#demo.corner.below' over '#demo.placements.corner+10,10'
+wait '#demo.corner.right' over '#demo.placements.corner+-10,10'
+wait not '#demo.corner.right' over '#demo.placements.corner+50,10'

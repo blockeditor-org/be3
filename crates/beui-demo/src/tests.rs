@@ -10,6 +10,7 @@ use crate::{DemoRoot, LoneRoot, PAGES, Page};
 
 mod a_banner_says_what_failed_until_it_is_dismissed;
 mod every_placement_opens_on_its_side_of_the_anchor_lined_up_by_its_alignment;
+mod near_the_windows_corner_a_placement_flips_and_shifts_clear_of_its_edges;
 mod a_bar_floating_over_the_dock_stays_above_its_windows_which_keep_off_its_band;
 mod a_bar_hidden_from_its_grip_menu_takes_no_room_until_the_page_shows_it;
 mod a_card_opened_from_a_button_flips_above_it_near_the_bottom;

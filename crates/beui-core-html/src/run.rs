@@ -46,7 +46,6 @@ const BASE_STYLES: &str = "\
 .beui-overlay:popover-open::backdrop { pointer-events: none; }
 .beui-beak { position: absolute; z-index: -1; width: var(--beui-beak); height: var(--beui-beak); top: calc(var(--beui-beak) / -2); left: calc(50% - var(--beui-beak) / 2); transform: rotate(45deg); }
 .beui-beak[hidden] { display: none; }
-@container anchored(fallback: flip-block) { .beui-beak { top: auto; bottom: calc(var(--beui-beak) / -2); } }
 ";
 
 pub const STYLES_ID: &str = "beui-styles";
