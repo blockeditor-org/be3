@@ -1,6 +1,7 @@
 //! The host's half of the sandbox API for modules from bytes (`be3:sandbox`,
 //! crates/be-wasm-sandbox-api), natively: one `Server` per guest that is granted it, answering its
-//! calls from `be_wasm_host::sandbox` (plans/host_as_platform_adapter.md, The sandbox API).
+//! calls from `be_wasm_host::sandbox` (plans/host_as_platform_adapter.md, The sandbox API). It
+//! will serve the root guest (step 4); only its tests use it today.
 
 use std::{
     collections::{BTreeMap, HashMap},
@@ -106,7 +107,10 @@ impl Server {
     /// An op the guest canceled: an instance it dropped stops, and a `next` it no longer waits for
     /// is answered as canceled. Answers whether the op was the sandbox's.
     pub fn canceled(&mut self, op: OpId, connection: &mut Connection) -> bool {
-        if self.instances.remove(&op).is_some() {
+        if let Some(served) = self.instances.remove(&op) {
+            if let Some((next, _)) = served.next {
+                connection.complete(next, Outcome::Err(OpError::Canceled));
+            }
             connection.complete(op, Outcome::returned(&()));
             return true;
         }

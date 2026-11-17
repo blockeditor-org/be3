@@ -6,18 +6,32 @@ use be_lib_remap::names::{BUTTON_FIRST, CODE_LIMIT, Modifier};
 use be_lib_remap::protocol::{decode, encode};
 use be_lib_remap::{Input, Output, Reply, Request, Source, Window};
 use be_wasm_guest_host::Deadline;
-use be_wasm_host::sandbox::{self, Instance, Module};
+use be_wasm_host::sandbox::{self, Instance};
 
 pub use be_lib_remap;
+pub use be_wasm_guest_host::Wake;
+pub use be_wasm_host::sandbox::{Compiling, Module};
 
 pub mod capture;
 
-/// How long the remaps may take to start, from spawning their instance to answering `Start`.
-pub const START_TIME: Duration = Duration::from_secs(1);
-/// How long the remaps may take to answer anything else: input waits for them meanwhile.
-pub const CALL_TIME: Duration = Duration::from_millis(500);
-/// How long a module may take to compile.
-pub const COMPILE_TIME: Duration = Duration::from_secs(10);
+/// How long the remaps may take to answer, past which they fail and are terminated.
+#[derive(Clone, Copy, Debug)]
+pub struct Limits {
+    /// From spawning their instance to answering `Start`, which reads their config: generous
+    /// enough for a loaded machine or a slow device.
+    pub start: Duration,
+    /// For anything else. Input waits for them meanwhile.
+    pub call: Duration,
+}
+
+impl Default for Limits {
+    fn default() -> Self {
+        Self {
+            start: Duration::from_secs(5),
+            call: Duration::from_millis(100),
+        }
+    }
+}
 pub const MEMORY_BYTES: usize = 16 << 20;
 pub const FAILURES_BEFORE_STOPPING: usize = 3;
 pub const FAILURE_WINDOW: u64 = 60_000_000;
@@ -31,6 +45,7 @@ const TERMINAL_KEYS: [u16; 12] = [59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 87, 88
 
 pub struct Remapper {
     module: Module,
+    limits: Limits,
     running: Option<Running>,
     config: Option<Vec<u8>>,
     window: Option<Window>,
@@ -52,14 +67,16 @@ struct Running {
 }
 
 impl Remapper {
-    /// Compiles `module`, waiting for the sandbox to finish.
-    pub fn new(module: &[u8]) -> Result<Self, String> {
-        let module = sandbox::compile(module.to_vec(), Arc::new(|| {}))
-            .wait(COMPILE_TIME)
-            .unwrap_or_else(|| Err("it took too long to compile".to_owned()))
-            .map_err(|error| format!("this is not a remap module: {error}"))?;
-        Ok(Self {
+    /// Compiles a remap module in the sandbox, off the caller's thread, and calls `wake` once
+    /// it is done; `Remapper::new` takes what it compiled.
+    pub fn compile(module: Vec<u8>, wake: Wake) -> Compiling {
+        sandbox::compile(module, wake)
+    }
+
+    pub fn new(module: Module) -> Self {
+        Self {
             module,
+            limits: Limits::default(),
             running: None,
             config: None,
             window: None,
@@ -72,7 +89,12 @@ impl Remapper {
             stopped: false,
             deadline: None,
             problems: Vec::new(),
-        })
+        }
+    }
+
+    pub fn with_limits(mut self, limits: Limits) -> Self {
+        self.limits = limits;
+        self
     }
 
     pub fn configure(&mut self, config: Option<Vec<u8>>) -> Vec<Output> {
@@ -224,7 +246,7 @@ impl Remapper {
         let Some(running) = self.running.as_mut() else {
             return Err("the remaps did not start".to_owned());
         };
-        let reply = running.call(&encode(request), CALL_TIME)?;
+        let reply = running.call(&encode(request), self.limits.call)?;
         Ok(self.settle(reply, now))
     }
 
@@ -240,7 +262,7 @@ impl Remapper {
             held: self.physical.iter().copied().collect(),
             pressed: self.pressed.iter().copied().collect(),
         };
-        let reply = running.call(&encode(&request), START_TIME)?;
+        let reply = running.call(&encode(&request), self.limits.start)?;
         if let Some(problem) = reply.problem {
             self.stopped = true;
             self.problems.push(format!(

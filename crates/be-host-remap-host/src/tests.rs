@@ -26,7 +26,7 @@ fn release(name: &str) -> Input {
 }
 
 fn remapper(rules: &str) -> Remapper {
-    let mut remapper = Remapper::new(MODULE).expect("the module loads");
+    let mut remapper = Remapper::new(compiled(MODULE));
     assert_eq!(remapper.configure(Some(rules.as_bytes().to_vec())), vec![]);
     remapper
 }
@@ -34,7 +34,18 @@ fn remapper(rules: &str) -> Remapper {
 /// Remaps written by hand: `handle` answers each request, counted in `$calls` (`Start` is the
 /// first), with an `i64` holding where its reply is in memory and how long it is: an empty reply at
 /// 64, ten bytes long, and one pressing X at 128, twenty.
+fn compiled(module: &[u8]) -> Module {
+    Remapper::compile(module.to_vec(), std::sync::Arc::new(|| {}))
+        .wait(std::time::Duration::from_secs(60))
+        .expect("the module compiles in time")
+        .expect("the module is shaped like remaps")
+}
+
 fn hostile(handle: &str) -> Remapper {
+    hostile_within(handle, Limits::default())
+}
+
+fn hostile_within(handle: &str, limits: Limits) -> Remapper {
     let module = format!(
         r#"
         (module
@@ -62,7 +73,7 @@ fn hostile(handle: &str) -> Remapper {
         "#
     );
     let module = wat::parse_str(&module).expect("the module is written well");
-    let mut remapper = Remapper::new(&module).expect("the module is shaped like remaps");
+    let mut remapper = Remapper::new(compiled(&module)).with_limits(limits);
     remapper.configure(Some(Vec::new()));
     remapper
 }

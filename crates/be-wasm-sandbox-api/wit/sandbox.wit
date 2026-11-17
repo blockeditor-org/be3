@@ -15,7 +15,7 @@ interface sandbox {
     /// Compiles a pure guest's module from `bytes` off the caller's thread,
     /// once per host for the same bytes. Answers the module's id, or why the
     /// bytes are not a pure guest's module. The module stays compiled while
-    /// the guest that compiled it runs.
+    /// the guest that compiled it runs, and is never kept on the device.
     compile: async func(bytes: list<u8>) -> result<module-id, string>;
 
     /// How an instance runs.
