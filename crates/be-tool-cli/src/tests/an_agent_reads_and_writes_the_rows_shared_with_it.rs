@@ -1,5 +1,5 @@
 use be_block_graph::Access;
-use be_block_protocol::{CreatedAgent, client};
+use be_block_protocol::CreatedAgent;
 
 use super::*;
 use crate::session::{Settings, connect};

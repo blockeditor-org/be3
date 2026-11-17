@@ -16,7 +16,7 @@ use be_block_content::{BlockContent, BlockMetadata, MY_FILES, Root};
 use be_block_frozen::scene;
 use be_block_graph::{Access, BlockParent};
 use be_block_keys::{InviteCode, RecoveryPhrase};
-use be_block_protocol::{OrganizationKind, OrganizationRole, client};
+use be_block_protocol::{OrganizationKind, OrganizationRole};
 use be_block_store::{ChunkerConfig, MemoryStore};
 use be_server::store::codes::{CodePurpose, CodeRequest};
 use be_server::{
@@ -836,8 +836,8 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     })
 }
 
-async fn ask<T, E: be_wasm_ops::wire::Decode<Result<T, be_block_protocol::Error>>>(
-    pending: be_wasm_ops::net::Pending<Result<T, be_block_protocol::Error>, E>,
+async fn ask<T>(
+    pending: impl Future<Output = Result<Result<T, be_block_protocol::Error>, be_wasm_ops::OpError>>,
 ) -> Result<T, String> {
     be_block_client::ask(pending).await.map_err(text)
 }
