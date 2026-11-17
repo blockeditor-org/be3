@@ -29,7 +29,7 @@ fn an_editor_keeps_its_landed_edits_through_a_replica_reopened_under_it() {
     // editor's operations, and the host gives it both again.
     let opening = Opening {
         content_type: ChecklistContent::CONTENT_TYPE,
-        ..opening(sim.devices[0].client, sim.head, sim.lease.state().clone())
+        ..opening(sim.devices[0].client, sim.head, sim.lease.clone())
     };
     sim.with_replica(0, |replica, host| replica.reopen(host, opening));
     sim.with_replica(0, |replica, host| replica.attach(host, 1, true, 0));

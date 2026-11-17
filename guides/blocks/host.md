@@ -371,7 +371,7 @@ the connection a stopping stack closed.
   device's), holding the lease of a made-up session (`Open::made_up`): `Submit` is numbered in this
   device's own order (`Peer::submit` offline) and heard by the replica at once,
   `Publish` becomes `Peer::seal` (a local commit in the outbox), `Resume` treats
-  the local head as remote, and heartbeats, claims and relays are skipped. It opens on the newest head whose content the device holds
+  the local head as remote, and claims, trims of the server's journal and relays are skipped. It opens on the newest head whose content the device holds
   (`Peer::held_head`, guides/blocks/client.md), not the server's newest, which
   it may never have read. The same happens while the block
   has outbox commits, and while the host keeps (`Replicas::keep_all`, used by
@@ -385,7 +385,7 @@ the connection a stopping stack closed.
   local commit as an extra parent), and only then rejoins open blocks. It
   drains again after restoring unsent edits, after keeping, and every
   `OUTBOX_RETRY` while something waits.
-- **Session calls off the loop.** Heartbeats, relays, claims, leaves, unwatches
+- **Session calls off the loop.** Relays, claims, leaves, unwatches
   and resynchronizing joins are answered in tasks (`Io::*`). They are written
   the moment they are made, so a leave and the next join reach the server in
   order; an answer older than the replica's session is dropped.

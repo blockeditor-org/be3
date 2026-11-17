@@ -196,9 +196,9 @@ impl Viewer {
         .await;
         assert!(
             reached.is_ok(),
-            "the viewer never {what}; it is {:?} in {:?} with {:?}, and the terminal holds:\n{}",
+            "the viewer never {what}; it is {:?} with the holder {:?} and {:?}, and the terminal holds:\n{}",
             self.session.client(),
-            self.session.state(),
+            self.session.holder(),
             self.session.status(),
             self.text()
         );

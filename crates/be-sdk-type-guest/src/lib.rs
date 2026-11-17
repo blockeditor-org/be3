@@ -10,7 +10,7 @@ use be_block_content::{
     BlockContent, LiveEdit, Loads, Merge, MergeParts, PartReader, Undo, history::History,
 };
 use be_sdk_type_api::{
-    Change, ChildChange, ClientId, CommitId, Delivery, Description, EditorId, Endpoint, FileChange,
+    Change, ChildChange, ClientId, CommitId, Description, EditorId, Endpoint, FileChange,
     Journal, JournalEntry, Loaded, Merged, MergedParts, Opening, PartRef, Plain, PlainFile,
     PublishOutcome, ReorderChild, ReplaceChild, ReplicaId, SearchDocument, SessionState, TypeInfo,
     Written,
@@ -35,7 +35,7 @@ pub use be_wasm_guest_abi as abi;
 pub use file::{BlobFile, DocumentFile, FileForm};
 pub use record::{NoHistory, Recorder};
 pub use replica::{
-    COMMIT_INTERVAL, HEARTBEAT_INTERVAL, JOURNAL_BYTES, QUIET_INTERVAL, RESTART_STATE_BYTES,
+    COMMIT_INTERVAL, JOURNAL_BYTES, QUIET_INTERVAL, RESTART_STATE_BYTES,
 };
 
 use effect::{Answer, Effect, HeadEvent, RequestId};
@@ -654,13 +654,8 @@ impl Module {
 
     fn effect(&self, effect: Effect) {
         match effect {
-            Effect::Send {
-                replica,
-                to,
-                kind,
-                bytes,
-            } => {
-                ops::with_parent(replica, || host::send(to, kind, bytes)).detach();
+            Effect::Send { replica, to, bytes } => {
+                ops::with_parent(replica, || host::send(to, bytes)).detach();
             }
             Effect::Publish {
                 replica,
@@ -669,10 +664,18 @@ impl Module {
                 merging,
                 content,
                 sealed_through,
+                journal_state,
                 restarts,
             } => {
                 let pending = ops::with_parent(replica, || {
-                    host::publish(expected, merging, content, sealed_through, restarts)
+                    host::publish(
+                        expected,
+                        merging,
+                        content,
+                        sealed_through,
+                        journal_state,
+                        restarts,
+                    )
                 });
                 self.answer_later(replica, pending, move |result| {
                     Input::Head(match result.and_then(|published| published) {
@@ -759,15 +762,7 @@ impl Module {
                     result: result.and_then(|resumed| resumed),
                 });
             }
-            Effect::ClaimLease {
-                replica,
-                generation,
-            } => ops::with_parent(replica, || host::claim_lease(generation)).detach(),
-            Effect::ReportClean {
-                replica,
-                generation,
-                clean_at,
-            } => ops::with_parent(replica, || host::report_clean(generation, clean_at)).detach(),
+            Effect::Claim { replica } => ops::with_parent(replica, host::claim).detach(),
             Effect::Submit {
                 replica,
                 submission,
@@ -800,9 +795,9 @@ impl Module {
             }
             Effect::Rebase {
                 replica,
-                generation,
                 base,
-            } => ops::with_parent(replica, || host::rebase_journal(generation, base)).detach(),
+                restarts,
+            } => ops::with_parent(replica, || host::rebase_journal(base, restarts)).detach(),
             Effect::Release { replica } => {
                 let closing = self.shared.state.borrow_mut().closing.remove(&replica);
                 ops::end(replica);
@@ -1047,17 +1042,9 @@ impl replicas::GuestReplica for OpenReplica {
         from: Endpoint,
         bytes: Vec<u8>,
         at: u64,
-        delivery: Option<Delivery>,
     ) -> LocalFuture<()> {
         self.module.tick(at);
-        self.module.input(
-            self.id,
-            Input::Message {
-                from,
-                bytes,
-                delivery,
-            },
-        );
+        self.module.input(self.id, Input::Message { from, bytes });
         Box::pin(ready(()))
     }
 
@@ -1116,6 +1103,17 @@ impl replicas::GuestReplica for OpenReplica {
 
     fn lease(&self, session: SessionState) -> LocalFuture<()> {
         self.module.input(self.id, Input::Lease { session });
+        Box::pin(ready(()))
+    }
+
+    fn sealed(&self, commit: CommitId, through: u64) -> LocalFuture<()> {
+        self.module.input(
+            self.id,
+            Input::Sealed {
+                head: commit,
+                through,
+            },
+        );
         Box::pin(ready(()))
     }
 

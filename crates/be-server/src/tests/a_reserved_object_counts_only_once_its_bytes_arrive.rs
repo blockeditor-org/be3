@@ -54,6 +54,7 @@ async fn a_reserved_object_counts_only_once_its_bytes_arrive() {
                 listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await;
@@ -83,6 +84,7 @@ async fn a_reserved_object_counts_only_once_its_bytes_arrive() {
                 listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await;

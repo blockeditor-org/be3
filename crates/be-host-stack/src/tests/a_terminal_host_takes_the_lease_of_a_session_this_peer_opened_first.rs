@@ -30,7 +30,7 @@ fn screen_of(shared: &Shared, block: Uuid) -> String {
 
 #[test]
 fn a_terminal_host_takes_the_lease_of_a_session_this_peer_opened_first() {
-    let harness = Harness::lapsing();
+    let harness = Harness::start();
     let block = Uuid::new_v4();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

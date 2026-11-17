@@ -7,7 +7,7 @@ package be3:block-type@0.1.0;
 interface replicas {
     use types.{
         account-id, block-id, change, client-id, commit-id, content-type-id, description, editor-id,
-        delivery, endpoint, failure, journal, loaded, merged, merged-parts, organization-id, part-ref, plain-file,
+        endpoint, failure, journal, loaded, merged, merged-parts, organization-id, part-ref, plain-file,
         journal-entry, search-document, session-state, session-tag, type-info,
     };
 
@@ -121,9 +121,7 @@ interface replicas {
 
         /// `at` is the module's clock when the host sent it, which the replica
         /// reads the message at even when the clock's stream has yet to say so.
-        /// `delivery` is what the server says of a peer's message; none for
-        /// an editor's or the host's.
-        message: async func(%from: endpoint, bytes: list<u8>, at: u64, delivery: option<delivery>);
+        message: async func(%from: endpoint, bytes: list<u8>, at: u64);
 
         /// An editor instance starts following the block, or its `editable`
         /// changed. The replica drops edits from an editor attached read-only.
@@ -148,15 +146,21 @@ interface replicas {
         /// on opening), and those this device publishes outside the session.
         head-moved: async func(head: commit-id);
 
-        /// The session's state changed.
+        /// The session's membership changed: the lease follows from it.
         lease: async func(session: session-state);
+
+        /// The server took a seal: `commit` holds the order through
+        /// `through`, and the server's journal starts from it. A replica that
+        /// does not hold the lease takes it as its base once it applied that
+        /// far; the head still reaches it as the block's too (`head-moved`).
+        sealed: async func(commit: commit-id, through: u64);
 
         /// The order numbered these submissions, in order, this replica's own
         /// among them: the host hands on every one it hears, and reopens the
         /// replica when it missed some.
         sequenced: async func(entries: list<journal-entry>);
 
-        /// Claim a lapsed lease once the replica has loaded, as a terminal host does.
+        /// Claim the lease once the replica has loaded, as a terminal host does.
         claim: async func();
 
         /// False when it did not apply.

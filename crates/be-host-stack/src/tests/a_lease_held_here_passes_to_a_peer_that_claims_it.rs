@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_lease_held_here_passes_to_a_peer_that_claims_it() {
-    let harness = Harness::lapsing();
+    let harness = Harness::start();
     let block = Uuid::new_v4();
     runtime().block_on(async {
         harness

@@ -1,10 +1,8 @@
 # Hosted blocks
 
 Depends on: plans/signed_access.md; plans/headless_apps.md for step 4's
-headless host only; plans/simpler_server_api.md step 1 (leases derived from
-the session order) before step 2's routing, which checks relays against the
-lease. Join links are plans/share_links.md's step 3, which waits on step 3
-here.
+headless host only. Join links are plans/share_links.md's step 3, which waits on
+step 3 here.
 
 A hosted block is run by a host: one member with Edit, online, holding the
 block's live session, that others talk to instead of reading the block. A game

@@ -59,8 +59,10 @@ use crate::{
 };
 
 pub enum PublishOutcome {
-    /// The head moved; with the blocks the publish started or stopped referencing.
-    Published(CommitId, Vec<Uuid>),
+    /// The head moved, or was the commit already; with the blocks the publish started or
+    /// stopped referencing, and what the publish's seal did to its block's journal, when it
+    /// trimmed it.
+    Published(CommitId, Vec<Uuid>, Option<crate::journal::Trimmed>),
     Rejected(Option<CommitId>),
 }
 
@@ -791,8 +793,22 @@ impl ServerStore {
         pinned: bool,
         references: ReferenceChange,
         metadata: Vec<u8>,
+        trim: Option<crate::journal::Asked>,
     ) -> Result<PublishOutcome, ServerError> {
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
+        if let Some(crate::journal::Asked { base, .. }) = &trim {
+            if base.commit != Some(commit) {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "a journal base names the commit published".into(),
+                ));
+            }
+            crate::limits::at_most(
+                "a journal's base",
+                base.state.len(),
+                crate::journal::MAX_BASE_STATE_BYTES,
+            )?;
+        }
         // Checked before the graph is taken, so no change too large to keep holds it up.
         crate::limits::references(&references.removed)?;
         if references.added.len() > crate::limits::MAX_REFERENCES {
@@ -822,8 +838,34 @@ impl ServerStore {
                 if current != expected {
                     return Ok(PublishOutcome::Rejected(current));
                 }
+                // A trim with no new commit: the head is the base's commit already. Only the
+                // lease holder trims so, held as the holder while the trim is written; anyone
+                // else's publish goes through and trims nothing.
                 if current == Some(commit) {
-                    return Ok(PublishOutcome::Published(commit, Vec::new()));
+                    let trimmed = match trim {
+                        Some(asked) => match (asked.holding)() {
+                            Some(_holding) => {
+                                let transaction =
+                                    be_block_sqlite_schema::write_transaction(database)?;
+                                let trimmed = crate::journal::rebase(
+                                    &transaction,
+                                    identity.organization,
+                                    block,
+                                    &crate::journal::Seal {
+                                        tag: asked.tag,
+                                        run: asked.run,
+                                        base: asked.base,
+                                        new_commit: false,
+                                    },
+                                )?;
+                                transaction.commit()?;
+                                trimmed
+                            }
+                            None => None,
+                        },
+                        None => None,
+                    };
+                    return Ok(PublishOutcome::Published(commit, Vec::new(), trimmed));
                 }
                 require_descends(expected, &parents)?;
                 let organization = identity.organization.to_string();
@@ -986,6 +1028,21 @@ impl ServerStore {
                     commit,
                     &policy,
                 )?;
+                // A seal trims the journal only as its commit wins the head, in one transaction.
+                let trimmed = match trim {
+                    Some(asked) => crate::journal::rebase(
+                        &transaction,
+                        identity.organization,
+                        block,
+                        &crate::journal::Seal {
+                            tag: asked.tag,
+                            run: asked.run,
+                            base: asked.base,
+                            new_commit: true,
+                        },
+                    )?,
+                    None => None,
+                };
                 transaction.commit()?;
                 graph.set_references(block, &references)?;
                 graph.set_head(block, commit)?;
@@ -995,6 +1052,7 @@ impl ServerStore {
                 Ok(PublishOutcome::Published(
                     commit,
                     relinked.unwrap_or_default(),
+                    trimmed,
                 ))
             })
         })

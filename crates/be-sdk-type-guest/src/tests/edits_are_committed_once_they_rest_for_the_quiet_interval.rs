@@ -16,7 +16,12 @@ fn edits_are_committed_once_they_rest_for_the_quiet_interval() {
     assert_eq!(count(&sim.head_content()), 2);
     assert!(!sim.devices[0].status.owes_seal);
     assert_eq!(sim.devices[1].status.head, sim.head);
-    assert_eq!(sim.lease.clean_at(), sim.head);
+    assert!(
+        sim.journal
+            .as_ref()
+            .is_some_and(|journal| journal.base.commit == sim.head && journal.entries.is_empty()),
+        "the seal trimmed the journal as it won the head"
+    );
     sim.advance(10 * crate::QUIET_INTERVAL);
     assert_eq!(sim.publishes, 1);
 }

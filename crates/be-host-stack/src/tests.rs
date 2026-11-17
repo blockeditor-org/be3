@@ -79,7 +79,6 @@ mod a_folder_whose_share_is_taken_back_leaves_the_mirror_with_what_is_in_it;
 mod a_fork_pulls_and_pushes_offline;
 mod a_fork_pulls_and_pushes_through_its_upstream;
 mod a_half_open_connection_is_noticed_and_the_peer_reconnects;
-mod a_heartbeat_the_server_never_answers_holds_up_no_edit;
 mod a_held_block_stays_open_when_its_editors_close;
 mod a_held_clock_is_offered_a_modules_timer_only_while_nothing_is_in_flight;
 mod a_holder_cut_off_before_it_seals_leaves_its_edits_to_the_next_holder;
@@ -107,6 +106,7 @@ mod a_reply_travels_as_its_number_and_one_dropped_unanswered_drops_what_waits;
 mod a_restore_on_a_peer_keeps_the_state_it_replaced;
 mod a_saved_change_is_undone_and_later_edits_stay;
 mod a_seal_the_connection_loses_is_kept_and_published_after_reconnect;
+mod a_seal_whose_publish_was_lost_trims_the_journal_when_the_outbox_drains_it;
 mod a_search_finds_what_another_device_indexes_while_this_one_is_online;
 mod a_search_index_is_tried_again_when_the_reason_it_failed_has_passed;
 mod a_search_index_made_before_the_server_has_its_root_is_made_again_without_an_error;
@@ -296,7 +296,6 @@ pub struct Harness {
     token: String,
     organization: Uuid,
     phrase: be_block_keys::RecoveryPhrase,
-    lease: Duration,
     push: be_server::push::PushConfig,
     relay: Option<be_block_fault_relay::Relay>,
     clock: be_block_client::Clock,
@@ -305,23 +304,17 @@ pub struct Harness {
 
 impl Harness {
     pub fn start() -> Self {
-        Self::leasing(be_server::ServerConfig::OPEN.lease)
+        Self::serving(be_server::push::PushConfig::DEFAULT)
     }
 
     /// A harness whose server pushes to Web Push endpoints on loopback (`PushService`).
     fn pushing() -> Self {
-        Self::serving(
-            be_server::ServerConfig::OPEN.lease,
-            be_server::push::PushConfig {
+        Self::serving(be_server::push::PushConfig {
                 allow_local_endpoints: true,
                 fcm: None,
                 hosts: vec!["127.0.0.1".to_owned()].into(),
             },
         )
-    }
-
-    pub fn lapsing() -> Self {
-        Self::leasing(Duration::ZERO)
     }
 
     fn relayed() -> Self {
@@ -385,11 +378,7 @@ impl Harness {
         });
     }
 
-    fn leasing(lease: Duration) -> Self {
-        Self::serving(lease, be_server::push::PushConfig::DEFAULT)
-    }
-
-    fn serving(lease: Duration, push: be_server::push::PushConfig) -> Self {
+    fn serving(push: be_server::push::PushConfig) -> Self {
         static ONE_STACK: std::sync::Mutex<()> = std::sync::Mutex::new(());
         let one_stack = ONE_STACK
             .lock()
@@ -416,7 +405,6 @@ impl Harness {
         let server = be_host_server::start_embedded_server_at(
             "127.0.0.1:0",
             directory.join("server"),
-            lease,
             push.clone(),
         )
         .expect("the embedded block server starts");
@@ -448,7 +436,6 @@ impl Harness {
             token,
             organization,
             phrase,
-            lease,
             push,
             relay: None,
             clock: be_block_client::Clock::real(),
@@ -472,7 +459,6 @@ impl Harness {
             be_host_server::start_embedded_server_at(
                 address,
                 self.directory.join("server"),
-                self.lease,
                 self.push.clone(),
             )
             .expect("the embedded block server starts again"),

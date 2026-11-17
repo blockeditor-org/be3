@@ -59,6 +59,7 @@ mod a_block_the_server_says_is_open_inside_is_sealed_to_no_contact;
 mod a_block_whose_edit_was_set_aside_as_outdated_takes_the_next_one_once_it_is_discarded;
 mod a_block_whose_root_the_server_swaps_is_refused;
 mod a_change_the_server_refuses_leaves_the_rest_of_the_outbox_to_send;
+mod a_claim_moves_the_lease_and_the_old_holders_next_seal_is_rejected;
 mod a_connect_nobody_answers_times_out;
 mod a_connection_asked_to_close_is_closed_to_everyone_at_once;
 mod a_connection_outlives_a_stall_of_this_process;
@@ -185,7 +186,9 @@ mod removing_a_member_rotates_the_organizations_settings;
 mod removing_a_member_shuts_them_out_and_rotates_what_they_could_read;
 mod summaries_naming_a_block_twice_keep_its_newer_head;
 mod swapping_ids_replaces_every_written_form_of_each;
+mod the_next_editor_seals_once_the_server_writes_a_lost_holders_leave;
 mod the_server_naming_itself_in_key_work_is_sealed_nothing;
+mod two_devices_sealing_one_head_keep_only_the_winners_trim;
 mod two_peers_of_one_account_read_each_others_blocks;
 mod what_a_policy_governs_waits_while_the_server_cannot_read_it;
 mod what_is_in_force_at_a_block_not_sent_yet_is_answered_from_this_device;
@@ -893,4 +896,53 @@ fn plant_sealed(
 /// The head of the team's log, past Bob's revocation, as `device` checks it.
 async fn team_head(revoked: &Revoked, device: &Peer<MemoryStore>) -> EntryHash {
     device.checked_access(revoked.team).await.unwrap().1.head
+}
+
+/// Hands `block`'s order the `counter`-th submission of one origin, online, and waits for the
+/// server to number it.
+async fn submitted(peer: &Peer<MemoryStore>, block: Uuid, counter: u64) {
+    let submission = be_block_session::Submission {
+        id: be_block_session::OpId { origin: 1, counter },
+        base: counter - 1,
+        barrier: false,
+        payload: format!("edit {counter}").into_bytes(),
+    };
+    let Ok(peer::Submitted::Server(answer)) = peer
+        .submit(block, BUILD, submission, true, Vec::new())
+        .await
+    else {
+        panic!("an online submission goes to the server");
+    };
+    answer.await.unwrap();
+}
+
+/// A seal of a block's session: `content` on `expected`, holding the order through
+/// `through`.
+fn sealing<C: BlockContent>(
+    content: &C,
+    expected: be_block_commit::CommitId,
+    through: u64,
+) -> Write<'_> {
+    Write::encoded(C::CONTENT_TYPE, content.parts(), Some(expected))
+    .seals_journal(Some(SealsJournal {
+        tag: BUILD,
+        run: 0,
+        through,
+        state: format!("state through {through}").into_bytes(),
+    }))
+}
+
+/// The server's journal of `block` as `peer` reads it: its base's commit and sequence, and the
+/// sequence of each entry after it; none when it holds no entries.
+async fn server_journal(
+    peer: &Peer<MemoryStore>,
+    block: Uuid,
+) -> Option<(Option<be_block_commit::CommitId>, u64, Vec<u64>)> {
+    let read = peer.read_contents(&[(block, None)]).await.unwrap();
+    let journal = read.into_iter().next().and_then(|read| read.journal)?;
+    Some((
+        journal.base.commit,
+        journal.base.sequence,
+        journal.entries.iter().map(|entry| entry.sequence).collect(),
+    ))
 }

@@ -1,6 +1,7 @@
 use be_block_graph::Access;
 
 use super::*;
+use be_block_session::Membership;
 
 /// One account attacks another's block with what it can learn of it: its id and the hashes of its
 /// objects. Nothing it does tells it anything, reaches the owner's connections, or changes the
@@ -81,6 +82,7 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
                 listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await;
@@ -118,7 +120,7 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
     attacker.follow(block).await;
     let (impostor, in_copy) = attacker.join_session(block).await;
     assert_eq!(
-        in_copy.participants,
+        in_copy.clients(),
         vec![impostor],
         "the attacker joined the owner's session"
     );
@@ -135,7 +137,7 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
         "{response:?}"
     );
     let relayed = attacker
-        .relay(block, None, RelayKind::Seal, b"forged edit".to_vec())
+        .relay(block, None, b"forged edit".to_vec())
         .await;
     assert!(matches!(relayed, Ok(())), "{relayed:?}");
     let deleted = attacker
@@ -157,10 +159,7 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
     let granted = owner.grant(block, viewer_account, Access::View).await;
     assert!(matches!(granted, Ok(())), "{granted:?}");
     viewer.join_session(block).await;
-    let claimed = viewer.sessions[&block]
-        .claim_lease(session.generation + 1)
-        .await
-        .expect("the connection stayed open");
+    let claimed = viewer.claim(block).await;
     assert!(
         refused_as(&claimed, ErrorCode::PermissionDenied),
         "{claimed:?}"
@@ -186,13 +185,10 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
         (after.head, after.parent, after.metadata),
         (before.head, before.parent, before.metadata)
     );
-    let state = owner
-        .heartbeat(block, session.generation, None)
-        .await
-        .expect("the owner still beats");
-    assert_eq!(state.owner, session.owner, "the lease changed hands");
+    let state = owner.joined_state(block).await;
+    assert_eq!(state.holder(), session.holder(), "the lease changed hands");
     assert!(
-        !state.participants.contains(&impostor),
+        !state.has(impostor),
         "the attacker is in the owner's session"
     );
 

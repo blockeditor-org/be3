@@ -1,4 +1,5 @@
 use super::*;
+use be_block_session::Membership;
 
 /// The session speaks its first participant's build: the server refuses a submission from a
 /// participant running another, so two builds of a type never edit one session.
@@ -16,7 +17,7 @@ async fn a_submission_from_a_build_the_session_does_not_speak_is_refused() {
         .try_join_as(block, Hash::from_bytes([9; 32]))
         .await
         .unwrap();
-    assert_eq!(state.tag, Some(TYPE_BUILD));
+    assert_eq!(state.tag(), Some(TYPE_BUILD));
 
     let refused = laptop
         .submit(block, 2, 1, 0, b"another build's".to_vec())

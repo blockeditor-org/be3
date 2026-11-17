@@ -478,11 +478,11 @@ impl Host {
     }
 }
 
-/// Another host owns the session, so this one waits instead of claiming. A
-/// quiet host heartbeats only when it seals, so its lease may lapse; nothing
-/// claims it while it still shows `TerminalHost`.
+/// Another host holds the lease, so this one waits instead of claiming: a
+/// claim takes the lease at once, and two hosts claiming in turn would pass
+/// it back and forth.
 fn standing_by<S: ObjectStore + 'static>(session: &Hosted<S>) -> bool {
-    let Some(owner) = session.state().and_then(|state| state.owner) else {
+    let Some(owner) = session.holder() else {
         return false;
     };
     session

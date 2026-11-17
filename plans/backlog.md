@@ -127,17 +127,33 @@ Fixed items are removed as they land.
   holds a submission and controls when a replica loads, and a test of that
   sequence counting exactly what was made.
 
-- **A lost seal's rebase with a merge above it.** When the server lost a
-  seal's `rebase-journal` and the outbox published it and seals made on it
-  since, `journal_for` finds the seal on the server journal's base by walking
+- **A lost seal's rebase with a merge above it.** Before
+  plans/simpler_server_api.md step 1, the server could lose a seal's
+  `rebase-journal` while the outbox published the seal and seals made on it
+  since; `journal_for` finds the seal on the server journal's base by walking
   down the head's single-parent seals. A merge commit between them, or more
-  than `SEAL_WALK` offline seals above it, stops the walk, so the replica opens on the journal's base and merges the head in on
-  top of entries the head already holds, counting them twice. Fix it either by
-  walking a merge's parents too (bounded as the walk is now: by run and by the
-  base's number), or by plans/simpler_server_api.md step 1, where a seal the
-  outbox publishes carries its journal base and the walk goes. Done: a
-  be-host-stack test that loses a seal's rebase, merges a divergent head onto
-  it offline, and counts exactly what was made once the outbox drains.
+  than `SEAL_WALK` offline seals above it, stops the walk, so the replica opens
+  on the journal's base and merges the head in on top of entries the head
+  already holds, counting them twice. Step 1 closes the cause: a seal the outbox
+  publishes carries its journal seal and trims the server's journal as it wins
+  the head (be-host-stack's
+  `a_seal_whose_publish_was_lost_trims_the_journal_when_the_outbox_drains_it`).
+  The walk stays until no path is shown to reach it: a seal that wins the head
+  untrimmed (a stale seal, one the host made in a made-up session) with entries
+  past the journal's base it holds. Done: either such a path and a test that
+  counts exactly what was made through it, or the walk removed with a test that
+  shows every seal on the journal's base trims it.
+
+- **The order's entries pushed out of order.** `submit` numbers a submission in
+  the database (`journal::submit`) before `SessionRegistry::sequenced` takes the
+  registry's lock to push it, so two submissions numbered at once can reach
+  participants as N+1 then N, and a membership entry written between them is
+  stamped with whichever was pushed last. Replicas hold what arrives early
+  (`ahead`), and a host that sees a gap joins again, so nothing is lost, but the
+  stream is not one order. Done: numbering and pushing under one per-session
+  lock (the registry's lock is server-wide, so not that one), with a be-server
+  test where many connections submit at once and every participant hears the
+  entries in sequence.
 
 ## 9. Version control's caches
 

@@ -47,6 +47,7 @@ async fn a_trashed_block_reaches_its_reader_as_detached() {
                 listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await;

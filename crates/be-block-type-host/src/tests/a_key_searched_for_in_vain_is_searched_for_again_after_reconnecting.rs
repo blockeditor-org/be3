@@ -1,5 +1,4 @@
 use be_block_client::Event;
-use be_block_protocol::RelayKind;
 
 use super::*;
 
@@ -40,7 +39,6 @@ fn a_key_searched_for_in_vain_is_searched_for_again_after_reconnecting() {
         let relayed = |text: &[u8]| Event::Relayed {
             block,
             from: 2,
-            kind: RelayKind::Peer,
             payload: phone
                 .commits()
                 .vault()

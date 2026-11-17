@@ -4,8 +4,8 @@ use be_block_commit::{Commit, CommitId, CommitStore};
 use be_block_graph::BlockParent;
 use be_block_protocol::{
     Authenticated, BlockSummary, ChangeCursor, ClientId, Error, ErrorCode, HistoryEntry, Hold,
-    KeyKind, KeyRow, KeySet, Listing, ObjectLength, OrganizationRole, PairingMessage, RelayKind,
-    SessionEvent, SessionState, TreeAdvanced, TreeChange, UploadUrl, WrappedBy, WrappedKey, client,
+    KeyKind, KeyRow, KeySet, Listing, ObjectLength, OrganizationRole, PairingMessage, SessionEvent,
+    SessionState, TreeAdvanced, TreeChange, UploadUrl, WrappedBy, WrappedKey, client,
 };
 use be_block_session::{Resume, resume};
 use be_block_store::{ChunkerConfig, ContentKey, Hash, Keyring, MemoryStore, ObjectStore, Vault};
@@ -98,9 +98,11 @@ mod a_push_reaches_members_who_are_not_connected_and_want_it;
 mod a_push_service_refusing_the_server_or_redirecting_does_not_cost_the_right_endpoints;
 mod a_push_service_that_never_answers_delays_only_its_own_account;
 mod a_range_get_reads_part_of_an_s3_object;
-mod a_rebase_by_another_build_marks_the_journal_lost_until_the_next_commit;
-mod a_rebase_from_other_than_the_holder_of_its_generation_is_answered_and_not_kept;
-mod a_rebase_past_the_orders_last_entry_is_refused;
+mod a_seal_by_the_old_build_after_a_new_build_started_over_trims_nothing;
+mod a_stale_seal_from_an_earlier_run_publishes_and_trims_nothing;
+mod a_trim_by_another_build_marks_the_journal_lost_until_the_next_commit;
+mod a_trim_from_other_than_the_holder_is_not_kept;
+mod a_trim_past_the_orders_last_entry_is_not_kept;
 mod a_refused_call_keeps_the_cached_graph;
 mod a_relay_to_a_client_that_left_the_session_is_dropped_without_an_error;
 mod a_remembered_account_approves_a_manually_entered_code_and_can_switch_accounts;
@@ -121,7 +123,7 @@ mod a_stored_key_is_told_only_to_who_may_open_it;
 mod a_submission_from_a_build_the_session_does_not_speak_is_refused;
 mod a_trashed_block_reaches_its_reader_as_detached;
 mod a_type_with_a_short_retention_keeps_only_its_recent_states;
-mod a_viewers_session_state_reaches_no_participant_and_an_editors_does;
+mod a_viewer_neither_holds_nor_claims_the_lease_and_its_presence_still_reaches_the_others;
 mod accepting_either_kind_of_link_makes_two_contacts;
 mod accounts_stranded_by_a_removed_provider_are_counted;
 mod adding_a_provider_or_moving_its_email_tells_the_account;
@@ -225,7 +227,6 @@ mod the_portal_serves_its_assets_immutably_beside_a_hydrating_page;
 mod the_portals_cookies_are_host_cookies_over_https;
 mod the_providers_file_is_checked_and_keeps_its_secrets;
 mod the_server_orders_sealed_submissions_and_a_seal_trims_them;
-mod the_session_registry_forgets_the_longest_empty_sessions_first;
 mod the_trees_owner_pays_for_what_anyone_makes_in_it;
 mod told_keys_past_the_newest_kept_or_of_a_deleted_block_or_removed_member_are_news;
 mod unsigned_or_expired_s3_requests_are_refused;
@@ -334,14 +335,18 @@ enum Notice {
         sequence: u64,
     },
     Roots,
-    SessionChanged {
+    Membership {
         block: Uuid,
-        state: SessionState,
+        entry: be_block_protocol::MembershipEntry,
+    },
+    Sealed {
+        block: Uuid,
+        commit: CommitId,
+        through: u64,
     },
     Relayed {
         block: Uuid,
         from: ClientId,
-        kind: RelayKind,
         payload: Vec<u8>,
         received: i64,
     },
@@ -385,18 +390,23 @@ impl Heard {
                 let block = *block;
                 loop {
                     return match stream.poll_recv(context) {
-                        Poll::Ready(Some(SessionEvent::Changed(state))) => {
-                            Poll::Ready(Some(Notice::SessionChanged { block, state }))
+                        Poll::Ready(Some(SessionEvent::Membership(entry))) => {
+                            Poll::Ready(Some(Notice::Membership { block, entry }))
+                        }
+                        Poll::Ready(Some(SessionEvent::Sealed { commit, through })) => {
+                            Poll::Ready(Some(Notice::Sealed {
+                                block,
+                                commit,
+                                through,
+                            }))
                         }
                         Poll::Ready(Some(SessionEvent::Relayed {
                             from,
-                            kind,
                             payload,
                             received,
                         })) => Poll::Ready(Some(Notice::Relayed {
                             block,
                             from,
-                            kind,
                             payload,
                             received,
                         })),
@@ -420,6 +430,8 @@ struct TestClient {
     /// Every method this client started a call of.
     started: Arc<std::sync::Mutex<std::collections::BTreeSet<be_wasm_ops::MethodId>>>,
     sessions: std::collections::HashMap<Uuid, client::sessions::Session>,
+    /// The membership each session answered as this client joined it.
+    joined: std::collections::HashMap<Uuid, SessionState>,
     notifications: Vec<Notice>,
     token: String,
     /// This connection as the organization it last opened names it (`organization-opened.client`).
@@ -535,6 +547,7 @@ impl TestClient {
             listening: false,
             started,
             sessions: std::collections::HashMap::new(),
+            joined: std::collections::HashMap::new(),
             notifications: Vec::new(),
             token: String::new(),
             account: None,
@@ -755,7 +768,8 @@ impl TestClient {
             Some(SessionEvent::Refused(error)) => Err(error),
             other => panic!("joining answered {other:?}"),
         };
-        if joined.is_ok() {
+        if let Ok((_, state)) = &joined {
+            self.joined.insert(block, state.clone());
             self.sessions.insert(block, session);
             self.heard.push(Heard::Session(block, events));
         }
@@ -782,14 +796,26 @@ impl TestClient {
         answered
     }
 
-    async fn rebase_journal(
-        &mut self,
-        block: Uuid,
-        generation: u64,
-        base: be_block_protocol::JournalBase,
-    ) -> Result<(), Error> {
-        let rebased = self.sessions[&block].rebase_journal(generation, base);
-        let answered = rebased.await.expect("the connection stayed open");
+    /// `block`'s session as this client knows it once the server answered everything it sent
+    /// before: the membership it joined at with every entry it heard since.
+    async fn joined_state(&mut self, block: Uuid) -> SessionState {
+        use be_block_session::Membership;
+        self.round_trip().await;
+        let mut state = self.joined[&block].clone();
+        for notice in &self.notifications {
+            if let Notice::Membership { block: of, entry } = notice
+                && *of == block
+            {
+                state.apply(entry);
+            }
+        }
+        state
+    }
+
+    /// Claims the lease of `block`'s session.
+    async fn claim(&mut self, block: Uuid) -> Result<(), Error> {
+        let claimed = self.sessions[&block].claim();
+        let answered = claimed.await.expect("the connection stayed open");
         self.collect();
         answered
     }
@@ -816,26 +842,26 @@ impl TestClient {
         }
     }
 
-    async fn heartbeat(
-        &mut self,
-        block: Uuid,
-        generation: u64,
-        clean_at: Option<CommitId>,
-    ) -> Result<SessionState, Error> {
-        let beat = self.sessions[&block].heartbeat(generation, clean_at);
-        let answered = beat.await.expect("the connection stayed open");
-        self.collect();
-        answered
+    /// The membership entries this client hears of `block`'s session until it holds the
+    /// `index`-th, applied to `state`.
+    async fn membership_until(&mut self, of: Uuid, state: &mut SessionState, index: u64) {
+        use be_block_session::Membership;
+        while state.index < index {
+            if let Notice::Membership { block, entry } = self.notification().await
+                && block == of
+            {
+                state.apply(&entry);
+            }
+        }
     }
 
     async fn relay(
         &mut self,
         block: Uuid,
         to: Option<ClientId>,
-        kind: RelayKind,
         payload: Vec<u8>,
     ) -> Result<(), Error> {
-        let relayed = self.sessions[&block].relay(to, kind, payload);
+        let relayed = self.sessions[&block].relay(to, payload);
         let answered = relayed.await.expect("the connection stayed open");
         self.collect();
         answered
@@ -1158,6 +1184,22 @@ impl TestClient {
         expected: Option<CommitId>,
         time: i64,
     ) -> Result<be_block_protocol::PublishOutcome, Error> {
+        self.seal(author, block, commit, chunks, expected, time, None)
+            .await
+    }
+
+    /// Publishes as `publish` does, with `journal` a seal of the block's session.
+    #[allow(clippy::too_many_arguments)]
+    async fn seal(
+        &mut self,
+        author: &Author,
+        block: Uuid,
+        commit: CommitId,
+        chunks: Vec<Hash>,
+        expected: Option<CommitId>,
+        time: i64,
+        journal: Option<be_block_protocol::JournalSeal>,
+    ) -> Result<be_block_protocol::PublishOutcome, Error> {
         self.upload(&author.store, &author.objects_of(commit, &chunks))
             .await;
         let before = author.held_by(expected);
@@ -1174,9 +1216,23 @@ impl TestClient {
                 listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
+                journal.clone(),
             )
         })
         .await
+    }
+
+    /// Trims `block`'s journal to `base` with no new commit: a publish of the head `head`
+    /// on itself.
+    async fn trim(
+        &mut self,
+        author: &Author,
+        block: Uuid,
+        (head, chunks): (CommitId, Vec<Hash>),
+        journal: be_block_protocol::JournalSeal,
+    ) -> Result<be_block_protocol::PublishOutcome, Error> {
+        self.seal(author, block, head, chunks, Some(head), 1_000, Some(journal))
+            .await
     }
 
     async fn history(&mut self, block: Uuid) -> Vec<HistoryEntry> {
@@ -1325,6 +1381,7 @@ impl TestClient {
                     listing(&[], children),
                     Vec::new(),
                     Vec::new(),
+                    None,
                 )
             })
             .await;
@@ -2635,4 +2692,18 @@ fn unused_keys(seed: u8) -> be_block_keys::PublicIdentity {
         public: be_block_keys::RecoveryPublic([seed; 32]),
         signing: be_block_keys::SigningPublic([seed; 32]),
     }
+}
+
+/// A seal by `TYPE_BUILD` in the order's first run.
+fn of_build(base: be_block_protocol::JournalBase) -> be_block_protocol::JournalSeal {
+    in_run(base, TYPE_BUILD, 0)
+}
+
+/// A seal by the build `tag` in the order's `run`.
+fn in_run(
+    base: be_block_protocol::JournalBase,
+    tag: Hash,
+    run: u64,
+) -> be_block_protocol::JournalSeal {
+    be_block_protocol::JournalSeal { tag, run, base }
 }

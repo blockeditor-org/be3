@@ -1,6 +1,6 @@
 use be_block_commit::CommitId;
 use be_sdk_type_api::{
-    Description, JournalBase, Merging, Recipients, RelayKind, ReplicaId, Status, Written,
+    Description, JournalBase, Merging, Recipients, ReplicaId, Status, Written,
 };
 
 pub(crate) type Token = u64;
@@ -11,7 +11,6 @@ pub(crate) enum Effect {
     Send {
         replica: ReplicaId,
         to: Recipients,
-        kind: RelayKind,
         bytes: Vec<u8>,
     },
     Publish {
@@ -22,6 +21,8 @@ pub(crate) enum Effect {
         content: Written,
         /// The last sequence of the order a seal holds, and the run of the order it is in.
         sealed_through: Option<u64>,
+        /// With `sealed_through`, the session state the journal starts from with the commit.
+        journal_state: Option<Vec<u8>>,
         restarts: u64,
     },
     Stash {
@@ -53,14 +54,8 @@ pub(crate) enum Effect {
         token: Token,
         local: Option<CommitId>,
     },
-    ClaimLease {
+    Claim {
         replica: ReplicaId,
-        generation: u64,
-    },
-    ReportClean {
-        replica: ReplicaId,
-        generation: u64,
-        clean_at: Option<CommitId>,
     },
     Submit {
         replica: ReplicaId,
@@ -70,8 +65,9 @@ pub(crate) enum Effect {
     },
     Rebase {
         replica: ReplicaId,
-        generation: u64,
         base: JournalBase,
+        /// The run of the order it is in (`status.restarts`).
+        restarts: u64,
     },
     Release {
         replica: ReplicaId,
