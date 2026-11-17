@@ -1,6 +1,8 @@
 #![cfg(not(any(target_os = "android", target_arch = "wasm32")))]
 
 mod accessibility;
+#[cfg(all(unix, not(any(target_os = "android", target_os = "macos", target_os = "ios"))))]
+mod backdrop;
 mod clipboard;
 mod file_picker;
 mod file_saver;
@@ -225,6 +227,12 @@ impl PlatformServices for WinitPlatform<'_> {
             && window.appearance.title != shown.appearance.title
         {
             surface.window.set_title(title);
+        }        #[cfg(all(
+            unix,
+            not(any(target_os = "android", target_os = "macos", target_os = "ios"))
+        ))]
+        if window.appearance.clear_color != shown.appearance.clear_color {
+            backdrop::set(&*surface.window, window.appearance.clear_color);
         }
     }
 
