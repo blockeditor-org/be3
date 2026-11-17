@@ -42,8 +42,8 @@ impl Builder<'_> {
     }
 
     /// Makes room after a rule's shares for what the row lays out after its characters
-    /// (trailing spaces, a carriage return's name, the newline's slot), so the row stays one
-    /// line.
+    /// (trailing spaces, a carriage return's name), so the row stays one line. The newline's
+    /// blank hangs past the row's end, so it needs none.
     pub(super) fn fit_rule(&mut self, rule: Range<usize>) {
         let row = &mut self.row;
         let tail: f32 = row.spans[rule.end..]
@@ -54,7 +54,7 @@ impl Builder<'_> {
                     span.style.font,
                 ),
                 SpanKind::Space(gap) => gap.px.max(0.0),
-                SpanKind::Inline(_) => 0.0,
+                SpanKind::Blank(_) | SpanKind::Inline(_) => 0.0,
             })
             .sum();
         let gaps: Vec<&mut GapWidth> = row.spans[rule]
