@@ -4,11 +4,15 @@ use super::*;
 fn a_held_modifier_chooses_among_its_own_places() {
     let root = RootScope::new();
     let node = origin(&root);
-    let spec = closest([slot(node, 1, 0.0)])
-        .when_held(Modifiers::ALT, closest([slot(node, 2, 300.0)]));
+    let spec =
+        closest([slot(node, 1, 0.0)]).when_held(Modifiers::ALT, closest([slot(node, 2, 300.0)]));
 
     let plain = frame(&spec, at(pos2(40.0, 10.0)), &DragFrame::default());
-    assert_eq!(plain.drop, Some(1), "with nothing held it takes its own places");
+    assert_eq!(
+        plain.drop,
+        Some(1),
+        "with nothing held it takes its own places"
+    );
     let held = frame(
         &spec,
         DragPoint {

@@ -383,11 +383,7 @@ impl Board {
         {
             left(None);
         }
-        self.float(
-            !under
-                .as_ref()
-                .is_some_and(|under| under.hides),
-        );
+        self.float(!under.as_ref().is_some_and(|under| under.hides));
         let payload = self
             .carried
             .borrow()

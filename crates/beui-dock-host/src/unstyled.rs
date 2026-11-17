@@ -24,6 +24,7 @@ use beui_components_unstyled::ChoiceItem;
 use beui_components_unstyled::ChoiceKind;
 use beui_components_unstyled::ChoiceOption;
 use beui_components_unstyled::ChoiceOptionHandle;
+use beui_components_unstyled::DragPoint;
 use beui_components_unstyled::DropHandle;
 use beui_components_unstyled::DropTarget;
 use beui_components_unstyled::Scroll;
@@ -34,13 +35,12 @@ use beui_components_unstyled::drawn_child;
 use beui_components_unstyled::menu::{MenuItem, MenuNodes};
 use beui_components_unstyled::menu_popup::MenuStyle;
 use beui_components_unstyled::rubber_band::Band;
-use beui_components_unstyled::DragPoint;
 use beui_components_unstyled::{
     Reorder, ReorderHandle, ReorderItem, ReorderItemHandle, ReorderMove, carrying, use_drop_site,
 };
-use beui_view::drag::{Carry, DragSpec, closest, custom};
 use beui_view::components::overlay::Overlay;
 use beui_view::components::root::Root;
+use beui_view::drag::{Carry, DragSpec, closest, custom};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
@@ -3022,11 +3022,13 @@ fn DockPaneGrip(
     let drag = Func::new(move |_: PointerPress| {
         Some(
             Carry::new(dock.carry(dragged))
-                .preview(move || preview.call(DockPreviewHandle {
-                    dragged,
-                    title,
-                    icon,
-                }))
+                .preview(move || {
+                    preview.call(DockPreviewHandle {
+                        dragged,
+                        title,
+                        icon,
+                    })
+                })
                 .outside(move |_| dock.drop_outside(dragged)),
         )
     });
