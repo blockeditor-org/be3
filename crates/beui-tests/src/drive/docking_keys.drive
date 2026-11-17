@@ -1,6 +1,6 @@
 # A dock tab with the keyboard's focus moves one place with Ctrl+Shift and an
-# arrow: along its bar, and past the bar's end into the nearest of the dock's
-# places that way, the band along the top of its pane, splitting it there.
+# arrow: along its bar, and into one of the dock's places that way, an edge's
+# split answering only the arrow it faces.
 clock stop
 wait 'value="([Alpha* Beta] |0.5 [Gamma*])"'
 key Tab
@@ -9,6 +9,6 @@ key ctrl+shift+right
 pause 1000
 wait 'value="([Beta Alpha*] |0.5 [Gamma*])"'
 wait 'Tab "Alpha" selected focused'
-key ctrl+shift+right
+key ctrl+shift+down
 pause 1000
-wait 'value="(([Alpha*] /0.5 [Beta*]) |0.5 [Gamma*])"'
+wait 'value="(([Beta*] /0.5 [Alpha*]) |0.5 [Gamma*])"'

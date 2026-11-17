@@ -233,6 +233,8 @@ fn carrying(
     let lifted = Rc::new(Cell::new(false));
     let origin = Rc::new(Cell::new(None::<PointerPress>));
     let mine = create_signal(None::<crate::drag::CarryId>);
+    // Whether the keyboard lifted this node's carry: only then are its keys the carry's.
+    let by_keys = create_signal(false);
     let preview = Rc::new(RefCell::new(None::<Preview>));
     // Whether the carry's face is not the source's: then the children are not displaced.
     let previewed = create_signal(false);
@@ -289,6 +291,7 @@ fn carrying(
             if let Some(id) = driver.lift(carry, crate::drag::DragPoint::of(press)) {
                 lifted.set(true);
                 show_face(face);
+                by_keys.set(false);
                 mine.set(Some(id));
             }
             true
@@ -379,6 +382,7 @@ fn carrying(
         Rc::new(
             move |id: crate::drag::CarryId, face: crate::drag::CarryFace| {
                 show_face(face);
+                by_keys.set(true);
                 mine.set(Some(id));
             },
         ) as Rc<dyn Fn(crate::drag::CarryId, crate::drag::CarryFace)>
@@ -416,7 +420,11 @@ fn carrying(
             KeyAt::Node(source),
             KeyPhase::Capture,
             KeyReveal::Focus,
-            move |event| event.press().is_some_and(|press| held_keys(press, mine)),
+            move |event| {
+                event
+                    .press()
+                    .is_some_and(|press| by_keys.get_untracked() && held_keys(press, mine))
+            },
         );
         match focusable {
             true => Callback::new(move |press: KeyPress| {
@@ -519,7 +527,8 @@ fn step_keys(
     true
 }
 
-/// Keys while the keyboard holds this source's carry: the arrows step it between the places it
+/// Keys while the keyboard holds this source's carry (a pointer's carry leaves keys to the
+/// focused node): the arrows step it between the places it
 /// can land, Space or Enter drops it there, and Escape or Tab puts it down where it was (Tab
 /// does not move focus away from a carry in hand). Whether the key was taken.
 fn held_keys(

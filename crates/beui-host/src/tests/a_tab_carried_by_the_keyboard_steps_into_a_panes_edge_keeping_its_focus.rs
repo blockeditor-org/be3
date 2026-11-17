@@ -36,7 +36,9 @@ fn a_tab_carried_by_the_keyboard_steps_into_a_panes_edge_keeping_its_focus() {
         let tab = move |id: u64| {
             view! {
                 <DockTab id title={format!("Tab {id}")}>
-                    <Frame @test_id={format!("content.{id}")} />
+                    <Interactive focusable=true>
+                        <Frame @test_id={format!("content.{id}")} />
+                    </Interactive>
                 </DockTab>
             }
         };
@@ -100,6 +102,12 @@ fn a_tab_carried_by_the_keyboard_steps_into_a_panes_edge_keeping_its_focus() {
     );
     let at = |id: u64| state.find(crate::dock::TabId::new(id)).map(|at| at.leaf);
     assert_ne!(at(2), at(3), "in a pane of its own");
+    let content = harness.find("content.2");
+    assert_eq!(
+        harness.document().focused_node(),
+        harness.document().node_parent(content),
+        "dropped, its row built again in its new bar, the keyboard goes to the tab's content"
+    );
     let right = harness.rect(harness.find("content.2"));
     let gamma = harness.rect(harness.find("content.3"));
     assert!(

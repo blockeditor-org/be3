@@ -212,7 +212,12 @@ impl Board {
             .map_or(drawn, |rest| rest.aim());
         let aims: Vec<_> = rests
             .iter()
-            .map(|rest| beui_view::types::Rect::from_center_size(rest.aim(), rest.rest.size()))
+            .map(|rest| {
+                (
+                    beui_view::types::Rect::from_center_size(rest.aim(), rest.rest.size()),
+                    rest.edge,
+                )
+            })
             .collect();
         let Some(at) = beui_view::drag::step_toward(&aims, from, toward) else {
             return false;
