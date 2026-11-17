@@ -1,7 +1,8 @@
 //! Runs an app's host component headless (plans/headless_apps.md): the component of the app
 //! whose manifest's `hosts` names the block's type, through be-host-runtime with no window,
 //! presenter or gpu (`be_host_runtime::Headless`), on a block stack the caller started. The
-//! app comes from `be`'s release, downloaded as the runtime reads it (`crate::host_apps`).
+//! app is staged beside `be`, or downloaded from a deployed `be`'s release as the runtime reads
+//! it (`crate::host_apps`).
 
 use std::{path::Path, sync::Arc, time::Duration};
 
@@ -29,7 +30,14 @@ impl Hosting {
                     .find(|host| Uuid::from_bytes(host.edits) == block_type)?;
                 Some((Arc::clone(&manifest), Uuid::from_bytes(host.id)))
             })
-            .ok_or_else(|| format!("no app of this release hosts blocks of type {block_type}"))?;
+            .ok_or_else(|| {
+                format!(
+                    "no app of this build hosts blocks of type {block_type}: a deployed be finds \
+                     its release's apps, and one built here only those staged beside it \
+                     (`./scripts/buck run //crates/be-tool-cli:dev`, with `-c be3.apps=NAME,...` \
+                     for more)"
+                )
+            })?;
         let headless = be_host_runtime::Headless::start();
         let instance = EditorInstanceId(1);
         if let be_host_runtime::CreationState::Failed(error) = be_host_runtime::host(

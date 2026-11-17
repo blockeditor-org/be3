@@ -5,17 +5,20 @@ cargo_package()
 
 cargo_library()
 
-# The tests' host apps, staged as be-host stages its apps: `be` downloads a host app
-# from its release when it runs one (`host_apps`), and the tests point it at this
-# directory instead (BE_BUNDLE), so they use no network.
-TEST_HOST_APPS = ["//crates/be-app-example-counter"]
+# The apps a `be` built here stages beside it, as be-host stages its own: those with a
+# host component (guides/apps/host_services.md, "Host components"). A deployed `be`
+# ships alone and reads its release's apps instead (`host_apps`, guides/apps/runtime.md,
+# "Headless"), so no app is compiled into it. The tests point it at :test-host-apps
+# (BE_BUNDLE), and :dev runs it with them beside it.
+HOST_APPS = ["example-counter"]
 
 program(
     name = "test-host-apps",
-    app_types = ["{}:types".format(app) for app in TEST_HOST_APPS],
+    app_types = ["//crates/be-app-{}:types".format(app) for app in HOST_APPS],
+    data = ["//crates/be-app-{}:data".format(app) for app in HOST_APPS],
     index = True,
-    manifests = ["{}:manifest".format(app) for app in TEST_HOST_APPS],
-    modules = ["{}:module".format(app) for app in TEST_HOST_APPS],
+    manifests = ["//crates/be-app-{}:manifest".format(app) for app in HOST_APPS],
+    modules = ["//crates/be-app-{}:module".format(app) for app in HOST_APPS],
 )
 
 # The tests name block types from the editors' manifests, as be does from the
@@ -53,4 +56,39 @@ program(
     manifests = [],
     modules = [],
     visibility = ["//crates/be-tool-local:"],
+)
+
+# be with HOST_APPS beside it, which runs their host components as a deployed be runs its
+# release's: `./scripts/buck run //crates/be-tool-cli:dev -- ARGS`. `-c be3.apps=text,chat`
+# stages those apps too, each crates/be-app-NAME by its NAME, as be-host's :dev takes it;
+# the bundle is named after them, :dev-text-chat, so each selection has outputs of its own.
+dev_extra_apps = sorted({name.strip(): None for name in read_config("be3", "apps", "").split(",") if name.strip() and name.strip() not in HOST_APPS}.keys())
+
+dev_app_names = [package.removeprefix("crates/be-app-") for package in app_packages()]
+
+[
+    fail("be3.apps names {}, which is no crates/be-app-NAME: it is a comma-separated list of {}".format(name, ", ".join(dev_app_names)))
+    for name in dev_extra_apps
+    if name not in dev_app_names
+]
+
+dev_apps = sorted(HOST_APPS + dev_extra_apps)
+
+dev_bundle = "-".join(["dev"] + dev_extra_apps) if dev_extra_apps else "dev-bundle"
+
+program(
+    name = dev_bundle,
+    app_types = ["//crates/be-app-{}:types".format(app) for app in dev_apps],
+    binary = ":bin",
+    data = ["//crates/be-app-{}:data".format(app) for app in dev_apps],
+    executable_name = "be",
+    files = ["//buck/program:build-info.json"],
+    index = True,
+    manifests = ["//crates/be-app-{}:manifest".format(app) for app in dev_apps],
+    modules = ["//crates/be-app-{}:module".format(app) for app in dev_apps],
+)
+
+alias(
+    name = "dev",
+    actual = ":" + dev_bundle,
 )

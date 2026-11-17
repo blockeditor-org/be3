@@ -197,7 +197,14 @@ fn run(options: &mut Options) -> Result<(), String> {
         "https://la.storage.bunnycdn.com/be-app",
     );
     let mirror = setting("BE3_DEPLOY_MIRROR", "https://be3.pfg.pw");
-    let terminal_hosts = terminal_hosts(&options.be, &build, &mirror)?;
+    let web = options.web.clone().filter(|_| !options.skip_web);
+    let release = Release {
+        terminal_hosts: terminal_hosts(&options.be, &build, &mirror)?,
+        apps: web
+            .as_deref()
+            .map(|web| release_apps(web, &build, &mirror))
+            .transpose()?,
+    };
     if !options.skip_downloads && !options.dry_run {
         for (platform, file) in &mut options.downloads {
             if platform == "android" {
@@ -212,7 +219,7 @@ fn run(options: &mut Options) -> Result<(), String> {
                 })?;
                 std::fs::create_dir_all(options.repository.join("target/deploy"))
                     .map_err(|error| format!("cannot make target/deploy: {error}"))?;
-                std::fs::write(&metadata, with_terminal_hosts(&read, &terminal_hosts)?)
+                std::fs::write(&metadata, with_release(&read, &release)?)
                     .map_err(|error| format!("cannot write {}: {error}", metadata.display()))?;
                 crate::apk_sign::finalize(file, &output, &key, &metadata)?;
                 *file = output;
@@ -234,7 +241,7 @@ fn run(options: &mut Options) -> Result<(), String> {
     } else {
         String::new()
     };
-    let web = options.web.as_ref().filter(|_| !options.skip_web);
+    let web = web.as_ref();
     let publishes_pages = !options.skip_server
         && (web.is_some()
             || !options.skip_be
@@ -268,10 +275,22 @@ fn run(options: &mut Options) -> Result<(), String> {
     if !options.skip_be {
         for (triple, bundle) in &options.be {
             let directory = format!("data/{build}/be-{triple}");
-            for name in ["be", "build-info.json"] {
+            for name in ["be", be_lib_build_id::FILE] {
                 let bytes = std::fs::read(bundle.join(name)).map_err(|error| {
                     format!("cannot read {}: {error}", bundle.join(name).display())
                 })?;
+                // `be` greets the server with its build and finds its apps through this.
+                let bytes = if name == be_lib_build_id::FILE {
+                    with_release(
+                        &bytes,
+                        &Release {
+                            terminal_hosts: Vec::new(),
+                            apps: release.apps.clone(),
+                        },
+                    )?
+                } else {
+                    bytes
+                };
                 store.put(
                     &bundle.join(name).display().to_string(),
                     &format!("{directory}/{name}"),
@@ -299,7 +318,7 @@ fn run(options: &mut Options) -> Result<(), String> {
                 .map_err(|error| format!("cannot read {}: {error}", file.display()))?;
             let bytes = match platform.as_str() {
                 "android" => bytes,
-                _ => archive_with_terminal_hosts(&bytes, &terminal_hosts)?,
+                _ => archive_with_release(&bytes, &release)?,
             };
             let sha256 = store.put(
                 &file.display().to_string(),
@@ -479,31 +498,57 @@ fn terminal_hosts(
         .collect()
 }
 
-/// A bundle's `build-info.json` naming where this build's `be` is, keeping every other field.
-fn with_terminal_hosts(
-    json: &[u8],
-    terminal_hosts: &[be_lib_build_id::TerminalHostBinary],
-) -> Result<Vec<u8>, String> {
+/// Where this build's `be` and apps are on the mirror, which `./scripts/deploy` writes into
+/// every `build-info.json` it ships: a deployed executable trusts what its own download names.
+struct Release {
+    terminal_hosts: Vec<be_lib_build_id::TerminalHostBinary>,
+    apps: Option<be_lib_build_id::ReleaseApps>,
+}
+
+/// Where the web bundle `web` will be on the mirror, the apps `be` downloads a host app from,
+/// and the SHA-256 of its `app-hashes.json`, which lists every app file's
+/// (guides/apps/runtime.md, "Headless").
+fn release_apps(
+    web: &Path,
+    build: &str,
+    mirror: &str,
+) -> Result<be_lib_build_id::ReleaseApps, String> {
+    let path = web.join("app-hashes.json");
+    let listed =
+        std::fs::read(&path).map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+    Ok(be_lib_build_id::ReleaseApps {
+        url: format!("{mirror}/data/{build}/web"),
+        sha256: hex(&Sha256::digest(&listed)),
+    })
+}
+
+/// A `build-info.json` naming where this build's `be` and apps are, keeping every other field.
+fn with_release(json: &[u8], release: &Release) -> Result<Vec<u8>, String> {
     let mut metadata: serde_json::Value =
         serde_json::from_slice(json).map_err(|error| format!("invalid build metadata: {error}"))?;
     let object = metadata
         .as_object_mut()
         .ok_or("the build metadata is not a JSON object")?;
-    object.insert(
-        "terminal_hosts".to_owned(),
-        serde_json::to_value(terminal_hosts).map_err(|error| error.to_string())?,
-    );
+    if !release.terminal_hosts.is_empty() {
+        object.insert(
+            "terminal_hosts".to_owned(),
+            serde_json::to_value(&release.terminal_hosts).map_err(|error| error.to_string())?,
+        );
+    }
+    if let Some(apps) = &release.apps {
+        object.insert(
+            "apps".to_owned(),
+            serde_json::to_value(apps).map_err(|error| error.to_string())?,
+        );
+    }
     let mut written = serde_json::to_vec(&metadata).map_err(|error| error.to_string())?;
     written.push(b'\n');
     Ok(written)
 }
 
-/// A download's zip with every `build-info.json` in it naming where this build's `be` is;
-/// every other entry is copied as it is.
-fn archive_with_terminal_hosts(
-    archive: &[u8],
-    terminal_hosts: &[be_lib_build_id::TerminalHostBinary],
-) -> Result<Vec<u8>, String> {
+/// A download's zip with every `build-info.json` in it naming where this build's `be` and apps
+/// are; every other entry is copied as it is.
+fn archive_with_release(archive: &[u8], release: &Release) -> Result<Vec<u8>, String> {
     use std::io::{Cursor, Write};
     use zip::{ZipArchive, ZipWriter, write::SimpleFileOptions};
 
@@ -540,7 +585,7 @@ fn archive_with_terminal_hosts(
             )
             .map_err(|error| format!("{name}: {error}"))?;
         written
-            .write_all(&with_terminal_hosts(&json, terminal_hosts)?)
+            .write_all(&with_release(&json, release)?)
             .map_err(|error| format!("{name}: {error}"))?;
     }
     Ok(written
