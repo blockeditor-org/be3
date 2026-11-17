@@ -2289,7 +2289,7 @@ fn DockTiles(dock: State) -> NodeId {
                     dock.end_drag();
                 }
             });
-            view! {
+            let built = view! {
                 <List @node_ref=&tiles spacing=0.0>
                     <Dynamic value={move || current.with(DockState::main)}>|surface: SurfaceId| {
                         let dock = dock;
@@ -2308,7 +2308,11 @@ fn DockTiles(dock: State) -> NodeId {
                     <DockBarWindows dock />
                     <DockBarLifted dock />
                 </List>
-            }
+            };
+            // Measured from the start, so a lift reads where the tiles are at once, also on
+            // a core that measures a node only once asked (`State::spec`).
+            measure(built);
+            built
         }</DropTarget>
     }
 }
@@ -2993,6 +2997,8 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
             };
             let scroll = dock.strip.call(DockStripHandle { direction, tabs });
             strip.fill(scroll);
+            // Measured from the start: a lift's places leave the strip to the bar.
+            measure(scroll);
             scroll
         }</Reorder>
     }
