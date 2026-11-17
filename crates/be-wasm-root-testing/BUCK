@@ -4,5 +4,6 @@ load("@root//buck/wasm:defs.bzl", "wasm32_crate")
 cargo_package()
 
 # The root guest be-wasm-root-host's tests run: each frame it settles one
-# child, the echo guest as a staged app.
-wasm32_crate()
+# child, the echo guest as a staged app. Only :module, with the `module`
+# feature, exports its entry points.
+wasm32_crate(extra_features = ["module"])

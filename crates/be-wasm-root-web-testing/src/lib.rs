@@ -1,0 +1,334 @@
+//! The web's half of the root entry and of the sandbox in Chromium
+//! (plans/host_as_platform_adapter.md, step 4d): the page be-wasm-root-host's `web` runs a root
+//! on. `run`, which web/index.html calls, runs 4a's root (be-wasm-root-testing) inline on the
+//! page from `requestAnimationFrame`, as its native tests run it, with its child, the echo
+//! guest as a staged app, in a web worker; and serves a guest on the page the sandbox
+//! (be-wasm-sandbox-host's `Server`), which compiles the pure echo guest from bytes and talks to
+//! an instance of it in a plain worker. Nothing here waits: every wait is a promise.
+
+#![cfg(target_arch = "wasm32")]
+
+use std::{
+    cell::RefCell,
+    future::Future,
+    rc::Rc,
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
+use be_lib_layers::{LayerId, LayerList};
+use be_wasm_guest_host::Wake;
+use be_wasm_ops::{Connection, Incoming, Side};
+use be_wasm_root_api::{FrameDone, FrameRequest};
+use be_wasm_root_host::{Root, Staged};
+use be_wasm_root_testing::{
+    CHILD, CHILD_ENTRY, CHILD_LAYER, HANGS_CHILD, ROOT_LAYER, SPINS,
+};
+use be_wasm_sandbox_api::{
+    embed, guest,
+    sandbox::{Config, Source},
+};
+use be_wasm_sandbox_host::Server;
+use js_sys::{Function, Promise};
+use wasm_bindgen::{JsCast, prelude::*};
+use wasm_bindgen_futures::JsFuture;
+
+/// The root guest, staged beside the bundle by web/BUCK's page test.
+const ROOT: &str = "../root.wasm";
+
+/// The echo guest as a pure guest's module, which the sandbox compiles from its bytes.
+const ECHO: &str = "../echo-pure.wasm";
+
+/// Far enough off that a child that answers at all answers before it.
+const PATIENT: Duration = Duration::from_secs(30);
+
+/// Runs every check, answering what passed or why one failed.
+#[wasm_bindgen]
+pub async fn run() -> Result<String, JsValue> {
+    be_wasm_threads::initialize_page();
+    let mut passed = Vec::new();
+    passed.push(a_frame_waits_for_its_child_and_shows_it().await?);
+    passed.push(a_frame_past_its_deadline_draws_without_the_child_it_waits_for().await?);
+    passed.push(a_root_that_keeps_waking_itself_stops_at_its_patience().await?);
+    passed.push(a_guest_compiles_a_module_and_talks_to_an_instance_of_it().await?);
+    passed.push(a_module_that_imports_more_than_its_transport_does_not_compile().await?);
+    Ok(passed.join("; "))
+}
+
+/// Finds the one staged module, the echo app's entry point, staged in the bundle with the base
+/// library it links.
+fn staged(app: &str, module: &str) -> Result<Staged, String> {
+    if app != CHILD || module != CHILD_ENTRY {
+        return Err(format!("{app} stages no module named {module:?}"));
+    }
+    Ok(Staged::new(CHILD_ENTRY.to_owned()))
+}
+
+async fn root() -> Result<Root, String> {
+    Root::load(ROOT, Box::new(staged)).await
+}
+
+/// One frame of `root`, started from the next `requestAnimationFrame` with its deadline `budget`
+/// after it, as the page would draw one.
+async fn frame(
+    root: &Rc<Root>,
+    time: u64,
+    budget: Duration,
+) -> Result<Result<FrameDone, String>, JsValue> {
+    let (drawn, answer) = promised::<Result<FrameDone, String>>();
+    let root = Rc::clone(root);
+    let draw = Closure::once_into_js(move || {
+        let deadline = Instant::now() + budget;
+        let started = root.frame(FrameRequest { time }, deadline, move |done| answer(done));
+        assert!(started, "no earlier frame is still being drawn");
+    });
+    web_sys::window()
+        .ok_or("no window")?
+        .request_animation_frame(draw.unchecked_ref())?;
+    Ok(drawn.await)
+}
+
+/// The ids of the layers a frame shows, bottom first.
+fn shown(done: &FrameDone) -> Result<Vec<LayerId>, String> {
+    Ok(LayerList::decode(&done.layers)
+        .map_err(|error| format!("the frame is no layer list: {error}"))?
+        .windows
+        .iter()
+        .flat_map(|window| window.layers.iter().map(|layer| layer.id))
+        .collect())
+}
+
+fn check(holds: bool, why: impl FnOnce() -> String) -> Result<(), JsValue> {
+    if holds {
+        Ok(())
+    } else {
+        Err(why().into())
+    }
+}
+
+async fn a_frame_waits_for_its_child_and_shows_it() -> Result<String, JsValue> {
+    let root = Rc::new(root().await?);
+    for time in [1, 2] {
+        let done = frame(&root, time, PATIENT).await??;
+        let shown = shown(&done)?;
+        check(shown == vec![ROOT_LAYER, CHILD_LAYER], || {
+            format!("frame {time} showed {shown:?}, not the child over the root")
+        })?;
+    }
+    Ok("two frames waited for their child, in a web worker, and showed it".to_owned())
+}
+
+async fn a_frame_past_its_deadline_draws_without_the_child_it_waits_for() -> Result<String, JsValue>
+{
+    let root = Rc::new(root().await?.with_patience(PATIENT));
+    let started = Instant::now();
+    // The child hangs, so it never answers: the frame ends at its deadline, which has passed.
+    let done = frame(&root, HANGS_CHILD, Duration::ZERO).await??;
+    check(started.elapsed() < PATIENT / 6, || {
+        format!(
+            "the frame took {}ms, past its deadline",
+            started.elapsed().as_millis()
+        )
+    })?;
+    let shown = shown(&done)?;
+    check(shown == vec![ROOT_LAYER], || {
+        format!("the frame past its deadline showed {shown:?}, not the root alone")
+    })?;
+    Ok("a frame past its deadline drew the root alone".to_owned())
+}
+
+async fn a_root_that_keeps_waking_itself_stops_at_its_patience() -> Result<String, JsValue> {
+    let root = Rc::new(root().await?.with_patience(Duration::from_millis(100)));
+    let drawn = frame(&root, SPINS, Duration::ZERO).await?;
+    check(drawn.is_err(), || {
+        "the frame of a root that never answers was drawn".to_owned()
+    })?;
+    let again = frame(&root, 1, PATIENT).await?;
+    check(again.is_err(), || {
+        "a root that stopped drew another frame".to_owned()
+    })?;
+    Ok("a root that kept waking itself stopped at its patience".to_owned())
+}
+
+async fn a_guest_compiles_a_module_and_talks_to_an_instance_of_it() -> Result<String, JsValue> {
+    let bytes = fetch(ECHO).await?;
+    let mut pump = Pump::new();
+    let received = pump
+        .run(async move {
+            let module = guest::sandbox::compile(bytes)
+                .await
+                .map_err(|error| error.to_string())??;
+            let instance = guest::sandbox::Instance::new(
+                Source::Module(module),
+                Config {
+                    name: "echo".to_owned(),
+                    memory_limit: 16 << 20,
+                },
+            );
+            instance
+                .send(vec![b"hello".to_vec()])
+                .await
+                .map_err(|error| error.to_string())?;
+            let mut received = Vec::new();
+            while !received.contains(&b"hello".to_vec()) {
+                received.extend(instance.next().await.map_err(|error| error.to_string())??);
+            }
+            Ok::<_, String>(received)
+        })
+        .await?;
+    check(received.contains(&b"hello".to_vec()), || {
+        format!("the echo guest answered {received:?}")
+    })?;
+    Ok("a module compiled from bytes echoed from a worker of its own".to_owned())
+}
+
+async fn a_module_that_imports_more_than_its_transport_does_not_compile() -> Result<String, JsValue>
+{
+    // The echo guest as a staged app imports WASI and its libraries.
+    let bytes = fetch(CHILD_ENTRY).await?;
+    let mut pump = Pump::new();
+    let compiled = pump
+        .run(async move {
+            guest::sandbox::compile(bytes)
+                .await
+                .map_err(|error| error.to_string())
+        })
+        .await?;
+    match compiled {
+        Err(why) if why.contains("a pure guest may not") => {
+            Ok("a module that imports more than its transport was refused".to_owned())
+        }
+        Err(why) => Err(format!("the module was refused for another reason: {why}").into()),
+        Ok(_) => Err("a module that imports more than its transport compiled".into()),
+    }
+}
+
+/// A guest run in process against a `Server`, as a host serves one, which waits for the
+/// sandbox's wakes on a promise.
+struct Pump {
+    executor: be_wasm_ops::guest::Executor,
+    host: Connection,
+    server: Server,
+    to_guest: Vec<Vec<u8>>,
+}
+
+thread_local! {
+    /// Whether the sandbox woke the pump, and what resolves its wait for it.
+    static RUNG: RefCell<(bool, Option<Function>)> = const { RefCell::new((false, None)) };
+}
+
+fn ring() {
+    let waiting = RUNG.with(|rung| {
+        let mut rung = rung.borrow_mut();
+        rung.0 = true;
+        rung.1.take()
+    });
+    if let Some(resolve) = waiting {
+        let _ = resolve.call0(&JsValue::UNDEFINED);
+    }
+}
+
+/// Answers once `ring` was called since the last answer.
+async fn rung() {
+    let ready = RUNG.with(|rung| std::mem::take(&mut rung.borrow_mut().0));
+    if ready {
+        return;
+    }
+    let promise = Promise::new(&mut |resolve, _| {
+        RUNG.with(|rung| rung.borrow_mut().1 = Some(resolve));
+    });
+    let _ = JsFuture::from(promise).await;
+    RUNG.with(|rung| rung.borrow_mut().0 = false);
+}
+
+impl Pump {
+    fn new() -> Self {
+        let wake: Wake = Arc::new(ring);
+        Self {
+            executor: guest::executor(()),
+            host: Connection::new(Side::Host),
+            server: Server::new(wake, Box::new(staged)),
+            to_guest: Vec::new(),
+        }
+    }
+
+    /// Runs `task` in the guest, passing frames both ways, until it finishes.
+    async fn run<T: 'static>(
+        &mut self,
+        task: impl Future<Output = Result<T, String>> + 'static,
+    ) -> Result<T, String> {
+        let done = Rc::new(RefCell::new(None));
+        let finished = Rc::clone(&done);
+        self.executor.enter(|| {
+            be_wasm_ops::guest::spawn(async move {
+                *finished.borrow_mut() = Some(task.await);
+            });
+        });
+        loop {
+            let mut from_guest = Vec::new();
+            self.executor
+                .step(std::mem::take(&mut self.to_guest), &mut from_guest)?;
+            for frame in &from_guest {
+                self.host
+                    .receive(frame)
+                    .map_err(|error| error.to_string())?;
+            }
+            while let Some(event) = self.host.next_event() {
+                match event {
+                    Incoming::Started(started) => {
+                        if let Some(call) = embed::sandbox::Call::accept(&mut self.host, started) {
+                            self.server.call(call, &mut self.host);
+                        }
+                    }
+                    Incoming::Canceled { op } => {
+                        self.server.canceled(op, &mut self.host);
+                    }
+                    _ => {}
+                }
+            }
+            self.server.poll(&mut self.host);
+            self.to_guest = self.host.take_outbound();
+            if let Some(value) = done.borrow_mut().take() {
+                return value;
+            }
+            if self.to_guest.is_empty() && from_guest.is_empty() {
+                rung().await;
+            }
+        }
+    }
+}
+
+/// A promise of a `T` and what answers it, once.
+fn promised<T: 'static>() -> (impl Future<Output = T>, impl FnOnce(T)) {
+    let slot = Rc::new(RefCell::new(None));
+    let mut resolved = None;
+    let promise = Promise::new(&mut |resolve, _| resolved = Some(resolve));
+    let answer = {
+        let slot = Rc::clone(&slot);
+        move |value| {
+            *slot.borrow_mut() = Some(value);
+            if let Some(resolve) = resolved {
+                let _ = resolve.call0(&JsValue::UNDEFINED);
+            }
+        }
+    };
+    let answered = async move {
+        let _ = JsFuture::from(promise).await;
+        slot.borrow_mut()
+            .take()
+            .expect("a promise resolves only once answered")
+    };
+    (answered, answer)
+}
+
+async fn fetch(url: &str) -> Result<Vec<u8>, JsValue> {
+    let window = web_sys::window().ok_or("no window")?;
+    let response: web_sys::Response = JsFuture::from(window.fetch_with_str(url))
+        .await?
+        .unchecked_into();
+    if !response.ok() {
+        return Err(format!("{url} could not be fetched: {}", response.status()).into());
+    }
+    let bytes = JsFuture::from(response.array_buffer()?).await?;
+    Ok(js_sys::Uint8Array::new(&bytes).to_vec())
+}

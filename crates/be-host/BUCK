@@ -92,8 +92,10 @@ wasi_program_module(
 web_files = glob(["web/*.js"]) + ["//crates/be-tool-local:host-index"] + ["//buck/program:build-info.json"]
 
 # The WASI and be-wasm-threads shims, which beui-web-demo and be-tool-paint-review-web
-# need too, with what thread.js imports, and app.js, which boots an app
-# in its worker (be-wasm-host's :standalone-web-test boots one with it).
+# need too, with what thread.js imports, app.js, which boots an app
+# in its worker (be-wasm-host's :standalone-web-test boots one with it), and
+# worker.js, which boots an app's worker (be-wasm-root-web-testing's page
+# spawns the root's child with it).
 [
     export_file(
         name = shim,
@@ -103,12 +105,13 @@ web_files = glob(["web/*.js"]) + ["//crates/be-tool-local:host-index"] + ["//buc
             "//crates/be-tool-paint-review-web:",
             "//crates/be-tool-tls-diamond-app:",
             "//crates/be-wasm-host:",
+            "//crates/be-wasm-root-web-testing:",
             "//crates/beui-demo-html:",
             "//crates/beui-tests:",
             "//crates/beui-web-demo:",
         ],
     )
-    for shim in ["wasi.js", "threads.js", "thread.js", "dylink.js", "env.js", "app.js"]
+    for shim in ["wasi.js", "threads.js", "thread.js", "dylink.js", "env.js", "app.js", "worker.js"]
 ]
 
 program(

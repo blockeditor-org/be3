@@ -94,9 +94,13 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   half: each instance is a web worker of its own (`WebGuest`), started from the
   URL be-host-runtime's `worker_file` maps the name to (the native loader maps
   it with the same function), and linked by be-host's `web/worker.js`, which
-  links it as `app.js` links an app but opens no gpu device. The browser cannot
-  cap a worker's memory, and compiles no module from bytes until a root guest
-  runs there.
+  links it as `app.js` links an app but opens no gpu device. A module from
+  bytes is compiled on the page with `WebAssembly.compile` (once per page for
+  the same bytes, by SHA-256, while anything holds the `Module`), refused if it
+  imports anything but its transport, and each instance of it is a worker the
+  page posts the compiled `WebAssembly.Module` to (`WebGuest::start_module`),
+  which instantiates it with no extension. The browser cannot cap a worker's
+  memory.
 - **The root guest.** `crates/be-wasm-root-host`'s `Root` runs a root guest
   (plans/host_as_platform_adapter.md, The root guest) on the calling thread,
   stepping a `be_wasm_host::App` inline rather than on a thread of its own.
@@ -106,8 +110,18 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   `host.deadline`, held until the frame's deadline passes and answered at once
   outside a frame or after it) and waits on a bell
   that the root's instances, compiles and own wakes ring, giving up on a root
-  still busy `with_patience` (`STEP_TIMEOUT`) past the deadline. Only its tests run a
-  root today, and the web has no half yet.
+  still busy `with_patience` (`STEP_TIMEOUT`) past the deadline. The stepping
+  is `Core`, shared with the browser's half (`web`), where the page may never
+  wait: `Root::load` compiles the root with `WebAssembly.compile` and
+  instantiates it on the page, answering its transport itself, and
+  `Root::frame`, called from `requestAnimationFrame`, steps it as far as it
+  goes and returns. Whatever the root waits on queues a task that resumes it
+  (its wakes name it by number, since a wake is `Send` and the page's values
+  are not), as does a timer at the deadline and at the patience past it, and
+  the frame goes to the callback `frame` was given, inline if the root
+  answered at once. Only tests run a root today: natively be-wasm-root-host's,
+  and in Chromium `//crates/be-wasm-root-web-testing:web-test`, which also
+  serves a guest on the page the sandbox for modules from bytes.
 - **V8's heap.** No guest may declare garbage-collected types (structs,
   arrays) or more than one table, and a table holds at most a million entries
   (`engine::Shape::bounded`): V8 stops delivering a termination once an

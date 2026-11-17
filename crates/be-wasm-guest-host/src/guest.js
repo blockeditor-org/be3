@@ -1,4 +1,5 @@
-// The worker every guest runs in in a browser: a type module, or an app.
+// The worker every guest runs in in a browser: a type module, a pure guest the
+// page compiled from bytes, or an app.
 //
 // be-wasm-guest-host embeds this file and starts it as a blob worker, so it needs
 // no file served beside the app. The page steps the guest the way the native
@@ -89,12 +90,19 @@ export function runtime(post) {
         if (extra.failure) fail(extra.failure);
     }
 
+    // A start names the module's URL, and the extension that links it if
+    // any, or hands over a pure guest's module the page compiled already
+    // (be-wasm-sandbox-host's `compile`), which is instantiated as it is.
     async function start(data) {
         const loading = data.extension ? import(new URL(data.extension, data.url).href) : null;
-        const response = await fetch(data.url);
-        if (!response.ok) throw new Error(`${data.url} could not be fetched: ${response.status}`);
-        const fetched = await response.arrayBuffer();
-        const module = await WebAssembly.compile(fetched);
+        let fetched = null;
+        let module = data.module;
+        if (!module) {
+            const response = await fetch(data.url);
+            if (!response.ok) throw new Error(`${data.url} could not be fetched: ${response.status}`);
+            fetched = await response.arrayBuffer();
+            module = await WebAssembly.compile(fetched);
+        }
         const wake = () => post({ kind: "wake" });
         if (loading) {
             extension = await (await loading).boot({ url: data.url, bytes: fetched, module, guest, imports, initialize, wake });

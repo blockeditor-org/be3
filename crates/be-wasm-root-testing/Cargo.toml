@@ -15,5 +15,8 @@ be-wasm-ops = { path = "../be-wasm-ops" }
 be-wasm-root-api = { path = "../be-wasm-root-api" }
 be-wasm-sandbox-api = { path = "../be-wasm-sandbox-api" }
 
+[features]
+module = []
+
 [lints]
 workspace = true

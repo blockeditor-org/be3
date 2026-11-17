@@ -6,11 +6,21 @@ license.workspace = true
 
 [dependencies]
 be-wasm-guest-host = { path = "../be-wasm-guest-host" }
-be-wasm-host = { path = "../be-wasm-host" }
 be-wasm-ops = { path = "../be-wasm-ops" }
 be-wasm-root-api = { path = "../be-wasm-root-api" }
 be-wasm-sandbox-api = { path = "../be-wasm-sandbox-api" }
 be-wasm-sandbox-host = { path = "../be-wasm-sandbox-host" }
+
+# V8, which runs the root natively. The browser runs it on the page instead
+# (src/web.rs).
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+be-wasm-host = { path = "../be-wasm-host" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["Response", "Window"] }
 
 [dev-dependencies]
 be-lib-layers = { path = "../be-lib-layers" }
