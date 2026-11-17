@@ -177,11 +177,12 @@ a ring outside it, so content gets every press up to its edge.
 - Where a host opens windows (`opens_windows`: space's panels, be-host's desktop), each dock window
   is a real window: its bar and grips call `begin_move`/`begin_resize` and the host moves it. The
   dock keeps each `Placed` report's `HostPlacement` and hands it back when the window reopens. A tab
-  dropped where no window is (`on_drop_outside`) floats into a new window at the pointer.
+  dropped where no window is (its carry's `outside`) floats into a new window at the pointer.
 
 `DockState::windows` is bottom to top, the focused window is on top, and `Document::layers()`
-follows. Drop targets are resolved in the window the `DragPoint` names, in that window's
-coordinates, and never in a window a non-dock layer covers at the pointer.
+follows. The dock's drop site has a place per window, each resolving the pointer in that
+window's coordinates; the board chooses only places in the window the `DragPoint` names, and the
+dock never one in a window a non-dock layer covers at the pointer.
 
 The window manager (`beui-dock-host/src/unstyled/hosting/manager.rs`, `snap.rs`,
 `beui-dock-state/src/hidden.rs`) is on `DockHostLayout` for any shell: areas (`set_areas`, one `DockArea`
@@ -199,19 +200,24 @@ them (`unstyled/modifier_drag.rs`; the desktop sets Super).
 
 ## Dragging, groups and locks
 
-Dropping a tab on a tab bar inserts it where the bar parts for it (each bar is a `TabStrip`, the old `Reorder`), on a
+Dropping a tab on a tab bar inserts it where the bar parts for it (each bar is a `Reorder`), on a
 pane's middle groups it with the tab the pane shows (`DockDrop::Group`; the highlight names that tab
 unless tidying would only fold it into the pane), on an edge splits it; Alt while dropping floats it. Dragging a pane's grip carries the pane.
+Tabs and panes are carries on the drag board (guides/beui/components.md, Drag and drop): a bar's
+row lifts its tab, the grip an `Interactive`'s `drag`, and `DockTiles` is a drop site whose places
+are `custom` ones, one over the home window's tiles and one per window the host opens, each
+answering the `DockDrop` that `State::resolve` gives at the point, under `when_held(ALT, ..)`
+floating (`State::spec`). The highlight follows the site's `over` (`State::dropping`). Tool bars
+still ride the old `DropTarget` (plans/declarative_dragging.md, step 4).
 A group is a tab holding a dock tree of its own (`Entry::Group`); the tree tidies itself after every
 change (a one-tab group becomes the tab). A pinned group is never tidied away and admits only its
 own tabs.
 
 A `locked` pane makes an area, and every tab declared in it lives there (`DockState::home`). While
 locked, a tab at home moves and splits freely inside the area but cannot leave or float; tabs from
-elsewhere are kept out. Locks belong to places, not tabs. Over a drop the state refuses
-(`DockState::admits`, `admits_leaf`) the dock shows the refused marker (`dock.refused`) instead of a
-drop marker, and refuses the drop on the board (`Take::Refuse`), so a release there does nothing and
-the tab glides back to its bar; check `admits` first when a drop test does nothing.
+elsewhere are kept out. Locks belong to places, not tabs. A drop the state refuses
+(`DockState::admits`, `admits_leaf`) is no place: nothing is highlighted there, and a release there
+does nothing and the tab glides back to its bar; check `admits` first when a drop test does nothing.
 
 ## Nested docks and the host seam
 
@@ -317,7 +323,8 @@ Across windows:
   `PointerPress` naming the window under the pointer. Forwarding catchers (app regions, Wayland
   windows) get it in their own coordinates once the host has reported both windows' `Moved`.
 - Dragging out of every window: a host sends `PointerLeft` while a button is held over no window;
-  the drag board then drops nothing and calls `Draggable`'s `on_drop_outside`. This happens only
+  the drag board then drops nothing and calls the carry's `outside` (`Draggable`'s
+  `on_drop_outside` on the old API). This happens only
   when the host opens every window; elsewhere a drag out drops at the last point inside.
 - `be_lib_ui_types::Input` has no window: it is also the app protocol's input, and an app region is
   always one window.
