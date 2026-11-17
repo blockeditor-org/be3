@@ -48,6 +48,14 @@ impl be_block_type_host::Host for Shared {
         super::worker::set_locked(shared, block, locked);
     }
 
+    fn created(shared: &Arc<Mutex<Self>>, block: Uuid, parent: be_block_graph::BlockParent) {
+        shared
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .graph
+            .relist_around(block, Some(parent));
+    }
+
     fn set_marked(shared: &Arc<Mutex<Self>>, block: Uuid, marked: bool) {
         super::worker::set_marked(shared, block, marked);
     }

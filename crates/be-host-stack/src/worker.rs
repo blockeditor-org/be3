@@ -4887,7 +4887,10 @@ async fn list(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, wanted: Vec<
     // nothing of the listing, and one that fails while it is the current one is a failure.
     let asked_on = peer.connection();
     // A refusal is the server's word as of no earlier than this: what was heard by then goes
-    // with it, and what was heard since (a block made after the request) stays.
+    // with it, and what was heard since (a block made after the request) stays. Narrowly, a
+    // summary another read learned between the ask and a refusal (changed at 11 when this was
+    // asked at 10, revoked at 12) survives it, though it is older than the refusal; the exact
+    // rule waits for 3a's `read` answering the sequence it was refused at.
     let asked_at = peer.newest_sequence();
     let answers = futures_util::future::join_all(wanted.iter().map(|listing| async move {
         match listing.served() {

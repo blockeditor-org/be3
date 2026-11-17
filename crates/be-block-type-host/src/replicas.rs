@@ -1302,6 +1302,9 @@ impl<H: Host> Replicas<H> {
                 if peer.known_summary(block).is_none() || peer.is_attached() {
                     peer.ensure_type(block, content_type, BlockParent::Detached)
                         .await?;
+                    if peer.is_attached() {
+                        H::created(shared, block, BlockParent::Detached);
+                    }
                 }
                 // Until the drain sends its creation the server does not know the block, and
                 // without access to it the server refuses its session: it opens as offline does

@@ -4,6 +4,7 @@ use std::sync::Mutex;
 
 use be_block_client::ClientError;
 use be_block_commit::CommitId;
+use be_block_graph::BlockParent;
 use be_block_store::ObjectStore;
 use be_sdk_type_api::{Description, EditorId, Status};
 use uuid::Uuid;
@@ -91,6 +92,11 @@ pub trait Host: Sized + 'static {
     /// each as "<block>: <what was asked>", empty once answered: for a host to name when it stays
     /// busy.
     fn asking(_shared: &Arc<Mutex<Self>>, _asking: Vec<String>) {}
+
+    /// A replica made `block` on the server under `parent` itself (`Peer::ensure_type`), not
+    /// through the outbox: what the host lists of its place reads it again, as after a drain
+    /// sends a creation.
+    fn created(_shared: &Arc<Mutex<Self>>, _block: Uuid, _parent: BlockParent) {}
 }
 
 #[cfg(test)]
