@@ -85,14 +85,12 @@ impl Link {
     }
 
     /// `author` is the account the editor's host is signed in to, which the blocks it makes
-    /// are by. A call that changes something is answered along with the next thing the test
-    /// sends, as an acknowledgement (`Wire::acknowledge`): its answer alone steps the editor for
-    /// nothing.
+    /// are by. Each call is answered at once, as be-host's runtime answers it.
     pub(crate) fn call(&mut self, call: Call, store: &ContentStore, wire: &mut Wire, author: Uuid) {
         let block = Uuid::from_bytes;
         let done = |wire: &mut Wire, reply: Reply<()>| {
             let (op, outcome) = reply.answer(&());
-            wire.acknowledge(op, outcome);
+            wire.answer(op, outcome);
         };
         match call {
             Call::OpenBlock { reply, request } => {

@@ -7,7 +7,11 @@
 use std::collections::BTreeMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
-use be_sdk_api::{Signer, embed::host_services::Call, ops::Connection};
+use be_sdk_api::{
+    Signer,
+    embed::host_services::Call,
+    ops::{OpId, Outcome},
+};
 use uuid::Uuid;
 
 /// What `account` signs `bytes` with in a test.
@@ -45,24 +49,15 @@ impl Signatures {
         self.signing_block = Some(block);
     }
 
-    /// Answers `call` if it is `sign`, `verify` or `signing-block`, or gives it back; `shown`
-    /// is the block the editor shows.
-    pub(crate) fn answer(
-        &self,
-        call: Call,
-        connection: &mut Connection,
-        shown: Option<Uuid>,
-    ) -> Option<Call> {
+    /// The answer to `call` if it is `sign`, `verify` or `signing-block`, or the call back;
+    /// `shown` is the block the editor shows.
+    pub(crate) fn answer(&self, call: Call, shown: Option<Uuid>) -> Result<(OpId, Outcome), Call> {
         match call {
             Call::SigningBlock { reply } => {
                 let block = self.signing_block.or(shown).unwrap_or_default();
-                reply.send(connection, &Ok(block.into_bytes()));
-                None
+                Ok(reply.answer(&Ok(block.into_bytes())))
             }
-            Call::Sign { reply, bytes } => {
-                reply.send(connection, &Ok(signature(self.me, &bytes)));
-                None
-            }
+            Call::Sign { reply, bytes } => Ok(reply.answer(&Ok(signature(self.me, &bytes)))),
             Call::Verify {
                 reply,
                 account,
@@ -79,10 +74,9 @@ impl Signatures {
                         .unwrap_or(Signer::Verified),
                     false => Signer::Bad,
                 };
-                reply.send(connection, &Ok(signer));
-                None
+                Ok(reply.answer(&Ok(signer)))
             }
-            call => Some(call),
+            call => Err(call),
         }
     }
 }
