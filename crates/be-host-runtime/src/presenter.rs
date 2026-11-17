@@ -250,8 +250,9 @@ pub struct Blit {
     pub(super) screen: ScreenId,
     pub(super) quad: Quad,
     pub(super) source: Rect,
-    pub(super) drawn: Option<(u32, u32)>,
-    pub(super) requested: Option<(u32, u32)>,
+    /// The zoom the host shows the view at (`Placed::zoom`): a painting at the raster it was
+    /// asked for covers its pixels over the raster times this, in the host's points.
+    pub(super) zoom: f32,
     pub(super) placed: Option<[u32; 3]>,
     pub(super) layer: Option<AnchoredSource>,
 }
@@ -270,8 +271,7 @@ impl PartialEq for Blit {
             && self.screen == other.screen
             && self.quad == other.quad
             && self.source == other.source
-            && self.drawn == other.drawn
-            && self.requested == other.requested
+            && self.zoom == other.zoom
             && self.placed == other.placed
             && self.layer == other.layer
     }
@@ -282,31 +282,46 @@ impl Blit {
         self.quad.bounds()
     }
 
-    pub(super) fn shown_at(&self, painted: (u32, u32)) -> Option<(Quad, Rect)> {
-        if self.drawn.is_some_and(|drawn| drawn != painted) {
-            return None;
-        }
-        match (self.drawn, self.requested) {
-            (None, Some(requested)) if requested != painted => {
-                unstretched(self.quad, self.source, requested, painted)
-            }
-            _ => Some((self.quad, self.source)),
-        }
+    /// Where a painting of `placement` shows for this blit, and which part of it: always at its
+    /// own size, from the view's top left, cropped where the view is smaller and leaving the
+    /// rest of the view to its backdrop where it is larger (`unscaled`). Every path that draws an
+    /// app's painting into its view, native, web or a paint snapshot, goes through here.
+    pub(super) fn shown_at(&self, placement: &ScreenPlacement) -> Option<(Quad, Rect)> {
+        unscaled(
+            self.quad,
+            self.source,
+            (placement.width, placement.height),
+            self.density(placement),
+        )
     }
 
-    pub(super) fn damage(&self, pieces: &[Piece], seen: u64) -> Option<Vec<Rect>> {
+    /// A painting of `placement`'s pixels per point of the host.
+    fn density(&self, placement: &ScreenPlacement) -> f32 {
+        placement.raster() / self.zoom
+    }
+
+    pub(super) fn damage(&self, pieces: &[Piece], laid: Vec2, seen: u64) -> Option<Vec<Rect>> {
         let shared = self.shared.borrow();
         let damage = shared.published.since(seen)?;
         if damage.is_empty() {
             return Some(Vec::new());
         }
         let placement = shared.placement(self.screen)?;
-        if placement.width == 0
-            || placement.height == 0
-            || self
-                .requested
-                .is_some_and(|requested| requested != (placement.width, placement.height))
-        {
+        if placement.width == 0 || placement.height == 0 {
+            return None;
+        }
+        // Damage maps through the pieces' fractions, which only hold while the painting fills
+        // the view as laid; one shown at another size is redrawn whole.
+        let density = self.density(placement);
+        let fills = pieces.iter().all(|piece| {
+            let textured = vec2(
+                piece.local.width() * laid.x / piece.source.width(),
+                piece.local.height() * laid.y / piece.source.height(),
+            ) * density;
+            (textured.x - placement.width as f32).abs() < 0.5
+                && (textured.y - placement.height as f32).abs() < 0.5
+        });
+        if !fills {
             return None;
         }
         Some(
@@ -319,26 +334,57 @@ impl Blit {
     }
 }
 
-pub(super) fn unstretched(
+/// Places a painting of `painted` pixels, at `density` pixels per point, for a piece of a view
+/// laid out at `quad` that shows `source` of the view's textured part: the painting keeps its own
+/// size, anchored at the textured part's top left. Returns the part of `quad` it covers and the
+/// part of the painting that shows there, or `None` where it covers none of the piece.
+///
+/// One point of the result's quad always shows `density` pixels of the painting along both axes,
+/// so an app's frame is never stretched or squished into a view of another size, however late
+/// its app answers: a view that grew shows the painting at its size with the rest left to the
+/// backdrop under it, and one that shrank shows its top left.
+pub(super) fn unscaled(
     quad: Quad,
     source: Rect,
-    requested: (u32, u32),
-    drawn: (u32, u32),
+    painted: (u32, u32),
+    density: f32,
 ) -> Option<(Quad, Rect)> {
-    if drawn.0 == 0 || drawn.1 == 0 {
+    if painted.0 == 0
+        || painted.1 == 0
+        || !(density.is_finite() && density > 0.0)
+        || !source.is_positive()
+        || !quad.rect.is_positive()
+    {
         return None;
     }
-    let (across, down) = (
-        requested.0 as f32 / drawn.0 as f32,
-        requested.1 as f32 / drawn.1 as f32,
+    let painted = vec2(painted.0 as f32, painted.1 as f32);
+    let rect = quad.rect;
+    let laid = vec2(
+        rect.width() / source.width(),
+        rect.height() / source.height(),
     );
-    within_texture(
-        quad,
-        Rect::from_min_max(
-            pos2(source.min.x * across, source.min.y * down),
-            pos2(source.max.x * across, source.max.y * down),
-        ),
-    )
+    let origin = rect.min - vec2(source.min.x * laid.x, source.min.y * laid.y);
+    let covers = Rect::from_min_size(origin, painted / density);
+    let shown = rect.intersect(covers);
+    if !shown.is_positive() {
+        return None;
+    }
+    let of_quad = |point: Pos2| {
+        pos2(
+            (point.x - rect.min.x) / rect.width(),
+            (point.y - rect.min.y) / rect.height(),
+        )
+    };
+    let of_painting = |point: Pos2| {
+        pos2(
+            (point.x - origin.x) * density / painted.x,
+            (point.y - origin.y) * density / painted.y,
+        )
+    };
+    Some((
+        quad.part(Rect::from_min_max(of_quad(shown.min), of_quad(shown.max))),
+        Rect::from_min_max(of_painting(shown.min), of_painting(shown.max)),
+    ))
 }
 
 pub(super) fn within_texture(quad: Quad, source: Rect) -> Option<(Quad, Rect)> {
@@ -413,7 +459,6 @@ pub struct ViewDrawing {
     #[cfg(target_arch = "wasm32")]
     id: u64,
     template: Blit,
-    made_for: Option<Vec2>,
     pieces: Pieces,
     held: Option<Rect>,
     rotation: f32,
@@ -425,7 +470,6 @@ pub type Pieces = Rc<RefCell<Vec<Piece>>>;
 impl ViewDrawing {
     pub(super) fn new(
         template: Blit,
-        made_for: Option<Vec2>,
         pieces: Pieces,
         held: Option<Rect>,
         rotation: f32,
@@ -434,7 +478,6 @@ impl ViewDrawing {
             #[cfg(target_arch = "wasm32")]
             id: next_drawing(),
             template,
-            made_for,
             pieces,
             held,
             rotation,
@@ -452,13 +495,6 @@ impl ViewDrawing {
 
     fn blits_in(&self, laid: Rect) -> Vec<Blit> {
         let rect = self.held.unwrap_or(laid);
-        let requested = match (self.template.requested, self.made_for) {
-            (Some((width, height)), Some(made)) if made.x > 0.0 && made.y > 0.0 => Some((
-                (width as f32 * rect.width() / made.x).round() as u32,
-                (height as f32 * rect.height() / made.y).round() as u32,
-            )),
-            (requested, _) => requested,
-        };
         let view = Quad {
             rect,
             rotation: self.rotation,
@@ -470,7 +506,6 @@ impl ViewDrawing {
             .map(|piece| Blit {
                 quad: view.part(piece.local),
                 source: piece.source,
-                requested,
                 ..self.template.clone()
             })
             .collect()
@@ -692,7 +727,7 @@ impl Paints for ViewDrawing {
             let Some(placement) = shared.placement(blit.screen) else {
                 continue;
             };
-            let placed = blit.shown_at((placement.width, placement.height));
+            let placed = blit.shown_at(placement);
             let (Some((quad, source)), Some(screen)) = (placed, shared.paintings.get(&blit.screen))
             else {
                 continue;
@@ -757,7 +792,7 @@ impl beui::native::Draw for AppDrawing {
                     let mut shared = blit.shared.borrow_mut();
                     let frames = shared.take_frames();
                     let laid = |placement: &ScreenPlacement| {
-                        let (quad, source) = blit.shown_at((placement.width, placement.height))?;
+                        let (quad, source) = blit.shown_at(placement)?;
                         Some((placement.surface, quad, source))
                     };
                     let region = match blit.layer {
