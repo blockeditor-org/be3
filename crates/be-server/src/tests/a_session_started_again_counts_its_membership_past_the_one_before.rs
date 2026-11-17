@@ -13,7 +13,7 @@ async fn a_session_started_again_counts_its_membership_past_the_one_before() {
     let block = phone.create_block(BlockParent::Root).await;
 
     let (_, first) = phone.join_session(block).await;
-    phone.sessions.remove(&block);
+    phone.leave(block).await;
     phone.round_trip().await;
     let (_, again) = phone.join_session(block).await;
     assert!(

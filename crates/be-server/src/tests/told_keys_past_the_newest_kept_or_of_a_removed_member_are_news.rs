@@ -1,7 +1,7 @@
 use super::*;
 
 #[tokio::test]
-async fn told_keys_past_the_newest_kept_or_of_a_deleted_block_or_removed_member_are_news() {
+async fn told_keys_past_the_newest_kept_or_of_a_removed_member_are_news() {
     let harness = Harness::start().await;
     let mut owner = harness.client().await;
     let account = owner.register("owner@example.com").await;
@@ -29,19 +29,6 @@ async fn told_keys_past_the_newest_kept_or_of_a_deleted_block_or_removed_member_
         "the oldest past the newest kept is news again"
     );
     assert!(!tell(vec![key(max)]).await);
-
-    let forgotten = store.clone();
-    forgotten
-        .with_database(move |_, database| {
-            crate::notifications::forget(database, organization, block)?;
-            Ok(())
-        })
-        .await
-        .unwrap();
-    assert!(
-        tell(vec![key(max)]).await,
-        "a deleted block's keys are forgotten"
-    );
 
     let forgotten = store.clone();
     forgotten

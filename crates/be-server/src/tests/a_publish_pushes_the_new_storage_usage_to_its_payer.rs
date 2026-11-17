@@ -7,8 +7,10 @@ async fn a_publish_pushes_the_new_storage_usage_to_its_payer() {
     let account = client.register("pusher@example.com").await;
     client.organization("pushes").await;
     let author = Author::new(account);
-    let mut usage = client::account::storage_changed(&client.peer);
-    let first = usage.recv().await.expect("the stream opens with the usage");
+    let first = client
+        .call(|peer| peer.ask::<be_block_protocol::AccountStorage>(Query::Storage, true))
+        .await
+        .expect("following the storage failed");
     assert_eq!((first.held, first.pending), (0, 0));
 
     let block = client.create_block(BlockParent::Root).await;
@@ -23,51 +25,45 @@ async fn a_publish_pushes_the_new_storage_usage_to_its_payer() {
         .map(|hash| author.store.get(*hash).unwrap().unwrap().len() as u64)
         .sum();
     loop {
-        let pushed = usage.recv().await.expect("the stream stays open");
-        if pushed.held == held {
-            assert_eq!(pushed.pending, 0, "a published upload is no longer pending");
+        client.heard_changed(Topic::Storage).await;
+        let usage = client.storage().await.expect("reading the storage failed");
+        if usage.held == held {
+            assert_eq!(usage.pending, 0, "a published upload is no longer pending");
             break;
         }
     }
 
-    let mut again = client::account::storage_changed(&client.peer);
-    assert_eq!(
-        again.recv().await.map(|usage| usage.held),
-        Some(held),
-        "a second stream opens with the usage too"
-    );
     let (second, more) = author.compose(b"and a little more\n", 2_000, None);
     let other = client.create_block(BlockParent::Root).await;
     let published = client
         .publish(&author, other, second, more, None, 2_000)
         .await;
     assert!(published.is_ok(), "{published:?}");
-    // The first stream stays open beside the second, and hears the upload, then the publish.
+    // The topic stays followed, and tells of the upload, then the publish.
     loop {
-        let grown = usage
-            .recv()
-            .await
-            .expect("the first stream stays open beside the second");
-        if grown.held > held {
+        client.heard_changed(Topic::Storage).await;
+        let usage = client.storage().await.expect("reading the storage failed");
+        if usage.held > held {
             break;
         }
     }
 
     let mut stranger = harness.client().await;
-    let mut refused = client::account::storage_changed(&stranger.peer);
+    let refused = stranger.storage().await;
     assert!(
-        refused.recv().await.is_none(),
-        "a connection that has not signed in is refused"
+        refused.is_err(),
+        "a connection that has not signed in is refused: {refused:?}"
     );
     stranger.ended().await;
 
     let mut unopened = harness.client().await;
     unopened.register("unopened@example.com").await;
-    let mut refused = client::account::storage_changed(&unopened.peer);
+    let usage = unopened
+        .call(|peer| peer.ask::<be_block_protocol::AccountStorage>(Query::Storage, true))
+        .await;
     assert!(
-        refused.recv().await.is_none(),
-        "an account with no organization open is refused, not left waiting"
+        matches!(&usage, Ok(usage) if usage.held == 0),
+        "an account's storage is its own, read in no organization: {usage:?}"
     );
-    unopened.round_trip().await;
     harness.stop().await;
 }

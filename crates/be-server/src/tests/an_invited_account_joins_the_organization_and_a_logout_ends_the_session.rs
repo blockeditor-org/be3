@@ -9,7 +9,15 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
     let mut guest = harness.member("Guest@Example.com").await;
 
     let refused = guest
-        .call(|peer| client::organizations::open_organization(peer, organization))
+        .call(|peer| {
+            peer.read_in::<be_block_protocol::Listed>(
+                Some(organization),
+                Query::List {
+                    listing: Listing::Children(BlockParent::Root),
+                    after: None,
+                },
+            )
+        })
         .await;
     assert!(matches!(refused, Err(_)), "{refused:?}");
 

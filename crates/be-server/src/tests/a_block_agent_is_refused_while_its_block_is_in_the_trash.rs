@@ -43,11 +43,19 @@ async fn a_block_agent_is_refused_while_its_block_is_in_the_trash() {
             "the trash deleted the block's agent: {response:?}"
         );
         let response = again
-            .call(|peer| client::organizations::open_organization(peer, organization))
+            .call(|peer| {
+                peer.read_in::<be_block_protocol::Listed>(
+                    Some(organization),
+                    Query::List {
+                        listing: Listing::Children(BlockParent::Root),
+                        after: None,
+                    },
+                )
+            })
             .await;
         assert!(
             refused_as(&response, ErrorCode::PermissionDenied),
-            "an agent opened its organization while its block is in the trash: {response:?}"
+            "an agent read its organization while its block is in the trash: {response:?}"
         );
 
         owner

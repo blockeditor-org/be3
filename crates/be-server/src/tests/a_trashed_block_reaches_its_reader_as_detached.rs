@@ -43,19 +43,11 @@ async fn a_trashed_block_reaches_its_reader_as_detached() {
         .move_keyed(block, BlockParent::Detached, KeySet::default())
         .await;
     assert!(matches!(trashed, Ok(())), "{trashed:?}");
-    let response = trasher
-        .call(|peer| client::blocks::collect_detached(peer))
+    reader
+        .heard_change(block, |changed| {
+            changed.parent == Some(BlockParent::Detached)
+        })
         .await;
-    let Ok(collected) = response else {
-        panic!("collection failed: {response:?}");
-    };
-    assert!(collected.blocks.contains(&block));
-    while reader.graph_change().await != Notice::Roots {}
-    let response = reader.try_read_block(block).await;
-    assert!(
-        refused_as(&response, ErrorCode::BlockNotFound),
-        "{response:?}"
-    );
 
     harness.stop().await;
 }

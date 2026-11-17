@@ -4,65 +4,66 @@ use be_block_graph::Access;
 
 /// Calls that reach past one block, which a block's agent may not make whatever they name.
 const REACHING_PAST: &[&str] = &[
-    "begin-browser-login",
-    "poll-browser-login",
-    "storage-changed",
-    "pair",
-    "paired",
+    "device-login (begin)",
+    "device-login (poll)",
+    "storage",
+    "send devices",
     "create-organization",
-    "list-members",
-    "set-role",
+    "members",
+    "append-log (role)",
     "remove-member",
     "create-agent",
     "rotate-agent-token",
-    "create-link",
+    "create-link (contact)",
     "create-link (invitation)",
-    "get-link",
+    "link",
     "accept-link",
-    "list-links",
+    "links",
     "delete-link",
     "put-contact",
     "remove-contact",
-    "set-parent",
-    "collect-detached",
-    "set-access",
-    "list-access",
+    "move",
+    "append-log (grant)",
+    "access",
     "set-recovery-key",
-    "get-signing-keys",
-    "create-escrow",
-    "push-key",
-    "offers-fcm",
-    "register-endpoint",
-    "unregister-endpoint",
+    "signing-keys",
+    "put-keys (escrow)",
+    "set-push-endpoint (register)",
+    "set-push-endpoint (forget)",
     "notify-modes",
-    "notify-modes-changed",
-    "keys-changed",
     "set-notify-mode",
 ];
 
-/// Calls that name no block, which a terminal host makes on connecting; each answers only
+/// Cases that name no block, which a terminal host makes on connecting; each answers only
 /// about the agent's own block.
 const CONNECTING: &[&str] = &[
     "ping",
-    "open-organization",
-    "list-organizations",
-    "get-organization-log",
-    "list-contacts",
-    "contacts-changed",
-    "upload-urls",
+    "authenticate",
+    "events",
+    "organizations",
+    "log (organization)",
+    "contacts",
+    "reserve-uploads",
     "download-urls",
-    "list-blocks",
-    "read-summaries",
-    "unfollow",
-    "changes",
-    "get-keys",
-    "put-keys",
-    "get-recovery-key",
-    "reseal-keys",
-    "get-key-work",
-    "key-work-changed",
+    "list",
+    "blocks",
+    "unfollow tree",
+    "unfollow session",
+    "unfollow keys",
+    "unfollow key-work",
+    "unfollow roots",
+    "unfollow storage",
+    "unfollow notices",
+    "unfollow contacts",
+    "unfollow notify-modes",
+    "keys",
+    "put-keys (rows)",
+    "recovery-key",
+    "put-keys (reseal)",
+    "key-work",
+    "server-info",
     "pin-escrow",
-    "logout",
+    "revoke-token",
 ];
 
 #[tokio::test]
@@ -229,6 +230,22 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
         "a block's agent has contacts beyond its creator"
     );
 
+    let followed = agent
+        .call(|peer| {
+            peer.ask::<be_block_protocol::KeyPage>(
+                Query::Keys {
+                    blocks: None,
+                    after: None,
+                },
+                true,
+            )
+        })
+        .await;
+    assert!(
+        refused_as(&followed, ErrorCode::PermissionDenied),
+        "a block's agent followed the keys topic, which tells of every block's: {followed:?}"
+    );
+
     let answers = agent.everything(elsewhere, organization).await;
     for (name, answer) in &answers {
         if REACHING_PAST.contains(name) {
@@ -239,7 +256,7 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
                 ),
                 "{name} answered a block's agent: {answer:?}"
             );
-        } else if !CONNECTING.contains(name) && *name != "authenticate" {
+        } else if !CONNECTING.contains(name) {
             assert!(
                 matches!(
                     answer,

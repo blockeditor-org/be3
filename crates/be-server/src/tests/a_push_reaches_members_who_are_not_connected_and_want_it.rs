@@ -10,14 +10,12 @@ async fn a_push_reaches_members_who_are_not_connected_and_want_it() {
     let owner_id = owner.register("owner@example.com").await;
     let organization = owner.personal().await;
     let block = owner.create_block(BlockParent::Root).await;
-    let key = owner
-        .call(|peer| client::notifications::push_key(peer))
+    let info = owner
+        .call(|peer| peer.read::<be_block_protocol::ServerInfo>(Query::ServerInfo))
         .await
         .expect("a signed-in client reads the push key");
-    let offers = owner
-        .call(|peer| client::notifications::offers_fcm(peer))
-        .await;
-    assert!(matches!(offers, Ok(false)), "{offers:?}");
+    let key = info.push_key;
+    assert!(!info.offers_fcm);
 
     let (mut away, _) = viewer_of(&harness, &mut owner, block, "away@example.com").await;
     let away_device = TestDevice::new();

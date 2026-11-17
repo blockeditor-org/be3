@@ -14,7 +14,7 @@ async fn hold(client: &mut TestClient, block: Uuid, objects: &[Hash], hold: Hold
 async fn held(directory: &std::path::Path, identity: Identity) -> u64 {
     ServerStore::open(directory)
         .unwrap()
-        .storage_usage(identity)
+        .storage_usage(identity.account)
         .await
         .unwrap()
         .held
@@ -142,7 +142,7 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
         .await
         .unwrap();
 
-    let before = impatient.storage_usage(identity).await.unwrap().held;
+    let before = impatient.storage_usage(identity.account).await.unwrap().held;
     assert_eq!(
         impatient.collect_uploads().await.unwrap(),
         left_objects.len(),
@@ -164,7 +164,7 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
         "the block's hold ended though another block keeps the part"
     );
     assert_eq!(
-        impatient.storage_usage(identity).await.unwrap().held,
+        impatient.storage_usage(identity.account).await.unwrap().held,
         before - bytes_of(&left_objects),
         "the block stops being charged for what it no longer holds"
     );
