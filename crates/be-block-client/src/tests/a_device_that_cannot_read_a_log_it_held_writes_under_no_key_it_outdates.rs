@@ -183,13 +183,19 @@ async fn an_edit_made_offline_under_a_made_up_key_is_kept_and_never_sent() {
         offline.keys().trusted(made_up),
         "the made-up key did not open, so the test shows nothing"
     );
+    // A part goes up at once, judged by nothing later: refused rather than sealed under the
+    // made-up key, as on a device online whose rotation does not get through.
+    let part = offline.put_part(revoked.note, b"a part").await;
+    assert!(
+        matches!(part, Err(ClientError::Locked(_))),
+        "a part was sealed under an outdated key: {part:?}"
+    );
     let saved = offline
         .save(revoked.note, &TextBlock::of("offline"), revoked.head)
         .await;
-    assert!(
-        matches!(saved, Ok(Saved::Kept(_))),
-        "an edit made offline was refused: {saved:?}"
-    );
+    let Ok(Saved::Kept(kept)) = saved else {
+        panic!("an edit made offline was refused: {saved:?}");
+    };
     assert_eq!(offline.pending().operations, 1);
     drop(offline);
 
@@ -206,6 +212,17 @@ async fn an_edit_made_offline_under_a_made_up_key_is_kept_and_never_sent() {
         revoked.head,
         "the edit sealed under the made-up key was sent"
     );
+    // Set aside with its reason, its content kept here to restore or discard.
+    let unsent = back.unsent();
+    let aside = unsent
+        .iter()
+        .find(|unsent| unsent.block == revoked.note)
+        .expect("the edit set aside is not among the unsent");
+    assert_eq!(
+        aside.refused,
+        Some(be_block_protocol::ErrorCode::KeyOutdated)
+    );
+    assert!(aside.commits.contains(&kept));
 
     harness.stop().await;
 }

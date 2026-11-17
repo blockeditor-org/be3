@@ -797,7 +797,7 @@ impl<S: ObjectStore> Peer<S> {
                 // A log short of what an earlier check kept is withheld: the key waits.
                 .and_then(|checked| match self.keys.served(escrowed.block, &checked) {
                     crate::keys::Served::Take => Some(checked),
-                    crate::keys::Served::Stale(newer) => Some(*newer),
+                    crate::keys::Served::Stale(newer) => Some(newer.0),
                     crate::keys::Served::Withheld => None,
                 });
             let granted = checked
@@ -1090,7 +1090,21 @@ impl<S: ObjectStore> Peer<S> {
         attempt().map_err(locked)
     }
 
+    /// The key `block` is sealed with now. One its scope's log outdates gets the scope a new
+    /// epoch first (signed access 3d), and when that cannot go through, the write fails as
+    /// `Locked`: what is sealed here may be uploaded at once (a part, a relay, a journal entry).
     pub async fn sealing_key(&self, block: Uuid) -> Result<Uuid, ClientError> {
+        self.sealing_key_for(block, false).await
+    }
+
+    /// `sealing_key` for what goes only into the outbox (a commit and the content it holds),
+    /// which `send_pending` judges again before it is sent: offline, an outdated key is used
+    /// rather than refuse a person's edit, and the edit is set aside then if it still is.
+    async fn sealing_key_kept(&self, block: Uuid) -> Result<Uuid, ClientError> {
+        self.sealing_key_for(block, true).await
+    }
+
+    async fn sealing_key_for(&self, block: Uuid, outbox: bool) -> Result<Uuid, ClientError> {
         let known = self.current.lock().unwrap().get(&block).copied();
         let key = match known {
             Some(key) => key,
@@ -1144,7 +1158,7 @@ impl<S: ObjectStore> Peer<S> {
                 // A person's edit made offline is never refused: it is sealed and kept here,
                 // and judged again before it is sent (`Peer::send_pending`), which sets it aside
                 // rather than send it under an outdated key.
-                Err(error) if error.is_unreachable() => return Ok(chosen),
+                Err(error) if outbox && error.is_unreachable() => return Ok(chosen),
                 Err(_) => return Err(ClientError::Locked(block)),
             }
             let rotated = newest();
@@ -1394,7 +1408,9 @@ impl<S: ObjectStore> Peer<S> {
         content_type: Uuid,
         parts: impl Into<Part<'a>>,
     ) -> Result<Manifest, ClientError> {
-        let key = self.sealing_key(block).await?;
+        // Written here, uploaded only with the commit that holds it, which is judged before it
+        // is sent; an upload of its own (`stash`) seals with `sealing_key` first.
+        let key = self.sealing_key_kept(block).await?;
         let parts = parts.into();
         let vault = self.commits.vault();
         // A reused part this device never read (one another device put) names its key in its
@@ -1715,12 +1731,15 @@ impl<S: ObjectStore> Peer<S> {
         // waits on it (a seal to judge, an escrowed key to take) waits for a whole one.
         match self.keys.served(block, &checked) {
             crate::keys::Served::Take => {}
-            // An older answer than one this run already took: that one stands. The entries are
-            // the older answer's; a record signed on them may need signing again.
-            crate::keys::Served::Stale(newer) => return Ok((entries, *newer)),
+            // An older answer than one this run already took: that one stands, with its
+            // entries, so a record signed on it names the newer head.
+            crate::keys::Served::Stale(newer) => {
+                let (checked, entries) = *newer;
+                return Ok((entries, checked));
+            }
             crate::keys::Served::Withheld => return Err(ClientError::Withheld(block)),
         }
-        if let Some(kept) = self.keys.note_log(block, &checked) {
+        if let Some(kept) = self.keys.note_log(block, &checked, &entries) {
             let _ = self.refs.keep_log(block, kept);
         }
         Ok((entries, checked))
@@ -2743,7 +2762,8 @@ impl<S: ObjectStore> Peer<S> {
             Some(label) => be_block_commit::CommitKind::Bookmark(label),
             None => be_block_commit::CommitKind::Autosave,
         };
-        let key = self.sealing_key(block).await?;
+        // Into the outbox, judged again before it is sent (`send_pending`).
+        let key = self.sealing_key_kept(block).await?;
         let commit = Commit::new(manifest, self.account, time)
             .with_parents(parents.clone())
             .with_kind(kind)
@@ -2841,7 +2861,7 @@ impl<S: ObjectStore> Peer<S> {
         // as the server would refuse it, so the edit is set aside, not lost.
         if self.sent_outdated(block, id).await? {
             return Err(ClientError::Refused(
-                ErrorCode::InvalidRequest,
+                ErrorCode::KeyOutdated,
                 format!("block {block}'s edit is sealed under a key its access log outdates"),
             ));
         }

@@ -211,6 +211,9 @@ pub fn refusal(code: be_block_protocol::ErrorCode) -> &'static str {
     match code {
         ErrorCode::OverQuota => "it would go over a limit",
         ErrorCode::InvalidRequest => "it could not take it as it is",
+        ErrorCode::KeyOutdated => {
+            "it was locked offline with a key someone who lost access may hold"
+        }
         ErrorCode::PolicyRefused => "your organization does not allow it",
         ErrorCode::PermissionDenied | ErrorCode::BlockNotFound => "you may not make it there",
         _ => "it would not say why",

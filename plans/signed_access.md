@@ -262,8 +262,11 @@ did not sign.
   through the head, so an honest epoch naming a head newer than those costs a
   rotation. Offline, where none can be made, the edit is kept, sealed under
   the epoch at hand, and judged again before it is sent: set aside if the
-  logs then show that epoch outdated, sent if they do not. One judged only by
-  a scope this device can neither read nor kept is sent as before.
+  logs then show that epoch outdated (`ErrorCode::KeyOutdated`, among the
+  unsent with its content kept), sent if they do not. One whose scope this
+  device can neither read nor has kept anything of is sent as before: that
+  device never held the revocation, which a server can already bring about by
+  truncating the log for a device new to the block.
   A contact's seal is then judged by the levels kept at the head, where a
   signer who manages from outside (a granter on a block above) is never
   named, as before step 4. The organization's log is kept and judged the same
@@ -275,7 +278,7 @@ did not sign.
   scopes. The demoted one keeps every scope epoch they reached through escrow,
   and since no block's log lowered anyone, those epochs stay current: with the
   server's help they read what is written under them until each block rotates
-  for some other reason. The fix: step 7.
+  for some other reason. The fix: step 8.
 - **Stale heads on making.** A key minted on a device whose block or
   organization log is stale names those stale heads: for a new block, as for a
   rotation by a device withheld a revocation, its epoch is current only on
@@ -525,7 +528,13 @@ instead.
 6. **Guides.** guides/blocks/keys.md's server section, and its rule that keys
    are sealed only to and taken only from verified contacts, which a checked
    grant now also satisfies; guides/blocks/server.md's access section.
-7. **Demotions rotate scopes.** A demotion makes every scope under the escrow
+7. **Re-seal outdated offline edits.** An edit made offline under an epoch the
+   logs show outdated by the time it is sent is set aside today, though the
+   content is the person's and only the key was compromised. Seal it again
+   under a new epoch of its scope and send it, setting it aside only when no
+   new epoch can be made. Done: a test where an edit sealed offline under a key
+   a revoked member made up reaches the server under a key they never get.
+8. **Demotions rotate scopes.** A demotion makes every scope under the escrow
    due a rotation, as a revocation does its block's, so a demoted
    administrator reads nothing written after it under epochs they reached
    through escrow (Accepted limits, "Demoting an administrator rotates only

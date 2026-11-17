@@ -1086,6 +1086,9 @@ pub(super) fn lost_access(code: ErrorCode) -> bool {
 fn never_taken(code: ErrorCode) -> bool {
     matches!(
         code,
-        ErrorCode::InvalidRequest | ErrorCode::ObjectTooLarge | ErrorCode::CommitAhead
+        ErrorCode::InvalidRequest
+            | ErrorCode::ObjectTooLarge
+            | ErrorCode::CommitAhead
+            | ErrorCode::KeyOutdated
     )
 }
