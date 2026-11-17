@@ -64,6 +64,7 @@ impl<S: ObjectStore> Peer<S> {
         }
         if let Err(error) = self.commits.vault().store().sync() {
             for ready in &prepared {
+                let _ = self.forget_made(&ready.creation);
                 done(ready.id, Err(ClientError::Disconnected(error.to_string())));
             }
             return Queued {
@@ -74,7 +75,10 @@ impl<S: ObjectStore> Peer<S> {
         for mut ready in prepared {
             match self.keep(&mut ready) {
                 Ok(()) => kept.push(ready),
-                Err(error) => done(ready.id, Err(error)),
+                Err(error) => {
+                    let _ = self.forget_made(&ready.creation);
+                    done(ready.id, Err(error));
+                }
             }
         }
         Queued { prepared: kept }
@@ -87,6 +91,8 @@ impl<S: ObjectStore> Peer<S> {
             ops.push(Op::Publish(pending.clone()));
         }
         ready.queued = self.refs.push_all(ops)?;
+        // The outbox keeps the creation: so does the device the log made with it.
+        self.keep_made_log(&ready.creation)?;
         if let Some(pending) = &ready.publish {
             self.refs.set_head(ready.id, pending.commit)?;
         }
@@ -165,21 +171,6 @@ impl<S: ObjectStore> Peer<S> {
         parent: BlockParent,
         scopes: &mut HashMap<Uuid, (Uuid, bool)>,
     ) -> Result<Prepared, ClientError> {
-        let made = self.keys.holds_log(block.id);
-        let prepared = self.prepare_made(block, parent, scopes).await;
-        // A root `new_log` made for a block that is not then kept is let go (`forget_made`).
-        if prepared.is_err() && !made && self.keys.holds_log(block.id) {
-            self.keys.forget_made(block.id);
-        }
-        prepared
-    }
-
-    async fn prepare_made(
-        &self,
-        block: &Saved,
-        parent: BlockParent,
-        scopes: &mut HashMap<Uuid, (Uuid, bool)>,
-    ) -> Result<Prepared, ClientError> {
         // Each block's scope key, and whether it was taken unchecked (`scope_key_making`), as
         // is everything below it.
         let under = match parent {
@@ -194,7 +185,9 @@ impl<S: ObjectStore> Peer<S> {
             BlockParent::Root | BlockParent::Detached => None,
         };
         let unchecked = under.is_some_and(|(_, unchecked)| unchecked);
-        let (root, placement) = self.new_log(block.id, parent).await?;
+        // Failing before it is prepared, the root made for it is let go as `made` drops; once
+        // prepared, `queue_import` keeps its log with the creation or lets it go.
+        let (root, placement, made) = self.new_log(block.id, parent).await?;
         let (key, keys, children) = match under.map(|(under, _)| under) {
             Some(under) => {
                 let (key, keys) = self.keys.mint_data(block.id, under)?;
@@ -224,6 +217,7 @@ impl<S: ObjectStore> Peer<S> {
             unchecked,
         };
         let Some(content) = &block.content else {
+            made.hold();
             return Ok(Prepared {
                 id: block.id,
                 keys,
@@ -247,6 +241,7 @@ impl<S: ObjectStore> Peer<S> {
         let chunks = vault.objects(&manifest)?;
         let mut objects = vec![id.hash()];
         objects.extend(chunks.iter().copied());
+        made.hold();
         Ok(Prepared {
             id: block.id,
             keys,
@@ -346,13 +341,17 @@ impl<S: ObjectStore> Peer<S> {
     ) -> Imported {
         let block = ready.id;
         let summary = match created {
-            Ok(block) => Some(block),
+            Ok(block) => {
+                self.keys.made_taken(block.id);
+                Some(block)
+            }
             Err(be_block_protocol::Error {
                 code: ErrorCode::BlockAlreadyExists,
                 ..
             }) => None,
             Err(error) => {
                 self.refs.remove(&ready.queued)?;
+                self.forget_made(&ready.creation)?;
                 return Err(error.into());
             }
         };

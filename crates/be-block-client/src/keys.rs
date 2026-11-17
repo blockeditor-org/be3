@@ -89,6 +89,18 @@ struct Roots {
     /// (`crate::refs::KeptLog`): a log served later that does not reach it is withheld, and
     /// with no log read, an epoch is judged by it.
     kept: HashMap<Uuid, crate::refs::KeptLog>,
+    /// Blocks this device set out to make whose creation no server has taken yet, with the root
+    /// it made (`KeyBook::pin_root`) and any other root a key of them carried meanwhile: a
+    /// creation the server refuses as made by someone else lets its root go, and the other root
+    /// stands (`KeyBook::forget_made`).
+    made: HashMap<Uuid, Made>,
+}
+
+/// A root this device made for a block no server has taken yet (`Roots::made`).
+struct Made {
+    root: EntryHash,
+    /// The other roots keys of the block carried meanwhile, and whether each was taken weakly.
+    others: Vec<(EntryHash, bool)>,
 }
 
 /// What a device holds of a block's access log root.
@@ -131,6 +143,17 @@ impl Roots {
         Some(found)
     }
 
+    /// Notes `root`, carried by a key of `block`, when it is not the root this device made for
+    /// it while that creation waits (`made`).
+    fn carried_other(&mut self, block: Uuid, root: EntryHash, weak: bool) {
+        if let Some(made) = self.made.get_mut(&block)
+            && made.root != root
+            && !made.others.contains(&(root, weak))
+        {
+            made.others.push((root, weak));
+        }
+    }
+
     fn conflict(&mut self, block: Uuid) {
         self.pinned.remove(&block);
         self.weak.remove(&block);
@@ -138,6 +161,7 @@ impl Roots {
     }
 
     fn pin(&mut self, block: Uuid, root: EntryHash) {
+        self.carried_other(block, root, false);
         if self.conflicting.contains(&block) {
             return;
         }
@@ -157,6 +181,7 @@ impl Roots {
     /// Takes `root` weakly (`Roots::weak`) for a block pinned nothing else for; one that
     /// disagrees with what is held is a conflict.
     fn pin_weak(&mut self, block: Uuid, root: EntryHash) {
+        self.carried_other(block, root, true);
         if self.conflicting.contains(&block) {
             return;
         }
@@ -878,18 +903,65 @@ impl KeyBook {
         self.roots.lock().unwrap().kept.get(&block).cloned()
     }
 
-    /// Lets go of the root and kept log of a block this device set out to make that no server
-    /// took (`Peer::new_log`): refused, or its creation discarded. `new_log` makes one only for
-    /// a block whose log it held nothing of, so nothing else is lost.
-    pub fn forget_made(&self, block: Uuid) {
+    /// Lets go of `root`, made here for `block` (`Peer::new_log`), and the log kept at it, as
+    /// no server took the creation: refused, made by someone else, or discarded. Only what is
+    /// still that root's goes. A conflict it caused with the root keys of the block carried
+    /// meanwhile is lifted, and that root stands, when they all carried the same one.
+    pub fn forget_made(&self, block: Uuid, root: EntryHash) {
         let mut roots = self.roots.lock().unwrap();
-        roots.pinned.remove(&block);
-        roots.kept.remove(&block);
+        let made = roots.made.remove(&block).filter(|made| made.root == root);
+        if roots.pinned.get(&block) == Some(&root) {
+            roots.pinned.remove(&block);
+        }
+        if roots
+            .kept
+            .get(&block)
+            .is_some_and(|kept| kept.head == root && kept.place == 0)
+        {
+            roots.kept.remove(&block);
+        }
+        let Some(made) = made else {
+            return;
+        };
+        let [(other, weak), rest @ ..] = made.others.as_slice() else {
+            return;
+        };
+        if rest.iter().any(|(more, _)| more != other) || !roots.conflicting.remove(&block) {
+            return;
+        }
+        match *weak && rest.iter().all(|(_, weak)| *weak) {
+            true => roots.weak.insert(block, *other),
+            false => roots.pinned.insert(block, *other),
+        };
     }
 
-    /// Pins the root of a block this device makes, before minting its keys, which carry it.
+    /// Notes `root` as made here for `block`, whose creation the outbox keeps from an earlier
+    /// run, before the keys it pinned are read again (`pin_root`).
+    pub fn note_made(&self, block: Uuid, root: EntryHash) {
+        self.roots.lock().unwrap().made.entry(block).or_insert(Made {
+            root,
+            others: Vec::new(),
+        });
+    }
+
+    /// The server took the creation of `block`, made here: its root is the block's.
+    pub fn made_taken(&self, block: Uuid) {
+        self.roots.lock().unwrap().made.remove(&block);
+    }
+
+    /// Pins the root of a block this device makes, before minting its keys, which carry it, as
+    /// made here until a server takes the creation (`made_taken`) or it is let go
+    /// (`forget_made`).
     pub fn pin_root(&self, block: Uuid, root: EntryHash) {
-        self.roots.lock().unwrap().pin(block, root);
+        let mut roots = self.roots.lock().unwrap();
+        roots.made.insert(
+            block,
+            Made {
+                root,
+                others: Vec::new(),
+            },
+        );
+        roots.pin(block, root);
     }
 
     /// `key` as it travels sealed or wrapped (`CarriedKey`): with the block it is a key of

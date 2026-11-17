@@ -514,6 +514,13 @@ impl<S: ObjectStore> Peer<S> {
             }
         }
         keys.set_kept_logs(refs.kept_logs());
+        for (_, op) in refs.outbox() {
+            if let crate::refs::Op::Create(creation) = op
+                && let Some(root) = made_root(&creation)
+            {
+                keys.note_made(creation.block, root);
+            }
+        }
         keys.absorb(refs.keys());
         let peer = Self {
             connection: Arc::new(Mutex::new(connection)),
@@ -1980,7 +1987,7 @@ impl<S: ObjectStore> Peer<S> {
                 .keep_creation(block, content_type, parent, metadata, owner_only)
                 .await;
         }
-        let creation = self
+        let (creation, made) = self
             .creation(block, content_type, parent, metadata, owner_only)
             .await?;
         // A parent whose creation waits in the outbox is not on the server yet: this one waits
@@ -1989,7 +1996,7 @@ impl<S: ObjectStore> Peer<S> {
         if let BlockParent::Block(above) = parent
             && (self.refs.creating(above) || creation.unchecked)
         {
-            return self.create_locally(creation);
+            return self.create_locally(creation, made);
         }
         let response = crate::ask(
             be_block_protocol::write::<be_block_protocol::BlockSummary, _>(
@@ -2010,15 +2017,12 @@ impl<S: ObjectStore> Peer<S> {
             ),
         )
         .await;
+        // Refused, the root made for it is let go as `made` drops.
         let response = match response {
-            Err(error) if error.is_unreachable() => return self.create_locally(creation),
-            Err(error) => {
-                self.keys.forget_made(block);
-                return Err(error);
-            }
-            Ok(response) => response,
+            Err(error) if error.is_unreachable() => return self.create_locally(creation, made),
+            response => response?,
         };
-        self.keep_made_log(block)?;
+        made.taken()?;
         self.recorded(&creation.keys);
         self.note(&response);
         self.escrow_created(&creation.keys).await;
@@ -2042,10 +2046,10 @@ impl<S: ObjectStore> Peer<S> {
                 format!("block {block} already exists"),
             ));
         }
-        let creation = self
+        let (creation, made) = self
             .creation(block, content_type, parent, metadata, owner_only)
             .await?;
-        self.create_locally(creation)
+        self.create_locally(creation, made)
     }
 
     async fn creation(
@@ -2055,23 +2059,13 @@ impl<S: ObjectStore> Peer<S> {
         parent: BlockParent,
         metadata: &BlockMetadata,
         owner_only: bool,
-    ) -> Result<Creation, ClientError> {
-        let (root, placement) = self.new_log(block, parent).await?;
-        let made = async {
-            let (key, keys, unchecked) = self.new_keys(block, parent, owner_only).await?;
-            let references = bounded(deduplicated(self.resolve(block, metadata.references())))?;
-            let metadata = self.commits.vault().seal(key, &metadata.encode())?;
-            Ok::<_, ClientError>((key, keys, unchecked, references, metadata))
-        }
-        .await;
-        let (key, keys, unchecked, references, metadata) = match made {
-            Ok(made) => made,
-            Err(error) => {
-                self.keys.forget_made(block);
-                return Err(error);
-            }
-        };
-        Ok(Creation {
+    ) -> Result<(Creation, MadeRoot<'_>), ClientError> {
+        // Failing from here on, the root made for it is let go as `made` drops.
+        let (root, placement, made) = self.new_log(block, parent).await?;
+        let (key, keys, unchecked) = self.new_keys(block, parent, owner_only).await?;
+        let references = bounded(deduplicated(self.resolve(block, metadata.references())))?;
+        let metadata = self.commits.vault().seal(key, &metadata.encode())?;
+        let creation = Creation {
             block,
             content_type,
             parent,
@@ -2083,19 +2077,20 @@ impl<S: ObjectStore> Peer<S> {
             root,
             placement,
             unchecked,
-        })
+        };
+        Ok((creation, made))
     }
 
     /// The first two entries of a new block's access log, signed by this account: its root,
     /// pinned here before the block's keys are made, which carry it; and the parent record
     /// placing it at `parent` (`placement`). The root and the log kept at it stay in memory
-    /// until a server takes the creation or the outbox keeps it (`keep_made_log`); a creation
-    /// that fails lets them go (`KeyBook::forget_made`).
+    /// until a server takes the creation or the outbox keeps it, and are let go if neither
+    /// does (`MadeRoot`).
     pub(crate) async fn new_log(
         &self,
         block: Uuid,
         parent: BlockParent,
-    ) -> Result<(Vec<u8>, Vec<u8>), ClientError> {
+    ) -> Result<(Vec<u8>, Vec<u8>, MadeRoot<'_>), ClientError> {
         use be_block_keys::{Authority, Entry, LogKind, Parent, Record};
         // A block whose log this device holds is there already, though its summary may be
         // gone (forgotten, or its edits discarded): a second root would write over what the
@@ -2123,17 +2118,14 @@ impl<S: ObjectStore> Peer<S> {
         );
         self.keys.pin_root(block, root.hash());
         self.keys.keep_made(block, root.hash());
-        Ok((root.encode(), placed.encode()))
-    }
-
-    /// Keeps on the device the log of a block made here (`new_log`), once a server took its
-    /// creation or the outbox keeps it: kept before, a creation the server refuses (the block is
-    /// there already, made by someone else) would leave a log at a root that is not the block's.
-    pub(crate) fn keep_made_log(&self, block: Uuid) -> Result<(), ClientError> {
-        if let Some(kept) = self.keys.kept_log(block) {
-            self.refs.keep_log(block, kept)?;
-        }
-        Ok(())
+        let made = MadeRoot {
+            keys: &self.keys,
+            refs: &self.refs,
+            block,
+            root: root.hash(),
+            armed: true,
+        };
+        Ok((root.encode(), placed.encode(), made))
     }
 
     /// Where `parent` is, as a parent record placing a block there names it: under a block,
@@ -4589,4 +4581,58 @@ impl Around {
         )
         .ok()
     }
+}
+
+/// The root `Peer::new_log` made for a block, held in memory only: let go when this drops
+/// (`KeyBook::forget_made`), unless the outbox keeps the creation (`kept`) or a server takes
+/// it (`taken`), which keep the log made with it on the device. Kept before, a creation the
+/// server refuses (the block is there already, made by someone else) would leave a log at a
+/// root that is not the block's, which the keys its sharer sealed are judged by after a
+/// restart.
+pub(crate) struct MadeRoot<'a> {
+    keys: &'a KeyBook,
+    refs: &'a Refs,
+    block: Uuid,
+    root: be_block_keys::EntryHash,
+    armed: bool,
+}
+
+impl MadeRoot<'_> {
+    /// The outbox keeps the creation: so does the device the log made with it.
+    pub(crate) fn kept(mut self) -> Result<(), ClientError> {
+        self.armed = false;
+        if let Some(kept) = self.keys.kept_log(self.block)
+            && kept.head == self.root
+        {
+            self.refs.keep_log(self.block, kept)?;
+        }
+        Ok(())
+    }
+
+    /// A server took the creation: the root is the block's.
+    pub(crate) fn taken(self) -> Result<(), ClientError> {
+        self.keys.made_taken(self.block);
+        self.kept()
+    }
+
+    /// Held on without keeping anything yet: whoever keeps the creation later keeps its log
+    /// (`Peer::keep_made_log`) or lets it go (`Peer::forget_made`).
+    pub(crate) fn hold(mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for MadeRoot<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            self.keys.forget_made(self.block, self.root);
+        }
+    }
+}
+
+/// The root a creation made its block's log at (`Peer::new_log`).
+pub(crate) fn made_root(creation: &Creation) -> Option<be_block_keys::EntryHash> {
+    be_block_keys::Entry::decode(&creation.root)
+        .ok()
+        .map(|root| root.hash())
 }
