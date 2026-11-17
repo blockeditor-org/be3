@@ -182,7 +182,8 @@ const SCHEMA: &str = "
         invite_opened   INTEGER NOT NULL DEFAULT 0,
         invite_ended    INTEGER NOT NULL DEFAULT 0,
         invite_revoked  INTEGER NOT NULL DEFAULT 0,
-        -- Its inviter's device made the accepter a contact (`delete-link` on an accepted one);
+        -- Its inviter's device finished it: made the accepter a contact and signed them in
+        -- (`delete-link` on an accepted one);
         -- the row stays for the organization's invite list until its retention passes.
         invite_finished INTEGER NOT NULL DEFAULT 0,
         accepter_id     TEXT NOT NULL DEFAULT '',

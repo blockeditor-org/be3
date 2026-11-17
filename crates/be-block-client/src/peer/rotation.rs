@@ -414,11 +414,11 @@ impl<S: ObjectStore> Peer<S> {
         Ok(signed)
     }
 
-    /// Finishes the links this account made that were accepted (`contacts::finish_links`), and
-    /// signs each who accepted an invitation into this organization into its log, with the
-    /// keys their card, opened with the invitation's code, names. Each link is deleted only
-    /// after that, so a device that stops halfway finishes it again on its next sync, rather
-    /// than leave its accepter waiting, unsigned, for an administrator.
+    /// Finishes the links this account made that were accepted (`contacts::finish_links`,
+    /// then `finish_link` for each), deleting each only after: a device that stops halfway, or
+    /// whose delete fails, finishes it again on its next sync, rather than leave a contact
+    /// link's grant unsigned or an invitation's accepter waiting, unsigned, for an
+    /// administrator.
     pub async fn finish_links(&self) -> Result<Vec<crate::contacts::Finished>, ClientError> {
         let finished = crate::contacts::finish_links(
             &self.connection(),
@@ -427,30 +427,59 @@ impl<S: ObjectStore> Peer<S> {
         )
         .await?;
         for done in &finished {
-            let identity = be_block_keys::PublicIdentity {
-                public: done.card.public,
-                signing: done.card.signing,
-            };
-            let account = Uuid::from_bytes(done.card.account);
-            // A contact link's grant, applied when it was accepted, goes in the block's log now
-            // that the accepter's card names their keys; until then no one seals to them by it.
-            // One that fails leaves the server's row unsigned, sealed by no one.
-            if let Some(grant) = done
-                .grant
-                .as_ref()
-                .filter(|grant| grant.organization == self.organization)
-            {
-                let _ = self
-                    .grant_as(grant.block, account, grant.access, Some(identity))
-                    .await;
-            }
-            if done.invited == Some(self.organization) {
-                // One that fails waits in key work's unsigned members.
-                let _ = self.sign_in(account, identity, false).await;
-            }
-            client::contacts::delete_link(&self.connection(), done.link).await??;
+            self.finish_link(done).await;
+            // One that fails stays listed, and is finished again on the next sync.
+            let _ = client::contacts::delete_link(&self.connection(), done.link).await;
         }
         Ok(finished)
+    }
+
+    /// Finishes an accepted link in this organization, as often as it is asked to: signs a
+    /// contact link's grant into the block's log and seals the block's scope to the accepter,
+    /// and signs an invitation's accepter into the organization's log, with the keys their
+    /// card, opened with the link's code, names.
+    pub(crate) async fn finish_link(&self, done: &crate::contacts::Finished) {
+        let identity = be_block_keys::PublicIdentity {
+            public: done.card.public,
+            signing: done.card.signing,
+        };
+        let account = Uuid::from_bytes(done.card.account);
+        if let Some(grant) = done
+            .grant
+            .as_ref()
+            .filter(|grant| grant.organization == self.organization)
+        {
+            // A contact link's grant, applied when it was accepted, goes in the block's log now
+            // that the accepter's card names their keys; until then no one seals to them by it.
+            // Only while the log names them nowhere: once it does, a later grant or revocation
+            // decides, and finishing again must not undo it. One that fails leaves the
+            // server's row unsigned, sealed by no one.
+            let named = self
+                .checked_access(grant.block)
+                .await
+                .ok()
+                .map(|(_, checked)| checked.grants.get(&account.into_bytes()).map(|(level, _)| *level));
+            let level = match named {
+                Some(None) => self
+                    .grant_as(grant.block, account, grant.access, Some(identity))
+                    .await
+                    .ok()
+                    .map(|()| super::grant_level(grant.access)),
+                Some(Some(level)) => Some(level),
+                None => None,
+            };
+            // Sealed to them only while the log grants them a view; one that fails is sealed
+            // later through `unsealed`.
+            if level.is_some_and(|level| level >= be_block_keys::Level::View) {
+                let _ = self
+                    .seal_share(grant.block, account, &done.card.public)
+                    .await;
+            }
+        }
+        if done.invited == Some(self.organization) {
+            // One that fails waits in key work's unsigned members.
+            let _ = self.sign_in(account, identity, false).await;
+        }
     }
 
     /// The organization's log checked from the root this account pinned; none when it has no
