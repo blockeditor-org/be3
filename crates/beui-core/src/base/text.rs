@@ -797,7 +797,10 @@ impl TextNode {
             outset: Vec2::ZERO,
         };
         for mark in &self.marks {
-            fill(layout.selection_rects(mark.range.clone()), plain(mark.color));
+            fill(
+                layout.selection_rects(mark.range.clone()),
+                plain(mark.color),
+            );
         }
         if let Some((range, color)) = &self.selection {
             fill(layout.selection_rects(range.clone()), plain(*color));

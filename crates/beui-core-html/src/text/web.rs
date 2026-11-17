@@ -140,8 +140,8 @@ fn stops(model: &TextModel) -> Stops {
                 at += len;
             }
             Piece::Gap | Piece::Skip { .. } => {
-                if let Some(stop) = crate::dom::dom(node)
-                    .and_then(|dom| super::empty_stop(&piece, at, dom))
+                if let Some(stop) =
+                    crate::dom::dom(node).and_then(|dom| super::empty_stop(&piece, at, dom))
                 {
                     stops.push(stop);
                 }
@@ -149,7 +149,9 @@ fn stops(model: &TextModel) -> Stops {
         }
     }
     debug_assert!(
-        stops.windows(2).all(|pair| pair[0].byte() <= pair[1].byte()),
+        stops
+            .windows(2)
+            .all(|pair| pair[0].byte() <= pair[1].byte()),
         "a text's stops are in byte order, which `after` and `ending_at` search by"
     );
     stops
@@ -490,11 +492,7 @@ fn apply_hang(model: &TextModel, frame: &Frame, stops: &Stops) -> bool {
 /// carets are. A line between its first and last spans the characters on it, at least a pixel
 /// wide as natively (an empty line's newline); a last line it holds nothing of (it ends where
 /// a line wraps) gets none.
-fn mark_boxes(
-    frame: &Frame,
-    stops: &Stops,
-    bytes: std::ops::Range<usize>,
-) -> Vec<(f64, i64, f64)> {
+fn mark_boxes(frame: &Frame, stops: &Stops, bytes: std::ops::Range<usize>) -> Vec<(f64, i64, f64)> {
     let (left, first) = spot(frame, stops, bytes.start);
     let (right, last) = spot(frame, stops, bytes.end);
     if first >= last {
@@ -548,7 +546,8 @@ fn boxes(model: &TextModel, frame: &Frame, stops: &Stops) -> Vec<(&'static str, 
         let Piece::Run(_) = piece else {
             continue;
         };
-        let Some(span) = crate::dom::dom(node).and_then(|dom| dom.dyn_into::<web_sys::HtmlElement>().ok())
+        let Some(span) =
+            crate::dom::dom(node).and_then(|dom| dom.dyn_into::<web_sys::HtmlElement>().ok())
         else {
             continue;
         };
@@ -556,10 +555,16 @@ fn boxes(model: &TextModel, frame: &Frame, stops: &Stops) -> Vec<(&'static str, 
             continue;
         }
         let style = span.style();
-        let color = style.get_property_value("background-color").unwrap_or_default();
-        let radius = style.get_property_value("border-radius").unwrap_or_default();
+        let color = style
+            .get_property_value("background-color")
+            .unwrap_or_default();
+        let radius = style
+            .get_property_value("border-radius")
+            .unwrap_or_default();
         let outset = span.get_attribute(BACKGROUND).unwrap_or_default();
-        let mut outset = outset.split(' ').map(|part| part.parse::<f64>().unwrap_or(0.0));
+        let mut outset = outset
+            .split(' ')
+            .map(|part| part.parse::<f64>().unwrap_or(0.0));
         let (x, y) = (outset.next().unwrap_or(0.0), outset.next().unwrap_or(0.0));
         let rects = span.get_client_rects();
         for index in 0..rects.length() {

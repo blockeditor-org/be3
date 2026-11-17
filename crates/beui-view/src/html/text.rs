@@ -436,9 +436,8 @@ impl Span {
             set_attribute(
                 span,
                 "data-beui-background",
-                background.map(|background| {
-                    format!("{} {}", background.outset.x, background.outset.y)
-                }),
+                background
+                    .map(|background| format!("{} {}", background.outset.x, background.outset.y)),
             );
             let clone = background.map(|_| "clone".to_owned());
             set_style(span, "box-decoration-break", clone.clone());

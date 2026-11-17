@@ -7,7 +7,12 @@ use super::*;
 fn a_caret_at_a_lines_end_stands_past_its_gaps_but_not_an_icon() {
     let mut stops = stops_of(&[(1, "ab")]);
     let icon = Piece::Skip { newline: false };
-    for (piece, node) in [(&Piece::Gap, 2), (&Piece::Gap, 3), (&icon, 4), (&Piece::Gap, 5)] {
+    for (piece, node) in [
+        (&Piece::Gap, 2),
+        (&Piece::Gap, 3),
+        (&icon, 4),
+        (&Piece::Gap, 5),
+    ] {
         stops.extend(empty_stop(piece, 2, node));
     }
     let (stop, rooms) = ending_at(&stops, 2).expect("b ends at 2");

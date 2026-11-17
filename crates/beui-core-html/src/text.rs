@@ -233,7 +233,9 @@ pub enum Piece {
     /// A `Gap`: room holding no bytes.
     Gap,
     /// Something else holding no bytes: an icon, or a break when `newline`.
-    Skip { newline: bool },
+    Skip {
+        newline: bool,
+    },
 }
 
 #[derive(Default)]

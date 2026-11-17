@@ -71,7 +71,13 @@ impl Builder<'_> {
             at = next + 1;
             match bytes.get(at).filter(|_| at < line.end) {
                 Some(b' ') => {
-                    self.push(BLANK, at..at + 1, true, unseen, SpanKind::Blank(column - bar));
+                    self.push(
+                        BLANK,
+                        at..at + 1,
+                        true,
+                        unseen,
+                        SpanKind::Blank(column - bar),
+                    );
                     at += 1;
                 }
                 _ => self.gap(GapWidth::px(column - bar), body),

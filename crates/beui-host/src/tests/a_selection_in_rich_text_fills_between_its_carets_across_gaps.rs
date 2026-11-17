@@ -36,7 +36,11 @@ fn a_selection_in_rich_text_fills_between_its_carets_across_gaps() {
         (rects[0].min.x, rects[0].max.x)
     };
 
-    assert_eq!(fill(0..1), (caret(0), caret(1)), "the gap after a is covered");
+    assert_eq!(
+        fill(0..1),
+        (caret(0), caret(1)),
+        "the gap after a is covered"
+    );
     assert_eq!(caret(1), caret(0) + layout.lines[0].runs[0].width + 30.0);
     assert_eq!(fill(1..2), (caret(1), caret(2)));
     assert_eq!(
