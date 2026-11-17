@@ -20,8 +20,10 @@ fn a_locked_tab_over_a_pane_it_cannot_enter_is_offered_no_drop_there_and_goes_ho
     }
     harness.frame(Vec::new());
     assert!(
-        harness.document().find_test_id("dock.drop").is_none(),
-        "held over a pane its locked group keeps it out of, the tab is offered no drop there"
+        harness.document().find_test_id("dock.preview").is_some()
+            && harness.document().find_test_id("dock.drop").is_none(),
+        "held over a pane its locked group keeps it out of, the tab is still carried but \
+         offered no drop there"
     );
 
     harness.up(into_side, PointerButton::Primary);
