@@ -560,7 +560,6 @@ impl<T: Copy + Eq + Debug> Router<T> {
                     .copied()
                     .filter(|finger| finger.target != target)
                     .collect();
-                let mut cancelled = Vec::new();
                 for finger in &earlier {
                     let cancel = Input::Touch {
                         id: finger.id,
@@ -569,9 +568,6 @@ impl<T: Copy + Eq + Debug> Router<T> {
                         force: None,
                     };
                     deliver(test, finger.target, cancel, finger.at, out);
-                    if !cancelled.contains(&finger.target) {
-                        cancelled.push(finger.target);
-                    }
                 }
                 for finger in &mut self.fingers {
                     if finger.target != target {
@@ -742,8 +738,10 @@ fn claimant<H: HitTest>(test: &H, at: Pos2) -> Option<H::Target> {
     Some(raised(test, test.hit(at)?, at))
 }
 
-/// `target`, or its outermost placer it grants the gesture at `at`: gesture claims go outermost
-/// first (guides/pan_and_zoom.md, Gestures), so the outermost camera granted it wins.
+/// `target`, or the outermost of its placers whose direct child in the chain grants it the
+/// gesture at `at` (its gesture area): gesture claims go outermost first
+/// (guides/pan_and_zoom.md, Gestures), so that placer wins whether or not the surfaces between
+/// grant theirs.
 fn raised<H: HitTest>(test: &H, target: H::Target, at: Pos2) -> H::Target {
     let mut chain = vec![target];
     while let Some(placer) = test.placer(*chain.last().unwrap_or(&target)) {

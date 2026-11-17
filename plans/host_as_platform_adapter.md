@@ -176,7 +176,12 @@ its canvases. Not built yet, and part of step 4 since each needs the root guest'
 declarations: drawing the list in a pass of its own over textures of the root's surfaces, a
 list for each OS window (the host's frame makes one, with no `window`), program windows as
 `Surface::Host`, and the damage the e-paper display reads coming from the list rather than
-from beui's retained tree.
+from beui's retained tree. Two gaps to close then: natively `texture_quad` rounds every corner
+of a layer's clip, where the web and `Layer::corner_radius` round only those that meet the
+surface's edges (`Layer::rounded`), so the texture quad needs a radius per corner; and
+`WindowLayers::damage` takes a layer whose rank among the kept layers changed as restacked, so
+raising one layer to the top damages every layer it passes, where only the pairs that overlap
+and swapped order need it.
 
 ## Input
 

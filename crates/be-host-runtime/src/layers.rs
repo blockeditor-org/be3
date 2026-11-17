@@ -72,7 +72,10 @@ pub(crate) fn texture_quad(
 ) -> beui::native::texture_quad::Quad {
     let transform = layer.transform;
     let (across, down) = (transform.across(), transform.down());
-    let (scale, rotation) = match across.y == 0.0 && down.x == 0.0 {
+    // Upright and unflipped only: a turn of exactly half a circle has negative axes and goes
+    // through the other arm as a rotation, so the scale is always positive and the rect never
+    // has a negative size.
+    let (scale, rotation) = match across.y == 0.0 && down.x == 0.0 && across.x > 0.0 && down.y > 0.0 {
         true => (vec2(across.x, down.y), 0.0),
         false => (
             vec2(across.length(), down.length()),
@@ -96,6 +99,21 @@ pub(crate) fn texture_quad(
         corner_radius: layer.corner_radius,
     }
     .placed(source, at)
+}
+
+/// Counts the pieces each view shows, so a layer's id names which of its view's pieces it is
+/// (`id`), whatever blits come or go before it.
+#[derive(Default)]
+pub(crate) struct Pieces(be_lib_stable_hash::HashMap<(u32, u64, bool), usize>);
+
+impl Pieces {
+    /// The index of the next piece of the view `of` (a screen, or an anchored surface) of the
+    /// runtime in `slot`.
+    pub(crate) fn next(&mut self, slot: u32, of: u64, anchored: bool) -> usize {
+        let count = self.0.entry((slot, of, anchored)).or_default();
+        *count += 1;
+        *count - 1
+    }
 }
 
 /// A layer's id, stable while the same view shows the same piece: its runtime's slot, its
@@ -139,18 +157,14 @@ pub(crate) fn frame(
             .iter()
             .map(|blit| (blit.quad.rect, blit.layer.is_some())),
     );
-    let mut pieces = be_lib_stable_hash::HashMap::<(u32, u64, bool), usize>::default();
-    let mut piece = |slot: u32, of: u64, anchored: bool| {
-        let count = pieces.entry((slot, of, anchored)).or_default();
-        *count += 1;
-        *count - 1
-    };
+    let mut pieces = Pieces::default();
     let mut below = Vec::new();
     let mut above = Vec::new();
     for (blit, lifted) in blits.iter().zip(lifted) {
         match blit.layer {
             Some(anchored) => {
-                let id = id(blit.surface, u64::from(anchored.surface), true, piece(blit.surface, u64::from(anchored.surface), true));
+                let of = u64::from(anchored.surface);
+                let id = id(blit.surface, of, true, pieces.next(blit.surface, of, true));
                 above.extend(anchored_piece(id, blit, anchored));
             }
             None => {
@@ -159,7 +173,7 @@ pub(crate) fn frame(
                     continue;
                 };
                 drop(shared);
-                let index = piece(blit.surface, blit.screen.0, false);
+                let index = pieces.next(blit.surface, blit.screen.0, false);
                 let Some(layer) = blit.screen_layer(&placement, None, index) else {
                     continue;
                 };
@@ -202,7 +216,8 @@ fn anchored_piece(
         )
     };
     let pixels = Rect::from_min_max(at(shown.min), at(shown.max));
-    // The page knows only the pixels it is told to show: the surface holds at least those.
+    // The page knows only the pixels it is told to show, so `size` is a lower bound of what the
+    // surface holds: enough for `rounded`, since an anchored layer has no rounding.
     let size = (
         anchored.pixels.max.x.ceil().max(1.0) as u32,
         anchored.pixels.max.y.ceil().max(1.0) as u32,
