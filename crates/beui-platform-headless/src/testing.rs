@@ -673,11 +673,6 @@ impl<A: Program + 'static> Stepped<A> {
         self.drive(&["wait", "not", &target])
     }
 
-    /// Lets `by` pass a frame at a time (`drive pause`).
-    pub fn pause(&mut self, by: Duration) -> String {
-        self.drive(&["pause", &by.as_millis().to_string()])
-    }
-
     fn word(&self, target: Target) -> String {
         target.word(self.runner.context().pixels_per_point())
     }
@@ -732,6 +727,12 @@ impl Gui for Stepped<Showing> {
 
     fn advance(&mut self, by: Duration) {
         self.runner.context().advance_clock(by);
+    }
+
+    /// As `drive pause`: a frame at a time, each only once the program has nothing to
+    /// wait for.
+    fn pause(&mut self, by: Duration) {
+        self.drive(&["pause", &by.as_millis().to_string()]);
     }
 
     fn wakes(&self) -> &Wakes {
