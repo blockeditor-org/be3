@@ -246,8 +246,10 @@ impl DesktopHost for Win32 {
                 {
                     captured.drawn = frame.version();
                     let texture = frame.texture().clone();
+                    // A captured window is a program window: a surface the host owns.
                     let drawing = beui::native::drawing(
-                        beui::native::texture_quad::TextureDraw::keeping(texture, frame),
+                        beui::native::texture_quad::TextureDraw::keeping(texture, frame)
+                            .hosted(source.entry().0),
                     );
                     frames.extend(
                         captured

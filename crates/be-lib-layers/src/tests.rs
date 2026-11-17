@@ -36,9 +36,10 @@ fn close(one: Pos2, other: Pos2) -> bool {
     (one - other).length() < 1e-4
 }
 
-mod a_layer_raised_over_another_damages_both_of_its_places;
+mod a_layer_raised_over_another_damages_only_where_they_overlap;
 mod a_layer_that_captures_presses_hands_those_outside_it_to_its_placer;
 mod a_point_lands_on_the_topmost_layer_that_takes_it_there;
 mod a_transform_and_its_inverse_take_a_point_there_and_back;
+mod raising_a_layer_past_several_damages_only_those_it_overlaps;
 mod damage_is_each_surfaces_own_through_its_layer_and_the_bounds_of_layers_that_changed;
 mod the_clip_rounds_only_the_surfaces_own_corners;

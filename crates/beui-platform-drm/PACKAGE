@@ -32,6 +32,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-paint-snapshot:beui-paint-snapshot",
             ],
             "test_features": [],
@@ -54,6 +55,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-paint-snapshot:beui-paint-snapshot",
             ],
             "test_features": [],
@@ -76,6 +78,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-paint-snapshot:beui-paint-snapshot",
             ],
             "test_features": [],
@@ -98,6 +101,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-paint-snapshot:beui-paint-snapshot",
             ],
             "test_features": [],
@@ -120,6 +124,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-paint-snapshot:beui-paint-snapshot",
             ],
             "test_features": [],
@@ -142,6 +147,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-paint-snapshot:beui-paint-snapshot",
             ],
             "test_features": [],
@@ -164,6 +170,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-paint-snapshot:beui-paint-snapshot",
             ],
             "test_features": [],

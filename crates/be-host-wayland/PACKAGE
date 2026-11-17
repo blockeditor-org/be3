@@ -19,6 +19,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-host-programs:be-host-programs",
                 "//crates/be-lib-dmabuf:be-lib-dmabuf",
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-host:beui-host",
                 "//crates/beui:beui",
                 "//third-party/rust:gvdb-0.10.1",
@@ -43,6 +44,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-host-programs:be-host-programs",
                 "//crates/be-lib-dmabuf:be-lib-dmabuf",
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-host:beui-host",
                 "//crates/beui:beui",
                 "//third-party/rust:gvdb-0.10.1",
@@ -67,6 +69,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-host-programs:be-host-programs",
                 "//crates/be-lib-dmabuf:be-lib-dmabuf",
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-host:beui-host",
                 "//crates/beui:beui",
                 "//third-party/rust:gvdb-0.10.1",
@@ -91,6 +94,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-host-programs:be-host-programs",
                 "//crates/be-lib-dmabuf:be-lib-dmabuf",
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-host:beui-host",
                 "//crates/beui:beui",
                 "//third-party/rust:gvdb-0.10.1",
@@ -115,6 +119,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-host-programs:be-host-programs",
                 "//crates/be-lib-dmabuf:be-lib-dmabuf",
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-host:beui-host",
                 "//crates/beui:beui",
                 "//third-party/rust:gvdb-0.10.1",
@@ -139,6 +144,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-host-programs:be-host-programs",
                 "//crates/be-lib-dmabuf:be-lib-dmabuf",
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-host:beui-host",
                 "//crates/beui:beui",
                 "//third-party/rust:gvdb-0.10.1",
@@ -163,6 +169,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-host-programs:be-host-programs",
                 "//crates/be-lib-dmabuf:be-lib-dmabuf",
+                "//crates/be-lib-layers:be-lib-layers",
                 "//crates/beui-host:beui-host",
                 "//crates/beui:beui",
                 "//third-party/rust:gvdb-0.10.1",
