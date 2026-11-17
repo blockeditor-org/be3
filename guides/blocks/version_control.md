@@ -89,8 +89,8 @@ commit stays at the branch's name and this device's is kept beside it
 to bring in the newer changes, as when the server refuses the move online.
 
 A checkout replaces content someone has open through the replica's reconcile
-on `head-moved` (a head another connection published, which `changes` tells as
-`Event::BlockChanged` with `own` unset); the worker calls
+on `head-moved` (a head the block's followed tree read names, `Replicas::heard_head`,
+which the replica takes as news unless it published or had it); the worker calls
 `head-moved` for what it publishes itself (`Replicas::moved_here`).
 
 ## Not built yet
