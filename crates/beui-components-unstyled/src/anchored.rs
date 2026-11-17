@@ -58,7 +58,8 @@ pub enum SheetWhen {
 /// The surface every popup sits on: a dropdown placed by `placement` beside `anchor` (or
 /// at the point `at`, pinned to the anchor's node) when a mouse or pen opened it, the
 /// same content in a sheet when a finger did (`touched_by_finger`), unless `sheet` says
-/// otherwise. A dismiss writes `open` false. Content is built once per look the first
+/// otherwise. A dismiss writes `open` false; an `Inert` one (a tooltip) takes no
+/// dismissal, so it never claims Back or a press outside. Content is built once per look the first
 /// time that look opens, and removed on close unless `keep_alive` keeps it, with its
 /// state, while closed; bind focus to the handle's `shown`, not to `open`. `beak` points
 /// an arrow at the anchor from the frame the look binds to `Dropdown::pointer`.
@@ -69,16 +70,20 @@ pub fn Anchored(
     #[prop(default = None)] at: Prop<Option<Pos2>>,
     #[prop(default = Placement::BELOW_START)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    #[prop(default = false)] keep_alive: bool,
+    /// Every popup takes one; only `Popover` keeps its content by default.
+    #[prop(default = false)]
+    keep_alive: bool,
     #[prop(default = 0.0)] beak: Prop<f32>,
     open: Binding<bool>,
     #[prop(default = SheetWhen::Touched)] sheet: Prop<SheetWhen>,
     #[prop(default = true)] traps_focus: Prop<bool>,
     #[prop(default = LayerPolicy::BlocksAll)] policy: Prop<LayerPolicy>,
-    trigger: Option<NodeRef>,
+    #[prop(default = None)] trigger: Prop<Option<NodeRef>>,
     #[prop(default = NodeRef::new())] overlay: NodeRef,
     #[prop(children)] content: RenderFn<AnchoredHandle, NodeId>,
 ) -> NodeId {
+    let inert = policy.clone();
+    let dismissable = create_memo(move || inert.get() != LayerPolicy::Inert);
     let mut was_open = false;
     let mut touched = false;
     let as_sheet = create_memo(move || {
@@ -130,10 +135,11 @@ pub fn Anchored(
                     bounds
                     policy
                     traps_focus
-                    trigger={trigger}
+                    trigger
                     pointer={pointer}
                     beak
                     open={dropped}
+                    dismissable={dismissable}
                     on_dismiss={move |_: Dismiss| close.call(())}
                     content={move || style.dropdown.call(Dropdown {
                         content: look(false, dropped),

@@ -219,7 +219,7 @@ where
                 placement
                 bounds
                 keep_alive
-                trigger={state.trigger}
+                trigger={Some(state.trigger)}
                 open
             >|handle: AnchoredHandle| {
                 let AnchoredHandle { sheet, shown } = handle;

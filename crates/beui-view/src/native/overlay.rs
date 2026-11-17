@@ -41,7 +41,7 @@ pub(crate) fn overlay(
     level: Prop<LayerLevel>,
     traps_focus: Prop<bool>,
     shown_in: Prop<Option<WindowId>>,
-    trigger: Option<NodeRef>,
+    trigger: Prop<Option<NodeRef>>,
     pointer: Option<NodeRef>,
     beak: Prop<f32>,
     window: Prop<Option<WindowSpec>>,
@@ -52,7 +52,6 @@ pub(crate) fn overlay(
 ) -> NodeId {
     let overlay = with_document(|document| {
         let overlay = document.create_overlay(anchor.get_untracked(), Placement::BELOW_START);
-        document.set_overlay_trigger(overlay, trigger);
         document.set_overlay_pointer(overlay, pointer);
         overlay
     });
@@ -62,6 +61,10 @@ pub(crate) fn overlay(
             false => Callback::empty(),
         };
         with_document(|document| document.set_overlay_on_dismiss(overlay, on_dismiss))
+    });
+    create_binding(move || {
+        let trigger = trigger.get();
+        with_document(|document| document.set_overlay_trigger(overlay, trigger))
     });
     create_binding(move || {
         let anchor = anchor.get();

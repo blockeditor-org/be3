@@ -187,6 +187,8 @@ fn AnchoredPopover(
         },
         |handle: AnchoredSheetHandle| handle.content.call(),
     );
+    // Every dismissal closes it. `Dismiss::WithParent` cannot come: the layer it hangs in
+    // (`ChildPopover`'s inert holder) is never dismissed and closes only by going away.
     let open = Binding::new(true, move |open: bool| {
         if !open {
             on_dismiss.call(());

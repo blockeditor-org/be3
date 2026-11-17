@@ -157,7 +157,9 @@ pub fn DateTimePicker(
     });
     let shown = open;
     // Opened from the field, it moves the focus its layer gave back on to the segment last
-    // focused inside it.
+    // focused inside it. It closes first: the field asks for a segment's focus through effects
+    // that run after the layer has given the focus back to the segment it opened from, which
+    // the field would then take as its focused segment instead.
     let open = Binding::new(shown, move |now_open: bool| {
         shown.set(now_open);
         if now_open {

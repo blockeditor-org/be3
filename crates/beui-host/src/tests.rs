@@ -6,6 +6,7 @@ use crate::native::{Embed, EmbedPlacement, EmbedSlot};
 use crate::reactive::Painter;
 use crate::{CanvasView, FontId};
 
+mod a_beak_follows_its_pointer_frame_when_the_panel_changes_size;
 mod a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there;
 mod a_back_gesture_slides_a_dialog_away_once_its_owner_closes_it;
 mod a_back_handler_goes_back_while_enabled_without_moving_its_content;
@@ -379,6 +380,7 @@ mod a_pointer_lock_lets_go_when_the_window_loses_focus;
 mod a_pointer_lock_reports_motion_only_while_it_holds_the_pointer;
 mod a_pointer_that_leaves_while_pressed_and_comes_back_is_not_gone_after_the_release;
 mod a_pointer_that_leaves_while_pressed_is_gone_after_the_release;
+mod a_popover_closed_and_focus_moved_outside_in_either_order_leaves_the_focus_outside;
 mod a_popover_opens_beside_its_trigger_when_measurement_comes_late;
 mod a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window;
 mod a_popovers_beak_survives_its_reach_going_away_and_back;

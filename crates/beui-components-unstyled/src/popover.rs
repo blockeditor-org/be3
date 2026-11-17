@@ -54,7 +54,9 @@ pub fn Popover(
     band: Option<NodeRef>,
     #[prop(default = Placement::BELOW_START)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    #[prop(default = true)] keep_alive: bool,
+    /// On by default here alone among popups: a popover's form keeps what was typed in it.
+    #[prop(default = true)]
+    keep_alive: bool,
     #[prop(default = 0.0)] beak: Prop<f32>,
     #[prop(default = SheetWhen::Touched)] sheet: Prop<SheetWhen>,
     accessibility: Option<Prop<Node>>,
@@ -76,10 +78,12 @@ pub fn Popover(
     let close = Callback::new(move |()| open.set(false));
     let anchor = anchor.unwrap_or_else(|| Prop::Static(OverlayAnchor::Node(trigger_ref)));
     // A press on the button, or on the node it hangs from, is left to that to toggle it.
-    let pressed = match trigger {
-        Some(_) => Some(trigger_ref),
-        None => untrack(|| anchor.get().node()),
-    };
+    let has_button = trigger.is_some();
+    let held = anchor.clone();
+    let pressed = create_memo(move || match has_button {
+        true => Some(trigger_ref),
+        false => held.get().node(),
+    });
     let anchor = match band {
         Some(band) => Prop::dynamic(move || match anchor.get() {
             OverlayAnchor::Node(node) => OverlayAnchor::Band { node, band },

@@ -29,7 +29,7 @@ pub fn Overlay(
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = true)] traps_focus: Prop<bool>,
     #[prop(default = None)] shown_in: Prop<Option<WindowId>>,
-    trigger: Option<NodeRef>,
+    #[prop(default = None)] trigger: Prop<Option<NodeRef>>,
     pointer: Option<NodeRef>,
     #[prop(default = 0.0)] beak: Prop<f32>,
     #[prop(default = None)] window: Prop<Option<WindowSpec>>,
