@@ -37,7 +37,7 @@ fn drawing(pieces: Vec<Piece>, zoom: f32, rotation: f32) -> ViewDrawing {
 fn shown(laid: Rect, painted: ScreenPlacement) -> Option<(Rect, Rect)> {
     let blits = drawing(vec![Piece { local: WHOLE, source: WHOLE }], 1.0, 0.0).blits_in(laid);
     blits[0]
-        .shown_at(&painted)
+        .shown_at(&painted, (painted.width, painted.height))
         .map(|(quad, source)| (quad.rect, source))
 }
 
@@ -66,6 +66,16 @@ fn an_apps_painting_is_shown_at_its_own_size_whatever_size_its_view_is_laid_out_
             Rect::from_min_max(Pos2::ZERO, pos2(0.8, 1.0))
         )),
         "and laid out narrower, shows the left of it, cropped rather than squished"
+    );
+    let laid_ahead = placement(400, 260, 2.0);
+    let blit = &drawing(vec![Piece { local: WHOLE, source: WHOLE }], 1.0, 0.0)
+        .blits_in(Rect::from_min_size(at, vec2(200.0, 130.0)))[0];
+    assert_eq!(
+        blit.shown_at(&laid_ahead, (300, 200))
+            .map(|(quad, source)| (quad.rect, source)),
+        Some((Rect::from_min_size(at, vec2(150.0, 100.0)), WHOLE)),
+        "a layout that asked for a new size before the present bringing a texture of it shows \
+         the texture it has at that texture's size, not at the size the layout names"
     );
     assert_eq!(
         shown(Rect::from_min_size(at, vec2(150.0, 100.0)), placement(150, 100, 1.0)),
@@ -105,7 +115,7 @@ fn an_apps_painting_is_shown_at_its_own_size_whatever_size_its_view_is_laid_out_
                             let rect = Rect::from_min_size(at, laid);
                             let drawing = drawing(pieces.clone(), zoom, rotation);
                             for (blit, piece) in drawing.blits_in(rect).iter().zip(pieces) {
-                                let Some((quad, source)) = blit.shown_at(&painted) else {
+                                let Some((quad, source)) = blit.shown_at(&painted, (width, height)) else {
                                     continue;
                                 };
                                 let case = format!(

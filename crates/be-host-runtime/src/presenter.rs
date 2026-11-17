@@ -282,17 +282,19 @@ impl Blit {
         self.quad.bounds()
     }
 
-    /// Where a painting of `placement` shows for this blit, and which part of it: always at its
-    /// own size, from the view's top left, cropped where the view is smaller and leaving the
-    /// rest of the view to its backdrop where it is larger (`unscaled`). Every path that draws an
-    /// app's painting into its view, native, web or a paint snapshot, goes through here.
-    pub(super) fn shown_at(&self, placement: &ScreenPlacement) -> Option<(Quad, Rect)> {
-        unscaled(
-            self.quad,
-            self.source,
-            (placement.width, placement.height),
-            self.density(placement),
-        )
+    /// Where a painting of `painted` pixels, at `placement`'s raster, shows for this blit, and
+    /// which part of it: always at its own size, from the view's top left, cropped where the view
+    /// is smaller and leaving the rest of the view to its backdrop where it is larger
+    /// (`unscaled`). Every path that draws an app's painting into its view, native, web or a
+    /// paint snapshot, goes through here. `painted` is the size of what is drawn (the texture,
+    /// the painting), never the size the layout asked for, since a layout commit can land
+    /// before the present that brings textures of its size.
+    pub(super) fn shown_at(
+        &self,
+        placement: &ScreenPlacement,
+        painted: (u32, u32),
+    ) -> Option<(Quad, Rect)> {
+        unscaled(self.quad, self.source, painted, self.density(placement))
     }
 
     /// A painting of `placement`'s pixels per point of the host.
@@ -727,9 +729,11 @@ impl Paints for ViewDrawing {
             let Some(placement) = shared.placement(blit.screen) else {
                 continue;
             };
-            let placed = blit.shown_at(placement);
-            let (Some((quad, source)), Some(screen)) = (placed, shared.paintings.get(&blit.screen))
-            else {
+            let Some(screen) = shared.paintings.get(&blit.screen) else {
+                continue;
+            };
+            let painted = (screen.frame.size[0], screen.frame.size[1]);
+            let Some((quad, source)) = blit.shown_at(placement, painted) else {
                 continue;
             };
             let screen = super::previews::painting(screen.clone());
@@ -791,13 +795,9 @@ impl beui::native::Draw for AppDrawing {
                 let (frames, region, surfaces) = {
                     let mut shared = blit.shared.borrow_mut();
                     let frames = shared.take_frames();
-                    let laid = |placement: &ScreenPlacement| {
-                        let (quad, source) = blit.shown_at(placement)?;
-                        Some((placement.surface, quad, source))
-                    };
                     let region = match blit.layer {
                         Some(_) => None,
-                        None => shared.placement(blit.screen).and_then(laid),
+                        None => shared.placement(blit.screen).copied(),
                     };
                     let surfaces = shared.surfaces();
                     (frames, region, surfaces)
@@ -825,7 +825,11 @@ impl beui::native::Draw for AppDrawing {
                                 Some((layer.surface, quad, source))
                             },
                         ),
-                        None => region,
+                        None => region.and_then(|placement| {
+                            let painted = platform.size(blit.surface, placement.surface)?;
+                            let (quad, source) = blit.shown_at(&placement, painted)?;
+                            Some((placement.surface, quad, source))
+                        }),
                     };
                 blit.status.set(match failure {
                     Some(error) => PresenterState::Failed(error),
