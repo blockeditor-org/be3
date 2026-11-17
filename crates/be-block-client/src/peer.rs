@@ -1014,13 +1014,13 @@ impl<S: ObjectStore> Peer<S> {
         );
     }
 
-    /// A contact's name as its verified card gives it, kept for when there is no connection.
     /// The contacts' records this device pinned, which `contacts::contacts` checks the server's
     /// against.
     pub fn contact_pins(&self) -> HashMap<Uuid, crate::contacts::OwnContact> {
         self.refs.contacts().into_iter().collect()
     }
 
+    /// A contact's name as its verified card gives it, kept for when there is no connection.
     pub fn contact_name(&self, account: Uuid) -> Option<String> {
         self.refs.contact_name(account)
     }
