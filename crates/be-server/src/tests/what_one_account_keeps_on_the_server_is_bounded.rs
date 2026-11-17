@@ -64,6 +64,7 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
         ErrorCode::InvalidRequest,
     );
 
+    let (giver, given) = (Uuid::new_v4(), Uuid::new_v4());
     store
         .with_database(move |_, database| {
         let transaction = be_block_sqlite_schema::write_transaction(database).unwrap();
@@ -113,6 +114,19 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                 )
                 .unwrap();
         }
+        // A block someone else owns, which they would give to the account.
+        transaction
+            .execute(
+                "INSERT INTO blocks (organization_id, id, content_type, author, parent_kind, payer)
+                 VALUES (?1, ?2, ?3, ?4, 0, ?4)",
+                params![
+                    organization.to_string(),
+                    given.to_string(),
+                    CONTENT.to_string(),
+                    giver.to_string()
+                ],
+            )
+            .unwrap();
         for _ in 0..MAX_CONTACTS_PER_ACCOUNT {
             let contact = Uuid::new_v4().to_string();
             transaction
@@ -226,6 +240,35 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
         ErrorCode::InvalidRequest,
     );
     refused(block(Vec::new()).await, ErrorCode::OverQuota);
+    let secret = be_block_keys::RecoveryPhrase::generate().secret();
+    let transfer = be_block_keys::Entry::sign(
+        &secret,
+        giver.into_bytes(),
+        given.into_bytes(),
+        None,
+        true,
+        be_block_keys::Record::Owner(be_block_keys::Owner {
+            account: account.into_bytes(),
+            identity: unused_keys(9),
+        }),
+    );
+    refused(
+        store
+            .set_access(
+                Identity {
+                    account: giver,
+                    organization,
+                    role: OrganizationRole::Editor,
+                    bound: None,
+                },
+                given,
+                account,
+                be_block_graph::Access::Manage,
+                Some(transfer.encode()),
+            )
+            .await,
+        ErrorCode::OverQuota,
+    );
 
     let _ = std::fs::remove_dir_all(directory);
 }

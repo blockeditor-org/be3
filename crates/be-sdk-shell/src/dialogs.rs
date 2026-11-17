@@ -447,7 +447,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                                 <Text size=TextSize::Lg>{question}</Text>
                             </List>
                             <Text style=TextStyle::CAPTION @test_id={"share.transfer.help"}>
-                                "They will manage this block and decide who has access. You will keep edit access, but you can't give anyone access or take ownership back."
+                                "They will manage this block and decide who has access. You will keep edit access, but you can't give anyone access or take ownership back. Only your contacts can be made owner."
                             </Text>
                             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                                 <Spacer />

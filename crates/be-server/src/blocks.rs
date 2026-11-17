@@ -2159,6 +2159,14 @@ impl ServerStore {
                     format!("block {block} belongs to what holds it, so its ownership never moves"),
                 ));
             }
+            // The block becomes theirs to keep, so it counts against their bound as making one
+            // would: no one fills an account up by giving it blocks.
+            if graph.authored(account) >= MAX_BLOCKS_PER_ACCOUNT {
+                return Err(crate::limits::too_many(
+                    "blocks one account makes in an organization",
+                    MAX_BLOCKS_PER_ACCOUNT,
+                ));
+            }
             if access != Access::Manage
                 || account == identity.account
                 || account == ANYONE_INSIDE

@@ -66,7 +66,10 @@ async fn a_block_s_ownership_moves_and_its_old_owner_grants_no_more() {
     let refused = alice
         .share(plans, carol.account(), Access::View, &carols)
         .await;
-    assert!(refused.is_err(), "the old owner grants no more: {refused:?}");
+    assert!(
+        matches!(&refused, Err(ClientError::Refused(ErrorCode::PermissionDenied, _))),
+        "the old owner grants no more: {refused:?}"
+    );
     let (_, now) = alice.checked_access(plans).await.unwrap();
     let forced = Entry::sign(
         alice.keys().identity(),
@@ -85,7 +88,10 @@ async fn a_block_s_ownership_moves_and_its_old_owner_grants_no_more() {
             Some(entry.encode()),
         ))
         .await;
-        assert!(sent.is_err(), "a grant the old owner signed {what} is taken");
+        assert!(
+            matches!(&sent, Err(ClientError::Refused(ErrorCode::PermissionDenied, _))),
+            "a grant the old owner signed {what} is taken: {sent:?}"
+        );
     }
     let given_back = Entry::sign(
         alice.keys().identity(),
@@ -106,8 +112,14 @@ async fn a_block_s_ownership_moves_and_its_old_owner_grants_no_more() {
         Some(given_back.encode()),
     ))
     .await;
-    assert!(sent.is_err(), "the old owner gives the block away again");
-    assert!(alice.transfer(plans, carol.account()).await.is_err());
+    assert!(
+        matches!(&sent, Err(ClientError::Refused(ErrorCode::PermissionDenied, _))),
+        "the old owner gives the block away again: {sent:?}"
+    );
+    assert!(matches!(
+        alice.transfer(plans, carol.account()).await,
+        Err(ClientError::Refused(ErrorCode::PermissionDenied, _))
+    ));
 
     let bobs = bob.verified_identity(carol.account()).unwrap();
     bob.share(plans, carol.account(), Access::View, &bobs)
@@ -120,8 +132,8 @@ async fn a_block_s_ownership_moves_and_its_old_owner_grants_no_more() {
         "the new owner grants"
     );
 
-    // A server that appends a grant the old owner signs at the head anyway has every device
-    // that checks the log refuse it.
+    // A server that appends a grant the old owner signs at the head anyway, chained at its
+    // right place, has every device that checks the log refuse it for the signer's authority.
     let (_, head) = bob.checked_access(plans).await.unwrap();
     let appended = Entry::sign(
         alice.keys().identity(),

@@ -462,7 +462,9 @@ did not sign.
   only through escrow at themselves. An administrator reads everything
   through escrow anyway.
 - **Authorship** is the root's and later owner records': no grant names or
-  lowers a block's owner. A transfer needs no acceptance from the new owner,
+  lowers a block's owner. A former owner, the creator included, is a member
+  like any other once ownership moves on: a grant may name and lower them, so
+  the new owner can revoke the block's creator. A transfer needs no acceptance from the new owner,
   who may then leave as any member does only by giving ownership on.
 - **A new phrase grows with the account.** `set-recovery-key` carries one
   retirement (about 300 to 400 bytes) per log the account signed in, which is
