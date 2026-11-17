@@ -1,7 +1,7 @@
 # A simpler server protocol
 
-Depends on: plans/signed_access.md steps 3e and 4, for step 3 on (steps 1
-and 2 here touch none of their calls).
+Depends on: plans/signed_access.md step 4, for step 3 on (steps 1 and 2 here
+touch none of its calls).
 
 `be3:server` (crates/be-block-protocol/wit) has 76 operations in 10
 interfaces, the session resource's constructor not counted. Eight are
@@ -112,9 +112,10 @@ left, and what it has built that touches these calls:
   `put-keys` and `rotate` carry nothing new, and `create-escrow`'s escrow key
   names the organization log's head in the clear, signed and checked by the
   server. `PutKeys` takes them as they are.
-- **3e (proof paths)** changes what `get-access-log` and `get-organization-log`
-  serve to readers below Edit. It lands before step 3, so `Log` is defined
-  once over the final serving rule.
+- **3e (proof paths)** is built: `get-access-log` and `get-organization-log`
+  serve each entry as a `be_block_keys::Step`, whole or reduced, and decide
+  which by the caller's access and who sealed it a key, with no new argument,
+  so `Log(block | organization)` takes that serving rule as it is.
 - **4 (signed parents)** makes `set-parent` and `create-block` carry a parent
   record. It lands before step 3, so `Move` and `CreateBlock` take it from the
   start.

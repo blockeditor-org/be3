@@ -171,7 +171,10 @@ impl<S: ObjectStore> Peer<S> {
         // connecting does first) goes to no administrator this way. An administrator now may
         // hold an epoch a demotion outdates: that it is no longer written under is the block's
         // and the escrow's concern, and the settings' keys reach a new administrator this way.
+        // A proof path names no administrator it does not prove, and hides whom a reduced entry
+        // demoted: only a whole log seals.
         if let Some(administrator) = organization
+            .filter(|checked| !checked.partial)
             .filter(|checked| organization_head.is_some_and(|head| checked.holds(&head)))
             .and_then(|checked| checked.administrators.get(&account.into_bytes()))
         {
@@ -199,7 +202,11 @@ impl<S: ObjectStore> Peer<S> {
             };
         }
         let grantee = account.into_bytes();
-        if let Some((level, identity)) = checked.grants.get(&grantee)
+        // A proof path (served below Edit) may hide the grantee's revocation behind a reduced
+        // entry: it seals to no grantee. Its opening is closed by any reduced lowering after it
+        // (`Checked::partial`), so a viewer still offers a kind its log opens.
+        if !checked.partial
+            && let Some((level, identity)) = checked.grants.get(&grantee)
             && *level >= be_block_keys::Level::View
             && !checked.tainted.contains(&grantee)
         {
@@ -321,6 +328,9 @@ impl<S: ObjectStore> Peer<S> {
         let Some(checked) = self.checked_organization().await? else {
             return Ok(());
         };
+        if checked.partial {
+            return Ok(());
+        }
         let (escrow, mut keys) = self.keys.mint_escrow(checked.head)?;
         for (account, identity) in &checked.administrators {
             let account = Uuid::from_bytes(*account);
@@ -380,19 +390,10 @@ impl<S: ObjectStore> Peer<S> {
         account: Uuid,
         role: OrganizationRole,
     ) -> Result<Option<Vec<u8>>, ClientError> {
-        use be_block_keys::{Administrator, Entry, LogKind, Record};
-        let Some(pinned) = self.keys.organization_root() else {
+        use be_block_keys::{Administrator, Record};
+        let Some(checked) = self.checked_organization().await? else {
             return Ok(None);
         };
-        let entries = self.organization_log().await?;
-        let checked = be_block_keys::check_log(
-            LogKind::Organization,
-            self.organization.into_bytes(),
-            pinned,
-            &entries,
-            &|_, _| None,
-        )
-        .map_err(|_| ClientError::Forged(self.organization))?;
         let administrator = role == OrganizationRole::Administrator;
         let named = checked.administrators.get(&account.into_bytes()).copied();
         if administrator == named.is_some() {
@@ -409,17 +410,23 @@ impl<S: ObjectStore> Peer<S> {
                         .into(),
                 )
             })?;
-        let entry = Entry::sign(
-            self.keys.identity(),
-            self.account.into_bytes(),
-            self.organization.into_bytes(),
-            entries.last().map(Entry::hash),
-            Record::Administrator(Administrator {
-                account: account.into_bytes(),
-                identity,
-                administrator,
-            }),
-        );
+        let entry = checked
+            .next(
+                self.keys.identity(),
+                self.account.into_bytes(),
+                self.organization.into_bytes(),
+                Record::Administrator(Administrator {
+                    account: account.into_bytes(),
+                    identity,
+                    administrator,
+                }),
+            )
+            .ok_or_else(|| {
+                ClientError::Refused(
+                    ErrorCode::PermissionDenied,
+                    "this account is not served the organization's whole log".into(),
+                )
+            })?;
         Ok(Some(entry.encode()))
     }
 
@@ -609,19 +616,17 @@ impl<S: ObjectStore> Peer<S> {
         member: bool,
         agent: bool,
     ) -> Option<Vec<u8>> {
-        let checked = checked?;
-        let entry = be_block_keys::Entry::sign(
+        let entry = checked?.next(
             self.keys.identity(),
             self.account.into_bytes(),
             self.organization.into_bytes(),
-            Some(checked.head),
             be_block_keys::Record::Member(be_block_keys::Member {
                 account: account.into_bytes(),
                 identity,
                 member,
                 agent,
             }),
-        );
+        )?;
         Some(entry.encode())
     }
 

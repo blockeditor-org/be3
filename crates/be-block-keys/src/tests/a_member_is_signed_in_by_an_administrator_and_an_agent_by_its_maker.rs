@@ -18,6 +18,7 @@ fn a_member_is_signed_in_by_an_administrator_and_an_agent_by_its_maker() {
             signer,
             organization,
             Some(previous),
+            false,
             Record::Member(Member {
                 account,
                 identity,

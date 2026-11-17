@@ -390,10 +390,23 @@ impl ServerStore {
         .await
     }
 
-    /// The organization's access log, root first (`get-organization-log`).
-    pub async fn organization_log(&self, organization: Uuid) -> Result<Vec<Vec<u8>>, ServerError> {
-        self.with_database(move |_, database| {
-            crate::access::organization_log(&database, organization)
+    /// The organization's access log, root first (`get-organization-log`): whole to an
+    /// administrator or a member with Edit or above on any of its blocks, else a proof path of
+    /// the caller's own records and its sealers' (`access::served_log`).
+    pub async fn organization_log(&self, identity: Identity) -> Result<Vec<Vec<u8>>, ServerError> {
+        self.with_graph(identity.organization, move |_, graph, database| {
+            if crate::access::organization_log(database, identity.organization)?.is_empty() {
+                return Ok(Vec::new());
+            }
+            let seen = crate::blocks::visibility(identity);
+            let reader = (!seen.served_whole_organization(graph)).then_some(identity.account);
+            crate::access::served_log(
+                database,
+                be_block_keys::LogKind::Organization,
+                identity.organization,
+                identity.organization,
+                reader,
+            )
         })
         .await
     }

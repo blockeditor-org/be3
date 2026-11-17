@@ -79,7 +79,7 @@ struct Roots {
     logs: HashMap<Uuid, Checked>,
     /// The entries of each of `logs`, root first: what a stale answer is replaced by
     /// (`KeyBook::served`).
-    entries: HashMap<Uuid, Vec<be_block_keys::Entry>>,
+    entries: HashMap<Uuid, Vec<be_block_keys::Step>>,
     /// The keys each key this device took through a wrap under another key was opened
     /// through, every one: an epoch opened through an outdated one is outdated too
     /// (`KeyBook::outdated`).
@@ -174,7 +174,7 @@ impl Roots {
 pub enum Served {
     Take,
     /// Short of a log read further in this run: that one stands, with its entries.
-    Stale(Box<(Checked, Vec<be_block_keys::Entry>)>),
+    Stale(Box<(Checked, Vec<be_block_keys::Step>)>),
     /// Short of what an earlier run kept: the server holds history back.
     Withheld,
 }
@@ -650,8 +650,17 @@ impl KeyBook {
         escrow.outdated = outdated;
     }
 
+    /// The escrow epoch keys are wrapped under: none while the organization's log this device
+    /// holds is a proof path that hides a lowering (`Checked::hides_lowering`): one served
+    /// honestly to a member below Edit everywhere keeps every administrator record whole, so a
+    /// reduced demotion means the server hid whom it demoted, and no epoch's maker is vouched
+    /// for by it.
     pub fn escrow(&self) -> Option<EscrowKey> {
-        self.escrow.lock().unwrap().verified.clone()
+        let escrow = self.escrow.lock().unwrap();
+        match escrow.log.as_ref().is_some_and(|log| log.hides_lowering) {
+            true => None,
+            false => escrow.verified.clone(),
+        }
     }
 
     pub fn escrow_warning(&self) -> Option<EscrowWarning> {
@@ -899,7 +908,7 @@ impl KeyBook {
         &self,
         block: Uuid,
         checked: &Checked,
-        entries: &[be_block_keys::Entry],
+        entries: &[be_block_keys::Step],
     ) -> Option<crate::refs::KeptLog> {
         let mut roots = self.roots.lock().unwrap();
         if roots

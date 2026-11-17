@@ -14,24 +14,30 @@ async fn an_organization_whose_root_the_server_swaps_is_refused() {
     let stranger = harness.member(&owner, "stranger@example.com").await;
     let organization = owner.organization();
 
-    let made = owner.organization_log().await.unwrap();
+    // A member below Edit is served a proof path: the same entries, some reduced.
+    let hashes = |log: Vec<be_block_keys::Step>| -> Vec<be_block_keys::EntryHash> {
+        log.iter().map(be_block_keys::Step::hash).collect()
+    };
+    let made = hashes(owner.organization_log().await.unwrap());
     assert_eq!(
         made.len(),
         3,
         "an organization's log is its root, then the members its administrator signed in"
     );
     assert_eq!(
-        member.organization_log().await.unwrap(),
+        hashes(member.organization_log().await.unwrap()),
         made,
         "a member pins the root from the invitation"
     );
     assert_eq!(
-        harness
-            .second(&member)
-            .await
-            .organization_log()
-            .await
-            .unwrap(),
+        hashes(
+            harness
+                .second(&member)
+                .await
+                .organization_log()
+                .await
+                .unwrap()
+        ),
         made,
         "and keeps it on every device, sealed to itself"
     );

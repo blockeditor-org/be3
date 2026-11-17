@@ -181,6 +181,44 @@ log (`Checked`) also tells whether it reaches an entry (`holds`) and each
 account's level as of any entry it reaches (`level_as_of`; for an
 organization's log, administering it is Manage).
 
+**Proof paths** (plans/signed_access.md, 3e, "Who is served what"). A log is
+served whole to a member with Edit or above (on the block or a block below it;
+for the organization's, on any block, or administering it), who seals, and to
+anyone else as a proof path (`be_block_keys::proof_path`): `Step`s, each an
+entry whole or reduced (`Reduced`: the hash of the entry before it, whether it
+lowered anyone, and the digest of the rest), which hashes as the whole entry
+does. Whole on a path: the root; every entry naming the reader or an account
+that sealed it a key of the block (of any block, in the organization's log),
+and so on for each whole entry's signer, so each checks at its place; what the
+reader signed (its agents); every opening; and in the organization's log every
+administrator record and every record about anyone who ever administered it.
+So a reader learns no other member's grant. Every entry says whether it
+lowered anyone (`Entry::lowers`, covered by its hash outside the digest),
+which `check_log` refuses unless it is so and devices set by signing through
+`Checked::next`. `check_log` reads a path as a whole log (`Logged`) and marks
+it `partial`. How each check reads one:
+
+- `holds`, `current_at` and `outdates` are exact: positions and
+  `last_lowering` are the whole log's, so a revocation the reader is shown only
+  reduced still outdates the epochs before it. Kept state, withheld and stale
+  answers work as for a whole log, a path having the whole log's hashes.
+- Nothing is sealed by a partial log to a grantee or an administrator
+  (`sealing_target`), nor an escrow epoch made by one: a reduced entry may be
+  the grantee's revocation or the administrator's demotion. A viewer still
+  offers a kind its log opens to its contacts inside: openings are whole, and
+  any reduced lowering after the last counts as closing it (`open_inside`).
+- `Checked::next` signs on a partial log only a grant to the signer (a reader
+  leaving) and an agent's member record, which the path proves `lowers` for;
+  any other record is refused.
+- No key is wrapped under an escrow epoch while the organization's log hides a
+  lowering (`Checked::hides_lowering`, `KeyBook::escrow`): an honest path of it
+  reduces no entry that lowered anyone.
+- A seal's sender is judged by the records the path shows of them
+  (`sender_may`, `settle_escrowed`, kept `levels`), which a server can make
+  look current by reducing their revocation: accepted
+  (plans/signed_access.md, "Accepted limits"), since a reader below Edit seals,
+  wraps and writes content under nothing.
+
 **Epochs name their heads** (plans/signed_access.md, 3d). A key minted here
 names the heads of its scope's log (a scope key's own block; for a data key,
 the scope it is wrapped under) and the organization's, as this device last
@@ -547,7 +585,9 @@ key minted on a device whose logs are stale names those stale heads;
 plans/signed_access.md, "Accepted limits"); what an escrow-only administrator, or a grantee
 who is no contact of the sender, sees of a block whose root only a member's
 wrap carried (a member and the server together can show it a made-up log and
-content, shown unverified: `RootPin::Weak`); which blocks an account knows exist;
+content, shown unverified: `RootPin::Weak`); whether a reader below Edit,
+served a proof path, sees a sealer's revocation (it sees only that someone
+was lowered); which blocks an account knows exist;
 the graph's shape, sizes and timings; and the signing key of a member who is
 not a contact, taken on first use (a later change shows as `Changed`).
 

@@ -832,8 +832,9 @@ impl<S: ObjectStore> Peer<S> {
 
     /// The organization's access log, root first, once its root checks against the one this
     /// account pinned (`KeyBook::organization_root`): from making the organization or the
-    /// invitation it joined by. The personal organization has none.
-    pub async fn organization_log(&self) -> Result<Vec<be_block_keys::Entry>, ClientError> {
+    /// invitation it joined by. The personal organization has none. Whole to an administrator or
+    /// a member with Edit or above on any of its blocks, else a proof path.
+    pub async fn organization_log(&self) -> Result<Vec<be_block_keys::Step>, ClientError> {
         let served = crate::ask(client::organizations::get_organization_log(
             &self.connection(),
         ))
@@ -1782,16 +1783,27 @@ impl<S: ObjectStore> Peer<S> {
 
     /// The block's access log, root first, once it checks from the root this device pinned
     /// (`KeyBook::root`: from making the block, or carried by a trusted key of it) to its head.
-    /// A log rooted anywhere else is the server's, and refused (`ClientError::Forged`).
+    /// A log rooted anywhere else is the server's, and refused (`ClientError::Forged`). Only the
+    /// entries served whole: a reader below Edit is served a proof path, whose other entries
+    /// `checked_access` has reduced.
     pub async fn access_log(&self, block: Uuid) -> Result<Vec<be_block_keys::Entry>, ClientError> {
-        Ok(self.checked_access(block).await?.0)
+        Ok(self
+            .checked_access(block)
+            .await?
+            .0
+            .into_iter()
+            .filter_map(|step| match step {
+                be_block_keys::Step::Entry(entry) => Some(entry),
+                be_block_keys::Step::Reduced(_) => None,
+            })
+            .collect())
     }
 
     /// The block's log as `access_log` checks it, and what its records give.
     pub async fn checked_access(
         &self,
         block: Uuid,
-    ) -> Result<(Vec<be_block_keys::Entry>, be_block_keys::Checked), ClientError> {
+    ) -> Result<(Vec<be_block_keys::Step>, be_block_keys::Checked), ClientError> {
         let pinned = match self.keys.root_pin(block) {
             // A weak root checks what the member who sent it says; `root_pin` tells which.
             crate::keys::RootPin::Pinned(root) | crate::keys::RootPin::Weak(root) => root,
@@ -1799,7 +1811,7 @@ impl<S: ObjectStore> Peer<S> {
             crate::keys::RootPin::Unknown => return Err(ClientError::Locked(block)),
         };
         let entries = self.served_log(block).await?;
-        let cites = entries.iter().any(|entry| {
+        let cites = entries.iter().filter_map(be_block_keys::Step::entry).any(|entry| {
             entry
                 .record
                 .authority()
@@ -1830,11 +1842,13 @@ impl<S: ObjectStore> Peer<S> {
         Ok((entries, checked))
     }
 
-    async fn served_log(&self, block: Uuid) -> Result<Vec<be_block_keys::Entry>, ClientError> {
+    /// The block's log as the server serves it to this account: whole to a member with Edit or
+    /// above, else a proof path (`be_block_keys::proof_path`).
+    async fn served_log(&self, block: Uuid) -> Result<Vec<be_block_keys::Step>, ClientError> {
         let served = crate::ask(client::blocks::get_access_log(&self.connection(), block)).await?;
         served
             .iter()
-            .map(|entry| be_block_keys::Entry::decode(entry))
+            .map(|step| be_block_keys::Step::decode(step))
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| ClientError::Forged(block))
     }
@@ -1913,7 +1927,7 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(None);
         }
         let level = grant_level(access);
-        let (entries, checked) = self.checked_access(block).await?;
+        let (_, checked) = self.checked_access(block).await?;
         let me = self.keys.account().into_bytes();
         let manages = checked.manager(LogKind::Block, me).is_some();
         let authority = |own: bool| async move {
@@ -1929,15 +1943,18 @@ impl<S: ObjectStore> Peer<S> {
                     )),
             }
         };
+        // A proof path (served below Edit) signs only the reader's own grant: it hides what any
+        // other record must follow.
         let sign = |record: Record| {
-            be_block_keys::Entry::sign(
-                self.keys.identity(),
-                me,
-                block.into_bytes(),
-                entries.last().map(be_block_keys::Entry::hash),
-                record,
-            )
-            .encode()
+            checked
+                .next(self.keys.identity(), me, block.into_bytes(), record)
+                .map(|entry| entry.encode())
+                .ok_or_else(|| {
+                    ClientError::Refused(
+                        ErrorCode::PermissionDenied,
+                        format!("this account is not served the whole log of block {block}"),
+                    )
+                })
         };
         if account == be_block_graph::ANYONE_INSIDE {
             if level == be_block_keys::Level::None
@@ -1946,7 +1963,7 @@ impl<S: ObjectStore> Peer<S> {
                 return Ok(None);
             }
             let authority = authority(false).await?;
-            return Ok(Some(sign(Record::Opening(Opening { level, authority }))));
+            return Ok(Some(sign(Record::Opening(Opening { level, authority }))?));
         }
         let named = checked.grants.get(&account.into_bytes()).copied();
         if level == be_block_keys::Level::None
@@ -1970,7 +1987,7 @@ impl<S: ObjectStore> Peer<S> {
             identity,
             level,
             authority,
-        }))))
+        }))?))
     }
 
     /// Defines a block's metadata on this device and keeps the change in the outbox: a block
@@ -3643,10 +3660,10 @@ fn checked_log(
     log: Uuid,
     pinned: be_block_keys::EntryHash,
     served: &[Vec<u8>],
-) -> Result<Vec<be_block_keys::Entry>, ClientError> {
+) -> Result<Vec<be_block_keys::Step>, ClientError> {
     let entries = served
         .iter()
-        .map(|entry| be_block_keys::Entry::decode(entry))
+        .map(|step| be_block_keys::Step::decode(step))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| ClientError::Forged(log))?;
     be_block_keys::check_log(kind, log.into_bytes(), pinned, &entries, &|_, _| None)
@@ -3672,7 +3689,7 @@ struct Around {
     block: Uuid,
     held: HashMap<
         (be_block_keys::LogKind, Uuid),
-        (be_block_keys::EntryHash, Vec<be_block_keys::Entry>),
+        (be_block_keys::EntryHash, Vec<be_block_keys::Step>),
     >,
     above: Vec<Uuid>,
 }
@@ -3684,7 +3701,7 @@ impl Around {
         log: &'a dyn Fn(
             be_block_keys::LogKind,
             [u8; 16],
-        ) -> Option<(be_block_keys::EntryHash, Vec<be_block_keys::Entry>)>,
+        ) -> Option<(be_block_keys::EntryHash, Vec<be_block_keys::Step>)>,
         above: &'a dyn Fn([u8; 16], [u8; 16]) -> bool,
     ) -> be_block_keys::Logs<'a> {
         be_block_keys::Logs {
@@ -3698,7 +3715,7 @@ impl Around {
         &self,
         kind: be_block_keys::LogKind,
         log: [u8; 16],
-    ) -> Option<(be_block_keys::EntryHash, Vec<be_block_keys::Entry>)> {
+    ) -> Option<(be_block_keys::EntryHash, Vec<be_block_keys::Step>)> {
         self.held.get(&(kind, Uuid::from_bytes(log))).cloned()
     }
 
@@ -3720,7 +3737,7 @@ impl Around {
         organization: Uuid,
         block: Uuid,
         pinned: be_block_keys::EntryHash,
-        entries: &[be_block_keys::Entry],
+        entries: &[be_block_keys::Step],
     ) -> Option<be_block_keys::Checked> {
         let log = |kind, log| self.log(kind, log);
         let above = |above, below| self.is_above(above, below);

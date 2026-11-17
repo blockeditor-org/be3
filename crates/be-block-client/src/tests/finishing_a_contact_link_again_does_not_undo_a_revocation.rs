@@ -71,7 +71,7 @@ async fn finishing_a_contact_link_again_does_not_undo_a_revocation() {
         Some(be_block_keys::Level::None),
         "finishing the link again granted the access back"
     );
-    let entries = admin.checked_access(team).await.unwrap().0;
+    let entries = admin.access_log(team).await.unwrap();
     assert_eq!(
         entries
             .iter()

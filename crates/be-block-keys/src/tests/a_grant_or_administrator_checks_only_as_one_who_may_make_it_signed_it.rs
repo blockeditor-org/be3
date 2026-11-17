@@ -17,6 +17,7 @@ fn a_grant_or_administrator_checks_only_as_one_who_may_make_it_signed_it() {
             signer,
             block,
             Some(previous),
+            level == Level::None,
             Record::Grant(Grant {
                 grantee,
                 identity,
@@ -224,12 +225,13 @@ fn a_grant_or_administrator_checks_only_as_one_who_may_make_it_signed_it() {
     let organization = [9; 16];
     let root = Entry::root(&creator, creator_id, LogKind::Organization, organization);
     let pinned = root.hash();
-    let make = |by: &RecoverySecret, signer, previous, account, identity, administrator| {
+    let make = |by: &RecoverySecret, signer, previous, account, identity, administrator: bool| {
         Entry::sign(
             by,
             signer,
             organization,
             Some(previous),
+            !administrator,
             Record::Administrator(Administrator {
                 account,
                 identity,
