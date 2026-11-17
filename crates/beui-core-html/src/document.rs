@@ -122,14 +122,15 @@ fn remove_released() {
             if slot.0 != node.generation() {
                 continue;
             }
-            if let Some(entry) = slot.1.take() {
+            let entry = slot.1.take();
+            slot.0 = slot.0.wrapping_add(1);
+            arena.free.push(node.index());
+            if let Some(entry) = entry {
                 if Rc::strong_count(&entry.shared) == 1 {
                     arena.accessible.remove(&entry.element.key());
                 }
                 dropped.push((node, entry));
             }
-            slot.0 = slot.0.wrapping_add(1);
-            arena.free.push(node.index());
         }
         dropped
     });
