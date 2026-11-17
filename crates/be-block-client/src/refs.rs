@@ -406,15 +406,19 @@ struct State {
 }
 
 /// How far this device last checked a scope's access log, kept across restarts: a log the
-/// server serves later must reach `head` or counts as withheld, and an epoch is judged by the
-/// last entry lowering anyone's access (`lowering`, at `lowering_place`) when no log can be
-/// read (signed access 3d, `KeyBook::outdated`).
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+/// server serves later must reach `head` or counts as withheld, and when no log can be read an
+/// epoch is current only if it names one of `current`, every entry from the last that lowered
+/// anyone's access (at `lowering_place`) through the head (signed access 3d,
+/// `KeyBook::outdated`).
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct KeptLog {
     pub head: [u8; 32],
     pub place: u64,
-    pub lowering: [u8; 32],
     pub lowering_place: u64,
+    pub current: Vec<[u8; 32]>,
+    /// Each account's level at `head`, as the log named it: what a contact's seal is judged by
+    /// while no log can be read (`KeyBook::sender_may`).
+    pub levels: Vec<([u8; 16], be_block_keys::Level)>,
 }
 
 /// A block's journal on this device, sealed as on the server: what this device's replica
@@ -1343,12 +1347,12 @@ impl Refs {
             .unwrap()
             .logs
             .iter()
-            .map(|(block, kept)| (*block, *kept))
+            .map(|(block, kept)| (*block, kept.clone()))
             .collect()
     }
 
     pub fn keep_log(&self, block: Uuid, kept: KeptLog) -> Result<(), StoreError> {
-        if self.state.lock().unwrap().logs.insert(block, kept) == Some(kept) {
+        if self.state.lock().unwrap().logs.insert(block, kept.clone()) == Some(kept.clone()) {
             return Ok(());
         }
         self.write(vec![row(Table::Logs, block.as_bytes().to_vec(), &kept)])
