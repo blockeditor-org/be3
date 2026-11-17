@@ -22,6 +22,8 @@ fn a_demo_tab_unlocked_from_its_grip_moves_beside_the_files_with_its_page() {
     );
     host.run(&["drag", "Tab \"Docking\"", &below]);
     host.run(&["settle"]);
+    // The panes glide into the layout the drop made, on the stopped clock.
+    host.pause(1000);
     let tab = host.place("Tab \"Docking\"");
     assert!(
         tab.0 < files.0 + files.2 && tab.1 > files.1 + files.3 * 0.25,
