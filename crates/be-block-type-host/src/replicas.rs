@@ -4783,7 +4783,14 @@ pub fn journal_for<S: be_block_store::ObjectStore>(
         .map_or(0, |state| state.restarts);
     let mut sealed = None;
     let mut at = head;
+    // A backstop to the stop below, which a journal started afresh (no state, so restarts read
+    // 0) under seals of a later run never meets: giving up opens on the base, as before.
+    let mut left = journal.entries.len() + SEAL_WALK;
     while let Some(commit) = at {
+        if left == 0 {
+            break;
+        }
+        left -= 1;
         let Some((parent, through)) = sealed_on(peer, commit) else {
             break;
         };
@@ -4825,6 +4832,9 @@ pub fn journal_for<S: be_block_store::ObjectStore>(
         None => (None, false, head, None),
     }
 }
+
+/// How many seals past the journal's entries `journal_for` reads down the head's chain at most.
+pub(crate) const SEAL_WALK: usize = 64;
 
 #[cfg(test)]
 thread_local! {
