@@ -16,6 +16,7 @@ use be_wasm_host::{App, Host, sandbox::Staged};
 
 use super::{
     backend::StepTime,
+    wire::Wire,
     surface::{PresentedTexture, SurfaceFrame, gpu},
 };
 
@@ -139,6 +140,16 @@ pub(super) fn spawn(
     start(app, &module, host)
 }
 
+/// The wire to `app`, which serves it the sandbox API for its workers: it may spawn only its own
+/// app's modules (`be_wasm_sandbox_host::Server::for_app`), found by `staged_app`.
+pub(super) fn wire(app: &AppManifest) -> Wire {
+    Wire::granting(app.extensions.clone()).with_sandbox(be_wasm_sandbox_host::Server::for_app(
+        Arc::new(be_host_base::host::wake),
+        app.identity.id.clone(),
+        Box::new(staged_app),
+    ))
+}
+
 /// Tells be-wasm-host what every staged app imports, once, so the libraries they link are
 /// trimmed to that and compiled once for all of them (be_wasm_host::keep_exports).
 fn keep_staged_exports() {
@@ -146,24 +157,44 @@ fn keep_staged_exports() {
     KEPT.call_once(|| {
         let mut names = be_lib_stable_hash::HashSet::default();
         for manifest in discovery::manifests() {
-            match discovery::open(&manifest.entry_point).and_then(be_wasm_host::imported_names) {
-                Ok(imported) => names.extend(imported),
-                Err(error) => eprintln!("{}: {error}", manifest.entry_point),
+            let workers = manifest
+                .workers
+                .iter()
+                .map(|worker| worker_path(&manifest.identity.id, worker));
+            for module in std::iter::once(manifest.entry_point.clone()).chain(workers) {
+                match discovery::open(&module).and_then(be_wasm_host::imported_names) {
+                    Ok(imported) => names.extend(imported),
+                    Err(error) => eprintln!("{module}: {error}"),
+                }
             }
         }
         be_wasm_host::keep_exports(names);
     });
 }
 
-/// The staged app with the id `app_id`, as the sandbox spawns it (`be_wasm_sandbox_host::Loader`):
-/// its manifest's module, read with the libraries it is linked against from the staged apps, as
-/// the host loads every app.
-pub fn staged_app(app_id: &str) -> Result<Staged, String> {
-    discovery::manifests()
+/// The module `module` of the staged app with the id `app_id`, as the sandbox spawns it
+/// (`be_wasm_sandbox_host::Loader`), read with the libraries it is linked against from the staged
+/// apps, as the host loads every app: the manifest's `entry_point`, or one of its `workers`, staged
+/// under `workers/<app id>/`. It is the one place that maps a module's name to a file, so any
+/// other name, a path or another app's module, is refused.
+pub fn staged_app(app_id: &str, module: &str) -> Result<Staged, String> {
+    let manifests = discovery::manifests();
+    let manifest = manifests
         .iter()
         .find(|manifest| manifest.identity.id == app_id)
-        .map(|manifest| staged(manifest.entry_point.clone()))
-        .ok_or_else(|| format!("no staged app has the id {app_id}"))
+        .ok_or_else(|| format!("no staged app has the id {app_id}"))?;
+    if module == manifest.entry_point {
+        return Ok(staged(manifest.entry_point.clone()));
+    }
+    if manifest.workers.iter().any(|worker| worker == module) {
+        return Ok(staged(worker_path(app_id, module)));
+    }
+    Err(format!("{app_id} stages no module named {module:?}"))
+}
+
+/// Where a worker module of the app `app_id` is staged (crates/be-tool-buck's stage).
+fn worker_path(app_id: &str, worker: &str) -> String {
+    format!("workers/{app_id}/{worker}")
 }
 
 /// A staged module, which tells be-wasm-host what every staged app imports before its first read,

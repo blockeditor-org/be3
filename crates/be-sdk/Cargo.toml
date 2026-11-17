@@ -11,6 +11,7 @@ be-sdk-api = { path = "../be-sdk-api" }
 be-sdk-manifest = { path = "../be-sdk-manifest" }
 be-sdk-type-guest = { path = "../be-sdk-type-guest" }
 be-sdk-ui = { path = "../be-sdk-ui" }
+be-sdk-worker = { path = "../be-sdk-worker" }
 beui-lucide = { path = "../beui-lucide" }
 be-lib-geometry = { path = "../be-lib-geometry" }
 beui-paint-format = { path = "../beui-paint-format" }

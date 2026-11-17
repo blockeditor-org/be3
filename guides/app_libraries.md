@@ -195,7 +195,9 @@ is one, and so is the input remapper, which runs in the sandbox for modules
 from bytes (guides/apps/runtime.md, Backends); `crates/be-wasm-guest-echo` is
 the smallest. The host refuses any other import and caps its memory. The echo
 guest is also built as a staged app linked against the base library (`:app`),
-which the sandbox's tests spawn by its id.
+which the sandbox's tests spawn by its id, with crates/be-sdk-worker-echo as
+its worker. A worker module (`be_sdk_worker::worker!`) is an ordinary guest
+linked as an app is, exporting `app_start` and `app_step` like any other.
 
 ### The host half
 

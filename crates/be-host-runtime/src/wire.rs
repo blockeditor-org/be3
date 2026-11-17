@@ -2,6 +2,7 @@ use be_lib_stable_hash::HashMap;
 use std::collections::BTreeMap;
 
 use super::calls::{AppCall, EditorAnswer, EditorCall, Heard};
+use be_wasm_sandbox_api::embed::sandbox;
 use be_sdk_api::{Encoded, Watch};
 
 use be_sdk_api::{
@@ -67,6 +68,10 @@ pub(super) struct Wire {
     /// the app for nothing: each frame it draws sends `laid-out`.
     acks: Vec<Reply<()>>,
     hearing: Vec<(EditorInstanceId, EditorEvent)>,
+    /// The sandbox API served to the app, which starts its workers (`Server::for_app`); none
+    /// where the host serves none to it: on the web, and to a wire made for a test.
+    #[cfg(not(target_arch = "wasm32"))]
+    sandbox: Option<be_wasm_sandbox_host::Server>,
 }
 
 type PublishedWatch = (EditorInstanceId, MethodId, Watch<Encoded>);
@@ -139,6 +144,42 @@ impl Wire {
             extensions,
             ..Self::default()
         }
+    }
+
+    /// Serves the app the sandbox API through `server`.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) fn with_sandbox(mut self, server: be_wasm_sandbox_host::Server) -> Self {
+        self.sandbox = Some(server);
+        self
+    }
+
+    /// Answers what the app's workers did since: they sent messages, started or stopped.
+    pub(super) fn poll_sandbox(&mut self) {
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(server) = &mut self.sandbox {
+            server.poll(&mut self.connection);
+        }
+    }
+
+    /// Stops every worker the app started.
+    pub(super) fn stop_sandbox(&mut self) {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.sandbox = None;
+        }
+    }
+
+    fn sandbox_call(&mut self, started: Started) {
+        let Some(call) = sandbox::Call::accept(&mut self.connection, started) else {
+            return;
+        };
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(server) = &mut self.sandbox {
+            server.call(call, &mut self.connection);
+            return;
+        }
+        let (op, outcome) = call.refuse(OpError::Unsupported);
+        self.connection.complete(op, outcome);
     }
 
     pub(super) fn accept(&mut self, accepted: &HelloAccepted) {
@@ -705,6 +746,10 @@ impl Wire {
                 self.published_call(started, heard);
                 return Ok(());
             }
+            Incoming::Started(started) if sandbox::Call::accepts(&started) => {
+                self.sandbox_call(started);
+                return Ok(());
+            }
             Incoming::Started(started) => {
                 let (op, parent) = (started.op, started.parent);
                 let instance = self.editor_of(parent);
@@ -796,6 +841,12 @@ impl Wire {
                 return Ok(());
             }
             Incoming::Canceled { op } => {
+                #[cfg(not(target_arch = "wasm32"))]
+                if let Some(server) = &mut self.sandbox
+                    && server.canceled(op, &mut self.connection)
+                {
+                    return Ok(());
+                }
                 if self.ended(op, heard) {
                     return Ok(());
                 }

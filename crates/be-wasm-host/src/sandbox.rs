@@ -5,8 +5,10 @@
 //! - a module from bytes: a pure guest's module compiled once per process, named by the SHA-256
 //!   of its bytes, on a thread of its own, given only the transport. What it may do beside
 //!   computing, its spawner serves it over its frames; or
-//! - a staged app (`Staged`), linked against the libraries it names and given WASI, as the host
-//!   runs that app, but with no display: it has no gpu.
+//! - a staged app's module (`Staged`): the app itself or one of its workers, linked against the
+//!   libraries it names and given WASI, as the host runs that app, but with no display: it has no
+//!   gpu, which a worker does not need, since it sends what it made back as bytes
+//!   (guides/apps/runtime.md, Backends).
 //!
 //! A module from bytes never reaches the code cache (cache.rs): it is compiled anew in each
 //! process and freed once nothing holds it. A stopped instance's thread is reaped lazily by the
@@ -177,8 +179,9 @@ pub enum Source {
 /// (`library_file_name`).
 pub type Open = Arc<dyn Fn(&str) -> Result<Stored, String> + Send + Sync>;
 
-/// A staged app's module, `entry`, and where it and its libraries are read from, as the host's
-/// staged-app loading finds them (be-host-runtime's `staged_app`).
+/// A staged app's module, `entry` (its entry point or one of its workers), and where it and its
+/// libraries are read from, as the host's staged-app loading finds them (be-host-runtime's
+/// `staged_app`).
 #[derive(Clone)]
 pub struct Staged {
     entry: String,
@@ -188,6 +191,11 @@ pub struct Staged {
 impl Staged {
     pub fn new(entry: String, open: Open) -> Self {
         Self { entry, open }
+    }
+
+    /// The module's name among the staged files, which `open` reads it by.
+    pub fn entry(&self) -> &str {
+        &self.entry
     }
 
     /// Loads the app on `host`, linked against the libraries it names.
