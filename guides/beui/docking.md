@@ -209,9 +209,12 @@ place (`DockPlace`), so a locked place is no place: for each pane laid out now, 
 edge, chosen in a band along it (`EDGE_ZONE` of the pane, each corner split along its diagonal by `Candidate::nearest_edge`; a pane hosting a group gives its edges
 only `OUTER_EDGE`, then its group's places), and grouping in its middle, each zone leaving the pane's tab bar to the bar.
 Each place carries the `DockState` its drop leaves and where the carried item rests in it.
-A surface's places are reached only where none of the dock's other windows or dialogs, nor anything else, covers them
-(`open_where`), so a menu over the dock, a tool-bar band or another dock in the window takes no
-tab; under `when_held(ALT, ..)` a `custom` place floats it at the pointer. A carry's payload is a
+A surface's places are reached only where it is the topmost of the dock's surfaces under the
+pointer and nothing but the dock's own layers covers it (`open_where`, `State::topmost`), so a menu
+over the dock, a tool-bar band or another dock in the window takes no tab; a dock dialog covers
+nothing. Over no surface, or one that offers no place (the window a lone tab is carried from), a
+`custom` place floats the tab in a window of its own at the pointer, which moves that lone
+window; with Alt held that is the only place. A carry's payload is a
 `DockCarry`, the dragged tab or pane with its dock's id, so another dock in the document, whose tab ids
 may coincide, neither takes it nor hides a tab for it. Tool bars still ride the old `DropTarget`
 (plans/declarative_dragging.md, step 4).

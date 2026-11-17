@@ -38,9 +38,15 @@ fn a_tab_carried_to_a_panes_edge_parts_the_dock_when_measurement_comes_late() {
             opening.left() > WIDE_VIEWPORT.x * 0.4,
             "the opening is the right half of the pane: {opening:?}"
         );
-        assert_eq!(held, before, "the panel beside it keeps its size while carried");
+        assert_eq!(
+            held, before,
+            "the panel beside it keeps its size while carried"
+        );
         assert_eq!(split, 2, "let go, the pane splits");
         assert!(left.right() <= right.left(), "the new pane is on the right");
     }
-    assert_eq!(prompt, late, "measured a frame late, the dock parts the same");
+    assert_eq!(
+        prompt, late,
+        "measured a frame late, the dock parts the same"
+    );
 }
