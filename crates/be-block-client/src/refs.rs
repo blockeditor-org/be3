@@ -1384,6 +1384,18 @@ impl Refs {
             .collect()
     }
 
+    /// Drops what was kept of `block`'s log (`keep_log`): a block made here that no server took.
+    pub fn forget_log(&self, block: Uuid) -> Result<(), StoreError> {
+        if self.state.lock().unwrap().logs.remove(&block).is_none() {
+            return Ok(());
+        }
+        self.write(vec![Row {
+            table: Table::Logs,
+            key: block.as_bytes().to_vec(),
+            value: None,
+        }])
+    }
+
     pub fn keep_log(&self, block: Uuid, kept: KeptLog) -> Result<(), StoreError> {
         if self.state.lock().unwrap().logs.insert(block, kept.clone()) == Some(kept.clone()) {
             return Ok(());
