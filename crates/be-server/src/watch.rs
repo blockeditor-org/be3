@@ -303,7 +303,9 @@ impl WatchHub {
     }
 
     /// `client` read the tree of `entry` to its end, as of `sequence`: told of anything since,
-    /// and otherwise told again of the next change.
+    /// and otherwise told again of the next change. `sequence` and the one `advance` is given
+    /// are both the organization's `change_sequence`, read under the store's one database
+    /// connection, so a change at or before `sequence` is one the read took (`Told::read`).
     pub async fn read(&self, client: u64, entry: Uuid, sequence: u64) {
         let send = {
             let mut joined = self.joined.lock().await;
