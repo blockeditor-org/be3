@@ -88,7 +88,15 @@ fn a_server_journal_off_the_heads_seals_is_found_without_reading_the_history() {
         let mut chain = Vec::new();
         let mut parent = root;
         for sequence in 1..=40 {
-            let commit = seal(&peer, block, parent, &format!("seal {sequence}"), sequence, 0).await;
+            let commit = seal(
+                &peer,
+                block,
+                parent,
+                &format!("seal {sequence}"),
+                sequence,
+                0,
+            )
+            .await;
             chain.push(commit);
             parent = Some(commit);
         }
@@ -115,10 +123,24 @@ fn a_server_journal_off_the_heads_seals_is_found_without_reading_the_history() {
         // later run above it never fall below its number, and only the depth stops the walk.
         let mut parent = Some(head);
         for sequence in 1..=100 {
-            parent = Some(seal(&peer, block, parent, &format!("run 1, {sequence}"), sequence, 1).await);
+            parent = Some(
+                seal(
+                    &peer,
+                    block,
+                    parent,
+                    &format!("run 1, {sequence}"),
+                    sequence,
+                    1,
+                )
+                .await,
+            );
         }
-        let (load_at, sealed_head, read) =
-            opened(&peer, block, journal(Some(off), 0, 2), parent.expect("sealed"));
+        let (load_at, sealed_head, read) = opened(
+            &peer,
+            block,
+            journal(Some(off), 0, 2),
+            parent.expect("sealed"),
+        );
         assert_eq!((load_at, sealed_head), (Some(off), None));
         assert_eq!(
             read,
