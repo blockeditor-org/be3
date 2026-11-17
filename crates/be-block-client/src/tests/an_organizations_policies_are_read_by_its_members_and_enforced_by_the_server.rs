@@ -2,7 +2,7 @@ use be_block::{
     OrganizationPolicies, OrganizationPoliciesContent, Settings, SettingsContent, WhoMay,
 };
 use be_block_content::Root;
-use be_block_protocol::{ErrorCode, client};
+use be_block_protocol::{ErrorCode};
 
 use super::*;
 

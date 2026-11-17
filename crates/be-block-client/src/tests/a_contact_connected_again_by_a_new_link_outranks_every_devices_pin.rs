@@ -1,6 +1,5 @@
 use super::*;
 
-use be_block_protocol::client;
 
 /// A contact connects again by a new link, as one who lost their phrase must, and one device
 /// accepts it; a device of the same account that pinned a record dated by a clock running

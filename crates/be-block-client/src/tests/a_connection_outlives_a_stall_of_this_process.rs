@@ -1,6 +1,5 @@
 use super::*;
 use crate::connection::{PING_INTERVAL, PONG_WAIT};
-use be_block_protocol::client;
 
 #[tokio::test]
 async fn a_connection_outlives_a_stall_of_this_process() {
@@ -13,7 +12,7 @@ async fn a_connection_outlives_a_stall_of_this_process() {
     let relay = be_block_fault_relay::Relay::start(server);
     let clock = Clock::manual();
     let connection = Connection::connect(&relay.url(), &clock).await.unwrap();
-    let mut pings = relay.count(|method, _| method == be_block_protocol::__args::CONNECTION_PING);
+    let mut pings = relay.count(|method, _| method == be_block_protocol::__args::SERVER_PING);
 
     clock.advance(PING_INTERVAL + PONG_WAIT + PONG_WAIT);
     let answered = crate::ask(be_block_protocol::client::server::authenticate(&connection, Some("no token".into())))

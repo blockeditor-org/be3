@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block_protocol::{RecoveryKey, client};
+use be_block_protocol::{RecoveryKey};
 
 /// The server, with whoever holds a contact's old phrase, serves the old own-sealed card for
 /// the contact again and hides the key change; the device keeps the newest key it saw, so it

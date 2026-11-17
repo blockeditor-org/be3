@@ -22,8 +22,8 @@ async fn two_devices_sealing_one_head_keep_only_the_winners_trim() {
     let laptop = harness.second(&phone).await;
     // The laptop reads the head both seal on.
     laptop.open::<TextContent>(note).await.unwrap();
-    phone.connection().join_session(note, BUILD).await.unwrap();
-    laptop.connection().join_session(note, BUILD).await.unwrap();
+    phone.connection().join_session(phone.organization(), note, BUILD).await.unwrap();
+    laptop.connection().join_session(laptop.organization(), note, BUILD).await.unwrap();
     for counter in 1..=3 {
         submitted(&phone, note, counter).await;
     }
