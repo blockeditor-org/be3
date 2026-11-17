@@ -12,11 +12,13 @@ use beui_types::WindowId;
 use beui_types::{Modifiers, Pen, PointerButton, TouchId};
 use beui_types::{
     PointerEvent, PointerId, PointerInput, PointerPhase, PointerPress, PointerSample, PointerStage,
-    ScrollGesture, TOUCH_DRAG_THRESHOLD, WheelInput, ZoomGesture,
+    ScrollGesture, TOUCH_DRAG_THRESHOLD, TouchpadGesture, WheelInput, ZoomGesture,
 };
 use beui_types::{Pos2, Rect, Vec2, vec2};
 
+use super::forward;
 use super::hit::{self, Hit, interactive};
+use be_lib_input_router::Phase;
 use super::{WHEEL_LATCH_SLOP, grab};
 use beui_types::WHEEL_LATCH_TIMEOUT;
 
@@ -49,13 +51,6 @@ pub(crate) struct Routed {
 }
 
 impl Pointers {
-    pub(crate) fn sink_of(&self, pointer: PointerId) -> Option<NodeId> {
-        self.sessions
-            .iter()
-            .filter(|session| session.pointer == pointer)
-            .find_map(|session| session.sink)
-    }
-
     pub(crate) fn forget_hits(&mut self) {
         self.hits.clear();
     }
@@ -133,7 +128,6 @@ struct Kind {
     finger: bool,
     reaches: bool,
     settles: bool,
-    holds_sink: bool,
     buttons: bool,
     shows_cursor: bool,
 }
@@ -143,7 +137,6 @@ impl Kind {
         finger: false,
         reaches: false,
         settles: false,
-        holds_sink: true,
         buttons: true,
         shows_cursor: true,
     };
@@ -152,7 +145,6 @@ impl Kind {
         finger: true,
         reaches: true,
         settles: true,
-        holds_sink: false,
         buttons: false,
         shows_cursor: false,
     };
@@ -166,12 +158,6 @@ impl Kind {
         }
     }
 
-    fn held_sink(self, doc: &Document, pointer: PointerId) -> Option<NodeId> {
-        match self.holds_sink {
-            true => doc.pointers.sink_of(pointer),
-            false => None,
-        }
-    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -199,7 +185,6 @@ struct Session {
     claimed: bool,
     focus: Option<NodeId>,
     pressed_focus: Option<NodeId>,
-    sink: Option<NodeId>,
     modifiers: Modifiers,
     clicks: u32,
     pen: Option<Pen>,
@@ -446,10 +431,8 @@ fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) -> Opti
         PointerPhase::Move => moved(doc, frame, event),
         PointerPhase::Up(button) => up(doc, frame, event, button),
         PointerPhase::Cancel | PointerPhase::Gone => {
-            let sink = doc
-                .pointers
-                .sink_of(event.pointer)
-                .or(doc.forward.hovered());
+            let held = doc.forward.router.cancel(forward::pointer(event.pointer));
+            let sink = held.or(doc.forward.hovered());
             doc.pointers.route(sink);
             cancel(doc, frame, event.pointer);
         }
@@ -466,16 +449,32 @@ fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) -> Opti
                 lift_latched(doc, frame, event);
             }
         }
-        PointerPhase::Touchpad(_) => {
-            let sink = wheel_sink(doc, frame, event.window, event.pos);
+        PointerPhase::Touchpad(gesture) => {
+            let phase = match gesture {
+                TouchpadGesture::SwipeBegan(_)
+                | TouchpadGesture::PinchBegan(_)
+                | TouchpadGesture::HoldBegan(_) => Phase::Began,
+                TouchpadGesture::SwipeEnded(_)
+                | TouchpadGesture::PinchEnded(_)
+                | TouchpadGesture::HoldEnded(_) => Phase::Ended,
+                _ => Phase::Moved,
+            };
+            let found = forward::Catchers::at(wheel_sink(doc, frame, event.window, event.pos));
+            let sink = doc.forward.router.gesture(&found, event.pos, phase);
             doc.pointers.route(sink);
         }
         PointerPhase::Zoom(factor) => {
             let path = hit(doc, frame.rects, event.window, event.pos, false).path;
-            let sink = match gesture_claimant(doc, frame.rects, &path, event.pos) {
-                Some(_) => None,
-                None => wheel_sink(doc, frame, event.window, event.pos),
-            };
+            let found = forward::Catchers::at(
+                match gesture_claimant(doc, frame.rects, &path, event.pos) {
+                    Some(_) => None,
+                    None => wheel_sink(doc, frame, event.window, event.pos),
+                },
+            );
+            let sink = doc
+                .forward
+                .router
+                .gesture(&found, event.pos, Phase::Moved);
             doc.pointers.route(sink);
             let candidates = match gesture_claimant(doc, frame.rects, &path, event.pos) {
                 Some(claimant) => vec![claimant],
@@ -663,16 +662,19 @@ fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
         Role::Middle => gesture_claimant(doc, frame.rects, &hit.path, pos),
         _ => None,
     };
-    let sink = kind
-        .held_sink(doc, event.pointer)
-        .filter(|_| panned.is_none())
-        .or_else(|| match claimant {
+    let found = forward::Catchers {
+        sink: match claimant {
             Some(claimant) => interactive(doc, claimant)
                 .is_some_and(InteractiveNode::forwards)
                 .then_some(claimant),
             None => hit::sink(doc, frame.rects, &hit.path, pos),
-        });
-    let sink = sink.filter(|_| panned.is_none());
+        },
+        pans: panned.is_some(),
+    };
+    let sink = doc
+        .forward
+        .router
+        .press(&found, forward::pointer(event.pointer), button, pos);
     doc.pointers.route(sink);
     let mut session = Session {
         pointer: event.pointer,
@@ -695,7 +697,6 @@ fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
         claimed: claimant.is_some(),
         focus: None,
         pressed_focus: None,
-        sink,
         modifiers: event.modifiers,
         clicks: event.clicks,
         pen: event.pen,
@@ -900,13 +901,18 @@ fn middle(
 
 fn moved(doc: &mut Document, frame: &Frame, event: PointerEvent) {
     doc.acted = Acted::Pointer(event.pos + doc.pointers.shift);
-    let sink = match find(doc, event.pointer, None) {
-        Some(_) => doc.pointers.sink_of(event.pointer),
-        None => {
+    let pointer = forward::pointer(event.pointer);
+    let found = match doc.forward.router.pressing(pointer) {
+        true => None,
+        false => {
             let hit = hit(doc, frame.rects, event.window, event.pos, false);
             hit::sink(doc, frame.rects, &hit.path, event.pos)
         }
     };
+    let sink = doc
+        .forward
+        .router
+        .moved(&forward::Catchers::at(found), pointer, event.pos);
     doc.pointers.route(sink);
     if let PointerId::Touch(id) = event.pointer {
         finger_moved(doc, frame, id, event.pos);
@@ -1049,15 +1055,15 @@ fn cancel_owner(doc: &mut Document, owner: NodeId) {
 fn up(doc: &mut Document, frame: &Frame, event: PointerEvent, button: PointerButton) {
     let primary = is_primary(doc, event.pointer);
     let window = doc.pointers.window_of(event.pointer);
-    let kind = Kind::of(event.pointer);
+    let sink = doc
+        .forward
+        .router
+        .release(forward::pointer(event.pointer), button);
+    doc.pointers.route(sink);
     let Some(index) = find(doc, event.pointer, Some(button)) else {
-        let sink = kind.held_sink(doc, event.pointer);
-        doc.pointers.route(sink);
         return;
     };
     let mut session = doc.pointers.sessions.remove(index);
-    let sink = kind.held_sink(doc, event.pointer).or(session.sink);
-    doc.pointers.route(sink);
     let pos = event.pos + session.shift;
     session.window = event.window;
     session.predicted = None;
@@ -1481,10 +1487,16 @@ fn wheel(doc: &mut Document, frame: &Frame, event: PointerEvent, delta: Vec2, fl
     let pos = event.pos;
     let path = hit(doc, frame.rects, event.window, pos, false).path;
     let claimed = gesture_claimant(doc, frame.rects, &path, pos);
-    let sink = match claimed {
+    let found = forward::Catchers::at(match claimed {
         Some(_) => None,
         None => wheel_sink(doc, frame, event.window, pos),
+    });
+    let phase = match event.phase {
+        PointerPhase::ScrollStarted => Phase::Began,
+        PointerPhase::ScrollEnded { .. } => Phase::Ended,
+        _ => Phase::Moved,
     };
+    let sink = doc.forward.router.gesture(&found, pos, phase);
     doc.pointers.route(sink);
     let (delta, fling) = match event.modifiers.shift && delta.x == 0.0 && fling.x == 0.0 {
         true => (vec2(delta.y, 0.0), vec2(fling.y, 0.0)),

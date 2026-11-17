@@ -1,8 +1,16 @@
+//! Routing to forwarding catchers (guides/beui_keyboard.md, One input path). Who each pointer
+//! event, key and focus change is for follows the forwarding router's rules
+//! (`be_lib_input_router::Router`): a press holds its catcher until it lifts, hover and
+//! `Left` follow the catcher under the pointer, a held gesture stays with the catcher it began
+//! on, and the focus is told as it moves. What lies under a point is beui's own hit test
+//! (`Catchers`): its overlays, scrims and claims.
+
 use crate::base::interactive::InteractiveNode;
 use crate::context::Context;
 use crate::document::Document;
 
 use crate::node::{Element, Rects};
+use be_lib_input_router::{HitTest, Pointer, Router};
 use beui_types::NodeId;
 use beui_types::WindowId;
 use beui_types::{Event, PointerId};
@@ -15,15 +23,71 @@ use beui_types::{Forwarded, ForwardedInput, Over};
 
 #[derive(Default)]
 pub struct Routing {
-    hovered: Option<NodeId>,
-    focused: Option<NodeId>,
-    entered: Vec<NodeId>,
+    pub(crate) router: Router<NodeId>,
+    /// Where each catcher the pointer is over or held by was when it last heard the pointer,
+    /// so one that moves under a resting pointer hears it again (`reforward`).
     placed: Vec<(NodeId, Pos2)>,
 }
 
 impl Routing {
     pub(crate) fn hovered(&self) -> Option<NodeId> {
-        self.hovered
+        self.router.hovered()
+    }
+}
+
+/// The router's name for a beui pointer.
+pub(crate) fn pointer(id: PointerId) -> Pointer {
+    match id {
+        PointerId::Mouse => Pointer::Mouse,
+        PointerId::Pen => Pointer::Pen,
+        PointerId::Touch(id) => Pointer::Touch(id),
+        PointerId::Keyboard => Pointer::Other(0),
+        PointerId::Relayed => Pointer::Other(1),
+    }
+}
+
+/// The router's hit test over a document's catchers, for one pointer event: beui's hit test
+/// found the catcher under it (`sink`, `None` where the document's own UI takes it: a control,
+/// a scrim or a popup over the catcher, or a claim) and whether the press pans a camera.
+/// Positions stay in the window's points, as `ForwardedInput` carries them; claims on catchers'
+/// ancestors are beui's (`hit::claimant`), so no catcher places another.
+pub(crate) struct Catchers {
+    pub(crate) sink: Option<NodeId>,
+    pub(crate) pans: bool,
+}
+
+impl Catchers {
+    pub(crate) fn at(sink: Option<NodeId>) -> Self {
+        Self { sink, pans: false }
+    }
+}
+
+impl HitTest for Catchers {
+    type Target = NodeId;
+
+    fn hit(&self, _at: Pos2) -> Option<NodeId> {
+        self.sink
+    }
+
+    fn local(&self, _target: NodeId, at: Pos2) -> Option<Pos2> {
+        Some(at)
+    }
+
+    fn placer(&self, _target: NodeId) -> Option<NodeId> {
+        None
+    }
+
+    fn grants_gestures(&self, _target: NodeId, _at: Pos2) -> bool {
+        false
+    }
+
+    /// beui moves its own focus on a press (`press_focus`); the router is told where it went.
+    fn takes_focus(&self, _target: NodeId) -> bool {
+        false
+    }
+
+    fn pans(&self, _at: Pos2) -> bool {
+        self.pans
     }
 }
 
@@ -114,7 +178,7 @@ pub(super) fn route(
             None => deliveries.push((to, vec![event])),
         }
     };
-    let mut entered = std::mem::take(&mut doc.forward.entered);
+    let mut entered = Vec::new();
     let mut pointed = 0;
     for (index, event) in events.iter().enumerate() {
         while let Some(pointer_event) = pointer_events
@@ -166,18 +230,23 @@ pub(super) fn route(
             _ => {}
         }
     }
-    let captured = [PointerId::Mouse, PointerId::Pen].map(|pointer| doc.pointers.sink_of(pointer));
-    entered.retain(|sink| {
-        let stays = hovered == Some(*sink) || captured.contains(&Some(*sink));
-        if !stays && alive(doc, Some(*sink)).is_some() {
-            deliver(Some(*sink), Forwarded::Left);
+    for sink in entered {
+        doc.forward.router.entered(sink);
+    }
+    let was_hovered = doc.forward.router.hovered();
+    for left in doc.forward.router.hover(hovered) {
+        if alive(doc, Some(left)).is_some() {
+            deliver(Some(left), Forwarded::Left);
         }
-        stays
-    });
-    let before = doc.forward.focused;
-    for sink in [before, focused].into_iter().flatten() {
-        if before != focused && alive(doc, Some(sink)).is_some() {
-            deliver(Some(sink), Forwarded::Focus(focused == Some(sink)));
+    }
+    for told in doc.forward.router.focus(focused) {
+        if let be_lib_input_router::Routed::Input {
+            target,
+            input: beui_types::Input::Focus(has),
+        } = told
+            && alive(doc, Some(target)).is_some()
+        {
+            deliver(Some(target), Forwarded::Focus(has));
         }
     }
     let pointed = events.iter().any(|event| {
@@ -186,22 +255,15 @@ pub(super) fn route(
             Event::PointerMoved(_) | Event::PointerRested(_) | Event::PointerButton { .. }
         )
     });
-    for sink in [doc.forward.hovered, hovered]
+    for sink in [was_hovered, hovered]
         .into_iter()
         .flatten()
-        .filter(|_| pointed || doc.forward.hovered != hovered)
+        .filter(|_| pointed || was_hovered != hovered)
     {
         if alive(doc, Some(sink)).is_some() && !deliveries.iter().any(|(to, _)| *to == sink) {
             deliveries.push((sink, Vec::new()));
         }
     }
-    let placed = std::mem::take(&mut doc.forward.placed);
-    doc.forward = Routing {
-        hovered,
-        focused,
-        entered,
-        placed,
-    };
     deliver_all(doc, rects, deliveries, position, modifiers);
 }
 
@@ -217,24 +279,19 @@ pub(crate) fn reforward(doc: &mut Document, ctx: &Context, rects: &Rects) {
         })
     };
     let modifiers = ctx.input(|input| input.modifiers);
-    let captured = alive(doc, doc.pointers.sink_of(PointerId::Mouse));
+    let captured = alive(doc, doc.forward.router.held(Pointer::Mouse));
     if captured.is_none() {
         let under = sink_at(doc, rects, window, pos);
         let under = alive(doc, under);
-        if under != doc.forward.hovered {
+        if under != doc.forward.router.hovered() {
             let mut deliveries = Vec::new();
-            if let Some(left) = alive(doc, doc.forward.hovered)
-                && doc.forward.entered.contains(&left)
-            {
-                deliveries.push((left, vec![Forwarded::Left]));
-            }
-            let hovered = doc.forward.hovered;
-            doc.forward.entered.retain(|sink| Some(*sink) != hovered);
-            doc.forward.hovered = under;
-            if let Some(under) = under {
-                if !doc.forward.entered.contains(&under) {
-                    doc.forward.entered.push(under);
+            for left in doc.forward.router.hover(under) {
+                if alive(doc, Some(left)).is_some() {
+                    deliveries.push((left, vec![Forwarded::Left]));
                 }
+            }
+            if let Some(under) = under {
+                doc.forward.router.entered(under);
                 let moved = resting_move(doc, ctx, rects, window, pos);
                 deliveries.push((under, vec![moved]));
             }
@@ -242,7 +299,7 @@ pub(crate) fn reforward(doc: &mut Document, ctx: &Context, rects: &Rects) {
             return;
         }
     }
-    let Some(sink) = captured.or_else(|| alive(doc, doc.forward.hovered)) else {
+    let Some(sink) = captured.or_else(|| alive(doc, doc.forward.router.hovered())) else {
         return;
     };
     let Some(placed) = doc
@@ -296,9 +353,7 @@ fn deliver_all(
     position: Option<Pos2>,
     modifiers: beui_types::Modifiers,
 ) {
-    let Routing {
-        hovered, focused, ..
-    } = doc.forward;
+    let (hovered, focused) = (doc.forward.router.hovered(), doc.forward.router.focused());
     for (sink, events) in &deliveries {
         let pointed = events.iter().any(|event| {
             matches!(event, Forwarded::Pointer { event, .. } if event.pointer == PointerId::Mouse)
@@ -308,7 +363,7 @@ fn deliver_all(
             doc.forward.placed.push((*sink, rect.min));
         }
     }
-    let keep: Vec<NodeId> = [hovered, doc.pointers.sink_of(PointerId::Mouse)]
+    let keep: Vec<NodeId> = [hovered, doc.forward.router.held(Pointer::Mouse)]
         .into_iter()
         .flatten()
         .collect();
