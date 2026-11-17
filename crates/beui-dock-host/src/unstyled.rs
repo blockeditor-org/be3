@@ -1308,6 +1308,8 @@ impl State {
             let rect = measure(node).get_untracked()?.rect;
             let pos = rect.min + local.to_vec2();
             let window = window_of(node);
+            // `ours` may hold nodes of host-opened windows too: `stacked_at` keeps only those
+            // in `window`.
             let ours: Vec<NodeId> = std::iter::once(node)
                 .chain(
                     dock.windows
@@ -1317,8 +1319,16 @@ impl State {
                         .filter_map(NodeRef::try_get),
                 )
                 .collect();
-            (rect.contains(pos) && !stacked_at(&ours, window, pos).is_empty())
-                .then_some((window, pos))
+            // A floating window may reach past the tiles: a point over it counts too.
+            let over = |node: NodeId| {
+                measure(node)
+                    .get_untracked()
+                    .is_some_and(|measured| measured.rect.contains(pos))
+            };
+            let stacked = stacked_at(&ours, window, pos);
+            let open = !stacked.is_empty()
+                && (rect.contains(pos) || stacked.iter().any(|node| over(*node)));
+            open.then_some((window, pos))
         };
         let home = move |floats: bool| {
             custom(tiles, move |local: Pos2| {
