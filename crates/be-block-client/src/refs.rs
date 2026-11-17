@@ -855,8 +855,8 @@ impl Refs {
     /// newest head is judged, from the latest summary and, between two of one sequence, the one
     /// the other is `behind`: an older one judged against the same known head could otherwise
     /// land after it.
-    /// Answers the heads that moved on from one this device knew: another connection's
-    /// publishes, as news to whatever holds the block open.
+    /// Answers the heads that moved on from one this device knew, other than its own local
+    /// head: another connection's publishes, as news to whatever holds the block open.
     pub fn observe(
         &self,
         summaries: &[BlockSummary],
@@ -887,13 +887,21 @@ impl Refs {
                 if known != Some(head) {
                     rows.push(row(Table::Remote, block.as_bytes().to_vec(), &head));
                     if known.is_some() {
-                        moved.push((block, head));
+                        moved.push((block, head, state.heads.get(&block).copied()));
                     }
                 }
             }
         }
         self.write(rows)?;
-        Ok(moved)
+        // This device's own head, or one it has sealed on top of since, read before its publish
+        // was answered, is no news. Judged with the state let go, as `behind` reads commits.
+        Ok(moved
+            .into_iter()
+            .filter(|(_, head, local)| {
+                local.is_none_or(|local| local != *head && !behind(*head, local))
+            })
+            .map(|(block, head, _)| (block, head))
+            .collect())
     }
 
     pub fn remote(&self, block: Uuid) -> Option<CommitId> {

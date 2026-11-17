@@ -54,8 +54,9 @@ fn a_held_clock_is_offered_a_modules_timer_only_while_nothing_is_in_flight() {
     wait_until("the publish is answered and the worker rests", |shared| {
         shared.waiting == 0 && !shared.draining && shared.parked.is_some()
     });
-    assert!(
-        crate::wait_until("read what is owed", |shared| Some(shared.owing)) > 0,
-        "the edit made after the seal is still owed"
-    );
+    // Owed once the server orders its submission, which a rest does not wait for (news of a
+    // tree may wake the worker first): sealed, it would never be owed.
+    wait_until("the edit made after the seal is still owed", |shared| {
+        shared.owing > 0
+    });
 }
