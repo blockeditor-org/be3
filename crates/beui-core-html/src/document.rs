@@ -42,7 +42,9 @@ struct Arena {
     free: Vec<u32>,
     extensions: HashMap<std::any::TypeId, Rc<dyn Any>>,
     /// Every element whose node has accessibility of its own, by `Node::key`, so
-    /// `set_description` finds the first within a subtree by walking only that subtree.
+    /// `set_description` finds the first within a subtree by walking only that subtree. It
+    /// holds the element, so a key is never reused while its entry stands; `remove_released`
+    /// drops an entry once no node holds its `Shared`.
     accessible: HashMap<usize, (Node, Weak<RefCell<Shared>>)>,
 }
 
@@ -126,14 +128,17 @@ fn remove_released() {
             slot.0 = slot.0.wrapping_add(1);
             arena.free.push(node.index());
             if let Some(entry) = entry {
-                if Rc::strong_count(&entry.shared) == 1 {
-                    arena.accessible.remove(&entry.element.key());
-                }
                 dropped.push((node, entry));
             }
         }
         dropped
     });
+    // A wrapper and its child share one element and one `Shared`, and may go in one batch:
+    // only once the whole batch is dropped can the index tell which elements no node holds.
+    let keys: Vec<usize> = dropped
+        .iter()
+        .map(|(_, entry)| entry.element.key())
+        .collect();
     for (node, entry) in dropped {
         HOSTS.with(|hosts| hosts.borrow_mut().remove(&node));
         for cell in &entry.refs {
@@ -144,6 +149,18 @@ fn remove_released() {
             }
         }
     }
+    ARENA.with(|arena| {
+        let mut arena = arena.borrow_mut();
+        for key in keys {
+            if arena
+                .accessible
+                .get(&key)
+                .is_some_and(|(_, shared)| shared.strong_count() == 0)
+            {
+                arena.accessible.remove(&key);
+            }
+        }
+    });
 }
 
 pub(crate) fn fill_ref(node: NodeId, cell: Weak<NodeCell>) {
@@ -440,11 +457,13 @@ pub fn set_accessibility(node: NodeId, accessibility: accesskit::Node, rank: u64
         return;
     }
     ARENA.with(|arena| {
-        arena
-            .borrow_mut()
-            .accessible
-            .entry(element.key())
-            .or_insert_with(|| (element.clone(), Rc::downgrade(&shared)));
+        let mut arena = arena.borrow_mut();
+        let held = arena.accessible.get(&element.key());
+        if !held.is_some_and(|(_, held)| held.ptr_eq(&Rc::downgrade(&shared))) {
+            arena
+                .accessible
+                .insert(element.key(), (element.clone(), Rc::downgrade(&shared)));
+        }
     });
     shared.borrow_mut().described = Some((rank, accessibility));
     apply_aria(&element, &shared);
@@ -525,6 +544,12 @@ pub fn set_description(node: NodeId, description: Option<String>) {
     }
     target.borrow_mut().description = description;
     apply_aria(&target_element, &target);
+}
+
+/// How many elements the accessible index holds, for tests that it lets released ones go.
+#[cfg(test)]
+pub(crate) fn accessible_count() -> usize {
+    ARENA.with(|arena| arena.borrow().accessible.len())
 }
 
 pub fn in_document_scope<T>(run: impl FnOnce() -> T) -> T {
@@ -621,3 +646,6 @@ pub fn style_value(node: NodeId, property: &str) -> Option<String> {
     })
     .flatten()
 }
+
+#[cfg(test)]
+mod tests;

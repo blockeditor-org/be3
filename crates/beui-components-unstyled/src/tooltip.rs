@@ -140,27 +140,31 @@ pub fn Tooltip(
         });
     });
     // Escape hides a shown tooltip (WCAG 1.4.13), whether hover or focus showed it, and it
-    // stays hidden until the pointer comes back or the focus leaves and returns. The window
-    // hears Escape first only while a tooltip is shown, so otherwise it reaches menus and
-    // dialogs untouched.
+    // stays hidden until the pointer comes back or the focus leaves and returns. It hears
+    // Escape only while shown, and only once what holds the focus has passed on it: on its own
+    // control as the key bubbles up from the focus (before the window's layers dismiss
+    // anything), or at the window once nothing took it. So a field, a menu or an embedded
+    // program that answers Escape keeps it.
+    let escape = move |event: KeyEvent| {
+        let Some(press) = event.press() else {
+            return false;
+        };
+        if press.key != Key::Escape || !showing.get_untracked() {
+            return false;
+        }
+        if press.pressed {
+            dwell.stop();
+            open.set(false);
+        }
+        true
+    };
     create_effect(move || {
         if !showing.get() {
             return;
         }
         untrack(|| {
-            on_key(KeyAt::Window, KeyPhase::Capture, KeyReveal::Nothing, move |event| {
-                let Some(press) = event.press() else {
-                    return false;
-                };
-                if press.key != Key::Escape || !showing.get_untracked() {
-                    return false;
-                }
-                if press.pressed {
-                    dwell.stop();
-                    open.set(false);
-                }
-                true
-            });
+            on_key(KeyAt::Control(anchor), KeyPhase::Bubble, KeyReveal::Nothing, escape);
+            on_key(KeyAt::Window, KeyPhase::Bubble, KeyReveal::Nothing, escape);
         });
     });
     let hover = move |now: bool| {
