@@ -376,7 +376,9 @@ pub(crate) fn Stage(
             on_active_change={on_active_change}
             on_pointer={beui::unstyled::gestures::secondary_drag(on_secondary_drag)}
         >
-            <Layers @node_ref=&stage>
+            // Fills the stage: a drag source's face takes its child's own size.
+            <Frame @node_ref=&stage width=Length::FILL height=Length::FILL>
+            <Layers>
                 <List spacing=Space::None>
                     <ListItem grow=1.0>
                         <Canvas view={canvas} @node_ref={&content}>
@@ -415,6 +417,7 @@ pub(crate) fn Stage(
                     </CanvasItem>
                 </Canvas>
             </Layers>
+            </Frame>
         </Interactive>
     };
     // Measured from the start, so a lift reads where the stage is.
