@@ -905,7 +905,12 @@ fn pointer_at(state: State, at: Focus, press: &PointerPress) {
     let (from, entered, pending) = {
         let intent = state.intent.value();
         let mut intent = intent.borrow_mut();
-        let away = intent.over.is_none() && intent.left_at.is_some_and(|left| left < now());
+        // Off every item for longer than a gap between rows takes: where the
+        // pointer left says nothing of where it heads now.
+        let away = intent.over.is_none()
+            && intent
+                .left_at
+                .is_some_and(|left| now().duration_since(left) > SUBMENU_DELAY);
         let from = intent.last.replace(press.pos).filter(|_| !away);
         intent.left_at = None;
         let entered = intent.over != Some(at);
