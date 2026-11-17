@@ -208,9 +208,23 @@ struct Module {
     failure: Option<String>,
     generation: u64,
     restarts: usize,
-    /// How often the module said each thing since it started, by call or kind of answer: what
-    /// a module that never settles keeps saying (`Modules::unsettled`).
-    said: BTreeMap<&'static str, u64>,
+}
+
+impl Module {
+    /// Brings the module to `now`: yields the clock if it moved, and ends a sleep until a
+    /// moment it has reached, whether or not the clock moved since, as under a held clock it may
+    /// never move again. The clock goes first, so the module wakes reading `now`.
+    fn advance(&mut self, now: u64) {
+        if self.ticked.is_none_or(|ticked| ticked < now) {
+            self.ticked = Some(now);
+            let _ = self.clock.send(&mut self.connection, &now, |_| true);
+        }
+        if self.sleeping.as_ref().is_some_and(|(at, _)| *at <= now)
+            && let Some((_, reply)) = self.sleeping.take()
+        {
+            reply.send(&mut self.connection, &());
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -431,7 +445,6 @@ impl Modules {
                     failure: None,
                     generation: 0,
                     restarts: 0,
-                    said: BTreeMap::new(),
                 })
                 .collect(),
             notify: Arc::new(Notify::new()),
@@ -553,26 +566,11 @@ impl Modules {
             .iter()
             .filter_map(|module| {
                 let why = module.worker.as_ref()?.unsettled()?;
-                let mut said: Vec<(&str, u64)> =
-                    module.said.iter().map(|(what, times)| (*what, *times)).collect();
-                said.sort_by_key(|(_, times)| std::cmp::Reverse(*times));
-                let said: Vec<String> = said
-                    .iter()
-                    .take(4)
-                    .map(|(what, times)| format!("{what} {times} times"))
-                    .collect();
-                Some(format!(
-                    "{}: {why}; it said most {}",
-                    module.source.name,
-                    said.join(", ")
-                ))
+                Some(format!("{}: {why}", module.source.name))
             })
             .collect();
         if !self.backlog.is_empty() {
-            reasons.push(format!(
-                "{} thing(s) the modules said wait to be taken",
-                self.backlog.len()
-            ));
+            reasons.push("what the modules said meanwhile waits to be taken".to_owned());
         }
         reasons
     }
@@ -681,26 +679,11 @@ impl Modules {
         }
     }
 
-    fn advance(&mut self, module: usize, now: u64) {
-        let held = &mut self.modules[module];
-        if held.ticked.is_none_or(|ticked| ticked < now) {
-            held.ticked = Some(now);
-            let _ = held.clock.send(&mut held.connection, &now, |_| true);
-        }
-        // A sleep until a moment the clock has reached ends whether or not the clock moved
-        // since: under a held clock it may never move again.
-        if held.sleeping.as_ref().is_some_and(|(at, _)| *at <= now)
-            && let Some((_, reply)) = held.sleeping.take()
-        {
-            reply.send(&mut held.connection, &());
-        }
-    }
-
     pub fn call<R>(&mut self, module: usize, call: impl FnOnce(&mut Connection) -> R) -> Option<R> {
         self.wake(module);
         self.modules[module].worker.as_ref()?;
         let now = self.now();
-        self.advance(module, now);
+        self.modules[module].advance(now);
         let result = call(&mut self.modules[module].connection);
         self.flush(module);
         Some(result)
@@ -715,7 +698,7 @@ impl Modules {
             return;
         }
         let now = self.millis_at(at);
-        self.advance(module, now);
+        self.modules[module].advance(now);
         self.flush(module);
     }
 
@@ -839,9 +822,6 @@ impl Modules {
             while let Some(event) = held.connection.next_event() {
                 match event {
                     Incoming::Started(started) => {
-                        let said = be_sdk_type_api::embed::method_name(started.method)
-                            .unwrap_or("an unknown call");
-                        *held.said.entry(said).or_default() += 1;
                         let (op, parent) = (started.op, started.parent);
                         match Call::accept(&mut held.connection, started) {
                             Some(Call::Clock { stream }) => {
@@ -852,15 +832,12 @@ impl Modules {
                                 let _ = held.clock.send(&mut held.connection, &now, |_| true);
                             }
                             Some(Call::SleepUntil { reply, at }) => {
-                                if let Some((_, before)) = held.sleeping.take() {
+                                if let Some((_, before)) = held.sleeping.replace((at, reply)) {
                                     before.fail(&mut held.connection, OpError::Canceled);
                                 }
                                 // A moment already reached ends the sleep now: nothing else
                                 // would, while the clock is held there.
-                                match at <= clock_now {
-                                    true => reply.send(&mut held.connection, &()),
-                                    false => held.sleeping = Some((at, reply)),
-                                }
+                                held.advance(clock_now);
                             }
                             Some(Call::InStepAt { reply, at }) => {
                                 held.in_step = at;
@@ -871,7 +848,6 @@ impl Modules {
                         }
                     }
                     Incoming::Completed { op, outcome } => {
-                        *held.said.entry("an answer").or_default() += 1;
                         match held.started.filter(|started| started.op() == op) {
                             Some(started) => {
                                 held.started = None;
@@ -882,7 +858,6 @@ impl Modules {
                         }
                     }
                     Incoming::Canceled { op } => {
-                        *held.said.entry("a cancel").or_default() += 1;
                         if held
                             .sleeping
                             .as_ref()
@@ -899,12 +874,9 @@ impl Modules {
                         }
                     }
                     Incoming::Credited { op } => {
-                        *held.said.entry("a credit").or_default() += 1;
                         held.clock.credited(&mut held.connection, op);
                     }
-                    Incoming::Yielded { .. } => {
-                        *held.said.entry("a yield").or_default() += 1;
-                    }
+                    Incoming::Yielded { .. } => {}
                 }
             }
             self.flush(module);

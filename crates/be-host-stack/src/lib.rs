@@ -1424,8 +1424,8 @@ pub fn status() -> Status {
         conflicts: shared.conflicts.values().map(Vec::len).sum(),
         conflicted: shared.conflicts.keys().copied().collect(),
         error: shared.error.clone().or_else(|| shared.sync_error.clone()),
-        waiting: shared.unsealed + shared.waiting,
-        syncing: shared.draining || (shared.connected && shared.unsealed + shared.waiting > 0),
+        waiting: shared.unsealed() + shared.waiting,
+        syncing: shared.draining || (shared.connected && shared.unsealed() + shared.waiting > 0),
         unsent: shared.unsent.len(),
         local: shared.local,
     }

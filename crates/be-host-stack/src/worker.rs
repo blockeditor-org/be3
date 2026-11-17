@@ -1501,7 +1501,6 @@ impl Session<'_> {
                 (woken, polls == 1)
             };
             let (woken, unwaited) = woken;
-            let woke_for = woken.name();
             let handled = self.replicas.handled;
             step(shared, Some(woken.name()));
             let pumped = matches!(woken, Woken::Module) && self.replicas.pump((peer, shared)).await;
@@ -1846,15 +1845,7 @@ impl Session<'_> {
                 self.replicas.stop_keeping(block);
                 set_marked(shared, block, peer.discarded(block));
             }
-            let mut typing = self.replicas.modules.unsettled();
-            if !typing.is_empty() {
-                // A module kept busy by the loop itself names what drives the loop.
-                let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-                typing.push(format!(
-                    "the worker's loop last woke for {woke_for}, {} pass(es) in a row without waiting, {} wake(s) in all",
-                    held.unwaited_passes, held.wakes
-                ));
-            }
+            let typing = self.replicas.modules.unsettled();
             // A held clock is moved to a module's timer only when nothing but that timer can
             // make progress: the line is up, nothing sent waits for an answer, and no module is
             // still working. Offline, the reconnect is what's next, not a module's timer.
@@ -1865,8 +1856,7 @@ impl Session<'_> {
                 && typing.is_empty();
             let (typing_changed, was_due, due) = {
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-                // Whether they settled or stopped: the reasons alone (a step count) move each step.
-                let typing_changed = held.typing.is_empty() != typing.is_empty();
+                let typing_changed = held.typing != typing;
                 if moved || typing_changed {
                     held.progressed += 1;
                 }
@@ -2462,7 +2452,7 @@ fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
     // waits to be sent and nothing was set aside.
     if held.connected
         && !held.draining
-        && held.waiting + held.unsealed == 0
+        && held.waiting + held.unsealed() == 0
         && held.unsent.is_empty()
         && held.sync_error.take().is_some()
     {
@@ -2957,7 +2947,6 @@ impl Ran<'_> {
             held.log_dropped();
             held.done += 1;
             let (unsealed, owing, undurable) = self.replicas.counts();
-            held.unsealed = unsealed.len();
             held.unsealed_blocks = unsealed;
             held.owing = owing.len();
             held.owing_blocks = owing;

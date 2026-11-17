@@ -199,15 +199,14 @@ impl be_block_type_host::Host for Shared {
         let owing = owing_blocks.len();
         let undurable = undurable_blocks.len();
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        // A seal moved edits into the outbox, which `waiting` counts only at the next `report`.
+        held.recounting |= unsealed < held.unsealed();
+        if (held.unsealed(), held.owing, held.undurable) != (unsealed, owing, undurable) {
+            held.progressed += 1;
+        }
         held.owing_blocks = owing_blocks;
         held.unsealed_blocks = unsealed_blocks;
         held.undurable_blocks = undurable_blocks;
-        // A seal moved edits into the outbox, which `waiting` counts only at the next `report`.
-        held.recounting |= unsealed < held.unsealed;
-        if (held.unsealed, held.owing, held.undurable) != (unsealed, owing, undurable) {
-            held.progressed += 1;
-        }
-        held.unsealed = unsealed;
         held.owing = owing;
         held.undurable = undurable;
     }

@@ -11,7 +11,7 @@ fn flushing_seals_what_the_sessions_hold_and_leaves_them_live() {
     add(block, 5);
     wait_for_count(block, 5);
     wait_until("journaled the edit without committing it", |shared| {
-        shared.undurable == 0 && shared.unsealed == 1
+        shared.undurable == 0 && shared.unsealed() == 1
     });
     assert_eq!(
         status().unsaved,
@@ -21,7 +21,7 @@ fn flushing_seals_what_the_sessions_hold_and_leaves_them_live() {
 
     flush();
 
-    wait_until("committed the edit", |shared| shared.unsealed == 0);
+    wait_until("committed the edit", |shared| shared.unsealed() == 0);
     assert_eq!(status().unsaved, 0);
     assert!(status().connected);
     add(block, 1);

@@ -275,13 +275,11 @@ pub struct Seen, delta SeenDelta {
     pub frames_queued: u64,
     pub histories: Part<imbl::OrdMap<Uuid, History>>,
     pub wakes: u64,
-    pub unsealed: usize,
     pub saves: u64,
     pub owing: usize,
     /// The blocks `owing` counts, with what their seals wait on, for `busy` to name.
     pub owing_blocks: Vec<be_block_type_host::Owing>,
-    /// The open blocks whose edits are not all committed (`Replicas::counts`): `unsealed` of
-    /// them.
+    /// The open blocks whose edits are not all committed (`Replicas::counts`).
     pub unsealed_blocks: Vec<be_block_type_host::Owing>,
     /// The blocks `undurable` counts, for `busy` to name.
     pub undurable_blocks: Vec<be_block_type_host::Owing>,
@@ -422,6 +420,11 @@ impl Notice {
 }
 
 impl Seen {
+    /// How many open blocks have edits not all committed (`unsealed_blocks`).
+    pub fn unsealed(&self) -> usize {
+        self.unsealed_blocks.len()
+    }
+
     /// The `Seen` in bytes, for a page whose memory the worker does not share
     /// (decisions/the_web_page_never_waits.md): postcard, the protocol crates' encoding.
     pub fn encode(&self) -> Vec<u8> {
@@ -461,7 +464,7 @@ impl Seen {
         if self.recounting {
             reasons.push("the block store has yet to count what waits to be sent".to_owned());
         }
-        let waiting = self.unsealed + self.waiting;
+        let waiting = self.unsealed() + self.waiting;
         if waiting > 0 {
             // Named in full, so a wait that never ends says what it waited on: whether the
             // edits were never sealed or sat in the outbox with no drain to send them.
@@ -477,7 +480,7 @@ impl Seen {
                 .collect();
             reasons.push(format!(
                 "{waiting} edit(s) wait to be sent: {} unsealed [{}], {} in the outbox [{}]; {} drain(s) ended, {}; the last left [{}]; errors: {:?}, {:?}",
-                self.unsealed,
+                self.unsealed(),
                 unsealed.join("; "),
                 self.waiting,
                 outbox.join(", "),

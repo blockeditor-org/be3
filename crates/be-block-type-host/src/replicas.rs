@@ -3465,14 +3465,17 @@ impl<H: Host> Replicas<H> {
             return;
         }
         // What its made-up session took while the join was on its way, after `created` asked a
-        // seal of what it held, is committed here first: reopened on its head, it would be lost.
-        // The answer comes back here once that seal is answered. Asked again only for what a
-        // seal can commit: a replica unclean only for an edit it cannot submit until it joins
-        // (which `replay` gives again) owes none, and asking it again each time would never end.
+        // seal of what it held, is committed here first. Reopening gives again only the local
+        // edits its order does not hold (`reopening` cuts `replay` by `journaled_taken`), and the
+        // server's journal holds none of its made-up session's: those journaled and unsealed
+        // would be lost. The answer comes back here once the seal is answered, and another is
+        // asked only while some are left. An edit it has not submitted (it waits for the order
+        // to number the one before) is not journaled: `replay` gives it again, and no seal
+        // commits it, so asking again for it would never end.
         let unsealed = open.joined_settled
             && match open.sealed_joining {
                 false => !open.status.clean || open.unreported(),
-                true => open.status.owes_seal,
+                true => open.status.journaled_taken > open.status.sealed_taken,
             };
         if unsealed {
             open.sealed_joining = true;

@@ -136,9 +136,6 @@ pub struct Worker<C: Channel> {
     /// Whether the step in flight, or the last one, works on frames the host sent: from a step
     /// that took them through the steps the guest woke itself for straight after.
     carrying: bool,
-    /// How many steps in a row have carried the host's frames (`carrying`): one is a step that
-    /// took them, more are the guest waking itself straight after.
-    carried: u64,
     presented: Vec<C::Presented>,
     presents: u64,
     took: Option<StepTime>,
@@ -157,7 +154,6 @@ impl<C: Channel> Worker<C> {
             ready: false,
             stepping: false,
             carrying: false,
-            carried: 0,
             presented: Vec::new(),
             presents: 0,
             took: None,
@@ -197,7 +193,6 @@ impl<C: Channel> Worker<C> {
         }
         if !self.channel.take_woken() && self.pending.is_empty() {
             self.carrying = false;
-            self.carried = 0;
             return None;
         }
         // A step the guest woke itself for straight after one that took the host's frames
@@ -211,10 +206,6 @@ impl<C: Channel> Worker<C> {
         self.stepping = true;
         self.steps += 1;
         self.carrying = carrying;
-        self.carried = match carrying {
-            true => self.carried + 1,
-            false => 0,
-        };
         None
     }
 
@@ -255,25 +246,17 @@ impl<C: Channel> Worker<C> {
     }
 
     /// Why the worker is not settled (`settled`), if it is not.
-    pub fn unsettled(&self) -> Option<String> {
+    pub fn unsettled(&self) -> Option<&'static str> {
         if !self.ready {
             return None;
         }
         if !self.pending.is_empty() {
-            return Some(
-                match self.stepping {
-                    true => "frames wait for the step in flight to end",
-                    false => "frames wait for a step",
-                }
-                .to_owned(),
-            );
+            return Some(match self.stepping {
+                true => "frames wait for the step in flight to end",
+                false => "frames wait for a step",
+            });
         }
-        (self.stepping && self.carrying).then(|| {
-            format!(
-                "a step on the host's frames is in flight, the {} in a row (step {})",
-                self.carried, self.steps
-            )
-        })
+        (self.stepping && self.carrying).then_some("a step on the host's frames is in flight")
     }
 
     pub fn take_received(&mut self) -> Vec<Vec<u8>> {
