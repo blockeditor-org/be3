@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::rc::Rc;
 
-use be_sdk_beui::worker::Shared;
 use be_sdk_beui::network::{Request, Response};
+use be_sdk_beui::worker::Shared;
 use be_sdk_beui::{EditorHost, Task, Waker};
 pub(crate) use be_worker_map::TileId;
 use be_worker_map::{Job, Rasterized, TileRaster};
@@ -145,9 +145,7 @@ impl TileWorker {
             };
             let waker = self.waker.clone();
             self.rasterizer
-                .get_or_insert_with(|| {
-                    Shared::new(be_worker_map::MODULE, move || waker.wake())
-                })
+                .get_or_insert_with(|| Shared::new(be_worker_map::MODULE, move || waker.wake()))
                 .send(&job.encode());
             self.rasterizing += 1;
         }

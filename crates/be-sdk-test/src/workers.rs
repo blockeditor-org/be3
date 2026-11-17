@@ -88,7 +88,8 @@ impl Workers {
             Call::InstanceNext { this, reply } => {
                 match self.running.get_mut(&this.op()) {
                     Some(running) => {
-                        running.next = Some((reply.op(), Box::new(move |value| reply.answer(value))));
+                        running.next =
+                            Some((reply.op(), Box::new(move |value| reply.answer(value))));
                     }
                     None => reply.fail(connection, OpError::Canceled),
                 }

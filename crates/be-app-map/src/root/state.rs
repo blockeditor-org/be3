@@ -13,9 +13,9 @@ use be_type_map::{Map, MapColor, MapContent, MapCoordinate, MapPoint, MapRegion}
 use uuid::Uuid;
 
 use crate::geo::MapView;
-use be_worker_map::{TILE_PIXELS, TileLabel};
 use crate::tiles::{TileId, TileWorker};
 use be_type_image::{ImageContent, ImageFile};
+use be_worker_map::{TILE_PIXELS, TileLabel};
 use beui::ClipItem;
 use beui::clipboard::formats;
 

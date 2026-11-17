@@ -198,7 +198,11 @@ impl Hosted {
 
     /// Hands the worker the frames its app sent, which it answers to `outbound`. An error stops
     /// it, as it stops an instance.
-    pub fn step(&mut self, frames: Vec<Vec<u8>>, outbound: &mut Vec<Vec<u8>>) -> Result<(), String> {
+    pub fn step(
+        &mut self,
+        frames: Vec<Vec<u8>>,
+        outbound: &mut Vec<Vec<u8>>,
+    ) -> Result<(), String> {
         (self.0)(frames, outbound)
     }
 

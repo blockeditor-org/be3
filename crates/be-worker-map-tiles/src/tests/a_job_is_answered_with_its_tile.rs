@@ -5,15 +5,25 @@ fn a_job_is_answered_with_its_tile() {
     let mut outbound = Vec::new();
     let mut tiles = Hosted::start::<Tiles>(&mut outbound).expect("the rasterizer starts");
     assert!(outbound.is_empty());
-    let id = TileId { zoom: 0, x: 0, y: 0 };
-    let elsewhere = TileId { zoom: 1, x: 1, y: 0 };
+    let id = TileId {
+        zoom: 0,
+        x: 0,
+        y: 0,
+    };
+    let elsewhere = TileId {
+        zoom: 1,
+        x: 1,
+        y: 0,
+    };
 
     let job = Job {
         id,
         source: id,
         body: Vec::new(),
     };
-    let empty = tiles.ask(&job.encode()).expect("the rasterizer takes the job");
+    let empty = tiles
+        .ask(&job.encode())
+        .expect("the rasterizer takes the job");
     let not_a_tile = Job {
         id: elsewhere,
         source: elsewhere,

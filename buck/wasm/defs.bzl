@@ -393,7 +393,7 @@ def worker(module, libraries = None, extra_deps = [], visibility = None):
         rustc_flags = _guest_exports + ([] if libraries else _reactor) + opt_flags("app") + SYMBOL_FLAGS,
         srcs = ["worker.rs"],
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
-        **(kwargs | RUST_LOCAL)
+        **(kwargs | RUST_LOCAL),
     )
     wasi_module(name = "module", libraries = libraries, library = ":wasm", module = module, **kwargs)
 

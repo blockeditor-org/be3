@@ -86,7 +86,8 @@ impl Answer {
     }
 
     pub fn decode(message: &[u8]) -> Result<Self, String> {
-        postcard::from_bytes(message)
-            .map_err(|error| format!("the PDF renderer sent an answer that did not decode: {error}"))
+        postcard::from_bytes(message).map_err(|error| {
+            format!("the PDF renderer sent an answer that did not decode: {error}")
+        })
     }
 }

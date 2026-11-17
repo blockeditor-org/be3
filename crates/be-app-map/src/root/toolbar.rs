@@ -63,7 +63,9 @@ pub(crate) fn MapToolbar(state: MapState, fitting: Fitting) -> NodeId {
                 on_click={move || state.reload_tiles()}
             />
             <Show value={error}>|reason: ReadSignal<String>|
-                <Text style=TextStyle::CAPTION color=TextColor::Danger @test_id={"map.error"}>{reason}</Text>
+                <Text style=TextStyle::CAPTION color=TextColor::Danger @test_id={"map.error"}>
+                    {reason}
+                </Text>
             </Show>
         </DockBarSurface>
     }

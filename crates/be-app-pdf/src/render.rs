@@ -7,8 +7,8 @@ use be_sdk_beui::{
     PerformanceReporter, Waker,
     beui::{Image, Pos2, Vec2},
 };
-pub(crate) use be_worker_pdf::{DETAIL_MAX_DIM, MIN_SCALE, Target as RenderTarget};
 use be_worker_pdf::{Answer, Job, Measure, Rendered};
+pub(crate) use be_worker_pdf::{DETAIL_MAX_DIM, MIN_SCALE, Target as RenderTarget};
 
 pub(crate) struct RenderedTile {
     pub(crate) page_count: usize,

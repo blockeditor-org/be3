@@ -41,7 +41,8 @@ fn a_tile_the_rasterizer_fails_on_fails_alone() {
         }
         let ids = served.clone();
         editor.settle_until("all but the failed tiles to be drawn", |editor| {
-            editor.has_fetches() || ids.iter().filter(|id| tile_drawn(editor, id)).count() + 2 >= ids.len()
+            editor.has_fetches()
+                || ids.iter().filter(|id| tile_drawn(editor, id)).count() + 2 >= ids.len()
         });
         if !editor.has_fetches() {
             break;

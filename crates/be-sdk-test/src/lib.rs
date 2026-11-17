@@ -6,9 +6,9 @@ mod fetches;
 mod link;
 mod signatures;
 mod store;
-mod workers;
 #[cfg(test)]
 mod tests;
+mod workers;
 
 pub use be_sdk_api::{
     PickedBlock,

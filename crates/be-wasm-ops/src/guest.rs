@@ -139,7 +139,8 @@ impl Executor {
                 request: Cell::new(None),
                 dispatch: RefCell::new(Some(dispatch)),
                 id: {
-                    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+                    static NEXT: std::sync::atomic::AtomicU64 =
+                        std::sync::atomic::AtomicU64::new(1);
                     NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
                 },
             }),

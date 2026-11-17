@@ -15,7 +15,6 @@ use be_sdk_api::{
     ops::{OpError, OpId, Outcome, Reply},
 };
 use be_sdk_beui::FromEditor;
-use be_wasm_sandbox_api::embed::sandbox;
 use be_sdk_beui::be_block_content::{LiveEdit, Merge};
 use be_sdk_beui::headless::{Adopted, HeadlessApp};
 use be_sdk_beui::{
@@ -23,6 +22,7 @@ use be_sdk_beui::{
     EditorInstanceId, Occluder, OwnedEditor, PeerPresence, SeededContent, ShownPresence,
     ViewChange, WebViewCommand, WebViewId,
 };
+use be_wasm_sandbox_api::embed::sandbox;
 use beui::native::Document;
 use beui::{Input, Key, KeyChord, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect, Vec2};
 use beui_host::native::testing::{FRAME_INTERVAL, Gui, Recording, Snapshots, Target, Wakes};
