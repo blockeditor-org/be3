@@ -24,6 +24,10 @@ cargo_test(
         # The triangle linked against its library and standalone, which a test loads
         # and paints side by side.
         "BASE_LIBRARY_WASM": "$(location //crates/be-sdk-library-base:module)",
+        # The echo app and its worker, which a test stages to start the worker through the
+        # host's own wire.
+        "ECHO_APP_WASM": "$(location //crates/be-wasm-guest-echo:app)",
+        "ECHO_WORKER_WASM": "$(location //crates/be-sdk-worker-echo:module)",
         "TRIANGLE_STANDALONE_WASM": "$(location //crates/be-app-example-triangle:standalone)",
         "TRIANGLE_WASM": "$(location //crates/be-app-example-triangle:module)",
     },

@@ -1,5 +1,6 @@
 /// An app's modules are its entry point and its workers, under workers/<id>/; any other name, a
-/// path out of that directory or another app's module, is refused.
+/// path out of that directory or another app's module, is refused. The sandbox an app is served
+/// finds only its workers.
 #[test]
 fn the_sandbox_finds_only_the_modules_an_app_stages() {
     let _installed = be_host_stack::discovery::install_for_testing(&[
@@ -24,9 +25,17 @@ fn the_sandbox_finds_only_the_modules_an_app_stages() {
     for refused in ["notes.wasm", "../notes.wasm", "workers/be3.map/tiles.wasm", "lib.wasm", ""] {
         assert_eq!(
             entry(refused),
-            Err(format!("be3.map stages no module named {refused:?}")),
+            Err(format!("be3.map stages no worker named {refused:?}")),
         );
     }
+    assert_eq!(
+        crate::staged_worker("be3.map", "tiles.wasm").map(|staged| staged.entry().to_owned()),
+        Ok("workers/be3.map/tiles.wasm".to_owned())
+    );
+    assert!(
+        crate::staged_worker("be3.map", "map.wasm").is_err(),
+        "an app starts its workers, never itself"
+    );
     assert_eq!(
         crate::staged_app("be3.nowhere", "map.wasm").err(),
         Some("no staged app has the id be3.nowhere".to_owned())

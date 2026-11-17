@@ -23,7 +23,10 @@ interface sandbox {
     /// A module a staged app stages: the manifest's `entry_point`, which
     /// starts the app itself, or one of its `workers`, each started at its
     /// own `app_start` (guides/adding_an_app.md, Workers). The host maps the
-    /// two names to a file; any other name, such as a path, is refused.
+    /// two names to a file; any other name, such as a path, is refused. An
+    /// app is served the sandbox for its workers alone: it leaves `app` empty
+    /// to name its own, the only one it may name, and may not start its entry
+    /// point.
     record staged-module {
         app: app-id,
         module: string,
@@ -40,8 +43,7 @@ interface sandbox {
         /// given WASI, as the host runs that app, with no display: it has no
         /// gpu. Its frames are whatever the module speaks: the app protocol
         /// for the entry point, which the spawner answers as the app's host,
-        /// or a worker's own messages. An app is served the sandbox too, and
-        /// may spawn only its own app's modules.
+        /// or a worker's own messages.
         app(staged-module),
     }
 

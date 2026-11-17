@@ -179,7 +179,6 @@ pub mod __private {
             })
             .collect();
         let identity = manifest.identity;
-        be_sdk_worker::install_app(&identity.id);
         let started = crate::wasm::Started {
             openers,
             id: identity.id,

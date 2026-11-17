@@ -318,7 +318,7 @@ call: `be_sdk::worker::Worker` speaks the sandbox API (`be3:sandbox`,
 `crates/be-wasm-sandbox-api`) on the app's connection, which
 `be-host-runtime/src/wire.rs` hands to the app's
 `be_wasm_sandbox_host::Server` before the `be3:app` calls. The host keeps the
-rule: an app spawns only its own app's modules and compiles none.
+rule: an app spawns only its own workers and compiles nothing.
 
 ## Extending the protocol
 

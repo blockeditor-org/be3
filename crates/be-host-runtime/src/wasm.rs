@@ -141,12 +141,12 @@ pub(super) fn spawn(
 }
 
 /// The wire to `app`, which serves it the sandbox API for its workers: it may spawn only its own
-/// app's modules (`be_wasm_sandbox_host::Server::for_app`), found by `staged_app`.
+/// app's workers (`be_wasm_sandbox_host::Server::for_app`), found by `staged_worker`.
 pub(super) fn wire(app: &AppManifest) -> Wire {
     Wire::granting(app.extensions.clone()).with_sandbox(be_wasm_sandbox_host::Server::for_app(
         Arc::new(be_host_base::host::wake),
         app.identity.id.clone(),
-        Box::new(staged_app),
+        Box::new(staged_worker),
     ))
 }
 
@@ -178,18 +178,27 @@ fn keep_staged_exports() {
 /// under `workers/<app id>/`. It is the one place that maps a module's name to a file, so any
 /// other name, a path or another app's module, is refused.
 pub fn staged_app(app_id: &str, module: &str) -> Result<Staged, String> {
-    let manifests = discovery::manifests();
-    let manifest = manifests
-        .iter()
-        .find(|manifest| manifest.identity.id == app_id)
-        .ok_or_else(|| format!("no staged app has the id {app_id}"))?;
+    let manifest = manifest(app_id)?;
     if module == manifest.entry_point {
         return Ok(staged(manifest.entry_point.clone()));
     }
-    if manifest.workers.iter().any(|worker| worker == module) {
+    staged_worker(app_id, module)
+}
+
+/// One of the workers of the staged app with the id `app_id`, as `staged_app` finds it: what the
+/// sandbox an app is served finds, since an app starts only its workers, never itself.
+pub fn staged_worker(app_id: &str, module: &str) -> Result<Staged, String> {
+    if manifest(app_id)?.workers.iter().any(|worker| worker == module) {
         return Ok(staged(worker_path(app_id, module)));
     }
-    Err(format!("{app_id} stages no module named {module:?}"))
+    Err(format!("{app_id} stages no worker named {module:?}"))
+}
+
+fn manifest(app_id: &str) -> Result<Arc<AppManifest>, String> {
+    discovery::manifests()
+        .into_iter()
+        .find(|manifest| manifest.identity.id == app_id)
+        .ok_or_else(|| format!("no staged app has the id {app_id}"))
 }
 
 /// Where a worker module of the app `app_id` is staged (crates/be-tool-buck's stage).
