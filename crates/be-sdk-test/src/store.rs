@@ -355,6 +355,7 @@ impl Inner {
                 reply,
                 expected,
                 content,
+                sealed_through,
                 ..
             } => {
                 let Some(block) = block else {
@@ -401,6 +402,10 @@ impl Inner {
                     }
                     false => PublishOutcome::Published(head),
                 };
+                // A seal's publish starts the journal from it, as the host's does.
+                if let Some(through) = sealed_through {
+                    self.rebased(Some(block), through);
+                }
                 reply.send(&mut self.host, &Ok(outcome));
             }
             Call::Stash { reply, content, .. } => {
@@ -504,22 +509,7 @@ impl Inner {
                 }
             }
             Call::RebaseJournal { reply, base, .. } => {
-                // This device seals every commit here, so what the base holds goes with it.
-                let kept = block.is_some_and(|block| self.kept.contains_key(&block));
-                for (at, until, _) in &mut self.announcing {
-                    if *at == block
-                        && let Announcing::Journal(sequence) = *until
-                    {
-                        *until = match (sequence <= base.sequence, kept) {
-                            (false, _) => Announcing::Dropped,
-                            (true, true) => Announcing::Kept,
-                            (true, false) => Announcing::Held(sequence),
-                        };
-                    }
-                }
-                self.announcing
-                    .retain(|(_, until, _)| *until != Announcing::Dropped);
-                self.send_announcements(block);
+                self.rebased(block, base.sequence);
                 reply.send(&mut self.host, &());
             }
             Call::Send { reply, .. }
@@ -529,6 +519,26 @@ impl Inner {
             | Call::Conflict { reply, .. }
             | Call::Error { reply, .. } => reply.send(&mut self.host, &()),
         }
+    }
+
+    /// Starts `block`'s journal from a base holding the order through `through`. This device
+    /// seals every commit here, so what the base holds goes with it.
+    fn rebased(&mut self, block: Option<Uuid>, through: u64) {
+        let kept = block.is_some_and(|block| self.kept.contains_key(&block));
+        for (at, until, _) in &mut self.announcing {
+            if *at == block
+                && let Announcing::Journal(sequence) = *until
+            {
+                *until = match (sequence <= through, kept) {
+                    (false, _) => Announcing::Dropped,
+                    (true, true) => Announcing::Kept,
+                    (true, false) => Announcing::Held(sequence),
+                };
+            }
+        }
+        self.announcing
+            .retain(|(_, until, _)| *until != Announcing::Dropped);
+        self.send_announcements(block);
     }
 
     /// Sends what the server holds the edits of in `block`, as the host does: one notification,
