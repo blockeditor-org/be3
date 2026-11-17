@@ -171,7 +171,9 @@ host owes a replica (the WIT documents each call):
   many the order holds, so a reopened replica is given only what neither holds
   (guides/blocks/host.md, Opening again). A replica submits local edits in the
   order it takes them, which keeps both counts exact, and one opened again skips
-  any it is given that the order holds by its origin (below, "Peers"). The host
+  any it is given that the order holds by its origin (below, "Peers"). A
+  message a tentative gesture holds is no local edit until its layer commits
+  (below, "Tentative gestures"). The host
   numbers each
   opening (`opening.epoch`) and ignores a status whose `epoch` is not the
   current one: an earlier opening made it.
@@ -369,6 +371,31 @@ order: presence and channel messages. The rules an agent most needs:
   its own coming back is compared with what it submitted; another's numbered
   first goes beneath its unconfirmed edits (`LiveEdit::apply_beneath`, told to
   editors as `Beneath`).
+- **Tentative gestures.** An editor's `Gesture::BeginTentative` opens a
+  gesture whose edits are held (decisions/tentative_edits_wait_for_release.md):
+  each is applied to `visible` and told to the editors, but kept in the
+  replica's `tentative` layer, on top of `unsent`, never submitted or journaled.
+  Every open tentative gesture of the block joins that one layer. A commit of
+  one waits for the rest; when the last ends, the edits of those that committed
+  move, in the order made, to the end of `unsent` (and become one undo step), and
+  a cancel drops only its own. Peers' entries go beneath the layer (it is part of
+  `local` for `apply_beneath`), an ordinary edit made meanwhile is queued beneath
+  it and recorded for undo against the content without it, and seals, stashes,
+  `content` and descriptions never hold it. An undo while it is held cancels all
+  of it and does nothing else; a redo is refused. A restart carries the layer
+  after `unsent`; a gesture with an edit that does not carry, and every open one
+  at a replacement, ends here: the editor is told `ToEditor::GestureEnded`, and
+  its later edits are dropped until it ends the gesture as it would have. An
+  editor that detaches cancels its own.
+  `be_sdk_type_guest::holds::Holds` decides, from the messages alone, which
+  messages are held, so the host's replay and the replica's counts agree: a
+  tentative gesture's begin, commit and cancel never count as local edits, and
+  its operations count once the layer commits, in the order they arrived,
+  before whatever ended it. The host keeps held messages in `replay` where they
+  arrived, out of every cut and of what it keeps on the device, so a module
+  restart rebuilds the layer and a crash loses it; at the layer's commit it moves
+  the operations that count to the end of `replay` as ordinary ones, and drops
+  the rest.
 - **Arrival time.** The server stamps each entry with when it took it
   (`received`), and every replica fills the operation's stamp slot
   (`LiveEdit::arrival`) from it as it applies the entry, so the stamp is the
@@ -425,7 +452,8 @@ order: presence and channel messages. The rules an agent most needs:
   holds was numbered already (the answer was lost to a disconnect or a module
   restart) and is counted, not made twice.
 - **Restarts.** At a seal, once session state passes `RESTART_STATE_BYTES`
-  (1 MiB) and the content's size, with no gesture open, while alone or past
+  (1 MiB) and the content's size, with no gesture or tentative layer open,
+  while alone or past
   `RESTART_CEILING` times the limit, the holder submits a restart `Reload` of
   the seal, a barrier: every replica reloads the commit, moves what it has not
   had numbered onto it with `LiveEdit::carry_over` and submits it again, and undo

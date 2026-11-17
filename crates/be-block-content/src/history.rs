@@ -23,7 +23,7 @@ impl Moment for u64 {
 
 /// A gesture, named by the editor that opened it and an id of that editor's, so one editor can
 /// hold several at once (two fingers, two controllers) and each ends on its own.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct GestureId {
     pub editor: Option<u64>,
     pub id: u64,
@@ -193,6 +193,13 @@ impl<C: Undo, T: Moment> History<C, T> {
             self.settle_layer();
         }
         Vec::new()
+    }
+
+    /// Drops what the tentative gesture `gesture` recorded, open or committed and waiting for
+    /// the rest of the layer, and keeps it open if it is: its edits could not be kept (the
+    /// content they moved is gone), but it ends only when its editor ends it.
+    pub fn void(&mut self, gesture: GestureId) {
+        self.held.retain(|(of, _)| *of != gesture);
     }
 
     /// Ends the burst `origin`'s last edit went into, so its next edit starts a step of its

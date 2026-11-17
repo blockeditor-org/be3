@@ -1382,6 +1382,9 @@ impl EditorHost {
                     })
                     .collect(),
             ),
+            // Followed by `ContentProjection` once editors open tentative gestures
+            // (plans/tentative_gestures.md, step 3).
+            ToEditor::GestureEnded { .. } => {}
             content @ (ToEditor::Snapshot(_)
             | ToEditor::Operations(_)
             | ToEditor::Range { .. }

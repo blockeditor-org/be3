@@ -23,6 +23,7 @@ use be_sdk_type_api::{
     ops::{Connection, OpError, OpId, Outcome, Reply, Ticket},
 };
 use be_sdk_type_guest::editor::FromEditor;
+use be_sdk_type_guest::holds::{Holds, This, Took};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use uuid::Uuid;
 
@@ -388,6 +389,10 @@ pub(crate) enum Replayed {
         from: Endpoint,
         bytes: Vec<u8>,
         at: u64,
+        /// The serial an editor's message is held under while a tentative gesture holds it
+        /// (`Holds`): not a local edit, and kept where it arrived, out of any cut, until the
+        /// layer commits and its operation counts, or its gesture ends without it.
+        held: Option<u64>,
     },
     Moved {
         head: CommitId,
@@ -423,9 +428,15 @@ impl Replayed {
             self,
             Replayed::Message {
                 from: Endpoint::Editor(_),
+                held: None,
                 ..
             } | Replayed::Change { .. }
         )
+    }
+
+    /// Whether a tentative gesture holds it (`Replayed::Message::held`).
+    fn held(&self) -> bool {
+        matches!(self, Replayed::Message { held: Some(_), .. })
     }
 
     fn send(&self, replica: Replica, connection: &mut Connection) -> Option<OpId> {
@@ -433,7 +444,9 @@ impl Replayed {
             Replayed::Change { change, .. } => {
                 return Some(replica.change(connection, change).op());
             }
-            Replayed::Message { from, bytes, at } => {
+            Replayed::Message {
+                from, bytes, at, ..
+            } => {
                 replica.message(connection, from, bytes, at);
             }
             Replayed::Moved { head } => {
@@ -579,6 +592,9 @@ struct Open {
     /// still this (another device renamed or shared it) moves nothing.
     heard: Option<CommitId>,
     replay: Vec<Replayed>,
+    /// Which of its editors' messages tentative gestures hold, followed as its replica follows
+    /// them.
+    holds: Holds,
     /// Editors that detached while `replay` holds edits of theirs, and whether they could edit:
     /// what a replica opened again is given their edits as (`resend`).
     departed: BTreeMap<EditorId, bool>,
@@ -698,8 +714,11 @@ impl Open {
         self.edits_changed |= covered > 0 && local > 0;
         if covered >= local {
             self.given_up += local;
-            self.replay.clear();
-            self.departed.clear();
+            // What tentative gestures hold stays, where it arrived, until they end.
+            self.replay.retain(Replayed::held);
+            if self.replay.is_empty() {
+                self.departed.clear();
+            }
             return;
         }
         self.given_up += covered;
@@ -715,7 +734,41 @@ impl Open {
                 })
                 .map_or(0, |at| at + 1),
         };
-        self.replay.drain(..cut);
+        let mut at = 0;
+        self.replay.retain(|replayed| {
+            at += 1;
+            at > cut || replayed.held()
+        });
+    }
+
+    /// Takes what a message, an undo or an editor leaving did to the tentative gestures
+    /// (`Holds`): drops the held messages let go, and puts the held operations that count now
+    /// at the end of `replay` as local edits, in the order they arrived, as its replica counts
+    /// them there. How many that is.
+    fn took(&mut self, took: &Took) -> u64 {
+        if took.released.is_empty() {
+            return 0;
+        }
+        let mut counted: Vec<Replayed> = Vec::new();
+        self.replay.retain(|replayed| match replayed {
+            Replayed::Message {
+                held: Some(serial), ..
+            } if took.released.contains(serial) => {
+                if took.counted.contains(serial) {
+                    let mut replayed = replayed.clone();
+                    if let Replayed::Message { held, .. } = &mut replayed {
+                        *held = None;
+                    }
+                    counted.push(replayed);
+                }
+                false
+            }
+            _ => true,
+        });
+        self.edits_changed = true;
+        let count = counted.len() as u64;
+        self.replay.extend(counted);
+        count
     }
 }
 
@@ -1530,6 +1583,7 @@ impl<H: Host> Replicas<H> {
                     from: Endpoint::Editor(editor),
                     bytes,
                     at: 0,
+                    held: None,
                 },
                 be_block_client::KeptEdit::Change(change) => Replayed::Change {
                     change: api_change(change),
@@ -1630,6 +1684,7 @@ impl<H: Host> Replicas<H> {
                 published: Vec::new(),
                 heard: head,
                 replay,
+                holds: Holds::default(),
                 // Editors whose kept edits are given again never attached in this run: a replica
                 // opened again is given their edits as these were (`resend`).
                 departed,
@@ -1837,7 +1892,8 @@ impl<H: Host> Replicas<H> {
         open.heard = head;
         open.reporting = None;
         open.status.head = head;
-        open.replay.retain(Replayed::local_edit);
+        open.replay
+            .retain(|replayed| replayed.local_edit() || replayed.held());
         open.resent();
         let (module, handle) = (open.module, open.handle);
         let tag = self.modules.tag(module);
@@ -1992,6 +2048,17 @@ impl<H: Host> Replicas<H> {
         }
     }
 
+    /// Sends `replayed` to the replica's module without keeping it to give again.
+    fn send_only(&mut self, replica: ReplicaId, replayed: &Replayed) {
+        let Some(open) = self.open.get(&replica) else {
+            return;
+        };
+        let (module, handle) = (open.module, open.handle);
+        self.modules.call(module, |connection| {
+            replayed.send(handle, connection);
+        });
+    }
+
     fn replay(&mut self, replica: ReplicaId, replayed: Replayed) {
         let Some(open) = self.open.get_mut(&replica) else {
             return;
@@ -2041,6 +2108,9 @@ impl<H: Host> Replicas<H> {
         let Some(editable) = open.editors.remove(&editor) else {
             return open.editors.is_empty();
         };
+        // Its open tentative gesture is cancelled, as its replica cancels it.
+        let took = open.holds.detach(editor);
+        open.sent += open.took(&took);
         let kept = open.replay.iter().any(|replayed| {
             matches!(replayed, Replayed::Message { from: Endpoint::Editor(from), .. } if *from == editor)
         });
@@ -2072,14 +2142,28 @@ impl<H: Host> Replicas<H> {
             *self.forwarded.entry((block, editor)).or_default() += 1;
         }
         let at = self.modules.millis_at(at);
-        self.replay(
-            replica,
-            Replayed::Message {
-                from: Endpoint::Editor(editor),
-                bytes,
-                at,
+        let Some(open) = self.open.get_mut(&replica) else {
+            return;
+        };
+        let took = open
+            .holds
+            .message(editor, FromEditor::decode(&bytes).as_ref());
+        // Its module took the held operations that count now when it was sent them.
+        open.sent += open.took(&took);
+        let replayed = Replayed::Message {
+            from: Endpoint::Editor(editor),
+            bytes,
+            at,
+            held: match took.this {
+                This::Held(serial) => Some(serial),
+                This::Counted | This::Ended => None,
             },
-        );
+        };
+        // A commit or cancel that ends its gesture goes to the module, and is kept nowhere.
+        match took.this {
+            This::Ended => self.send_only(replica, &replayed),
+            This::Counted | This::Held(_) => self.replay(replica, replayed),
+        }
     }
 
     pub fn send_as_host(&mut self, block: Uuid, message: &FromEditor, at: Instant) {
@@ -2229,6 +2313,13 @@ impl<H: Host> Replicas<H> {
     fn change_now(&mut self, block: Uuid, change: Change) -> Option<(usize, OpId)> {
         let (replica, open) = self.replica_of(block)?;
         let (module, handle) = (open.module, open.handle);
+        // An undo while a tentative layer is held cancels the layer, as its replica does.
+        if matches!(change, Change::Undo)
+            && let Some(open) = self.open.get_mut(&replica)
+        {
+            let took = open.holds.undo();
+            open.took(&took);
+        }
         let replayed = Replayed::Change { change, op: None };
         let op = self
             .modules
@@ -2997,6 +3088,7 @@ impl<H: Host> Replicas<H> {
                     from: Endpoint::Peer(*from),
                     bytes,
                     at: self.modules.now(),
+                    held: None,
                 };
                 if let Some(open) = self.open.get_mut(&replica)
                     && open.joining
@@ -5055,9 +5147,11 @@ fn kept_edits(
         .replay
         .iter()
         .filter_map(|replayed| match replayed {
+            // A held message is not kept: a tentative gesture a crash interrupts leaves nothing.
             Replayed::Message {
                 from: Endpoint::Editor(editor),
                 bytes,
+                held: None,
                 ..
             } => Some(be_block_client::KeptEdit::Frame {
                 editor: *editor,

@@ -19,6 +19,7 @@ fn a_reopened_replica_holds_an_editors_operations_less_those_replayed() {
         from: Endpoint::Editor(from),
         bytes: sent.encode(),
         at: 0,
+        held: None,
     };
     let replay = [
         message(editor, FromEditor::Operate(vec![1])),
