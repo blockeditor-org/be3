@@ -433,7 +433,10 @@ async fn my_files(peer: &Peer<MemoryStore>) -> Uuid {
 
 /// Imports `saved` at the root and uploads it, with every answer `queue_import` and
 /// `upload_import` give.
-async fn import_one(peer: &Peer<MemoryStore>, saved: crate::transfer::Saved) -> Vec<crate::peer::Imported> {
+async fn import_one(
+    peer: &Peer<MemoryStore>,
+    saved: crate::transfer::Saved,
+) -> Vec<crate::peer::Imported> {
     let mut answers = Vec::new();
     let queued = peer
         .queue_import(&[(saved, BlockParent::Root)], |_, imported| {

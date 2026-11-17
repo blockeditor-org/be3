@@ -1,6 +1,6 @@
+use be_block_content::BlockContent;
 use be_block_graph::Access;
 use be_block_protocol::ErrorCode;
-use be_block_content::BlockContent;
 use be_type_text::{TextBlock, TextContent};
 
 use super::*;
