@@ -295,15 +295,14 @@ fn GamePlay(
         actions.track();
         Vec::<Action>::new()
     });
-    let dragging = create_signal(None);
-    let over = create_signal(None);
+    // Nothing is carried until the stage, whose drop site gives this, is built.
+    let over = create_signal(None).read_only();
     let play = Play {
         game,
         actions,
         editable,
         selected,
         choices,
-        dragging,
         over,
     };
     let drawn = create_memo(move || board.with(Layout::of));
