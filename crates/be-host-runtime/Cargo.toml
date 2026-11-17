@@ -85,6 +85,9 @@ be-type-checklist = { path = "../be-type-checklist" }
 be-type-example-counter = { path = "../be-type-example-counter" }
 be-type-database = { path = "../be-type-database" }
 pollster = "0.4"
+be-sdk-worker = { path = "../be-sdk-worker" }
+be-sdk-worker-echo = { path = "../be-sdk-worker-echo" }
+be-wasm-dylink = { path = "../be-wasm-dylink" }
 be-type-text = { path = "../be-type-text" }
 
 [dev-dependencies]

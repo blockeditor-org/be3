@@ -280,12 +280,15 @@ impl Backend {
         }
     }
 
+    /// Stops the app with `failure`, and every worker it started with it.
     fn fail(&mut self, failure: String) {
         self.error.get_or_insert(failure);
-        self.worker = None;
-        self.mailbox = None;
+        self.shutdown();
     }
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests;
 
 pub(super) fn prepare(app: &AppManifest) {
     if let Some(module) = discovery::entry_point(&app.identity.id, &app.entry_point) {

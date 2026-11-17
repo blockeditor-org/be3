@@ -53,7 +53,7 @@ fn an_app_may_start_only_its_own_apps_modules() {
     ));
     let (guest, _, mut heard) = opened(&mut wire);
 
-    let own = spawned(&guest, APP);
+    let own = spawned(&guest, "");
     let other = spawned(&guest, "be3.notes");
     let compiled = Rc::new(RefCell::new(None));
     let told = Rc::clone(&compiled);
@@ -68,7 +68,7 @@ fn an_app_may_start_only_its_own_apps_modules() {
     assert_eq!(
         own.borrow_mut().take(),
         Some(Err("asked for be3.echo's worker.wasm".to_owned())),
-        "the app's own module is asked of its loader"
+        "an empty id names the app's own, which is asked of its loader"
     );
     assert_eq!(
         other.borrow_mut().take(),

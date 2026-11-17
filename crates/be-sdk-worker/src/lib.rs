@@ -12,12 +12,13 @@
 //!   messages with `send` and takes its answers with `receive`. Each message is one byte buffer,
 //!   delivered whole and in order. Dropping the `Worker` stops it.
 //!
-//! Nothing here assumes the guest has one thread: the app's id is kept where any thread reads it,
-//! and a `Worker` is used from the thread whose executor spawned it, as every op is.
+//! Nothing here assumes the guest has one thread: it keeps no state of its own, and a `Worker` is
+//! used from the thread whose executor spawned it, as every op is.
 
-use std::{collections::VecDeque, rc::Rc, sync::OnceLock};
+use std::{collections::VecDeque, rc::Rc};
 
 use be_wasm_sandbox_api::{
+    ops::OpError,
     guest::sandbox::Instance,
     sandbox::{Config, Source, StagedModule},
 };
@@ -27,16 +28,11 @@ pub mod __private {
     pub use be_wasm_guest_abi::{Flow, Guest, Waker, guest};
 }
 
-/// The most bytes a worker's memory may hold, as for an app.
+/// The most bytes a worker's memory may hold, as for an app; the host holds it to that too.
 pub const MEMORY_LIMIT: u64 = 1 << 30;
 
-static APP: OnceLock<String> = OnceLock::new();
-
-/// Records the id of the app this guest is, which `Worker::spawn` names its modules under.
-/// be-sdk calls it as the app starts; a second call with another id is ignored.
-pub fn install_app(id: &str) {
-    let _ = APP.set(id.to_owned());
-}
+/// Why a worker could not start on a host that serves no sandbox, such as the web's today.
+pub const NO_WORKERS: &str = "this host runs no workers";
 
 /// A worker the app started: an instance of one of its worker modules.
 pub struct Worker {
@@ -49,8 +45,9 @@ impl Worker {
     /// (such as `"tiles.wasm"`), as an instance of its own. One that cannot start, such as a
     /// module the app does not stage, says why from `receive`.
     pub fn spawn(module: &str) -> Self {
+        // The host serves an app the sandbox for its own workers, so no app id names them.
         let source = Source::App(StagedModule {
-            app: APP.get().cloned().unwrap_or_default(),
+            app: String::new(),
             module: module.to_owned(),
         });
         let config = Config {
@@ -86,7 +83,10 @@ impl Worker {
                 .0
                 .next()
                 .await
-                .map_err(|error| format!("the host did not answer: {error:?}"))??;
+                .map_err(|error| match error {
+                    OpError::Unsupported => NO_WORKERS.to_owned(),
+                    error => format!("the host did not answer: {error:?}"),
+                })??;
             self.received.extend(messages);
         }
     }

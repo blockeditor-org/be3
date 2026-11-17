@@ -68,7 +68,9 @@ not write its own.
    app's manifest under `workers` and staged under `workers/<app id>/`; the source is
    `app({app, module})` and the loader `(app-id, module)`, and be-host-runtime's `staged_app` maps
    the entry point and the workers to files and refuses any other name. Each app's `Server`
-   (`Server::for_app`) asks the loader only for its own id and refuses compiles: modules from
+   (`Server::for_app`) asks the loader (`staged_worker`: workers only) only for its own id, which
+   an empty `app` names, caps its workers' memory and number, stops them with the app, and
+   refuses compiles: modules from
    bytes stay the root guest's until a plan gives apps a reason for them (the Games app's game
    modules would be one). A worker gets no gpu: it sends its result back as bytes, which the app
    uploads, so no device is handed over, and the web would need none per worker. The app's side is
