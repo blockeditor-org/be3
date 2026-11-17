@@ -15,6 +15,8 @@ use uuid::Uuid;
 use crate::{Conflict, Host, Replicas, in_process, started};
 
 mod a_block_closed_while_its_rejoin_is_held_lets_go_of_the_join_and_closes;
+mod a_block_closed_while_its_rejoin_is_held_and_opened_online_again_holds_its_journaled_edits;
+mod a_block_reopened_while_its_rejoin_is_held_opens_again_holding_its_journaled_edits;
 mod a_block_sent_while_its_replica_owes_a_seal_is_asked_for_it_once;
 mod a_block_whose_creation_waits_joins_once_it_is_sent_not_on_reconnecting;
 mod a_block_whose_kept_edits_stop_opening_as_its_replica_starts_opens_again_unlocked;
@@ -671,4 +673,100 @@ async fn carry_an_edit_over_a_restart(
     );
 
     (block, added)
+}
+
+/// A text block typed in offline, "socks", whose replica, connected again, holds its rejoin for
+/// the journaled edit no seal holds, as one that diverged would (`Replicas::rejoined_after_a_seal`).
+async fn text_whose_rejoin_is_held(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+) -> Uuid {
+    use be_block_content::LiveEdit;
+    use be_sdk_type_guest::editor::FromEditor;
+    use be_type_text::{TextBlock, TextContent};
+
+    let block = peer
+        .create::<TextContent>(BlockParent::Root)
+        .await
+        .expect("the text is made");
+    peer.save(block, &TextBlock::of(""), None)
+        .await
+        .expect("the empty text is published");
+    let (connection, token) = (peer.connection(), peer.token());
+    peer.detach();
+
+    replicas
+        .open((peer, shared), block, TextContent::CONTENT_TYPE, true)
+        .await
+        .expect("the block opens");
+    replicas.pump((peer, shared)).await;
+    let editor = 7;
+    replicas.attach(block, editor, true);
+    replicas.pump((peer, shared)).await;
+    let content = TextContent::decode(
+        &replicas
+            .content((peer, shared), block)
+            .await
+            .expect("the text is open"),
+    )
+    .expect("the text decodes");
+    let typed = TextBlock::insert(&content, 1, 0, b"socks").expect("there is somewhere to type");
+    replicas.relay_from_editor(
+        block,
+        editor,
+        FromEditor::Operate(TextContent::encode_operation(&typed)).encode(),
+        std::time::Instant::now(),
+    );
+    replicas.pump((peer, shared)).await;
+    replicas.modules.tick_due();
+    replicas.pump((peer, shared)).await;
+    let status = replicas.status(block).expect("the replica reported");
+    assert!(
+        status.journaled_taken > status.sealed_taken,
+        "the edit is journaled, and no seal holds it"
+    );
+
+    peer.attach(connection, token)
+        .await
+        .expect("the device is connected again");
+    replicas.rejoined_after_a_seal(block, status.journaled_taken, status.sealed_taken, false);
+    replicas.pump((peer, shared)).await;
+    assert!(replicas.joining(), "the rejoin is held");
+    block
+}
+
+/// What the open text holds now, as its replica shows it.
+async fn text_of(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+    block: Uuid,
+) -> String {
+    use be_block_content::BlockContent;
+    use be_type_text::{TextBlock, TextContent};
+
+    let bytes = replicas
+        .content((peer, shared), block)
+        .await
+        .expect("the text is open");
+    TextBlock::text(&TextContent::decode(&bytes).expect("the text decodes"))
+}
+
+/// Pumps until a replica opened since `openings` were noted has joined.
+async fn opened_again(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+    block: Uuid,
+    openings: usize,
+) {
+    while replicas.openings.len() == openings
+        || replicas.joining()
+        || replicas.status(block).is_none()
+    {
+        replicas.woken().await;
+        replicas.pump((peer, shared)).await;
+    }
+    replicas.pump((peer, shared)).await;
 }
