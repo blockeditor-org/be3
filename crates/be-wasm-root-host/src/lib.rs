@@ -150,7 +150,8 @@ impl Root {
                 continue;
             }
             // Pending: wait until what the root waits on has something for it.
-            self.bell.wait(since, if now >= deadline { give_up } else { deadline });
+            self.bell
+                .wait(since, if now >= deadline { give_up } else { deadline });
         }
     }
 
@@ -201,8 +202,7 @@ impl Root {
                         ) {
                             self.sandbox.call(call, &mut self.connection);
                         }
-                    } else if let Some(call) = embed::Call::accept(&mut self.connection, started)
-                    {
+                    } else if let Some(call) = embed::Call::accept(&mut self.connection, started) {
                         self.call(call);
                     }
                 }
