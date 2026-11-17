@@ -222,8 +222,13 @@ maker through every sender (`KeyBook::heads`).
   `refresh_keys` reads each scope's log once as its keys arrive, and a block
   made here is kept at its root, eight scopes read at a time): a log served
   later that does not reach the kept head is withheld, and `checked_access`
-  refuses it (`Locked`), so nothing seals, settles an escrowed key or judges a
-  contact by it. With it, a failed read or offline, an epoch is current only
+  refuses it (`ClientError::Withheld`), so nothing seals, settles an escrowed
+  key or judges a contact by it. The organization's log is kept the same way,
+  under the organization's id: `checked_organization` refuses one short of it
+  and leaves the organization as held, and with none read this run an escrow
+  epoch is current only if it names a kept entry from the last demotion on,
+  key work seals to no administrator, and a contact counts as administering
+  only as kept. With it, a failed read or offline, an epoch is current only
   if it names one of the kept entries from the last lowering through the head
   (`KeptLog::current`), and a contact's seal is judged by the levels kept at
   that head (`KeptLog::levels`). A scope neither kept nor readable makes a key opened through
