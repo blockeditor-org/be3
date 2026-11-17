@@ -166,6 +166,16 @@ pub(super) struct Shared {
     pub(super) paintings: be_lib_stable_hash::HashMap<ScreenId, Painting>,
     pub(super) overflows: be_lib_stable_hash::HashMap<ScreenId, Vec<String>>,
     pub(super) published: Published,
+    /// The placement each surface was last painted at (`presented-frame.painted`), so its size
+    /// and raster are those of what it holds now, not of what the layout has asked for since.
+    pub(super) painted: be_lib_stable_hash::HashMap<u32, ScreenPlacement>,
+}
+
+/// What a surface holds: the size of its texture or painting and the raster it was painted at.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct Painted {
+    pub(super) size: (u32, u32),
+    pub(super) raster: f32,
 }
 
 impl Shared {
@@ -185,6 +195,31 @@ impl Shared {
             self.frames.remove(0);
         }
         self.frames.push(frame);
+    }
+
+    pub(super) fn paint(&mut self, painted: &[ScreenPlacement]) {
+        for placement in painted {
+            self.painted.insert(placement.surface, *placement);
+        }
+        let surfaces = self.surfaces();
+        self.painted
+            .retain(|surface, _| surfaces.contains(surface));
+    }
+
+    /// What the surface `placement` names holds: `size` where the caller knows the size of what
+    /// it draws (the texture, the painting), else the size it was last painted at; the raster
+    /// it was painted at, or the layout's before any present reported one. `None` where nothing
+    /// was painted there yet.
+    pub(super) fn holds(
+        &self,
+        placement: &ScreenPlacement,
+        size: Option<(u32, u32)>,
+    ) -> Option<Painted> {
+        let painted = self.painted.get(&placement.surface);
+        Some(Painted {
+            size: size.or_else(|| painted.map(|painted| (painted.width, painted.height)))?,
+            raster: painted.unwrap_or(placement).raster(),
+        })
     }
 
     fn take_frames(&mut self) -> Vec<Frame> {
@@ -253,6 +288,9 @@ pub struct Blit {
     /// The zoom the host shows the view at (`Placed::zoom`): a painting at the raster it was
     /// asked for covers its pixels over the raster times this, in the host's points.
     pub(super) zoom: f32,
+    /// A block preview, which is a picture: fitted to each place it is shown at (a preview shown
+    /// in two places is painted for the larger), where an editor's view never is.
+    pub(super) picture: bool,
     pub(super) placed: Option<[u32; 3]>,
     pub(super) layer: Option<AnchoredSource>,
 }
@@ -272,6 +310,7 @@ impl PartialEq for Blit {
             && self.quad == other.quad
             && self.source == other.source
             && self.zoom == other.zoom
+            && self.picture == other.picture
             && self.placed == other.placed
             && self.layer == other.layer
     }
@@ -289,17 +328,29 @@ impl Blit {
     /// paint snapshot, goes through here. `painted` is the size of what is drawn (the texture,
     /// the painting), never the size the layout asked for, since a layout commit can land
     /// before the present that brings textures of its size.
-    pub(super) fn shown_at(
+    /// Where the texture on `placement`'s surface shows for this blit, natively and as the hole
+    /// the web punches for its canvas: at the size the renderer says the texture is (`texture`;
+    /// the web keeps no textures, so it is the size the worker last painted that surface at).
+    pub(super) fn on_surface(
         &self,
         placement: &ScreenPlacement,
-        painted: (u32, u32),
-    ) -> Option<(Quad, Rect)> {
-        unscaled(self.quad, self.source, painted, self.density(placement))
+        texture: Option<(u32, u32)>,
+    ) -> Option<(u32, Quad, Rect)> {
+        let painted = self.shared.borrow().holds(placement, texture)?;
+        let (quad, source) = self.shown_at(painted)?;
+        Some((placement.surface, quad, source))
     }
 
-    /// A painting of `placement`'s pixels per point of the host.
-    fn density(&self, placement: &ScreenPlacement) -> f32 {
-        placement.raster() / self.zoom
+    pub(super) fn shown_at(&self, painted: Painted) -> Option<(Quad, Rect)> {
+        if self.picture {
+            return (painted.size.0 > 0 && painted.size.1 > 0).then_some((self.quad, self.source));
+        }
+        unscaled(self.quad, self.source, painted.size, self.density(painted))
+    }
+
+    /// A painting's pixels per point of the host.
+    fn density(&self, painted: Painted) -> f32 {
+        painted.raster / self.zoom
     }
 
     pub(super) fn damage(&self, pieces: &[Piece], laid: Vec2, seen: u64) -> Option<Vec<Rect>> {
@@ -309,19 +360,25 @@ impl Blit {
             return Some(Vec::new());
         }
         let placement = shared.placement(self.screen)?;
-        if placement.width == 0 || placement.height == 0 {
+        let painted = shared
+            .holds(placement, None)
+            .unwrap_or(Painted {
+                size: (placement.width, placement.height),
+                raster: placement.raster(),
+            });
+        if painted.size != (placement.width, placement.height) {
             return None;
         }
         // Damage maps through the pieces' fractions, which only hold while the painting fills
         // the view as laid; one shown at another size is redrawn whole.
-        let density = self.density(placement);
+        let density = self.density(painted);
         let fills = pieces.iter().all(|piece| {
             let textured = vec2(
                 piece.local.width() * laid.x / piece.source.width(),
                 piece.local.height() * laid.y / piece.source.height(),
             ) * density;
-            (textured.x - placement.width as f32).abs() < 0.5
-                && (textured.y - placement.height as f32).abs() < 0.5
+            (textured.x - painted.size.0 as f32).abs() < 0.5
+                && (textured.y - painted.size.1 as f32).abs() < 0.5
         });
         if !fills {
             return None;
@@ -732,8 +789,11 @@ impl Paints for ViewDrawing {
             let Some(screen) = shared.paintings.get(&blit.screen) else {
                 continue;
             };
-            let painted = (screen.frame.size[0], screen.frame.size[1]);
-            let Some((quad, source)) = blit.shown_at(placement, painted) else {
+            let size = (screen.frame.size[0], screen.frame.size[1]);
+            let Some((quad, source)) = shared
+                .holds(placement, Some(size))
+                .and_then(|painted| blit.shown_at(painted))
+            else {
                 continue;
             };
             let screen = super::previews::painting(screen.clone());
@@ -826,9 +886,7 @@ impl beui::native::Draw for AppDrawing {
                             },
                         ),
                         None => region.and_then(|placement| {
-                            let painted = platform.size(blit.surface, placement.surface)?;
-                            let (quad, source) = blit.shown_at(&placement, painted)?;
-                            Some((placement.surface, quad, source))
+                            blit.on_surface(&placement, platform.size(blit.surface, placement.surface))
                         }),
                     };
                 blit.status.set(match failure {
@@ -918,6 +976,69 @@ pub(super) fn release(slot: u32, status: &PresenterStatus) {
 }
 
 const UNSUPPORTED: &str = "This build has no presenter for that app surface.";
+
+/// The CSS that places an app's canvas for the web, from what `shown_at` returned for a painting
+/// of `painted` pixels, at `scale` CSS pixels per point. It never sizes the canvas: the element
+/// keeps its natural size, which is the backing store its worker last showed, and the matrix maps
+/// one of its pixels to `scale / density` CSS pixels from the textured part's top left, with the
+/// view's part of it clipped in its own pixels. So the browser never scales a canvas into a box
+/// of another size, even when the worker shows a texture of a new size before the host hears of
+/// it: until then that texture still shows at its own size, from the same corner.
+#[cfg(any(target_arch = "wasm32", test))]
+pub(crate) fn canvas_style(
+    quad: Quad,
+    source: Rect,
+    painted: (u32, u32),
+    scale: f32,
+    order: usize,
+) -> Option<String> {
+    if !source.is_positive() || painted.0 == 0 || painted.1 == 0 {
+        return None;
+    }
+    let [first, second, _, fourth] = quad
+        .corners()
+        .map(|corner| pos2(corner.x * scale, corner.y * scale));
+    let (width, height) = (painted.0 as f32, painted.1 as f32);
+    let across = (second - first) / source.width();
+    let down = (fourth - first) / source.height();
+    let origin = first - across * source.min.x - down * source.min.y;
+    let (per_x, per_y) = (across / width, down / height);
+    let texel = per_x.length().max(f32::EPSILON);
+    if per_x.length() <= f32::EPSILON || per_y.length() <= f32::EPSILON {
+        return None;
+    }
+    let radius = quad.corner_radius.max(0.0) * scale / texel;
+    let round = |left: bool, top: bool| {
+        let reaches = |near: bool, min: f32, max: f32| match near {
+            true => min <= 0.0,
+            false => max >= 1.0,
+        };
+        match reaches(left, source.min.x, source.max.x) && reaches(top, source.min.y, source.max.y)
+        {
+            true => radius,
+            false => 0.0,
+        }
+    };
+    Some(format!(
+        "transform:matrix({},{},{},{},{},{});\
+         clip-path:xywh({}px {}px {}px {}px round {}px {}px {}px {}px);opacity:{};z-index:{order}",
+        per_x.x,
+        per_x.y,
+        per_y.x,
+        per_y.y,
+        origin.x,
+        origin.y,
+        source.min.x * width,
+        source.min.y * height,
+        source.width() * width,
+        source.height() * height,
+        round(true, true),
+        round(false, true),
+        round(false, false),
+        round(true, false),
+        quad.opacity.clamp(0.0, 1.0),
+    ))
+}
 
 /// Which of a frame's blits, each its target and whether it is an anchored view's, the web
 /// puts above the host's canvas: a screen over an anchored view painted before it (a child

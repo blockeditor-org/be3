@@ -101,12 +101,12 @@ fn a_view_resized_before_its_app_draws_the_new_size_keeps_its_last_frame_unstret
                 ..runtime.template(screen)
             };
             let placement = *runtime.shown_placement(screen)?;
-            blit.shown_at(&placement, (placement.width, placement.height))
+            blit.on_surface(&placement, Some((300, 200)))
         })
         .flatten()
         .expect("the last frame still shows");
         assert_eq!(
-            shown.0.rect,
+            shown.1.rect,
             Rect::from_min_size(rect.min, vec2(300.0, 200.0).min(laid)),
             "a view laid out at {laid:?} keeps its last frame at its own size at the view's top \
              left, cropped where it is smaller, rather than stretching it"

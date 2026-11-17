@@ -40,6 +40,7 @@ fn a_frame_published_after_its_damage_was_read_is_redrawn_next() {
         quad: Quad::upright(whole),
         source: whole,
         zoom: 1.0,
+        picture: false,
         placed: None,
         layer: None,
     };

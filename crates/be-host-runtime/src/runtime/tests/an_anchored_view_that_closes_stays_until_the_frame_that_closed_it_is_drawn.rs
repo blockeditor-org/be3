@@ -84,6 +84,7 @@ fn presented(serial: u64, sequence: Option<u64>) -> Heard {
         presented: sequence.map(|sequence| PresentedFrame {
             sequence,
             damage: Vec::new(),
+            painted: Vec::new(),
         }),
     })
 }

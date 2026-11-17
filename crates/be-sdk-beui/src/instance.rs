@@ -309,11 +309,17 @@ fn measured(
         .map(|measured| beui::Rect::from_min_size(beui::Pos2::ZERO, beui::vec2(width, measured.y)))
 }
 
+/// A view with nothing to show yet. Its `Root` clears to nothing, so it reports no backdrop and
+/// the host backs it as it backs a view not yet drawn (its placer's), never with beui's default
+/// black.
 fn empty() -> RenderFn<WindowHandle, NodeId> {
     RenderFn::new(|_: WindowHandle| {
         beui::reactive::view! {
-            <beui::styled::Frame />
+            <beui::styled::Root clear_color=beui::styled::ColorRole::None>
+                <beui::styled::Frame />
+            </beui::styled::Root>
         }
+        .child()
     })
 }
 
