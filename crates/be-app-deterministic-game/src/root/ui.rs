@@ -295,7 +295,6 @@ fn GamePlay(
         actions.track();
         Vec::<Action>::new()
     });
-    let dragging = create_signal(None);
     let over = create_signal(None);
     let play = Play {
         game,
@@ -303,7 +302,6 @@ fn GamePlay(
         editable,
         selected,
         choices,
-        dragging,
         over,
     };
     let drawn = create_memo(move || board.with(Layout::of));
