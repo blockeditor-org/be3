@@ -863,14 +863,28 @@ impl KeyBook {
     }
 
     /// Whether this device holds anything of `block`'s access log: a root it pinned, took
-    /// weakly or found conflicting, or how far it checked the log (`KeptLog`). A block it does
-    /// is not one it makes (`Peer::new_log`).
+    /// weakly or found conflicting, or how far it checked the log (`KeptLog`). A block it holds
+    /// any of is not one it may make (`Peer::new_log`).
     pub fn holds_log(&self, block: Uuid) -> bool {
         let roots = self.roots.lock().unwrap();
         roots.pinned.contains_key(&block)
             || roots.weak.contains_key(&block)
             || roots.conflicting.contains(&block)
             || roots.kept.contains_key(&block)
+    }
+
+    /// What this device kept of `block`'s log (`KeptLog`), to write to the refs.
+    pub fn kept_log(&self, block: Uuid) -> Option<crate::refs::KeptLog> {
+        self.roots.lock().unwrap().kept.get(&block).cloned()
+    }
+
+    /// Lets go of the root and kept log of a block this device set out to make that no server
+    /// took (`Peer::new_log`): refused, or its creation discarded. `new_log` makes one only for
+    /// a block whose log it held nothing of, so nothing else is lost.
+    pub fn forget_made(&self, block: Uuid) {
+        let mut roots = self.roots.lock().unwrap();
+        roots.pinned.remove(&block);
+        roots.kept.remove(&block);
     }
 
     /// Pins the root of a block this device makes, before minting its keys, which carry it.
