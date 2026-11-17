@@ -168,6 +168,7 @@ pub(super) struct Shared {
     pub(super) published: Published,
     /// The placement each surface was last painted at (`presented-frame.painted`), so its size
     /// and raster are those of what it holds now, not of what the layout has asked for since.
+    /// Kept per surface and pruned against the layout each `publish` brings.
     pub(super) painted: be_lib_stable_hash::HashMap<u32, ScreenPlacement>,
 }
 
@@ -187,6 +188,11 @@ impl Shared {
     ) {
         self.layout.clone_from(layout);
         self.kept = kept;
+        // Pruned only here, against the layout just published: a surface's first present can
+        // be heard before the layout that brought it is published (both arrive in one pump).
+        let surfaces = self.surfaces();
+        self.painted
+            .retain(|surface, _| surfaces.contains(surface));
         let Some(frame) = frame else {
             return;
         };
@@ -201,9 +207,6 @@ impl Shared {
         for placement in painted {
             self.painted.insert(placement.surface, *placement);
         }
-        let surfaces = self.surfaces();
-        self.painted
-            .retain(|surface, _| surfaces.contains(surface));
     }
 
     /// What the surface `placement` names holds: `size` where the caller knows the size of what

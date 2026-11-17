@@ -315,6 +315,18 @@ fn schedule_after(delay: Duration) {
     });
 }
 
+/// The surface's box changed: draws at the new size before the page paints.
+fn resized() {
+    let runner = RUNNER.with(|runner| runner.borrow().clone());
+    match runner {
+        Some(runner) => match runner.try_borrow_mut() {
+            Ok(mut runner) => runner.frame(),
+            Err(_) => schedule(),
+        },
+        None => schedule(),
+    }
+}
+
 fn run_frame() {
     INPUT.with(|input| input.scheduled.set(false));
     let runner = RUNNER.with(|runner| runner.borrow().clone());
@@ -1210,8 +1222,11 @@ fn listen(
     on(window_target, "beforeunload", |event: web_sys::Event| {
         close_requested(&event);
     })?;
+    // A resize observer runs after the page's layout and before it paints, so the frame runs
+    // here rather than at the next animation frame: the canvas's box has already changed, and
+    // waiting would show a frame of its backing store cleared or scaled into the new box.
     let observer = web_sys::ResizeObserver::new(
-        Closure::<dyn FnMut()>::new(schedule)
+        Closure::<dyn FnMut()>::new(resized)
             .into_js_value()
             .unchecked_ref(),
     )
