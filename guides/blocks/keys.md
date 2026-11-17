@@ -244,7 +244,11 @@ maker through every sender (`KeyBook::heads`).
   its key outdated. Whatever path uploads (an outbox commit, a snapshot or a
   fork through `Peer::hold`), an object the server lacks that is sealed under
   a key the logs show outdated is not uploaded (`ClientError::Outdated`).
-  `write_content`, public, is strict; only the outbox's own writes keep. A log answer older
+  `write_content`, public, is strict; only the outbox's own writes keep. As
+  for an edit the server refuses, what is made of the block after one set
+  aside waits with it until it is discarded (plans/signed_access.md, step 7,
+  would seal it again instead). An object whose block's scope cannot be told
+  counts as outdated. A log answer older
   than one this run already took is stale, not withheld (`keys::Served`). A
   local account judges nothing (there is no server). An escrow epoch the organization's log outdates
   is wrapped under no more, so keys wait unescrowed for the next, with no

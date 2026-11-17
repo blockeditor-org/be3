@@ -222,7 +222,7 @@ pub fn aside(why: be_block_client::Aside) -> &'static str {
     match why {
         be_block_client::Aside::Refused(code) => refusal(code),
         be_block_client::Aside::KeyOutdated => {
-            "it was locked offline with a key someone who lost access may hold"
+            "it was locked offline with a key someone who lost access may hold: discard it to go on editing"
         }
     }
 }

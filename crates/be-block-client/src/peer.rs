@@ -1216,12 +1216,19 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// The block `hash` is an object of, when it is sealed under a key of it that the logs
-    /// this device holds or kept show outdated (`KeyBook::shown_outdated`), judged without
-    /// reading anything: an object not sealed, or under a key it cannot place, is none.
-    pub(crate) fn sealed_outdated(&self, hash: Hash) -> Option<Uuid> {
+    /// this device holds or kept show outdated (`KeyBook::shown_outdated`): an object not
+    /// sealed, or under a key it cannot place, is none. The block's scope comes from its kept
+    /// summary, else the server's; one whose scope cannot be told counts as outdated.
+    pub(crate) async fn sealed_outdated(&self, hash: Hash) -> Option<Uuid> {
         let key = self.commits.vault().sealed_under(hash).ok()?;
         let block = self.keys.block_of(key)?;
-        let scope = scope_of(&self.refs.summary(block)?).ok()?;
+        let summary = match self.refs.summary(block) {
+            Some(kept) => Some(kept),
+            None => self.summary(block).await.ok(),
+        };
+        let Some(scope) = summary.and_then(|summary| scope_of(&summary).ok()) else {
+            return Some(block);
+        };
         self.keys.shown_outdated(key, scope).then_some(block)
     }
 

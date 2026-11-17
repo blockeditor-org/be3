@@ -2283,7 +2283,7 @@ async fn drain_outbox(
                             .lock()
                             .unwrap_or_else(PoisonError::into_inner)
                             .sync_error = Some(format!(
-                            "An edit to {named} was locked offline with a key someone who lost access may hold, so it was not sent. It waits among the unsent edits."
+                            "An edit to {named} was locked offline with a key someone who lost access may hold, so it was not sent. It waits among the unsent edits: discard it to go on editing {named}."
                         ));
                     }
                     be_block_client::Drained::Refused { block, code, .. } => {

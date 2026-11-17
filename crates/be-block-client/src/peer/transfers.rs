@@ -109,11 +109,10 @@ impl<S: ObjectStore> Peer<S> {
             // What the server lacks goes up only if no log this device holds shows its key
             // outdated: whatever path asks (an outbox commit, a snapshot, a fork), what was
             // sealed offline under such a key never leaves it (signed access 3d).
-            if let Some(block) = wanted
-                .iter()
-                .find_map(|(hash, _)| self.sealed_outdated(**hash))
-            {
-                return Err(ClientError::Outdated(block));
+            for (hash, _) in &wanted {
+                if let Some(block) = Box::pin(self.sealed_outdated(**hash)).await {
+                    return Err(ClientError::Outdated(block));
+                }
             }
             let mut uploads = futures_util::stream::iter(wanted.into_iter().map(|(hash, url)| async move {
                 let bytes = store.get(*hash)?.ok_or(ClientError::MissingObject(*hash))?;
