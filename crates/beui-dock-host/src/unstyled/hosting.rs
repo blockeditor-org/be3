@@ -24,9 +24,9 @@ use beui_view::types::{Color, Modifiers, Pos2, Rect};
 use super::dialog::{DialogParts, DockDialogHandle};
 use super::{
     BarCovers, BarFloats, Dock, DockApi, DockAwayHandle, DockBarBandHandle, DockBarHandle,
-    DockChromeHandle, DockConfig, DockCurves, DockGripHandle,
-    DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockStripHandle, DockSwitchHandle,
-    DockSwitcherHandle, DockTabHandle, DockTabKeys,
+    DockChromeHandle, DockConfig, DockCurves, DockGripHandle, DockPreviewHandle,
+    DockSplitterHandle, DockStackHandle, DockStripHandle, DockSwitchHandle, DockSwitcherHandle,
+    DockTabHandle, DockTabKeys,
 };
 use beui_components_unstyled::menu_popup::MenuStyle;
 pub use manager::{DockArea, DockWindowActions, holding_area};

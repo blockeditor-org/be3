@@ -25,5 +25,9 @@ fn an_edge_place_takes_the_corner_up_to_its_diagonal() {
         Some(1),
         "a fortieth of the width from the left, three twentieths from the bottom: the left"
     );
-    assert_eq!(choose(pos2(40.0, 40.0)), Some(1), "away from the corner, its band's");
+    assert_eq!(
+        choose(pos2(40.0, 40.0)),
+        Some(1),
+        "away from the corner, its band's"
+    );
 }

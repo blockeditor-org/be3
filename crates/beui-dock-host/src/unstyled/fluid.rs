@@ -14,16 +14,16 @@ use beui_view::drag::{Candidate, DragSpec, closest, custom};
 use beui_view::measure::measure;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
+use beui_view::types::window::WindowId;
 use beui_view::types::{
     CanvasArrangement, Direction, Measured, Modifiers, Pos2, Rect, Spring, Vec2,
 };
-use beui_view::types::window::WindowId;
 
 use beui_dock_state::*;
 
 use super::{
-    DockDragged, DockPreviewHandle, EDGE_ZONE, GRAB_OFFSET, OUTER_EDGE, State,
-    arranged, leaf_key, middle_target, split_key,
+    DockDragged, DockPreviewHandle, EDGE_ZONE, GRAB_OFFSET, OUTER_EDGE, State, arranged, leaf_key,
+    middle_target, split_key,
 };
 
 /// A place a carried tab or pane can land in the dock: the drop, the state it leaves, the
@@ -72,6 +72,10 @@ impl State {
         surfaces.reverse();
         surfaces.push(state.main());
         let mut places = Vec::new();
+        // The surfaces that offer a place. The topmost surface under the pointer is the one
+        // whose places it reaches; over one that offers none (the window a lone tab is
+        // carried from) the item floats there, which moves that window.
+        let offering: Rc<std::cell::RefCell<Vec<SurfaceId>>> = Rc::default();
         for surface in surfaces {
             let window = self.windows.value().borrow().get(&surface).copied();
             let (node, split) = match window {
@@ -105,25 +109,34 @@ impl State {
             if candidates.is_empty() {
                 continue;
             }
+            offering.borrow_mut().push(surface);
             places.push(
                 closest(candidates)
                     .shaped(node)
-                    .open_where(move |point| dock.reaches(node, point)),
+                    .open_where(move |point| dock.reaches(node, surface, point)),
             );
         }
-        let floats = custom(tiles, move |local: Pos2| {
-            let (window, pos) = dock.open_at(tiles, local)?;
-            if window != dock.home() {
-                return None;
-            }
-            let area = dock.rect.get_untracked();
-            let origin = pos - area.min.to_vec2() - GRAB_OFFSET;
-            let origin =
-                dock.clamped_origin(Rect::from_min_size(origin, FLOATING_SIZE), area.size());
-            let state = dock.state.get_untracked();
-            dock.place(&state, dragged, DockDrop::Window { pos: origin }, None)
-        });
-        closest(places).when_held(Modifiers::ALT, floats)
+        let floats = move |anywhere: bool| {
+            let offering = Rc::clone(&offering);
+            custom(tiles, move |local: Pos2| {
+                let (window, pos) = dock.open_at(tiles, local)?;
+                let topmost = dock.topmost(window, pos);
+                let offers = topmost.is_some_and(|top| offering.borrow().contains(&top));
+                if window != dock.home() || (!anywhere && offers) {
+                    return None;
+                }
+                let area = dock.rect.get_untracked();
+                let origin = pos - area.min.to_vec2() - GRAB_OFFSET;
+                let origin =
+                    dock.clamped_origin(Rect::from_min_size(origin, FLOATING_SIZE), area.size());
+                let state = dock.state.get_untracked();
+                dock.place(&state, dragged, DockDrop::Window { pos: origin }, None)
+            })
+        };
+        // Over no surface of the home window, or a surface offering no place, the item floats
+        // in a window of its own there; listed last, so every surface's places come first.
+        places.push(floats(false));
+        closest(places).when_held(Modifiers::ALT, floats(true))
     }
 
     /// The places of `tree`'s panes, inner ones (a group a pane hosts) before the pane's own.
@@ -238,7 +251,9 @@ impl State {
     ) -> Option<DockPlace> {
         let admitted = match dragged {
             DockDragged::Entry(entry) => {
-                !drop.leaf().is_some_and(|leaf| state.contains_leaf(entry, leaf))
+                !drop
+                    .leaf()
+                    .is_some_and(|leaf| state.contains_leaf(entry, leaf))
                     && state.admits(entry, drop)
             }
             DockDragged::Pane(leaf) => state.admits_leaf(leaf, drop),
@@ -295,9 +310,9 @@ impl State {
         layout_tree(after, tree, area, self.thickness).leaf_rect(leaf)
     }
 
-    /// Whether `point` reaches `node`'s places: of the dock's own layers there, the topmost
-    /// holding the point is `node`, and nothing else covers it.
-    fn reaches(&self, node: NodeRef, point: DragPoint) -> bool {
+    /// Whether `point` reaches the places of `surface`, laid out relative to `node`: it is
+    /// the topmost of the dock's surfaces holding the point (`topmost`).
+    fn reaches(&self, node: NodeRef, surface: SurfaceId, point: DragPoint) -> bool {
         let Some(id) = node.try_get() else {
             return false;
         };
@@ -305,15 +320,47 @@ impl State {
             return false;
         };
         let local = Pos2::ZERO + (point.pos - placed.min) / scale.max(f32::EPSILON);
-        self.open_at(node, local).is_some_and(|(_, pos)| {
-            stacked_at(&self.ours(id), point.window, pos)
-                .into_iter()
-                .find(|stacked| {
-                    measure(*stacked)
-                        .get_untracked()
-                        .is_some_and(|measured| measured.rect.contains(pos))
-                })
-                == Some(id)
+        self.open_at(node, local)
+            .is_some_and(|(window, pos)| self.topmost(window, pos) == Some(surface))
+    }
+
+    /// Of the dock's surfaces in `window` (its main tiles and its windows), the topmost
+    /// holding `pos`, if nothing but the dock's own layers covers it there. A dock dialog
+    /// covers nothing: a tab carried over its own window's Save-as reaches what is under it.
+    fn topmost(&self, window: WindowId, pos: Pos2) -> Option<SurfaceId> {
+        let state = self.state.get_untracked();
+        let surfaces: Vec<(NodeId, SurfaceId)> = state
+            .surfaces()
+            .into_iter()
+            .filter_map(|surface| {
+                let window = self.windows.value().borrow().get(&surface).copied();
+                let node = window.or_else(|| {
+                    self.panes
+                        .value()
+                        .borrow()
+                        .get(&Tree::Surface(surface))
+                        .copied()
+                })?;
+                Some((node.try_get()?, surface))
+            })
+            .collect();
+        let ours: Vec<NodeId> = surfaces
+            .iter()
+            .map(|(node, _)| *node)
+            .chain(
+                self.dialog_layers
+                    .value()
+                    .borrow()
+                    .values()
+                    .filter_map(NodeRef::try_get),
+            )
+            .collect();
+        stacked_at(&ours, window, pos).into_iter().find_map(|stacked| {
+            let (_, surface) = surfaces.iter().find(|(node, _)| *node == stacked)?;
+            measure(stacked)
+                .get_untracked()
+                .is_some_and(|measured| measured.rect.contains(pos))
+                .then_some(*surface)
         })
     }
 
@@ -570,14 +617,7 @@ impl Parting {
             if min == Vec2::ZERO && max == Vec2::ZERO {
                 continue;
             }
-            next.insert(
-                key,
-                Moving {
-                    min,
-                    max,
-                    ..speed
-                },
-            );
+            next.insert(key, Moving { min, max, ..speed });
         }
         self.moving.set(Rc::new(next));
         self.frames.start();
@@ -778,16 +818,20 @@ pub(super) fn DockGhost(
                 glide.set(Moving::default());
             }
             if dock.landing.is_alive()
-                && dock
-                    .landing
-                    .with_untracked(|landing| landing.is_some_and(|landing| landing.surface == surface))
+                && dock.landing.with_untracked(|landing| {
+                    landing.is_some_and(|landing| landing.surface == surface)
+                })
             {
                 dock.landing.set(None);
             }
         },
     );
     create_effect(move || {
-        let Some(landing) = dock.landing.get().filter(|landing| landing.surface == surface) else {
+        let Some(landing) = dock
+            .landing
+            .get()
+            .filter(|landing| landing.surface == surface)
+        else {
             return;
         };
         untrack(|| {
@@ -804,7 +848,10 @@ pub(super) fn DockGhost(
         if let Some((dragged, item, place)) = carried.get() {
             return Some((dragged, item, Some(place)));
         }
-        let landing = dock.landing.get().filter(|landing| landing.surface == surface)?;
+        let landing = dock
+            .landing
+            .get()
+            .filter(|landing| landing.surface == surface)?;
         Some((landing.dragged, glide.get().apply(landing.to), None))
     });
     let rect = create_memo(move || {
@@ -812,7 +859,8 @@ pub(super) fn DockGhost(
             .with(|shown| shown.as_ref().map(|(_, item, _)| *item))
             .map_or(Rect::ZERO, |item| item.translate(-origin.get().to_vec2()))
     });
-    let dragged = create_memo(move || shown.with(|shown| shown.as_ref().map(|(dragged, ..)| *dragged)));
+    let dragged =
+        create_memo(move || shown.with(|shown| shown.as_ref().map(|(dragged, ..)| *dragged)));
     let group_with = create_memo(move || {
         shown.with(|shown| {
             let (dragged, _, place) = shown.as_ref()?;

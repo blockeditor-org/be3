@@ -13,9 +13,8 @@ pub use crate::unstyled::{
 };
 use crate::unstyled::{
     DockAwayHandle, DockBarBandHandle, DockBarHandle, DockChromeHandle, DockCurves,
-    DockDialogHandle, DockDragged, DockGripHandle, DockPreviewHandle,
-    DockSplitterHandle, DockStackHandle, DockStripHandle, DockSwitchHandle, DockSwitcherHandle,
-    DockTabHandle,
+    DockDialogHandle, DockDragged, DockGripHandle, DockPreviewHandle, DockSplitterHandle,
+    DockStackHandle, DockStripHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle,
 };
 use beui_components_styled::action_bar::{ActionBar, ActionLabels};
 use beui_components_styled::back_slide::SLIDE_CURVES;
