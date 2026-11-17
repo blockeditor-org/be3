@@ -132,12 +132,16 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   (`Peer::signed_below`, Access logs below): making a block, moving one (the
   destination's scope, and each block listed below the moved one), making a
   block a scope of its own, and rotating (the top's scope or parent, and each
-  block listed below); a block whose creation waits in the outbox lies where
-  this device's own record placed it. Otherwise it fails with
+  block listed below, one log each, `Peer::placed_under`); a block whose
+  creation waits in the outbox lies where this device's own record placed it,
+  and nothing inside a block whose owner-only key it holds counts as under a
+  scope above it. Otherwise it fails with
   `ClientError::Forged`, wrapping nothing: the server's tree alone never puts
-  a block's keys where someone else reads them. Offline, a creation takes the scope its kept summary names,
-  and is checked so before it is sent; one that does not check is set aside
-  (`refs::Aside::Misplaced`).
+  a block's keys where someone else reads them. Where the logs cannot be read
+  (offline, or a read that does not answer), a creation takes the scope its
+  kept summary names, marked `Creation::unchecked`, and goes up only through
+  the outbox, which checks it first; one that does not check, or whose root
+  this device never pinned, is set aside (`refs::Aside::Misplaced`).
 
 ### Access logs
 
@@ -177,15 +181,21 @@ the top, Recently Deleted, or under a block with the hash of that block's log
 root, which the signer pinned in full: `Peer::placement`), signed by a member
 with Edit or above on it (from its log, administering the organization, or a
 block above), and never lower anyone. A log's last places the block now
-(`Checked::placement`). A record on `Authority::Inherited` checks only for a
-block its placements reach (`be_block_keys::answer`): the block's own as of the
-record's place, then each block between as it ever placed itself, each log
-checked from the root the placement under it names, at most `MAX_ANCESTRY`
-deep. So the server can neither place a block under an ancestor someone else
-manages nor serve a made-up log for a real ancestor, and a grant or opening
-resting on a manager above seals like any other. A device reads the logs a
-log names (`Peer::logs_around`: its placements and authorities, and theirs, as
-served) only when a record in it names authority outside it. An agent's account id is derived from its maker and its keys
+(`Checked::placement`). A record on `Authority::Inherited` names the chain of
+blocks up to the one it rests on, each with a head of its log (`Link`), and
+checks only if each is where the one before lay as of its head, starting from
+the block's placement at the record's place, each log checked from the root
+the placement under it names (`be_block_keys::answer`), at most
+`MAX_ANCESTRY` long; the server takes it only with every head current. So the
+server can neither place a block under an ancestor someone else manages, nor
+serve a made-up log for a real ancestor, nor count a block above that it lay
+under only at another time, and a grant or opening resting on a manager above
+seals like any other. `Logs` checks each log once as of each head, so
+authority resting on authority costs linear in the records. A device reads the
+logs a log's chains name (`Peer::logs_around`) only when a record in it names
+authority outside it, and builds a chain up its current placements
+(`Peer::held_above`), each log checked as `checked_access` checks it, so one
+served short of what it kept counts as withheld. An agent's account id is derived from its maker and its keys
 (`agent_account`). Revocations the server makes on its own wait in key work
 (`unsigned-revocations`) for a manager's device to sign them; members no
 record signed in wait in `unsigned-members`.
@@ -217,11 +227,14 @@ lowered anyone, and the digest of the rest), which hashes as the whole entry
 does. Whole on a path: the root; every entry naming the reader or an account
 that sealed it a key of the block (of any block, in the organization's log),
 and so on for each whole entry's signer, so each checks at its place; what the
-reader signed (its agents); every opening and parent record; and in the
+reader signed (its agents); every opening and parent record (a parent record
+reduced still says it is one, `Reduced::places`, and leaves the block's
+placement unknown to the reader, so a server hides no move); and in the
 organization's log every administrator record and every record about anyone
 who ever administered it. A block above one the reader views, which it may not
 view itself, is served as a path proving too whoever signs below on authority
-from it, so a grant from a manager above checks for its reader.
+from it, and whoever sealed the reader a key, so a grant from a manager above,
+or a seal from an editor above, checks for its reader.
 So a reader learns no other member's grant. Every entry says whether it
 lowered anyone (`Entry::lowers`, covered by its hash outside the digest),
 which `check_log` refuses unless it is so and devices set by signing through
@@ -339,10 +352,13 @@ maker through every sender (`KeyBook::heads`).
   of the log's head here when this device's log does not reach that head or
   the key names none (with no log read this run, as of the kept head); a data
   key only from an administrator, as only the settings' are sealed to anyone; one the block's log names but not by then held nothing
-  (`KeyBook::sender_may`). A contact the block's log never names (Edit from a
-  block above) is taken, as is a key of a block whose log this device never
-  checked; `refresh_keys` reads the log first for each block whose root it
-  pinned.
+  (`KeyBook::sender_may`). A contact the block's log never names only once
+  this device found them holding Edit or above on a block the signed parent
+  records place it under (`Peer::held_above`, `KeyBook::vouch`, kept in
+  `KeptLog::above`). A key of a block whose log this device never checked is
+  taken; `refresh_keys` takes this account's own keys first, so the roots they
+  carry are pinned, then reads the log of each block whose root it pinned
+  before taking a contact's seal of it.
 - `tend` signs key work's revocations before the rotations they call for, so
   the new epochs name heads after them.
 

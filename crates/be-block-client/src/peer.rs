@@ -960,8 +960,36 @@ impl<S: ObjectStore> Peer<S> {
         }
         // A contact's seal is checked against the block's log as of the head its epoch names
         // (`KeyBook::sender_may`, signed access 3d), so that log is read first for each block a
-        // contact sealed a key of that is new here, when this device pinned its root.
-        let mut sealed_by_contacts: Vec<Uuid> = keys
+        // contact sealed a key of that is new here, when this device pinned its root. A sender
+        // the log never names is taken only once it is found to hold Edit or above on a block
+        // the signed parent records place the block under (`KeyBook::vouch`, signed access 4).
+        // A contact's seal of a block this device has not pinned the root of waits until the
+        // rest is taken: this account's own keys pin roots, whose logs are then read first.
+        let block_of_key = |key: Uuid| {
+            keys.keys
+                .iter()
+                .find(|row| row.id == key)
+                .copied()
+                .or_else(|| self.keys.row(key))
+                .map(|row| row.block)
+        };
+        let (held_back, rest): (Vec<_>, Vec<_>) = keys.wrapped.iter().cloned().partition(|wrap| {
+            wrap.wrapped_by == WrappedBy::Account(self.account)
+                && wrap.sender != self.account
+                && self.keys.contact(wrap.sender).is_some()
+                && block_of_key(wrap.key).is_some_and(|block| {
+                    !matches!(self.keys.root_pin(block), crate::keys::RootPin::Pinned(_))
+                })
+        });
+        let mut opened = 0;
+        if !held_back.is_empty() {
+            opened += self.keys.absorb(KeySet {
+                keys: keys.keys.clone(),
+                wrapped: rest,
+            });
+            keys.wrapped = held_back;
+        }
+        let mut sealed_by_contacts: Vec<(Uuid, Uuid)> = keys
             .wrapped
             .iter()
             .filter(|wrap| {
@@ -971,22 +999,44 @@ impl<S: ObjectStore> Peer<S> {
                     && !self.keys.trusted(wrap.key)
             })
             .filter_map(|wrap| {
-                keys.keys
+                let row = keys
+                    .keys
                     .iter()
                     .find(|row| row.id == wrap.key)
                     .copied()
-                    .or_else(|| self.keys.row(wrap.key))
+                    .or_else(|| self.keys.row(wrap.key))?;
+                Some((row, wrap.sender))
             })
-            .filter(|row| row.kind != KeyKind::Escrow)
-            .map(|row| row.block)
-            .filter(|block| matches!(self.keys.root_pin(*block), crate::keys::RootPin::Pinned(_)))
+            .filter(|(row, _)| row.kind == KeyKind::Scope)
+            .map(|(row, sender)| (row.block, sender))
+            .filter(|(block, _)| {
+                matches!(self.keys.root_pin(*block), crate::keys::RootPin::Pinned(_))
+            })
             .collect();
         sealed_by_contacts.sort();
         sealed_by_contacts.dedup();
-        for block in sealed_by_contacts {
-            let _ = self.checked_access(block).await;
+        let mut checked_logs: HashMap<Uuid, Option<be_block_keys::Checked>> = HashMap::new();
+        for (block, sender) in sealed_by_contacts {
+            if !checked_logs.contains_key(&block) {
+                let checked = self.checked_access(block).await.ok().map(|(_, checked)| checked);
+                checked_logs.insert(block, checked);
+            }
+            let Some(Some(checked)) = checked_logs.get(&block) else {
+                continue;
+            };
+            if self.keys.names(block, sender) {
+                continue;
+            }
+            let above = self
+                .held_above(checked, sender.into_bytes(), be_block_keys::Level::Edit)
+                .await;
+            if let Ok(Some(_)) = above
+                && let Some(kept) = self.keys.vouch(block, sender)
+            {
+                let _ = self.refs.keep_log(block, kept);
+            }
         }
-        let opened = self.keys.absorb(keys);
+        opened += self.keys.absorb(keys);
         self.settle_escrowed().await;
         // Each scope's log, once, so a write offline later is judged by what was kept of it
         // (`Peer::outdated`) rather than refused.
@@ -1736,9 +1786,10 @@ impl<S: ObjectStore> Peer<S> {
             .creation(block, content_type, parent, metadata, owner_only)
             .await?;
         // A parent whose creation waits in the outbox is not on the server yet: this one waits
-        // behind it.
+        // behind it. One whose scope was taken unchecked goes only through the outbox, which
+        // checks it before sending (`Creation::unchecked`).
         if let BlockParent::Block(above) = parent
-            && self.refs.creating(above)
+            && (self.refs.creating(above) || creation.unchecked)
         {
             return self.create_locally(creation);
         }
@@ -1907,12 +1958,48 @@ impl<S: ObjectStore> Peer<S> {
             if up == above {
                 return Ok(());
             }
+            // Nothing in an owner-only block is readable under a scope above it.
+            if self
+                .keys
+                .scope_key(up)
+                .is_some_and(|key| self.keys.owner_only_covers(key))
+            {
+                return Err(ClientError::Forged(block));
+            }
             placement = match self.pending_placement(up) {
                 Some(placement) => placement,
                 None => self.checked_from(up, root).await?.placement(),
             };
         }
         Err(ClientError::Forged(block))
+    }
+
+    /// Refuses (`ClientError::Forged`) unless `block`'s last placement, as its log checked from
+    /// the root this device pinned (or its pending creation) gives it, is under `parent`: one
+    /// step of `signed_below`, for each block a listing names below one already checked.
+    pub(crate) async fn placed_under(&self, block: Uuid, parent: Uuid) -> Result<(), ClientError> {
+        use be_block_keys::Placement;
+        if self.local {
+            return Ok(());
+        }
+        let placement = match self.pending_placement(block) {
+            Some(placement) => placement,
+            None => self.checked_access(block).await?.1.placement(),
+        };
+        match placement {
+            Some(Placement::Block { block: up, root }) if Uuid::from_bytes(up) == parent => {
+                match self.keys.root_pin(parent) {
+                    crate::keys::RootPin::Pinned(pinned) | crate::keys::RootPin::Weak(pinned)
+                        if pinned != root =>
+                    {
+                        Err(ClientError::Forged(block))
+                    }
+                    crate::keys::RootPin::Conflicting => Err(ClientError::Forged(block)),
+                    _ => Ok(()),
+                }
+            }
+            _ => Err(ClientError::Forged(block)),
+        }
     }
 
     /// Where the parent record of `block`'s creation, waiting in the outbox, places it: none
@@ -1930,20 +2017,87 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// The log of `block` checked from `root`, which a parent record placing a block under it
-    /// names, with the authority its records name read from the logs around it.
+    /// names: refused when this device pinned another root for it, and, as `checked_access`
+    /// does, when it stops short of what this device kept of it, so a server cannot serve a
+    /// device that saw a block move a log cut short before the move.
     async fn checked_from(
         &self,
         block: Uuid,
         root: be_block_keys::EntryHash,
     ) -> Result<be_block_keys::Checked, ClientError> {
-        let entries = self.served_log(block).await?;
-        let around = match cites(&entries) {
-            true => self.logs_around(block, &entries).await?,
-            false => Around::default(),
-        };
-        around
-            .check(self.organization, block, root, &entries)
-            .ok_or(ClientError::Forged(block))
+        match self.keys.root_pin(block) {
+            crate::keys::RootPin::Pinned(pinned) | crate::keys::RootPin::Weak(pinned)
+                if pinned != root =>
+            {
+                return Err(ClientError::Forged(block));
+            }
+            crate::keys::RootPin::Conflicting => return Err(ClientError::Forged(block)),
+            _ => {}
+        }
+        Ok(self.checked_rooted(block, root).await?.1)
+    }
+
+    /// The chain up to the nearest block above the one `checked` is the log of, as its signed
+    /// placements give it now, where `account` holds `level` or above: each block with the head
+    /// of its log now (`be_block_keys::Authority::Inherited`). None when no block above gives
+    /// it, within `be_block_keys::MAX_ANCESTRY`.
+    async fn held_above(
+        &self,
+        checked: &be_block_keys::Checked,
+        account: [u8; 16],
+        level: be_block_keys::Level,
+    ) -> Result<Option<Vec<be_block_keys::Link>>, ClientError> {
+        use be_block_keys::{Link, LogKind, Placement};
+        let mut chain = Vec::new();
+        let mut placement = checked.placement();
+        while chain.len() < be_block_keys::MAX_ANCESTRY {
+            let Some(Placement::Block { block: up, root }) = placement else {
+                return Ok(None);
+            };
+            let above = self.checked_from(Uuid::from_bytes(up), root).await?;
+            chain.push(Link {
+                block: up,
+                head: above.head,
+            });
+            if above.holding(LogKind::Block, account, level).is_some() {
+                return Ok(Some(chain));
+            }
+            placement = above.placement();
+        }
+        Ok(None)
+    }
+
+    /// Where this account's `level` on the block `checked` is the log of comes from outside
+    /// that log: administering the organization, as of its log's head, else the nearest block
+    /// above that gives it (`held_above`).
+    async fn authority_outside(
+        &self,
+        block: Uuid,
+        checked: &be_block_keys::Checked,
+        level: be_block_keys::Level,
+    ) -> Result<be_block_keys::Authority, ClientError> {
+        use be_block_keys::{Authority, LogKind};
+        let me = self.keys.account().into_bytes();
+        if let Some(pinned) = self.keys.organization_root() {
+            let entries = self.organization_log().await?;
+            if let Ok(organization) = be_block_keys::check_log(
+                LogKind::Organization,
+                self.organization.into_bytes(),
+                pinned,
+                &entries,
+                &|_| None,
+            ) && organization.holding(LogKind::Organization, me, level).is_some()
+            {
+                return Ok(Authority::Organization(organization.head));
+            }
+        }
+        match self.held_above(checked, me, level).await? {
+            Some(chain) => Ok(Authority::Inherited(chain)),
+            None => Err(ClientError::Refused(
+                ErrorCode::PermissionDenied,
+                format!("this account does not hold {level:?} on block {block}"),
+            )),
+        }
     }
 
     /// The block's access log, root first, once it checks from the root this device pinned
@@ -1975,6 +2129,16 @@ impl<S: ObjectStore> Peer<S> {
             crate::keys::RootPin::Conflicting => return Err(ClientError::Forged(block)),
             crate::keys::RootPin::Unknown => return Err(ClientError::Locked(block)),
         };
+        self.checked_rooted(block, pinned).await
+    }
+
+    /// The log of `block` checked from `root` as `checked_access` checks it: refused when it
+    /// stops short of what this device kept of it (`ClientError::Withheld`), and kept.
+    async fn checked_rooted(
+        &self,
+        block: Uuid,
+        pinned: be_block_keys::EntryHash,
+    ) -> Result<(Vec<be_block_keys::Step>, be_block_keys::Checked), ClientError> {
         let entries = self.served_log(block).await?;
         let around = match cites(&entries) {
             true => self.logs_around(block, &entries).await?,
@@ -2014,9 +2178,9 @@ impl<S: ObjectStore> Peer<S> {
 
     /// The logs a record in `block`'s log may name its authority in, as far as this device is
     /// served them: the organization's, checked from the root this account pinned, and those of
-    /// the blocks `entries` (the block's log, as served) and each log read so name, by a parent
-    /// record or an authority, at most `be_block_keys::MAX_ANCESTRY` of them. Which block is
-    /// above which, and the root each is checked from, come from the parent records alone
+    /// the blocks the `Authority::Inherited` chains in `entries` (the block's log, as served),
+    /// and in each log read so, name, at most `be_block_keys::MAX_ANCESTRY` of them. Which block
+    /// is above which, and the root each is checked from, come from the parent records alone
     /// (`be_block_keys::answer`), never the server's tree; a log not served is left out.
     async fn logs_around(
         &self,
@@ -2087,27 +2251,17 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(None);
         }
         let level = grant_level(access);
-        let (entries, checked) = self.checked_access(block).await?;
+        let (_, checked) = self.checked_access(block).await?;
         let me = self.keys.account().into_bytes();
         let manages = checked.manager(LogKind::Block, me).is_some();
-        let entries = &entries;
         let checked = &checked;
         let authority = |own: bool| async move {
             match own || manages {
                 true => Ok(Authority::Log),
-                false => self
-                    .logs_around(block, entries)
-                    .await?
-                    .authority(
-                        self.organization,
-                        me,
-                        be_block_keys::Level::Manage,
-                        checked.placement(),
-                    )
-                    .ok_or(ClientError::Refused(
-                        ErrorCode::PermissionDenied,
-                        format!("this account does not manage block {block}"),
-                    )),
+                false => {
+                    self.authority_outside(block, checked, be_block_keys::Level::Manage)
+                        .await
+                }
             }
         };
         // A proof path (served below Edit) signs only the reader's own grant: it hides what any
@@ -3465,29 +3619,21 @@ impl<S: ObjectStore> Peer<S> {
         // A record signed on a log this device never pinned the root of (an administrator's
         // reach through escrow) chains only to the head it names, so the server cannot append
         // it anywhere but the log it served.
-        let (entries, checked) = match self.checked_access(block).await {
+        let checked = match self.checked_access(block).await {
             Err(ClientError::Locked(locked)) if locked == block => {
                 let entries = self.served_log(block).await?;
                 let root = entries
                     .first()
                     .map(be_block_keys::Step::hash)
                     .ok_or(ClientError::Forged(block))?;
-                let checked = self.checked_from(block, root).await?;
-                (entries, checked)
+                self.checked_from(block, root).await?
             }
-            checked => checked?,
+            checked => checked?.1,
         };
         let me = self.keys.account().into_bytes();
         let authority = match checked.holding(LogKind::Block, me, Level::Edit) {
             Some(_) => Authority::Log,
-            None => self
-                .logs_around(block, &entries)
-                .await?
-                .authority(self.organization, me, Level::Edit, checked.placement())
-                .ok_or(ClientError::Refused(
-                    ErrorCode::PermissionDenied,
-                    format!("this account may not edit block {block}"),
-                ))?,
+            None => self.authority_outside(block, &checked, Level::Edit).await?,
         };
         checked
             .next(
@@ -3718,7 +3864,7 @@ impl<S: ObjectStore> Peer<S> {
                 if node.id != block
                     && let BlockParent::Block(listed) = parent_of(&node)?
                 {
-                    self.signed_below(node.id, listed).await?;
+                    self.placed_under(node.id, listed).await?;
                 }
                 if node.id != block && node.scope == Some(node.id) {
                     if let Some(nested) = self.keys.scope_key(node.id)
@@ -3949,32 +4095,21 @@ fn cites(entries: &[be_block_keys::Step]) -> bool {
             entry
                 .record
                 .authority()
-                .is_some_and(|authority| authority != be_block_keys::Authority::Log)
+                .is_some_and(|authority| *authority != be_block_keys::Authority::Log)
         })
 }
 
-/// The blocks a log's whole entries name: where its parent records place it, and where its
-/// records name their signers' right.
+/// The blocks a log's whole entries name as where their signers' right comes from: every block
+/// on an `Authority::Inherited` chain.
 fn named_blocks(entries: &[be_block_keys::Step]) -> impl Iterator<Item = Uuid> + '_ {
-    use be_block_keys::{Authority, Placement, Record};
     entries
         .iter()
         .filter_map(be_block_keys::Step::entry)
-        .flat_map(|entry| {
-            let placed = match &entry.record {
-                Record::Parent(parent) => match parent.placement {
-                    Placement::Block { block, .. } => Some(block),
-                    Placement::Top | Placement::Detached => None,
-                },
-                _ => None,
-            };
-            let cited = match entry.record.authority() {
-                Some(Authority::Inherited { block, .. }) => Some(block),
-                _ => None,
-            };
-            placed.into_iter().chain(cited)
+        .flat_map(|entry| match entry.record.authority() {
+            Some(be_block_keys::Authority::Inherited(chain)) => chain.clone(),
+            _ => Vec::new(),
         })
-        .map(Uuid::from_bytes)
+        .map(|link| Uuid::from_bytes(link.block))
 }
 
 impl Around {
@@ -4000,11 +4135,11 @@ impl Around {
         entries: &[be_block_keys::Step],
     ) -> Option<be_block_keys::Checked> {
         let log = |kind, log| self.log(kind, log);
-        let logs = be_block_keys::Logs {
-            organization: organization.into_bytes(),
-            organization_root: self.organization.as_ref().map(|(root, _)| *root),
-            log: &log,
-        };
+        let logs = be_block_keys::Logs::new(
+            organization.into_bytes(),
+            self.organization.as_ref().map(|(root, _)| *root),
+            &log,
+        );
         let outside = |asked: &be_block_keys::Asked| {
             be_block_keys::answer(&logs, block.into_bytes(), asked)
         };
@@ -4016,47 +4151,5 @@ impl Around {
             &outside,
         )
         .ok()
-    }
-
-    /// Where `account`'s `level` on a block lying at `placement` comes from outside the block's
-    /// own log, as of each log's head: administering the organization, else the nearest block
-    /// above it holding it, walking up the placements the signed parent records give now.
-    fn authority(
-        &self,
-        organization: Uuid,
-        account: [u8; 16],
-        level: be_block_keys::Level,
-        placement: Option<be_block_keys::Placement>,
-    ) -> Option<be_block_keys::Authority> {
-        use be_block_keys::{Authority, LogKind, Placement};
-        if let Some((pinned, entries)) = &self.organization {
-            let checked = be_block_keys::check_log(
-                LogKind::Organization,
-                organization.into_bytes(),
-                *pinned,
-                entries,
-                &|_| None,
-            )
-            .ok()?;
-            if checked.holding(LogKind::Organization, account, level).is_some() {
-                return Some(Authority::Organization(checked.head));
-            }
-        }
-        let mut at = placement;
-        for _ in 0..be_block_keys::MAX_ANCESTRY {
-            let Some(Placement::Block { block, root }) = at else {
-                return None;
-            };
-            let up = Uuid::from_bytes(block);
-            let checked = self.check(organization, up, root, self.held.get(&up)?)?;
-            if checked.holding(LogKind::Block, account, level).is_some() {
-                return Some(Authority::Inherited {
-                    block,
-                    head: checked.head,
-                });
-            }
-            at = checked.placement();
-        }
-        None
     }
 }

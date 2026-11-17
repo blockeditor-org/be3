@@ -130,27 +130,31 @@ pub(crate) fn append_parent(
             "the parent record is signed by its caller and places the block where the call does",
         ));
     }
-    authority_current(connection, organization, placed.authority)?;
+    authority_current(connection, organization, &placed.authority)?;
     append_checked(connection, organization, block, entry)
 }
 
-/// Refuses `authority` unless it names the other log as of its head now: a demotion or
-/// revocation there before the record is never stepped round by naming an older entry.
+/// Refuses `authority` unless it names each other log as of its head now: a demotion or
+/// revocation there before the record is never stepped round by naming an older entry, nor a
+/// move of a block between by naming where it lay before.
 fn authority_current(
     connection: &Connection,
     organization: Uuid,
-    authority: Authority,
+    authority: &Authority,
 ) -> Result<(), ServerError> {
     let head = |kind, log| {
         entries(connection, kind, organization, log).map(|entries| entries.last().map(Entry::hash))
     };
     let current = match authority {
         Authority::Log => true,
-        Authority::Organization(at) => head(LogKind::Organization, organization)? == Some(at),
-        Authority::Inherited {
-            block: above,
-            head: at,
-        } => head(LogKind::Block, Uuid::from_bytes(above))? == Some(at),
+        Authority::Organization(at) => head(LogKind::Organization, organization)? == Some(*at),
+        Authority::Inherited(chain) => {
+            let mut current = true;
+            for link in chain {
+                current &= head(LogKind::Block, Uuid::from_bytes(link.block))? == Some(link.head);
+            }
+            current
+        }
     };
     match current {
         true => Ok(()),
@@ -258,6 +262,16 @@ pub(crate) fn inherited_signers(
             ))
         })
         .collect()
+}
+
+/// Every account that sealed `reader` a key, of any block: those whose right a block above
+/// what the reader views proves too, since one may have sealed it a key below on Edit there.
+pub(crate) fn all_sealers(
+    connection: &Connection,
+    organization: Uuid,
+    reader: Uuid,
+) -> Result<Vec<Uuid>, ServerError> {
+    sealers(connection, LogKind::Organization, organization, organization, reader)
 }
 
 /// The accounts that sealed `reader` a key: of `log`, a block, or of any block for the
@@ -436,7 +450,7 @@ fn insert_entry(
     let accounts = [entry.signer, named];
     match kind {
         LogKind::Block => {
-            if let Some(Authority::Inherited { block: above, .. }) = entry.record.authority() {
+            if let Some(above) = entry.record.authority().and_then(Authority::above) {
                 connection.execute(
                     "INSERT OR IGNORE INTO access_log_authorities
                         (organization_id, above_id, block_id, signer)
@@ -588,11 +602,7 @@ pub(crate) fn checked_block_log(
         |kind: LogKind, log: [u8; 16]| held(connection, kind, organization, Uuid::from_bytes(log));
     let organization_root = held(connection, LogKind::Organization, organization, organization)
         .and_then(|steps| steps.first().map(Step::hash));
-    let logs = Logs {
-        organization: organization.into_bytes(),
-        organization_root,
-        log: &log,
-    };
+    let logs = Logs::new(organization.into_bytes(), organization_root, &log);
     let pinned = entries
         .first()
         .map(Entry::hash)
@@ -658,8 +668,12 @@ pub(crate) fn append_grant(
     let entry = Entry::decode(record).map_err(|_| refused("the record does not read"))?;
     // Opening a kind to anyone inside is an opening record; any other grant names its grantee.
     let (named, granted, authority) = match &entry.record {
-        Record::Grant(grant) => (grant.grantee, grant.level, grant.authority),
-        Record::Opening(opening) => (ANYONE_INSIDE.into_bytes(), opening.level, opening.authority),
+        Record::Grant(grant) => (grant.grantee, grant.level, grant.authority.clone()),
+        Record::Opening(opening) => (
+            ANYONE_INSIDE.into_bytes(),
+            opening.level,
+            opening.authority.clone(),
+        ),
         _ => return Err(refused("access is set by a grant record")),
     };
     if entry.signer != signer.into_bytes()
@@ -676,7 +690,7 @@ pub(crate) fn append_grant(
     {
         return Err(refused("a grant names the keys its grantee holds now"));
     }
-    authority_current(connection, organization, authority)?;
+    authority_current(connection, organization, &authority)?;
     append_checked(connection, organization, block, entry)?;
     connection.execute(
         "DELETE FROM unsigned_revocations

@@ -4,7 +4,7 @@ mod access;
 pub mod aead;
 pub use access::{
     Administrator, Asked, Authority, CarriedKey, Checked, Entry, EntryHash, Grant, Heads, Level,
-    LogKind, Logged, Logs, MAX_ANCESTRY, Member, Named, Opening, Parent, Placement, Record,
+    Link, LogKind, Logged, Logs, MAX_ANCESTRY, Member, Named, Opening, Parent, Placement, Record,
     Reduced, Retirement, Root, Step, StepRef, agent_account, answer, check_log, check_log_as_of,
     proof_path,
 };

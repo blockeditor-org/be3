@@ -446,6 +446,11 @@ pub struct KeptLog {
     /// Each account's level at `head`, as the log named it: what a contact's seal is judged by
     /// while no log can be read (`KeyBook::sender_may`).
     pub levels: Vec<([u8; 16], be_block_keys::Level)>,
+    /// Accounts the log never names that held Edit or above on a block its signed parent
+    /// records place it under, as this device found when one of them sealed it a key
+    /// (`KeyBook::vouch`): whose seals are taken as of a named editor's.
+    #[serde(default)]
+    pub above: Vec<[u8; 16]>,
 }
 
 /// A block's journal on this device, sealed as on the server: what this device's replica

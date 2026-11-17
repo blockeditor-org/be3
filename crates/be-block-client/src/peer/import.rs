@@ -94,7 +94,20 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn upload_import(&self, queued: Queued, mut done: impl FnMut(Uuid, Imported)) {
-        let prepared = queued.prepared;
+        // One whose scope was taken unchecked goes up only through the outbox, which checks it
+        // first (`Creation::unchecked`), with what was made under it.
+        let (prepared, unchecked): (Vec<Prepared>, Vec<Prepared>) = queued
+            .prepared
+            .into_iter()
+            .partition(|ready| !ready.creation.unchecked);
+        for ready in unchecked {
+            done(
+                ready.id,
+                Err(ClientError::Disconnected(
+                    "kept on this device until its place is checked".into(),
+                )),
+            );
+        }
         if !self.is_attached() {
             for ready in prepared {
                 done(

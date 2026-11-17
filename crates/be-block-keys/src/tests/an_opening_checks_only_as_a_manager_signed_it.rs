@@ -81,10 +81,10 @@ fn an_opening_checks_only_as_a_manager_signed_it() {
         member_id,
         root.hash(),
         Level::View,
-        Authority::Inherited {
+        Authority::Inherited(vec![Link {
             block: [8; 16],
             head: [0; 32],
-        },
+        }]),
     );
     let above = |_: &Asked| Some(member.identity().signing);
     let checked = check_log(
