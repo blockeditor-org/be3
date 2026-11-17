@@ -55,8 +55,8 @@ pub use input::{
 };
 pub use keys::{KeyAt, KeyEvent, KeyInput, KeyReveal, KeyTarget};
 pub use layer::{
-    AboveEmbeds, Dismiss, EscapedLayer, HostTransform, LayerEdge, LayerLevel, LayerPlacement,
-    LayerPolicy, LayerSpace, OverlayAnchor, Placement, AnchorAlign, AnchorSide,
+    AboveEmbeds, AnchorAlign, AnchorSide, Dismiss, EscapedLayer, HostTransform, LayerEdge,
+    LayerLevel, LayerPlacement, LayerPolicy, LayerSpace, OverlayAnchor, Placement,
 };
 pub use layout::{
     Align, Align2, CanvasArrangement, CanvasView, Corners, Direction, Extent, ItemSize, Justify,

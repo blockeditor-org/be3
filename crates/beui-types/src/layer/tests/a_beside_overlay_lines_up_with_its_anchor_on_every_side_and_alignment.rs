@@ -29,7 +29,16 @@ fn a_beside_overlay_lines_up_with_its_anchor_on_every_side_and_alignment() {
             );
         }
     }
-    assert_eq!(Placement::BELOW_END, placement(AnchorSide::Below, AnchorAlign::End));
-    assert_eq!(Placement::LEFT_START, placement(AnchorSide::Left, AnchorAlign::Start));
-    assert_eq!(Placement::ABOVE_START, placement(AnchorSide::Above, AnchorAlign::Start));
+    assert_eq!(
+        Placement::BELOW_END,
+        placement(AnchorSide::Below, AnchorAlign::End)
+    );
+    assert_eq!(
+        Placement::LEFT_START,
+        placement(AnchorSide::Left, AnchorAlign::Start)
+    );
+    assert_eq!(
+        Placement::ABOVE_START,
+        placement(AnchorSide::Above, AnchorAlign::Start)
+    );
 }

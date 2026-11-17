@@ -26,7 +26,10 @@ fn every_placement_opens_on_its_side_of_the_anchor_lined_up_by_its_alignment() {
             2 => close(shown.right(), anchor.left() - 4.0),
             _ => close(shown.left(), anchor.right() + 4.0),
         };
-        assert!(on_side, "placement {index} opens 4 points off its side: {shown:?} by {anchor:?}");
+        assert!(
+            on_side,
+            "placement {index} opens 4 points off its side: {shown:?} by {anchor:?}"
+        );
         let lined_up = match (side < 2, align) {
             (true, 0) => close(shown.left(), anchor.left()),
             (true, 1) => close(shown.center().x, anchor.center().x),
@@ -35,7 +38,10 @@ fn every_placement_opens_on_its_side_of_the_anchor_lined_up_by_its_alignment() {
             (false, 1) => close(shown.center().y, anchor.center().y),
             (false, _) => close(shown.bottom(), anchor.bottom()),
         };
-        assert!(lined_up, "placement {index} lines up by its alignment: {shown:?} by {anchor:?}");
+        assert!(
+            lined_up,
+            "placement {index} lines up by its alignment: {shown:?} by {anchor:?}"
+        );
     }
     test.snapshot("every_placement_opens_on_its_side_of_the_anchor_lined_up_by_its_alignment");
 }

@@ -381,7 +381,15 @@ pub fn resolve_rect(
         margin,
     } = placement
     {
-        return beside(viewport, anchor_rect, side, align, gap, margin, content_size);
+        return beside(
+            viewport,
+            anchor_rect,
+            side,
+            align,
+            gap,
+            margin,
+            content_size,
+        );
     }
     if let Placement::Fill | Placement::Edge(_) = placement {
         return viewport;
@@ -616,7 +624,9 @@ impl OverlayAnchor {
 /// opens on, so it opens just past the band while lining up with the node.
 pub fn banded(node: Rect, band: Rect, placement: Placement) -> Rect {
     match placement.side().map(AnchorSide::vertical) {
-        Some(true) => Rect::from_min_max(pos2(node.min.x, band.min.y), pos2(node.max.x, band.max.y)),
+        Some(true) => {
+            Rect::from_min_max(pos2(node.min.x, band.min.y), pos2(node.max.x, band.max.y))
+        }
         Some(false) => {
             Rect::from_min_max(pos2(band.min.x, node.min.y), pos2(band.max.x, node.max.y))
         }
