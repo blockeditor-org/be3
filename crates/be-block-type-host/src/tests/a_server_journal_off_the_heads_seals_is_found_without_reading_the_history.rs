@@ -16,6 +16,7 @@ async fn seal(
     parent: Option<CommitId>,
     text: &str,
     through: u64,
+    restarts: u64,
 ) -> CommitId {
     let mut content = base();
     content.set(0, text);
@@ -23,7 +24,7 @@ async fn seal(
         Some(SealedThrough {
             sequence: through,
             offline: false,
-            restarts: 0,
+            restarts,
         }),
     );
     match peer.seal(block, write).await.expect("the seal is kept") {
@@ -77,7 +78,8 @@ fn opened(
 
 /// Opening on the server's journal looks down the head's seals for the one made on the
 /// journal's base, but only as far as the base's number: a block's history is long, and a head
-/// that lags behind the base, or a base off its seals, is answered from the head's own seal.
+/// that lags behind the base, or a base off its seals, is answered from the head's own seal,
+/// and a walk the base's number cannot stop ends at a fixed depth.
 #[test]
 fn a_server_journal_off_the_heads_seals_is_found_without_reading_the_history() {
     with_test_types(|peer, _, _| async move {
@@ -86,12 +88,12 @@ fn a_server_journal_off_the_heads_seals_is_found_without_reading_the_history() {
         let mut chain = Vec::new();
         let mut parent = root;
         for sequence in 1..=40 {
-            let commit = seal(&peer, block, parent, &format!("seal {sequence}"), sequence).await;
+            let commit = seal(&peer, block, parent, &format!("seal {sequence}"), sequence, 0).await;
             chain.push(commit);
             parent = Some(commit);
         }
         let head = chain[39];
-        let off = seal(&peer, block, root, "elsewhere", 37).await;
+        let off = seal(&peer, block, root, "elsewhere", 37, 0).await;
 
         assert_eq!(
             opened(&peer, block, journal(Some(off), 37, 39), head),
@@ -107,6 +109,21 @@ fn a_server_journal_off_the_heads_seals_is_found_without_reading_the_history() {
             opened(&peer, block, journal(Some(chain[19]), 20, 22), head),
             (Some(chain[19]), Some((chain[20], 21)), 20),
             "the seal made on the base, found below the head"
+        );
+
+        // A journal started afresh has no state, so its run reads as the first: seals of a
+        // later run above it never fall below its number, and only the depth stops the walk.
+        let mut parent = Some(head);
+        for sequence in 1..=100 {
+            parent = Some(seal(&peer, block, parent, &format!("run 1, {sequence}"), sequence, 1).await);
+        }
+        let (load_at, sealed_head, read) =
+            opened(&peer, block, journal(Some(off), 0, 2), parent.expect("sealed"));
+        assert_eq!((load_at, sealed_head), (Some(off), None));
+        assert_eq!(
+            read,
+            2 + crate::replicas::SEAL_WALK as u64,
+            "seals of a later run are read only as deep as the backstop"
         );
     });
 }
