@@ -15,7 +15,8 @@ async fn changes(
         changed: since,
         block: Uuid::max(),
     };
-    for _ in 0..100 {
+    // A page looks at only so many changes in tests (`MAX_SCANNED`), and trashed blocks stay.
+    for _ in 0..1_000 {
         let page = client
             .call(|peer| peer.ask::<be_block_protocol::ChangedPage>(be_block_protocol::Query::Tree { entry: root, after: after.clone(), limit: limit }, false))
             .await

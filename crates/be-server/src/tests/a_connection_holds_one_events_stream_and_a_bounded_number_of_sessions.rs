@@ -7,9 +7,9 @@ async fn a_connection_holds_one_events_stream_and_a_bounded_number_of_sessions()
     let mut member = harness.member("member@example.com").await;
     member.personal().await;
 
+    let mut first = member.heard.take().expect("signing in opened the events");
     let mut second = client::server::events(&member.peer);
     member.round_trip().await;
-    let mut first = member.heard.take().expect("signing in opened the events");
     assert!(first.recv().await.is_none());
     assert_eq!(
         first.ended(),

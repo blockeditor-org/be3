@@ -49,9 +49,12 @@ async fn a_publish_pushes_the_new_storage_usage_to_its_payer() {
     }
 
     let mut stranger = harness.client().await;
-    let refused = stranger.storage().await;
+    let refused = stranger
+        .peer
+        .read::<be_block_protocol::AccountStorage>(Query::Storage)
+        .await;
     assert!(
-        refused.is_err(),
+        !matches!(refused, Ok(Ok(_))),
         "a connection that has not signed in is refused: {refused:?}"
     );
     stranger.ended().await;

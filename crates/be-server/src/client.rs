@@ -1227,11 +1227,24 @@ impl Client {
                 entry,
                 after,
                 limit,
-            } => Page::Tree(
-                store
-                    .changed_since(admitted.identity()?, entry, after, limit)
-                    .await?,
-            ),
+            } => {
+                let identity = admitted.identity()?;
+                let page = store.changed_since(identity, entry, after, limit).await?;
+                // A read to the end of a tree the connection follows lets the next change be
+                // told, whether or not this read follows it (`event.tree-advanced`).
+                if page.next.is_none() {
+                    let place = Place {
+                        organization: identity.organization,
+                        block: entry,
+                    };
+                    let connection = &self.connection;
+                    connection
+                        .hub
+                        .read(connection.client, place, page.sequence)
+                        .await;
+                }
+                Page::Tree(page)
+            }
             Query::History(block) => {
                 Page::History(store.list_history(admitted.identity()?, block).await?)
             }
@@ -2214,13 +2227,17 @@ impl Connection {
             return Ok(());
         }
         self.store.resolve_token(token).await?;
-        if let (Some(account), Some(_)) = (self.account, self.bound)
-            && !self.hub.is_live(account, self.client)
-        {
-            return Err(ServerError::Refused(
-                ErrorCode::NotAuthenticated,
-                "this agent signed in on another connection".into(),
-            ));
+        if let (Some(account), Some((organization, block))) = (self.account, self.bound) {
+            if !self.hub.is_live(account, self.client) {
+                return Err(ServerError::Refused(
+                    ErrorCode::NotAuthenticated,
+                    "this agent signed in on another connection".into(),
+                ));
+            }
+            // A connection working in its organization stops once its block is in the trash.
+            if self.hub.identity(self.client, organization).await.is_some() {
+                self.store.require_bound_live(organization, block).await?;
+            }
         }
         self.checked = Some(version);
         Ok(())
