@@ -851,6 +851,9 @@ pub struct Replicas<H: Host> {
     /// Blocks `open` gives up on with this reason, as one whose join the server refused would.
     #[cfg(test)]
     pub(crate) refuse_opening: HashMap<Uuid, String>,
+    /// Blocks `start` once finds kept edits of that stopped opening since `open` checked them.
+    #[cfg(test)]
+    pub(crate) kept_stop_opening: HashSet<Uuid>,
     /// What peers' relayed messages said, unsealed.
     #[cfg(test)]
     heard_from_peers: Vec<Vec<u8>>,
@@ -912,6 +915,8 @@ impl<H: Host> Replicas<H> {
             openings: Vec::new(),
             #[cfg(test)]
             refuse_opening: HashMap::new(),
+            #[cfg(test)]
+            kept_stop_opening: HashSet::new(),
             #[cfg(test)]
             heard_from_peers: Vec::new(),
             leaving: Vec::new(),
@@ -1277,7 +1282,11 @@ impl<H: Host> Replicas<H> {
                             self.join_later(replica, block, joining, arrivals);
                             return Ok(());
                         }
-                        None => return self.unstarted(shared, block, content_type),
+                        None => {
+                            return self
+                                .unstarted((peer, shared), block, content_type, reader)
+                                .await;
+                        }
                     }
                 }
             }
@@ -1372,7 +1381,9 @@ impl<H: Host> Replicas<H> {
             sealed_head,
             offline,
         ) else {
-            return self.unstarted(shared, block, content_type);
+            return self
+                .unstarted((peer, shared), block, content_type, reader)
+                .await;
         };
         self.tell_marked(shared, replica);
         if offline {
@@ -1388,14 +1399,16 @@ impl<H: Host> Replicas<H> {
         Ok(())
     }
 
-    /// Why `start` opened no replica of `block`: one is open already, no module here serves
-    /// the type, or its kept edits stopped opening since `open` checked them, so it waits for
-    /// their keys as a locked block does (`unlock` answers it, for the host to open again).
-    fn unstarted(
+    /// Answers `open` when `start` opened no replica of `block`: one is open already, no
+    /// module here serves the type, or its kept edits stopped opening since `open` checked
+    /// them, which it opens again to sort out as it does any (waiting for their keys, or
+    /// setting them aside); that open finds them failing, so it does not come back here.
+    async fn unstarted(
         &mut self,
-        shared: &Arc<Mutex<H>>,
+        (peer, shared): Ctx<'_, H>,
         block: Uuid,
         content_type: Uuid,
+        reader: bool,
     ) -> Result<(), String> {
         if self.blocks.contains_key(&block) {
             return Ok(());
@@ -1403,8 +1416,7 @@ impl<H: Host> Replicas<H> {
         if self.modules.module_of(content_type).is_none() {
             return Err(NO_MODULE.to_owned());
         }
-        self.lock(shared, block);
-        Ok(())
+        Box::pin(self.open((peer, shared), block, content_type, reader)).await
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1431,6 +1443,10 @@ impl<H: Host> Replicas<H> {
         let organization = peer.organization();
         let joining = session.owner == Some(JOINING_OWNER);
         let tag = self.modules.tag(module);
+        #[cfg(test)]
+        if self.kept_stop_opening.remove(&block) {
+            return None;
+        }
         let kept = kept_commits(peer, block);
         // Local edits no journal held when the host last stopped: given again under the same
         // origin, so those the server's order holds are found there. Before joining, those it
@@ -3800,6 +3816,8 @@ impl<H: Host> Replicas<H> {
                 .open((peer, shared), block, open.content_type, open.reader)
                 .await
             {
+                // Editors attached to a block that opened no replica (it waits for keys or a
+                // connection) hear nothing until one opens.
                 Ok(()) => {
                     for (editor, editable) in editors {
                         self.attach(block, editor, editable);

@@ -29,14 +29,14 @@ fn an_editor_of_a_replica_that_cannot_open_again_is_told_it_failed_and_the_block
             .refuse_opening
             .insert(block, "the server refused it".to_owned());
         replicas.reopen(block);
-        let released = |shared: &Arc<Mutex<Quiet>>| shared.lock().unwrap().released.contains(&block);
-        let waited = tokio::time::timeout(std::time::Duration::from_secs(30), async {
-            while !released(&shared) {
-                step(&peer, &shared, &mut replicas).await;
-            }
-        })
+        step_until_replicas(
+            &peer,
+            &shared,
+            &mut replicas,
+            "let the block go",
+            |_, shared| shared.lock().unwrap().released.contains(&block),
+        )
         .await;
-        assert!(waited.is_ok(), "never let the block go");
         assert!(!replicas.is_open(block));
         assert!(
             shared.lock().unwrap().counted > counted,

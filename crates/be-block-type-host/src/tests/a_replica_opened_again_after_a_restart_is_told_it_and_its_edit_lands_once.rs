@@ -37,7 +37,7 @@ fn a_replica_opened_again_after_a_restart_is_told_it_and_its_edit_lands_once() {
             &shared,
             &mut replicas,
             "settled the edit",
-            |replicas| {
+            |replicas, _| {
                 replicas
                     .submissions_of(block)
                     .is_some_and(|(submitting, restarts, _)| submitting == 0 && restarts >= 1)

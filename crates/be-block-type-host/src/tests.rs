@@ -39,6 +39,7 @@ mod an_edit_sent_after_its_replica_made_a_clean_status_is_given_again_on_joining
 mod an_edit_submitted_before_its_edits_were_kept_by_an_idle_pass_is_known_after_a_crash;
 mod an_editor_attached_when_its_replica_reopens_is_sent_the_content_again;
 mod an_editor_of_a_replica_that_cannot_open_again_is_told_it_failed_and_the_block_released;
+mod a_block_whose_kept_edits_stop_opening_as_its_replica_starts_opens_again_unlocked;
 mod an_editor_reads_no_part_of_another_block_its_replica_was_not_handed;
 mod an_editor_reattached_across_joining_is_sent_a_snapshot_holding_what_was_given_again;
 mod news_of_a_block_whose_head_stayed_moves_no_replica;
@@ -62,6 +63,8 @@ struct Quiet {
     released: Vec<Uuid>,
     /// How many times the replicas were counted.
     counted: usize,
+    /// The blocks found locked, until keys arrive.
+    locked: std::collections::HashSet<Uuid>,
 }
 
 impl Host for Quiet {
@@ -86,7 +89,13 @@ impl Host for Quiet {
         eprintln!("{message}");
     }
 
-    fn set_locked(_: &Arc<Mutex<Self>>, _: Uuid, _: bool) {}
+    fn set_locked(shared: &Arc<Mutex<Self>>, block: Uuid, locked: bool) {
+        let mut held = shared.lock().unwrap();
+        match locked {
+            true => held.locked.insert(block),
+            false => held.locked.remove(&block),
+        };
+    }
 
     fn set_marked(_: &Arc<Mutex<Self>>, _: Uuid, _: bool) {}
 
@@ -523,10 +532,10 @@ async fn step_until_replicas(
     shared: &Arc<Mutex<Quiet>>,
     replicas: &mut Replicas<Quiet>,
     what: &str,
-    done: impl Fn(&Replicas<Quiet>) -> bool,
+    done: impl Fn(&Replicas<Quiet>, &Arc<Mutex<Quiet>>) -> bool,
 ) {
     let waited = tokio::time::timeout(std::time::Duration::from_secs(30), async {
-        while !done(replicas) {
+        while !done(replicas, shared) {
             step(peer, shared, replicas).await;
         }
     })
@@ -600,7 +609,7 @@ async fn carry_an_edit_over_a_restart(
         shared,
         replicas,
         "had the growth ordered",
-        |replicas| {
+        |replicas, _| {
             heard_entries_of(peer, block) >= 1
                 && replicas
                     .submissions_of(block)
@@ -631,7 +640,7 @@ async fn carry_an_edit_over_a_restart(
     })
     .await;
     let added = last_kept(replicas, block);
-    step_until_replicas(peer, shared, replicas, "heard the restart", |replicas| {
+    step_until_replicas(peer, shared, replicas, "heard the restart", |replicas, _| {
         replicas
             .submissions_of(block)
             .is_some_and(|(_, restarts, _)| restarts >= 1)
