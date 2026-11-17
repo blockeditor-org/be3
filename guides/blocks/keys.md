@@ -213,9 +213,12 @@ maker through every sender (`KeyBook::heads`).
   any key, so one made after a demotion still gets the settings' keys. A
   device about to write or wrap under a data or scope key its log outdates
   rotates the scope first (`Peer::sealing_key`, `scope_key`), judging by the
-  log as it last checked it (key work, sealing, a contact's seal or a rotation
-  reads it): until it reads the log again it writes under an epoch a
-  revocation since outdates. An escrow epoch the organization's log outdates
+  logs of the scope and of every scope above it the key was opened through
+  (`KeyBook::logs_to_read`, `Roots::through`), as it last checked them (key
+  work, sealing, a contact's seal or a rotation reads them; one it never read
+  since starting, it reads first): until it reads a log again it writes under
+  an epoch a revocation since outdates, and offline, with no log read, it
+  judges nothing. An escrow epoch the organization's log outdates
   is wrapped under no more, so keys wait unescrowed for the next, with no
   warning (the gap after a demotion is no fault). So an epoch a server got a
   withheld device to make, naming a head before a revocation, is not written

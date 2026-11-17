@@ -77,9 +77,10 @@ struct Roots {
     /// Each block's log as this device last checked it (`KeyBook::note_log`): the heads a key
     /// minted here names, and what a contact's seal is checked against (`sender_may`).
     logs: HashMap<Uuid, Checked>,
-    /// The key each key this device took through a wrap under another key was opened through:
-    /// an epoch opened through an outdated one is outdated too (`KeyBook::outdated`).
-    through: HashMap<Uuid, Uuid>,
+    /// The keys each key this device took through a wrap under another key was opened
+    /// through, every one: an epoch opened through an outdated one is outdated too
+    /// (`KeyBook::outdated`).
+    through: HashMap<Uuid, Vec<Uuid>>,
 }
 
 /// What a device holds of a block's access log root.
@@ -97,6 +98,26 @@ pub enum RootPin {
 }
 
 impl Roots {
+    /// `key`, a key of `block`'s scope, and every key it was opened through, each with the
+    /// scope it is a key of, up every path (`through`).
+    fn path(&self, key: Uuid, block: Uuid) -> Vec<(Uuid, Uuid)> {
+        let mut found = vec![(key, block)];
+        let mut at = 0;
+        // As deep as the scopes above; a cycle would be a forged one, cut by `found`.
+        while at < found.len() && found.len() < 256 {
+            let (key, _) = found[at];
+            for by in self.through.get(&key).into_iter().flatten() {
+                if let Some(scope) = self.blocks.get(by)
+                    && !found.iter().any(|(seen, _)| seen == by)
+                {
+                    found.push((*by, *scope));
+                }
+            }
+            at += 1;
+        }
+        found
+    }
+
     fn conflict(&mut self, block: Uuid) {
         self.pinned.remove(&block);
         self.weak.remove(&block);
@@ -926,40 +947,39 @@ impl KeyBook {
     /// whoever's head it names (`Roots::through`).
     pub fn outdated(&self, key: Uuid, block: Uuid) -> bool {
         let roots = self.roots.lock().unwrap();
-        let mut at = (key, block);
-        // A chain of wraps is as deep as the scopes above; a cycle would be a forged one.
-        for _ in 0..64 {
-            let (key, block) = at;
-            if let Some(log) = roots.logs.get(&block) {
-                let head = roots.heads.get(&key).and_then(|heads| heads.block);
-                let outdated = match head.filter(|head| log.holds(head)) {
-                    Some(head) => log.outdates(&head),
-                    None => log.last_lowering > 0,
-                };
-                if outdated {
-                    return true;
-                }
+        roots.path(key, block).into_iter().any(|(key, block)| {
+            let Some(log) = roots.logs.get(&block) else {
+                return false;
+            };
+            let head = roots.heads.get(&key).and_then(|heads| heads.block);
+            match head.filter(|head| log.holds(head)) {
+                Some(head) => log.outdates(&head),
+                None => log.last_lowering > 0,
             }
-            let Some(by) = roots.through.get(&key) else {
-                return false;
-            };
-            let Some(scope) = roots.blocks.get(by) else {
-                return false;
-            };
-            at = (*by, *scope);
-        }
-        true
+        })
     }
 
-    /// Whether `key` names a head of `block`'s log, as this device last checked it, that the
-    /// log does not reach: reading the log again may reach it.
-    pub fn names_unheld(&self, key: Uuid, block: Uuid) -> bool {
+    /// The scopes whose logs `outdated` judges `key`, of `block`'s scope, by, that this device
+    /// has not checked, or whose log does not reach the head the key there names: what
+    /// `Peer::outdated` reads first.
+    pub fn logs_to_read(&self, key: Uuid, block: Uuid) -> Vec<Uuid> {
         let roots = self.roots.lock().unwrap();
-        let head = roots.heads.get(&key).and_then(|heads| heads.block);
-        match (roots.logs.get(&block), head) {
-            (Some(log), Some(head)) => !log.holds(&head),
-            _ => false,
-        }
+        let mut found: Vec<Uuid> = roots
+            .path(key, block)
+            .into_iter()
+            .filter(|(key, block)| match roots.logs.get(block) {
+                None => true,
+                Some(log) => roots
+                    .heads
+                    .get(key)
+                    .and_then(|heads| heads.block)
+                    .is_some_and(|head| !log.holds(&head)),
+            })
+            .map(|(_, block)| block)
+            .collect();
+        found.sort();
+        found.dedup();
+        found
     }
 
     /// The key `bytes` opened to, when they carry the block `row` is a key of. A trusted key
@@ -1170,12 +1190,11 @@ impl KeyBook {
                 let bytes = self.ring.open(&wrap.sealed).ok()?;
                 let mut opened = self.opened(row, &bytes, vouched)?;
                 if vouched {
-                    self.roots
-                        .lock()
-                        .unwrap()
-                        .through
-                        .entry(wrap.key)
-                        .or_insert(by);
+                    let mut roots = self.roots.lock().unwrap();
+                    let through = roots.through.entry(wrap.key).or_default();
+                    if !through.contains(&by) {
+                        through.push(by);
+                    }
                 }
                 opened.through_server = through_server;
                 opened.under_owner_only = self.owner_only_covers(by);
