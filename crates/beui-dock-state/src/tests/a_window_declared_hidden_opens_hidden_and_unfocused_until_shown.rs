@@ -29,7 +29,10 @@ fn a_window_declared_hidden_opens_hidden_and_unfocused_until_shown() {
 
     state.reconcile(&later);
     state.show(TabId::new(2));
-    assert!(!state.is_tab_hidden(TabId::new(2)), "showing its tab shows it");
+    assert!(
+        !state.is_tab_hidden(TabId::new(2)),
+        "showing its tab shows it"
+    );
     assert_eq!(state.focused_tab(), Some(TabId::new(2)));
 
     state.reconcile(&later);

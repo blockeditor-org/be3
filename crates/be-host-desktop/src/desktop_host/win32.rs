@@ -10,8 +10,8 @@ use beui::native::{Document, draw_gpu};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{
-    NodeId, Pos2, Rect, Vec2, WindowPlacement,
-    WindowReport, WindowRole, native::Context, native::Drawing, native::Setup,
+    NodeId, Pos2, Rect, Vec2, WindowPlacement, WindowReport, WindowRole, native::Context,
+    native::Drawing, native::Setup,
 };
 
 use crate::programs::ProgramSource;
