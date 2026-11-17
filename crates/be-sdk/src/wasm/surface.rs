@@ -148,22 +148,22 @@ impl Surfaces {
         if let Some((gpu, format)) = &self.gpu
             && !ran.painting.is_empty()
         {
-            let painted: Vec<u32> = ran
-                .painting
-                .iter()
-                .map(|placement| placement.surface)
-                .collect();
+            let painted = ran.painting.clone();
             let damage =
                 self.panes
                     .paint(&gpu.device, &gpu.queue, *format, screens, ran.painting)?;
-            for surface in painted {
-                self.fresh.remove(&surface);
+            for placement in &painted {
+                self.fresh.remove(&placement.surface);
             }
             let sequence = PRESENTS.with(|presents| {
                 presents.set(presents.get() + 1);
                 presents.get()
             });
-            presented = Some(PresentedFrame { sequence, damage });
+            presented = Some(PresentedFrame {
+                sequence,
+                damage,
+                painted,
+            });
         }
         Ok(PresentCommit {
             serial,
