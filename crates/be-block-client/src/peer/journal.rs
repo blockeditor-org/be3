@@ -62,6 +62,16 @@ impl<S: ObjectStore> Peer<S> {
         Ok(self.refs.submitted_held(block, keys)?)
     }
 
+    /// The server refused the submissions holding the announcements `keys` name, as this
+    /// account may not edit the block: they are never sent.
+    pub fn submitted_refused(
+        &self,
+        block: Uuid,
+        keys: &std::collections::HashSet<String>,
+    ) -> Result<(), ClientError> {
+        Ok(self.refs.submitted_refused(block, keys)?)
+    }
+
     /// Keeps an entry the server's order numbered (sealed, as it arrived) in this device's
     /// journal, so a replica opened offline later opens on what this device heard.
     pub fn heard_entry(

@@ -1,9 +1,10 @@
 use super::*;
 
 /// Edits made to an open block whose edit access was taken away meanwhile are set aside among
-/// the unsent edits. Discarded, they take the edits this device kept of the block with them,
-/// and its open replica closes: what it made after is sealed as it closes and set aside in its
-/// turn, and once that is discarded too nothing keeps the block from being forgotten.
+/// the unsent edits, and its replica, rejoined as a viewer's, shows what the server holds. What
+/// is typed on is refused and given up rather than shown as sending for ever. Discarded, the
+/// unsent edits take the edits this device kept of the block with them, and once its replica
+/// closes nothing keeps the block from being forgotten.
 #[test]
 fn discarding_the_unsent_edits_of_a_block_demoted_mid_edit_leaves_nothing_of_it_kept() {
     let harness = Harness::relayed();
@@ -75,26 +76,35 @@ fn discarding_the_unsent_edits_of_a_block_demoted_mid_edit_leaves_nothing_of_it_
             .iter()
             .any(|unsent| unsent.block == block && unsent.refused.is_none())
     });
-    // Typed on, as the replica still takes edits it can no longer send.
+    // Rejoined as a viewer, the replica follows the server's order, which holds none of what
+    // was set aside: that shows among the unsent edits instead, until it is discarded. Until it
+    // rejoins, its made-up session shows 3.
+    wait_for_count(block, 1);
+    // Typed on, as the host still operates on it: the server refuses the edit, as this account
+    // may not edit the block, and the replica gives it up, showing what the server holds and
+    // owing nothing.
     add(block, 4);
-    wait_for_count(block, 7);
+    wait_until("gave up the edit the server refused", |held| {
+        held.pending() == 0 && held.unsealed == 0 && counted(held, block) == Some(1)
+    });
+    // And kept nothing of it to give a replica opened again, which would send it again.
+    wait_until("kept none of the refused edit", |held| {
+        held.peer.as_ref().is_some_and(|peer| {
+            peer.open_edits(block)
+                .is_none_or(|(kept, _)| kept.edits.is_empty() && kept.submissions.is_empty())
+        })
+    });
     crate::discard_unsent(block);
     wait_until("discarded the unsent edits", |held| {
         !held.unsent.iter().any(|unsent| unsent.block == block)
     });
     crate::close(block);
     flush();
-    // What the replica made after the edits it was given was sealed as it closed, and set aside
-    // in its turn unless it went with them: shown, never kept out of sight.
-    wait_until("closed it and sent or set aside what it made", |held| {
+    // A viewer's replica seals nothing as it closes: nothing is set aside again.
+    wait_until("closed it", |held| {
         held.waiting == 0 && !held.blocks.contains_key(&block)
     });
-    if crate::unsent().iter().any(|unsent| unsent.block == block) {
-        crate::discard_unsent(block);
-        wait_until("discarded it", |held| {
-            !held.unsent.iter().any(|unsent| unsent.block == block)
-        });
-    }
+    assert!(!crate::unsent().iter().any(|unsent| unsent.block == block));
     // Nothing keeps it: what it still lists of the block, which it may view, is learned again.
     wait_until("kept nothing that keeps the block", |held| {
         held.peer.as_ref().is_some_and(|peer| {

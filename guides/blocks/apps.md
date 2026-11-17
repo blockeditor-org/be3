@@ -103,7 +103,10 @@ or not, and keeps each until the server holds it (`be-sdk-type-guest/src/lacking
   is answered (its bytes are not kept past 1 MiB: the editor sees only that
   something is sending);
 - one the order passed over (based before a barrier) fails, until the editor
-  lets it go;
+  lets it go, and so does one the server refused as this account may not edit
+  the block (`submitted.refused`): the replica stops showing it, what it
+  announces is never sent, and what is typed after goes on to be refused in
+  turn;
 - in a commit kept in this device's outbox (`publish-outcome.kept`), until the
   host says it `drained`, naming the head a drain published (the outbox
   publishes in order, so every commit kept up to it drained, and one kept after

@@ -139,6 +139,8 @@ pub(crate) enum Outcome {
     Held,
     Kept,
     Failed(String),
+    /// Refused for want of edit access: it never reaches the order.
+    Refused(String),
 }
 
 pub(crate) enum Input {
@@ -3221,7 +3223,7 @@ where
             .find(|sent| sent.id.counter == counter)
             .and_then(|sent| sent.reply.take());
         if let Some(id) = reply {
-            let made = !matches!(outcome, Outcome::Failed(_));
+            let made = !matches!(outcome, Outcome::Failed(_) | Outcome::Refused(_));
             self.reply(id, Answer::Changed(made));
         }
         match outcome {
@@ -3233,6 +3235,20 @@ where
                 // refused for a key not on the device yet is not failed: the host holds it and
                 // submits it again once the key arrives.)
                 self.error(format!("an edit did not reach the session: {error}"));
+            }
+            Outcome::Refused(error) => {
+                // This account may not edit the block: sent again, it would be refused again.
+                // It is given up as one the order passed over, shown as failed to its editors
+                // until they let it go, and what is typed after goes on to be refused in turn.
+                self.error(format!("an edit was not sent: {error}"));
+                let at = self.pending.iter().position(|sent| sent.id.counter == counter);
+                if at.and_then(|at| self.pending.remove(at)).is_some() {
+                    self.lacking.dropped(counter);
+                    self.in_flight = 0;
+                    self.rebuild_visible();
+                    self.cover_if_settled();
+                    self.jobs.push_back(Job::Unblocked);
+                }
             }
         }
     }

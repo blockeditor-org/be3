@@ -97,8 +97,12 @@ interface host {
         /// until a commit that holds it reaches it.
         kept,
         /// It did not reach the order (the connection dropped, or the server
-        /// refused it): the replica hears nothing of it.
+        /// refused it for now): the replica hears nothing of it.
         failed(string),
+        /// The server refused it because this account may not edit the block:
+        /// it never reaches the order, so the replica gives it up as one the
+        /// order passed over.
+        refused(string),
     }
 
     /// The lease holder of `generation` sealed the order through `base`: the

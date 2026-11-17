@@ -165,6 +165,18 @@ impl Refs {
         })
     }
 
+    /// The server refused the submissions holding the announcements named: they are never sent.
+    pub fn submitted_refused(
+        &self,
+        block: Uuid,
+        keys: &HashSet<String>,
+    ) -> Result<(), StoreError> {
+        self.update_announcements(block, |key, until| match until {
+            Until::Submitted if keys.contains(key) => Some(None),
+            _ => None,
+        })
+    }
+
     /// The journal of `block` starts from a commit holding the order up to `sequence`: what
     /// waited in it up to there goes with that commit when this device sealed it (`own`), kept
     /// in the outbox (`kept`) or already on the server; anything after stays in the journal.

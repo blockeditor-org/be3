@@ -177,7 +177,9 @@ host owes a replica (the WIT documents each call):
   current one: an earlier opening made it.
 - **The order.** `submit` hands the session's order a submission and answers
   `held` once the server numbered it, `kept` when this device numbered it
-  offline, or `failed`; every replica hears what is numbered through
+  offline, `failed` (it may go again once the replica reopens), or `refused`
+  when this account may not edit the block, which the replica gives up as one
+  the order passed over; every replica hears what is numbered through
   `replica.sequenced`, in order, its own too. The host keeps what it hears in
   this device's journal, and opens a replica again (rejoining) when it fell
   behind what the server sent.
