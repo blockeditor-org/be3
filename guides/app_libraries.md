@@ -149,7 +149,7 @@ worker may start or end a thread.
 
 `crates/be-tool-tls-diamond-{base,left,right,app}` are an app reaching a
 thread-local in each of three libraries, now on its one thread, run natively
-on V8 (`the_thread_local_diamond_runs_on_every_thread`) and in Chromium
+on V8 (`the_thread_local_diamond_runs_on_its_one_thread`) and in Chromium
 (`//crates/be-tool-tls-diamond-app:web-test`).
 
 ## Loading
