@@ -579,7 +579,9 @@ fn operate(
     mirror: &mut be_sdk_type_guest::editor::EditorMirror<Tally>,
     operation: TallyOp,
 ) {
-    let message = mirror.operate(None, operation).expect("the editor has content");
+    let message = mirror
+        .operate(None, operation)
+        .expect("the editor has content");
     replicas.relay_from_editor(block, editor, message.encode(), std::time::Instant::now());
 }
 
@@ -716,7 +718,7 @@ async fn text_whose_rejoin_is_held(
     replicas.relay_from_editor(
         block,
         editor,
-        FromEditor::Operate(TextContent::encode_operation(&typed)).encode(),
+        FromEditor::Operate { gesture: None, operation: TextContent::encode_operation(&typed) }.encode(),
         std::time::Instant::now(),
     );
     replicas.pump((peer, shared)).await;
