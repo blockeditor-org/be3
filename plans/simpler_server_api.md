@@ -16,12 +16,9 @@ S3 object URLs.
 
 Much of the server exists for concepts a client can own: the session lease
 (generations, expiry, heartbeats, `clean-at`, and a registry that remembers
-empty sessions only for a `clean-at` no client reads), per-connection listing
-state in `watch.rs` (`Facts`, `Links` and their generation, `REFUSED_LISTINGS`,
-`moved-references` and its digest), contact rows the account seals for itself,
-account notices, pending key changes, which organization a connection has
-open, and a server-wide `revision` beside the per-organization
-`change_sequence`.
+empty sessions only for a `clean-at` no client reads), contact rows the account
+seals for itself, account notices, pending key changes, and which organization a
+connection has open.
 
 What the server keeps, because security or storage charging needs it: accounts
 (tokens, agents); organizations (membership and roles, from the signed
@@ -220,54 +217,12 @@ guides/type_modules.md (the replica's lease and heartbeat).
 
 ### 2. Following whole trees, with one organization sequence
 
-A connection follows trees, not listings; the server tells it "tree X
-advanced to sequence N" and the client reads `changed-since` from its cursor.
-The durable `organizations.change_sequence` replaces the server-wide
-`revision`.
-
-- **What a client follows** is an entry point: a top-level block, or a block
-  someone can view whose parent they cannot (Shared with me). The hub keeps,
-  per connection, only the set of entries it follows (bounded, as listings are
-  now), and on each change sends `tree-advanced` to the followers of the
-  change's top-level block and of every granted block on its path, latest
-  value per entry, so a burst is one event.
-- **Departures.** `block_departures` is keyed by the top-level root today, and
-  a move within one tree writes none. A reader following a granted subtree
-  must hear of a block moved out of it within the same tree, so a departure is
-  written for the top-level root and for every block on the old path that
-  carries a grant (those are the only entry points below the top). That is
-  bounded by the grants on one path, not the depth.
-- **Reading.** `changed-since` takes an entry rather than a top-level root,
-  and filters by the entry's subtree. Summaries carry the block's `changed`
-  sequence instead of `revision`; replies and events are ordered by it, per
-  organization. A client still reads only what it shows: a listing
-  (children, backrefs, open settings) is a plain read answering the sequence
-  it was read at, and the mirror applies a `changed-since` page only to the
-  blocks it holds, so the host still never lists the whole organization.
-- **One block, its heads.** The `block` listing goes; an open block's tree
-  advances with each publish, and a live session's events say which head
-  holds which number.
-- **Roots.** Shared with me and the trash change when a grant or a move does;
-  the account hears `topic-changed(roots)` and reads them again.
-
-Removed: `unlist`, `listing.block`, list-blocks' registering (it stays a plain
-paged read until 3a turns it into queries), the `changes` stream's
-`block-change`, `block-changed`, `changed-references`, `moved-references` and
-its digest, `block-summary.revision`, `listed.revision`,
-`revision_floor`, `Facts`, `Links`, `REFUSED_LISTINGS`,
-`MAX_LISTINGS_PER_CONNECTION`, and the client's `Held` and `hold_with`. The
-`changes` stream carries `tree-advanced` until 3a folds it into `events`.
-
-Done: be-server tests where a follower of a granted subtree hears a block
-moved elsewhere in the same tree leave it and a follower of a sibling subtree
-hears nothing; where a hundred publishes in a burst reach a follower as at
-most a few `tree-advanced` events; where a reply read before a change and an
-event after it are put in order by sequence across a server restart. A
-be-host-stack test where a folder another device fills is seen through
-`changed-since` with only the shown blocks mirrored. Guides:
-guides/blocks/server.md ("Announcements and listings", "Changes since"),
-guides/blocks/client.md ("Connection"), guides/blocks/host.md ("The graph
-mirror").
+Landed: a connection follows entry points (`block-summary.entry`) with
+`changed-since`'s `follow`, hears `tree-advanced` and `roots` on `changes`, and
+orders summaries by `changed`, the organization's sequence
+(guides/blocks/server.md, "Listings and following trees"). The `changes` stream
+carries them until 3a folds it into `events`, and `unfollow` becomes 3a's
+`unfollow(org, topic)`.
 
 ### 3. The calls merge
 

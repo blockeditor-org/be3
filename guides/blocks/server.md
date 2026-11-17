@@ -167,7 +167,8 @@ counts and records nothing: `upload-urls` did before it signed.
   each call is an op, with no request ids. A function answers `result<T,
   error>`; client code is `client::blocks::list_blocks(&connection,
   listing).await??` or `ask(...).await?`. What the server pushes is a stream:
-  `blocks.changes`, `account.paired`, latest-value streams, and a
+  `blocks.changes` (`tree-advanced` and `roots`), `account.paired`,
+  latest-value streams, and a
   `sessions.session` resource whose `join` stream carries the session's
   changes and relays; dropping it leaves the session. A latest-value stream
   that carries a value starts with the current one and then sends each new one
@@ -323,8 +324,8 @@ counts and records nothing: `upload-urls` did before it signed.
   `Edit` (a viewer's claim is refused, and the replica host ignores the
   refusal). Losing `View` (a grant removed, the block trashed, or a move out of
   view) ends it: `evict_sessions` takes the account's connections out of the
-  sessions, and `changes` tells them the block's lesser summary or
-  `removed`. Joining checks `View` a second time once registered, so a view
+  sessions, and the trees they follow advance, where they read that the block
+  left or that they may no longer read the tree. Joining checks `View` a second time once registered, so a view
   lost in between does not stay. Trashing a block rotates no keys.
 
 ### Where objects live
@@ -415,99 +416,92 @@ and `CollectDetached` walk what the member can see (`Visibility::candidates`),
 not the organization, since the personal organization holds every account's
 blocks.
 
-### Announcements and listings
+### Listings and following trees
 
-A connection hears only of what it listed, on its one `changes` stream; there
-is no stream per block. `list-blocks` (a `Listing`:
-children, `Shared`, backrefs, references, `Deleted`, `OpenSettings`, or one
-`Block`, which is how a client reads a block's summary) registers with
-`WatchHub` *before* reading, so nothing changed
-during the read is missed, and the hub remembers each block it told a
-connection of. A listing comes a page at a time, in the order of block ids
-(`ServerStore::list_page`, which works out the listing's ids and summarizes
-only the page's blocks): the summaries that fit in
+A connection reads what it shows with plain reads and follows trees, not
+listings; there is no stream per block. `list-blocks` (a `Listing`: children,
+`Shared`, backrefs, references, `Deleted`, `OpenSettings`) comes a page at a
+time, in the order of block ids (`ServerStore::list_page`, which works out the
+listing's ids and summarizes only the page's blocks): the summaries that fit in
 `ServerConfig::listing_page_bytes`, then the next ids in half that more
-(`listed.rest`), and `listed.next` when it goes on, which the client passes
-back as `after` for the ids past it. A block that stays in the listing is on
-exactly one page, and one that joins or leaves between pages is told on
-`changes`. The hub records each page's blocks as told (`Facts`, read from the
-graph for `rest` ids, with no summary made). `Facts` keep only what the graph
-cannot answer (where the block was, whether it was viewed or an entry point),
-never its references, so a connection that read a folder of `MAX_REFERENCES`
-entries costs the hub no more than one of a single entry: whether a
-`References` or `Backrefs` listing holds a block is read from the graph's
-backrefs in the graph job that summarizes it (`Links::hold`, against the
-listings `WatchHub::links` read before the job), and kept as `linked`, which
-holds the block known while another listing of it is dropped (`unlist`).
-`Links` carry a generation, so a change matched against listings read before a
-new linking listing was registered is taken as linked. The client reads
-`rest`'s summaries with `read-summaries` (at most `MAX_SUMMARIES_ASKED` ids),
-which lists nothing. A change is sent to each connected member in the block's
-audience before or after (and every administrator), as the `BlockChanged` that
-member's access allows or a `BlockRemoved`, when a listing matches the block
-now or the connection heard of it before (so a block moving out of a listed
-folder is still announced, then forgotten). The blocks a change starts or stops
-referencing are announced with it; only a move or a grant (`graph_views`'
-`subtree`) also announces everything its blocks reference, whose `KnowExists`
-it may change. A summary lists every reference, so a change tells them apart
-(`block-changed.references`, its summary's left empty): `whole`, or, for a
-block the connection was sent a summary of (`Facts::viewed`; a page's `rest`
-ids were not), `moved`, a `ReferenceChange` and the `references_digest` of the
-result, empty when the change kept them. Adding entries to a large folder one
-at a time so costs each watcher what was added, not the whole folder each
-time. A store call names what it did to references
-(`Moves`: `change_edges` answers the change it wrote); a block it made is told
-whole. Every publish is announced, so a block's
-own listing hears each head; one that moves only the head changes no listing's
-match, so it is told only to the connections that already know the block, or
-are still reading a listing, which may hold it (`WatchHub::knowing`), rather
-than worked out for the whole audience; `block-changed.from` names the connection whose
-call made the change (`organization-opened.client`), so a client skips its own
-publishes (`Event::BlockChanged::own`). A block moved to the trash is a summary
-with parent `detached`; one collected for good is `removed`. `unlist` drops a listing; a refused listing
-stays until then, so a block read before it is made is announced once it is,
-but a connection keeps at most `REFUSED_LISTINGS` of them (`watch.rs`) and
-drops any refused past that at once. A block's own listing (`Listing::Block`),
-which clients never unlist, does not count against
-`MAX_LISTINGS_PER_CONNECTION`: it is bounded by the blocks the caller may know
-of.
+(`listed.rest`), and `listed.next` when it goes on, which the client passes back
+as `after` for the ids past it. The client reads `rest`'s summaries with
+`read-summaries` (at most `MAX_SUMMARIES_ASKED` ids), which is also how it reads
+one block's summary: a block the caller may not know of reads as none. A block
+that stays in a listing is on exactly one page; one that joins or leaves between
+pages has a `changed` past the first page's `listed.sequence`.
 
-Every `BlockSummary` and `BlockRemoved` carries a `revision`
-(`ServerStore::with_graph`), and `list-blocks` answers the revision it read the
-listing at. Replies and announcements can arrive out of order (a reply
-overtakes announcements queued before it), and the revision is how a client
-puts them back in order. It only grows, across restarts too: the server
-reserves revisions a range at a time in `revision_floor` and starts past the
-last range it reserved, so a client that compares a summary with a listing it
-fetched before the restart still orders them.
+**Entry points.** Every summary a reader may view names its `entry`
+(`blocks::entry_of`): the highest block at or above it the reader views through
+every block between, so the top of its tree (a top-level block, or the block at
+the top of what lies in the trash) or the block where the reader's view starts
+below a parent it may not view (Shared with me, an agent's block, a settings
+kind opened to whoever views a block inside its owner). A client follows the
+entries of what it shows: `changed-since` with `follow` follows the entry
+*before* reading, so nothing changed during the read is missed, and `unfollow`
+stops. `WatchHub` keeps, per connection, only the set of entries it follows (at
+most `MAX_FOLLOWS_PER_CONNECTION`) and who follows each (`watch::Place`, by
+organization and block).
+
+**Telling.** After each change the connection that made it works out the blocks
+on its path (`ServerStore::advanced`: each changed block and every block above
+it; with a move, the blocks above it before too; with a grant or a move, every
+block below it), finds their followers (`WatchHub::followers`) and, for each
+that may still view what it follows (`ServerStore::viewing`), calls
+`WatchHub::advance`, which sends `tree-advanced(entry, sequence)` on the
+`changes` stream. The hub tells a connection once, then nothing more of that
+entry until it reads the tree to its end (`changed-since` answering no `next`,
+`WatchHub::read`), and then once more if the tree advanced past what it read
+(`Told`): a burst of a hundred publishes reaches a follower as one or two
+events, and a follower of a sibling subtree hears nothing. Who changed a block
+is not told; a client tells its own publishes from others' by their heads.
+
+**Roots.** What lies at the top, in the trash and is shared with an account
+changes with a move, a grant or a creation at the top: `tree-change.roots` goes
+to the accounts that could know of the block before and can now
+(`Connection::roots`, `WatchHub::roots`), and a collection tells every member,
+who list those again.
+
+Every summary carries `changed`, the organization's sequence at the block's last
+change (below), and `list-blocks` answers the sequence it read the listing at
+(`listed.sequence`). Replies and events can arrive out of order (a reply
+overtakes events queued before it), and `changed` is how a client puts them
+back in order: of two summaries of one block, the one with the larger `changed`
+is the newer. It is durable, so a summary read before a restart still orders
+against one read after it.
 
 ### Changes since
 
 `changes.rs` keeps a durable, organization-wide change sequence
-(`organizations.change_sequence`), which unlike the graph's `revision` counts
-per organization and in the same transaction as each change (every graph
-change runs under the store's one database mutex, so writes are ordered).
-Every write that changes what a block holds, where it lies or who may view it
-sets the block's `changed` to the next sequence in its own
-transaction (`touch`: create, publish, metadata and references, grants;
-`touch_moved`: a new parent, for the block and everything below it). A block
-that leaves a top-level block's tree (moved out, trashed, or deleted for good
-while in it) leaves a row in `block_departures` for that root, kept a day, so
-every tree a block has been in hears of its leaving, however often it moved on
-(a move within one tree writes none); a reader away for more than a day misses what left
-in between, moved out, trashed or deleted.
-`blocks.changed-since(root, after, limit)` asks about a top-level block's tree
-(View on `root`) and pages through `blocks_changed` and that tree's departures in
-one order, oldest first: the summaries of blocks in the tree now that changed, and
-the ids of blocks that left THAT tree and are not in it now (ids of blocks a
-reader may not view are named too: a reader of a tree is told that a block left
-it, except blocks only their author may read), a cursor, and the organization's current sequence, which counts the writes
-the organization has made. A page ends at `MAX_CHANGES_PER_PAGE` blocks of either
-kind, `MAX_PAGE_SUMMARY_BYTES` of summaries (so a tree of blocks with large
-metadata still pages within a frame) or `MAX_SCANNED` rows looked at; a page
-that stops on another tree's change reads on until the next block of this tree
-in that change's sequence, or else to its end and returns a cursor that names
-no block, so a cursor never carries a block id the caller may not know.
+(`organizations.change_sequence`), advanced in the transaction of each change
+(every graph change runs under the store's one database mutex, so writes are
+ordered). Every write that changes what a block holds, where it lies or who may
+view it sets the `changed` of what it changed to the next sequence, in the
+database and in the cached graph (`BlockNode::changed`): `touch` (create,
+publish, metadata and references, and with them the blocks they started or
+stopped referencing, whose `KnowExists` moved; a grant, for everything below the
+block, whose access moved; a block given a new key) and `touch_moved` (a new
+parent, for the block and everything below it). A block that leaves an entry
+point's tree leaves a row in `block_departures` for that entry, kept a day:
+`entries_above` (the top of its tree, and each block above it that carries a
+grant or opens to the blocks inside its owner, the only blocks below the top
+where a view starts) before the move, less those above it after, so a move
+within one tree is a departure from a shared subtree it left. That is bounded by
+the grants on one path, not its depth. A reader away for more than a day misses
+what left in between, moved out, trashed or deleted.
+`blocks.changed-since(entry, after, limit, follow)` asks about the tree of any
+block the caller may view (an entry point, for its departures to be whole) and
+pages through `blocks_changed` and that entry's departures in one order, oldest
+first: the summaries of blocks in the tree now that changed, and the ids of
+blocks that left THAT tree and are not in it now (ids of blocks a reader may not
+view are named too: a reader of a tree is told that a block left it, except
+blocks only their author may read), a cursor, and the organization's current
+sequence. A page ends at `MAX_CHANGES_PER_PAGE` blocks of either kind,
+`MAX_PAGE_SUMMARY_BYTES` of summaries (so a tree of blocks with large metadata
+still pages within a frame) or `MAX_SCANNED` rows looked at; a page that stops
+on another tree's change reads on until the next block of this tree in that
+change's sequence, or else to its end and returns a cursor that names no block,
+so a cursor never carries a block id the caller may not know.
 
 ### Limits
 

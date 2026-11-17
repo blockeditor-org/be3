@@ -469,9 +469,9 @@ server in the lane first, so the loop finds them on the device.
 
 `be-host-stack/src/graph.rs` mirrors the part of the server's graph something
 in the host is looking at: a `Node` per block with type, author, parent,
-access, references, unsealed `BlockMetadata`, `locked` (no key opens it) and
-the server's `size` and `tree_size`. The host never lists the whole
-organization.
+access, references, unsealed `BlockMetadata`, `locked` (no key opens it), the
+server's `size` and `tree_size`, and its `changed` and `entry`. The host never
+lists the whole organization.
 
 The stack tells the host what changed rather than being polled: it pushes a
 `Changes` notice (the graph, contacts, storage, stale blocks, search answers,
@@ -495,17 +495,36 @@ they want with `be_host_stack::want(owner, queries)` (`Owner::Editor` per app
 instance, `Owner::Open` for open blocks' parents, `Owner::Host`,
 `Owner::Version`).
 
-- **Listings.** The graph turns what is wanted into server `Listing`s, expands
-  `Parents` and `Subtree` as blocks arrive, and fetches new ones together in a
-  task (`spawn_listings`), so a slow listing never holds up an open or an
-  edit. The loop's other background requests are `worker::Tasks` too.
+- **Listings.** The graph turns what is wanted into its `Listing`s (the
+  server's, and `Block` for one block's summary), expands `Parents` and
+  `Subtree` as blocks arrive, and fetches new ones together in a task
+  (`spawn_listings`), so a slow listing never holds up an open or an edit. The
+  loop's other background requests are `worker::Tasks` too.
 - **Dropping.** A listing nobody wants is dropped with every block only it
-  held, and `unlist`ed ahead of that round's new listings.
+  held; the server keeps nothing for it.
 - **Readiness.** A query answers only once its listings loaded
   (`be_host_stack::ready`), so an editor never sees a loading folder as empty.
-- **Announcements** keep listings current; reconnecting or falling behind
-  re-lists everything. The mirror keeps the newest revision per block and drops
-  anything older, so a late announcement never undoes a newer reply.
+- **Following trees.** Each node names its entry point (`Node::entry`, the
+  server's `block-summary.entry`), and the graph counts the nodes it holds in
+  each (`Follow::nodes`, kept as nodes are inserted and removed, so following
+  costs nothing per change beyond the node changed): the first node in an
+  entry's tree follows it from the sequence it was read at, the last one out
+  unfollows it (`take_follows`). So the host follows only the trees of what it
+  shows, a few entries, never a listing. `Event::TreeAdvanced` marks the entry
+  to read (`Graph::advanced`, once more if it advanced during a read), and
+  `read_trees` reads its `changed-since` pages from its cursor, in a task: the
+  graph takes only what it holds or a listing it holds would list
+  (`Graph::followed`, `holds_or_lists`), so a page's changes in folders nobody
+  shows cost nothing more; a block a page changes has its `Backrefs` listing
+  read again (the server touches the blocks a change starts or stops
+  referencing); a held block that left the tree is read again wherever it went
+  (`read-summaries`) or forgotten; each head read reaches the open block's
+  replica (`Replicas::heard_head`) with the next pass of the loop.
+  `Event::Roots` lists again the top, the trash and Shared with me
+  (`Graph::roots`). Reconnecting or falling behind re-lists everything and
+  reads every followed tree again from its cursor. The mirror keeps the newest
+  `changed` per block (`heard`) and drops anything older, so a late answer
+  never undoes a newer one.
 - **Local changes** (`create`, `set_parent`, `define`) apply to the mirror at
   once and are pending for that block: the mirror ignores the server's echoes
   until the change is settled, then refreshes. An open block's references come
