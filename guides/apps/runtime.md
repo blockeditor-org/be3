@@ -236,8 +236,11 @@ The runtime keeps passing while one runs (`Instances::has_hosts`) without
 asking for frames.
 
 `be` runs them this way (`be_tool_cli::hosting::Hosting`, plans/headless_apps.md),
-and finds its apps as be-host does (`be_tool_cli::host_apps`): nothing about any
-app is compiled into it, so an app change never relinks `be`. A build that was
+and finds the apps it runs as be-host does (`be_tool_cli::host_apps`): no app's
+wasm, list or hash is compiled into it, so an app's module changing never relinks
+`be`. It still embeds every app's manifest and type module (be-tool-cli's
+`:app-types`, guides/type_modules.md), until plans/headless_apps.md's next step
+removes them. A build that was
 not deployed reads the apps staged beside it: `//crates/be-tool-cli:dev` stages
 the apps with a host component (`HOST_APPS` in its BUCK) and `-c be3.apps=NAME,...`
 adds more, as be-host's `:dev` takes them; the tests stage the same through

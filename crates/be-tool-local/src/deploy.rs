@@ -507,7 +507,8 @@ struct Release {
 
 /// Where the web bundle `web` will be on the mirror, the apps `be` downloads a host app from,
 /// and the SHA-256 of its `app-hashes.json`, which lists every app file's
-/// (guides/apps/runtime.md, "Headless").
+/// (guides/apps/runtime.md, "Headless"). Every file the list names must be in the bundle with
+/// that hash, or a deployed `be` would refuse it.
 fn release_apps(
     web: &Path,
     build: &str,
@@ -516,6 +517,20 @@ fn release_apps(
     let path = web.join("app-hashes.json");
     let listed =
         std::fs::read(&path).map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+    let hashes: std::collections::BTreeMap<String, String> = serde_json::from_slice(&listed)
+        .map_err(|error| format!("{} does not read: {error}", path.display()))?;
+    for (file, expected) in &hashes {
+        let bytes = std::fs::read(web.join(file)).map_err(|error| {
+            format!("{} lists {file}, which the web bundle lacks: {error}", path.display())
+        })?;
+        let found = hex(&Sha256::digest(&bytes));
+        if found != *expected {
+            return Err(format!(
+                "{} lists {expected} for {file}, but the web bundle's has {found}",
+                path.display()
+            ));
+        }
+    }
     Ok(be_lib_build_id::ReleaseApps {
         url: format!("{mirror}/data/{build}/web"),
         sha256: hex(&Sha256::digest(&listed)),

@@ -18,8 +18,9 @@ graphics. One runtime, not a second one for `be`.
   that need a person or a screen (pickers, dialogs) refused.
 - An app that asks for the gpu there gets an error it can handle; a host
   component never needs one.
-- `be` finds its apps as be-host does, with nothing about them compiled in:
-  a build made here reads those staged beside it (`be-tool-cli:dev`), and a
+- `be` finds the apps it runs as be-host does, with no app's wasm, list or
+  hash compiled in (it still embeds manifests and type modules, step 1d): a
+  build made here reads those staged beside it (`be-tool-cli:dev`), and a
   deployed `be` downloads the one it runs from its own release, checked
   against the list of hashes its `build-info.json` pins and cached by them
   (guides/apps/runtime.md, "Headless"), so `be` stays one small download.
@@ -45,6 +46,12 @@ graphics. One runtime, not a second one for `be`.
      done (guides/apps/runtime.md, "Headless"; be-tool-cli's
      `be_runs_an_apps_host_component_with_no_display`). Not yet run against a
      real deploy: only releases deployed after it name their `apps`.
+   - d. No app list in `be` at all (the user's decision: "the app list should
+     not be in be at all"): be-tool-cli's `:app-types` (`APP_TYPES`) still
+     embeds every app's manifest and type module, so an app's manifest or
+     type changing relinks `be`. `be` reads manifests and type modules through
+     `be_host_stack::discovery` instead, from the bundle beside it or its
+     release as in c, so manifests have one source. Next.
 2. **`be BLOCK host`.** Signs in (as an agent, or a block's agent, as the
    terminal host does), opens the block and runs its type's host component
    while it holds the lease, standing by otherwise. Done: plans/hosted_blocks.md

@@ -8,8 +8,17 @@ fn the_downloads_name_where_this_builds_be_and_apps_are() {
     let bundle = std::env::temp_dir().join(format!("be3-deploy-be-{}", std::process::id()));
     std::fs::create_dir_all(&bundle).unwrap();
     std::fs::write(bundle.join("be"), b"be for arm").unwrap();
-    std::fs::write(bundle.join("app-hashes.json"), b"{}").unwrap();
+    std::fs::write(bundle.join("counter.wasm"), b"the module").unwrap();
+    let listed = format!(
+        r#"{{"counter.wasm":"{}"}}"#,
+        hex(&Sha256::digest(b"the module"))
+    );
+    std::fs::write(bundle.join("app-hashes.json"), &listed).unwrap();
     let apps = release_apps(&bundle, "tree", "https://be3.example").unwrap();
+    std::fs::write(bundle.join("counter.wasm"), b"another module").unwrap();
+    let error = release_apps(&bundle, "tree", "https://be3.example")
+        .expect_err("a file unlike its listed hash fails before anything is uploaded");
+    assert!(error.contains("counter.wasm"), "{error}");
     let hosts = terminal_hosts(
         &[
             ("aarch64-unknown-linux-gnu".to_owned(), bundle.clone()),
@@ -33,7 +42,7 @@ fn the_downloads_name_where_this_builds_be_and_apps_are() {
         apps,
         be_lib_build_id::ReleaseApps {
             url: "https://be3.example/data/tree/web".to_owned(),
-            sha256: hex(&Sha256::digest(b"{}")),
+            sha256: hex(&Sha256::digest(listed.as_bytes())),
         },
         "the apps are the web bundle's, pinned by the hash of the list of their hashes"
     );

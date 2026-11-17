@@ -2,8 +2,9 @@
 //! "Headless"), as be-host finds its own: a build that was not deployed reads the apps staged
 //! beside it (`//crates/be-tool-cli:dev`, or `BE_BUNDLE`); a deployed `be` ships alone, so it
 //! reads them from its release, the web bundle a deploy publishes at `data/BUILD/web/` on the
-//! mirror, a file at a time and only as the runtime reads it. Nothing about the apps is
-//! compiled into `be`: its `build-info.json`, which ships beside it as be-host's ships beside
+//! mirror, a file at a time and only as the runtime reads it. No app's wasm, list or hash is
+//! compiled into `be` (its manifests and type modules still are, plans/headless_apps.md step
+//! 1d): its `build-info.json`, which ships beside it as be-host's ships beside
 //! be-host, names the release's apps and the SHA-256 of their `app-hashes.json`
 //! (`be_lib_build_id::ReleaseApps`, written by `./scripts/deploy`). That list must hash to it,
 //! and each file to what the list says, so `be` runs only the apps of the build it was
@@ -21,10 +22,20 @@ use sha2::{Digest, Sha256};
 pub const HASHES: &str = "app-hashes.json";
 
 /// Serves the apps to `be_host_stack::discovery` from the release `be`'s `build-info.json`
-/// names, cached under `cache`; a build that names none reads the apps staged beside it, as
-/// be-host does. Called before the apps are first discovered; later calls change nothing.
+/// names, cached under `cache`; a build that was not deployed reads the apps staged beside it,
+/// as be-host does. Called before the apps are first discovered; later calls change nothing.
 pub fn serve(cache: &Path) -> Result<(), String> {
-    let Some(apps) = be_lib_build_id::metadata()?.apps.clone() else {
+    let metadata = be_lib_build_id::metadata()?;
+    let Some(apps) = metadata.apps.clone() else {
+        // Only a deploy names a default server, and a deploy names the apps unless it skipped
+        // the web bundle they are published in.
+        if metadata.default_server.is_some() {
+            return Err(format!(
+                "this be was deployed without its release's apps (`./scripts/deploy --skip-web`), \
+                 so its {} names none and it runs no app's host component",
+                be_lib_build_id::FILE
+            ));
+        }
         return Ok(());
     };
     let release = Release::new(apps, cache.join("apps"), download);
