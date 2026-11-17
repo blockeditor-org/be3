@@ -264,8 +264,11 @@ fn carrying(
     };
     // Asks `drag` for a carry at `press` and lifts it; whether `drag` gave one.
     let lift_at = {
-        let (origin, show_face, lifted) =
-            (Rc::clone(&origin), Rc::clone(&show_face), Rc::clone(&lifted));
+        let (origin, show_face, lifted) = (
+            Rc::clone(&origin),
+            Rc::clone(&show_face),
+            Rc::clone(&lifted),
+        );
         Rc::new(move |press: PointerPress| -> bool {
             let Some(driver) = crate::drag::driver().filter(|driver| !driver.carrying()) else {
                 return false;
@@ -373,10 +376,12 @@ fn carrying(
     });
     let keyboard_lift = {
         let show_face = Rc::clone(&show_face);
-        Rc::new(move |id: crate::drag::CarryId, face: crate::drag::CarryFace| {
-            show_face(face);
-            mine.set(Some(id));
-        }) as Rc<dyn Fn(crate::drag::CarryId, crate::drag::CarryFace)>
+        Rc::new(
+            move |id: crate::drag::CarryId, face: crate::drag::CarryFace| {
+                show_face(face);
+                mine.set(Some(id));
+            },
+        ) as Rc<dyn Fn(crate::drag::CarryId, crate::drag::CarryFace)>
     };
     let face = Face {
         raised,

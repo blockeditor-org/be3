@@ -163,40 +163,40 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
 
     let built = view! {
         <Interactive
-                @node_ref=&area
-                cursor=CursorIcon::Default
-                on_press={on_press}
-                on_wheel={beui::unstyled::gestures::scroll_wheel(None, on_scroll)}
-                @test_id={"video.timeline"}
-            >
-                <Canvas view={camera}>
-                    <ForEach value={lane_keys}>|lane: usize|
-                        <LaneStrip lane content />
-                    </ForEach>
-                    <ForEach value={ticks}>|tick: Tick|
-                        <RulerTick tick />
-                    </ForEach>
-                    <ForEach value={ids}>|id: Uuid| {
-                        let selected = selection.memo(Some(id));
-                        let row = create_memo(move || {
-                            rows.get().into_iter().find(|row| row.id == id).unwrap_or(Lane {
-                                id,
-                                lane: 0,
-                                start: 0,
-                                length: 0,
-                                depth: 0,
-                            })
-                        });
-                        view! {
-                            <Clip state id row selected scale={pixels_per_frame.read_only()} />
-                        }
-                    }</ForEach>
-                    <DropMarker target={target} scale={pixels_per_frame.read_only()} />
-                    <CanvasItem x={playhead_x} y=0.0 width=1.5 height={playhead_height}>
-                        <Frame fill=ColorRole::Accent />
-                    </CanvasItem>
-                </Canvas>
-            </Interactive>
+            @node_ref=&area
+            cursor=CursorIcon::Default
+            on_press={on_press}
+            on_wheel={beui::unstyled::gestures::scroll_wheel(None, on_scroll)}
+            @test_id={"video.timeline"}
+        >
+            <Canvas view={camera}>
+                <ForEach value={lane_keys}>|lane: usize|
+                    <LaneStrip lane content />
+                </ForEach>
+                <ForEach value={ticks}>|tick: Tick|
+                    <RulerTick tick />
+                </ForEach>
+                <ForEach value={ids}>|id: Uuid| {
+                    let selected = selection.memo(Some(id));
+                    let row = create_memo(move || {
+                        rows.get().into_iter().find(|row| row.id == id).unwrap_or(Lane {
+                            id,
+                            lane: 0,
+                            start: 0,
+                            length: 0,
+                            depth: 0,
+                        })
+                    });
+                    view! {
+                        <Clip state id row selected scale={pixels_per_frame.read_only()} />
+                    }
+                }</ForEach>
+                <DropMarker target={target} scale={pixels_per_frame.read_only()} />
+                <CanvasItem x={playhead_x} y=0.0 width=1.5 height={playhead_height}>
+                    <Frame fill=ColorRole::Accent />
+                </CanvasItem>
+            </Canvas>
+        </Interactive>
     };
     let placed_measured = measure(built);
     create_effect(move || {
@@ -299,10 +299,12 @@ fn Clip(
             clip: id,
             grab: (pressed / scale).max(0.0) as u64,
         }));
-        Some(drag::Carry::new(id).preview(move || view! {
-            <Frame fill=ColorRole::Pressed radius=CLIP_RADIUS padding=THUMBNAIL_MARGIN>
-                <Text>{name}</Text>
-            </Frame>
+        Some(drag::Carry::new(id).preview(move || {
+            view! {
+                <Frame fill=ColorRole::Pressed radius=CLIP_RADIUS padding=THUMBNAIL_MARGIN>
+                    <Text>{name}</Text>
+                </Frame>
+            }
         }))
     });
     let carried = is_carried(id);
