@@ -114,24 +114,11 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(None);
         };
         let connection = self.connection();
-        let trimmed = be_block_protocol::client::blocks::publish(
-            &connection,
-            block,
-            head,
-            Some(head),
-            vec![head],
-            Default::default(),
-            0,
-            false,
-            Default::default(),
-            Vec::new(),
-            Vec::new(),
-            Some(be_block_protocol::JournalSeal {
+        let trimmed = be_block_protocol::write::<be_block_protocol::PublishOutcome, _>(&connection, Some(self.organization), be_block_protocol::Op::Publish { block: block, commit: head, expected: Some(head), parents: vec![head], held: Default::default(), time: 0, pinned: false, references: Default::default(), metadata: Vec::new(), objects: Vec::new(), journal: Some(be_block_protocol::JournalSeal {
                 tag,
                 run,
                 base: sealed,
-            }),
-        );
+            }) });
         // Best effort: a trim the server refuses (from a replica that no longer holds the lease
         // by the server's derivation) leaves the journal to the next seal.
         Ok(Some(Box::pin(async move {
