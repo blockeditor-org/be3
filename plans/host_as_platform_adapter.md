@@ -538,18 +538,22 @@ Each step lands on its own.
        root's `instance` resource, which both sides know it by, and which `Root::surface`
        resolves to the texture on the host's device. The web's half, a child's
        `OffscreenCanvas` named by handle, waits until the page runs a root.
-     - 4e2. The host half of the app protocol as a portable library, `be-lib-app-host` (no
-       beui, wgpu or be-host-stack; it builds for wasm32): be-host-runtime's `Wire`, `calls`,
-       `sent`, `session` and the docks' resolution move into it, and be-host-runtime and
-       be-sdk-test's in-process host both use it, so be-sdk-test's own host-side connection
-       goes. It must also trim what a sandbox instance keeps presented (`Instance::surface`) to
-       the surfaces the app's published layout still names, as be-host-runtime's presenter
-       `retain`s its targets; until then an instance holds every surface it ever presented, so a
-       real root's popups would grow it without bound.
-     - 4e3. An editor's watches and a block's content in the library: the host side of
-       `be3:blocks` (watches, replicas, opens, commands) over a store trait, which
-       be-host-runtime implements over be-host-stack and be-sdk-test over its `ContentStore`,
-       so `link.rs` goes.
+     - 4e2. Built: the host half of the app protocol as a library, `be-sdk-app-host` (no beui
+       or block stack, denied both in buck/cargo/layers.bzl; in the be-sdk family, since a
+       be-lib crate may not depend on be-sdk-api): be-host-runtime's `Wire`, `calls`, `sent`,
+       `session`, the docks' state (`Docks`; be-host-runtime keeps the one it holds) and the
+       published interfaces' lookups moved into it, with the platform's be3:desktop offer
+       passed in (`Wire::offering`), and be-host-runtime uses it. A sandbox instance keeps a
+       surface's texture only until its app lets the surface go: the gpu host reports what was
+       released (`Produced::released`), so the instance never outgrows what its app holds.
+     - 4e3. An editor's watches and a block's content in the library, and be-sdk-test on it:
+       the host side of `be3:blocks` (watches, replicas, opens, commands) over a store trait,
+       which be-host-runtime implements over be-host-stack and be-sdk-test over its
+       `ContentStore`. be-sdk-test's in-process host then runs on `Wire`, so its own host-side
+       connection (beui.rs's `hear`, its published watches and docks) and `link.rs` go; `Wire`
+       takes a sandbox of its own kind, so an editor test's in-process workers stand in for
+       `Server`. They land together because `Wire` owns the connection and answers block
+       watches itself, so be-sdk-test cannot move onto it while `link.rs` answers them.
      - 4e4. be-host-runtime's orchestration in the library: pacing, settling against the
        deadline, the layout and present holds (`Laid`, `Kept`), restarts and grafting the
        accessibility trees, on be-lib-geometry rather than beui's geometry, with be-host-runtime

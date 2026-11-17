@@ -838,6 +838,15 @@ impl App {
         }
     }
 
+    /// The surfaces the app or its host let go of since the last call.
+    pub fn take_released(&mut self) -> Vec<u32> {
+        self.state_mut()
+            .device
+            .ready_mut()
+            .map(Gpu::take_released)
+            .unwrap_or_default()
+    }
+
     pub fn detach_surface(&mut self, surface: u32) {
         if let Some(gpu) = self.state_mut().device.ready_mut() {
             gpu.detach_surface(surface);
@@ -962,6 +971,7 @@ impl Presenting {
     fn produced(&mut self, sent: Produced<Infallible>) -> Produced<PresentedTexture> {
         let app = &mut self.0;
         let (gpu, submit) = app.take_gpu_time();
+        let released = app.take_released();
         let mut presented: Vec<PresentedTexture> = Vec::new();
         for surface in app.take_presented() {
             let Some((texture, generation)) = app.surface(surface) else {
@@ -978,6 +988,7 @@ impl Presenting {
             painted: !presented.is_empty(),
             outbound: sent.outbound,
             presented,
+            released,
             took: StepTime {
                 gpu,
                 submit,

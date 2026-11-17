@@ -9,6 +9,7 @@ use be_wasm_root_testing::{
 
 use super::*;
 
+mod a_child_that_lets_its_surface_go_names_nothing_there_any_more;
 mod a_frame_past_its_deadline_draws_without_the_child_it_waits_for;
 mod a_frame_waits_for_its_child_and_shows_it;
 mod a_root_names_what_its_child_presented_only_by_handle;

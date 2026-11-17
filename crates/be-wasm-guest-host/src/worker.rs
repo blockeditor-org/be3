@@ -51,6 +51,9 @@ impl Presented for std::convert::Infallible {
 pub struct Produced<P> {
     pub outbound: Vec<Vec<u8>>,
     pub presented: Vec<P>,
+    /// The surfaces the guest let go of in the step, before it presented `presented`: a host
+    /// that holds what a surface presented drops it.
+    pub released: Vec<u32>,
     pub painted: bool,
     pub took: StepTime,
 }
@@ -60,6 +63,7 @@ impl<P> Produced<P> {
         Self {
             outbound,
             presented: Vec::new(),
+            released: Vec::new(),
             painted: false,
             took,
         }
@@ -137,6 +141,8 @@ pub struct Worker<C: Channel> {
     /// that took them through the steps the guest woke itself for straight after.
     carrying: bool,
     presented: Vec<C::Presented>,
+    /// The surfaces the guest let go of since `take_released`, and has not presented again.
+    released: Vec<u32>,
     presents: u64,
     took: Option<StepTime>,
     stepped: (u64, Duration),
@@ -155,6 +161,7 @@ impl<C: Channel> Worker<C> {
             stepping: false,
             carrying: false,
             presented: Vec::new(),
+            released: Vec::new(),
             presents: 0,
             took: None,
             stepped: (0, Duration::ZERO),
@@ -256,6 +263,11 @@ impl<C: Channel> Worker<C> {
         Some((std::mem::take(&mut self.presented), self.presents))
     }
 
+    /// The surfaces the guest let go of since the last call, and has not presented again.
+    pub fn take_released(&mut self) -> Vec<u32> {
+        std::mem::take(&mut self.released)
+    }
+
     pub fn take_took(&mut self) -> Option<StepTime> {
         self.took.take()
     }
@@ -283,7 +295,14 @@ impl<C: Channel> Worker<C> {
 
     fn absorb(&mut self, produced: Produced<C::Presented>) {
         self.received.extend(produced.outbound);
+        for surface in produced.released {
+            self.presented.retain(|held| held.surface() != surface);
+            if !self.released.contains(&surface) {
+                self.released.push(surface);
+            }
+        }
         for presented in produced.presented {
+            self.released.retain(|surface| *surface != presented.surface());
             self.presented
                 .retain(|held| held.surface() != presented.surface());
             self.presented.push(presented);

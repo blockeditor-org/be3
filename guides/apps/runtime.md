@@ -69,7 +69,8 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
     workers, and an `Open` that reads it and its libraries, loaded as the host
     loads that app, with WASI and, unless its `Config::display` gives it the host's device, no
     display (its gpu calls fail). An instance with a display keeps what each of its surfaces
-    presented last (`Instance::surface`): an app run as `Presenting` reports what it presented
+    presented last (`Instance::surface`) until the app lets that surface go, which the gpu host
+    reports with what it presented (`Produced::released`): an app run as `Presenting` reports what it presented
     each step (`PresentedTexture`), for an instance as for be-host-runtime's apps. A type module
     runs as a plain `App`, which presents nothing.
     be-host-runtime's `staged_app(app id, module)` is the one place that maps a
@@ -262,7 +263,7 @@ last heard (decisions/app_frames_split_into_layout_and_present.md): a
 requests, child placements, docks), then a `PresentCommit` with the painted
 surfaces. The host places and asks the frame's children to draw while the
 parent paints. It reads a frame's placements against the state at that
-frame's serial (`be-host-runtime/src/sent.rs`).
+frame's serial (`be-sdk-app-host/src/sent.rs`).
 
 A present commit answers the input sent before its frame was asked for
 (`Pacing::answered`, which the keyboard gift's `GiftTo::Answer` waits on)
