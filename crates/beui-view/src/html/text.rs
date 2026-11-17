@@ -431,11 +431,14 @@ impl Span {
                 "border-radius",
                 background.map(|background| css::px(background.radius)),
             );
-            // A decorated text draws the background itself, under its marks.
+            // A decorated text draws the background itself, under its marks, grown by its outset
+            // as natively (the attribute holds it).
             set_attribute(
                 span,
                 "data-beui-background",
-                background.map(|_| String::new()),
+                background.map(|background| {
+                    format!("{} {}", background.outset.x, background.outset.y)
+                }),
             );
             let clone = background.map(|_| "clone".to_owned());
             set_style(span, "box-decoration-break", clone.clone());

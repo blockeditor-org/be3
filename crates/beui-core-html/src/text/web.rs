@@ -14,7 +14,7 @@ use crate::css;
 use crate::node::NodeId;
 
 const CARET_FLAG: Vec2 = Vec2::new(6.0, 4.0);
-/// The attribute a span with a background carries (`beui-view`'s `Span`).
+/// The attribute a span with a background carries (`beui-view`'s `Span`), holding its outset.
 const BACKGROUND: &str = "data-beui-background";
 
 #[derive(Default)]
@@ -148,6 +148,10 @@ fn stops(model: &TextModel) -> Stops {
             }
         }
     }
+    debug_assert!(
+        stops.windows(2).all(|pair| pair[0].byte() <= pair[1].byte()),
+        "a text's stops are in byte order, which `after` and `ending_at` search by"
+    );
     stops
 }
 
@@ -554,6 +558,9 @@ fn boxes(model: &TextModel, frame: &Frame, stops: &Stops) -> Vec<(&'static str, 
         let style = span.style();
         let color = style.get_property_value("background-color").unwrap_or_default();
         let radius = style.get_property_value("border-radius").unwrap_or_default();
+        let outset = span.get_attribute(BACKGROUND).unwrap_or_default();
+        let mut outset = outset.split(' ').map(|part| part.parse::<f64>().unwrap_or(0.0));
+        let (x, y) = (outset.next().unwrap_or(0.0), outset.next().unwrap_or(0.0));
         let rects = span.get_client_rects();
         for index in 0..rects.length() {
             let Some(rect) = rects.get(index) else {
@@ -563,7 +570,12 @@ fn boxes(model: &TextModel, frame: &Frame, stops: &Stops) -> Vec<(&'static str, 
                 "beui-span-background",
                 format!(
                     "{} background-color: {color}; border-radius: {radius};",
-                    local(rect.left(), rect.top(), rect.width(), rect.height()),
+                    local(
+                        rect.left() - x,
+                        rect.top() - y,
+                        rect.width() + 2.0 * x,
+                        rect.height() + 2.0 * y
+                    ),
                 ),
             ));
         }
