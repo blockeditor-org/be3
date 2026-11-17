@@ -242,8 +242,11 @@ and finds its apps as be-host does (`be_tool_cli::release`), through
 host components it runs. No app's wasm, manifest, type module, list or hash is compiled
 into it, so an app changing never relinks `be`. A build that was
 not deployed reads the apps staged beside it: `//crates/be-tool-cli:dev` stages every
-app, and `-c be3.apps=NAME,...` only those and the apps with a host component (`HOST_APPS`
-in its BUCK), as be-host's `:dev` takes them; the tests stage the counter through
+app's manifest and type module, and the modules and data of the apps with a host component
+(`HOST_APPS` in its BUCK) and those `-c be3.apps=NAME,...` names, as be-host's `:dev` takes
+them (a program's `modules` entry may be `None`, which stages the manifest alone);
+`:terminal-host`, what a development build uploads as a terminal host (guides/terminal.md),
+stages every manifest and type module and no module. The tests stage the counter through
 `BE_BUNDLE` and install every editor's manifest. `:native`, `be` alone as a deploy ships it,
 finds none built here. A deployed `be` ships alone, so it reads its release's apps: the
 web bundle a deploy publishes at `data/BUILD/web/` on the mirror (guides/hosting.md,
@@ -267,9 +270,9 @@ cache (`BE3_CACHE`'s `apps/`) under its hash, downloaded through `HTTPS_PROXY` w
 certificates be-block-client trusts (`tls_config`, which takes `SSL_CERT_FILE`'s); a missing file, a mismatch or a release
 with no list fails, naming the file. A terminal host's `be` gets the host's own `apps`
 (`Metadata::for_be`). A `be` deployed with `--skip-web` names none, so it reads no block
-type and runs no host component, and says so when a command first starts its types. A
-development build's terminal host is `:native` uploaded alone (guides/terminal.md), so it
-finds no apps either.
+type and runs no host component, and says so (`be_tool_cli::apps::found` reports what
+discovery could not read, once, when a command first needs the apps). A development build's
+terminal host gets `:terminal-host`'s files uploaded beside it instead (guides/terminal.md).
 
 ## When an app stops
 

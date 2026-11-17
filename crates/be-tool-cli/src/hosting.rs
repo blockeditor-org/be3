@@ -4,7 +4,7 @@
 //! app is staged beside `be`, or downloaded from a deployed `be`'s release as the runtime reads
 //! it (`crate::release`).
 
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use be_sdk_api::EditorInstanceId;
 use uuid::Uuid;
@@ -18,16 +18,11 @@ pub struct Hosting {
 
 impl Hosting {
     /// Starts the host component for `block`, of `block_type`, as the device `client`, its app
-    /// downloaded into `cache` if it is not there already.
-    pub fn start(
-        block: Uuid,
-        block_type: Uuid,
-        client: Uuid,
-        cache: &Path,
-    ) -> Result<Self, String> {
-        crate::release::serve(cache)?;
-        let (app, host) = be_host_stack::discovery::manifests()
-            .into_iter()
+    /// read as `crate::release::serve` set discovery up to.
+    pub fn start(block: Uuid, block_type: Uuid, client: Uuid) -> Result<Self, String> {
+        let (app, host) = crate::apps::found()
+            .manifests()
+            .iter()
             .find_map(|manifest| {
                 let host = manifest
                     .hosts

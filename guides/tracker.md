@@ -15,8 +15,8 @@ build's `be` with its `build-info.json`, downloaded once into `target/tools/be-B
 unpinned: the CDN is trusted for it (decisions/be_is_downloaded_unpinned.md). Reading the id
 is one network round trip on every run, so `./scripts/be` needs the mirror even when that `be`
 is already downloaded. A `be` built from the checkout
-(`./scripts/buck run //crates/be-tool-cli:dev -- ARGS`, with every app staged beside it for the
-block types it reads; `-c be3.apps=database,text` stages fewer) talks only to a dev server built
+(`./scripts/buck run //crates/be-tool-cli:dev -- ARGS`, with every app's manifest and type
+module beside it for the block types it reads) talks only to a dev server built
 from the same tree.
 
 `be` uses HTTP posts (`/api/be/http`), since a cloud environment's proxy refuses websockets;

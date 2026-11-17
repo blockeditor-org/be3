@@ -71,8 +71,9 @@ BEUI_LAYERS=space ./scripts/buck run //crates/be-host:dev
 # build the APK without a device
 ./scripts/buck run //crates/be-host:android
 
-# `be` built here, with every app beside it, which it reads block types from and runs host
-# components of; `-c be3.apps=NAME,...` stages only those (guides/apps/runtime.md, "Headless")
+# `be` built here, with every app's manifest and type module beside it, which it reads blocks
+# through, and the apps whose host components it runs; `-c be3.apps=NAME,...` stages those apps'
+# modules too (guides/apps/runtime.md, "Headless")
 ./scripts/buck run //crates/be-tool-cli:dev -- ARGS
 ```
 

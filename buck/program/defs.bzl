@@ -142,7 +142,7 @@ def _program_impl(ctx: AnalysisContext) -> list[Provider]:
             beside.append(len(arguments))
         add("--file=" + file.basename, [file])
     libraries = []
-    for module in ctx.attrs.modules + ctx.attrs.linked:
+    for module in [module for module in ctx.attrs.modules if module] + ctx.attrs.linked:
         info = module.get(WasmLibrariesInfo)
         for library in info.closure if info else []:
             if library not in libraries:
@@ -157,8 +157,11 @@ def _program_impl(ctx: AnalysisContext) -> list[Provider]:
     for manifest, module, files, types in zip(ctx.attrs.manifests, ctx.attrs.modules, data, app_types):
         if only_libraries:
             break
-        wasm = module[DefaultInfo].default_outputs[0]
-        add(cmd_args(manifest, wasm.basename, delimiter = "="), [manifest, wasm])
+        if module:
+            wasm = module[DefaultInfo].default_outputs[0]
+            add(cmd_args(manifest, wasm.basename, delimiter = "="), [manifest, wasm])
+        else:
+            add(cmd_args(manifest, "", delimiter = "="), [manifest])
         if files:
             add(cmd_args("--data=", files, delimiter = ""), [files])
         for type_module in types[DefaultInfo].default_outputs if types else []:
@@ -220,8 +223,9 @@ program = rule(
         "app_types": attrs.list(attrs.dep(), default = []),
         "binary": attrs.option(attrs.dep(), default = None),
         "bindgen": attrs.list(attrs.dep(), default = []),
-        # Each app's read-only data (app_data), in the order of manifests.
-        "data": attrs.list(attrs.source(), default = []),
+        # Each app's read-only data (app_data), in the order of manifests, or
+        # None for an app staged without its module.
+        "data": attrs.list(attrs.option(attrs.source()), default = []),
         "executable_name": attrs.string(default = ""),
         "files": attrs.list(attrs.source(), default = []),
         "index": attrs.bool(default = False),
@@ -235,7 +239,9 @@ program = rule(
         # a test's.
         "linked": attrs.list(attrs.dep(), default = []),
         "manifests": attrs.list(attrs.source()),
-        "modules": attrs.list(attrs.dep()),
+        # Each app's module, in the order of manifests, or None to stage the
+        # manifest (and its type module) without it.
+        "modules": attrs.list(attrs.option(attrs.dep())),
         # What `buck2 run` runs a bundle without an executable with, followed
         # by the bundle.
         "run_with": attrs.list(attrs.arg(), default = []),

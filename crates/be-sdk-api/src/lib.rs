@@ -67,7 +67,7 @@ pub use dock::{DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedVie
 pub use guest::dock::DockWatch;
 pub use host_services::{
     AccessGrant, AccessListing, BlockAgent, ImportedBlock, PastedBlock, Revision, Signer,
-    TerminalHostBe, TerminalHostDownload, TerminalHostSource,
+    TerminalHostBe, TerminalHostDownload, TerminalHostFile, TerminalHostSource,
 };
 pub use shared::access::AccessLevel;
 pub use shell_types::ChildStatus;

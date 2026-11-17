@@ -153,11 +153,20 @@ interface host-services {
         sha256: string,
     }
 
-    /// A deployed build's `be` is downloaded; a development build's is its
-    /// bytes, built on this machine.
+    /// One file of a development build's `be`, built on this machine.
+    record terminal-host-file {
+        /// Its name beside `be`, a plain file name: `be` itself, or the
+        /// apps' manifests and type modules it reads blocks through.
+        name: string,
+        bytes: list<u8>,
+    }
+
+    /// A deployed build's `be` is downloaded, and reads its apps from its
+    /// release; a development build's is its files, built on this machine:
+    /// `be` and the apps' manifests and type modules to put beside it.
     variant terminal-host-source {
         download(terminal-host-download),
-        bytes(list<u8>),
+        files(list<terminal-host-file>),
     }
 
     /// The `be` of the host's own build for one architecture, and the

@@ -2,16 +2,31 @@
 //! through `be_host_stack::discovery` (`crate::release`).
 
 use std::collections::HashMap;
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Arc, Mutex, Once, PoisonError};
 
 use be_sdk_manifest::BlockTypeManifest;
 use uuid::Uuid;
 
 static NAMES: Mutex<Option<HashMap<Uuid, &'static str>>> = Mutex::new(None);
 
+/// The apps discovery found; the first call, whichever command needs them first, reports
+/// what discovery could not read (a deployed `be` whose release did not answer, a manifest
+/// that did not parse), once.
+pub fn found() -> Arc<be_host_stack::discovery::Apps> {
+    static REPORTED: Once = Once::new();
+    let apps = be_host_stack::discovery::apps();
+    REPORTED.call_once(|| {
+        for error in apps.errors() {
+            eprintln!("be: {error}");
+        }
+    });
+    apps
+}
+
 /// The block type `content_type` as an app's manifest declares it.
 fn declared<T>(content_type: Uuid, read: impl FnOnce(&BlockTypeManifest) -> T) -> Option<T> {
-    be_host_stack::discovery::manifests()
+    found()
+        .manifests()
         .iter()
         .flat_map(|manifest| &manifest.block_types)
         .find(|block_type| Uuid::from_bytes(block_type.content_type()) == content_type)

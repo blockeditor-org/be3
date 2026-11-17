@@ -8,7 +8,7 @@ use be_sdk_beui::be_block_content::{EditorView, EditorViewContent};
 use be_sdk_beui::network::ResponseHead;
 use be_sdk_beui::{
     BlockAgent, EditorHost, Failure, OwnedEditor, TerminalHostBe, TerminalHostDownload,
-    TerminalHostSource,
+    TerminalHostFile, TerminalHostSource,
 };
 use be_sdk_test::prelude::*;
 use be_sdk_test::{BeuiTest, Fetch, HostCall};
@@ -366,6 +366,20 @@ impl Boat {
         );
         self.test.run();
         block
+    }
+
+    /// A development build's files: `be`, and a type module to put beside it.
+    fn built_files() -> TerminalHostSource {
+        TerminalHostSource::Files(vec![
+            TerminalHostFile {
+                name: "be".to_owned(),
+                bytes: b"\x7fELF be".to_vec(),
+            },
+            TerminalHostFile {
+                name: "terminal_types.wasm".to_owned(),
+                bytes: b"\0asm terminal".to_vec(),
+            },
+        ])
     }
 
     /// Answers `terminal-host-binary` with `source`.

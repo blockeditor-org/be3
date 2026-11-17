@@ -32,7 +32,6 @@ fn be_runs_an_apps_host_component_with_no_display() {
         block,
         CounterContent::CONTENT_TYPE,
         Uuid::new_v4(),
-        &std::env::temp_dir(),
     )
     .expect("the counter's host component starts");
     let count = hosting.run_until(std::time::Duration::from_secs(120), || {
