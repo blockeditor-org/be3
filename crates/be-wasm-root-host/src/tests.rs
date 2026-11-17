@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use be_lib_layers::{LayerId, LayerList};
 use be_wasm_host::{Host, Stored, library_file_name, sandbox::Staged};

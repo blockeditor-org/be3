@@ -3154,6 +3154,10 @@ dependencies = [
  "be-wasm-root-testing",
  "be-wasm-sandbox-api",
  "be-wasm-sandbox-host",
+ "js-sys",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
@@ -3166,6 +3170,25 @@ dependencies = [
  "be-wasm-ops",
  "be-wasm-root-api",
  "be-wasm-sandbox-api",
+]
+
+[[package]]
+name = "be-wasm-root-web-testing"
+version = "0.1.0"
+dependencies = [
+ "be-lib-layers",
+ "be-wasm-guest-host",
+ "be-wasm-ops",
+ "be-wasm-root-api",
+ "be-wasm-root-host",
+ "be-wasm-root-testing",
+ "be-wasm-sandbox-api",
+ "be-wasm-sandbox-host",
+ "be-wasm-threads",
+ "js-sys",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
@@ -3189,6 +3212,9 @@ dependencies = [
  "be-wasm-host",
  "be-wasm-ops",
  "be-wasm-sandbox-api",
+ "js-sys",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]

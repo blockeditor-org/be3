@@ -200,4 +200,7 @@ impl Guest for Settling {
     }
 }
 
+// Only the module exports it, so a crate that reads the constants above (be-wasm-root-web-testing,
+// on the page) links no guest's entry points.
+#[cfg(feature = "module")]
 be_wasm_guest_abi::guest!(Settling);

@@ -1,42 +1,136 @@
 //! The sandbox in the browser: the same calls as `be_wasm_host::sandbox`, natively, but each
-//! instance runs in a web worker of its own (be-wasm-guest-host's `WebGuest`), started from the
-//! URL its module is staged at, with be-host's `worker.js` linking it as an app is linked, and no
-//! display. The browser compiles no module from bytes for a guest yet: no root guest runs there
-//! (plans/host_as_platform_adapter.md, step 4), and apps compile none.
+//! instance runs in a web worker of its own (be-wasm-guest-host's `WebGuest`). A staged app's
+//! module is started from the URL it is staged at, with be-host's `worker.js` linking it as an
+//! app is linked, and no display. A module from bytes is compiled on the page with
+//! `WebAssembly.compile`, which never blocks it, once per page for the same bytes, and each
+//! instance of it is a plain worker the page posts the compiled `WebAssembly.Module` to, which
+//! answers only its transport (plans/host_as_platform_adapter.md, The sandbox API).
 
 use std::{
+    cell::RefCell,
+    collections::HashMap,
     convert::Infallible,
+    rc::{Rc, Weak},
     sync::{Arc, atomic::AtomicBool},
 };
 
 use be_wasm_guest_host::{Wake, Worker, web::WebGuest};
+use js_sys::{Uint8Array, WebAssembly};
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::JsFuture;
 
 /// A module, by the SHA-256 of the bytes it was compiled from.
 pub type ModuleId = [u8; 32];
 
-/// A compiled module: none in the browser, which compiles none.
+/// A compiled pure guest's module, which any number of instances run without compiling it again.
 #[derive(Clone)]
-pub enum Module {}
+pub struct Module {
+    id: ModuleId,
+    compiled: Rc<WebAssembly::Module>,
+}
 
 impl Module {
     pub fn id(&self) -> ModuleId {
-        match *self {}
+        self.id
     }
 }
 
-const NO_COMPILES: &str = "this host compiles no modules from bytes";
+thread_local! {
+    /// Every module compiled and still held, so the same bytes compile once. Only the page
+    /// compiles, on its one thread.
+    static COMPILED: RefCell<HashMap<ModuleId, Weak<WebAssembly::Module>>> =
+        RefCell::new(HashMap::new());
+}
 
-/// A compile, which in the browser has already failed.
-pub struct Compiling;
+/// The only imports a pure guest may have: its transport (be-wasm-guest-abi), which the worker
+/// answers itself.
+const TRANSPORT: [&str; 4] = ["host_send", "host_receive", "host_wake", "host_panic"];
+
+/// A compile under way, which the browser finishes off the page's thread.
+pub struct Compiling {
+    done: Rc<RefCell<Option<Result<Module, String>>>>,
+}
 
 impl Compiling {
+    /// The module, or why the bytes are not a pure guest's module, once compiled.
     pub fn done(&self) -> Option<Result<Module, String>> {
-        Some(Err(NO_COMPILES.to_owned()))
+        self.done.borrow().clone()
     }
 }
 
-pub fn compile(_bytes: Vec<u8>, _wake: Wake) -> Compiling {
-    Compiling
+/// Compiles a pure guest's module (guides/app_libraries.md, Pure guests) from `bytes` with
+/// `WebAssembly.compile`, or finds it compiled already, and calls `wake` once it is done.
+pub fn compile(bytes: Vec<u8>, wake: Wake) -> Compiling {
+    let id = be_wasm_dylink::sha256(&bytes);
+    let done = Rc::new(RefCell::new(None));
+    if let Some(compiled) = compiled(id) {
+        *done.borrow_mut() = Some(Ok(Module { id, compiled }));
+        wake();
+        return Compiling { done };
+    }
+    let finishing = Rc::clone(&done);
+    wasm_bindgen_futures::spawn_local(async move {
+        let bytes = Uint8Array::from(bytes.as_slice());
+        let compiled = JsFuture::from(WebAssembly::compile(&bytes)).await;
+        *finishing.borrow_mut() = Some(finish(id, compiled));
+        wake();
+    });
+    Compiling { done }
+}
+
+fn compiled(id: ModuleId) -> Option<Rc<WebAssembly::Module>> {
+    COMPILED.with(|compiled| compiled.borrow().get(&id)?.upgrade())
+}
+
+fn finish(
+    id: ModuleId,
+    compiled: Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>,
+) -> Result<Module, String> {
+    let compiled: WebAssembly::Module = compiled
+        .map_err(|error| format!("the module is not valid: {}", describe(&error)))?
+        .unchecked_into();
+    pure(&compiled)?;
+    let compiled = COMPILED.with(|held| {
+        let mut held = held.borrow_mut();
+        held.retain(|_, module| module.strong_count() > 0);
+        // Two compiles of the same bytes may have raced: the first one kept is the one shared.
+        match held.get(&id).and_then(Weak::upgrade) {
+            Some(kept) => kept,
+            None => {
+                let compiled = Rc::new(compiled);
+                held.insert(id, Rc::downgrade(&compiled));
+                compiled
+            }
+        }
+    });
+    Ok(Module { id, compiled })
+}
+
+/// Checks that `module` imports nothing but its transport, as a pure guest's module does.
+fn pure(module: &WebAssembly::Module) -> Result<(), String> {
+    for wanted in WebAssembly::Module::imports(module).iter() {
+        let field = |key: &str| {
+            js_sys::Reflect::get(&wanted, &key.into())
+                .ok()
+                .and_then(|value| value.as_string())
+                .unwrap_or_default()
+        };
+        let (from, name) = (field("module"), field("name"));
+        if from != "be3_host" || !TRANSPORT.contains(&name.as_str()) {
+            return Err(format!(
+                "the guest imports {from}.{name}, which a pure guest may not"
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn describe(error: &wasm_bindgen::JsValue) -> String {
+    error
+        .dyn_ref::<js_sys::Error>()
+        .map(|error| String::from(error.message()))
+        .or_else(|| error.as_string())
+        .unwrap_or_else(|| "the browser refused it".to_owned())
 }
 
 /// How an instance runs.
@@ -80,11 +174,16 @@ pub struct Instance {
 
 /// Starts an instance of `source`, which calls `wake` whenever it has sent frames or stopped.
 pub fn spawn(source: Source, config: Config, wake: Wake) -> Result<Instance, String> {
-    // A module from bytes cannot be: none compiles.
-    let Source::App(staged) = source;
     let waiting = Arc::new(AtomicBool::new(false));
-    let guest = WebGuest::start(&staged.url, Some(EXTENSION), wake, Arc::clone(&waiting))
-        .map_err(|error| format!("{} could not start: {error}", config.name))?;
+    let guest = match source {
+        Source::Module(module) => {
+            WebGuest::start_module(&module.compiled, wake, Arc::clone(&waiting))
+        }
+        Source::App(staged) => {
+            WebGuest::start(&staged.url, Some(EXTENSION), wake, Arc::clone(&waiting))
+        }
+    }
+    .map_err(|error| format!("{} could not start: {error}", config.name))?;
     Ok(Instance {
         worker: Worker::new(guest, waiting),
         failure: None,
