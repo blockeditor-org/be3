@@ -2267,12 +2267,32 @@ impl<H: Host> Replicas<H> {
         let Some(open) = self.open.get_mut(&replica) else {
             return;
         };
-        if std::mem::replace(&mut open.closing, true) || open.joining {
+        if std::mem::replace(&mut open.closing, true) {
             return;
+        }
+        if open.joining {
+            return self.let_go_if_held(replica);
         }
         self.with_replica(replica, |handle, connection| {
             handle.resource_drop(connection)
         });
+    }
+
+    /// A rejoin held for journaled edits no seal would take (`rejoin_held`) may hold forever,
+    /// as for a diverged replica: closing its block hands its answer back, and the join is let go
+    /// of (`rejoined`).
+    fn let_go_if_held(&mut self, replica: ReplicaId) {
+        let Some(open) = self.open.get_mut(&replica) else {
+            return;
+        };
+        if !rejoin_held(open) {
+            return;
+        }
+        if let Some(io) = open.held.take() {
+            self.holding.remove(&replica);
+            let _ = self.io.send(io);
+            H::wake();
+        }
     }
 
     fn lock(&mut self, shared: &Arc<Mutex<H>>, block: Uuid) {
@@ -3492,13 +3512,13 @@ impl<H: Host> Replicas<H> {
     /// A rejoin that sealed once and still holds journaled edits no seal holds, which a seal
     /// cannot take now (`owes_seal` is false: it diverged, a reload is on its way, or its seal
     /// backs off or cannot merge), is settling too: its answer stays held, asking nothing, until
-    /// a status says a seal would take them (`rejoined`).
+    /// a status says a seal would take them (`rejoined`), or its block closes.
     fn settling(&self, replica: ReplicaId) -> bool {
         self.open.get(&replica).is_some_and(|open| {
             open.publishing > 0
                 || open.submitting > 0
                 || open.reporting.is_some()
-                || rejoin_held(open)
+                || (rejoin_held(open) && !open.closing)
         }) || self
             .asked
             .values()
@@ -3667,9 +3687,18 @@ impl<H: Host> Replicas<H> {
         let Some(open) = self.open.get_mut(&replica) else {
             return;
         };
+        let letting_go = open.closing && rejoin_held(open);
         open.joining = false;
         open.rejoining = None;
         let early = std::mem::take(&mut open.early);
+        // Closed while its rejoin was held (`rejoin_held`): it lets go of the join rather than
+        // open again on the server's journal, which would lose the journaled edits no seal
+        // holds, and ends, leaving the session (`ended`). Its made-up session's journal keeps
+        // them on this device for a replica opened again; what the session said meanwhile is not
+        // its own.
+        if letting_go {
+            return self.close_if_asked(replica);
+        }
         // What its made-up session sealed while the join was on its way is a commit the server
         // lacks, which the server's journal does not reach: as `created` asks, it joins once a
         // drain sent that, and lets go of this join meanwhile. Commits it held before joining

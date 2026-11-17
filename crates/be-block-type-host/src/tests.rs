@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 use crate::{Conflict, Host, Replicas, in_process, started};
 
+mod a_block_closed_while_its_rejoin_is_held_lets_go_of_the_join_and_closes;
 mod a_block_sent_while_its_replica_owes_a_seal_is_asked_for_it_once;
 mod a_block_whose_creation_waits_joins_once_it_is_sent_not_on_reconnecting;
 mod a_block_whose_kept_edits_stop_opening_as_its_replica_starts_opens_again_unlocked;

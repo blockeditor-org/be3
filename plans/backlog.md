@@ -92,19 +92,6 @@ Fixed items are removed as they land.
 
 ## 7. Sessions
 
-- **A held rejoin keeps its block from closing.** A rejoin whose answer comes
-  back after its first seal while the order holds journaled edits no seal
-  holds, and no seal would take them (`owes_seal` false: it diverged, a reload
-  is on its way, its seal backs off or cannot merge), stays held
-  (`Replicas::settling`, be-block-type-host's replicas.rs) until a status says
-  a seal would. `close_if_asked` drops a replica only once it is not joining,
-  so a block closed meanwhile stays open, and a diverged replica's hold never
-  ends: its block never closes. Before the hold it spun on seal asks in the
-  same state, so it never closed then either. Done: a block closed while its
-  rejoin is held lets go of the join (leaves the session, keeping the journaled
-  edits on the device) and closes, shown by a be-block-type-host test that
-  closes a block whose rejoin is held on a diverged replica.
-
 - **A seal of its own during a join that holds kept edits.** `rejoined` seals
   and waits only for a join begun on a settled made-up session
   (`Open::joined_settled`). One that joins holding kept or doubtful edits takes
