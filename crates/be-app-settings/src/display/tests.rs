@@ -16,6 +16,7 @@ use uuid::Uuid;
 
 use crate::display::DisplaySettingsRoot;
 
+mod a_carried_display_snaps_where_it_lines_up_with_another;
 mod a_change_here_goes_to_every_device_and_a_toast_says_so;
 mod a_display_turned_off_or_made_main_is_kept_on_this_device;
 mod a_profile_shows_the_theme_it_inherits;
