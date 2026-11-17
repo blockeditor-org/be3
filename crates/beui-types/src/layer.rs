@@ -114,9 +114,11 @@ pub enum Placement {
     Around,
     /// Opens on `side` of its anchor, `gap` points away from it, lined up by `align`, and
     /// keeps `margin` points inside its window's edges. It flips to the other side when only
-    /// that side has room, and when neither has, takes the roomier one and shrinks (scrolling
-    /// what it holds), so it never covers its anchor: completions, tooltips and popovers keep
-    /// their input or button in view. Along its side it shifts to stay in the window.
+    /// that side has room. Above or below, when neither has, it takes the roomier one and
+    /// shrinks (scrolling what it holds), so it never covers its anchor: completions, tooltips
+    /// and popovers keep their input or button in view. Left or right, it keeps its width
+    /// instead and shifts into the window over its anchor (a submenu in a narrow window).
+    /// Along its side it shifts to stay in the window.
     /// `layer::room` is the room it gets. The constants (`BELOW_START`, `LEFT_END`, ...) name
     /// every side and alignment with no gap; `gap` and `margin` set the rest.
     Beside {
@@ -505,11 +507,13 @@ fn beside(
     let opens_before = match (length <= wanted, length <= other) {
         (true, _) => first,
         (false, true) => !first,
-        // Neither side has room: the roomier one, shrunk to it. An anchor that leaves no room
-        // on either side is covered rather than the overlay shrunk away.
+        // Neither side has room: above or below, the roomier one, shrunk to it (what it holds
+        // scrolls). Beside, rows do not scroll sideways, so it keeps its width on the roomier
+        // side and shifts into the window over its anchor, as an anchor that leaves no room on
+        // either side is covered rather than the overlay shrunk away.
         (false, false) => {
             let roomier = wanted.max(other);
-            if roomier > 0.0 {
+            if vertical && roomier > 0.0 {
                 match vertical {
                     true => size.y = roomier,
                     false => size.x = roomier,
@@ -550,9 +554,9 @@ fn beside(
 }
 
 /// The room an overlay at `placement` gets beside `anchor` in `viewport`, like Floating UI's
-/// `size`: what `resolve_rect` shrinks it to at most. A `Beside` overlay has the roomier of its
-/// side and the other along the axis it opens on (less its gap) and the whole window across
-/// it, less its margin either way; a menu, which covers its anchor where neither side has
+/// `size`: what `resolve_rect` shrinks it to at most. A `Beside` overlay above or below has the
+/// roomier of its side and the other (less its gap) in height, and one to the left or right,
+/// which never shrinks across its side, the window, less its margin either way; a menu, which covers its anchor where neither side has
 /// room, the whole window; an `Inside*` overlay the anchor's part of the window; anything
 /// else the window.
 pub fn room(viewport: Rect, anchor_rect: Rect, placement: Placement) -> Vec2 {
@@ -564,8 +568,8 @@ pub fn room(viewport: Rect, anchor_rect: Rect, placement: Placement) -> Vec2 {
             let (before, after) = room_around(area, anchor_rect, side, f32::from(gap));
             let roomiest = before.max(after);
             match side.vertical() {
-                true => Vec2::new(area.width(), roomiest),
-                false => Vec2::new(roomiest, area.height()),
+                true if roomiest > 0.0 => Vec2::new(area.width(), roomiest),
+                _ => area.size(),
             }
         }
         Placement::InsideTop

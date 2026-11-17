@@ -79,6 +79,12 @@ Fixed items are removed as they land.
   set it to top left if so, as X11 keeps the last frame at the corner (beui-platform-winit's
   `backdrop.rs`). Done when a live resize on a Mac shows the last frame unstretched.
 
+- **One popover placement.** `unstyled::Popover` still takes its own
+  `PopoverPlacement { Below, Beside, Over }` and maps it onto `Placement`, a
+  second placement enum beside the one every other overlay takes. Done (popups
+  step B2): every popup takes `Placement` and one open state, and
+  `PopoverPlacement` is gone.
+
 ## 7. Sessions
 
 - **A seal of its own during a join that holds kept edits.** `rejoined` seals

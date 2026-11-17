@@ -52,27 +52,31 @@ twelve with no gap; `.gap(n)` and `.margin(n)` add them. It opens on its side,
 or on the other when only that one has room, and when neither has room takes
 the roomier one and shrinks (scrolling what it holds), so it never covers its
 anchor: completions, tooltips and popovers keep their input or button in view.
+Only above and below shrink: to the left or right (a submenu) rows don't scroll
+sideways, so it keeps its width and shifts into the window over its anchor.
 Along its side it shifts to stay in the window. `layer::room` is how much room
-it will get there (like Floating UI's `size`), so content can size itself to
-it before it opens. `Placement::Menu`, which menus (`MenuPopup`, context
-menus) and selects use, instead covers its anchor when neither side has room,
-as low as the window allows, and shrinks only when it is taller than the
-window (`layer::resolve_rect`). A menu that must keep clear of what opened it
-passes `placement=Placement::BELOW_START` to its `MenuButton` or
-`ContextMenu`: a dock bar's grip and the desktop bar's own menus (tray,
-layouts, window chips), which must not hide the bar. The HTML core places a
-`Menu` from its measured size, since CSS anchor positioning cannot cover the
-anchor; so unlike a `Beside`, which CSS keeps on its anchor (`position-area`
-with flip fallbacks, the gap as the margin facing the anchor), an open menu
-there moves only when beui lays out again, not as a DOM scroller under its
-anchor scrolls. Something placed at a point rather than beside anything (the
-dock's drop marker) is `At`.
+it will get there (like Floating UI's `size`); the native core measures its
+content in that room, and content can size itself to it before it opens.
+`Placement::Menu`, which menus (`MenuPopup`, context menus) and selects use,
+instead covers its anchor when neither side has room, as low as the window
+allows, and shrinks only when it is taller than the window
+(`layer::resolve_rect`). A menu that must keep clear of what opened it passes
+`placement=Placement::BELOW_START` to its `MenuButton` or `ContextMenu`: a dock
+bar's grip and the desktop bar's own menus (tray, layouts, window chips), which
+must not hide the bar. The HTML core places a `Menu` and a `Beside` from its
+measured size through `layer::resolve_rect`, as the native core does: CSS
+anchor positioning cannot cover an anchor, and its fallbacks re-align a box
+instead of shifting it and ignore the margin. So an open one there moves only
+when beui lays out again, not as a DOM scroller under its anchor scrolls.
+beui-demo's Placements sample and its `placements.drive` twin check the two
+cores agree near the window's corner. Something placed at a point rather than
+beside anything (the dock's drop marker) is `At`.
 
 `bounds` (window coordinates) narrows the room an overlay is placed, flipped,
 shifted and shrunk in; a menu passes it to its submenus, and a panel that must
 not cover a dock's bands takes the dock's area. The HTML core ignores it, and
-fits menus and `Beside` overlays with CSS anchor fallbacks and a `max-width`
-and `max-height` from `layer::room`.
+caps menus and `Beside` overlays with a `max-width` and `max-height` from
+`layer::room`.
 
 An overlay `Beside` its anchor above or below it with a `pointer` frame stands
 that frame `gap` off the anchor and can point a beak at it (popovers are

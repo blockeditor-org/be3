@@ -332,8 +332,8 @@ impl OverlayNode {
         );
         let available = match (inside, self.placement) {
             (true, _) => anchor_rect.intersect(area).size().max(Vec2::ZERO),
-            (false, Placement::Beside { margin, .. }) => {
-                area.shrink(f32::from(margin)).size().max(Vec2::ZERO)
+            (false, Placement::Beside { .. }) => {
+                beui_types::layer::room(area, anchor_rect, self.placement)
             }
             (false, _) => area.size(),
         };
