@@ -147,24 +147,24 @@ pub fn Anchored(
     let dropdown = move || {
         view! {
             <Overlay
-                    @node_ref=&overlay
-                    anchor={anchor}
-                    placement
-                    bounds
-                    policy
-                    traps_focus
-                    trigger
-                    pointer={pointer}
-                    beak
-                    open={dropped}
-                    dismissable={dismissable}
-                    on_dismiss={move |_: Dismiss| close.call(())}
-                    content={move || style.dropdown.call(Dropdown {
-                        content: look(false, dropped),
-                        pointer,
-                        anchor,
-                    })}
-                />
+                @node_ref=&overlay
+                anchor={anchor}
+                placement
+                bounds
+                policy
+                traps_focus
+                trigger
+                pointer={pointer}
+                beak
+                open={dropped}
+                dismissable={dismissable}
+                on_dismiss={move |_: Dismiss| close.call(())}
+                content={move || style.dropdown.call(Dropdown {
+                    content: look(false, dropped),
+                    pointer,
+                    anchor,
+                })}
+            />
         }
     };
     // A popup that never becomes a sheet (a tooltip) is its overlay alone: no list around it

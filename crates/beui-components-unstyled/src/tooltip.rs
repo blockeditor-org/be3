@@ -163,7 +163,12 @@ pub fn Tooltip(
             return;
         }
         untrack(|| {
-            on_key(KeyAt::Control(anchor), KeyPhase::Bubble, KeyReveal::Nothing, escape);
+            on_key(
+                KeyAt::Control(anchor),
+                KeyPhase::Bubble,
+                KeyReveal::Nothing,
+                escape,
+            );
             on_key(KeyAt::Window, KeyPhase::Bubble, KeyReveal::Nothing, escape);
         });
     });

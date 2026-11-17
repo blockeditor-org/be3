@@ -535,7 +535,9 @@ pub fn set_description(node: NodeId, description: Option<String>) {
         .describing
         .replace((target_element.clone(), Rc::downgrade(&target)))
         .and_then(|(element, previous)| Some((element, previous.upgrade()?)));
-    if let Some((element, previous)) = previous.filter(|(_, previous)| !Rc::ptr_eq(previous, &target)) {
+    if let Some((element, previous)) =
+        previous.filter(|(_, previous)| !Rc::ptr_eq(previous, &target))
+    {
         previous.borrow_mut().description = None;
         apply_aria(&element, &previous);
     }

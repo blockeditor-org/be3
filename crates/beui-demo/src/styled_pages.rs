@@ -5088,7 +5088,9 @@ fn NestedNote(text: &'static str) -> NodeId {
 
 const BARS_SIDE_WIDTH: f32 = 280.0;
 
-const BLEND_MODES: [&str; 6] = ["Normal", "Multiply", "Screen", "Overlay", "Darken", "Lighten"];
+const BLEND_MODES: [&str; 6] = [
+    "Normal", "Multiply", "Screen", "Overlay", "Darken", "Lighten",
+];
 
 /// The side pane's tab: a select as wide as the narrow pane, whose list keeps within the pane
 /// (its `bounds`), so it never covers the status bars' band below it.

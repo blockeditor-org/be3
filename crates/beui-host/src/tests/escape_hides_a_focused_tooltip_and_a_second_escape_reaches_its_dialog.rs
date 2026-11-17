@@ -42,7 +42,10 @@ fn escape_hides_a_focused_tooltip_and_a_second_escape_reaches_its_dialog() {
         "the focus stays on the button"
     );
     harness.frame(Vec::new());
-    assert!(!tip(&harness), "and the tooltip stays hidden while the focus does");
+    assert!(
+        !tip(&harness),
+        "and the tooltip stays hidden while the focus does"
+    );
 
     harness.key(Key::Escape, Modifiers::NONE);
     harness.settle();

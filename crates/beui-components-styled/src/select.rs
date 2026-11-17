@@ -80,7 +80,9 @@ where
             }}
             surface={AnchoredStyle::new(
                 |dropdown: Dropdown| view! {
-                    <SelectPopup trigger_width={dropdown.anchor_width()}>{dropdown.content}</SelectPopup>
+                    <SelectPopup trigger_width={dropdown.anchor_width()}>
+                        {dropdown.content}
+                    </SelectPopup>
                 },
                 |handle| view! {
                     <AnchoredSheet handle padding=POPUP_PADDING />

@@ -42,7 +42,10 @@ fn tooltips_share_a_warm_up_that_cools_down_after_the_last_one_closes() {
 
     harness.frame(vec![Input::PointerMoved(harness.center(first))]);
     harness.frame(Vec::new());
-    assert!(!shown(&harness, "first.tip"), "a cold tooltip waits its delay");
+    assert!(
+        !shown(&harness, "first.tip"),
+        "a cold tooltip waits its delay"
+    );
     harness.advance(TOOLTIP_DELAY);
     harness.frame(Vec::new());
     assert!(shown(&harness, "first.tip"));
