@@ -1,8 +1,7 @@
 # Single-threaded guests
 
 Depends on: plans/host_as_platform_adapter.md, steps 1 and 2 (the sandbox API and spawning staged
-apps, which an app needs to start its own worker), and plans/web_page_never_waits.md (after which
-nothing on the web page shares memory with a thread).
+apps, which an app needs to start its own worker).
 
 Every guest is built for `wasm32-wasip1-threads` today: one shared memory per app, threads made
 by `wasi-threads` (`thread-spawn`), and a thread-local block per module per thread. Drop that.

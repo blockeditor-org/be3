@@ -1,6 +1,6 @@
 # The host as a platform adapter
 
-Depends on: plans/web_page_never_waits.md (step 1 only).
+Depends on: none.
 
 be-host shrinks to what is the platform: windows and input, the GPU, the wasm engine and OS
 services. Everything with a UI moves into wasm guests: a root guest the host calls synchronously,
