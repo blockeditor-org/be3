@@ -681,9 +681,15 @@ interface types {
         rect: surface-rect,
     }
 
+    /// `painted` is the placement each surface the frame painted was painted
+    /// at: its size and raster are those of the texture now on that surface,
+    /// which the host shows at that size whatever size the layout has asked for
+    /// since, so a layout that lands before the present of its size never
+    /// stretches the last one.
     record presented-frame {
         sequence: u64,
         damage: list<screen-damage>,
+        painted: list<screen-placement>,
     }
 
     /// A view of the app: an instance and one of its views.
