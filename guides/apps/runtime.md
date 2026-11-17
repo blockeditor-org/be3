@@ -37,10 +37,11 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
 `v8::SharedIsolate`, locked by the thread that runs it):
 
 - **Imports.** The gpu and transport imports are generated from
-  `gpu_local_imports!` and `transport_functions!`. Where the guest's memory
-  is shared they are V8 fast-API calls, reached from wasm code with no
-  JavaScript between (`--wasm-unsafe-fast-api-wrapper`); where the guest has
-  its own memory they are ordinary V8 function calls.
+  `gpu_local_imports!` and `transport_functions!`. They are ordinary V8
+  function calls, since a guest's memory is unshared and may move when it
+  grows (decisions/guests_are_single_threaded.md). Only a guest whose memory
+  is shared, which nothing builds any more, gets V8 fast-API calls, reached
+  from wasm code with no JavaScript between (`--wasm-unsafe-fast-api-wrapper`).
 - **WASI.** Preview1 is implemented in Rust (`src/wasi.rs`). An app gets no
   files, arguments or environment, as `wasi.js` gives it in the browser; the
   test harness also gets arguments, environment, stdout and its preopened

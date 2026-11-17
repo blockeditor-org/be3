@@ -43,7 +43,9 @@ pub(crate) struct TileWorker {
     sent: HashMap<TileId, Option<Generation>>,
     /// How many jobs each generation of the rasterizer was sent and has not answered, cancelled
     /// or not; a generation that stopped answers none of them.
-    rasterizing: HashMap<Generation, usize>,
+    by_generation: HashMap<Generation, usize>,
+    /// Their sum: the jobs the rasterizer has in hand.
+    rasterizing: usize,
     /// This map's way to the rasterizer (be-worker-map-tiles), which every map of the app shares,
     /// once it sent it a tile.
     rasterizer: Option<Shared>,
@@ -61,7 +63,8 @@ impl TileWorker {
             kept: VecDeque::new(),
             pending: VecDeque::new(),
             sent: HashMap::new(),
-            rasterizing: HashMap::new(),
+            by_generation: HashMap::new(),
+            rasterizing: 0,
             rasterizer: None,
         }
     }
@@ -138,7 +141,7 @@ impl TileWorker {
             });
             self.downloads.insert(id, task);
         }
-        while self.rasterizing.values().sum::<usize>() < MAX_RASTERIZING {
+        while self.rasterizing < MAX_RASTERIZING {
             let Some((id, source, body)) = self.pending.pop_front() else {
                 break;
             };
@@ -152,7 +155,8 @@ impl TileWorker {
                 .rasterizer
                 .get_or_insert_with(|| Shared::new(be_worker_map::MODULE, move || waker.wake()))
                 .send(&job.encode());
-            *self.rasterizing.entry(generation).or_default() += 1;
+            *self.by_generation.entry(generation).or_default() += 1;
+            self.rasterizing += 1;
             if let Some(sent) = self.sent.get_mut(&id) {
                 *sent = Some(generation);
             }
@@ -194,8 +198,11 @@ impl TileWorker {
         {
             match result.and_then(|message| Rasterized::decode(&message)) {
                 Ok(Rasterized { id, result }) => {
-                    if let Some(count) = self.rasterizing.get_mut(&generation) {
-                        *count = count.saturating_sub(1);
+                    if let Some(count) = self.by_generation.get_mut(&generation)
+                        && *count > 0
+                    {
+                        *count -= 1;
+                        self.rasterizing -= 1;
                     }
                     if self.sent.remove(&id).is_some() {
                         results.push(TileResult { id, result });
@@ -205,7 +212,8 @@ impl TileWorker {
                 // next tile starts it anew. A tile still pending, or sent to a later generation
                 // (dispatch can restart it before this hears the stop), waits for that.
                 Err(why) => {
-                    self.rasterizing.remove(&generation);
+                    let lost = self.by_generation.remove(&generation).unwrap_or(0);
+                    self.rasterizing -= lost;
                     let failed: Vec<TileId> = self
                         .sent
                         .iter()
