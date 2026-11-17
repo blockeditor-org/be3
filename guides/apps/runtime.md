@@ -89,8 +89,14 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   would need a device of its own, it needs none. The root guest will be served
   with `Server::new`, which may spawn any staged app and compile modules
   (plans/host_as_platform_adapter.md, step 4). The input remapper runs on
-  `be_wasm_host::sandbox` (guides/desktop/login_session.md, Input remaps). The
-  web has no half yet: it refuses an app's sandbox calls as unsupported.
+  `be_wasm_host::sandbox` (guides/desktop/login_session.md, Input remaps). In
+  the browser the same `Server` answers from be-wasm-sandbox-host's `web`
+  half: each instance is a web worker of its own (`WebGuest`), started from the
+  URL be-host-runtime's `worker_file` maps the name to (the native loader maps
+  it with the same function), and linked by be-host's `web/worker.js`, which
+  links it as `app.js` links an app but opens no gpu device. The browser cannot
+  cap a worker's memory, and compiles no module from bytes until a root guest
+  runs there.
 - **V8's heap.** No guest may declare garbage-collected types (structs,
   arrays) or more than one table, and a table holds at most a million entries
   (`engine::Shape::bounded`): V8 stops delivering a termination once an
@@ -290,9 +296,10 @@ step it for nothing.
 
 A call that changes nothing drawn costs no frame, and a frame runs only the
 instances something touched, so an idle instance costs nothing. Work off the
-frame (the PDF editor renders pages on its own thread) asks for a frame
-through `request_repaint` or a `be_sdk_beui::native::Waker`; a worker's answer
-(guides/adding_an_app.md, Workers) wakes the host, which steps the app with it.
+frame runs in a worker (guides/adding_an_app.md, Workers; the PDF editor
+renders pages in one): its answer wakes the host, which steps the app with it,
+and the app asks for a frame through `request_repaint` or a
+`be_sdk_beui::native::Waker`.
 
 ## Headless
 

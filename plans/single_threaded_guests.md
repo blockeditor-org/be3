@@ -1,8 +1,8 @@
 # Single-threaded guests
 
 Depends on: none. It builds on the sandbox API and spawning staged apps by id
-(plans/host_as_platform_adapter.md, steps 1 and 2, both built natively). Step 1 is built
-natively.
+(plans/host_as_platform_adapter.md, steps 1 and 2, both built natively). Steps 1 and 2 are
+built, and apps' workers run on the web too.
 
 Every guest is built for `wasm32-wasip1-threads` today: one shared memory per app, threads made
 by `wasi-threads` (`thread-spawn`), and a thread-local block per module per thread. Drop that.
@@ -50,16 +50,13 @@ parallel as instances of their own, and nothing may assume one thread.
 
 ## Workers
 
-Today two apps start a thread, each a background worker fed by a channel:
+The two apps that started a thread now run that work as a worker: an instance of a module of
+their own app, spawned through the sandbox API with an entry point of its own, receiving jobs and
+sending results as messages (`be_sdk::worker`, guides/adding_an_app.md, Workers). Natively it runs
+on its own OS thread and in the browser in its own web worker, so it may wait on its channel.
 
-- `be-app-map/src/tiles.rs`: the tile rasterizer.
-- `be-app-pdf/src/render/pdfium.rs`: PDFium, initialized and run on its own thread.
-
-Each becomes an instance of its own app's module, spawned through the sandbox API with an entry
-point of its own, receiving jobs and sending results over its channel. Natively it runs on its
-own OS thread and in the browser in its own worker, so it may wait on its channel. Give be-sdk
-one way to start such a worker and exchange messages with it, so the next app that needs one does
-not write its own.
+- the map's tile rasterizer (crates/be-worker-map-tiles);
+- the PDF editor's renderer, PDFium (crates/be-worker-pdf-render).
 
 ## Steps
 
@@ -75,11 +72,14 @@ not write its own.
    modules would be one). A worker gets no gpu: it sends its result back as bytes, which the app
    uploads, so no device is handed over, and the web would need none per worker. The app's side is
    `Worker::spawn`, `send` and `receive`, a byte buffer a message (guides/adding_an_app.md,
-   Workers). The web's half is not built: its host refuses an app's sandbox calls, so a worker
-   there fails at once; it lands with step 2's ports or the root guest on the web.
-2. Port the map and PDF workers to it.
+   Workers).
+2. Built: the map and PDF workers are ported to it, natively and on the web, where
+   be-wasm-sandbox-host's `web` half serves an app's workers, each in a web worker of its own.
+   Each app's editors share one worker, and an app's tests serve its workers in their own
+   instance (`BeuiTest::serve_worker`).
 3. Build every guest, and the C libraries guests link (wasi-libc, libc++, PDFium, FreeType,
-   HarfBuzz, libghostty-vt), for `wasm32-wasip1`: `buck/wasm/defs.bzl`, `buck/toolchains/BUCK`
+   HarfBuzz, libghostty-vt; PDFium is linked by the PDF renderer, crates/be-worker-pdf-render),
+   for `wasm32-wasip1`: `buck/wasm/defs.bzl`, `buck/toolchains/BUCK`
    (drop `-pthread`), `buck/constraints/BUCK`, `crates/be-lib-ghostty-vt/BUCK`,
    `rust-toolchain.toml`, and the test runner (decisions/app_tests_run_as_wasm_guests.md). Write
    the decision above.

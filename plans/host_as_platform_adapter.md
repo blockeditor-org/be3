@@ -279,9 +279,9 @@ compile turns the memory a module defines into an import, so one compile serves 
 different memory limits. A staged app's module, its entry point or one of its workers, is found by
 a loader the host gives the `Server` (be-host-runtime's `staged_app`), and runs with its libraries
 and WASI but no display. Every app is served one already, for its workers, which spawns only its
-own app's modules and compiles none (plans/single_threaded_guests.md, step 1). The web's half is
-not built: it lands with the first guest on the web that spawns (step 4, or
-plans/single_threaded_guests.md).
+own app's modules and compiles none (plans/single_threaded_guests.md, step 1). On the web the
+same `Server` spawns staged modules, each in a web worker of its own (plans/single_threaded_guests.md,
+step 2), but compiles no module from bytes: that lands with the root guest on the web (step 4).
 
 An app's platform calls (clipboard, drag and drop, file dialogs, opening URLs) are served by the
 host directly for that app, and the compositor can turn them off for it.
