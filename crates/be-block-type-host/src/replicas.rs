@@ -4742,7 +4742,10 @@ pub type Loads = (
 /// on the commit the journal is still on (its holder stopped after the server took the seal and
 /// before it trimmed the journal, `Commit::sealed_through`) and the journal reaches it
 /// (`reaches_seal`), that journal on that commit, with `head` as the sealed head the replica
-/// takes once it replayed it; or else, for the server's journal, the journal on its own base,
+/// takes once it replayed it; for the server's journal, that seal may be an ancestor of `head`
+/// along seals (the server lost the seal's rebase, and the outbox published the seal and those
+/// made on it since), which the replica takes the same way and then hears of `head`; or else,
+/// for the server's journal, the journal on its own base,
 /// which the replica opens on because the order goes on from there (it hears of `head` after,
 /// and its holder merges it in). This device's journal on another commit is passed over: what it
 /// numbered offline was sealed into the commits this device keeps.
@@ -4770,20 +4773,34 @@ pub fn journal_for<S: be_block_store::ObjectStore>(
     if journal.base.commit == head {
         return (Some(journal), kept, head, None);
     }
-    let sealed = head.and_then(|commit| {
-        let (parent, sealed) = peer.sealed_on(commit)?;
-        // A seal of another run of the order counts its sequences there.
-        let restarts = be_sdk_type_guest::wire::BaseState::decode(&journal.base.state)
-            .map_or(0, |state| state.restarts);
-        let reaches = journal.base.commit == parent
-            && sealed.restarts == restarts
-            && be_block_session::reaches_seal(
-                journal.base.sequence,
-                journal.entries.iter().map(|entry| entry.sequence),
-                sealed.sequence,
-            );
-        reaches.then_some((commit, parent, sealed.sequence))
-    });
+    // A seal of another run of the order counts its sequences there.
+    let restarts = be_sdk_type_guest::wire::BaseState::decode(&journal.base.state)
+        .map_or(0, |state| state.restarts);
+    let mut sealed = None;
+    let mut at = head;
+    while let Some(commit) = at {
+        let Some((parent, through)) = peer.sealed_on(commit) else {
+            break;
+        };
+        if journal.base.commit == parent {
+            let reaches = through.restarts == restarts
+                && be_block_session::reaches_seal(
+                    journal.base.sequence,
+                    journal.entries.iter().map(|entry| entry.sequence),
+                    through.sequence,
+                );
+            sealed = reaches.then_some((commit, parent, through.sequence));
+            break;
+        }
+        // The server's journal may still be on the base of a seal the head descends from: the
+        // server lost the seal's rebase, and the outbox published it and the seals after it
+        // (made offline). Its entries up to the seal are in the head; opened on the base, the
+        // replica would merge them in again. It is told of the head after it loads.
+        if !from_server {
+            break;
+        }
+        at = parent;
+    }
     match sealed {
         Some((commit, parent, through)) => (
             Some(journal),
