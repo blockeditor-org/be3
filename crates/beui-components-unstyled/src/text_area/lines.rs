@@ -790,6 +790,7 @@ enum PieceKey {
         leaf: Option<SynHlStyle>,
     },
     Space(u32, u32),
+    Blank(u32, (u32, FontFamily, bool, bool)),
     Inline(usize, InlineKind),
 }
 
@@ -818,6 +819,13 @@ fn piece_keys(row: &Row) -> Vec<PieceKey> {
                 }
             }
             SpanKind::Space(width) => PieceKey::Space(width.px.to_bits(), width.share.to_bits()),
+            SpanKind::Blank(width) => {
+                let font = span.style.font;
+                PieceKey::Blank(
+                    width.to_bits(),
+                    (font.size.to_bits(), font.family, font.bold, font.italic),
+                )
+            }
             SpanKind::Inline(index) => PieceKey::Inline(
                 index,
                 row.inline
@@ -867,6 +875,15 @@ fn RowPiece(cx: Context, model: Memo<Rc<Row>>, key: PieceKey) -> TextChild {
             <Gap width={f32::from_bits(width)} share={f32::from_bits(share)} />
         }
         .into_child(),
+        PieceKey::Blank(width, (size, family, bold, italic)) => {
+            let font = FontId::new(f32::from_bits(size), family)
+                .bold(bold)
+                .italic(italic);
+            view! {
+                <Blank width={f32::from_bits(width)} font={Some(font)} />
+            }
+            .into_child()
+        }
         PieceKey::Inline(item, kind) => {
             let text = inline_text(model, item);
             view! {

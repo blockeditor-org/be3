@@ -7,7 +7,7 @@ use std::cell::OnceCell;
 use std::ops::Range;
 use std::rc::{Rc, Weak};
 
-use crate::rich::{RichLayout, Shaper};
+use crate::rich::{RichLayout, Shaper, SpanKind};
 use beui_types::Color32;
 use beui_types::{Piece, RichOptions, SpanStyle};
 use beui_types::{Pos2, Rect, Vec2, pos2, vec2};
@@ -230,7 +230,11 @@ impl Galley {
         for line in &rich.lines {
             let mut cursors: Vec<(usize, f32)> = Vec::new();
             for run in &line.runs {
-                let Some(galley) = &run.galley else {
+                let Some(galley) = run
+                    .galley
+                    .as_ref()
+                    .filter(|_| !matches!(run.kind, SpanKind::Blank(_)))
+                else {
                     continue;
                 };
                 let (left, top) = (line.run_left(run), line.run_top(run));

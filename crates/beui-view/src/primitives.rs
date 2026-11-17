@@ -11,5 +11,7 @@ pub use crate::components::overlay::{Modality, Overlay, use_modal};
 pub use crate::components::portal::Portal;
 pub use crate::components::root::{Root, SystemBars};
 pub use crate::components::selectable::Selectable;
-pub use crate::components::text::{Break, Gap, Icon, Span, SpanText, Text, TextChild, TextItem};
+pub use crate::components::text::{
+    Blank, Break, Gap, Icon, Span, SpanText, Text, TextChild, TextItem,
+};
 pub use crate::components::virtual_list::VirtualList;
