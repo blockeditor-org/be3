@@ -1,4 +1,5 @@
-# A dock's tabs switch, move between panes, split a pane from its edge,
+# A dock's tabs switch, move between panes, part the dock where they would land,
+# split a pane from its edge,
 # resize by the splitter, float out into a window, move the window by its
 # title bar and by its grip, and dock back.
 clock stop
@@ -25,6 +26,16 @@ up
 wait not '#dock.preview'
 wait 'value="([Alpha*] |0.5 [Gamma Beta*])"'
 drag '#dock.splitter.root' '#dock.splitter.root+-180,200' 6
+wait 'value="([Alpha*] |0.3 [Gamma Beta*])"'
+# Carried to a pane's edge, a tab parts the dock: it is drawn as the pane it
+# would open there, listed once, and Escape puts it down where it was.
+down '#dock.tab.3'
+move '#docking.beta+100,440'
+wait '#dock.drop'
+wait not 'Tab "Gamma"'
+key Escape
+up
+wait not '#dock.drop'
 wait 'value="([Alpha*] |0.3 [Gamma Beta*])"'
 drag '#dock.tab.3' '#docking.beta+100,440' 6
 wait 'value="([Alpha*] |0.3 ([Beta*] /0.5 [Gamma*]))"'
