@@ -151,11 +151,15 @@ by a *remapper*: a WebAssembly module an app ships as data, given a config the a
   `be-host-remap-host` runs it in the sandbox (`be_wasm_host::sandbox`), on a thread and isolate
   of its own with a memory cap. It sends `Start` when the remaps should run and never waits for
   its answer: input passes through as it is until it comes (`Remapper::poll`, which the instance's
-  wake reaches through the host's frame), and a key pressed meanwhile is let go as it is. Input
-  waits only for its own answer, up to `Limits::call` (100 ms). An answer not given within its
-  limit is a failure, and dropping the instance terminates it.
+  wake reaches through the host's frame). Should the keys held or the window have changed by then,
+  it starts them again with what is true now, as a call, so keys pressed meanwhile reach them; a
+  failed start leaves those keys to be let go as they are. Input waits only for a call's answer,
+  up to `Limits::call` (100 ms). A start must be answered within `Limits::start` (5 s) on the input
+  clock, which the session's input timer comes for (`Remapper::deadline`). An answer not given in
+  time is a failure, and dropping the instance terminates it; a module that hangs in `Start` so
+  spins for up to three times 5 s before it stops.
 - **Failing open.** On any failure the host releases everything the module held, passes the input
-  through, toasts, and restarts the module on the next input; after three failures in a minute, or
+  through, toasts, and starts the module again with the next frame or input; after three failures in a minute, or
   an unreadable config, it stays off until the remapper changes. Ctrl+Alt+Backspace, Ctrl+Alt+F<n>,
   Super+L and Super+Escape never reach the module, and nothing does while the screen is locked, so a
   module can neither trap the session nor read the password. Those keys go out with the modifiers
