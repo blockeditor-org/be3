@@ -387,7 +387,8 @@ order: presence and channel messages. The rules an agent most needs:
   `local` for `apply_beneath`), an ordinary edit made meanwhile is queued beneath
   it and recorded for undo against the content without it, and seals, stashes,
   `content` and descriptions never hold it. An undo while it is held cancels all
-  of it and does nothing else; a redo is refused. A restart carries the layer
+  of it and does nothing else; its open gestures stay open, dropping what their
+  editors send, until they end them. A redo is refused. A restart carries the layer
   after `unsent`; a gesture with an edit that does not carry, and every open one
   at a replacement, ends here: the editor is told `ToEditor::GestureEnded`, and
   its later edits are dropped until it ends the gesture as it would have. An
