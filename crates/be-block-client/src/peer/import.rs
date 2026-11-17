@@ -305,13 +305,13 @@ impl<S: ObjectStore> Peer<S> {
                     Some(published) => Some(published.await?),
                     None => None,
                 };
-                results.push((ready.id, self.imported(&ready, created, published)));
+                results.push((ready.id, self.imported(&ready, created, published).await));
             }
             Ok(results)
         })
     }
 
-    fn imported(
+    async fn imported(
         &self,
         ready: &Prepared,
         created: Result<BlockSummary, be_block_protocol::Error>,
@@ -323,10 +323,24 @@ impl<S: ObjectStore> Peer<S> {
                 self.keys.made_taken(block.id);
                 Some(block)
             }
+            // Imported here already, its answer lost; or made by someone else under the id,
+            // which this import is not: set aside, its root let go, as the drain does.
             Err(be_block_protocol::Error {
                 code: ErrorCode::BlockAlreadyExists,
                 ..
-            }) => None,
+            }) => {
+                if !self.made_here(&ready.creation).await? {
+                    let why = crate::refs::Aside::Refused(ErrorCode::BlockAlreadyExists);
+                    self.forget_made(&ready.creation)?;
+                    self.move_to_unsent(block, Some(why))?;
+                    return Err(ClientError::Refused(
+                        ErrorCode::BlockAlreadyExists,
+                        format!("block {block} is someone else's already"),
+                    ));
+                }
+                self.keys.made_taken(block);
+                None
+            }
             Err(error) => {
                 self.refs.remove(&ready.queued)?;
                 self.forget_made(&ready.creation)?;

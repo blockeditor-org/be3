@@ -94,6 +94,11 @@ struct Roots {
     /// creation the server refuses as made by someone else lets its root go, and the other root
     /// stands (`KeyBook::forget_made`).
     made: HashMap<Uuid, Made>,
+    /// Roots this device made for blocks whose creation no server took (`KeyBook::forget_made`),
+    /// kept across restarts (`refs::Refs::unmade`): the keys that creation minted still open
+    /// and carry it, but it is pinned no more, so a block someone else made under the id keeps
+    /// its own root.
+    unmade: HashMap<Uuid, EntryHash>,
 }
 
 /// A root this device made for a block no server has taken yet (`Roots::made`).
@@ -161,6 +166,9 @@ impl Roots {
     }
 
     fn pin(&mut self, block: Uuid, root: EntryHash) {
+        if self.unmade.get(&block) == Some(&root) {
+            return;
+        }
         self.carried_other(block, root, false);
         if self.conflicting.contains(&block) {
             return;
@@ -181,6 +189,9 @@ impl Roots {
     /// Takes `root` weakly (`Roots::weak`) for a block pinned nothing else for; one that
     /// disagrees with what is held is a conflict.
     fn pin_weak(&mut self, block: Uuid, root: EntryHash) {
+        if self.unmade.get(&block) == Some(&root) {
+            return;
+        }
         self.carried_other(block, root, true);
         if self.conflicting.contains(&block) {
             return;
@@ -909,6 +920,7 @@ impl KeyBook {
     /// meanwhile is lifted, and that root stands, when they all carried the same one.
     pub fn forget_made(&self, block: Uuid, root: EntryHash) {
         let mut roots = self.roots.lock().unwrap();
+        roots.unmade.insert(block, root);
         let made = roots.made.remove(&block).filter(|made| made.root == root);
         if roots.pinned.get(&block) == Some(&root) {
             roots.pinned.remove(&block);
@@ -935,6 +947,12 @@ impl KeyBook {
         };
     }
 
+    /// The roots made here that no server took, from an earlier run (`forget_made`): set before
+    /// the keys their creations minted are read again, which would pin them.
+    pub fn set_unmade(&self, unmade: impl IntoIterator<Item = (Uuid, EntryHash)>) {
+        self.roots.lock().unwrap().unmade.extend(unmade);
+    }
+
     /// Notes `root` as made here for `block`, whose creation the outbox keeps from an earlier
     /// run, before the keys it pinned are read again (`pin_root`).
     pub fn note_made(&self, block: Uuid, root: EntryHash) {
@@ -954,6 +972,7 @@ impl KeyBook {
     /// (`forget_made`).
     pub fn pin_root(&self, block: Uuid, root: EntryHash) {
         let mut roots = self.roots.lock().unwrap();
+        roots.unmade.remove(&block);
         roots.made.insert(
             block,
             Made {
