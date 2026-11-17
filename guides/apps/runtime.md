@@ -67,7 +67,11 @@ On the host, each view of an instance is a retained beui component, `AppView`
 (`crates/be-host/src/compositor/app_view.rs`), which mounts the screen, places
 it from the `Embed` it fills and forwards input to it; `editors.rs` builds
 tabs, takeovers, embedded children and previews from it. What an app sends
-reaches them as one revision signal per app.
+reaches them as one revision signal per app. An `Embed`'s `on_place` hears a
+placement at once, but being unplaced only if the frame ends with it so: an
+`Embed` whose node moves to another parent in one frame (a kept panel dropped
+into another dock pane) is never heard unplaced, so its app neither hides nor
+presents again for the move (`EmbedState::hold`, `Document::show_content`).
 
 ## Frames and pacing
 
