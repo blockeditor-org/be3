@@ -744,6 +744,9 @@ pub struct Owing {
     /// Publishes of it not yet answered.
     pub publishing: usize,
     pub joining: bool,
+    /// While its rejoin's answer is held because no seal can take the journaled edits it would
+    /// lose (`settling`), how many there are.
+    pub rejoin_held: Option<u64>,
     pub closing: bool,
     /// Why keeping its edits on this device last failed (`Replicas::keep_edits`), if it did.
     pub keep_error: Option<String>,
@@ -764,6 +767,8 @@ impl Owing {
             unreported: open.unreported(),
             publishing: open.publishing,
             joining: open.joining,
+            rejoin_held: rejoin_held(open)
+                .then(|| open.status.journaled_taken - open.status.sealed_taken),
             closing: open.closing,
             keep_error: open.keep_error.clone(),
         }
@@ -816,7 +821,7 @@ impl std::fmt::Display for Owing {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             formatter,
-            "{} of type {} (clean: {}, owes a seal: {}, diverged: {}, journaled: {}{}, unreported: {}, publishes unanswered: {}, joining: {}, closing: {}, last publish failed: {:?}, last keep failed: {:?})",
+            "{} of type {} (clean: {}, owes a seal: {}, diverged: {}, journaled: {}{}, unreported: {}, publishes unanswered: {}, joining: {}{}, closing: {}, last publish failed: {:?}, last keep failed: {:?})",
             self.block,
             self.content_type,
             self.clean,
@@ -832,6 +837,10 @@ impl std::fmt::Display for Owing {
             self.unreported,
             self.publishing,
             self.joining,
+            self.rejoin_held
+                .map_or_else(String::new, |edits| format!(
+                    " (rejoin held: a seal cannot take {edits} journaled edit(s))"
+                )),
             self.closing,
             self.publish_error,
             self.keep_error
@@ -1070,6 +1079,7 @@ impl<H: Host> Replicas<H> {
         open.sealed_joining = true;
         open.status.journaled_taken = journaled;
         open.status.sealed_taken = sealed;
+        open.status.clean = journaled == sealed;
         open.status.owes_seal = owes_seal;
         self.pending.push(Io::Rejoined {
             replica,
@@ -3388,10 +3398,7 @@ impl<H: Host> Replicas<H> {
             open.publishing > 0
                 || open.submitting > 0
                 || open.reporting.is_some()
-                || (open.rejoining.is_some()
-                    && open.sealed_joining
-                    && journaled_unsealed(open)
-                    && !open.status.owes_seal)
+                || rejoin_held(open)
         }) || self
             .asked
             .values()
@@ -5234,6 +5241,15 @@ fn opened<S: be_block_store::ObjectStore>(
 /// head would lose (`reopening`).
 fn journaled_unsealed(open: &Open) -> bool {
     open.status.journaled_taken > open.status.sealed_taken
+}
+
+/// Whether `open`'s rejoin, which sealed once, holds its answer: journaled edits no seal holds
+/// are left, and no seal would take them now (`settling`).
+fn rejoin_held(open: &Open) -> bool {
+    open.rejoining.is_some()
+        && open.sealed_joining
+        && journaled_unsealed(open)
+        && !open.status.owes_seal
 }
 
 /// What a replica opened again on `head` loads (`journal_for`), the server's journal as joining

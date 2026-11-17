@@ -23,6 +23,7 @@ fn an_owed_seal_keeps_only_a_hurried_driver_waiting() {
                 unreported: false,
                 publishing: 0,
                 joining: false,
+                rejoin_held: None,
                 closing: false,
                 keep_error: None,
             }],
