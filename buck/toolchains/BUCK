@@ -109,12 +109,24 @@ cxx_tools_info_toolchain(
     ]
 ]
 
-_wasi_flags = [
-    "--target=wasm32-wasip1-threads",
-    "--sysroot=$(location root//third-party/wasi:sysroot)",
-    "-isystem",
-    "$(location root//third-party/wasi:sysroot)/include/wasm32-wasip1-threads/noeh/c++/v1",
-    "-pthread",
+# A guest is single-threaded wasm32-wasip1 (decisions/guests_are_single_threaded.md); be-host's
+# web bundle and the other programs in the browser stay wasm32-wasip1-threads, and only they are
+# compiled with -pthread.
+_wasi_flags = select({
+    "DEFAULT": [
+        "--target=wasm32-wasip1-threads",
+        "--sysroot=$(location root//third-party/wasi:sysroot)",
+        "-isystem",
+        "$(location root//third-party/wasi:sysroot)/include/wasm32-wasip1-threads/noeh/c++/v1",
+        "-pthread",
+    ],
+    "root//buck/platforms:wasi_guest_setting": [
+        "--target=wasm32-wasip1",
+        "--sysroot=$(location root//third-party/wasi:sysroot)",
+        "-isystem",
+        "$(location root//third-party/wasi:sysroot)/include/wasm32-wasip1/noeh/c++/v1",
+    ],
+}) + [
     "-mllvm",
     "-wasm-enable-sjlj",
     "-mllvm",
@@ -255,6 +267,7 @@ pinned_rust_toolchain(
         extra = {
             "prelude//os:none": "wasm32-unknown-unknown",
             "prelude//os:wasi": "wasm32-wasip1-threads",
+            "root//buck/platforms:wasi_guest_setting": "wasm32-wasip1",
         },
     ),
     rustdoc = cross_tool(tools, "rustdoc"),

@@ -210,7 +210,7 @@ and says how to set it up locally. Fix dynamic ids, form tokens and times in fix
 
 ## 5. Running them
 
-An app's tests are compiled to wasm32-wasip1-threads and run by crates/be-sdk-test-runner,
+An app's tests are compiled to wasm32-wasip1, single-threaded as the app is, and run by crates/be-sdk-test-runner,
 the same V8 runtime (be-wasm-host) be-host opens apps with, against the libraries the app ships with
 (guides/app_libraries.md, Tests), so what they paint is what the shipped app paints
 (decisions/app_tests_run_as_wasm_guests.md). A native build or test of an editor package

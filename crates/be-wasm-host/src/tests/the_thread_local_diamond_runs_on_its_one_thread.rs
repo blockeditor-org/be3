@@ -5,13 +5,15 @@ const LEFT: &[u8] = include_bytes!(env!("TLS_DIAMOND_LEFT_WASM"));
 const RIGHT: &[u8] = include_bytes!(env!("TLS_DIAMOND_RIGHT_WASM"));
 const APP: &[u8] = include_bytes!(env!("TLS_DIAMOND_APP_WASM"));
 
+/// A single-threaded guest's thread-locals are plain statics
+/// (decisions/guests_are_single_threaded.md), so the app reaches each library's through `GOT.mem`.
 #[test]
-fn the_thread_local_diamond_runs_on_every_thread() {
+fn the_thread_local_diamond_runs_on_its_one_thread() {
     let app = crate::engine::Shape::read(APP).unwrap();
     let reached: Vec<&str> = app
         .imports
         .iter()
-        .filter(|import| import.module == "GOT.tls")
+        .filter(|import| import.module == "GOT.mem")
         .map(|import| import.name.as_str())
         .collect();
     for (local, library) in [("BASE", BASE), ("LEFT", LEFT), ("RIGHT", RIGHT)] {
@@ -21,7 +23,7 @@ fn the_thread_local_diamond_runs_on_every_thread() {
                 .exports
                 .iter()
                 .any(|export| reached.contains(&export.name.as_str())),
-            "the app reaches {local} without GOT.tls: {reached:?}"
+            "the app reaches {local} without GOT.mem: {reached:?}"
         );
     }
     let mut app = host()

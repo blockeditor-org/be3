@@ -1,9 +1,9 @@
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque, hash_map::Entry};
 use std::rc::Rc;
 
 use be_sdk_beui::network::{Request, Response};
-use be_sdk_beui::worker::Shared;
+use be_sdk_beui::worker::{Answer, Generation, Shared};
 use be_sdk_beui::{EditorHost, Task, Waker};
 pub(crate) use be_worker_map::TileId;
 use be_worker_map::{Job, Rasterized, TileRaster};
@@ -105,9 +105,14 @@ pub(crate) struct TileWorker {
     kept: VecDeque<TileId>,
     /// Tiles to rasterize, oldest first, not yet sent to the rasterizer.
     pending: VecDeque<(TileId, TileId, Rc<Vec<u8>>)>,
-    /// Tiles the rasterizer was sent and has not answered: what it answers for any other tile, one
+    /// Tiles to rasterize that were not cancelled, pending or sent, and the generation of the
+    /// rasterizer each pending one went to once it went: what it answers for any other tile, one
     /// cancelled meanwhile, is dropped.
-    sent: HashSet<TileId>,
+    sent: HashMap<TileId, Option<Generation>>,
+    /// How many jobs each generation of the rasterizer was sent and has not answered, cancelled
+    /// or not; a generation that stopped answers none of them.
+    by_generation: HashMap<Generation, usize>,
+    /// Their sum: the jobs the rasterizer has in hand.
     rasterizing: usize,
     /// This map's way to the rasterizer (be-worker-map-tiles), which every map of the app shares,
     /// once it sent it a tile.
@@ -128,7 +133,8 @@ impl TileWorker {
             bodies: HashMap::new(),
             kept: VecDeque::new(),
             pending: VecDeque::new(),
-            sent: HashSet::new(),
+            sent: HashMap::new(),
+            by_generation: HashMap::new(),
             rasterizing: 0,
             rasterizer: None,
         }
@@ -157,7 +163,7 @@ impl TileWorker {
     }
 
     pub(crate) fn cancel(&mut self, id: TileId) -> bool {
-        if self.sent.remove(&id) {
+        if self.sent.remove(&id).is_some() {
             self.pending.retain(|(pending, _, _)| *pending != id);
             return true;
         }
@@ -191,7 +197,8 @@ impl TileWorker {
     }
 
     fn send(&mut self, id: TileId, source: TileId, body: Rc<Vec<u8>>) {
-        if self.sent.insert(id) {
+        if let Entry::Vacant(entry) = self.sent.entry(id) {
+            entry.insert(None);
             self.pending.push_back((id, source, body));
         }
     }
@@ -260,10 +267,15 @@ impl TileWorker {
                 body: body.as_ref().clone(),
             };
             let waker = self.waker.clone();
-            self.rasterizer
+            let generation = self
+                .rasterizer
                 .get_or_insert_with(|| Shared::new(be_worker_map::MODULE, move || waker.wake()))
                 .send(&job.encode());
+            *self.by_generation.entry(generation).or_default() += 1;
             self.rasterizing += 1;
+            if let Some(sent) = self.sent.get_mut(&id) {
+                *sent = Some(generation);
+            }
         }
     }
 
@@ -313,25 +325,32 @@ impl TileWorker {
                 }
             }
         }
-        while let Some(answer) = self.rasterizer.as_ref().and_then(Shared::try_receive) {
-            match answer.and_then(|message| Rasterized::decode(&message)) {
+        while let Some(Answer { generation, result }) =
+            self.rasterizer.as_ref().and_then(Shared::try_receive)
+        {
+            match result.and_then(|message| Rasterized::decode(&message)) {
                 Ok(Rasterized { id, result }) => {
-                    self.rasterizing = self.rasterizing.saturating_sub(1);
-                    if self.sent.remove(&id) {
+                    if let Some(count) = self.by_generation.get_mut(&generation)
+                        && *count > 0
+                    {
+                        *count -= 1;
+                        self.rasterizing -= 1;
+                    }
+                    if self.sent.remove(&id).is_some() {
                         results.push(TileResult { id, result });
                     }
                 }
-                // The rasterizer stopped: what it was sent fails, and the next tile starts it
-                // anew. A tile still pending was never sent, so it waits for that.
+                // That generation of the rasterizer stopped: what was sent to it fails, and the
+                // next tile starts it anew. A tile still pending, or sent to a later generation
+                // (dispatch can restart it before this hears the stop), waits for that.
                 Err(why) => {
-                    self.rasterizing = 0;
-                    let pending: HashSet<TileId> =
-                        self.pending.iter().map(|(id, _, _)| *id).collect();
+                    let lost = self.by_generation.remove(&generation).unwrap_or(0);
+                    self.rasterizing -= lost;
                     let failed: Vec<TileId> = self
                         .sent
                         .iter()
-                        .filter(|id| !pending.contains(id))
-                        .copied()
+                        .filter(|(_, sent)| **sent == Some(generation))
+                        .map(|(id, _)| *id)
                         .collect();
                     for id in failed {
                         self.sent.remove(&id);

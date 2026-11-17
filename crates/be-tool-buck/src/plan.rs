@@ -127,7 +127,7 @@ pub(crate) const PLANS: &[Plan] = &[
     Plan {
         name: "wasi-guest",
         mode: Mode::Test,
-        triple: "wasm32-wasip1-threads",
+        triple: "wasm32-wasip1",
         packages: Packages::Only(&[
             Prefix("be-app-", &[]),
             Prefix("be-sdk-library-", &[]),
