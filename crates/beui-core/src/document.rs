@@ -1498,6 +1498,17 @@ impl Document {
             ctx.report_damage(rect);
             self.conceal_embeds(false);
         }
+        // An embed's listener hears only where the frame leaves it: one whose node moves to
+        // another parent (a kept panel shown in another pane, its old pane removed by the
+        // frame's input) is never heard unplaced on the way.
+        let embeds: Vec<_> = self
+            .embeds
+            .iter()
+            .filter_map(|embed| embed.upgrade())
+            .collect();
+        for embed in &embeds {
+            embed.hold();
+        }
         let mut measurement = FrameMeasurement::new();
         self.work.reset();
         let scale = ctx.pixels_per_point();
@@ -1617,6 +1628,9 @@ impl Document {
                 }
                 passes
             });
+        for embed in embeds {
+            embed.release();
+        }
         self.sync_escapes();
         crate::current::run_in(self, Document::refresh_inert_embeds);
         self.ask_for_windows(ctx);
