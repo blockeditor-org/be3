@@ -211,7 +211,7 @@ view's top-left, cropped where the view is smaller and never stretched; where
 the view is larger, the rest shows the view's backdrop (the app's clear colour,
 `Backdrop` in `app_view.rs`, which fills the box the view is laid out in). A
 present says the placement each surface was painted at
-(`presented-frame.painted`), which the host keeps per surface
+(`presented-frame.painted`), which the host keeps per surface, pruned against each layout it publishes
 (`presenter::Shared::holds`): every path that draws a painting into its view
 (the native texture, the web's canvas and the hole it punches for it, paint
 snapshots, damage) places it through `Blit::shown_at` and `presenter::unscaled`
