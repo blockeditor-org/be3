@@ -23,11 +23,11 @@ pub use peer::{
     Notification, OpenedNotification, Peer, PeerConfig, Reconciled, Resolver, Saved, Sealed,
     Signer, Write,
 };
-#[cfg(not(target_arch = "wasm32"))]
-pub use transport::tls_config;
 pub use refs::{
     KeptChange, KeptEdit, ListedBlock, OpenEdits, PendingCounts, RefsDb, SetAside, UnsentBlock,
 };
+#[cfg(not(target_arch = "wasm32"))]
+pub use transport::tls_config;
 
 pub fn socket_url(server_url: &str) -> String {
     let base = match server_url.split_once("://") {

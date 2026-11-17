@@ -294,7 +294,10 @@ pub(crate) fn be_command(
             Some(url) => format!("curl -fsSL -o {} '{url}'", part(name)),
             None => format!("test -f {}", part(name)),
         });
-        lines.push(format!("echo '{sha256}  {}' | sha256sum -c --quiet -", part(name)));
+        lines.push(format!(
+            "echo '{sha256}  {}' | sha256sum -c --quiet -",
+            part(name)
+        ));
         let mode = if name == "be" { "0755" } else { "0644" };
         lines.push(format!("chmod {mode} {}", part(name)));
     }
@@ -315,7 +318,9 @@ fn listing(files: &[(String, String)]) -> Result<String, String> {
     let mut listed = String::new();
     for (index, (name, sha256)) in files.iter().enumerate() {
         if !TerminalHostFile::plain_name(name) {
-            return Err(format!("the host named {name:?}, which is no plain file name"));
+            return Err(format!(
+                "the host named {name:?}, which is no plain file name"
+            ));
         }
         if files[..index].iter().any(|(earlier, _)| earlier == name) {
             return Err(format!("the host named {name} twice"));

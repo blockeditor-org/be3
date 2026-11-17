@@ -18,5 +18,9 @@ fn nothing_is_downloaded_until_an_app_file_is_read() {
 
     assert_eq!(release.read("counter_types.wasm").as_deref(), Ok(types));
     assert_eq!(fake.fetches_of(HASHES), 1);
-    assert_eq!(fake.fetches_of("be3.counter.app.json"), 0, "only the file read");
+    assert_eq!(
+        fake.fetches_of("be3.counter.app.json"),
+        0,
+        "only the file read"
+    );
 }

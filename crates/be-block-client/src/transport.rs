@@ -4,9 +4,9 @@ mod native;
 mod web;
 
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) use native::{Reader, Writer, connect, post_once, request, spawn};
-#[cfg(not(target_arch = "wasm32"))]
 pub use native::tls_config;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) use native::{Reader, Writer, connect, post_once, request, spawn};
 #[cfg(target_arch = "wasm32")]
 pub(crate) use web::{Reader, Writer, connect, post_once, request, spawn};
 

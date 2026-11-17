@@ -28,12 +28,9 @@ fn be_runs_an_apps_host_component_with_no_display() {
         shared.graph.get(block).map(|_| ())
     });
 
-    let mut hosting = crate::hosting::Hosting::start(
-        block,
-        CounterContent::CONTENT_TYPE,
-        Uuid::new_v4(),
-    )
-    .expect("the counter's host component starts");
+    let mut hosting =
+        crate::hosting::Hosting::start(block, CounterContent::CONTENT_TYPE, Uuid::new_v4())
+            .expect("the counter's host component starts");
     let count = hosting.run_until(std::time::Duration::from_secs(120), || {
         let content = be_host_stack::content(block)?;
         let count = CounterContent::decode(content.bytes()).ok()?.root().value();

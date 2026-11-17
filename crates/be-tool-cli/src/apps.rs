@@ -52,5 +52,8 @@ pub fn name_of(content_type: Uuid) -> Option<&'static str> {
 
 /// Whether a block of `content_type` takes children people add.
 pub fn adds_children(content_type: Uuid) -> bool {
-    declared(content_type, |block_type| block_type.descriptor.children.add).unwrap_or(false)
+    declared(content_type, |block_type| {
+        block_type.descriptor.children.add
+    })
+    .unwrap_or(false)
 }

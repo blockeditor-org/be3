@@ -168,7 +168,10 @@ fn tag_name(module: &str) -> String {
 }
 
 #[cfg(not(test))]
-fn parse_tag(name: &str, read: Result<Vec<u8>, String>) -> Result<be_sdk_type_api::SessionTag, String> {
+fn parse_tag(
+    name: &str,
+    read: Result<Vec<u8>, String>,
+) -> Result<be_sdk_type_api::SessionTag, String> {
     let hex = String::from_utf8(read?).map_err(|error| error.to_string())?;
     let hash = be_block_store::Hash::from_hex(hex.trim()).ok_or(format!("{name} holds no hash"))?;
     Ok(be_sdk_type_api::SessionTag(*hash.as_bytes()))

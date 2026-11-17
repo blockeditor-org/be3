@@ -11,7 +11,7 @@ use tokio::{
     sync::mpsc,
 };
 
-use super::{Frame, TUNNEL_WAIT, tls_config, proxy_for, tunnel};
+use super::{Frame, TUNNEL_WAIT, proxy_for, tls_config, tunnel};
 use crate::transport::{framed, frames};
 
 const SESSION_HEADER: &str = "be3-session";

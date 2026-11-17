@@ -13,18 +13,22 @@ async fn be_reads_a_block_type_from_the_type_module_staged_beside_it() {
         .into_iter()
         .filter(|source| source.name == "be3.counter")
         .collect();
-    assert_eq!(sources.len(), 1, "discovery found the counter's type module");
-    let mut modules =
-        be_block_type_host::Modules::new(sources, be_block_client::Clock::real());
+    assert_eq!(
+        sources.len(),
+        1,
+        "discovery found the counter's type module"
+    );
+    let mut modules = be_block_type_host::Modules::new(sources, be_block_client::Clock::real());
     modules.load(0).await;
 
     let module = be_host_stack::discovery::open("counter_types.wasm")
         .and_then(|stored| stored.into_bytes())
         .expect("the counter's type module is staged");
-    let staged: String = sha2::Digest::finalize(<sha2::Sha256 as sha2::Digest>::new_with_prefix(&module))
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect();
+    let staged: String =
+        sha2::Digest::finalize(<sha2::Sha256 as sha2::Digest>::new_with_prefix(&module))
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
     let tag: String = modules
         .tag(0)
         .0
