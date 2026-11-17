@@ -1402,7 +1402,8 @@ impl<H: Host> Replicas<H> {
     /// Answers `open` when `start` opened no replica of `block`: one is open already, no
     /// module here serves the type, or its kept edits stopped opening since `open` checked
     /// them, which it opens again to sort out as it does any (waiting for their keys, or
-    /// setting them aside); that open finds them failing, so it does not come back here.
+    /// setting them aside); that open finds them failing, so it does not come back here (or
+    /// sets them aside, so start opens).
     async fn unstarted(
         &mut self,
         (peer, shared): Ctx<'_, H>,
@@ -1438,15 +1439,15 @@ impl<H: Host> Replicas<H> {
             return None;
         }
         let module = self.modules.module_of(content_type)?;
+        #[cfg(test)]
+        if self.kept_stop_opening.remove(&block) {
+            return None;
+        }
         self.next += 1;
         let replica = self.next;
         let organization = peer.organization();
         let joining = session.owner == Some(JOINING_OWNER);
         let tag = self.modules.tag(module);
-        #[cfg(test)]
-        if self.kept_stop_opening.remove(&block) {
-            return None;
-        }
         let kept = kept_commits(peer, block);
         // Local edits no journal held when the host last stopped: given again under the same
         // origin, so those the server's order holds are found there. Before joining, those it
