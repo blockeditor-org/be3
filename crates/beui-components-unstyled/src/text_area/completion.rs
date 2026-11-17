@@ -85,7 +85,7 @@ pub(super) fn Completions(cx: Context, menu: CompletionMenu) -> NodeId {
         <Overlay
             @node_ref=&layer
             anchor={OverlayAnchor::Node(anchor)}
-            placement=Placement::BelowStart
+            placement=Placement::BELOW_START
             policy=LayerPolicy::Pass
             traps_focus=false
             open=true

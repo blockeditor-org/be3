@@ -3,7 +3,9 @@ use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
 use beui_tree::reactive::Callback;
-use beui_types::{Color, Dismiss, LayerLevel, LayerPolicy, Placement, Rect};
+use beui_types::{
+    AnchorAlign, AnchorSide, Color, Dismiss, LayerLevel, LayerPolicy, Placement, Rect,
+};
 
 use crate::css::px;
 use crate::document::{set_attribute, set_style, style_value};
@@ -11,7 +13,7 @@ use crate::node::{NodeId, NodeRef};
 
 pub use beui_types::layer::OverlayAnchor;
 
-const PLACED: [&str; 14] = [
+const PLACED: [&str; 16] = [
     "position-anchor",
     "position-area",
     "position-try-fallbacks",
@@ -22,6 +24,8 @@ const PLACED: [&str; 14] = [
     "translate",
     "margin-top",
     "margin-bottom",
+    "margin-left",
+    "margin-right",
     "width",
     "height",
     "max-width",
@@ -103,7 +107,7 @@ pub fn layer(
         name: format!("--beui-overlay-{index}"),
         parts,
         anchor: RefCell::default(),
-        placement: Cell::new(Placement::BelowStart),
+        placement: Cell::new(Placement::BELOW_START),
         policy: Cell::new(LayerPolicy::BlocksAll),
         level: Cell::new(LayerLevel::Normal),
         traps: Cell::new(true),
@@ -402,7 +406,8 @@ impl Layer {
     fn place_beak(&self) {
         let beak = self.parts.beak;
         let reach = self.reach.get();
-        let shown = reach > 0.0 && matches!(self.placement.get(), Placement::Popover { .. });
+        let shown = reach > 0.0
+            && matches!(self.placement.get(), Placement::Beside { side, .. } if side.vertical());
         set_attribute(beak, "hidden", (!shown).then(String::new));
         if !shown {
             return;
@@ -497,17 +502,12 @@ fn anchored_styles(placement: Placement, name: Option<&str>) -> Vec<(&'static st
             put("left", "anchor(center)".to_owned());
             put("translate", "-50% -50%".to_owned());
         }
-        Placement::Above => {
-            put("position-area", "top".to_owned());
-            put("position-try-fallbacks", "flip-block".to_owned());
-        }
-        Placement::BelowStart => {
-            put("position-area", "bottom span-right".to_owned());
-            put(
-                "position-try-fallbacks",
-                "flip-block, flip-inline, flip-block flip-inline".to_owned(),
-            );
-        }
+        Placement::Beside {
+            side,
+            align,
+            gap,
+            margin,
+        } => beside_styles(&mut put, side, align, gap, margin),
         // CSS anchor positioning flips but cannot cover the anchor, so a menu is placed from
         // its measured size (`measured`, `layer::resolve_rect`) as the native core places it.
         // `max-content` keeps that size its rows' own wherever the menu last stood: a fixed box
@@ -515,13 +515,6 @@ fn anchored_styles(placement: Placement, name: Option<&str>) -> Vec<(&'static st
         Placement::Menu => {
             put("width", "max-content".to_owned());
             put("max-width", "100vw".to_owned());
-        }
-        Placement::RightStart => {
-            put("position-area", "right span-bottom".to_owned());
-            put(
-                "position-try-fallbacks",
-                "flip-inline, flip-block, flip-block flip-inline".to_owned(),
-            );
         }
         Placement::InsideTop => {
             put("top", "anchor(top)".to_owned());
@@ -549,18 +542,59 @@ fn anchored_styles(placement: Placement, name: Option<&str>) -> Vec<(&'static st
             put("bottom", "anchor(bottom)".to_owned());
             put("right", "anchor(right)".to_owned());
         }
-        Placement::Popover { gap, margin } => {
-            put("position-area", "bottom".to_owned());
-            put("position-try-fallbacks", "flip-block".to_owned());
-            put("margin-top", format!("{gap}px"));
-            put(
-                "max-width",
-                format!("calc(100vw - {}px)", 2 * u32::from(margin)),
-            );
-        }
         Placement::Center | Placement::Fill | Placement::Edge(_) => {}
     }
     styles
+}
+
+/// A `Beside` overlay through CSS anchor positioning: `position-area` puts it on its side,
+/// spanning away from the edge it lines up with, and flips to the other side (and, lined up
+/// with an edge, to the other edge) where it overflows; CSS shifts it along its side to stay
+/// in the window as the native core does. The gap is the margin facing the anchor, which a
+/// flip moves to the other side with it.
+fn beside_styles(
+    put: &mut impl FnMut(&'static str, String),
+    side: AnchorSide,
+    align: AnchorAlign,
+    gap: u16,
+    margin: u16,
+) {
+    let (area, facing) = match side {
+        AnchorSide::Above => ("top", "margin-bottom"),
+        AnchorSide::Below => ("bottom", "margin-top"),
+        AnchorSide::Left => ("left", "margin-right"),
+        AnchorSide::Right => ("right", "margin-left"),
+    };
+    let span = match (side.vertical(), align) {
+        (_, AnchorAlign::Center) => None,
+        (true, AnchorAlign::Start) => Some("span-right"),
+        (true, AnchorAlign::End) => Some("span-left"),
+        (false, AnchorAlign::Start) => Some("span-bottom"),
+        (false, AnchorAlign::End) => Some("span-top"),
+    };
+    let (flip, across) = match side.vertical() {
+        true => ("flip-block", "flip-inline"),
+        false => ("flip-inline", "flip-block"),
+    };
+    put(
+        "position-area",
+        span.map_or_else(|| area.to_owned(), |span| format!("{area} {span}")),
+    );
+    put(
+        "position-try-fallbacks",
+        match span {
+            Some(_) => format!("{flip}, {across}, {flip} {across}"),
+            None => flip.to_owned(),
+        },
+    );
+    if gap > 0 {
+        put(facing, format!("{gap}px"));
+    }
+    if margin > 0 {
+        let margins = 2 * u32::from(margin);
+        put("max-width", format!("calc(100vw - {margins}px)"));
+        put("max-height", format!("calc(100vh - {margins}px)"));
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -842,12 +876,15 @@ mod web {
 
     fn fit(layer: &Layer) {
         let placement = layer.placement.get();
-        let room = anchor_rect(layer).and_then(|anchor| {
-            beui_types::layer::room_beside(crate::dom::viewport(), anchor, placement)
-        });
-        if let Some(room) = room {
-            set_style(layer.parts.dialog, "max-height", Some(px(room)));
+        if !matches!(placement, Placement::Beside { .. } | Placement::Menu) {
+            return;
         }
+        let Some(anchor) = anchor_rect(layer) else {
+            return;
+        };
+        let room = beui_types::layer::room(crate::dom::viewport(), anchor, placement);
+        set_style(layer.parts.dialog, "max-width", Some(px(room.x)));
+        set_style(layer.parts.dialog, "max-height", Some(px(room.y)));
     }
 
     fn measured(layer: &Layer, dialog: &web_sys::Element) {
@@ -1010,3 +1047,6 @@ mod web {
         changed
     }
 }
+
+#[cfg(test)]
+mod tests;

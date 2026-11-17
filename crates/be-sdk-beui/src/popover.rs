@@ -3,13 +3,14 @@ use beui::reactive::*;
 use beui::styled::theme::POINTER_REACH;
 use beui::styled::*;
 use beui::{
-    Dismiss, Key, KeyAt, KeyPhase, LayerPolicy, NodeId, OverlayAnchor, Placement, Pos2, Rect, Vec2,
+    Dismiss, LayerPolicy, NodeId, OverlayAnchor, Placement, Pos2, Rect, Vec2,
 };
 
 use crate::{ChildState, Editor, PickAnchor, Subregion, SubregionContent};
 
 const GAP: u16 = 4;
 const MARGIN: u16 = 8;
+const CARD: Placement = Placement::BELOW_CENTER.gap(GAP).margin(MARGIN);
 
 #[derive(Clone, Copy)]
 pub(crate) struct PopoverWindow(pub(crate) Memo<Option<beui::WindowId>>);
@@ -122,45 +123,12 @@ fn AnchoredPopover(
             Rect::from_min_size(Pos2::ZERO, rect.size())
         })
     });
-    let room = create_memo(move || {
-        let area = beui::native::try_with_document(|document| {
-            document
-                .context()?
-                .layer_space(window.unwrap_or(beui::WindowId::MAIN))
-                .map(|space| space.area())
-        })
-        .flatten()
-        .unwrap_or_else(|| viewport.get());
-        let margins = 2.0 * f32::from(MARGIN);
-        let anchored = match anchor {
-            PickAnchor::Node(node) => crate::node_anchor(&node),
-            PickAnchor::Rect(rect) => Some(rect),
-            PickAnchor::Centre => None,
-        };
-        // The roomier side of the anchor, less the gap a card keeps from it: what
-        // `layer::resolve_rect` leaves a `BelowStart` or `Popover` overlay, which never covers
-        // its anchor.
-        let tall = anchored.map_or(area.height(), |anchored| {
-            (area.max.y - anchored.max.y).max(anchored.min.y - area.min.y) - f32::from(GAP)
-        });
-        Vec2::new(area.width() - margins, tall - margins)
-    });
-    create_effect(move || {
-        let room = room.get();
-        room_out.set(Some(room));
-    });
-    let shown = create_memo(move || size.get().min(room.get()).max(Vec2::ZERO));
-    let width = create_memo(move || Size::Custom(shown.get().x));
-    let height = create_memo(move || Size::Custom(shown.get().y));
     let carded = create_memo(move || face.get() == Face::Card);
     let drawn = create_memo(move || carded.get() && ready.get());
     let placed = create_memo(move || {
         let placement = match carded.get() {
-            true => Placement::Popover {
-                gap: GAP,
-                margin: MARGIN,
-            },
-            false => Placement::BelowStart,
+            true => CARD,
+            false => Placement::BELOW_START,
         };
         match anchor {
             PickAnchor::Node(node) => (OverlayAnchor::Node(node), placement, carded.get()),
@@ -172,6 +140,34 @@ fn AnchoredPopover(
             ),
         }
     });
+    let room = create_memo(move || {
+        let area = beui::native::try_with_document(|document| {
+            document
+                .context()?
+                .layer_space(window.unwrap_or(beui::WindowId::MAIN))
+                .map(|space| space.area())
+        })
+        .flatten()
+        .unwrap_or_else(|| viewport.get());
+        let anchored = match anchor {
+            PickAnchor::Node(node) => crate::node_anchor(&node),
+            PickAnchor::Rect(rect) => Some(rect),
+            PickAnchor::Centre => None,
+        };
+        // The card's room whichever face shows, so a child that turns into a card or back
+        // keeps the size it was asked to fit.
+        match anchored {
+            Some(anchored) => beui::layer::room(area, anchored, CARD),
+            None => area.shrink(f32::from(MARGIN)).size().max(Vec2::ZERO),
+        }
+    });
+    create_effect(move || {
+        let room = room.get();
+        room_out.set(Some(room));
+    });
+    let shown = create_memo(move || size.get().min(room.get()).max(Vec2::ZERO));
+    let width = create_memo(move || Size::Custom(shown.get().x));
+    let height = create_memo(move || Size::Custom(shown.get().y));
     let at = create_memo(move || placed.get().0);
     let placement = create_memo(move || placed.get().1);
     let beak = create_memo(move || match placed.get().2 && ready.get() {
@@ -188,20 +184,6 @@ fn AnchoredPopover(
         PickAnchor::Node(node) => Some(node),
         PickAnchor::Centre | PickAnchor::Rect(_) => None,
     };
-    on_key(
-        KeyAt::Host,
-        KeyPhase::Capture,
-        KeyReveal::Focus,
-        move |event| {
-            let escaped = event
-                .press()
-                .is_some_and(|press| press.pressed && press.key == Key::Escape);
-            if escaped {
-                on_dismiss.call(());
-            }
-            escaped
-        },
-    );
     view! {
         <Overlay
             anchor={at}

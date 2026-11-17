@@ -389,10 +389,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     let placed = create_memo(move || {
         let node = anchor.get();
         let moved = offset.get();
-        let popover = Placement::Popover {
-            gap: DIALOG_GAP,
-            margin: DIALOG_MARGIN,
-        };
+        let popover = Placement::BELOW_CENTER.gap(DIALOG_GAP).margin(DIALOG_MARGIN);
         match pointed.get() {
             Some(rect) => (
                 OverlayAnchor::Pinned {

@@ -24,7 +24,7 @@ pub fn MenuButton(
     #[prop(default = true)] tab_stop: Prop<bool>,
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    /// `Placement::Menu`, or `BelowStart` for a button whose menu must keep clear of it,
+    /// `Placement::Menu`, or `Placement::BELOW_START` for a button whose menu must keep clear of it,
     /// such as a bar's grip.
     #[prop(default = Placement::Menu)]
     placement: Prop<Placement>,

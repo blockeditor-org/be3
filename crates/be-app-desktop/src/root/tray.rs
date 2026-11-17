@@ -162,7 +162,7 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
             click_opens={move || item_is_menu.get() && has_menu.get()}
             secondary_opens={has_menu}
             bounds={bar_bounds()}
-            placement=Placement::BelowStart
+            placement=Placement::BELOW_START
             @test_id={prefix.clone()}
             items={view! {
                 <TrayEntries entries chosen prefix={prefix.clone()} />

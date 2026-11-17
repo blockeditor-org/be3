@@ -1041,7 +1041,7 @@ fn WidgetPopup(anchor: NodeRef, render: RenderFn<usize, NodeId>, index: usize) -
     view! {
         <Overlay
             anchor={OverlayAnchor::Node(anchor)}
-            placement=Placement::BelowStart
+            placement=Placement::BELOW_START
             policy=LayerPolicy::Pass
             traps_focus=false
             open=true

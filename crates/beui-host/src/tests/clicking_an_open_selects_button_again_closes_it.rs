@@ -14,7 +14,7 @@ fn clicking_an_open_selects_button_again_closes_it() {
             <Frame>
                 <Overlay
                     anchor=OverlayAnchor::Point(pos2(20.0, 20.0))
-                    placement=Placement::BelowStart
+                    placement=Placement::BELOW_START
                     policy=LayerPolicy::Pass
                     traps_focus=false
                     open=true

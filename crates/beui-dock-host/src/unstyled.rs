@@ -4343,7 +4343,7 @@ fn DockDragLayer(dock: State) -> NodeId {
         <List spacing=0.0>
             <Overlay
                 anchor={marker_anchor}
-                placement=Placement::BelowStart
+                placement=Placement::At
                 policy=LayerPolicy::Inert
                 traps_focus=false
                 open={marking}
