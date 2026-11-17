@@ -18,7 +18,7 @@ fn sent(host: &EditorHost) -> Vec<FromEditor> {
 
 /// Two drags held at once go under their own ids. The replica ends one: the projection answers
 /// with a cancel for it alone, tells the editor, and sends nothing more of it, while the other
-/// drag carries on and commits.
+/// drag carries on and commits. A move queued after the editor's own cancel is dropped too.
 #[test]
 fn a_gesture_the_replica_ended_is_cancelled_and_its_later_edits_dropped() {
     let fixture = Fixture::new();
@@ -71,7 +71,8 @@ fn a_gesture_the_replica_ended_is_cancelled_and_its_later_edits_dropped() {
     );
 
     live.operate_in(drag, Checklist::set_text(fixture.first, "later"));
-    live.commit_gesture(drag);
+    live.cancel_gesture(drag);
+    live.operate_in(drag, Checklist::set_text(fixture.first, "queued"));
     live.commit_gesture(other);
     live.pump();
     assert_eq!(

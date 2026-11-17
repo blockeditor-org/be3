@@ -118,7 +118,9 @@ Bracket a gesture that writes as it goes with `begin_gesture` and
 `commit_gesture` so it undoes as one step; `cancel_gesture` puts back what it
 wrote and leaves no history. Each `begin_*` returns a `ContentGesture`, and the
 gesture's edits go through `operate_in(gesture, edit)`; `operate` makes an edit
-outside any gesture. An editor may hold several gestures at once (a second
+outside any gesture; an edit through a handle whose gesture is not open (it
+ended, or began before the content arrived or while the block was not editable)
+is dropped. An editor may hold several gestures at once (a second
 finger, a second controller), each ending on its own. `break_step` ends the
 editor's burst of quick edits so its next edit starts a step of its own, and
 leaves open gestures alone. The host cancels every gesture still open when the
