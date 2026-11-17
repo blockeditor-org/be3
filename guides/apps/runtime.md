@@ -168,8 +168,8 @@ share one. The pass draws again only where the list's damage against last frame'
 which is what `Renderer::scissors` reports and the e-paper display reads. Paintings are
 unchanged: they come from `Paints`, not from the GPU. On the web `layers::frame` makes the
 frame's list (Apps on the page in guides/running/web.md) and the page applies it as CSS. The
-list's hit test and the forwarding router (`be-lib-input-router`) are not used by the host yet:
-its input still goes through beui's forwarding catchers (`AppView`).
+host's input goes through beui's forwarding catchers (`AppView`), which route by
+`be-lib-input-router`'s rules over beui's hit test; the list's own hit test is not used yet.
 
 ## Frames and pacing
 

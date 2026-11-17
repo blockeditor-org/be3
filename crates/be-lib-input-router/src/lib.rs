@@ -41,6 +41,12 @@ pub trait HitTest {
     /// Whether a press on `target` gives it the keyboard (popups and the on-screen keyboard
     /// never take it).
     fn takes_focus(&self, target: Self::Target) -> bool;
+
+    /// Whether a press at `at` pans the camera there rather than pressing anything (beui's
+    /// middle press over a gesture area): it goes to no surface, even one the pointer holds.
+    fn pans(&self, _at: Pos2) -> bool {
+        false
+    }
 }
 
 /// What the router delivers.
@@ -63,10 +69,45 @@ pub enum Drag<T> {
     Dropped { at: Pos2, from: T },
 }
 
+/// Which pointer an event is of: each holds its own presses.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Pointer {
+    Mouse,
+    Pen,
+    Touch(TouchId),
+    /// A pointer the platform does not report, such as one another program relays.
+    Other(u8),
+}
+
+impl Pointer {
+    /// Whether a press of this pointer holds the surface it began on for the pointer's other
+    /// buttons, and keeps the surface from hearing it left while it is pressed: a mouse's and a
+    /// pen's do; each finger is a pointer of its own.
+    fn holds(self) -> bool {
+        !matches!(self, Self::Touch(_))
+    }
+
+    /// Whether a surface it is pressed on keeps hearing it as over it.
+    fn keeps_hover(self) -> bool {
+        matches!(self, Self::Mouse | Self::Pen)
+    }
+}
+
+/// Whether a gesture (a held scroll, a touchpad swipe or pinch) begins, goes on or ends.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Phase {
+    Began,
+    Moved,
+    Ended,
+}
+
+/// One button of one pointer held down, and the surface it was pressed for (`None`: the press
+/// landed on no surface, so the pointer goes to none until it lifts).
 #[derive(Clone, Copy, Debug)]
-struct Finger<T> {
-    id: TouchId,
-    target: T,
+struct Press<T> {
+    pointer: Pointer,
+    button: PointerButton,
+    target: Option<T>,
     at: Pos2,
 }
 
@@ -76,44 +117,57 @@ struct Carry<T> {
     over: Option<T>,
 }
 
-/// The state of one window's routing: who holds the press, the hover, the focus, the lock, the
-/// fingers, and a drag.
+/// The state of one window's routing: who holds each pointer's presses, what is under the
+/// pointer and what heard it, the focus, the lock, a latched gesture and a drag.
+///
+/// Its rules come in two layers. `route` takes a window's raw `Input` and routes all of it,
+/// as the host routes between surfaces. The steps it is built from (`press`, `moved`, `release`,
+/// `cancel`, `gesture`, `entered`, `hover`, `focus`) are public too, for a caller that turns
+/// raw input into its own pointer events first and asks only who each is for: beui-core
+/// routing to its forwarding catchers (guides/beui_keyboard.md, One input path).
 #[derive(Debug)]
 pub struct Router<T> {
-    compositor: T,
+    compositor: Option<T>,
     intercepted: Vec<KeyChord>,
     modifiers: Modifiers,
     pointer: Option<Pos2>,
-    hovered: Option<T>,
-    pressed: Option<T>,
-    buttons: Vec<PointerButton>,
-    pen: Option<T>,
-    gesture: Option<T>,
+    under: Option<T>,
+    entered: Vec<T>,
+    presses: Vec<Press<T>>,
+    gesture: Option<Option<T>>,
     focused: Option<T>,
     locked: Option<T>,
-    fingers: Vec<Finger<T>>,
-    keys: Vec<(Key, T)>,
+    keys: Vec<Key>,
     carry: Option<Carry<T>>,
+}
+
+impl<T> Default for Router<T> {
+    /// A router with no compositor of its own: intercepted chords and system gestures go
+    /// nowhere, for a caller that handles them before routing (beui-core).
+    fn default() -> Self {
+        Self {
+            compositor: None,
+            intercepted: Vec::new(),
+            modifiers: Modifiers::NONE,
+            pointer: None,
+            under: None,
+            entered: Vec::new(),
+            presses: Vec::new(),
+            gesture: None,
+            focused: None,
+            locked: None,
+            keys: Vec::new(),
+            carry: None,
+        }
+    }
 }
 
 impl<T: Copy + Eq + Debug> Router<T> {
     /// A router whose intercepted chords and system gestures (back) go to `compositor`.
     pub fn new(compositor: T) -> Self {
         Self {
-            compositor,
-            intercepted: Vec::new(),
-            modifiers: Modifiers::NONE,
-            pointer: None,
-            hovered: None,
-            pressed: None,
-            buttons: Vec::new(),
-            pen: None,
-            gesture: None,
-            focused: None,
-            locked: None,
-            fingers: Vec::new(),
-            keys: Vec::new(),
-            carry: None,
+            compositor: Some(compositor),
+            ..Self::default()
         }
     }
 
@@ -129,16 +183,143 @@ impl<T: Copy + Eq + Debug> Router<T> {
 
     /// The surface under the pointer, whose cursor shape the window shows.
     pub fn hovered(&self) -> Option<T> {
-        self.hovered
+        self.under
     }
 
-    /// The surface a press is held for, until every button lifts.
+    /// The surface the mouse's press is held for, until every button lifts.
     pub fn pressed(&self) -> Option<T> {
-        self.pressed
+        self.held(Pointer::Mouse)
     }
 
     pub fn locked(&self) -> Option<T> {
         self.locked
+    }
+
+    /// The surface `pointer`'s presses are held for: the first of them that landed on one.
+    pub fn held(&self, pointer: Pointer) -> Option<T> {
+        self.presses
+            .iter()
+            .filter(|press| press.pointer == pointer)
+            .find_map(|press| press.target)
+    }
+
+    /// Whether `pointer` has a button down, whether or not its press landed on a surface.
+    pub fn pressing(&self, pointer: Pointer) -> bool {
+        self.presses.iter().any(|press| press.pointer == pointer)
+    }
+
+    /// `pointer` presses `button` at `at`: the surface the press is for, held until the button
+    /// lifts. A mouse or pen already holding a surface keeps it for its other buttons; a press
+    /// that pans the camera under it (`HitTest::pans`) is no surface's, even one already held.
+    pub fn press<H: HitTest<Target = T>>(
+        &mut self,
+        test: &H,
+        pointer: Pointer,
+        button: PointerButton,
+        at: Pos2,
+    ) -> Option<T> {
+        let target = match test.pans(at) {
+            true => None,
+            false => self
+                .held(pointer)
+                .filter(|_| pointer.holds())
+                .or_else(|| test.hit(at)),
+        };
+        self.presses
+            .retain(|press| !(press.pointer == pointer && press.button == button));
+        self.presses.push(Press {
+            pointer,
+            button,
+            target,
+            at,
+        });
+        target
+    }
+
+    /// `pointer` moved to `at`: the surface holding its press while it is pressed (none, if
+    /// the press landed on none), else the one under it.
+    pub fn moved<H: HitTest<Target = T>>(&mut self, test: &H, pointer: Pointer, at: Pos2) -> Option<T> {
+        for press in &mut self.presses {
+            if press.pointer == pointer {
+                press.at = at;
+            }
+        }
+        match self.pressing(pointer) {
+            true => self.held(pointer),
+            false => test.hit(at),
+        }
+    }
+
+    /// `pointer` lifts `button`: the surface the release is for, the one the pointer's other
+    /// buttons still hold or else the one this button held. A button it never pressed goes to
+    /// what the others hold.
+    pub fn release(&mut self, pointer: Pointer, button: PointerButton) -> Option<T> {
+        let held = |router: &Self| router.held(pointer).filter(|_| pointer.holds());
+        let Some(index) = self
+            .presses
+            .iter()
+            .position(|press| press.pointer == pointer && press.button == button)
+        else {
+            return held(self);
+        };
+        let press = self.presses.remove(index);
+        held(self).or(press.target)
+    }
+
+    /// `pointer`'s presses end unreleased: the surface they were held for, which hears the
+    /// cancel.
+    pub fn cancel(&mut self, pointer: Pointer) -> Option<T> {
+        let held = self.held(pointer);
+        self.presses.retain(|press| press.pointer != pointer);
+        held
+    }
+
+    /// A wheel, pinch or touchpad gesture at `at`: the surface it is for. One that begins held
+    /// (a touchpad's scroll or swipe) stays with the surface it began on until it ends; any
+    /// other goes to whichever takes it where it is (`claimant`).
+    pub fn gesture<H: HitTest<Target = T>>(&mut self, test: &H, at: Pos2, phase: Phase) -> Option<T> {
+        match phase {
+            Phase::Began => {
+                let target = claimant(test, at);
+                self.gesture = Some(target);
+                target
+            }
+            Phase::Moved => match self.gesture {
+                Some(latched) => latched,
+                None => claimant(test, at),
+            },
+            Phase::Ended => match self.gesture.take() {
+                Some(latched) => latched,
+                None => claimant(test, at),
+            },
+        }
+    }
+
+    /// A pointer that shows hover was delivered to `target`: it hears `PointerLeft` once the
+    /// pointer is neither over it nor pressed on it (`hover`).
+    pub fn entered(&mut self, target: T) {
+        if !self.entered.contains(&target) {
+            self.entered.push(target);
+        }
+    }
+
+    /// The surface under the pointer is now `under`. The surfaces the pointer was delivered to
+    /// that it is no longer over, and no mouse or pen press holds, which hear `PointerLeft`.
+    pub fn hover(&mut self, under: Option<T>) -> Vec<T> {
+        self.under = under;
+        let presses = &self.presses;
+        let mut left = Vec::new();
+        self.entered.retain(|target| {
+            let stays = under == Some(*target)
+                || presses.iter().any(|press| {
+                    press.pointer.keeps_hover() && press.target == Some(*target)
+                });
+            if !stays {
+                left.push(*target);
+            }
+            stays
+        });
+        left
     }
 
     /// Routes one event of the window's raw input.
@@ -164,24 +345,24 @@ impl<T: Copy + Eq + Debug> Router<T> {
                             repeat: stroke.repeat,
                             modifiers: self.modifiers,
                         };
-                        let target = match self.intercepted.iter().any(|chord| chord.matches(press))
-                        {
-                            true => Some(self.compositor),
+                        self.keys.retain(|held| *held != key);
+                        match self.intercepted.iter().any(|chord| chord.matches(press)) {
+                            true => {
+                                self.keys.push(key);
+                                self.compositor
+                            }
                             false => self.focused,
-                        };
-                        if let Some(target) = target {
-                            self.keys.retain(|(held, _)| *held != key);
-                            self.keys.push((key, target));
-                        }
-                        target
-                    }
-                    (Some(key), false) => {
-                        // A release follows its press, wherever the focus went since.
-                        match self.keys.iter().position(|(held, _)| *held == key) {
-                            Some(index) => Some(self.keys.remove(index).1),
-                            None => self.focused,
                         }
                     }
+                    // The release of a chord the compositor took goes to it too; any other
+                    // goes to the focus, which a surface that lost it was told of first.
+                    (Some(key), false) => match self.keys.iter().position(|held| *held == key) {
+                        Some(index) => {
+                            self.keys.remove(index);
+                            self.compositor
+                        }
+                        None => self.focused,
+                    },
                     (None, _) => self.focused,
                 };
                 if let Some(target) = target {
@@ -195,10 +376,9 @@ impl<T: Copy + Eq + Debug> Router<T> {
                 self.to_focus(input, &mut out);
             }
             Input::Back(_) | Input::InterceptedKey { .. } | Input::InterceptedTap(_) => {
-                out.push(Routed::Input {
-                    target: self.compositor,
-                    input,
-                });
+                if let Some(target) = self.compositor {
+                    out.push(Routed::Input { target, input });
+                }
             }
             Input::PointerMoved(at) | Input::PointerRested(at) | Input::Predicted(at) => {
                 self.pointer = Some(at);
@@ -207,10 +387,9 @@ impl<T: Copy + Eq + Debug> Router<T> {
                     return out;
                 }
                 let under = test.hit(at);
-                if self.pressed.is_none() {
-                    self.hover(under, &mut out);
-                }
-                if let Some(target) = self.pressed.or(under) {
+                self.left_into(under, &mut out);
+                if let Some(target) = self.moved(test, Pointer::Mouse, at) {
+                    self.entered(target);
                     deliver(test, target, input, at, &mut out);
                 }
             }
@@ -233,9 +412,7 @@ impl<T: Copy + Eq + Debug> Router<T> {
                         drag: Drag::Left,
                     });
                 }
-                if self.pressed.is_none() {
-                    self.hover(None, &mut out);
-                }
+                self.left_into(None, &mut out);
             }
             Input::PointerButton {
                 pos,
@@ -246,14 +423,21 @@ impl<T: Copy + Eq + Debug> Router<T> {
                 self.button(test, pos, button, pressed, input, &mut out);
             }
             Input::PointersCancelled => {
-                let mut cancelled = Vec::new();
-                cancelled.extend(self.pressed.take());
-                cancelled.extend(self.pen.take());
-                cancelled.extend(self.fingers.drain(..).map(|finger| finger.target));
-                self.buttons.clear();
                 let mut told = Vec::new();
-                for target in cancelled {
-                    if !told.contains(&target) {
+                let mut pointers: Vec<Pointer> =
+                    self.presses.iter().map(|press| press.pointer).collect();
+                // The mouse's press, then the pen's, then the fingers', each told once.
+                pointers.sort_by_key(|pointer| match pointer {
+                    Pointer::Mouse => 0,
+                    Pointer::Pen => 1,
+                    Pointer::Other(_) => 2,
+                    Pointer::Touch(_) => 3,
+                });
+                pointers.dedup();
+                for pointer in pointers {
+                    if let Some(target) = self.cancel(pointer)
+                        && !told.contains(&target)
+                    {
                         told.push(target);
                         out.push(Routed::Input {
                             target,
@@ -263,41 +447,42 @@ impl<T: Copy + Eq + Debug> Router<T> {
                 }
                 self.end_carry(&mut out);
             }
-            Input::ScrollStarted => {
-                self.gesture = self.pointer.and_then(|at| claimant(test, at));
-                self.to_gesture(input, &mut out);
-            }
-            Input::ScrollEnded => {
-                self.to_gesture(input, &mut out);
-                self.gesture = None;
-            }
-            Input::Scroll(_) | Input::Zoom(_) => match self.gesture {
-                Some(_) => self.to_gesture(input, &mut out),
-                None => {
-                    if let Some(target) = self.pointer.and_then(|at| claimant(test, at)) {
-                        out.push(Routed::Input { target, input });
-                    }
+            Input::ScrollStarted | Input::ScrollEnded | Input::Scroll(_) | Input::Zoom(_) => {
+                let phase = match input {
+                    Input::ScrollStarted => Phase::Began,
+                    Input::ScrollEnded => Phase::Ended,
+                    _ => Phase::Moved,
+                };
+                let target = match self.pointer {
+                    Some(at) => self.gesture(test, at, phase),
+                    None => match phase {
+                        Phase::Began => None,
+                        Phase::Moved => self.gesture.flatten(),
+                        Phase::Ended => self.gesture.take().flatten(),
+                    },
+                };
+                if let Some(target) = target {
+                    out.push(Routed::Input { target, input });
                 }
-            },
+            }
             Input::Touchpad(gesture) => {
-                let begins = matches!(
-                    gesture,
+                let phase = match gesture {
                     TouchpadGesture::SwipeBegan(_)
-                        | TouchpadGesture::PinchBegan(_)
-                        | TouchpadGesture::HoldBegan(_)
-                );
-                let ends = matches!(
-                    gesture,
+                    | TouchpadGesture::PinchBegan(_)
+                    | TouchpadGesture::HoldBegan(_) => Phase::Began,
                     TouchpadGesture::SwipeEnded(_)
-                        | TouchpadGesture::PinchEnded(_)
-                        | TouchpadGesture::HoldEnded(_)
-                );
-                if begins || self.gesture.is_none() {
-                    self.gesture = self.pointer.and_then(|at| claimant(test, at));
-                }
-                self.to_gesture(Input::Touchpad(gesture), &mut out);
-                if ends {
-                    self.gesture = None;
+                    | TouchpadGesture::PinchEnded(_)
+                    | TouchpadGesture::HoldEnded(_) => Phase::Ended,
+                    _ => Phase::Moved,
+                };
+                let target = self
+                    .pointer
+                    .and_then(|at| self.gesture(test, at, phase));
+                if let Some(target) = target {
+                    out.push(Routed::Input {
+                        target,
+                        input: Input::Touchpad(gesture),
+                    });
                 }
             }
             Input::Touch {
@@ -309,16 +494,18 @@ impl<T: Copy + Eq + Debug> Router<T> {
             Input::Pen { phase, pos, pen } => {
                 self.pointer = Some(pos);
                 let target = match phase {
-                    PenPhase::Down(_) => {
-                        let target = test.hit(pos);
+                    PenPhase::Down(button) => {
+                        let target = self.press(test, Pointer::Pen, button, pos);
                         if let Some(target) = target {
-                            self.pen = Some(target);
                             self.press_focus(test, target, &mut out);
                         }
                         target
                     }
-                    PenPhase::Up(_) | PenPhase::Gone => self.pen.take().or_else(|| test.hit(pos)),
-                    PenPhase::Move => self.pen.or_else(|| test.hit(pos)),
+                    PenPhase::Up(button) => self
+                        .release(Pointer::Pen, button)
+                        .or_else(|| test.hit(pos)),
+                    PenPhase::Gone => self.cancel(Pointer::Pen).or_else(|| test.hit(pos)),
+                    PenPhase::Move => self.moved(test, Pointer::Pen, pos),
                 };
                 if let Some(target) = target {
                     deliver(test, target, Input::Pen { phase, pos, pen }, pos, &mut out);
@@ -360,43 +547,33 @@ impl<T: Copy + Eq + Debug> Router<T> {
         let Some(placer) = test.placer(from) else {
             return out;
         };
-        let holds = self.pressed == Some(from)
-            || self.pen == Some(from)
-            || self.fingers.iter().any(|finger| finger.target == from);
-        if !holds {
+        if !self.presses.iter().any(|press| press.target == Some(from)) {
             return out;
         }
         out.push(Routed::Input {
             target: from,
             input: Input::PointersCancelled,
         });
-        if self.pressed == Some(from) {
-            self.pressed = Some(placer);
-            if let Some(at) = self.pointer {
-                for button in self.buttons.clone() {
-                    let input = Input::PointerButton {
-                        pos: at,
-                        button,
-                        pressed: true,
-                    };
-                    deliver(test, placer, input, at, &mut out);
-                }
+        for press in &mut self.presses {
+            if press.target != Some(from) {
+                continue;
             }
-        }
-        if self.pen == Some(from) {
-            self.pen = Some(placer);
-        }
-        for finger in &mut self.fingers {
-            if finger.target == from {
-                finger.target = placer;
-                let input = Input::Touch {
-                    id: finger.id,
+            press.target = Some(placer);
+            let input = match press.pointer {
+                Pointer::Mouse => Input::PointerButton {
+                    pos: press.at,
+                    button: press.button,
+                    pressed: true,
+                },
+                Pointer::Touch(id) => Input::Touch {
+                    id,
                     phase: TouchPhase::Start,
-                    pos: finger.at,
+                    pos: press.at,
                     force: None,
-                };
-                deliver(test, placer, input, finger.at, &mut out);
-            }
+                },
+                Pointer::Pen | Pointer::Other(_) => continue,
+            };
+            deliver(test, placer, input, press.at, &mut out);
         }
         out
     }
@@ -406,14 +583,18 @@ impl<T: Copy + Eq + Debug> Router<T> {
     /// over it, and the one under the release hears the drop.
     pub fn start_drag<H: HitTest<Target = T>>(&mut self, test: &H, from: T) -> Vec<Routed<T>> {
         let mut out = Vec::new();
-        if self.pressed != Some(from) {
+        if self.pressed() != Some(from) {
             return out;
         }
         out.push(Routed::Input {
             target: from,
             input: Input::PointersCancelled,
         });
-        self.pressed = None;
+        for press in &mut self.presses {
+            if press.pointer == Pointer::Mouse {
+                press.target = None;
+            }
+        }
         self.carry = Some(Carry { from, over: None });
         if let Some(at) = self.pointer {
             self.carry_over(test, at, &mut out);
@@ -421,30 +602,29 @@ impl<T: Copy + Eq + Debug> Router<T> {
         out
     }
 
-    /// Forgets a surface that went: it holds nothing any more, and nothing is sent to it.
+    /// Forgets a surface that went: it holds nothing any more, and nothing is sent to it. The
+    /// pointers it held are free again.
     pub fn forget(&mut self, target: T) {
         let gone = |held: &mut Option<T>| {
             if *held == Some(target) {
                 *held = None;
             }
         };
-        gone(&mut self.hovered);
-        gone(&mut self.pressed);
-        gone(&mut self.pen);
-        gone(&mut self.gesture);
+        gone(&mut self.under);
         gone(&mut self.focused);
         gone(&mut self.locked);
-        self.fingers.retain(|finger| finger.target != target);
-        self.keys.retain(|(_, held)| *held != target);
+        if let Some(latched) = &mut self.gesture {
+            gone(latched);
+        }
+        self.entered.retain(|entered| *entered != target);
+        self.presses.retain(|press| press.target != Some(target));
         if let Some(carry) = &mut self.carry {
             if carry.from == target {
                 self.carry = None;
+                self.presses.retain(|press| press.pointer != Pointer::Mouse);
             } else if carry.over == Some(target) {
                 carry.over = None;
             }
-        }
-        if self.pressed.is_none() && self.carry.is_none() {
-            self.buttons.clear();
         }
     }
 
@@ -458,42 +638,46 @@ impl<T: Copy + Eq + Debug> Router<T> {
         out: &mut Vec<Routed<T>>,
     ) {
         if pressed {
-            if !self.buttons.contains(&button) {
-                self.buttons.push(button);
-            }
             if self.carry.is_some() {
+                self.presses.retain(|press| {
+                    !(press.pointer == Pointer::Mouse && press.button == button)
+                });
+                self.presses.push(Press {
+                    pointer: Pointer::Mouse,
+                    button,
+                    target: None,
+                    at,
+                });
                 return;
             }
-            let target = match self.pressed {
-                Some(held) => Some(held),
-                None => {
-                    let target = test.hit(at);
-                    self.hover(target, out);
-                    if let Some(target) = target {
-                        self.pressed = Some(target);
-                        self.press_focus(test, target, out);
-                    }
-                    target
-                }
-            };
+            let fresh = !self.pressing(Pointer::Mouse);
+            if fresh {
+                self.left_into(test.hit(at), out);
+            }
+            let target = self.press(test, Pointer::Mouse, button, at);
             if let Some(target) = target {
+                if fresh {
+                    self.press_focus(test, target, out);
+                }
+                self.entered(target);
                 deliver(test, target, input, at, out);
             }
             return;
         }
-        self.buttons.retain(|held| *held != button);
-        let released = self.buttons.is_empty();
         if let Some(carry) = self.carry {
-            if released {
+            self.presses
+                .retain(|press| !(press.pointer == Pointer::Mouse && press.button == button));
+            if !self.pressing(Pointer::Mouse) {
+                let under = test.hit(at);
                 if let Some(over) = carry.over
-                    && Some(over) != test.hit(at)
+                    && Some(over) != under
                 {
                     out.push(Routed::Drag {
                         target: over,
                         drag: Drag::Left,
                     });
                 }
-                if let Some(target) = test.hit(at)
+                if let Some(target) = under
                     && let Some(local) = test.local(target, at)
                 {
                     out.push(Routed::Drag {
@@ -505,19 +689,20 @@ impl<T: Copy + Eq + Debug> Router<T> {
                     });
                 }
                 self.carry = None;
-                self.hover(test.hit(at), out);
+                self.left_into(under, out);
             }
             return;
         }
-        let target = self.pressed.or_else(|| test.hit(at));
-        if released {
-            self.pressed = None;
-        }
+        let pressing = self.pressing(Pointer::Mouse);
+        let target = match pressing {
+            true => self.release(Pointer::Mouse, button),
+            false => test.hit(at),
+        };
         if let Some(target) = target {
             deliver(test, target, input, at, out);
         }
-        if released {
-            self.hover(test.hit(at), out);
+        if !self.pressing(Pointer::Mouse) {
+            self.left_into(test.hit(at), out);
         }
     }
 
@@ -536,81 +721,95 @@ impl<T: Copy + Eq + Debug> Router<T> {
             pos: at,
             force,
         };
+        let finger = Pointer::Touch(id);
+        let fingers = |router: &Self| -> Vec<Press<T>> {
+            router
+                .presses
+                .iter()
+                .copied()
+                .filter(|press| matches!(press.pointer, Pointer::Touch(_)))
+                .collect()
+        };
         match phase {
             TouchPhase::Start => {
                 let Some(landed) = test.hit(at) else {
                     return;
                 };
-                let target = match self.fingers.first() {
+                let earlier = fingers(self);
+                let target = match earlier.first() {
                     None => landed,
                     // A finger landing while others are held joins them in one gesture: it goes
                     // to the innermost surface placing all of them, or further out where that
                     // surface grants its placer the gesture here.
                     Some(_) => {
                         let mut shared = landed;
-                        for finger in &self.fingers {
-                            shared = common(test, shared, finger.target).unwrap_or(shared);
+                        for press in &earlier {
+                            if let Some(held) = press.target {
+                                shared = common(test, shared, held).unwrap_or(shared);
+                            }
                         }
                         raised(test, shared, at)
                     }
                 };
-                let earlier: Vec<Finger<T>> = self
-                    .fingers
-                    .iter()
-                    .copied()
-                    .filter(|finger| finger.target != target)
-                    .collect();
-                for finger in &earlier {
-                    let cancel = Input::Touch {
-                        id: finger.id,
-                        phase: TouchPhase::Cancel,
-                        pos: finger.at,
-                        force: None,
-                    };
-                    deliver(test, finger.target, cancel, finger.at, out);
-                }
-                for finger in &mut self.fingers {
-                    if finger.target != target {
-                        finger.target = target;
-                        let start = Input::Touch {
-                            id: finger.id,
-                            phase: TouchPhase::Start,
-                            pos: finger.at,
+                for press in earlier.iter().filter(|press| press.target != Some(target)) {
+                    if let (Pointer::Touch(id), Some(held)) = (press.pointer, press.target) {
+                        let cancel = Input::Touch {
+                            id,
+                            phase: TouchPhase::Cancel,
+                            pos: press.at,
                             force: None,
                         };
-                        deliver(test, target, start, finger.at, out);
+                        deliver(test, held, cancel, press.at, out);
                     }
                 }
-                if self.fingers.is_empty() {
+                for press in &mut self.presses {
+                    if let Pointer::Touch(id) = press.pointer
+                        && press.target != Some(target)
+                    {
+                        press.target = Some(target);
+                        let start = Input::Touch {
+                            id,
+                            phase: TouchPhase::Start,
+                            pos: press.at,
+                            force: None,
+                        };
+                        deliver(test, target, start, press.at, out);
+                    }
+                }
+                if earlier.is_empty() {
                     self.press_focus(test, target, out);
                 }
-                self.fingers.retain(|finger| finger.id != id);
-                self.fingers.push(Finger { id, target, at });
+                self.presses.retain(|press| press.pointer != finger);
+                self.presses.push(Press {
+                    pointer: finger,
+                    button: PointerButton::Primary,
+                    target: Some(target),
+                    at,
+                });
                 deliver(test, target, input, at, out);
             }
             TouchPhase::Move => {
-                if let Some(finger) = self.fingers.iter_mut().find(|finger| finger.id == id) {
-                    finger.at = at;
-                    let target = finger.target;
+                if self.pressing(finger)
+                    && let Some(target) = self.moved(test, finger, at)
+                {
                     deliver(test, target, input, at, out);
                 }
             }
             TouchPhase::End | TouchPhase::Cancel => {
-                if let Some(index) = self.fingers.iter().position(|finger| finger.id == id) {
-                    let finger = self.fingers.remove(index);
-                    deliver(test, finger.target, input, at, out);
+                if self.pressing(finger)
+                    && let Some(target) = self.cancel(finger)
+                {
+                    deliver(test, target, input, at, out);
                 }
             }
         }
     }
 
-    fn hover(&mut self, under: Option<T>, out: &mut Vec<Routed<T>>) {
-        if self.hovered == under {
-            return;
-        }
-        if let Some(left) = std::mem::replace(&mut self.hovered, under) {
+    /// Tells the surfaces the pointer left, now that `under` is under it.
+    fn left_into(&mut self, under: Option<T>, out: &mut Vec<Routed<T>>) {
+        for target in self.hover(under) {
             out.push(Routed::Input {
-                target: left,
+                target,
                 input: Input::PointerLeft,
             });
         }
@@ -659,12 +858,6 @@ impl<T: Copy + Eq + Debug> Router<T> {
 
     fn to_focus(&self, input: Input, out: &mut Vec<Routed<T>>) {
         if let Some(target) = self.focused {
-            out.push(Routed::Input { target, input });
-        }
-    }
-
-    fn to_gesture(&self, input: Input, out: &mut Vec<Routed<T>>) {
-        if let Some(target) = self.gesture {
             out.push(Routed::Input { target, input });
         }
     }

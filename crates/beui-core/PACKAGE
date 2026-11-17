@@ -19,6 +19,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-graphemes:be-lib-graphemes",
+                "//crates/be-lib-input-router:be-lib-input-router",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/beui-lucide:beui-lucide",
@@ -44,6 +45,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-graphemes:be-lib-graphemes",
+                "//crates/be-lib-input-router:be-lib-input-router",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/beui-lucide:beui-lucide",
@@ -69,6 +71,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-graphemes:be-lib-graphemes",
+                "//crates/be-lib-input-router:be-lib-input-router",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/beui-lucide:beui-lucide",
@@ -94,6 +97,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-graphemes:be-lib-graphemes",
+                "//crates/be-lib-input-router:be-lib-input-router",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/beui-lucide:beui-lucide",
@@ -119,6 +123,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-graphemes:be-lib-graphemes",
+                "//crates/be-lib-input-router:be-lib-input-router",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/beui-lucide:beui-lucide",
@@ -144,6 +149,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-graphemes:be-lib-graphemes",
+                "//crates/be-lib-input-router:be-lib-input-router",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/beui-lucide:beui-lucide",
@@ -169,6 +175,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-graphemes:be-lib-graphemes",
+                "//crates/be-lib-input-router:be-lib-input-router",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/beui-lucide:beui-lucide",
@@ -194,6 +201,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-graphemes:be-lib-graphemes",
+                "//crates/be-lib-input-router:be-lib-input-router",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/beui-lucide:beui-lucide",
@@ -219,6 +227,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-graphemes:be-lib-graphemes",
+                "//crates/be-lib-input-router:be-lib-input-router",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/beui-lucide:beui-lucide",
@@ -244,6 +253,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-lib-geometry:be-lib-geometry",
                 "//crates/be-lib-graphemes:be-lib-graphemes",
+                "//crates/be-lib-input-router:be-lib-input-router",
                 "//crates/be-lib-stable-hash:be-lib-stable-hash",
                 "//crates/be-lib-ui-types:be-lib-ui-types",
                 "//crates/beui-lucide:beui-lucide",

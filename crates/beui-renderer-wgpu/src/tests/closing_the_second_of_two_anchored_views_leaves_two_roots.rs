@@ -12,8 +12,8 @@ fn closing_the_second_of_two_anchored_views_leaves_two_roots() {
     };
     let red = [255, 0, 0, 255];
     let blue = [0, 0, 255, 255];
-    let first = beui_draw::drawing(Shows::new(texture_of(&target, 1, &[red]), anchored(1), 1));
-    let second = beui_draw::drawing(Shows::new(texture_of(&target, 1, &[blue]), anchored(2), 2));
+    let first = beui_draw::drawing(Shows::new(texture_of(&target, 1, &[red]), anchored(1), 11));
+    let second = beui_draw::drawing(Shows::new(texture_of(&target, 1, &[blue]), anchored(2), 12));
     let rect = |x: f32, y: f32, size: f32| Rect::from_min_max(pos2(x, y), pos2(x + size, y + size));
     let (first, second) = (&first, &second);
     let paint = |open: bool| {
