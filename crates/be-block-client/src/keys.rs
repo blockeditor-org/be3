@@ -77,6 +77,9 @@ struct Roots {
     /// Each block's log as this device last checked it (`KeyBook::note_log`): the heads a key
     /// minted here names, and what a contact's seal is checked against (`sender_may`).
     logs: HashMap<Uuid, Checked>,
+    /// The key each key this device took through a wrap under another key was opened through:
+    /// an epoch opened through an outdated one is outdated too (`KeyBook::outdated`).
+    through: HashMap<Uuid, Uuid>,
 }
 
 /// What a device holds of a block's access log root.
@@ -158,6 +161,9 @@ struct Escrow {
     /// The log itself as last checked: how far it reaches (an epoch is taken only once it
     /// reaches the head the epoch names) and who administered it as of each entry.
     log: Option<Checked>,
+    /// The epoch this device verified that the log outdates (a demotion since), wrapped under
+    /// no more until the next.
+    outdated: Option<EscrowKey>,
 }
 
 /// A key opened from an escrow wrap, before it is taken: its block, the member who sealed it,
@@ -572,11 +578,18 @@ impl KeyBook {
             administrators.as_ref(),
             |head| log.as_ref().is_some_and(|log| log.holds(head)),
             |escrow| self.holds_escrow(escrow),
-        )
+        );
         // An epoch made before a demotion this device holds is wrapped under no more: the
         // demoted administrator may hold it. Keys wait, unescrowed, for the next epoch.
-        .filter(|escrow| !log.as_ref().is_some_and(|log| log.outdates(&escrow.head)));
-        self.escrow.lock().unwrap().verified = verified;
+        let (verified, outdated) = match verified {
+            Some(escrow) if log.as_ref().is_some_and(|log| log.outdates(&escrow.head)) => {
+                (None, Some(escrow))
+            }
+            verified => (verified, None),
+        };
+        let mut escrow = self.escrow.lock().unwrap();
+        escrow.verified = verified;
+        escrow.outdated = outdated;
     }
 
     pub fn escrow(&self) -> Option<EscrowKey> {
@@ -587,6 +600,9 @@ impl KeyBook {
         let escrow = self.escrow.lock().unwrap();
         let latest = escrow.chain.iter().max_by_key(|escrow| escrow.epoch)?;
         match &escrow.verified {
+            // Between a demotion and the next epoch: the latest is verified but outdated, which
+            // is no fault (`settle_escrow`).
+            None if escrow.outdated.as_ref() == Some(latest) => None,
             None => Some(EscrowWarning::Unverified),
             Some(verified) if verified != latest => Some(EscrowWarning::Substituted),
             Some(_) => None,
@@ -901,11 +917,47 @@ impl KeyBook {
     /// Whether `block`'s log, as this device last checked it, outdates `key`'s epoch: the key
     /// names a head of it before an entry that lowered someone's access, who may hold it
     /// (`Checked::outdates`). A device writes and wraps under such a key no more: it rotates.
+    ///
+    /// A key naming no head, or one the log does not reach, counts as named at the root: a
+    /// device would otherwise write under a key someone made up (wrapped under an epoch they
+    /// held, so no seal names its sender) for as long as it names a head no log holds. An
+    /// honest head newer than this device's log costs a rotation (`Peer::outdated` reads the
+    /// log again first). And a key counts as outdated when the epoch it was opened through is,
+    /// whoever's head it names (`Roots::through`).
     pub fn outdated(&self, key: Uuid, block: Uuid) -> bool {
+        let roots = self.roots.lock().unwrap();
+        let mut at = (key, block);
+        // A chain of wraps is as deep as the scopes above; a cycle would be a forged one.
+        for _ in 0..64 {
+            let (key, block) = at;
+            if let Some(log) = roots.logs.get(&block) {
+                let head = roots.heads.get(&key).and_then(|heads| heads.block);
+                let outdated = match head.filter(|head| log.holds(head)) {
+                    Some(head) => log.outdates(&head),
+                    None => log.last_lowering > 0,
+                };
+                if outdated {
+                    return true;
+                }
+            }
+            let Some(by) = roots.through.get(&key) else {
+                return false;
+            };
+            let Some(scope) = roots.blocks.get(by) else {
+                return false;
+            };
+            at = (*by, *scope);
+        }
+        true
+    }
+
+    /// Whether `key` names a head of `block`'s log, as this device last checked it, that the
+    /// log does not reach: reading the log again may reach it.
+    pub fn names_unheld(&self, key: Uuid, block: Uuid) -> bool {
         let roots = self.roots.lock().unwrap();
         let head = roots.heads.get(&key).and_then(|heads| heads.block);
         match (roots.logs.get(&block), head) {
-            (Some(log), Some(head)) => log.outdates(&head),
+            (Some(log), Some(head)) => !log.holds(&head),
             _ => false,
         }
     }
@@ -1117,6 +1169,14 @@ impl KeyBook {
                 }
                 let bytes = self.ring.open(&wrap.sealed).ok()?;
                 let mut opened = self.opened(row, &bytes, vouched)?;
+                if vouched {
+                    self.roots
+                        .lock()
+                        .unwrap()
+                        .through
+                        .entry(wrap.key)
+                        .or_insert(by);
+                }
                 opened.through_server = through_server;
                 opened.under_owner_only = self.owner_only_covers(by);
                 return Some(opened);
