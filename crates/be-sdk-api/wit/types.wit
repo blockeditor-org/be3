@@ -953,10 +953,14 @@ interface types {
     /// is, for a window the host shows on its own, the `host-place` it last
     /// reported: where it was put, which `rect` may not be while the host
     /// keeps the window on smaller displays, and where it opens again.
+    /// `hidden` opens the window hidden and unfocused the first time it is
+    /// added, as a hidden window keeps its place and shows when one of its
+    /// tabs is shown; a window already there keeps its state.
     record dock-window {
         key: string,
         rect: rect,
         placed: option<string>,
+        hidden: bool,
     }
 
     variant dock-item-kind {

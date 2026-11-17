@@ -107,7 +107,9 @@ the program is never told another size first; a window
 filling a placeholder takes the placeholder's place and size (`program::cascaded`).
 `close-child` asks the program to close; the tab stays until the window leaves the list.
 
-**Shown and hidden.** The host keeps no shown state: whether an entry shows is the dock's. A
+**Shown and hidden.** The host keeps no shown state: whether an entry shows is the dock's. A new
+window's tab opens hidden when the listing says `opens-hidden` (every Windows entry, since showing
+one captures it), for the person to show from its chip; Linux's windows show at once. A
 hidden dock window (`DockHostLayout::hide_window`) places no body for its tabs, so `UnshownWindows`
 (placed by both shells beside `WorkspaceDialogs`) keeps every listed window the dock does not place
 (`DockHostLayout::is_shown`) placed with `ChildMode::Hidden`. It takes no room and draws nothing,

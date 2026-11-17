@@ -83,6 +83,7 @@ pub(crate) enum NodeKind<K: 'static> {
     Window {
         key: String,
         rect: Rect,
+        hidden: bool,
         children: Run<DockNode<K>>,
     },
     Dialog {
@@ -183,8 +184,16 @@ where
     }
 }
 
+/// A floating window holding `children`. `hidden` opens it hidden and unfocused the first time
+/// it is added, as `DockState::hide_window` leaves a window: placed nowhere until one of its tabs
+/// is shown; a window already there keeps whether it shows.
 #[component]
-pub fn DockWindow<K>(id: String, rect: Rect, children: Children<DockNode<K>>) -> DockNode<K>
+pub fn DockWindow<K>(
+    id: String,
+    rect: Rect,
+    #[prop(default = false)] hidden: bool,
+    children: Children<DockNode<K>>,
+) -> DockNode<K>
 where
     K: DockKey,
 {
@@ -192,6 +201,7 @@ where
         kind: NodeKind::Window {
             key: id,
             rect,
+            hidden,
             children: children.into_run(),
         },
     }

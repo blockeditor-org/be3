@@ -164,6 +164,7 @@ impl TestWindow {
             origin: Default::default(),
             size: (self.size.x >= 1.0 && self.size.y >= 1.0).then_some(self.size),
             maximized: false,
+            opens_hidden: false,
         }
     }
 }

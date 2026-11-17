@@ -19,6 +19,7 @@ impl DockState {
                     key: surface.key.clone().unwrap_or_default(),
                     rect,
                     placed: surface.placed.clone(),
+                    hidden: false,
                     root: Some(root),
                 }),
                 (_, None) => {}

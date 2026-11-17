@@ -64,6 +64,11 @@ interface windows {
         /// first frame. A shell opens such a window filling its area, at
         /// `size` once restored.
         maximized: bool,
+        /// A shell opens the window hidden, for the person to show from its
+        /// list of windows: a host that captures windows (Windows) sets it,
+        /// since showing one starts capturing it; a compositor (Linux) shows
+        /// its windows at once.
+        opens-hidden: bool,
     }
 
     resource windows-watch {
