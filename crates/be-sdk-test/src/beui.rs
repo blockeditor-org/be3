@@ -1767,6 +1767,17 @@ impl<A: BeuiRoot> BeuiTest<A> {
         })
     }
 
+    /// The ownership the editor gave away (`host-services.transfer-ownership`): each block and
+    /// its new owner, in order.
+    pub fn take_ownership_transfers(&mut self) -> Vec<(Uuid, Uuid)> {
+        self.take_requests_where(|call| match call {
+            Call::TransferOwnership { block, account, .. } => {
+                Ok((Uuid::from_bytes(block), Uuid::from_bytes(account)))
+            }
+            call => Err(call),
+        })
+    }
+
     /// What the editor's replica announced to the block's other members once the server held an
     /// edit (`LiveEdit::announcements`): the block, the text and the accounts it mentions.
     pub fn take_announced(&mut self) -> Vec<(Uuid, String, Vec<Uuid>)> {

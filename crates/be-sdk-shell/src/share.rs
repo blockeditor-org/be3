@@ -25,6 +25,9 @@ pub(crate) struct Member {
     pub(crate) access: AccessLevel,
     pub(crate) inherited: AccessLevel,
     pub(crate) removable: bool,
+    /// Whether the account viewing owns the block and may give it to this member: someone
+    /// else with access, a confirmed contact.
+    pub(crate) may_own: bool,
 }
 
 impl Member {
@@ -63,6 +66,11 @@ pub(crate) enum ShareAction {
     SetAccess(Uuid, AccessLevel),
     Refresh,
     InviteNew,
+    /// Asks to confirm giving ownership to this member.
+    OfferOwnership(Uuid),
+    CancelOwnership,
+    /// Gives ownership to the member offered it (`Share::transferring`).
+    ConfirmOwnership,
 }
 
 /// What the share dialog holds besides the listing of who has access, which the workspace
@@ -78,6 +86,8 @@ pub(crate) struct Share {
     pub(crate) pending_access: AccessLevel,
     pub(crate) inviting: Option<u64>,
     pub(crate) invite_link: Option<String>,
+    /// The member whom the person asked to give ownership to, until they confirm or cancel.
+    pub(crate) transferring: Option<Uuid>,
 }
 
 impl Share {
@@ -91,6 +101,7 @@ impl Share {
             pending_access: AccessLevel::Edit,
             inviting: None,
             invite_link: None,
+            transferring: None,
         }
     }
 
@@ -158,7 +169,18 @@ impl Share {
                 }
             }
             ShareAction::Refresh => reload = true,
-            ShareAction::InviteNew => {}
+            ShareAction::OfferOwnership(account) => {
+                let offered = listing.is_some_and(|listing| {
+                    self.members(listing, me, |_| String::new())
+                        .iter()
+                        .any(|member| member.id == account && member.may_own)
+                });
+                if offered {
+                    self.transferring = Some(account);
+                }
+            }
+            ShareAction::CancelOwnership => self.transferring = None,
+            ShareAction::InviteNew | ShareAction::ConfirmOwnership => {}
         }
         (grants, reload)
     }
@@ -178,11 +200,15 @@ impl Share {
         me: Uuid,
         name_of: impl Fn(Uuid) -> String,
     ) -> Vec<Member> {
+        let owner = listing
+            .grants
+            .iter()
+            .any(|grant| grant.author && grant.account == me.into_bytes());
         listing
             .grants
             .iter()
             .filter(|grant| has_access(grant, me))
-            .map(|grant| member(grant, me, self.block, &name_of))
+            .map(|grant| member(grant, me, self.block, owner, &name_of))
             .collect()
     }
 
@@ -220,7 +246,13 @@ impl Share {
     }
 }
 
-fn member(grant: &AccessGrant, me: Uuid, block: Uuid, name_of: &impl Fn(Uuid) -> String) -> Member {
+fn member(
+    grant: &AccessGrant,
+    me: Uuid,
+    block: Uuid,
+    owner: bool,
+    name_of: &impl Fn(Uuid) -> String,
+) -> Member {
     let fixed = match (
         grant.administrator,
         grant.account == me.into_bytes(),
@@ -228,7 +260,7 @@ fn member(grant: &AccessGrant, me: Uuid, block: Uuid, name_of: &impl Fn(Uuid) ->
     ) {
         (true, _, _) => Some("Administrators can open every block"),
         (false, true, _) => Some("This is you"),
-        (false, false, true) => Some("Made this block"),
+        (false, false, true) => Some("Owns this block"),
         (false, false, false) => None,
     };
     let source = grant.source.map(Uuid::from_bytes);
@@ -240,7 +272,13 @@ fn member(grant: &AccessGrant, me: Uuid, block: Uuid, name_of: &impl Fn(Uuid) ->
         (false, false) if grant.author && source == Some(block) => None,
         (false, false) => origin(grant.effective, source, block, name_of),
     };
+    let may_own = owner
+        && grant.account != me.into_bytes()
+        && !grant.author
+        && !grant.waiting
+        && has_access(grant, me);
     Member {
+        may_own,
         id: Uuid::from_bytes(grant.account),
         name: grant.display_name.clone(),
         email: grant.email.clone(),

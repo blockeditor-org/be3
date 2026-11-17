@@ -119,6 +119,11 @@ interface host-services {
     /// shared, when the server could not take it (offline, it needs the server).
     set-access: async func(block: block-id, account: account-id, access: access-level) -> result<_, failure>;
 
+    /// Gives ownership of the block, which the signed-in account owns, to `account`, a contact
+    /// with access to it listed: they manage it as its owner from then on, and the account keeps
+    /// Edit. Fails, with the message to show, as `set-access` does.
+    transfer-ownership: async func(block: block-id, account: account-id) -> result<_, failure>;
+
     /// A contact link whose taker is granted `access` to the block.
     make-contact-link: async func(block: block-id, access: access-level) -> result<string, failure>;
 

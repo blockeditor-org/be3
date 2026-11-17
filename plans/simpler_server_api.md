@@ -58,9 +58,8 @@ with `follow`, the session's entries arrive as events until `unfollow`).
 **Write ops**: `CreateBlock`, `Publish` (an optional commit, metadata and a
 reference change, and an optional `journal-seal`; covers `set-metadata` and
 `rebase-journal`), `Move` (`set-parent`, with its signed parent record),
-`AppendLog` (grant, revocation, administrator, member and, once
-plans/signed_access.md step 5 lands, owner records: covers `set-access`,
-`set-role`, `sign-member` and a person's `remove-member`), `PutKeys` (covers
+`AppendLog` (grant, revocation, administrator, member and owner records:
+covers `set-access`, `set-role`, `sign-member` and a person's `remove-member`), `PutKeys` (covers
 `put-keys`, `rotate`, `create-escrow`, `reseal-keys`, and the key arguments of
 `create-block` and `set-parent`, which a batch carries beside them),
 `HoldObjects`, `ReserveUploads` (answers the URLs `upload-urls` does),
@@ -119,10 +118,9 @@ left, and what it has built that touches these calls:
   `AppendLog` could take a move's record too. `get-access-log` serves a block
   to a caller viewing it or a block below it (a proof path of an ancestor), so
   `Log(block)` takes that rule.
-- **5 (owner transfer)** needs no call of its own once step 3 lands: an owner
-  record is one more record `AppendLog` takes. This plan subsumes its protocol
-  part; the shell's transfer and its test stay with signed access. Before step
-  3, it would add a call that step 3 then removes, so it is better after.
+- **5 (owner transfer)** is built with no call of its own: `set-access`
+  carries the owner record (`Record::Owner`) as it carries a grant, so
+  `AppendLog` takes it as one more record.
 - **6 (guides)** is unaffected.
 
 ## Order of work

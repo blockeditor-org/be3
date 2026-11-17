@@ -249,6 +249,11 @@ pub(super) enum Command {
         access: Access,
         reply: DoneReply,
     },
+    TransferOwnership {
+        block: Uuid,
+        account: Uuid,
+        reply: DoneReply,
+    },
     ListAccess {
         block: Uuid,
         reply: AccessReply,
@@ -438,6 +443,7 @@ impl Command {
             Command::SetParent { .. } => "set parent",
             Command::Define { .. } => "define",
             Command::SetAccess { .. } => "set access",
+            Command::TransferOwnership { .. } => "transfer ownership",
             Command::ListAccess { .. } => "list access",
             Command::SetNotifyMode { .. } => "set notify mode",
             Command::ReadHead { .. } => "read head",
@@ -469,6 +475,7 @@ impl Command {
         matches!(
             self,
             Command::SetAccess { .. }
+                | Command::TransferOwnership { .. }
                 | Command::ListAccess { .. }
                 | Command::ReadHead { .. }
                 | Command::Leave { .. }
@@ -561,6 +568,7 @@ impl Command {
             | Command::SetParent { block, .. }
             | Command::Define { block, .. }
             | Command::SetAccess { block, .. }
+            | Command::TransferOwnership { block, .. }
             | Command::ListAccess { block, .. }
             | Command::SetNotifyMode { block, .. }
             | Command::ReadHead { block, .. }
@@ -622,6 +630,7 @@ impl Command {
         match self {
             Command::SetParent { block, .. }
             | Command::SetAccess { block, .. }
+            | Command::TransferOwnership { block, .. }
             | Command::CreateBlockAgent { block, .. }
             | Command::Leave { block, .. }
             | Command::Contact(ContactCommand::Link {
@@ -2729,7 +2738,9 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
         ) => reply.send(Err(NEEDS_CONNECTION.to_owned())),
         // These need the server's say, so they are refused, not kept for later: the caller
         // shows the refusal where the person acted.
-        Command::SetAccess { reply, .. } => reply.send(Err(OFFLINE_SHARING.to_owned())),
+        Command::SetAccess { reply, .. } | Command::TransferOwnership { reply, .. } => {
+            reply.send(Err(OFFLINE_SHARING.to_owned()))
+        }
         Command::Leave { reply, .. } => reply.send(Err(OFFLINE_LEAVING.to_owned())),
         Command::ApprovePairing { reply, .. } => reply.send(Err(OFFLINE_PAIRING.to_owned())),
         Command::ListAccess { reply, .. } => reply.send(Err(NEEDS_CONNECTION.to_owned())),
@@ -3510,6 +3521,23 @@ async fn serve_command(
             reply.send(failed.map_or(Ok(()), Err));
             crate::changes::wake();
         }
+        Command::TransferOwnership {
+            block,
+            account,
+            reply,
+        } => {
+            let failed = peer
+                .transfer(block, account)
+                .await
+                .err()
+                .map(|error| match error.is_unreachable() {
+                    true => OFFLINE_SHARING.to_owned(),
+                    false => error.to_string(),
+                });
+            tend(peer, shared).await;
+            reply.send(failed.map_or(Ok(()), Err));
+            crate::changes::wake();
+        }
         Command::ListAccess { block, reply } => {
             let listed = peer
                 .list_access(block)
@@ -3595,6 +3623,7 @@ async fn apply(
             true
         }
         Command::SetAccess { .. }
+        | Command::TransferOwnership { .. }
         | Command::ListAccess { .. }
         | Command::ReadHead { .. }
         | Command::Leave { .. }

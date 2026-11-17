@@ -461,8 +461,9 @@ did not sign.
   malicious administrator can root a block id another administrator reaches
   only through escrow at themselves. An administrator reads everything
   through escrow anyway.
-- **Authorship** is the root's (and later owner records'): no grant names or
-  lowers a block's creator.
+- **Authorship** is the root's and later owner records': no grant names or
+  lowers a block's owner. A transfer needs no acceptance from the new owner,
+  who may then leave as any member does only by giving ownership on.
 - **A new phrase grows with the account.** `set-recovery-key` carries one
   retirement (about 300 to 400 bytes) per log the account signed in, which is
   every block it ever made, beside the resealed keys that already grow the same
@@ -662,8 +663,16 @@ instead.
    by a manager from above is offered to a contact inside; and a unit test
    where a made-up log for a real ancestor, or a placement elsewhere, proves no
    one's Manage.
-5. **Owner transfer.** Owner records, and transferring ownership in the shell.
-   Done: a test where ownership moves and the old owner can no longer grant.
+5. **Owner transfer.** Built (guides/blocks/keys.md, "Owner records"): owner
+   records (`Record::Owner`) signed only by the owner (`Checked::owner`),
+   leaving the former Edit (`FORMER_OWNER`) and lowering them, carried by
+   `set-access` (so `AppendLog` takes them); kept whole on every proof path,
+   and a reduced one still demotes its signer (`Reduced::owns`); the server
+   moves the block's author; the share dialog's "Make owner", confirmed first.
+   Done: a test where ownership moves and the old owner can no longer grant,
+   at the head now or from before, nor give the block away again, and a log
+   the server appends such a grant to is refused; a unit test where a path
+   reducing a transfer leaves the old owner no Manage.
 6. **Guides.** guides/blocks/keys.md's server section, and its rule that keys
    are sealed only to and taken only from verified contacts, which a checked
    grant now also satisfies; guides/blocks/server.md's access section.

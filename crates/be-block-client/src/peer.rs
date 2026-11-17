@@ -3953,6 +3953,60 @@ impl<S: ObjectStore> Peer<S> {
             .ok_or(ClientError::Unexpected)
     }
 
+    /// Moves ownership of `block`, which this account owns, to `account`, a verified contact
+    /// (plans/signed_access.md, step 5): seals them the block's key, then sends the owner record
+    /// naming the keys this device verified for them. They hold Manage from then on, as its
+    /// owner; this account keeps Edit and grants nothing more there.
+    pub async fn transfer(&self, block: Uuid, account: Uuid) -> Result<(), ClientError> {
+        use be_block_keys::{Owner, Record};
+        let me = self.keys.account().into_bytes();
+        let owns = |checked: &be_block_keys::Checked| checked.owner == Some(me);
+        let (_, checked) = self.checked_access(block).await?;
+        if !owns(&checked) || account == self.keys.account() {
+            return Err(ClientError::Refused(
+                ErrorCode::PermissionDenied,
+                format!("this account does not own block {block}, so gives it to no one"),
+            ));
+        }
+        let identity = self.verified_identity(account).ok_or_else(|| {
+            ClientError::Refused(
+                ErrorCode::NotAContact,
+                "give ownership only to your contacts: send them a contact link first".into(),
+            )
+        })?;
+        self.seal_share(block, account, &identity.public).await?;
+        // Signed at the head the server holds once the key went: a record after any other
+        // change meanwhile, and refused here if this account no longer owns the block.
+        let (_, checked) = self.checked_access(block).await?;
+        let record = checked
+            .next(
+                self.keys.identity(),
+                me,
+                block.into_bytes(),
+                Record::Owner(Owner {
+                    account: account.into_bytes(),
+                    identity,
+                }),
+            )
+            .filter(|_| owns(&checked))
+            .ok_or_else(|| {
+                ClientError::Refused(
+                    ErrorCode::PermissionDenied,
+                    format!("this account does not own block {block}, so gives it to no one"),
+                )
+            })?
+            .encode();
+        client::blocks::set_access(
+            &self.connection(),
+            block,
+            account,
+            Access::Manage,
+            Some(record),
+        )
+        .await??;
+        Ok(())
+    }
+
     pub async fn list_access(&self, block: Uuid) -> Result<AccessList, ClientError> {
         Ok(client::blocks::list_access(&self.connection(), block).await??)
     }

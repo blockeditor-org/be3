@@ -555,6 +555,21 @@ impl Workspace {
             self.share.set(Some(share));
             return;
         }
+        if let ShareAction::ConfirmOwnership = action {
+            if let Some(account) = share.transferring.take() {
+                share.error = None;
+                let workspace = *self;
+                let asked = self.host().transfer_ownership(share.block, account);
+                // Listed again once it is done: who owns the block shows only then.
+                let task = self.editor.then(asked, move |set| match set {
+                    Ok(()) => workspace.share_listing.refresh(),
+                    Err(failure) => workspace.access_set(Err(failure)),
+                });
+                self.state.value().share_asks.borrow_mut().push(task);
+            }
+            self.share.set(Some(share));
+            return;
+        }
         let listing = self.share_members.get_untracked().ok();
         let (grants, mut reload) = share.act(action, listing.as_ref(), self.host().account_id());
         for (account, access) in grants {

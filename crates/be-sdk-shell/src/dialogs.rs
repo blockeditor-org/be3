@@ -1,6 +1,6 @@
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::icons::{
-    ICON_LINK, ICON_LOCK, ICON_TRIANGLE_ALERT, ICON_USER, ICON_USER_PLUS, ICON_X,
+    ICON_CROWN, ICON_LINK, ICON_LOCK, ICON_TRIANGLE_ALERT, ICON_USER, ICON_USER_PLUS, ICON_X,
 };
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -301,6 +301,16 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             workspace.share_action(block, action);
         }
     });
+    // Whom the person asked to give ownership to, as the question to confirm it.
+    let transferring = create_memo(move || {
+        let id = state.with(|share| share.as_ref()?.transferring)?;
+        members.with(|members| {
+            members
+                .iter()
+                .find(|member| member.id == id)
+                .map(|member| format!("Make {} the owner?", member.name))
+        })
+    });
     view! {
         <Dialog
             open={open}
@@ -426,6 +436,37 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         </Text>
                         <Text style=TextStyle::CAPTION @test_id={"share.inside"}>{inside}</Text>
                     </List>
+                </Show>
+                <Show value={transferring}>|question: ReadSignal<String>|
+                    <Card>
+                        <List spacing=Space::Md>
+                            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
+                                <Text align=TextAlign::Center>
+                                    <Icon glyph=ICON_CROWN />
+                                </Text>
+                                <Text size=TextSize::Lg>{question}</Text>
+                            </List>
+                            <Text style=TextStyle::CAPTION @test_id={"share.transfer.help"}>
+                                "They will manage this block and decide who has access. You will keep edit access, but you can't give anyone access or take ownership back."
+                            </Text>
+                            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                                <Spacer />
+                                <Button
+                                    label="Cancel"
+                                    variant=ButtonVariant::Secondary
+                                    @test_id={"share.transfer.cancel"}
+                                    on_click={move || act.call(ShareAction::CancelOwnership)}
+                                />
+                                <Button
+                                    label="Make owner"
+                                    glyph=ICON_CROWN
+                                    variant=ButtonVariant::Primary
+                                    @test_id={"share.transfer"}
+                                    on_click={move || act.call(ShareAction::ConfirmOwnership)}
+                                />
+                            </List>
+                        </List>
+                    </Card>
                 </Show>
                 <Text style=TextStyle::HEADING>"People with access"</Text>
                 <Show value={loading}>
@@ -577,6 +618,22 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                             variant=ButtonVariant::Secondary
                             disabled=true
                             on_click={|| {}}
+                        />
+                    </Show>
+                    <Show
+                        value={move || member.with(|member| member.as_ref().is_some_and(|member| member.may_own))}
+                    >
+                        <Button
+                            icon_only=true
+                            glyph=ICON_CROWN
+                            label="Make owner"
+                            size=ButtonSize::Small
+                            @test_id={format!("share.owner.{}", member.with_untracked(|member| member.as_ref().map(|member| member.id).unwrap_or_default()))}
+                            on_click={move || {
+                                if let Some(member) = member.get_untracked() {
+                                    act.call(ShareAction::OfferOwnership(member.id));
+                                }
+                            }}
                         />
                     </Show>
                     <Show

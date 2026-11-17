@@ -168,13 +168,29 @@ pinned in full (`KeyBook::carried_plain`).
 
 Records after the root: grants (`Record::Grant`, a revocation is a grant to
 `None`), openings of a kind of settings to anyone inside (`Record::Opening`,
-closing is an opening to `None`) and parent records (`Record::Parent`) in a
-block's log, each naming where its signer's right comes from (`Authority`);
-administrators and members (`Record::Administrator`, `Record::Member`) in the
-organization's. `set-access`, `set-role`, `set-parent`, `create-agent`,
+closing is an opening to `None`), parent records (`Record::Parent`) and owner
+records (`Record::Owner`) in a block's log, the first three naming where their
+signer's right comes from (`Authority`); administrators and members
+(`Record::Administrator`, `Record::Member`) in the organization's.
+`set-access`, `set-role`, `set-parent`, `create-agent`,
 `sign-member`, `remove-member` and `remove-contact` carry them, and
 `create-block` carries the creator's parent record after the root; the server
 appends each once it checks at the log's head as devices check it.
+
+**Owner records** (plans/signed_access.md, step 5) move a block's ownership:
+only its owner (the root's creator, or whom the last owner record named, held
+as `Checked::owner`) signs one, naming another account and the keys it verified
+for them, sent as `set-access` with Manage (`Peer::transfer`, the share
+dialog's crown). The new owner holds Manage and no grant may name them; the
+former keeps Edit (`FORMER_OWNER`), so every Manage they held by ownership,
+directly or as authority for a record below (`Authority::Inherited`), ends
+there, and the record lowers someone, outdating the epochs before it. A proof
+path keeps every owner record whole, and a reduced entry says whether it is one
+(`Reduced::owns`): reduced, it still leaves its signer, the owner then, Edit,
+and the owner unknown. The server moves the block's author with it (giving the
+new owner a Manage row, since authorship alone gives Manage only while they can
+view the parent) and refuses it for blocks that belong to what holds them
+(owner-only blocks, settings, edit kinds, search indexes, an Unfiled).
 
 **Parent records** (plans/signed_access.md, step 4) place the block (`Placement`:
 the top, Recently Deleted, or under a block with the hash of that block's log

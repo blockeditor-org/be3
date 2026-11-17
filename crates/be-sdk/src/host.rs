@@ -2053,6 +2053,14 @@ impl EditorHost {
         )
     }
 
+    /// Gives ownership of `block_id` to `account` (`host-services.transfer-ownership`). Fails
+    /// as `set_access` does.
+    pub fn transfer_ownership(&self, block_id: Uuid, account: Uuid) -> Asked<Result<(), Failure>> {
+        Asked::of(self.ask(|| {
+            host_services::transfer_ownership(block_id.into_bytes(), account.into_bytes())
+        }))
+    }
+
     /// Sets how the signed-in account is notified about `block_id`; `NotifyModesWatch` follows
     /// every block's.
     pub fn set_notify_mode(&self, block_id: Uuid, mode: NotifyMode) -> Asked<Result<(), Failure>> {

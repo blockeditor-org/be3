@@ -589,6 +589,18 @@ impl Instances {
                     move |set| answering.send_or_fail(set),
                 );
             }
+            Call::TransferOwnership {
+                reply,
+                block,
+                account,
+            } => {
+                let answering = self.answering(instance, reply);
+                be_host_stack::transfer_ownership(
+                    Uuid::from_bytes(block),
+                    Uuid::from_bytes(account),
+                    move |set| answering.send_or_fail(set),
+                );
+            }
             Call::SetNotifyMode { reply, block, mode } => {
                 let answering = self.answering(instance, reply);
                 be_host_stack::set_notify_mode(
