@@ -615,10 +615,16 @@ impl KeyBook {
         );
         // An epoch made before a demotion this device holds is wrapped under no more: the
         // demoted administrator may hold it. Keys wait, unescrowed, for the next epoch.
+        // With no organization log read this run, as what an earlier run kept of it says:
+        // current only if it names one of its entries from the last demotion on.
+        let kept = self.roots.lock().unwrap().kept.get(&self.organization).cloned();
+        let outdates = |head: &EntryHash| match (&log, &kept) {
+            (Some(log), _) => log.outdates(head),
+            (None, Some(kept)) => kept.lowering_place > 0 && !kept.current.contains(head),
+            (None, None) => false,
+        };
         let (verified, outdated) = match verified {
-            Some(escrow) if log.as_ref().is_some_and(|log| log.outdates(&escrow.head)) => {
-                (None, Some(escrow))
-            }
+            Some(escrow) if outdates(&escrow.head) => (None, Some(escrow)),
             verified => (verified, None),
         };
         let mut escrow = self.escrow.lock().unwrap();
@@ -983,7 +989,11 @@ impl KeyBook {
             .unwrap()
             .log
             .as_ref()
-            .map(|checked| checked.head);
+            .map(|checked| checked.head)
+            .or_else(|| {
+                let roots = self.roots.lock().unwrap();
+                roots.kept.get(&self.organization).map(|kept| kept.head)
+            });
         Heads {
             block: block_head,
             organization,
@@ -1009,17 +1019,27 @@ impl KeyBook {
             return true;
         }
         let account = sender.into_bytes();
+        let kept_administers = {
+            let roots = self.roots.lock().unwrap();
+            roots.kept.get(&self.organization).is_some_and(|kept| {
+                kept.levels
+                    .iter()
+                    .any(|(named, level)| *named == account && *level == Level::Manage)
+            })
+        };
         let administered = {
             let escrow = self.escrow.lock().unwrap();
             let escrow_key = carried.block == self.organization.into_bytes();
-            escrow.log.as_ref().is_some_and(|log| {
-                match carried.heads.organization.filter(|head| log.holds(head)) {
+            match escrow.log.as_ref() {
+                Some(log) => match carried.heads.organization.filter(|head| log.holds(head)) {
                     Some(head) if !escrow_key => {
                         log.level_as_of(account, &head) == Some(Level::Manage)
                     }
                     _ => log.administrators.contains_key(&account),
-                }
-            })
+                },
+                // No organization log read this run: as what an earlier run kept of it says.
+                None => kept_administers,
+            }
         };
         // An escrow key travels as the organization's: only an administrator hands it on.
         if administered || carried.block == self.organization.into_bytes() || kind != KeyKind::Scope
