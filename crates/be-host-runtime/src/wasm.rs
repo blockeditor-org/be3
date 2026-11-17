@@ -136,10 +136,12 @@ pub(super) fn spawn(
 pub(super) fn wire(app: &AppManifest) -> Wire {
     Wire::granting(app.extensions.clone())
         .offering(super::published::offered)
-        .with_sandbox(be_wasm_sandbox_host::Server::for_app(
-            Arc::new(be_host_base::host::wake),
-            app.identity.id.clone(),
-            Box::new(staged_worker),
+        .with_sandbox(super::backend::AppSandbox(
+            be_wasm_sandbox_host::Server::for_app(
+                Arc::new(be_host_base::host::wake),
+                app.identity.id.clone(),
+                Box::new(staged_worker),
+            ),
         ))
 }
 
