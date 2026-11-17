@@ -166,11 +166,7 @@ impl Refs {
     }
 
     /// The server refused the submissions holding the announcements named: they are never sent.
-    pub fn submitted_refused(
-        &self,
-        block: Uuid,
-        keys: &HashSet<String>,
-    ) -> Result<(), StoreError> {
+    pub fn submitted_refused(&self, block: Uuid, keys: &HashSet<String>) -> Result<(), StoreError> {
         self.update_announcements(block, |key, until| match until {
             Until::Submitted if keys.contains(key) => Some(None),
             _ => None,

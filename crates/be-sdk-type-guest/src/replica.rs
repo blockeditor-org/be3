@@ -3241,7 +3241,10 @@ where
                 // It is given up as one the order passed over, shown as failed to its editors
                 // until they let it go, and what is typed after goes on to be refused in turn.
                 self.error(format!("an edit was not sent: {error}"));
-                let at = self.pending.iter().position(|sent| sent.id.counter == counter);
+                let at = self
+                    .pending
+                    .iter()
+                    .position(|sent| sent.id.counter == counter);
                 if at.and_then(|at| self.pending.remove(at)).is_some() {
                     self.lacking.dropped(counter);
                     self.in_flight = 0;
