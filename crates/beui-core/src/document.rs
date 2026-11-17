@@ -214,6 +214,7 @@ pub struct Document {
     pub accessibility_id: u32,
     pub accessibility: NodeMap<Node>,
     accessibility_ranks: NodeMap<u64>,
+    descriptions: NodeMap<String>,
     pub accessibility_tree: RefCell<AccessibilityTree>,
     performance: PerformanceTracker,
     pub work: WorkCounters,
@@ -470,6 +471,7 @@ impl Document {
             accessibility_id: accessibility::next_document_id(),
             accessibility: NodeMap::default(),
             accessibility_ranks: NodeMap::default(),
+            descriptions: NodeMap::default(),
             accessibility_tree: RefCell::default(),
             performance: PerformanceTracker::default(),
             work: WorkCounters::default(),
@@ -1102,6 +1104,26 @@ impl Document {
         }
     }
 
+    /// Describes the first node at or within `id` that has accessibility of its own with
+    /// `description`, where that gives no description and another label, as a tooltip describes
+    /// the control it wraps; `None` takes it away.
+    pub fn set_description(&mut self, id: NodeId, description: Option<String>) {
+        let id = self.described_within(id).unwrap_or(id);
+        if self.descriptions.get(&id) == description.as_ref() {
+            return;
+        }
+        match description {
+            Some(description) => self.descriptions.insert(id, description),
+            None => self.descriptions.remove(&id),
+        };
+        self.arena.touch(id);
+    }
+
+    /// The description `set_description` gave `id`.
+    pub(crate) fn description(&self, id: NodeId) -> Option<&str> {
+        self.descriptions.get(&id).map(String::as_str)
+    }
+
     pub fn copy(&mut self, clip: crate::clipboard::Clip) {
         self.copied = Some(clip);
     }
@@ -1302,6 +1324,7 @@ impl Document {
         self.reveals.remove(&id);
         self.accessibility.remove(&id);
         self.accessibility_ranks.remove(&id);
+        self.descriptions.remove(&id);
         self.accessibility_tree.get_mut().forget(id, &self.arena);
         for test_id in self.node_test_ids.remove(&id).unwrap_or_default() {
             self.drop_test_id(id, &test_id);
