@@ -369,8 +369,14 @@ impl Blit {
             return None;
         }
         let source = Rect::from_min_max(
-            pos2(anchored.pixels.min.x / width, anchored.pixels.min.y / height),
-            pos2(anchored.pixels.max.x / width, anchored.pixels.max.y / height),
+            pos2(
+                anchored.pixels.min.x / width,
+                anchored.pixels.min.y / height,
+            ),
+            pos2(
+                anchored.pixels.max.x / width,
+                anchored.pixels.max.y / height,
+            ),
         );
         crate::layers::screen(
             crate::layers::id(self.surface, u64::from(anchored.surface), true, piece),
@@ -940,12 +946,15 @@ impl beui::native::Draw for AppDrawing {
                 // Every app surface is drawn from its layer (crate::layers), as the web places
                 // its canvases from the frame's layers.
                 let layer = match blit.layer {
-                    Some(anchored) => platform
-                        .size(blit.surface, anchored.surface)
-                        .and_then(|size| {
-                            let piece = pieces.next(blit.surface, u64::from(anchored.surface), true);
-                            blit.anchored_layer(anchored, size, piece)
-                        }),
+                    Some(anchored) => {
+                        platform
+                            .size(blit.surface, anchored.surface)
+                            .and_then(|size| {
+                                let piece =
+                                    pieces.next(blit.surface, u64::from(anchored.surface), true);
+                                blit.anchored_layer(anchored, size, piece)
+                            })
+                    }
                     None => region.and_then(|placement| {
                         let texture = platform.size(blit.surface, placement.surface);
                         let piece = pieces.next(blit.surface, blit.screen.0, false);

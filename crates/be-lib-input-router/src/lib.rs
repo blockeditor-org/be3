@@ -616,7 +616,12 @@ impl<T: Copy + Eq + Debug> Router<T> {
         }
     }
 
-    fn press_focus<H: HitTest<Target = T>>(&mut self, test: &H, target: T, out: &mut Vec<Routed<T>>) {
+    fn press_focus<H: HitTest<Target = T>>(
+        &mut self,
+        test: &H,
+        target: T,
+        out: &mut Vec<Routed<T>>,
+    ) {
         if test.takes_focus(target) {
             self.move_focus(Some(target), out);
         }

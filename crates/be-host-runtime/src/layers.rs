@@ -66,16 +66,14 @@ pub(crate) fn screen(
 
 /// The texture quad that draws `layer` natively, in a pass at `at`: what it shows of its
 /// surface's texture, and where, turned and faded as the layer says.
-pub(crate) fn texture_quad(
-    layer: &Layer,
-    at: &DrawAt,
-) -> beui::native::texture_quad::Quad {
+pub(crate) fn texture_quad(layer: &Layer, at: &DrawAt) -> beui::native::texture_quad::Quad {
     let transform = layer.transform;
     let (across, down) = (transform.across(), transform.down());
     // Upright and unflipped only: a turn of exactly half a circle has negative axes and goes
     // through the other arm as a rotation, so the scale is always positive and the rect never
     // has a negative size.
-    let (scale, rotation) = match across.y == 0.0 && down.x == 0.0 && across.x > 0.0 && down.y > 0.0 {
+    let (scale, rotation) = match across.y == 0.0 && down.x == 0.0 && across.x > 0.0 && down.y > 0.0
+    {
         true => (vec2(across.x, down.y), 0.0),
         false => (
             vec2(across.length(), down.length()),
@@ -131,7 +129,10 @@ fn root(viewport: beui::Vec2) -> Layer {
     Layer {
         id: LayerId(0),
         surface: Surface::Root(0),
-        size: (viewport.x.ceil().max(1.0) as u32, viewport.y.ceil().max(1.0) as u32),
+        size: (
+            viewport.x.ceil().max(1.0) as u32,
+            viewport.y.ceil().max(1.0) as u32,
+        ),
         transform: Affine::IDENTITY,
         clip: Rect::from_min_max(beui::Pos2::ZERO, pos2(viewport.x, viewport.y)),
         corner_radius: 0.0,
