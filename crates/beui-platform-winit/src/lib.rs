@@ -1,6 +1,11 @@
 #![cfg(not(any(target_os = "android", target_arch = "wasm32")))]
 
 mod accessibility;
+#[cfg(all(
+    unix,
+    not(any(target_os = "android", target_os = "macos", target_os = "ios"))
+))]
+mod backdrop;
 mod clipboard;
 mod file_picker;
 mod file_saver;
@@ -225,6 +230,13 @@ impl PlatformServices for WinitPlatform<'_> {
             && window.appearance.title != shown.appearance.title
         {
             surface.window.set_title(title);
+        }
+        #[cfg(all(
+            unix,
+            not(any(target_os = "android", target_os = "macos", target_os = "ios"))
+        ))]
+        if window.appearance.clear_color != shown.appearance.clear_color {
+            backdrop::set(&*surface.window, window.appearance.clear_color);
         }
     }
 
@@ -609,6 +621,11 @@ impl ApplicationHandler for Runner {
         if let Ok(handle) = window.window_handle() {
             setup.provide(NativeWindow(handle.as_raw()));
         }
+        #[cfg(all(
+            unix,
+            not(any(target_os = "android", target_os = "macos", target_os = "ios"))
+        ))]
+        backdrop::fresh(&*window);
         self.surface = Some(Surface {
             window,
             touch_cursor,
@@ -679,7 +696,12 @@ impl ApplicationHandler for Runner {
                         reports.fullscreen(fullscreen);
                     }
                     reports.resized(size.width, size.height);
-                    surface.window.request_redraw();
+                }
+                // Draw at the new size now, in answer to the resize, not at a redraw a frame
+                // later: until then the system shows the grown part of the window as it likes
+                // (black on X11 and Windows) or the last frame scaled.
+                if self.surface.is_some() {
+                    self.redraw(event_loop);
                 }
             }
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
