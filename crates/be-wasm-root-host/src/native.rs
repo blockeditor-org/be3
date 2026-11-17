@@ -119,6 +119,17 @@ impl Root {
     /// `instance` is that instance's `instance` resource's op): the texture it presented last to
     /// that surface, on the host's device. The root never sees it: it names it only by handle,
     /// and only the host draws it. None for a surface never presented.
+    ///
+    /// ```ignore
+    /// // The root, which spawned `child` (a `be3:sandbox` instance), lists its screen:
+    /// let surface = Surface::Screen { instance: child.op(), surface: 7 };
+    /// // The host, given the root's frame, finds what that names:
+    /// if let Surface::Screen { instance, surface } = layer.surface {
+    ///     let texture = root.surface(instance, surface).map(|shown| &shown.texture);
+    /// }
+    /// ```
+    ///
+    /// The tests' root does exactly this (be-wasm-root-testing's `PAINTS`).
     pub fn surface(&self, instance: u64, surface: u32) -> Option<&PresentedTexture> {
         self.core.sandbox.surface(instance, surface)
     }
