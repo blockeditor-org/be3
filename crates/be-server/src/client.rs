@@ -6,10 +6,9 @@ use std::{
 
 use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{
-    AccountStorage, Authenticated, BrowserLogin, BrowserLoginState, Collected,
-    Contents, CreatedAgent, Error, ErrorCode, Header, LinkKind, OrganizationOpened,
-    PairingMessage, RecoveryKey, RelayKind, SessionEvent, SessionState, TreeAdvanced, TreeChange,
-    UploadUrl, embed,
+    AccountStorage, Authenticated, BrowserLogin, BrowserLoginState, Collected, Contents,
+    CreatedAgent, Error, ErrorCode, Header, LinkKind, OrganizationOpened, PairingMessage,
+    RecoveryKey, RelayKind, SessionEvent, SessionState, TreeAdvanced, TreeChange, UploadUrl, embed,
 };
 use be_block_session::Claim;
 use be_wasm_ops::{Backlog, Incoming, OpError, OpId, Outlets, Reply, Started, net::Peer};

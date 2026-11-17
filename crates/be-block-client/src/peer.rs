@@ -1634,6 +1634,11 @@ impl<S: ObjectStore> Peer<S> {
             .is_some_and(|known| known != head && self.behind()(head, known))
     }
 
+    /// The newest organization sequence this device knows of, by any summary or listing read.
+    pub fn newest_sequence(&self) -> u64 {
+        self.refs.newest_sequence()
+    }
+
     pub fn known_remote_head(&self, block: Uuid) -> Option<CommitId> {
         self.refs.remote(block)
     }

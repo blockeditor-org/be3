@@ -17,8 +17,11 @@ async fn a_burst_of_publishes_reaches_a_follower_as_a_few_tree_advances() {
     let mut expected = None;
     let mut sent = Vec::new();
     for index in 0..100 {
-        let (head, chunks) =
-            author.compose(format!("draft {index}\n").as_bytes(), 1_000 + index, expected);
+        let (head, chunks) = author.compose(
+            format!("draft {index}\n").as_bytes(),
+            1_000 + index,
+            expected,
+        );
         writer
             .upload(&author.store, &author.objects_of(head, &chunks))
             .await;

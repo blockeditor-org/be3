@@ -53,15 +53,22 @@ fn a_linked_block_moved_out_of_view_shows_as_no_access_not_where_it_was() {
         let hidden = workspace("Hidden").await;
         let inside = be_block_graph::BlockParent::Block(space);
         let linked = peer.create::<TextContent>(inside).await.unwrap();
-        peer.save(linked, &TextBlock::of("Plan"), None).await.unwrap();
+        peer.save(linked, &TextBlock::of("Plan"), None)
+            .await
+            .unwrap();
         let linking = peer.create::<TextContent>(inside).await.unwrap();
         let url = block_url("https://example.com/", personal, linked);
         peer.save(linking, &TextBlock::of(&format!("See {url}")), None)
             .await
             .unwrap();
-        peer.share(space, harness.account, be_block_graph::Access::View, &public)
-            .await
-            .unwrap();
+        peer.share(
+            space,
+            harness.account,
+            be_block_graph::Access::View,
+            &public,
+        )
+        .await
+        .unwrap();
         (space, hidden, linking, linked)
     });
 

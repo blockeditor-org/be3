@@ -438,8 +438,7 @@ pub struct Dropped {
 pub struct UnlistedHeld {
     pub listing: Listing,
     pub blocks: Vec<Uuid>,
-    /// None for a listing the server refused.
-    pub sequence: Option<u64>,
+    pub sequence: u64,
     pub stale: bool,
 }
 
@@ -650,8 +649,7 @@ impl Graph {
             self.unlisted_held.push(UnlistedHeld {
                 listing,
                 blocks: unlisted,
-                // A refused listing answers at no sequence of its own (`u64::MAX`).
-                sequence: (sequence != u64::MAX).then_some(sequence),
+                sequence,
                 stale,
             });
         }
@@ -886,7 +884,9 @@ impl Graph {
             || node
                 .parent
                 .is_some_and(|parent| self.listings.contains_key(&Listing::Children(parent)))
-            || (node.parent.is_some() && !node.held && self.listings.contains_key(&Listing::Deleted))
+            || (node.parent.is_some()
+                && !node.held
+                && self.listings.contains_key(&Listing::Deleted))
             || node
                 .references
                 .iter()
@@ -1050,9 +1050,9 @@ impl Graph {
     }
 
     /// What lies at the top, in the trash or is shared with this account may have changed, by a
-    /// move or a grant (`tree-change.roots`): those listings are read again, and the settings
-    /// opened to who views a block inside (a grant too), and every tree whose read was refused
-    /// is tried again.
+    /// move, a grant or a block made at the top (`tree-change.roots`): those listings are read
+    /// again, and the settings opened to who views a block inside (a grant too), and the blocks
+    /// asked for that are not held, and every tree whose read was refused is tried again.
     pub fn roots(&mut self) {
         for listing in [
             Listing::Children(BlockParent::Root),
@@ -1062,6 +1062,17 @@ impl Graph {
             self.relist(listing);
         }
         self.relist_open_settings();
+        // A block asked for before it was made (an editor opened on a new block) answered
+        // nothing; made at the top or shared since, it answers now.
+        let absent: Vec<Listing> = self
+            .listings
+            .keys()
+            .filter(|listing| matches!(listing, Listing::Block(block) if !self.nodes.contains_key(block)))
+            .copied()
+            .collect();
+        for listing in absent {
+            self.relist(listing);
+        }
         let failed: Vec<Uuid> = self
             .follows
             .iter()

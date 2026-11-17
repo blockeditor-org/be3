@@ -878,10 +878,7 @@ impl Shared {
                  which this device holds as listed there (an answer to a request from before a \
                  change asked again: {stale}), connected: {connected}",
                 listing = unlisted.listing,
-                at = match unlisted.sequence {
-                    Some(sequence) => format!("at sequence {sequence}"),
-                    None => "(refused)".to_owned(),
-                },
+                at = format!("at sequence {}", unlisted.sequence),
                 blocks = unlisted.blocks,
                 stale = unlisted.stale,
                 connected = self.connected,
@@ -2230,8 +2227,7 @@ async fn drain_outbox(
                         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
                         held.graph.relist_around(*block, parent);
                         if let Some(from) = from {
-                            held.graph
-                                .relist(Listing::Children(*from));
+                            held.graph.relist(Listing::Children(*from));
                         }
                     }
                     be_block_client::Drained::Refused {
@@ -2340,8 +2336,7 @@ fn shown_as_refused(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>, block: Uuid
     held.graph.put(node_of(peer, &summary), summary.changed);
     held.graph.relist_around(block, parent);
     if let Some(shown) = shown {
-        held.graph
-            .relist(Listing::Children(shown));
+        held.graph.relist(Listing::Children(shown));
     }
 }
 
@@ -4444,7 +4439,11 @@ pub(super) fn spawn_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>
 
 /// Reads again the blocks the graph holds that this account may only know exist (`known_only`):
 /// a move or a grant may have opened them, or taken them out of reach.
-async fn reread_known_only(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, blocks: Vec<Uuid>) {
+async fn reread_known_only(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    blocks: Vec<Uuid>,
+) {
     let found = match peer.read_summaries(&blocks).await {
         Ok(found) => found,
         Err(error) => return record(shared, error),
@@ -4887,6 +4886,9 @@ async fn list(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, wanted: Vec<
     // The connection the requests are made on: one that fails after another replaced it says
     // nothing of the listing, and one that fails while it is the current one is a failure.
     let asked_on = peer.connection();
+    // A refusal is the server's word as of no earlier than this: what was heard by then goes
+    // with it, and what was heard since (a block made after the request) stays.
+    let asked_at = peer.newest_sequence();
     let answers = futures_util::future::join_all(wanted.iter().map(|listing| async move {
         match listing.served() {
             Some(served) => peer.listing(served).await,
@@ -4908,8 +4910,9 @@ async fn list(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, wanted: Vec<
     for (listing, answer) in wanted.into_iter().zip(answers) {
         let (sequence, summaries) = match answer {
             Ok(listed) => (listed.sequence, listed.blocks),
-            // The listing is not this account's to read now: nothing heard before outlasts that.
-            Err(ClientError::Refused(..)) => (u64::MAX, Vec::new()),
+            // The listing is not this account's to read now: nothing heard before it was asked
+            // outlasts that.
+            Err(ClientError::Refused(..)) => (asked_at, Vec::new()),
             Err(error) => {
                 // See `asked_again`.
                 let unreachable = asked_again(

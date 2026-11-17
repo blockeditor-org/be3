@@ -14,8 +14,7 @@ fn a_block_moved_out_of_a_listed_folder_is_listed_where_it_went_offline() {
     .unwrap();
     refs.listed(Listing::Children(other), &[], 5).unwrap();
     let moved = placed(20, other, 6);
-    refs.note(&moved)
-        .unwrap();
+    refs.note(&moved).unwrap();
     assert_eq!(
         offline_ids(&refs, Listing::Children(folder)),
         Some(vec![Uuid::from_u128(21)])
