@@ -32,10 +32,12 @@ interface replicas {
         /// them, but neither numbers nor submits them, since the server may
         /// hold them already. Once joined, the server's order says which.
         doubtful-through: u64,
-        /// For local edits the host kept across a stop: how many times the
-        /// session had started over for the replica that made them
-        /// (`status.restarts`), and the number of the last of them. Opened on an order restarted since,
-        /// those edits are dropped, each told to its editor as not sent.
+        /// For local edits the host kept across a stop: the most times the
+        /// session had started over that the host saw of its replicas
+        /// (`status.restarts`), under which they and `kept-submissions` were
+        /// made, and the number of the last of them. Opened on an order
+        /// restarted since, those edits are dropped, each told to its editor
+        /// as not sent, and the kept submissions with them.
         kept-restart: u64,
         kept-through: u64,
         /// The last local edit the host submitted to the server for this
