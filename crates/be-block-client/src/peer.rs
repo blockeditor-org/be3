@@ -1095,7 +1095,7 @@ impl<S: ObjectStore> Peer<S> {
         // closing, whose subject may hold it) is written under no more: the scope gets a new
         // epoch first (signed access 3d).
         if let Some(scope) = self.refs.summary(block).and_then(|kept| scope_of(&kept).ok())
-            && self.keys.outdated(chosen, scope)
+            && self.outdated(chosen, scope).await
         {
             Box::pin(self.rotate(scope)).await?;
             let rotated = newest();
@@ -1105,6 +1105,15 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(rotated);
         }
         Ok(chosen)
+    }
+
+    /// Whether `scope`'s log, as this device checked it, outdates `key` (`KeyBook::outdated`):
+    /// read again first when the key names a head it does not reach, which may be newer.
+    async fn outdated(&self, key: Uuid, scope: Uuid) -> bool {
+        if self.keys.names_unheld(key, scope) {
+            let _ = self.checked_access(scope).await;
+        }
+        self.keys.outdated(key, scope)
     }
 
     /// The newest scope key of `scope` this device holds; one its log outdates (as
@@ -1118,7 +1127,7 @@ impl<S: ObjectStore> Peer<S> {
                 self.keys.scope_key(scope).ok_or(ClientError::Locked(scope))?
             }
         };
-        if self.keys.outdated(key, scope) {
+        if self.outdated(key, scope).await {
             Box::pin(self.rotate(scope)).await?;
             return self
                 .keys
