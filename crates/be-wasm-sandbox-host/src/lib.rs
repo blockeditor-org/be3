@@ -29,6 +29,12 @@ pub type Loader = Box<dyn Fn(&str, &str) -> Result<Staged, String> + Send>;
 /// apps a reason for them (plans/single_threaded_guests.md, step 1).
 pub const APPS_COMPILE_NOTHING: &str = "an app may not compile a module from bytes";
 
+/// The most bytes the memory of an app's worker may hold, whatever the app asks for.
+pub const WORKER_MEMORY_LIMIT: u64 = 1 << 30;
+
+/// The most workers an app may run at once.
+pub const WORKERS: usize = 16;
+
 /// Serves one guest the sandbox. Every module it compiled stays compiled, and every instance it
 /// spawned runs, while the server is held.
 pub struct Server {
@@ -63,8 +69,10 @@ impl Server {
         }
     }
 
-    /// Serves the app with the id `app`: it may spawn only modules its own app stages (its entry
-    /// point and its workers), which `apps` is asked for only with its id, and compiles nothing.
+    /// Serves the app with the id `app`: it may spawn only modules its own app stages, which
+    /// `apps` is asked for only with its id (the host's loader answers only its workers), each
+    /// with a memory of at most `WORKER_MEMORY_LIMIT` and at most `WORKERS` at once, and compiles
+    /// nothing. An empty app id names its own.
     pub fn for_app(wake: Wake, app: String, apps: Loader) -> Self {
         Self {
             app: Some(app),
@@ -74,12 +82,21 @@ impl Server {
 
     /// The staged module `module` of the app `app`, if this guest may spawn it.
     fn staged(&self, app: &str, module: &str) -> Result<Staged, String> {
-        match &self.app {
-            Some(own) if own != app => Err(format!(
-                "{own} may spawn only its own modules, not {app}'s"
-            )),
-            _ => (self.apps)(app, module),
+        let Some(own) = &self.app else {
+            return (self.apps)(app, module);
+        };
+        if !app.is_empty() && app != own {
+            return Err(format!("{own} may spawn only its own modules, not {app}'s"));
         }
+        let running = self
+            .instances
+            .values()
+            .filter(|served| served.instance.is_ok())
+            .count();
+        if running >= WORKERS {
+            return Err(format!("{own} may run at most {WORKERS} workers at once"));
+        }
+        (self.apps)(own, module)
     }
 
     /// Takes one of the guest's calls.
@@ -108,13 +125,16 @@ impl Server {
                         self.staged(&staged.app, &staged.module).map(Source::App)
                     }
                 };
+                let memory_limit = match self.app {
+                    Some(_) => config.memory_limit.min(WORKER_MEMORY_LIMIT),
+                    None => config.memory_limit,
+                };
                 let instance = source.and_then(|source| {
                     sandbox::spawn(
                         source,
                         sandbox::Config {
                             name: config.name,
-                            memory_limit: usize::try_from(config.memory_limit)
-                                .unwrap_or(usize::MAX),
+                            memory_limit: usize::try_from(memory_limit).unwrap_or(usize::MAX),
                         },
                         Arc::clone(&self.wake),
                     )

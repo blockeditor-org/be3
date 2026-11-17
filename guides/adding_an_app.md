@@ -280,9 +280,11 @@ plans/single_threaded_guests.md).
 - A worker has WASI and its libraries but no gpu and no host services: it
   computes and sends back bytes, which the app uploads or shows. It may block
   its own thread as long as a job needs.
-- An app may spawn only its own app's modules, named, never by a path, and
-  compiles no module from bytes (guides/apps/runtime.md, Backends). The web
-  serves no workers yet: there `receive` fails at once.
+- An app may spawn only its own workers, named, never by a path, at most 16 at
+  once with at most 1 GiB of memory each, and compiles no module from bytes
+  (guides/apps/runtime.md, Backends). Its workers stop when it stops or fails.
+  The web serves no workers yet: there `receive` fails at once with "this host
+  runs no workers".
 
 ## 6. Build and verify
 

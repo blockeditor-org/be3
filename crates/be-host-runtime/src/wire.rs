@@ -163,6 +163,12 @@ impl Wire {
         }
     }
 
+    /// Whether the wire serves the app a sandbox, and so runs the workers it started.
+    #[cfg(all(test, not(target_arch = "wasm32")))]
+    pub(super) fn serves_sandbox(&self) -> bool {
+        self.sandbox.is_some()
+    }
+
     /// Stops every worker the app started.
     pub(super) fn stop_sandbox(&mut self) {
         #[cfg(not(target_arch = "wasm32"))]
