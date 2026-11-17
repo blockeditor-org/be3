@@ -133,7 +133,12 @@ impl Host for Quiet {
 
     fn conflict(_: &Arc<Mutex<Self>>, _: Uuid, _: Conflict) {}
 
-    fn counted(shared: &Arc<Mutex<Self>>, _: usize, _: Vec<crate::Owing>, _: Vec<crate::Owing>) {
+    fn counted(
+        shared: &Arc<Mutex<Self>>,
+        _: Vec<crate::Owing>,
+        _: Vec<crate::Owing>,
+        _: Vec<crate::Owing>,
+    ) {
         shared.lock().unwrap().counted += 1;
     }
 

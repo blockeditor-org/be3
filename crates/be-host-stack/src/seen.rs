@@ -280,6 +280,9 @@ pub struct Seen, delta SeenDelta {
     pub owing: usize,
     /// The blocks `owing` counts, with what their seals wait on, for `busy` to name.
     pub owing_blocks: Vec<be_block_type_host::Owing>,
+    /// The open blocks whose edits are not all committed (`Replicas::counts`): `unsealed` of
+    /// them.
+    pub unsealed_blocks: Vec<be_block_type_host::Owing>,
     /// The blocks `undurable` counts, for `busy` to name.
     pub undurable_blocks: Vec<be_block_type_host::Owing>,
     /// How many `Command::SealOwed` the worker has carried out, for `busy` to say whether the
@@ -467,7 +470,11 @@ impl Seen {
                 .iter()
                 .map(|(kind, block)| format!("{kind} {block}"))
                 .collect();
-            let unsealed: Vec<String> = self.owing_blocks.iter().map(ToString::to_string).collect();
+            let unsealed: Vec<String> = self
+                .unsealed_blocks
+                .iter()
+                .map(ToString::to_string)
+                .collect();
             reasons.push(format!(
                 "{waiting} edit(s) wait to be sent: {} unsealed [{}], {} in the outbox [{}]; {} drain(s) ended, {}; the last left [{}]; errors: {:?}, {:?}",
                 self.unsealed,

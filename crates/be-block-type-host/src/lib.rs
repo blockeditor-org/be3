@@ -81,7 +81,7 @@ pub trait Host: Sized + 'static {
     /// many hold edits not yet durable (`Replicas::counts`).
     fn counted(
         shared: &Arc<Mutex<Self>>,
-        unsealed: usize,
+        unsealed: Vec<Owing>,
         owing: Vec<Owing>,
         undurable: Vec<Owing>,
     );

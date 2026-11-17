@@ -2946,8 +2946,9 @@ impl Ran<'_> {
             let mut held = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.log_dropped();
             held.done += 1;
-            let (owing, undurable);
-            (held.unsealed, owing, undurable) = self.replicas.counts();
+            let (unsealed, owing, undurable) = self.replicas.counts();
+            held.unsealed = unsealed.len();
+            held.unsealed_blocks = unsealed;
             held.owing = owing.len();
             held.owing_blocks = owing;
             held.undurable = undurable.len();

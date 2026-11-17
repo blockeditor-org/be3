@@ -728,6 +728,10 @@ pub struct Owing {
     /// Why its last publish failed, if it did.
     pub publish_error: Option<String>,
     pub journaled: bool,
+    /// Whether its module reports all its edits committed (`Status::clean`).
+    pub clean: bool,
+    /// Whether its module says it owes a seal (`Status::owes_seal`).
+    pub owes_seal: bool,
     /// What its module says keeps its edits out of the journal (`Status::unjournaled`).
     pub unjournaled: Option<be_sdk_type_api::Unjournaled>,
     /// The modules' clock as the host last counted (`Modules::now`), which the timers in
@@ -750,6 +754,8 @@ impl Owing {
             content_type: open.content_type,
             publish_error: open.publish_error.clone(),
             journaled: open.status.journaled,
+            clean: open.status.clean,
+            owes_seal: open.status.owes_seal,
             unjournaled: open.status.unjournaled.clone(),
             now,
             unreported: open.unreported(),
@@ -802,9 +808,11 @@ impl std::fmt::Display for Owing {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             formatter,
-            "{} of type {} (journaled: {}{}, unreported: {}, publishes unanswered: {}, joining: {}, closing: {}, last publish failed: {:?}, last keep failed: {:?})",
+            "{} of type {} (clean: {}, owes a seal: {}, journaled: {}{}, unreported: {}, publishes unanswered: {}, joining: {}, closing: {}, last publish failed: {:?}, last keep failed: {:?})",
             self.block,
             self.content_type,
+            self.clean,
+            self.owes_seal,
             self.journaled,
             self.unjournaled
                 .as_ref()
@@ -1043,7 +1051,9 @@ impl<H: Host> Replicas<H> {
     }
 
     pub async fn woken(&mut self) {
-        let _ = self.modules.kept();
+        if self.modules.kept() {
+            return;
+        }
         let notified = std::pin::pin!(self.modules.notified());
         let answered = std::pin::pin!(self.answers.recv());
         if let futures_util::future::Either::Right((Some(io), _)) =
@@ -4612,13 +4622,14 @@ impl<H: Host> Replicas<H> {
     /// hold edits that are not yet durable: not yet kept on this device, in a journal or in its
     /// kept edits (`refs::OpenEdits`). A kept edit survives a restart, so it is only waiting for
     /// the server and its commit.
-    pub fn counts(&self) -> (usize, Vec<Owing>, Vec<Owing>) {
+    pub fn counts(&self) -> (Vec<Owing>, Vec<Owing>, Vec<Owing>) {
         let now = self.modules.now();
         let unsealed = self
             .open
             .values()
             .filter(|open| !open.status.clean || open.unreported())
-            .count();
+            .map(|open| Owing::of(open, now))
+            .collect();
         let owing = self
             .open
             .values()
