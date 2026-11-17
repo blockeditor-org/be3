@@ -352,10 +352,12 @@ maker through every sender (`KeyBook::heads`).
   of the log's head here when this device's log does not reach that head or
   the key names none (with no log read this run, as of the kept head); a data
   key only from an administrator, as only the settings' are sealed to anyone; one the block's log names but not by then held nothing
-  (`KeyBook::sender_may`). A contact the block's log never names only once
-  this device found them holding Edit or above on a block the signed parent
-  records place it under (`Peer::held_above`, `KeyBook::vouch`, kept in
-  `KeptLog::above`). A key of a block whose log this device never checked is
+  (`KeyBook::sender_may`). From a contact the block's log never names, a key
+  only once this device found, as that key arrived, the contact holding Edit
+  or above on a block the signed parent records place it under
+  (`Peer::held_above`, `KeyBook::vouch`): that key alone is kept as vouched
+  for (`KeptLog::vouched`), so a contact revoked above since hands over
+  nothing new. A key of a block whose log this device never checked is
   taken; `refresh_keys` takes this account's own keys first, so the roots they
   carry are pinned, then reads the log of each block whose root it pinned
   before taking a contact's seal of it.

@@ -53,6 +53,26 @@ async fn a_contact_the_log_never_names_hands_over_a_key_only_with_edit_from_abov
     assert!(!checked.levels.contains_key(&editor.account().into_bytes()));
 
     let organization = owner.organization();
+    let seal = |sender: &Peer<MemoryStore>, key: Uuid, head: EntryHash| {
+        let carried = CarriedKey {
+            key: [7; 32],
+            block: note.into_bytes(),
+            root: None,
+            heads: Heads {
+                block: Some(head),
+                organization: None,
+            },
+        };
+        sender.keys().identity().seal_for(
+            sender.account().into_bytes(),
+            &Party {
+                account: owner.account().into_bytes(),
+                public: owner.keys().identity().public(),
+            },
+            key.as_bytes(),
+            &carried.encode(),
+        )
+    };
     let mut planted = Vec::new();
     for sender in [&editor, &stranger] {
         let key = Uuid::new_v4();
@@ -96,6 +116,32 @@ async fn a_contact_the_log_never_names_hands_over_a_key_only_with_edit_from_abov
     assert!(
         !device.keys().has(planted[1]),
         "a contact with no right above handed over a key of the note"
+    );
+
+    // Revoked above, the editor hands over nothing new, naming the newest head or not.
+    owner
+        .grant(team, editor.account(), Access::None)
+        .await
+        .unwrap();
+    let (_, now) = owner.checked_access(note).await.unwrap();
+    let made_up = Uuid::new_v4();
+    plant(
+        &harness,
+        organization,
+        made_up,
+        note,
+        owner.account(),
+        editor.account(),
+        seal(&editor, made_up, now.head),
+    );
+    device.refresh_keys(None).await.unwrap();
+    assert!(
+        !device.keys().has(made_up),
+        "an editor revoked above handed over a key made up since"
+    );
+    assert!(
+        device.keys().has(planted[0]),
+        "the key vouched for as it arrived is kept"
     );
 
     harness.stop().await;

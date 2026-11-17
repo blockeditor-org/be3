@@ -275,11 +275,13 @@ did not sign.
   revocation; never for an escrow key, taken only from an administrator at the
   organization log's head now. A device whose log outdates that head writes
   under no such key; one that does not hold the revocation does.
-- **A key from a sender the block's log never names** is taken only once
-  this device found the sender holds Edit or above on a block the signed parent
-  records place it under (`KeyBook::vouch`, step 4), as of that block's head
-  then, and kept so across restarts; a sender revoked above since stays
-  vouched for until a log names them. Such a key is written under only
+- **A key from a sender the block's log never names** is taken only when
+  this device finds, as that key arrives, the sender holding Edit or above on
+  a block the signed parent records place it under (`KeyBook::vouch`, step 4),
+  as of those logs' heads then; that key alone is kept as vouched for across
+  restarts, and each later one is judged as it arrives. A server that
+  withholds the sender's revocation above from this device, as for any
+  withheld revocation, has a made-up key taken. Such a key is written under only
   while it names a head the log reaches with nothing lowering anyone after
   it, or, naming none, only while the log has never lowered anyone. Such a
   sender, revoked above with the server's help, can so have a key they made up
