@@ -69,6 +69,7 @@ LAYER_EXTRAS = {
 # independent of any GUI framework.
 LAYER_DENY = {
     "be-sdk-api": ["beui"],
+    "be-sdk-app-host": ["beui", "be-block"],
     "be-sdk-type-api": ["beui"],
 }
 

@@ -22,6 +22,7 @@ be-host-stack = { path = "../be-host-stack" }
 be-lib-layers = { path = "../be-lib-layers" }
 be-wasm-guest-host = { path = "../be-wasm-guest-host" }
 be-sdk-api = { path = "../be-sdk-api" }
+be-sdk-app-host = { path = "../be-sdk-app-host" }
 be-sdk-manifest = { path = "../be-sdk-manifest" }
 be-sdk-type-api = { path = "../be-sdk-type-api" }
 be-sdk-type-guest = { path = "../be-sdk-type-guest" }

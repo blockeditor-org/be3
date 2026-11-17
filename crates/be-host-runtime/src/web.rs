@@ -49,7 +49,9 @@ pub(super) fn discard_prepared() {}
 /// only its own app's workers (`be_wasm_sandbox_host::Server::for_app`), each in a web worker of
 /// its own, started from where `worker_file` says it is staged.
 pub(super) fn wire(app: &AppManifest) -> super::wire::Wire {
-    super::wire::Wire::granting(app.extensions.clone()).with_sandbox(
+    super::wire::Wire::granting(app.extensions.clone())
+        .offering(super::published::offered)
+        .with_sandbox(
         be_wasm_sandbox_host::Server::for_app(
             Arc::new(be_host_base::host::wake),
             app.identity.id.clone(),

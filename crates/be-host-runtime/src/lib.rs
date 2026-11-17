@@ -8,9 +8,10 @@ use be_sdk_manifest::AppManifest;
 use beui::{Rect, Vec2};
 use uuid::Uuid;
 
+use be_sdk_app_host::{calls, sent, session, wire};
+
 mod audio;
 mod backend;
-mod calls;
 mod description;
 mod docks;
 mod events;
@@ -27,8 +28,6 @@ mod presenter;
 mod previews;
 mod published;
 mod runtime;
-mod sent;
-mod session;
 #[cfg(not(target_arch = "wasm32"))]
 mod surface;
 #[cfg(not(target_arch = "wasm32"))]
@@ -36,7 +35,6 @@ mod wasm;
 #[cfg(target_arch = "wasm32")]
 mod web;
 mod windows;
-mod wire;
 
 /// Each running wasm guest, apps and type modules alike, by the name its thread has (`app ID` for
 /// an app), with the bytes of linear memory it holds.

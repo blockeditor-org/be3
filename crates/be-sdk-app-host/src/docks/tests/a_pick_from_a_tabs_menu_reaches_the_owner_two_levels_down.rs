@@ -1,7 +1,10 @@
 use super::*;
 use be_sdk_api::DockChildPick;
 
-const TAB: beui::Rect = beui::Rect::from_min_max(beui::pos2(40.0, 0.0), beui::pos2(160.0, 28.0));
+const TAB: be_sdk_api::Rect = be_sdk_api::Rect::from_min_max(
+    be_sdk_api::Pos2::new(40.0, 0.0),
+    be_sdk_api::Pos2::new(160.0, 28.0),
+);
 
 fn pick(tab: DockTabPath) -> DockMessage {
     DockMessage::Pick(DockChildPick {

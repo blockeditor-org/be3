@@ -1,0 +1,20 @@
+[package]
+name = "be-sdk-app-host"
+description = "The host's half of the app protocol: an app's wire, what host and app say on it, docks across apps, sent states and the session, with no GUI framework or block stack"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
+be-sdk-api = { path = "../be-sdk-api" }
+be-sdk-manifest = { path = "../be-sdk-manifest" }
+be-wasm-sandbox-api = { path = "../be-wasm-sandbox-api" }
+be-wasm-sandbox-host = { path = "../be-wasm-sandbox-host" }
+uuid = "1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+be-wasm-host = { path = "../be-wasm-host" }
+
+[lints]
+workspace = true

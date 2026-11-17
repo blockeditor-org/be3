@@ -1,3 +1,5 @@
+//! What a host and an app say to each other on a `Wire`, in the host's terms: `Outbound` and the
+//! calls it carries, `Heard`, and visiting the block ids that cross the protocol (`BlockIds`).
 use be_sdk_api::app::EditorEvent;
 use be_sdk_api::clipboard::ClipBody;
 use be_sdk_api::{
@@ -10,7 +12,7 @@ use be_sdk_api::{
 use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum Outbound {
+pub enum Outbound {
     Open(Box<Opening>),
     Close(EditorInstanceId),
     /// What happened around an editor (`editor.hear`): queued and sent in order.
@@ -20,7 +22,7 @@ pub(super) enum Outbound {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum AppCall {
+pub enum AppCall {
     Preferences(Preferences),
     UtcOffset(i32),
     Fonts(Fonts),
@@ -47,7 +49,7 @@ pub(super) enum AppCall {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum EditorCall {
+pub enum EditorCall {
     ChildStatuses(Vec<ChildStatus>),
     Watched {
         open: be_sdk_api::ops::MethodId,
@@ -69,7 +71,7 @@ pub(super) enum EditorCall {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum EditorAnswer {
+pub enum EditorAnswer {
     Created(Result<[u8; 16], Failure>),
     Regenerated(Result<(), Failure>),
     Rendered {
@@ -85,7 +87,7 @@ impl From<AppCall> for Outbound {
 }
 
 impl Outbound {
-    pub(super) fn instance(&self) -> Option<EditorInstanceId> {
+    pub fn instance(&self) -> Option<EditorInstanceId> {
         match self {
             Self::Open(opening) => Some(opening.instance),
             Self::Close(instance) | Self::Event(instance, _) | Self::Editor(instance, _) => {
@@ -95,13 +97,13 @@ impl Outbound {
         }
     }
 
-    pub(super) fn closes(&self) -> bool {
+    pub fn closes(&self) -> bool {
         matches!(self, Self::Close(_))
     }
 }
 
 #[derive(Debug)]
-pub(super) enum Heard {
+pub enum Heard {
     Hello(Hello),
     Layout(ScreenLayout),
     FrameNeeded,
@@ -119,12 +121,12 @@ pub(super) enum Heard {
     Published(EditorInstanceId, be_sdk_api::ops::Started),
     Debug(EditorInstanceId, DebugCall),
     Ended(be_sdk_api::ops::OpId),
-    Service(super::wire::Service),
+    Service(crate::wire::Service),
     Network(EditorInstanceId, be_sdk_api::embed::network::Call),
     Withdrawn(be_sdk_api::ops::OpId),
 }
 
-pub(super) fn instance_of(call: &ShellCall) -> Option<EditorInstanceId> {
+pub fn instance_of(call: &ShellCall) -> Option<EditorInstanceId> {
     match call {
         ShellCall::Tell { instance, .. }
         | ShellCall::ChildStatusesWatchNew { instance, .. }
@@ -141,9 +143,9 @@ pub(super) fn instance_of(call: &ShellCall) -> Option<EditorInstanceId> {
     }
 }
 
-pub(super) type Visit<'a> = dyn FnMut(EditorInstanceId, BlockIdRole, &mut [u8; 16]) + 'a;
+pub type Visit<'a> = dyn FnMut(EditorInstanceId, BlockIdRole, &mut [u8; 16]) + 'a;
 
-pub(super) trait BlockIds {
+pub trait BlockIds {
     fn visit_block_ids(&mut self, visit: &mut Visit<'_>);
 }
 
@@ -155,7 +157,7 @@ impl BlockIds for LayoutCommit {
 
 /// Visits the blocks a clip item names, which cross the protocol in its
 /// `refs` whatever its format: copied, dragged, rendered or pasted.
-pub(super) fn visit_refs(instance: EditorInstanceId, refs: &mut [Uuid], visit: &mut Visit<'_>) {
+pub fn visit_refs(instance: EditorInstanceId, refs: &mut [Uuid], visit: &mut Visit<'_>) {
     for block in refs {
         let mut id = block.into_bytes();
         visit(instance, BlockIdRole::Existing, &mut id);
@@ -164,9 +166,9 @@ pub(super) fn visit_refs(instance: EditorInstanceId, refs: &mut [Uuid], visit: &
 }
 
 /// The items pasted into an instance's screen, whose refs cross into it.
-pub(super) struct Pasted<'a> {
-    pub(super) instance: EditorInstanceId,
-    pub(super) items: Vec<&'a mut be_sdk_api::ClipItem>,
+pub struct Pasted<'a> {
+    pub instance: EditorInstanceId,
+    pub items: Vec<&'a mut be_sdk_api::ClipItem>,
 }
 
 impl BlockIds for Pasted<'_> {
