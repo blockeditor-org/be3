@@ -50,6 +50,7 @@ fn drive(fixture: &str, script: &str) {
 mod action_bar;
 mod back;
 mod back_slide;
+mod blank;
 mod buttons;
 mod canvas;
 mod carry;

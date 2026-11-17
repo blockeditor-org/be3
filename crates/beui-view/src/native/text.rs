@@ -119,6 +119,7 @@ impl SlotChild for TextChild {
             ),
             TextChild::Item(item) => TextNode::item(item.node, item.data),
             TextChild::Gap(gap) => TextPart::Gap(gap.width),
+            TextChild::Blank(blank) => TextPart::Blank(blank.width, blank.font),
             TextChild::Break(_) => TextPart::Break,
         }
     }
@@ -132,6 +133,7 @@ impl SlotHost<TextChild> for TextHost {
             TextChild::Span(span) => TextPart::Span(span.bind(self.0)),
             TextChild::Item(item) => TextNode::item(item.node, item.data),
             TextChild::Gap(gap) => TextPart::Gap(gap.width),
+            TextChild::Blank(blank) => TextPart::Blank(blank.width, blank.font),
             TextChild::Break(_) => TextPart::Break,
         }
     }

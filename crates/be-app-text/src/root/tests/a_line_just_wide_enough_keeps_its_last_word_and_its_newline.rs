@@ -1,3 +1,6 @@
+//! The regression test for a newline's marker room wrapping a line's last word; the layout
+//! itself is covered by beui-host's
+//! `a_line_just_wide_enough_for_its_words_hangs_its_trailing_space_and_newline`.
 use super::*;
 
 const LINE: &str = "afdjnafndjsk fadsnjknjafkdsl nfjakdjnklafds njafdnjlkafds njkafdsnjlkafds njkafdnjlkfads jnkafldsnlj a";
@@ -38,6 +41,7 @@ fn a_line_just_wide_enough_keeps_its_last_word_and_its_newline() {
     // ends the text and has none. At the least width the second fits on one row, so must the
     // first.
     let mut editor = editor(&format!("{LINE}\n{LINE}"));
+    // `caret_after` reads the caret from the presence the editor shows its peers.
     editor.presence_visible(true);
     editor.click("text.surface");
     let (mut narrow, mut wide) = (400.0, 1400.0);
