@@ -27,6 +27,15 @@ fn a_rejoin_whose_unsealed_edits_no_seal_can_take_waits_without_asking_again() {
             );
             assert!(replicas.joining(), "the join's answer stays held");
         }
+        let (unsealed, ..) = replicas.counts();
+        assert_eq!(
+            unsealed
+                .iter()
+                .find(|owing| owing.block == block)
+                .and_then(|owing| owing.rejoin_held),
+            Some(2),
+            "what the block waits on is named"
+        );
 
         replicas.set_owes_seal(block, true);
         replicas.pump((&peer, &shared)).await;

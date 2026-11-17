@@ -67,7 +67,7 @@ impl Guest for Sleeper {
 }
 
 #[test]
-fn a_sleep_until_a_moment_the_held_clock_reached_ends_at_once() {
+fn a_sleep_until_a_moment_a_held_clock_reached_ends_on_the_next_pass() {
     be_lib_build_id::install("test");
     let mut modules = Modules::new(
         vec![in_process::<Sleeper>("sleeper").declaring(vec![FIRST])],
@@ -81,8 +81,10 @@ fn a_sleep_until_a_moment_the_held_clock_reached_ends_at_once() {
     // The clock is held a second on, which the module has not been told.
     modules.hold_clock(Some(first + Duration::from_secs(1)));
     let now = modules.now();
+    // As the host's loop does: it wakes for the sleep's moment (`wake_at`) and ends what is due.
     for _ in 0..10 {
         modules.take();
+        modules.tick_due();
     }
     let held = &modules.modules[0];
     assert_eq!(
