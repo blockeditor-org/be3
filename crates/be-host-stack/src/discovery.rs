@@ -20,9 +20,9 @@ pub use bundle::use_assets;
 #[cfg(not(target_arch = "wasm32"))]
 use bundle::{fetch, scan};
 #[cfg(target_arch = "wasm32")]
-pub(crate) use web::{adopt, fetched};
-#[cfg(target_arch = "wasm32")]
 pub use web::load;
+#[cfg(target_arch = "wasm32")]
+pub(crate) use web::{adopt, fetched};
 #[cfg(target_arch = "wasm32")]
 use web::{fetch, scan};
 

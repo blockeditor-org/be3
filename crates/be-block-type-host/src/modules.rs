@@ -50,8 +50,7 @@ impl Kind {
     }
 }
 
-static REGISTRY: std::sync::Mutex<BTreeMap<Uuid, Kind>> =
-    std::sync::Mutex::new(BTreeMap::new());
+static REGISTRY: std::sync::Mutex<BTreeMap<Uuid, Kind>> = std::sync::Mutex::new(BTreeMap::new());
 
 pub fn kind_of(content_type: Uuid) -> Option<Kind> {
     REGISTRY
@@ -61,8 +60,7 @@ pub fn kind_of(content_type: Uuid) -> Option<Kind> {
         .cloned()
 }
 
-static DECLARED: std::sync::Mutex<BTreeSet<Uuid>> =
-    std::sync::Mutex::new(BTreeSet::new());
+static DECLARED: std::sync::Mutex<BTreeSet<Uuid>> = std::sync::Mutex::new(BTreeSet::new());
 
 /// Moves on each time `REGISTRY` or `DECLARED` changes (`known`).
 static KNOWN_REVISION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
