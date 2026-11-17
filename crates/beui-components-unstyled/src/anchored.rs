@@ -1,5 +1,6 @@
 use beui_macros::{component, view};
 use beui_view::components::overlay::{Overlay, use_overlay_presence};
+use beui_view::measure::measure;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
@@ -27,6 +28,23 @@ pub struct AnchoredHandle {
 pub struct Dropdown {
     pub content: NodeId,
     pub pointer: NodeRef,
+    anchor: Memo<OverlayAnchor>,
+}
+
+impl Dropdown {
+    /// The width of the node the popup hangs from, in its own units, once it is laid out (a
+    /// frame late on the HTML core), and `None` while it opens at a point: a select's list is
+    /// at least as wide as its trigger.
+    pub fn anchor_width(self) -> Memo<Option<f32>> {
+        let anchor = self.anchor;
+        create_memo(move || {
+            let node = match anchor.get() {
+                OverlayAnchor::Node(node) | OverlayAnchor::Band { node, .. } => node.try_get()?,
+                _ => return None,
+            };
+            Some(measure(node).get()?.size.x)
+        })
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -82,6 +100,7 @@ pub fn Anchored(
     #[prop(default = NodeRef::new())] overlay: NodeRef,
     #[prop(children)] content: RenderFn<AnchoredHandle, NodeId>,
 ) -> NodeId {
+    let never_sheet = matches!(sheet, Prop::Static(SheetWhen::Never));
     let inert = policy.clone();
     let dismissable = create_memo(move || inert.get() != LayerPolicy::Inert);
     let mut was_open = false;
@@ -125,10 +144,9 @@ pub fn Anchored(
             }
         }
     };
-    let surfaces = move || {
+    let dropdown = move || {
         view! {
-            <List spacing=0.0>
-                <Overlay
+            <Overlay
                     @node_ref=&overlay
                     anchor={anchor}
                     placement
@@ -144,8 +162,18 @@ pub fn Anchored(
                     content={move || style.dropdown.call(Dropdown {
                         content: look(false, dropped),
                         pointer,
+                        anchor,
                     })}
                 />
+        }
+    };
+    // A popup that never becomes a sheet (a tooltip) is its overlay alone: no list around it
+    // and no empty `Show` for a sheet it never builds.
+    let surfaces = move || match never_sheet {
+        true => dropdown(),
+        false => view! {
+            <List spacing=0.0>
+                {dropdown()}
                 <Show value={sheet_built}>|| {
                     style.sheet.call(AnchoredSheetHandle {
                         open: raised,
@@ -154,7 +182,7 @@ pub fn Anchored(
                     })
                 }</Show>
             </List>
-        }
+        },
     };
     match keep_alive {
         false => surfaces(),

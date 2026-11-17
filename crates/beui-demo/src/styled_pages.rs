@@ -778,7 +778,7 @@ pub(crate) fn ButtonsPage() -> NodeId {
             <Sample title="Tool pill" code={vec![ZoomControls::SOURCE]}>
                 <ZoomControls />
             </Sample>
-            <Sample title="Tooltips" code={vec![HoverTooltip::SOURCE]}>
+            <Sample title="Tooltips on hover and focus" code={vec![HoverTooltip::SOURCE]}>
                 <HoverTooltip />
             </Sample>
             <Sample title="Focus ring" code={vec![FocusedTile::SOURCE]}>
@@ -995,6 +995,9 @@ fn HoverTooltip() -> NodeId {
             </Tooltip>
             <Tooltip label="Short">
                 <Chip label="Or me" @test_id="demo.tooltip.short" />
+            </Tooltip>
+            <Tooltip label="Tabbing here shows this at once">
+                <Button label="Focus me" @test_id="demo.tooltip.focus" />
             </Tooltip>
         </List>
     }
@@ -5085,6 +5088,46 @@ fn NestedNote(text: &'static str) -> NodeId {
 
 const BARS_SIDE_WIDTH: f32 = 280.0;
 
+const BLEND_MODES: [&str; 6] = ["Normal", "Multiply", "Screen", "Overlay", "Darken", "Lighten"];
+
+/// The side pane's tab: a select as wide as the narrow pane, whose list keeps within the pane
+/// (its `bounds`), so it never covers the status bars' band below it.
+#[sample]
+#[component]
+fn LayersSide() -> NodeId {
+    let area = NodeRef::new();
+    let bounds = create_memo(move || {
+        let area = area.try_get()?;
+        measure(area).get().map(|measured| measured.rect)
+    });
+    let blend = create_signal(Some(BLEND_MODES[0]));
+    view! {
+        <Frame @node_ref=&area @test_id="bars.note" width=Length::FILL height=Length::FILL>
+            <Scroll>
+                <Frame padding=PAGE_PADDING>
+                    <List spacing=SECTION_SPACING>
+                        <Select
+                            options={view! {
+                                <ForEach value={BLEND_MODES.to_vec()}>|label: &'static str|
+                                    <ChoiceOption value=label label />
+                                </ForEach>
+                            }}
+                            selected={blend}
+                            label="Blend mode"
+                            width=Length::FILL
+                            bounds
+                            @test_id="bars.blend"
+                        />
+                        <Text style=TextStyle::PARAGRAPH>
+                            "The three status bars belong to this page's dock rather than to a tab, so they show whichever tab is shown. They share one band, at its start, its centre and its end. A dock standing alone gives that band the whole length of the dock, out of every pane; joined into the demo's dock, as here, the page's tab holds them, and they sit beside the first pane. The blend mode's list is as wide as its select and keeps within this pane."
+                        </Text>
+                    </List>
+                </Frame>
+            </Scroll>
+        </Frame>
+    }
+}
+
 #[component]
 pub(crate) fn DockBarsPage() -> NodeId {
     let layout = DockingLayout::<u64>::new();
@@ -5098,10 +5141,7 @@ pub(crate) fn DockBarsPage() -> NodeId {
                 </DockPane>
                 <DockPane id="side">
                     <DockTab id=4u64 title="Layers" icon=beui::icons::ICON_LAYERS>
-                        <NestedNote
-                            @test_id="bars.note"
-                            text="The three status bars belong to this page's dock rather than to a tab, so they show whichever tab is shown. They share one band, at its start, its centre and its end. A dock standing alone gives that band the whole length of the dock, out of every pane; joined into the demo's dock, as here, the page's tab holds them, and they sit beside the first pane."
-                        />
+                        <LayersSide />
                     </DockTab>
                 </DockPane>
             </DockSplit>

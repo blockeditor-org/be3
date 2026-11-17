@@ -224,6 +224,13 @@ pub(crate) fn bind_test_id(node: NodeId, test_id: Prop<String>) {
     });
 }
 
+pub(crate) fn bind_description(node: NodeId, description: Prop<String>) {
+    bind(node, move || {
+        let description = Some(description.get()).filter(|description| !description.is_empty());
+        with_document(|document| document.set_description(node, description));
+    });
+}
+
 pub(crate) use crate::core::nodes::{
     focus_ancestry, focused_node, opener_of, set_focus, stacked_at, tree_local, use_font_changes,
     use_preference_layer, use_preferences, window_of,

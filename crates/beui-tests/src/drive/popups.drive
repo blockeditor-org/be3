@@ -16,3 +16,12 @@ move '#popups.hint'
 wait 'Says more'
 move '#popups.filters'
 wait not 'Says more'
+# The keyboard's focus shows a tooltip at once, and its label describes what it wraps.
+#web attribute '[aria-description]' aria-description 'Says more'
+click '#popups.filters'
+key Escape
+wait not 'CheckBox "Only starred"'
+key Tab
+wait 'Says more'
+key shift+Tab
+wait not 'Says more'

@@ -652,6 +652,12 @@ impl Pass<'_> {
         }
         self.described += 1;
         let (mut node, focus) = document.describe(id, key, size, explicit, text.as_deref(), inner);
+        if let Some(description) = document.description(id)
+            && node.description().is_none()
+            && node.label() != Some(description)
+        {
+            node.set_description(description.to_owned());
+        }
         if layered {
             node.set_class_name(LAYER_CLASS);
         }
@@ -1259,7 +1265,7 @@ impl Document {
         self.local_key(id).map(SpaceId::node)
     }
 
-    fn described_within(&self, id: NodeId) -> Option<NodeId> {
+    pub(crate) fn described_within(&self, id: NodeId) -> Option<NodeId> {
         if self.accessibility.get(&id).is_some() {
             return Some(id);
         }

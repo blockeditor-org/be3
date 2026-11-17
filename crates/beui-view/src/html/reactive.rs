@@ -115,6 +115,13 @@ pub(crate) fn bind_test_id(node: NodeId, test_id: Prop<String>) {
     });
 }
 
+pub(crate) fn bind_description(node: NodeId, description: Prop<String>) {
+    bind(node, move || {
+        let description = Some(description.get()).filter(|description| !description.is_empty());
+        beui_core_html::document::set_description(node, description);
+    });
+}
+
 pub(crate) fn tree_local<T: Clone + 'static>(make: impl FnOnce() -> T) -> T {
     beui_core_html::document::extension_or_insert_with(make)
 }

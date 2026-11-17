@@ -90,7 +90,7 @@ pub fn Select<T>(
     surface: AnchoredStyle,
     #[prop(default = false)] open: Binding<bool>,
     #[prop(default = None)] at: Binding<Option<Pos2>>,
-    #[prop(default = Placement::Menu)] placement: Prop<Placement>,
+    #[prop(default = Placement::BELOW_START)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
     #[prop(default = false)] keep_alive: bool,
     accessibility: Option<Prop<Node>>,
