@@ -6,21 +6,20 @@ use be_sdk_beui::Editor;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{
-    Color32, FontId, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, SecondaryDrag, TextLayout,
-    Vec2, reactive::Painter,
+    Color32, FontId, Key, KeyPress, NodeId, PointerId, PointerPress, Pos2, Rect, SecondaryDrag,
+    TextLayout, Vec2, drag, reactive::Painter,
 };
 use tabletop_api::Spot;
 use tabletop_api::board::{CARD_HEIGHT, CARD_WIDTH, HandCard, ItemId, Sprite};
 
 use super::Steps;
 use super::annotations::{self, Annotation, Brush, toggled};
-use super::hand::{HAND_CARD, HandBar, hand_hit};
+use super::hand::{HAND_CARD, HandBar, hand_hit, hand_rects};
 use super::layout::{Layout, Look, Placed, SpotPlace, movable};
 use super::motion::{Motion, flights, sightings};
-use super::play::{Dragging, Mark, Play};
+use super::play::{Mark, Play};
 use super::skin::paint_sprite;
 
-const DRAG_THRESHOLD: f32 = 6.0;
 const LABEL_SIZE: f32 = 13.0;
 const CARD_RADIUS: f32 = 6.0;
 const CELL_RADIUS: f32 = 8.0;
@@ -35,9 +34,13 @@ struct Press {
     start: Pos2,
     last: Pos2,
     spot: Option<Spot>,
-    dragging: bool,
+    carried: bool,
     panning: bool,
 }
+
+/// A piece or card carried from its spot.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Carried(Spot);
 
 #[derive(Clone, Debug, PartialEq)]
 struct Lifted {
@@ -126,25 +129,94 @@ pub(crate) fn Stage(
         },
     );
 
+    // The size the item at `from` is drawn at, on the table or in the hand.
+    let lifted_size = move |from: Spot| {
+        let held = hand.with_untracked(|hand| hand.iter().any(|held| held.spot == from));
+        match held {
+            true => Some(HAND_CARD),
+            false => layout.with_untracked(|layout| {
+                Some(layout.lifted(from)?.rect.size() * view_now().scale)
+            }),
+        }
+    };
+    // Where `spot` is on screen: its hand card, or the union of its items on the table.
+    let spot_rect = move |spot: Spot| {
+        let in_hand = hand.with_untracked(|hand| {
+            hand_rects(bar.get_untracked(), hand.len())
+                .into_iter()
+                .zip(hand)
+                .find(|(_, held)| held.spot == spot)
+                .map(|(rect, _)| rect)
+        });
+        in_hand.or_else(|| {
+            let view = view_now();
+            layout.with_untracked(|layout| {
+                layout
+                    .items
+                    .iter()
+                    .filter(|placed| placed.spot == Some(spot))
+                    .map(|placed| view.rect_to_screen(placed.rect))
+                    .reduce(|all, rect| all.union(rect))
+            })
+        })
+    };
+    // Each move the game offers from the carried spot is a place at the spot it leads to,
+    // chosen while the pointer is on it; elsewhere the item floats and a release puts it
+    // back.
+    let stage = NodeRef::new();
+    // Where the item was drawn last, which a drop flies on from: the board's frame is gone
+    // by the time the drop commits.
+    let last_lifted = StoredCell::new(None::<Lifted>);
+    let site = use_drop_site(
+        Func::new(|_: Carried| true),
+        Func::new(move |Carried(from): Carried| {
+            let placed = stage
+                .try_get()
+                .and_then(|node| drag::space().placed(node));
+            let (Some((origin, scale)), Some(size)) = (placed, lifted_size(from)) else {
+                return drag::floating();
+            };
+            let local = |rect: Rect| {
+                Rect::from_min_size(
+                    Pos2::ZERO + (rect.min - origin.min) / scale,
+                    rect.size() / scale,
+                )
+            };
+            let targets = play.targets(from).into_iter().filter_map(|to| {
+                let zone = local(spot_rect(to)?);
+                let rest = Rect::from_center_size(zone.center(), size / scale);
+                Some(drag::Candidate::new(to, rest, stage).zoned(zone))
+            });
+            drag::closest(targets.collect::<Vec<_>>()).when_far(drag::floating())
+        }),
+        Callback::new(move |(Carried(from), to): (Carried, Spot)| {
+            let carried = last_lifted.take();
+            dropped.set(carried.map(|carried| (carried.id, carried.rect, to)));
+            play.dropped(from, to);
+        }),
+    );
+    create_effect(move || play.over.set(site.over.get()));
+    let board = beui::unstyled::drag_board();
     let lifted = create_memo(move || {
-        let dragging = play.dragging.get()?;
+        let Carried(from) = carrying::<Carried>()?;
+        let rect = board.frame()?.item;
         let held = hand.with(|hand| {
             hand.iter()
-                .find(|held| held.spot == dragging.from)
-                .map(|held| (held.id, held.sprite.clone(), HAND_CARD))
+                .find(|held| held.spot == from)
+                .map(|held| (held.id, held.sprite.clone()))
         });
-        let (id, sprite, size) = held.or_else(|| {
+        let (id, sprite) = held.or_else(|| {
             layout.with(|layout| {
-                let placed = layout.lifted(dragging.from)?;
-                let size = placed.rect.size() * view_now().scale;
-                Some((placed.id, placed.sprite.clone(), size))
+                let placed = layout.lifted(from)?;
+                Some((placed.id, placed.sprite.clone()))
             })
         })?;
-        Some(Lifted {
-            id,
-            sprite,
-            rect: Rect::from_center_size(dragging.at, size),
-        })
+        Some(Lifted { id, sprite, rect })
+    });
+    create_effect(move || {
+        if let Some(lifted) = lifted.get() {
+            last_lifted.set(Some(lifted));
+        }
     });
     let hidden = create_memo(move || {
         let mut hidden = motion.flying.get();
@@ -153,28 +225,34 @@ pub(crate) fn Stage(
     });
 
     let press = store(RefCell::new(None::<Press>));
-    let finish = move |pos: Pos2| {
-        let from = play.dragging.get_untracked().map(|dragging| dragging.from);
-        let carried = lifted.get_untracked();
-        play.dragging.set(None);
-        play.over.set(None);
-        if let (Some(from), Some(to)) = (from, hit(pos))
-            && from != to
-        {
-            dropped.set(carried.map(|carried| (carried.id, carried.rect, to)));
-            play.dropped(from, to);
-        }
-    };
-
     let on_press = move |pointer: PointerPress| {
         *press.value().borrow_mut() = Some(Press {
             start: pointer.pos,
             last: pointer.pos,
             spot: hit(pointer.pos),
-            dragging: false,
+            carried: false,
             panning: false,
         });
     };
+    // A press on a piece that can move lifts it; any other press goes on as a pan.
+    let drag = Func::new(move |pointer: PointerPress| {
+        if pointer.pointer == PointerId::Keyboard {
+            return None;
+        }
+        let pressed = press.value();
+        let mut held = pressed.borrow_mut();
+        let state = held.as_mut()?;
+        let from = state.spot.filter(|spot| play.can_drag(*spot))?;
+        let size = lifted_size(from)?;
+        state.carried = true;
+        play.choices.set(Vec::new());
+        play.selected.set(Some(from));
+        Some(
+            drag::Carry::new(Carried(from))
+                .item(Rect::from_center_size(Pos2::ZERO, size))
+                .drawn_by_site(),
+        )
+    });
     let on_drag = move |pointer: PointerPress| {
         let pressed = press.value();
         let mut held = pressed.borrow_mut();
@@ -183,47 +261,19 @@ pub(crate) fn Stage(
         };
         let delta = pointer.pos - state.last;
         state.last = pointer.pos;
-        if state.dragging {
-            if let Some(dragging) = play.dragging.get_untracked() {
-                play.dragging.set(Some(Dragging {
-                    at: pointer.pos,
-                    ..dragging
-                }));
-            }
-            play.over.set(hit(pointer.pos));
-            return;
-        }
         if state.panning {
             editor.pan(delta);
-            return;
-        }
-        if (pointer.pos - state.start).length() < DRAG_THRESHOLD {
-            return;
-        }
-        match state.spot.filter(|spot| play.can_drag(*spot)) {
-            Some(from) => {
-                state.dragging = true;
-                play.choices.set(Vec::new());
-                play.selected.set(Some(from));
-                play.dragging.set(Some(Dragging {
-                    from,
-                    at: pointer.pos,
-                }));
-            }
-            None if in_bar(state.start) => {}
-            None => {
-                state.panning = true;
-                editor.pan(pointer.pos - state.start);
-                editor.pan_drag();
-            }
+        } else if !in_bar(state.start) {
+            state.panning = true;
+            editor.pan(pointer.pos - state.start);
+            editor.pan_drag();
         }
     };
     let on_click_at = move |pointer: PointerPress| {
         let state = press.value().borrow_mut().take();
         annotations.set(Vec::new());
         match state {
-            Some(state) if state.dragging => finish(pointer.pos),
-            Some(state) if state.panning => {}
+            Some(state) if state.carried || state.panning => {}
             _ => match hit(pointer.pos) {
                 Some(spot) => play.click(spot),
                 None => play.cancel(),
@@ -231,12 +281,8 @@ pub(crate) fn Stage(
         }
     };
     let on_active_change = move |active: bool| {
-        if active {
-            return;
-        }
-        let state = press.value().borrow_mut().take();
-        if let Some(state) = state.filter(|state| state.dragging) {
-            finish(state.last);
+        if !active {
+            press.value().borrow_mut().take();
         }
     };
     let on_secondary_drag = move |drag: SecondaryDrag| {
@@ -319,12 +365,13 @@ pub(crate) fn Stage(
             on_key={on_key}
             capture_presses=true
             on_press={on_press}
+            drag={drag}
             on_drag={on_drag}
             on_click_at={on_click_at}
             on_active_change={on_active_change}
             on_pointer={beui::unstyled::gestures::secondary_drag(on_secondary_drag)}
         >
-            <Layers>
+            <Layers @node_ref=&stage>
                 <List spacing=Space::None>
                     <ListItem grow=1.0>
                         <Canvas view={canvas} @node_ref={&content}>
