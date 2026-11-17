@@ -14,7 +14,12 @@ async fn a_request_fails_once_a_ping_goes_unanswered() {
     let connection = Connection::connect(&relay.url(), &clock).await.unwrap();
 
     relay.stall();
-    let answer = crate::ask(be_block_protocol::read::<Vec<be_block_protocol::Organization>, _>(&connection, None, be_block_protocol::Query::Organizations));
+    let answer = crate::ask(be_block_protocol::read::<
+        Vec<be_block_protocol::Organization>,
+        _,
+    >(
+        &connection, None, be_block_protocol::Query::Organizations
+    ));
     let mut pings = relay.count(|method, _| method == be_block_protocol::__args::SERVER_PING);
     clock.advance(PING_INTERVAL);
     pings.wait_for(|pings| *pings > 0).await.unwrap();

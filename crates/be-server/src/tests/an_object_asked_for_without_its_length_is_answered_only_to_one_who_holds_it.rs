@@ -24,7 +24,11 @@ async fn an_object_asked_for_without_its_length_is_answered_only_to_one_who_hold
     let asked = |hash| vec![ObjectLength { hash, length: None }];
 
     let held = owner
-        .call(|peer| peer.write::<Vec<Option<be_block_protocol::UploadUrl>>>(be_block_protocol::Op::ReserveUploads(asked(stored))))
+        .call(|peer| {
+            peer.write::<Vec<Option<be_block_protocol::UploadUrl>>>(
+                be_block_protocol::Op::ReserveUploads(asked(stored)),
+            )
+        })
         .await;
     assert!(
         matches!(held.as_deref(), Ok([None])),
@@ -45,7 +49,11 @@ async fn an_object_asked_for_without_its_length_is_answered_only_to_one_who_hold
     let mut refusals = Vec::new();
     for hash in [stored, unknown] {
         let answer = other
-            .call(|peer| peer.write::<Vec<Option<be_block_protocol::UploadUrl>>>(be_block_protocol::Op::ReserveUploads(asked(hash))))
+            .call(|peer| {
+                peer.write::<Vec<Option<be_block_protocol::UploadUrl>>>(
+                    be_block_protocol::Op::ReserveUploads(asked(hash)),
+                )
+            })
             .await;
         let Err(error) = answer else {
             panic!("{hash} was answered to an account that does not hold it: {answer:?}");

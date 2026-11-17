@@ -3023,7 +3023,12 @@ async fn approve_pairing(
         .map_err(|error| ClientError::Encoding(error.to_string()))?;
     let sealed = key.seal(&peer.keys().identity().to_bytes());
     let payload = be_block_keys::PairingMessage::Reply { message, sealed }.encode();
-    ask(be_block_protocol::client::server::send(&peer.connection(), None, be_block_protocol::Target::Devices(Some(from)), payload))
+    ask(be_block_protocol::client::server::send(
+        &peer.connection(),
+        None,
+        be_block_protocol::Target::Devices(Some(from)),
+        payload,
+    ))
     .await?;
     Ok(())
 }
@@ -3107,7 +3112,11 @@ async fn invitations(peer: &Peer<Store>, config: &Config, command: InvitationsCo
                 .map_err(|error| error.to_string()),
         ),
         InvitationsCommand::Revoke { link, reply } => {
-            let revoked = be_block_client::ask(be_block_protocol::write::<(), _>(&peer.connection(), None, be_block_protocol::Op::DeleteLink(link)))
+            let revoked = be_block_client::ask(be_block_protocol::write::<(), _>(
+                &peer.connection(),
+                None,
+                be_block_protocol::Op::DeleteLink(link),
+            ))
             .await;
             let listed = match revoked {
                 Ok(()) => list_invitations(peer, config).await,
@@ -3123,7 +3132,14 @@ async fn list_invitations(
     peer: &Peer<Store>,
     config: &Config,
 ) -> Result<Vec<crate::Invite>, ClientError> {
-    let rows = be_block_client::ask(be_block_protocol::read::<Vec<be_block_protocol::InvitationRow>, _>(&peer.connection(), Some(peer.organization()), be_block_protocol::Query::Invitations))
+    let rows = be_block_client::ask(be_block_protocol::read::<
+        Vec<be_block_protocol::InvitationRow>,
+        _,
+    >(
+        &peer.connection(),
+        Some(peer.organization()),
+        be_block_protocol::Query::Invitations,
+    ))
     .await?;
     let base = crate::accounts::link_base(&config.server_url);
     let identity = peer.keys().identity();
@@ -3211,14 +3227,30 @@ async fn create_agent(
         None => None,
     };
     let member = peer.agent_record(account, secret.identity()).await?;
-    let be_block_protocol::CreatedAgent { agent, token } = ask(be_block_protocol::write::<be_block_protocol::CreatedAgent, _>(&peer.connection(), Some(organization), be_block_protocol::Op::CreateAgent { account: account, name: name, recovery: public.0, signing: secret.signing().0, contact: be_block_client::contacts::OwnContact::new(me.clone(), 0).seal(&secret), escrow: be_block_client::contacts::seal_pin(
-            &secret,
-            organization,
-            &be_block_client::contacts::Pinned {
-                root: peer.keys().organization_root(),
-                escrow: peer.keys().escrow(),
-            },
-        ), bound_to: bound, member: member }))
+    let be_block_protocol::CreatedAgent { agent, token } = ask(be_block_protocol::write::<
+        be_block_protocol::CreatedAgent,
+        _,
+    >(
+        &peer.connection(),
+        Some(organization),
+        be_block_protocol::Op::CreateAgent {
+            account: account,
+            name: name,
+            recovery: public.0,
+            signing: secret.signing().0,
+            contact: be_block_client::contacts::OwnContact::new(me.clone(), 0).seal(&secret),
+            escrow: be_block_client::contacts::seal_pin(
+                &secret,
+                organization,
+                &be_block_client::contacts::Pinned {
+                    root: peer.keys().organization_root(),
+                    escrow: peer.keys().escrow(),
+                },
+            ),
+            bound_to: bound,
+            member: member,
+        },
+    ))
     .await?;
     let card = be_block_keys::ContactCard {
         account: agent.account.into_bytes(),
@@ -3228,7 +3260,14 @@ async fn create_agent(
         email: agent.email.clone(),
     };
     let finished = async {
-        ask(be_block_protocol::write::<(), _>(&peer.connection(), None, be_block_protocol::Op::PutContact { contact: agent.account, sealed: be_block_client::contacts::OwnContact::new(card.clone(), 0).seal(identity) }))
+        ask(be_block_protocol::write::<(), _>(
+            &peer.connection(),
+            None,
+            be_block_protocol::Op::PutContact {
+                contact: agent.account,
+                sealed: be_block_client::contacts::OwnContact::new(card.clone(), 0).seal(identity),
+            },
+        ))
         .await?;
         if let Some(block) = bound_to {
             peer.seal_share(block, agent.account, &public).await?;
@@ -3260,7 +3299,15 @@ async fn change_block_agent(peer: &Peer<Store>, agent: Uuid, change: AgentChange
     let organization = peer.organization();
     // Only a block's agent the person made: an administrator may remove any member, and an app
     // must never do that in their name. A listed member that is not one is refused.
-    let listed = match ask(be_block_protocol::read::<Vec<be_block_protocol::Member>, _>(&connection, Some(organization), be_block_protocol::Query::Members)).await {
+    let listed = match ask(
+        be_block_protocol::read::<Vec<be_block_protocol::Member>, _>(
+            &connection,
+            Some(organization),
+            be_block_protocol::Query::Members,
+        ),
+    )
+    .await
+    {
         Ok(members) => members.into_iter().find(|listed| listed.account == agent),
         Err(error) => return change.fail(error.to_string()),
     };
@@ -3272,7 +3319,11 @@ async fn change_block_agent(peer: &Peer<Store>, agent: Uuid, change: AgentChange
     }
     match change {
         AgentChange::Rotate(reply) => reply.send(
-            ask(be_block_protocol::write::<String, _>(&connection, Some(organization), be_block_protocol::Op::RotateAgentToken(agent)))
+            ask(be_block_protocol::write::<String, _>(
+                &connection,
+                Some(organization),
+                be_block_protocol::Op::RotateAgentToken(agent),
+            ))
             .await
             .map_err(|error| error.to_string()),
         ),
@@ -3343,7 +3394,13 @@ async fn contact(
             reply.send(opened.map_err(|error| error.to_string()));
         }
         ContactCommand::Accept { code, reply } => {
-            let accepted = be_block_client::contacts::accept_link(&peer.connection(), identity, &me, &code, be_block_client::contacts::Expected::Contact)
+            let accepted = be_block_client::contacts::accept_link(
+                &peer.connection(),
+                identity,
+                &me,
+                &code,
+                be_block_client::contacts::Expected::Contact,
+            )
             .await
             .map(|(_, card)| card);
             if accepted.is_ok() {
@@ -4797,9 +4854,14 @@ impl Tasks {
     fn account_notices(&self, peer: &Arc<Peer<Store>>) {
         let peer = Arc::clone(peer);
         self.spawn(async move {
-            if let Ok(listed) = be_block_client::ask(
-                be_block_protocol::read::<Vec<be_block_protocol::AccountNotice>, _>(&peer.connection(), None, be_block_protocol::Query::Notices),
-            )
+            if let Ok(listed) = be_block_client::ask(be_block_protocol::read::<
+                Vec<be_block_protocol::AccountNotice>,
+                _,
+            >(
+                &peer.connection(),
+                None,
+                be_block_protocol::Query::Notices,
+            ))
             .await
             {
                 crate::seen::notice(crate::seen::Notice::Account(
@@ -4875,8 +4937,7 @@ impl Tasks {
                 crate::changes::wake();
                 // Read again once the server tells it changed (`Peer::follow_topics` follows it).
                 loop {
-                    let heard = match select(std::pin::pin!(told.recv()), stopped.as_mut()).await
-                    {
+                    let heard = match select(std::pin::pin!(told.recv()), stopped.as_mut()).await {
                         Either::Left((heard, _)) => heard,
                         Either::Right(_) => return,
                     };

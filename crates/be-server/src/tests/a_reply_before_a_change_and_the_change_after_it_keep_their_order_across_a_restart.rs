@@ -10,7 +10,10 @@ async fn a_reply_before_a_change_and_the_change_after_it_keep_their_order_across
     let inside = client.create_block(BlockParent::Block(folder)).await;
     let listed = client
         .call(|peer| {
-            peer.read::<be_block_protocol::Listed>(be_block_protocol::Query::List { listing: Listing::Children(BlockParent::Block(folder)), after: None })
+            peer.read::<be_block_protocol::Listed>(be_block_protocol::Query::List {
+                listing: Listing::Children(BlockParent::Block(folder)),
+                after: None,
+            })
         })
         .await
         .expect("listing failed");

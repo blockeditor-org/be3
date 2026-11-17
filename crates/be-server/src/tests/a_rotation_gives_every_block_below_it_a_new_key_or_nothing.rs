@@ -79,6 +79,13 @@ async fn work(client: &mut TestClient) -> be_block_protocol::KeyWork {
 
 async fn rotate(client: &mut TestClient, root: Uuid, keys: KeySet) -> Result<(), Error> {
     client
-        .call(|peer| peer.write::<()>(be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rotate { roots: vec![root], keys: keys })))
+        .call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::PutKeys(
+                be_block_protocol::PutKeys::Rotate {
+                    roots: vec![root],
+                    keys: keys,
+                },
+            ))
+        })
         .await
 }

@@ -18,7 +18,11 @@ async fn a_submission_reaches_every_participant_numbered_and_sealed() {
     let laptop = harness.second(&phone).await;
     let mut on_phone = phone.connection().subscribe();
     let mut on_laptop = laptop.connection().subscribe();
-    phone.connection().join_session(phone.organization(), block, BUILD).await.unwrap();
+    phone
+        .connection()
+        .join_session(phone.organization(), block, BUILD)
+        .await
+        .unwrap();
     laptop
         .connection()
         .join_session(laptop.organization(), block, BUILD)

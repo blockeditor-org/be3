@@ -26,7 +26,14 @@ async fn upload(peer: &Peer<MemoryStore>, objects: Vec<Vec<u8>>) -> Result<(), C
             length: Some(bytes.len() as u64),
         })
         .collect();
-    let urls = crate::ask(be_block_protocol::write::<Vec<Option<be_block_protocol::UploadUrl>>, _>(&peer.connection(), Some(peer.organization()), be_block_protocol::Op::ReserveUploads(lengths)))
+    let urls = crate::ask(be_block_protocol::write::<
+        Vec<Option<be_block_protocol::UploadUrl>>,
+        _,
+    >(
+        &peer.connection(),
+        Some(peer.organization()),
+        be_block_protocol::Op::ReserveUploads(lengths),
+    ))
     .await?;
     for (url, bytes) in urls.into_iter().zip(objects) {
         let Some(url) = url else {
@@ -348,7 +355,10 @@ impl Harness {
         let connection = Connection::connect(&self.url, &Clock::real())
             .await
             .unwrap();
-        let token = crate::ask(be_block_protocol::client::server::authenticate(&connection, Some(token)))
+        let token = crate::ask(be_block_protocol::client::server::authenticate(
+            &connection,
+            Some(token),
+        ))
         .await
         .expect("the server signs the device in")
         .token;

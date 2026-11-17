@@ -13,7 +13,12 @@ async fn a_member_makes_contact_links_but_only_an_administrator_invites() {
         .expect("an administrator invites");
     let joined = editor
         .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::AcceptLink { link: invitation, card: Vec::new(), contact: Vec::new(), key: Vec::new() })
+            peer.write::<()>(be_block_protocol::Op::AcceptLink {
+                link: invitation,
+                card: Vec::new(),
+                contact: Vec::new(),
+                key: Vec::new(),
+            })
         })
         .await;
     assert!(matches!(joined, Ok(())), "{joined:?}");

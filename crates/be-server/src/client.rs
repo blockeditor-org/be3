@@ -797,11 +797,12 @@ impl Client {
                 ),
                 false => return Ok(()),
             },
-            Push::Sequenced { block, entry } => match self.following.sessions.contains_key(&block)
-            {
-                true => session(block, SessionEvent::Sequenced((*entry).clone())),
-                false => return Ok(()),
-            },
+            Push::Sequenced { block, entry } => {
+                match self.following.sessions.contains_key(&block) {
+                    true => session(block, SessionEvent::Sequenced((*entry).clone())),
+                    false => return Ok(()),
+                }
+            }
             Push::Paired(message) => Event::Paired(message),
             Push::ContactsChanged => match self.follows(Followed::Contacts) {
                 true => Followed::Contacts.told(),
@@ -944,8 +945,7 @@ impl Client {
                 }
                 let mut lock = self.peer.lock();
                 if let Some(before) = self.following.events.take() {
-                    self.outlets
-                        .end(&mut lock, before, Some(OpError::Canceled));
+                    self.outlets.end(&mut lock, before, Some(OpError::Canceled));
                 }
                 match self.outlets.len() < MAX_STREAMS_PER_CONNECTION {
                     true => {
@@ -1049,7 +1049,10 @@ impl Client {
         }
     }
 
-    async fn device_login(&mut self, step: DeviceLoginStep) -> Result<DeviceLoginAnswer, ServerError> {
+    async fn device_login(
+        &mut self,
+        step: DeviceLoginStep,
+    ) -> Result<DeviceLoginAnswer, ServerError> {
         let connection = &self.connection;
         if !connection.config.allow_login {
             return Err(login_disabled());
@@ -1065,29 +1068,27 @@ impl Client {
                     expires: seconds(expires),
                 }))
             }
-            DeviceLoginStep::Poll { code, secret } => {
-                Ok(DeviceLoginAnswer::Polled(
-                    match connection.browser_auth.poll(&code, &secret)? {
-                        browser_auth::Polled::Pending => BrowserLoginState::Pending,
-                        browser_auth::Polled::Denied => BrowserLoginState::Denied,
-                        browser_auth::Polled::Expired => BrowserLoginState::Expired,
-                        browser_auth::Polled::Approved { account, issuer } => {
-                            let token = connection
-                                .store
-                                .claim_browser_session(account, &issuer)
-                                .await?;
-                            let profile = connection.store.resolve_token(&token).await?;
-                            BrowserLoginState::Approved(Authenticated {
-                                account: profile.account,
-                                email: profile.email,
-                                display_name: profile.display_name,
-                                token,
-                                client: 0,
-                            })
-                        }
-                    },
-                ))
-            }
+            DeviceLoginStep::Poll { code, secret } => Ok(DeviceLoginAnswer::Polled(
+                match connection.browser_auth.poll(&code, &secret)? {
+                    browser_auth::Polled::Pending => BrowserLoginState::Pending,
+                    browser_auth::Polled::Denied => BrowserLoginState::Denied,
+                    browser_auth::Polled::Expired => BrowserLoginState::Expired,
+                    browser_auth::Polled::Approved { account, issuer } => {
+                        let token = connection
+                            .store
+                            .claim_browser_session(account, &issuer)
+                            .await?;
+                        let profile = connection.store.resolve_token(&token).await?;
+                        BrowserLoginState::Approved(Authenticated {
+                            account: profile.account,
+                            email: profile.email,
+                            display_name: profile.display_name,
+                            token,
+                            client: 0,
+                        })
+                    }
+                },
+            )),
         }
     }
 
@@ -1232,7 +1233,10 @@ impl Client {
                 .store
                 .require_access(identity, vec![block], Access::View)
                 .await?;
-            connection.store.read_journal(identity.organization, block).await
+            connection
+                .store
+                .read_journal(identity.organization, block)
+                .await
         }
         .await;
         match journal {
@@ -1297,9 +1301,11 @@ impl Client {
                     journals,
                 })
             }
-            Query::List { listing, after } => {
-                Page::Listed(store.list_page(admitted.identity()?, listing, after).await?)
-            }
+            Query::List { listing, after } => Page::Listed(
+                store
+                    .list_page(admitted.identity()?, listing, after)
+                    .await?,
+            ),
             Query::Tree {
                 entry,
                 after,
@@ -1482,7 +1488,10 @@ impl Client {
         if ops.len() > crate::limits::MAX_OPS_PER_WRITE {
             return Err(Refused {
                 index: 0,
-                error: crate::limits::too_many("ops in one write", crate::limits::MAX_OPS_PER_WRITE),
+                error: crate::limits::too_many(
+                    "ops in one write",
+                    crate::limits::MAX_OPS_PER_WRITE,
+                ),
             });
         }
         if ops.len() < 2 {
@@ -1561,10 +1570,21 @@ impl Client {
                     .await?;
                 let mut changed = vec![block.id];
                 changed.extend(block.references.iter().copied());
-                connection.after(After::Advance { organization: identity.organization, blocks: changed, subtree: false, above: Vec::new() })
+                connection
+                    .after(After::Advance {
+                        organization: identity.organization,
+                        blocks: changed,
+                        subtree: false,
+                        above: Vec::new(),
+                    })
                     .await;
                 if matches!(parent, BlockParent::Root | BlockParent::Detached) {
-                    connection.after(After::Roots { organization: identity.organization, blocks: vec![block.id], before: BTreeSet::new() })
+                    connection
+                        .after(After::Roots {
+                            organization: identity.organization,
+                            blocks: vec![block.id],
+                            before: BTreeSet::new(),
+                        })
                         .await;
                 }
                 Ok(Done::Block(block))
@@ -1581,7 +1601,13 @@ impl Client {
                     .await?;
                 let mut changed = vec![block.id];
                 changed.extend(relinked);
-                connection.after(After::Advance { organization: identity.organization, blocks: changed, subtree: false, above: Vec::new() })
+                connection
+                    .after(After::Advance {
+                        organization: identity.organization,
+                        blocks: changed,
+                        subtree: false,
+                        above: Vec::new(),
+                    })
                     .await;
                 Ok(Done::Block(block))
             }
@@ -1613,8 +1639,7 @@ impl Client {
                     .filter(|_| expected != Some(commit))
                     .map(|seal| (seal.base.sequence, seal.run));
                 let trim = journal.map(|seal| {
-                    let (registry, client) =
-                        (Arc::clone(&connection.registry), connection.client);
+                    let (registry, client) = (Arc::clone(&connection.registry), connection.client);
                     crate::journal::Asked {
                         tag: seal.tag,
                         run: seal.run,
@@ -1626,8 +1651,8 @@ impl Client {
                 let outcome = connection
                     .store
                     .publish(
-                        identity, block, commit, expected, parents, held, time, pinned,
-                        references, metadata, trim,
+                        identity, block, commit, expected, parents, held, time, pinned, references,
+                        metadata, trim,
                     )
                     .await?;
                 let (outcome, trimmed) = match outcome {
@@ -1654,7 +1679,13 @@ impl Client {
                 {
                     let mut changed = vec![block];
                     changed.extend(relinked.iter().copied());
-                    connection.after(After::Advance { organization: identity.organization, blocks: changed, subtree: false, above: Vec::new() })
+                    connection
+                        .after(After::Advance {
+                            organization: identity.organization,
+                            blocks: changed,
+                            subtree: false,
+                            above: Vec::new(),
+                        })
                         .await;
                 }
                 Ok(Done::Published(match outcome {
@@ -1713,7 +1744,12 @@ impl Client {
                                 .await;
                         }
                         // A grant can give edit access as well as take it.
-                        connection.after(After::Recheck { organization: identity.organization, account: None, within: Some(block) })
+                        connection
+                            .after(After::Recheck {
+                                organization: identity.organization,
+                                account: None,
+                                within: Some(block),
+                            })
                             .await;
                     }
                     LogRecord::Role {
@@ -1735,7 +1771,11 @@ impl Client {
                     }
                     LogRecord::Member(signed) => {
                         connection.store.sign_member(identity, signed).await?;
-                        connection.after(After::KeyWorkChanged { organization: identity.organization, accounts: BTreeSet::new() })
+                        connection
+                            .after(After::KeyWorkChanged {
+                                organization: identity.organization,
+                                accounts: BTreeSet::new(),
+                            })
                             .await;
                     }
                 }
@@ -1764,7 +1804,10 @@ impl Client {
                     })
                     .await;
                 // As for a demotion: the removed may have administered.
-                connection.after(After::KeyWorkChangedForAll { organization: identity.organization })
+                connection
+                    .after(After::KeyWorkChangedForAll {
+                        organization: identity.organization,
+                    })
                     .await;
                 Ok(Done::Nothing)
             }
@@ -1773,7 +1816,12 @@ impl Client {
                     PutKeys::Rows(keys) => {
                         let identity = admitted.identity()?;
                         if let Some(told) = connection.store.put_keys(identity, keys).await? {
-                            connection.after(After::KeysChanged { organization: identity.organization, accounts: told }).await;
+                            connection
+                                .after(After::KeysChanged {
+                                    organization: identity.organization,
+                                    accounts: told,
+                                })
+                                .await;
                         }
                     }
                     PutKeys::Rotate { roots, keys } => {
@@ -1782,7 +1830,13 @@ impl Client {
                             .store
                             .rotate(identity, roots.clone(), keys)
                             .await?;
-                        connection.after(After::Advance { organization: identity.organization, blocks: roots, subtree: true, above: Vec::new() })
+                        connection
+                            .after(After::Advance {
+                                organization: identity.organization,
+                                blocks: roots,
+                                subtree: true,
+                                above: Vec::new(),
+                            })
                             .await;
                     }
                     PutKeys::Escrow { escrow, keys } => {
@@ -1906,10 +1960,17 @@ impl Client {
                     )
                     .await?;
                 if let Some(block) = block {
-                    connection.after(After::Regranted { organization: identity.organization, block: block, before: before })
+                    connection
+                        .after(After::Regranted {
+                            organization: identity.organization,
+                            block: block,
+                            before: before,
+                        })
                         .await;
                 }
-                connection.after(After::ContactsChanged(vec![identity.account])).await;
+                connection
+                    .after(After::ContactsChanged(vec![identity.account]))
+                    .await;
                 Ok(Done::Agent(CreatedAgent { agent, token }))
             }
             Op::RotateAgentToken(account) => {
@@ -1954,10 +2015,16 @@ impl Client {
                     .accept_link(account, link, card, contact, key)
                     .await?;
                 if let Some(granted) = accepted.granted {
-                    connection.after(After::Regranted { organization: granted.organization, block: granted.block, before: granted.before })
+                    connection
+                        .after(After::Regranted {
+                            organization: granted.organization,
+                            block: granted.block,
+                            before: granted.before,
+                        })
                         .await;
                 }
-                connection.after(After::ContactsChanged(vec![account, accepted.owner]))
+                connection
+                    .after(After::ContactsChanged(vec![account, accepted.owner]))
                     .await;
                 Ok(Done::Nothing)
             }
@@ -1974,7 +2041,9 @@ impl Client {
                     .store
                     .put_contact(account, contact, sealed)
                     .await?;
-                connection.after(After::ContactsChanged(vec![account])).await;
+                connection
+                    .after(After::ContactsChanged(vec![account]))
+                    .await;
                 Ok(Done::Nothing)
             }
             Op::RemoveContact {
@@ -1987,8 +2056,15 @@ impl Client {
                     .store
                     .remove_contact(caller, account, current, revocations)
                     .await?;
-                connection.after(After::Revoked { revoked: revoked, accounts: vec![caller, account] }).await;
-                connection.after(After::ContactsChanged(vec![caller, account])).await;
+                connection
+                    .after(After::Revoked {
+                        revoked: revoked,
+                        accounts: vec![caller, account],
+                    })
+                    .await;
+                connection
+                    .after(After::ContactsChanged(vec![caller, account]))
+                    .await;
                 Ok(Done::Nothing)
             }
             Op::SetRecoveryKey {
@@ -2040,15 +2116,25 @@ impl Client {
                     .store
                     .set_notify_mode(identity, block, mode)
                     .await?;
-                connection.after(After::Tell { account: identity.account, push: Push::NotifyModesChanged {
+                connection
+                    .after(After::Tell {
+                        account: identity.account,
+                        push: Push::NotifyModesChanged {
                             organization: identity.organization,
-                        } }).await;
+                        },
+                    })
+                    .await;
                 Ok(Done::Nothing)
             }
             Op::DismissNotice(id) => {
                 let account = admitted.account()?;
                 if connection.store.dismiss_account_notice(account, id).await? {
-                    connection.after(After::Tell { account: account, push: Push::AccountNoticesChanged }).await;
+                    connection
+                        .after(After::Tell {
+                            account: account,
+                            push: Push::AccountNoticesChanged,
+                        })
+                        .await;
                 }
                 Ok(Done::Nothing)
             }
@@ -2079,7 +2165,9 @@ impl Client {
         payload: Vec<u8>,
     ) -> Result<(), ServerError> {
         let bound = bound_may_send(&target);
-        let admitted = self.admit(organization, target_rule(&target), bound).await?;
+        let admitted = self
+            .admit(organization, target_rule(&target), bound)
+            .await?;
         let connection = &self.connection;
         match target {
             Target::Session { block, kind } => {

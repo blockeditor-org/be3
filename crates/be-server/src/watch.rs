@@ -30,7 +30,9 @@ pub enum Push {
         sequence: u64,
     },
     /// The account's roots in the organization may have changed (`topic.roots`).
-    Roots { organization: Uuid },
+    Roots {
+        organization: Uuid,
+    },
     /// The server wrote a membership entry into a session's order.
     Membership {
         block: Place,
@@ -60,12 +62,18 @@ pub enum Push {
     /// The account's notices changed (`store/account_notices.rs`).
     AccountNoticesChanged,
     /// The account's key work in the organization may have changed (`topic.key-work`).
-    KeyWorkChanged { organization: Uuid },
+    KeyWorkChanged {
+        organization: Uuid,
+    },
     /// Keys the account may open in the organization were stored (`topic.keys`).
-    KeysChanged { organization: Uuid },
+    KeysChanged {
+        organization: Uuid,
+    },
     /// The account's notification modes in the organization changed through another of its
     /// connections (`topic.notify-modes`).
-    NotifyModesChanged { organization: Uuid },
+    NotifyModesChanged {
+        organization: Uuid,
+    },
 }
 
 #[derive(Default)]
@@ -111,10 +119,7 @@ fn unindex<K: Eq + std::hash::Hash>(index: &mut HashMap<K, HashSet<u64>>, key: K
 
 impl Joined {
     fn identity(&self, client: u64, organization: Uuid) -> Option<Identity> {
-        self.organizations
-            .get(&client)?
-            .get(&organization)
-            .copied()
+        self.organizations.get(&client)?.get(&organization).copied()
     }
 
     fn leave_account(&mut self, client: u64) {

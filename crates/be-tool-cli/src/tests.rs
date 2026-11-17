@@ -149,25 +149,40 @@ async fn agent(
         }),
         None => None,
     };
-    let be_block_protocol::CreatedAgent { agent, token } =
-        be_block_client::ask(be_block_protocol::write::<be_block_protocol::CreatedAgent, _>(&peer.connection(), Some(organization), be_block_protocol::Op::CreateAgent { account: account, name: "Claude".into(), recovery: public.0, signing: phrase.secret().signing().0, contact: be_block_client::contacts::OwnContact::new(
-                be_block_client::contacts::card(
-                    peer.account(),
-                    peer.keys().identity(),
-                    "Owner",
-                    "owner@example.com",
+    let be_block_protocol::CreatedAgent { agent, token } = be_block_client::ask(
+        be_block_protocol::write::<be_block_protocol::CreatedAgent, _>(
+            &peer.connection(),
+            Some(organization),
+            be_block_protocol::Op::CreateAgent {
+                account: account,
+                name: "Claude".into(),
+                recovery: public.0,
+                signing: phrase.secret().signing().0,
+                contact: be_block_client::contacts::OwnContact::new(
+                    be_block_client::contacts::card(
+                        peer.account(),
+                        peer.keys().identity(),
+                        "Owner",
+                        "owner@example.com",
+                    ),
+                    0,
+                )
+                .seal(&phrase.secret()),
+                escrow: be_block_client::contacts::seal_pin(
+                    &phrase.secret(),
+                    organization,
+                    &peer.keys().pins(),
                 ),
-                0,
-            )
-            .seal(&phrase.secret()), escrow: be_block_client::contacts::seal_pin(
-                &phrase.secret(),
-                organization,
-                &peer.keys().pins(),
-            ), bound_to: bound, member: peer.agent_record(account, phrase.secret().identity())
-                .await
-                .expect("signing the agent in failed") }))
-        .await
-        .expect("creating the agent failed");
+                bound_to: bound,
+                member: peer
+                    .agent_record(account, phrase.secret().identity())
+                    .await
+                    .expect("signing the agent in failed"),
+            },
+        ),
+    )
+    .await
+    .expect("creating the agent failed");
     let credentials = serde_json::json!({
         "server": harness.url,
         "organization": organization,

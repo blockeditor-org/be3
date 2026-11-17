@@ -185,9 +185,15 @@ async fn an_owner_only_block_is_read_by_its_author_alone() {
     let fresh = be_block_keys::RecoveryPhrase::generate().secret();
     let RecoveryKey {
         sealed, own, logs, ..
-    } = crate::ask(be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(&member.connection(), None, be_block_protocol::Query::RecoveryKey))
-        .await
-        .unwrap();
+    } = crate::ask(
+        be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
+            &member.connection(),
+            None,
+            be_block_protocol::Query::RecoveryKey,
+        ),
+    )
+    .await
+    .unwrap();
     let resealed = crate::contacts::new_identity(
         member.account(),
         member.keys().identity(),
@@ -197,7 +203,18 @@ async fn an_owner_only_block_is_read_by_its_author_alone() {
         logs,
     )
     .unwrap();
-    crate::ask(be_block_protocol::write::<(), _>(&member.connection(), None, be_block_protocol::Op::SetRecoveryKey { public: fresh.public().0, signing: fresh.signing().0, sealed: resealed.sealed, own: resealed.own, changes: resealed.changes, retirements: resealed.retirements }))
+    crate::ask(be_block_protocol::write::<(), _>(
+        &member.connection(),
+        None,
+        be_block_protocol::Op::SetRecoveryKey {
+            public: fresh.public().0,
+            signing: fresh.signing().0,
+            sealed: resealed.sealed,
+            own: resealed.own,
+            changes: resealed.changes,
+            retirements: resealed.retirements,
+        },
+    ))
     .await
     .unwrap();
     let renewed = Peer::connect(

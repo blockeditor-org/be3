@@ -5,7 +5,7 @@
 use be_block_commit::now_milliseconds;
 use be_block_content::Announcement;
 use be_block_protocol::{
-    BlockNotifyMode, MAX_NOTIFICATION_BYTES, NotifyMode, PushEndpoint, PushMessage, 
+    BlockNotifyMode, MAX_NOTIFICATION_BYTES, NotifyMode, PushEndpoint, PushMessage,
 };
 use be_block_store::ObjectStore;
 use serde::{Deserialize, Serialize};
@@ -101,7 +101,17 @@ impl<S: ObjectStore> Peer<S> {
             text: text.to_owned(),
         };
         let sealed = self.seal_notification(&notification).await?;
-        be_block_protocol::client::server::send(&self.connection(), Some(self.organization), be_block_protocol::Target::Push { block: block, mentions: mentions, keys: keys }, sealed).await??;
+        be_block_protocol::client::server::send(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Target::Push {
+                block: block,
+                mentions: mentions,
+                keys: keys,
+            },
+            sealed,
+        )
+        .await??;
         Ok(())
     }
 
@@ -265,11 +275,26 @@ impl<S: ObjectStore> Peer<S> {
 
     /// The blocks whose mode the account set to other than `all`.
     pub async fn notify_modes(&self) -> Result<Vec<BlockNotifyMode>, ClientError> {
-        Ok(be_block_protocol::read::<Vec<be_block_protocol::BlockNotifyMode>, _>(&self.connection(), Some(self.organization), be_block_protocol::Query::NotifyModes).await??)
+        Ok(
+            be_block_protocol::read::<Vec<be_block_protocol::BlockNotifyMode>, _>(
+                &self.connection(),
+                Some(self.organization),
+                be_block_protocol::Query::NotifyModes,
+            )
+            .await??,
+        )
     }
 
     pub async fn set_notify_mode(&self, block: Uuid, mode: NotifyMode) -> Result<(), ClientError> {
-        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), be_block_protocol::Op::SetNotifyMode { block: block, mode: mode }).await??;
+        be_block_protocol::write::<(), _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Op::SetNotifyMode {
+                block: block,
+                mode: mode,
+            },
+        )
+        .await??;
         Ok(())
     }
 
@@ -284,12 +309,26 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn register_endpoint(&self, endpoint: PushEndpoint) -> Result<(), ClientError> {
-        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), be_block_protocol::Op::SetPushEndpoint(be_block_protocol::PushEndpointChange::Register(endpoint))).await??;
+        be_block_protocol::write::<(), _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Op::SetPushEndpoint(
+                be_block_protocol::PushEndpointChange::Register(endpoint),
+            ),
+        )
+        .await??;
         Ok(())
     }
 
     pub async fn unregister_endpoint(&self, address: String) -> Result<(), ClientError> {
-        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), be_block_protocol::Op::SetPushEndpoint(be_block_protocol::PushEndpointChange::Forget(address))).await??;
+        be_block_protocol::write::<(), _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Op::SetPushEndpoint(be_block_protocol::PushEndpointChange::Forget(
+                address,
+            )),
+        )
+        .await??;
         Ok(())
     }
 }

@@ -3,7 +3,11 @@ use be_block_protocol::SigningKey;
 
 async fn signing_keys(client: &mut TestClient, accounts: Vec<Uuid>) -> Vec<SigningKey> {
     let response = client
-        .call(move |peer| peer.read::<Vec<be_block_protocol::SigningKey>>(be_block_protocol::Query::SigningKeys(accounts)))
+        .call(move |peer| {
+            peer.read::<Vec<be_block_protocol::SigningKey>>(be_block_protocol::Query::SigningKeys(
+                accounts,
+            ))
+        })
         .await;
     let Ok(mut keys) = response else {
         panic!("asking for signing keys failed: {response:?}");

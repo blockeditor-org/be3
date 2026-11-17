@@ -8,7 +8,7 @@ use std::{
 
 use be_block_commit::CommitId;
 use be_block_protocol::{
-    ClientId, Journal, JournalEntry, JoinedSession, MembershipEntry, PairingMessage, Query,
+    ClientId, JoinedSession, Journal, JournalEntry, MembershipEntry, PairingMessage, Query,
     SessionEvent, SessionSend, SessionState, Target, Topic, client, hello, read_hello,
 };
 use be_block_store::Hash;

@@ -75,7 +75,18 @@ pub(super) async fn make(
     let placement = client.placement(block, parent).await;
     client
         .call(|peer| {
-            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::CreateBlock { block: block, content_type: content_type, parent: parent, metadata: Vec::new(), references: Vec::new(), key: key, keys: keys, owner_only: false, root: root, placement: placement })
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::CreateBlock {
+                block: block,
+                content_type: content_type,
+                parent: parent,
+                metadata: Vec::new(),
+                references: Vec::new(),
+                key: key,
+                keys: keys,
+                owner_only: false,
+                root: root,
+                placement: placement,
+            })
         })
         .await
 }

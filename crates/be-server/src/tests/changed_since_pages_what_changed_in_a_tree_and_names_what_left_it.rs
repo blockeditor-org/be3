@@ -18,7 +18,16 @@ async fn changes(
     // A page looks at only so many changes in tests (`MAX_SCANNED`), and trashed blocks stay.
     for _ in 0..1_000 {
         let page = client
-            .call(|peer| peer.ask::<be_block_protocol::ChangedPage>(be_block_protocol::Query::Tree { entry: root, after: after.clone(), limit: limit }, false))
+            .call(|peer| {
+                peer.ask::<be_block_protocol::ChangedPage>(
+                    be_block_protocol::Query::Tree {
+                        entry: root,
+                        after: after.clone(),
+                        limit: limit,
+                    },
+                    false,
+                )
+            })
             .await
             .expect("changed-since failed");
         changed.extend(page.summaries.iter().map(|summary| summary.id));
@@ -63,7 +72,13 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
         (other, vec![elsewhere]),
     ] {
         let referred = owner
-            .call(|peer| peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata { block: parent, metadata: Vec::new(), references: children }))
+            .call(|peer| {
+                peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata {
+                    block: parent,
+                    metadata: Vec::new(),
+                    references: children,
+                })
+            })
             .await;
         assert!(referred.is_ok(), "{referred:?}");
     }
@@ -87,7 +102,13 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
 
     // A change to one block lists that block alone.
     let referred = owner
-        .call(|peer| peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata { block: stays, metadata: Vec::new(), references: Vec::new() }))
+        .call(|peer| {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata {
+                block: stays,
+                metadata: Vec::new(),
+                references: Vec::new(),
+            })
+        })
         .await;
     assert!(referred.is_ok(), "{referred:?}");
     let (changed, left, watermark_after) = changes(&mut owner, work, watermark, 100).await;
@@ -164,10 +185,17 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     assert!(trashed.is_ok(), "{trashed:?}");
     let page = owner
         .call(|peer| {
-            peer.ask::<be_block_protocol::ChangedPage>(be_block_protocol::Query::Tree { entry: work, after: ChangeCursor {
-                    changed: before_late,
-                    block: Uuid::max(),
-                }, limit: 1 }, false)
+            peer.ask::<be_block_protocol::ChangedPage>(
+                be_block_protocol::Query::Tree {
+                    entry: work,
+                    after: ChangeCursor {
+                        changed: before_late,
+                        block: Uuid::max(),
+                    },
+                    limit: 1,
+                },
+                false,
+            )
         })
         .await
         .expect("the first page");
@@ -175,13 +203,25 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     let mut after = page.next;
     while let Some(cursor) = after {
         let page = owner
-            .call(|peer| peer.ask::<be_block_protocol::ChangedPage>(be_block_protocol::Query::Tree { entry: work, after: cursor.clone(), limit: 1 }, false))
+            .call(|peer| {
+                peer.ask::<be_block_protocol::ChangedPage>(
+                    be_block_protocol::Query::Tree {
+                        entry: work,
+                        after: cursor.clone(),
+                        limit: 1,
+                    },
+                    false,
+                )
+            })
             .await
             .expect("a later page");
         left.extend(page.removed);
         after = page.next;
     }
-    assert!(left.contains(&late), "trashed and paged one at a time: {left:?}");
+    assert!(
+        left.contains(&late),
+        "trashed and paged one at a time: {left:?}"
+    );
 
     let still = owner.try_read_block(stays).await;
     assert!(still.is_ok(), "a live block went: {still:?}");
@@ -220,7 +260,16 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     let mut pages = 0;
     loop {
         let page = owner
-            .call(|peer| peer.ask::<be_block_protocol::ChangedPage>(be_block_protocol::Query::Tree { entry: lone, after: after.clone(), limit: 100 }, false))
+            .call(|peer| {
+                peer.ask::<be_block_protocol::ChangedPage>(
+                    be_block_protocol::Query::Tree {
+                        entry: lone,
+                        after: after.clone(),
+                        limit: 100,
+                    },
+                    false,
+                )
+            })
             .await
             .expect("a page of a tree of its own");
         pages += 1;
