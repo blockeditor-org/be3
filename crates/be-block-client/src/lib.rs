@@ -148,6 +148,10 @@ pub enum ClientError {
     /// The server served access records for the block that do not check back to the root
     /// this device pinned (plans/signed_access.md).
     Forged(uuid::Uuid),
+    /// The server served the block's access log (or, for the organization's id, the
+    /// organization's) short of what this device checked of it before: it holds back history,
+    /// so nothing is taken from it (plans/signed_access.md, 3d).
+    Withheld(uuid::Uuid),
     /// This device's edits to the block were discarded and it may not edit it: it keeps none
     /// (`Refs::keep_open_edits`).
     Discarded(uuid::Uuid),
@@ -186,6 +190,9 @@ impl fmt::Display for ClientError {
             Self::Forged(_) => {
                 formatter.write_str("the server served access records its members did not sign")
             }
+            Self::Withheld(_) => formatter.write_str(
+                "the server served less of this block's access history than this device saw before",
+            ),
             Self::Discarded(_) => formatter.write_str(
                 "this device's edits to this block were discarded, and it may not edit it",
             ),
