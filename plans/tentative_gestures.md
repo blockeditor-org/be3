@@ -16,7 +16,8 @@ they happen.
   so the replica opens every gesture of an editor under one id (`EDITOR_GESTURE`). Two windows
   dragging in one block each keep their own gesture; one editor beginning twice (a second
   finger, a second controller) commits its first gesture, and a cancel meant for the first then
-  cancels the second. Nothing opens a tentative gesture.
+  cancels the second. The replica keeps the tentative layer (step 2), but no editor can open a
+  tentative gesture until the app protocol can (step 3).
 - An open gesture only groups undo. Each edit goes through `Replica::edit` (be-sdk-type-guest
   `replica.rs`) at once: applied to `visible`, told to the other attached editors with
   `journal(Journaled::Edited)` (despite its name, `journal` feeds the editors' projections,
@@ -59,12 +60,31 @@ they happen.
   and the drag carries on. Because the cuts assume a prefix in arrival order, a tentative edit is
   not a local edit (`Replayed::local_edit`) for `sent`, `taken`, `sealed-taken`,
   `journaled-taken` or what was forwarded until its gesture commits; from then on its edits count
-  in commit order, after every edit taken before the commit. The exact accounting is settled in
-  step 2.
-  After a commit the gesture's original messages still sit in replay before the ordinary edits
-  taken during the hold, so a positional `reported_clean` cut could drop them: the host moves a
-  committed gesture's messages to the commit's place in replay, or records the commit as one
-  message that carries them.
+  in commit order, after every edit taken before the commit. As built (step 2):
+  - `be_sdk_type_guest::holds::Holds` decides from the messages alone, on the host and in the
+    replica alike, which messages are held: an editor's `BeginTentative`, its operations while
+    its tentative gesture is open, and the commit of one that waits for the rest. A tentative
+    gesture's begin, commit and cancel never count as local edits. Its operations count when the
+    layer commits (the last open tentative gesture ends, by a commit, a cancel, a begin under its
+    name or its editor detaching), every committed gesture's in the order they arrived, before
+    the message that ended it. A cancelled gesture's never count, nor does anything of the layer
+    an undo cancels.
+  - The host keeps held messages in `replay` where they arrived, marked held
+    (`Replayed::Message::held`): no `reported_clean` cut takes them, `kept_edits` does not keep
+    them on the device, and a reopen after joining keeps them. When the layer commits, the
+    operations that count move to the end of `replay` as ordinary messages and the gesture
+    messages are dropped, so a replica given them again makes them ordinary edits, numbered as
+    the first counted them; a cancel drops its gesture's messages, and an ending commit or cancel
+    is sent to the module but kept nowhere. A `Change::Undo` and an editor detaching are followed
+    the same way.
+  - The replica numbers a committing layer's edits after the edit taken last before the message
+    that ended it, in the order of the counted messages, and runs each through the checks a
+    local edit given again goes through (`own_through`, stale, uncertain, doubtful) before it
+    joins `unsent`.
+  - A gesture the replica ends itself (a replacement, an edit that does not carry over a
+    restart) stays open in `Holds` and in `History`, its edits dropped and its later ones applied
+    as nothing (`voided`), until its editor ends it: the host cannot see it end, so the counts
+    follow the editor's messages alone. Step 3's editor answers `GestureEnded` by cancelling.
 - **The invariant.** At all times `visible` = `confirmed` + `pending` + `unsent` + `tentative`,
   in that order. While `tentative` is non-empty, each path keeps it by applying beneath it
   (`C::apply_beneath`, telling editors through `Journaled::Beneath`) or by rebuilding
@@ -137,16 +157,34 @@ a carry whose gesture ended, so the item glides home and the site stops previewi
      a gesture open under that name first, as the replica's `Gesture::Begin` does, so a caller
      keeping a layer sees it end.
    - `can_undo` is true while a layer is held, since an undo would cancel it.
-2. The replica (`be-sdk-type-guest`): the `tentative` layer, its commit and cancel, and each
-   session event in the table. `be-host-runtime` tracks open gestures per link and cancels them all
-   when the instance closes. Tests: a host crash with a held drag saves nothing; a module restart mid-drag keeps the drag;
-   status cuts stay right with edits taken during a held drag; two drags in one block
-   commit as one step when the second ends; cancelling one of two keeps the other; a typed edit
-   during a held drag reaches peers at once; a peer's move of an item held mid-drag shows beneath
-   the held move, and every replica ends the same after the commit; a seal mid-drag leaves the
-   drag out of the commit; a restart that removes the dragged item ends it; a replacement
-   mid-drag ends it; undo mid-drag cancels it. Audit that each content type's operations name
-   items by id, not position, and fix one that does not.
+2. Built. The replica (`be-sdk-type-guest`): the `tentative` layer, its commit and cancel, and
+   each session event in the table, with the accounting above. Tests in be-sdk-type-guest
+   (`holds::tests`, and the replica's `tests` driving `Gesture::BeginTentative` as an editor
+   would), be-block-type-host (a module restart mid-drag keeps the drag, with the status cuts
+   around it; a host crash with a held drag saves nothing) and be-host-runtime (closing an
+   editor drops the tentative gesture it left open). As built:
+   - `Gesture::BeginTentative` and `ToEditor::GestureEnded { id, cancelled }` are on the type
+     module's editor messages; be-sdk ignores `GestureEnded` until step 3.
+   - `be-host-runtime` still keeps one flag per link, set by either begin, and cancels the
+     gesture when the link goes: with no ids on the protocol an editor holds one gesture
+     (step 3 makes it a set).
+   - An editor detaching cancels its own tentative gesture in the replica and the host.
+   - The layer folds nothing: each held edit is its own entry, weighing one in `unsettled`.
+   - `content`, descriptions, `FromFile` and stashes read the content without the layer.
+   - `Document::carry_over` drops a change naming an object the content loaded afresh lacks, so
+     a restart that removed the dragged item ends the drag.
+   - A committed gesture waiting for the rest is lost with the layer by a crash, as one gesture.
+   - Left as is: an editor whose commit crosses the replica's `GestureEnded` commits a voided
+     gesture, whose operations then count though they were dropped; a replica opened again
+     from `replay` makes them ordinary edits. Step 3's editor never commits after
+     `GestureEnded`, which narrows it to that crossing.
+   - The audit: every content type names items by id. `be_block_model` changes name
+     `ObjectId`s, anchors and sequence `Pos`es; blobs, the chat, the search index and the test
+     fixtures set whole values or append. The one index, the `Sections` test fixture's
+     `SetSection { index }`, names one of ten fixed slots that never shift, so it was left. One
+     ordering hazard is not about positions: a text or series insert must reach the order in
+     the offsets its client allocated, so a tentative edit must allocate none, which a gesture
+     that only moves or changes what exists (the decision) never does.
 3. The app protocol and `ContentProjection` (`be-sdk`, `be-sdk-beui`): `begin_tentative`, gesture
    ids on every gesture message, `GestureEnded`. Update guides/blocks/host.md (Undo) and
    guides/adding_an_app.md (Gestures).

@@ -15,6 +15,7 @@ use be_sdk_type_api::{
 };
 use uuid::Uuid;
 
+use crate::holds::{EDITOR_GESTURE, Holds, This, Took, gesture_of};
 use crate::lacking::{Carried, Lacking};
 use crate::{
     FromFileFn, Recorder,
@@ -22,10 +23,6 @@ use crate::{
     effect::{Answer, Effect, HeadEvent, RequestId, Token},
     wire::{self, Entry, Submitted},
 };
-
-/// The id every gesture and edit of an editor goes under until the app protocol names its
-/// gestures (plans/tentative_gestures.md, step 3): an editor holds one gesture at a time.
-const EDITOR_GESTURE: u64 = 0;
 
 /// The lease holder commits once its session has gone this long with no edits: a natural
 /// pause, which is the state retention prefers to keep.
@@ -341,6 +338,15 @@ struct Sent<C: LiveEdit> {
     reply: Option<RequestId>,
 }
 
+/// An edit of the tentative layer: made in an open tentative gesture, or one that committed and
+/// waits for the rest, shown but not sent (plans/tentative_gestures.md).
+struct Held<Op> {
+    gesture: GestureId,
+    /// The serial its message is held under (`Holds`), which numbers it once the layer commits.
+    serial: u64,
+    operation: Op,
+}
+
 /// An operation the order applied since the last seal, kept to apply again on top of a reload.
 struct Logged<Op> {
     sequence: u64,
@@ -521,6 +527,22 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// absorbed, the last local edit it holds, and the submission of an earlier opening that
     /// holds them, which it goes as (`kept_submissions`).
     unsent: VecDeque<(C::Op, usize, u64, u64, Option<KeptSubmission>)>,
+    /// The tentative layer: every open tentative gesture's edits, in the order made, shown on
+    /// top of `unsent` and never submitted until the last of them ends.
+    tentative: Vec<Held<C::Op>>,
+    /// `visible` without the layer, while it holds edits, once something needed it: what an
+    /// ordinary edit's undo step is recorded against, and what is stashed or read.
+    beneath: Option<C>,
+    /// Which editor messages the open tentative gestures hold, followed as the host follows them.
+    holds: Holds,
+    /// The open tentative gestures this replica ended itself (an edit of theirs did not carry
+    /// over a restart, a replacement took what they moved): their edits are dropped until their
+    /// editors end them.
+    voided: BTreeSet<GestureId>,
+    /// The held message being taken, and its gesture.
+    held_now: Option<(GestureId, u64)>,
+    /// The undo being taken cancelled the layer, which is all it does.
+    undo_spent: bool,
     in_flight: u64,
     covered: bool,
     /// The last sequence number of the order applied.
@@ -833,6 +855,12 @@ where
             confirmed: empty,
             pending: VecDeque::new(),
             unsent: VecDeque::new(),
+            tentative: Vec::new(),
+            beneath: None,
+            holds: Holds::default(),
+            voided: BTreeSet::new(),
+            held_now: None,
+            undo_spent: false,
             in_flight: 0,
             covered: true,
             applied: 0,
@@ -1270,21 +1298,37 @@ where
         });
     }
 
-    /// Counts a local edit as taken as its job runs (`taken`).
-    fn take(&mut self, job: &Job<C>) -> bool {
-        let local = matches!(
-            job,
-            Job::Input(
-                Input::Message {
-                    from: Endpoint::Editor(_),
-                    ..
-                } | Input::Change { .. }
-            )
-        );
-        if local {
-            self.taken += 1;
-        }
-        local
+    /// Counts a local edit as taken as its job runs (`taken`), with the held operations of a
+    /// tentative layer that commits as it does, before it (`Holds`). A message a tentative
+    /// gesture holds is not a local edit.
+    fn take(&mut self, job: &Job<C>) -> (bool, Took) {
+        let took = match job {
+            Job::Input(Input::Message {
+                from: Endpoint::Editor(editor),
+                bytes,
+                ..
+            }) => self
+                .holds
+                .message(*editor, FromEditor::decode(bytes).as_ref()),
+            Job::Input(Input::Change {
+                change: Change::Undo,
+                ..
+            }) => self.holds.undo(),
+            Job::Input(Input::Detach { editor }) => self.holds.detach(*editor),
+            _ => Took::default(),
+        };
+        let local = took.this == This::Counted
+            && matches!(
+                job,
+                Job::Input(
+                    Input::Message {
+                        from: Endpoint::Editor(_),
+                        ..
+                    } | Input::Change { .. }
+                )
+            );
+        self.taken += took.counted.len() as u64 + u64::from(local);
+        (local, took)
     }
 
     /// The local edit just taken, counted across this replica's openings.
@@ -1293,13 +1337,258 @@ where
     }
 
     fn job(&mut self, job: Job<C>) {
-        let local = self.take(&job);
+        let base = self.edit_number();
+        let (local, took) = self.take(&job);
+        self.follow(&job, took, base);
         self.run_job(job, local);
+        self.held_now = None;
+        self.undo_spent = false;
         // A local edit taken, even one not made, may complete what an earlier opening
         // submitted (`kept_submissions`), which waits for it.
         if local && self.unsent.front().is_some_and(|(.., kept)| kept.is_some()) {
             self.flush();
         }
+    }
+
+    /// Does what a job did to the tentative gestures (`take`), before the job itself runs, and
+    /// whatever its editor may: their ends, their beginnings, and the layer committing. `base`
+    /// is the local edit taken last before it, after which a committing layer's edits number.
+    fn follow(&mut self, job: &Job<C>, took: Took, base: u64) {
+        if let (
+            This::Held(serial),
+            Job::Input(Input::Message {
+                from: Endpoint::Editor(editor),
+                ..
+            }),
+        ) = (took.this, job)
+        {
+            self.held_now = Some((gesture_of(*editor), serial));
+        }
+        if matches!(
+            job,
+            Job::Input(Input::Change {
+                change: Change::Undo,
+                ..
+            })
+        ) && took.settled
+        {
+            // Undo while the layer is held cancels all of it, as Escape would, and is spent.
+            let _ = self.history.undo(&self.visible);
+            self.undo_spent = true;
+            for (gesture, _) in &took.ended {
+                if !self.voided.remove(gesture) {
+                    self.gesture_ended(*gesture);
+                }
+            }
+            if !std::mem::take(&mut self.tentative).is_empty() {
+                self.rebuild_visible();
+            }
+            return;
+        }
+        let mut dropped = false;
+        for (gesture, committed) in &took.ended {
+            self.voided.remove(gesture);
+            match committed {
+                true => self.history.commit(*gesture),
+                false => {
+                    // A tentative gesture's edits were never written: they leave the layer.
+                    let _ = self.history.cancel(&self.visible, *gesture);
+                    let before = self.tentative.len();
+                    self.tentative.retain(|held| held.gesture != *gesture);
+                    dropped |= self.tentative.len() != before;
+                }
+            }
+        }
+        if took.settled {
+            self.commit_layer(base, &took.counted, dropped);
+        } else if dropped {
+            self.rebuild_visible();
+        }
+        if let Some(gesture) = took.opened {
+            // An undo group open under its name commits first.
+            self.history.commit(gesture);
+            self.history.begin(gesture, GestureKind::Tentative);
+        }
+    }
+
+    /// The last open tentative gesture ended: the edits of those that committed leave the
+    /// layer, in the order made, for the end of the ordinary path, numbered after `base` in
+    /// the order of `counted`. They stay where they show, so are not applied again unless
+    /// some cannot go (the order holds them already, or they were kept across a stop that
+    /// outdated them).
+    fn commit_layer(&mut self, base: u64, counted: &[u64], mut rebuild: bool) {
+        let layer = std::mem::take(&mut self.tentative);
+        self.beneath = None;
+        let mut queued = false;
+        for Held {
+            serial, operation, ..
+        } in layer
+        {
+            let rank = counted.iter().position(|counted| *counted == serial);
+            debug_assert!(rank.is_some(), "a held edit its layer's commit does not count");
+            let Some(rank) = rank else {
+                rebuild = true;
+                continue;
+            };
+            let number = base + 1 + rank as u64;
+            if number <= self.own_through {
+                rebuild = true;
+                continue;
+            }
+            if number <= self.stale_through || number <= self.uncertain_through {
+                let why = match number <= self.stale_through {
+                    true => STALE_EDIT,
+                    false => UNCERTAIN_EDIT,
+                };
+                self.lacking.add_dropped(C::encode_operation(&operation));
+                self.error(why);
+                rebuild = true;
+                continue;
+            }
+            if number <= self.doubtful_through || self.first_doubtful.is_some() {
+                self.first_doubtful.get_or_insert(number);
+                self.doubtful.push(operation);
+                continue;
+            }
+            let announcements = self.visible.announcements(&operation);
+            self.queue(operation, number, announcements);
+            queued = true;
+        }
+        if rebuild {
+            self.rebuild_visible();
+        }
+        if queued {
+            self.edited_since.get_or_insert(self.now);
+            self.last_edit = Some(self.now);
+            self.flush();
+        }
+    }
+
+    /// An edit made in the open tentative gesture `gesture`, its message held under `serial`:
+    /// shown on top, told to the other editors, and kept in the layer.
+    fn hold(
+        &mut self,
+        gesture: GestureId,
+        serial: u64,
+        mut operation: C::Op,
+        origin: Option<EditorId>,
+        record: bool,
+    ) -> bool {
+        if self.diverged {
+            self.error(DIVERGED);
+            return false;
+        }
+        if claims_arrival::<C>(&mut operation) {
+            self.error(CLAIMED_ARRIVAL);
+            self.reproject();
+            return true;
+        }
+        // Its gesture ended here: what it moved is gone, so the edit applies as nothing.
+        if self.voided.contains(&gesture) {
+            return true;
+        }
+        if record {
+            self.history.record(
+                &self.visible,
+                &operation,
+                origin,
+                Some(EDITOR_GESTURE),
+                self.now,
+            );
+        }
+        if self.tentative.is_empty() {
+            self.beneath = Some(self.visible.clone());
+        }
+        self.visible.apply(&operation);
+        let unsettled = self.unsettled() + 1;
+        self.journal(
+            Journaled::Edited {
+                operation: operation.clone(),
+                unsettled,
+            },
+            origin,
+        );
+        self.tentative.push(Held {
+            gesture,
+            serial,
+            operation,
+        });
+        true
+    }
+
+    /// Ends the open tentative gesture `gesture` here: its edits could not be kept. It stays
+    /// open, dropping what it edits, until its editor, told, ends it. A gesture that committed
+    /// and waits for the rest only loses its edits.
+    fn void(&mut self, gesture: GestureId) {
+        self.history.void(gesture);
+        self.tentative.retain(|held| held.gesture != gesture);
+        if self.holds.open().contains(&gesture) && self.voided.insert(gesture) {
+            self.gesture_ended(gesture);
+        }
+    }
+
+    /// Drops every undo step: the content was replaced. The open tentative gestures stay open,
+    /// to end as their editors end them, but the layer is gone with what it moved.
+    fn clear_history(&mut self) {
+        self.history.clear();
+        let open = self.holds.open().to_vec();
+        for gesture in &open {
+            self.history.begin(*gesture, GestureKind::Tentative);
+        }
+        let held = !std::mem::take(&mut self.tentative).is_empty();
+        for gesture in open {
+            if self.voided.insert(gesture) {
+                self.gesture_ended(gesture);
+            }
+        }
+        if held {
+            self.rebuild_visible();
+        }
+    }
+
+    /// Tells the editor of `gesture` this replica ended it, keeping none of its edits.
+    fn gesture_ended(&mut self, gesture: GestureId) {
+        let Some(editor) = gesture.editor else {
+            return;
+        };
+        if self.editors.contains_key(&editor) {
+            self.tell_editor(
+                editor,
+                &ToEditor::GestureEnded {
+                    id: gesture.id,
+                    cancelled: true,
+                },
+            );
+        }
+    }
+
+    /// The content without the tentative layer: what is stashed, read or described, and what
+    /// an ordinary edit made beneath the layer is recorded against.
+    fn unheld(&mut self) -> &C {
+        if self.tentative.is_empty() {
+            return &self.visible;
+        }
+        if self.beneath.is_none() {
+            self.beneath = Some(self.layer_free());
+        }
+        self.beneath.as_ref().unwrap_or(&self.visible)
+    }
+
+    /// `confirmed` with this replica's own edits on top, but not the tentative layer.
+    fn layer_free(&self) -> C {
+        let mut content = self.confirmed.clone();
+        for sent in &self.pending {
+            if let Some(operation) = &sent.operation {
+                content.apply(operation);
+            }
+        }
+        for (operation, ..) in &self.unsent {
+            content.apply(operation);
+        }
+        for operation in &self.doubtful {
+            content.apply(operation);
+        }
+        content
     }
 
     fn run_job(&mut self, job: Job<C>, local: bool) {
@@ -1496,7 +1785,7 @@ where
             Input::Change { id, change } => self.change(id, change),
             Input::Content { id } => match C::LOADS {
                 be_block_content::Loads::Whole => {
-                    let bytes = self.visible.encode();
+                    let bytes = self.unheld().encode();
                     self.reply(id, Answer::Content(bytes));
                 }
                 be_block_content::Loads::FirstPart => {
@@ -2600,7 +2889,7 @@ where
             };
             self.lacking.journaled(&bytes, Some(sequence));
         }
-        if self.pending.is_empty() && self.unsent.is_empty() {
+        if self.pending.is_empty() && self.unsent.is_empty() && self.tentative.is_empty() {
             self.confirmed.apply(&operation);
             self.visible.apply(&operation);
             self.journal(Journaled::Applied(operation), None);
@@ -2623,6 +2912,9 @@ where
             local.push(pending.clone());
             *weight = 1;
         }
+        // The tentative layer stays on top.
+        local.extend(self.tentative.iter().map(|held| held.operation.clone()));
+        self.beneath = None;
         self.visible
             .apply_beneath(&mut self.confirmed, &operation, &local, &mut Vec::new());
         self.journal(
@@ -2681,7 +2973,6 @@ where
         self.confirmed = content;
         if replace {
             self.replaced_at = op.sequence;
-            self.history.clear();
             // What this replica had not had numbered, or had numbered after the replacement's
             // base, is dropped with what the replacement replaced: kept in history as a stash,
             // unless it is the replacement's own.
@@ -2691,7 +2982,9 @@ where
                 .any(|logged| logged.mine && logged.sequence > op.base);
             let unsaved =
                 !mine && (!self.pending.is_empty() || !self.unsent.is_empty() || after_base);
-            let lost = unsaved.then(|| self.visible.clone());
+            // The tentative layer was never written, so is not kept.
+            let lost = unsaved.then(|| self.unheld().clone());
+            self.clear_history();
             if !mine {
                 self.replaced_through = self.edit_number();
             }
@@ -2796,8 +3089,11 @@ where
         self.applied > self.sealed || !self.keep.is_empty()
     }
 
+    /// How many of this replica's own edits show on top of what the order applied: those in
+    /// flight, those unsent, and the tentative layer's.
     fn unsettled(&self) -> u64 {
         self.in_flight
+            + self.tentative.len() as u64
             + self
                 .unsent
                 .iter()
@@ -2882,6 +3178,22 @@ where
             self.reproject();
             return true;
         }
+        // Made while a tentative layer is held: it goes beneath the layer, which stays on top.
+        if !self.tentative.is_empty() {
+            let mut unheld = self.unheld().clone();
+            unheld.apply(&operation);
+            let announcements = unheld.announcements(&operation);
+            match self.doubtful_now {
+                true => {
+                    self.first_doubtful.get_or_insert(self.edit_number());
+                    self.doubtful.push(operation);
+                }
+                false => self.queue(operation, self.edit_number(), announcements),
+            }
+            self.rebuild_visible();
+            self.flush();
+            return true;
+        }
         self.visible.apply(&operation);
         if self.doubtful_now {
             self.journal(
@@ -2905,10 +3217,21 @@ where
             },
             origin,
         );
+        self.queue(operation, self.edit_number(), announcements);
+        self.flush();
+        true
+    }
+
+    /// Queues `operation`, the local edit `through`, to submit, with what it announces.
+    fn queue(
+        &mut self,
+        operation: C::Op,
+        through: u64,
+        announcements: Vec<be_block_content::Announcement>,
+    ) {
         let payload = C::encode_operation(&operation);
         let size = payload.len();
         self.lacking.add(payload, announcements);
-        let through = self.edit_number();
         let kept = self.kept_submission(through);
         let counter = kept.as_ref().map(|kept| kept.counter);
         let mut apart = false;
@@ -2952,8 +3275,6 @@ where
         });
         self.unsent
             .extend(leftover.map(|operation| (operation, size, 1, through, kept)));
-        self.flush();
-        true
     }
 
     /// The submission of an earlier opening that holds the local edit `through`, letting go of
@@ -3228,14 +3549,17 @@ where
         }
     }
 
+    /// Records `operation` for undo against the content it is applied to, beneath any tentative
+    /// layer, and makes it.
     fn record_and_edit(&mut self, operation: C::Op, origin: Option<EditorId>) -> bool {
-        self.history.record(
-            &self.visible,
-            &operation,
-            origin,
-            Some(EDITOR_GESTURE),
-            self.now,
-        );
+        let at = self.now;
+        self.unheld();
+        let content = match &self.beneath {
+            Some(beneath) if !self.tentative.is_empty() => beneath,
+            _ => &self.visible,
+        };
+        self.history
+            .record(content, &operation, origin, Some(EDITOR_GESTURE), at);
         self.edit(operation, origin)
     }
 
@@ -3249,9 +3573,21 @@ where
                 *self.acknowledged.entry(editor).or_default() += 1;
                 // The host's own edits are no one's to undo (`HOST_EDITOR`).
                 let took = editable
-                    && C::decode_operation(&bytes).is_ok_and(|operation| match editor {
-                        be_sdk_type_api::HOST_EDITOR => self.edit(operation, Some(editor)),
-                        _ => self.record_and_edit(operation, Some(editor)),
+                    && C::decode_operation(&bytes).is_ok_and(|operation| {
+                        match (editor, self.held_now) {
+                            // Made in its editor's open tentative gesture: held in the layer.
+                            (_, Some((gesture, serial))) => self.hold(
+                                gesture,
+                                serial,
+                                operation,
+                                Some(editor),
+                                editor != be_sdk_type_api::HOST_EDITOR,
+                            ),
+                            (be_sdk_type_api::HOST_EDITOR, None) => {
+                                self.edit(operation, Some(editor))
+                            }
+                            _ => self.record_and_edit(operation, Some(editor)),
+                        }
                     });
                 // A refused operation never lands as the editor's, so it is told what holds
                 // now: otherwise it would take a later one landing as its own for this one.
@@ -3262,11 +3598,10 @@ where
             FromEditor::FollowLacking => self.lacking.follow(editor),
             FromEditor::DismissLacking(id) => self.lacking.dismiss(id),
             FromEditor::Gesture(phase) if editable => {
-                let gesture = GestureId {
-                    editor: Some(editor),
-                    id: EDITOR_GESTURE,
-                };
+                let gesture = gesture_of(editor);
                 let operations = match phase {
+                    // `follow` opened it, and ends a tentative gesture a message ends.
+                    Gesture::BeginTentative => Vec::new(),
                     Gesture::Begin => {
                         // One already open under this name commits first, as a commit would.
                         self.history.commit(gesture);
@@ -3277,7 +3612,14 @@ where
                         self.history.commit(gesture);
                         Vec::new()
                     }
-                    Gesture::Cancel => self.history.cancel(&self.visible, gesture),
+                    Gesture::Cancel => {
+                        self.unheld();
+                        let content = match &self.beneath {
+                            Some(beneath) if !self.tentative.is_empty() => beneath,
+                            _ => &self.visible,
+                        };
+                        self.history.cancel(content, gesture)
+                    }
                     Gesture::Break => {
                         self.history.split(Some(editor));
                         Vec::new()
@@ -3289,7 +3631,7 @@ where
             }
             FromEditor::Replace(bytes) if editable => {
                 if let Ok(content) = C::decode(&bytes) {
-                    self.history.clear();
+                    self.clear_history();
                     self.replacing_from.get_or_insert(self.taken);
                     self.jobs.push_front(Job::Replace {
                         content,
@@ -3481,7 +3823,7 @@ where
                 self.reply(id, Answer::Changed(true));
             }
             Change::FromFile(FileChange { name, bytes }) => {
-                let current = self.visible.encode();
+                let current = self.unheld().encode();
                 let content = self
                     .from_file
                     .and_then(|from_file| from_file(Some(&current), &name, bytes, self.client))
@@ -3492,6 +3834,8 @@ where
                 let content = C::decode(&bytes).ok();
                 self.replace_with(id, content);
             }
+            // The undo cancelled the tentative layer as it was taken (`follow`).
+            Change::Undo if self.undo_spent => self.reply(id, Answer::Changed(true)),
             Change::Undo => {
                 let stepped = self.history.undo(&self.visible);
                 self.step_history(id, stepped);
@@ -3515,7 +3859,7 @@ where
         let Some(content) = content else {
             return self.reply(id, Answer::Changed(false));
         };
-        self.history.clear();
+        self.clear_history();
         self.replacing_from.get_or_insert(self.taken);
         self.jobs.push_front(Job::Replace {
             content,
@@ -3817,9 +4161,11 @@ where
             return;
         }
         if std::mem::take(&mut self.described) {
+            let organization = self.organization;
+            let description = crate::describe(self.unheld(), organization);
             self.out.push(Effect::Described {
                 replica: self.id,
-                description: crate::describe(&self.visible, self.organization),
+                description,
             });
         }
     }
@@ -3872,7 +4218,7 @@ where
     }
 
     /// Shows what is confirmed with this replica's own edits on top: what it submitted that has
-    /// not come back, then what it has not submitted.
+    /// not come back, then what it has not submitted, then the tentative layer.
     fn rebuild_visible(&mut self) {
         let mut visible = self.confirmed.clone();
         for sent in &self.pending {
@@ -3885,6 +4231,13 @@ where
         }
         for operation in &self.doubtful {
             visible.apply(operation);
+        }
+        self.beneath = None;
+        if !self.tentative.is_empty() {
+            self.beneath = Some(visible.clone());
+            for held in &self.tentative {
+                visible.apply(&held.operation);
+            }
         }
         self.replace_visible(visible);
     }
@@ -4001,12 +4354,13 @@ where
         }
         // What it replaces stays in history: its unsaved work, and the head, which only a
         // holder's seal would otherwise keep (`Replicas::bookmark`).
-        let kept = self.written(&self.visible);
+        let kept = self.unheld().clone();
+        let kept = self.written(&kept);
         self.stash(self.base, kept, AfterStash::Unsaved { content, reply });
     }
 
     fn restart_due(&self) -> bool {
-        if self.history.gesture_open() {
+        if self.history.gesture_open() || self.holds.holding() {
             return false;
         }
         let state = self.confirmed.session_state().len();
@@ -4046,6 +4400,26 @@ where
         }
         self.unsent = carried;
         self.in_flight = 0;
+        // The tentative layer goes on after them, on the same chain; a gesture with an edit
+        // that does not carry ends, its edits dropped.
+        let mut lost = Vec::new();
+        for held in std::mem::take(&mut self.tentative) {
+            let moved = C::carry_over(&held.operation, &before, &after, self.client);
+            before.apply(&held.operation);
+            match moved {
+                Some(moved) if !lost.contains(&held.gesture) => {
+                    after.apply(&moved);
+                    self.tentative.push(Held {
+                        operation: moved,
+                        ..held
+                    });
+                }
+                _ => lost.push(held.gesture),
+            }
+        }
+        for gesture in lost {
+            self.void(gesture);
+        }
         // What earlier openings submitted was made before the restart, and is passed over.
         self.kept_submissions.clear();
         // They go again as new submissions: the ones on their way are passed over.
