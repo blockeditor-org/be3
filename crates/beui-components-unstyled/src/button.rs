@@ -53,6 +53,7 @@ pub fn Button(
     on_click: Callback<()>,
     on_click_at: Callback<PointerPress>,
     on_press: Callback<PointerPress>,
+    on_hover_move: Callback<PointerPress>,
     on_key: Callback<KeyPress, bool>,
     on_text: Callback<String>,
     on_focus_change: Callback<bool>,
@@ -205,6 +206,7 @@ pub fn Button(
             on_click_at={click_at}
             on_press={on_press}
             on_hover_change={hovered}
+            on_hover_move={on_hover_move}
             on_pointed_change={pointed}
             on_active_change={active}
             children={content_node}

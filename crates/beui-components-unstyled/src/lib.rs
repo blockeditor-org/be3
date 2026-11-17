@@ -118,6 +118,7 @@ pub use glide::{Glide, GlideApi, GlideHold, drawn_child};
 pub use list_row::ListRow;
 pub use menu::{
     MenuCaption, MenuGrid, MenuItem, MenuListApi, MenuNodes, MenuRowHandle, MenuRowKind, MenuThen,
+    SUBMENU_DELAY, SUBMENU_GRACE,
 };
 pub use menu_button::MenuButton;
 pub use menu_popup::{MenuPopup, MenuRows, MenuStyle};
