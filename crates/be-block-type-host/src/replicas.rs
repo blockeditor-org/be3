@@ -2398,19 +2398,19 @@ impl<H: Host> Replicas<H> {
     fn change_now(&mut self, block: Uuid, change: Change) -> Option<(usize, OpId)> {
         let (replica, open) = self.replica_of(block)?;
         let (module, handle) = (open.module, open.handle);
-        // An undo while a tentative layer is held cancels the layer, as its replica does.
-        if matches!(change, Change::Undo)
-            && let Some(open) = self.open.get_mut(&replica)
-        {
-            let took = open.holds.undo();
-            open.took(&took);
-        }
+        let undo = matches!(change, Change::Undo);
         let replayed = Replayed::Change { change, op: None };
         let op = self
             .modules
             .call(module, |connection| replayed.send(handle, connection))
             .flatten()?;
         let open = self.open.get_mut(&replica)?;
+        // An undo while a tentative layer is held cancels the layer, as its replica does once
+        // its module has it.
+        if undo {
+            let took = open.holds.undo();
+            open.took(&took);
+        }
         open.sent += 1;
         open.edits_changed = true;
         open.replay.push(match replayed {
