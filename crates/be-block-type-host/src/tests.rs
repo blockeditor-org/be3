@@ -16,6 +16,7 @@ use crate::{Conflict, Host, Replicas, in_process, started};
 
 mod a_block_sent_while_its_replica_owes_a_seal_is_asked_for_it_once;
 mod a_block_whose_creation_waits_joins_once_it_is_sent_not_on_reconnecting;
+mod a_block_whose_kept_edits_stop_opening_as_its_replica_starts_opens_again_unlocked;
 mod a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_when_it_reaches_the_seal;
 mod a_key_searched_for_in_vain_is_searched_for_again_after_reconnecting;
 mod a_merge_over_parts_reads_only_the_parts_each_side_changed;
@@ -39,7 +40,6 @@ mod an_edit_sent_after_its_replica_made_a_clean_status_is_given_again_on_joining
 mod an_edit_submitted_before_its_edits_were_kept_by_an_idle_pass_is_known_after_a_crash;
 mod an_editor_attached_when_its_replica_reopens_is_sent_the_content_again;
 mod an_editor_of_a_replica_that_cannot_open_again_is_told_it_failed_and_the_block_released;
-mod a_block_whose_kept_edits_stop_opening_as_its_replica_starts_opens_again_unlocked;
 mod an_editor_reads_no_part_of_another_block_its_replica_was_not_handed;
 mod an_editor_reattached_across_joining_is_sent_a_snapshot_holding_what_was_given_again;
 mod news_of_a_block_whose_head_stayed_moves_no_replica;
@@ -640,11 +640,17 @@ async fn carry_an_edit_over_a_restart(
     })
     .await;
     let added = last_kept(replicas, block);
-    step_until_replicas(peer, shared, replicas, "heard the restart", |replicas, _| {
-        replicas
-            .submissions_of(block)
-            .is_some_and(|(_, restarts, _)| restarts >= 1)
-    })
+    step_until_replicas(
+        peer,
+        shared,
+        replicas,
+        "heard the restart",
+        |replicas, _| {
+            replicas
+                .submissions_of(block)
+                .is_some_and(|(_, restarts, _)| restarts >= 1)
+        },
+    )
     .await;
     let (_, _, kept) = replicas.submissions_of(block).expect("the block is open");
     assert_eq!(

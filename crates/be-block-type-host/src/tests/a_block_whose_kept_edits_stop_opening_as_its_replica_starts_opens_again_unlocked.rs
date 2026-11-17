@@ -18,7 +18,10 @@ fn a_block_whose_kept_edits_stop_opening_as_its_replica_starts_opens_again_unloc
             .open((&peer, &shared), block, TextContent::CONTENT_TYPE, true)
             .await
             .expect("the block opens");
-        assert!(replicas.is_open(block), "the block opened on the second pass");
+        assert!(
+            replicas.is_open(block),
+            "the block opened on the second pass"
+        );
         assert!(
             !shared.lock().unwrap().locked.contains(&block),
             "the block was not left locked"
