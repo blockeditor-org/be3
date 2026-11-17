@@ -38,6 +38,10 @@ fn an_edit_sealed_offline_onto_a_seal_the_server_lost_lands_once() {
     wait_until("opened the counter in its session", |shared| {
         shared.blocks.contains_key(&block) && !shared.previewed.contains(&block)
     });
+    // It opens on the seal the head descends from (a count of 2) and is told of the head after,
+    // so it counts 5 only once it took the head.
+    wait_for_count(block, 5);
+    // Settled: a merge that counted the first edit again would move on to 7.
     flush_and_send();
     assert_eq!(count_of(block), Some(5));
 
