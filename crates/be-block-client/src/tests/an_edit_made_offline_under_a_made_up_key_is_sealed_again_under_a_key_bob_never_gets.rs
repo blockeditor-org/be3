@@ -24,10 +24,10 @@ async fn an_edit_made_offline_under_a_made_up_key_is_sealed_again_under_a_key_bo
         "the made-up key did not open, so the test shows nothing"
     );
     // A part goes up at once, judged by nothing later: refused rather than sealed under the
-    // made-up key, as on a device online whose rotation does not get through.
+    // made-up key, out of reach until a connection lets the team get a new epoch.
     let part = offline.put_part(revoked.note, b"a part").await;
     assert!(
-        matches!(part, Err(ClientError::Locked(_))),
+        matches!(&part, Err(error) if error.is_unreachable()),
         "a part was sealed under an outdated key: {part:?}"
     );
     let saved = offline
