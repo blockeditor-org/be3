@@ -173,12 +173,12 @@ impl WatchHub {
     }
 
     /// Follows `entry` in the organization `client` has open, before the read that starts it,
-    /// so nothing changed during the read is missed. Refused once the connection follows
-    /// `MAX_FOLLOWS_PER_CONNECTION`.
-    pub async fn follow(&self, client: u64, entry: Uuid) -> Result<(), ServerError> {
+    /// so nothing changed during the read is missed; answers whether it did not follow it
+    /// already. Refused once the connection follows `MAX_FOLLOWS_PER_CONNECTION`.
+    pub async fn follow(&self, client: u64, entry: Uuid) -> Result<bool, ServerError> {
         let mut joined = self.joined.lock().await;
         let Some(identity) = joined.organizations.get(&client).copied() else {
-            return Ok(());
+            return Ok(false);
         };
         let follows = joined.follows.entry(client).or_default();
         if !follows.contains_key(&entry) && follows.len() >= MAX_FOLLOWS_PER_CONNECTION {
@@ -187,13 +187,35 @@ impl WatchHub {
                 MAX_FOLLOWS_PER_CONNECTION,
             ));
         }
+        let new = !follows.contains_key(&entry);
         follows.entry(entry).or_default().outstanding = true;
         let place = Place {
             organization: identity.organization,
             block: entry,
         };
         joined.followers.entry(place).or_default().insert(client);
-        Ok(())
+        Ok(new)
+    }
+
+    /// A read of the tree of `entry` failed: the next change is told again, as after a read to
+    /// the end.
+    pub async fn unread(&self, client: u64, entry: Uuid) {
+        let mut joined = self.joined.lock().await;
+        if let Some(told) = joined
+            .follows
+            .get_mut(&client)
+            .and_then(|follows| follows.get_mut(&entry))
+        {
+            *told = Told::default();
+        }
+    }
+
+    /// `client` may no longer view `entry`: it is told once more that the tree advanced, so
+    /// it reads it and is refused, and it follows the entry no longer.
+    pub async fn left(&self, client: u64, entry: Uuid, sequence: u64) {
+        self.unfollow(client, entry).await;
+        self.send_to(client, Push::TreeAdvanced { entry, sequence })
+            .await;
     }
 
     pub async fn unfollow(&self, client: u64, entry: Uuid) {

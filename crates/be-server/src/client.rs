@@ -1800,12 +1800,23 @@ impl Client {
                         .store
                         .set_parent(identity, block, parent, keys)
                         .await?;
+                    // Its roots change for whoever could know of it only when it leaves or
+                    // reaches the top or the trash, or who may know of it changed.
+                    let top = above.is_empty()
+                        || matches!(parent, BlockParent::Root | BlockParent::Detached);
                     connection
                         .advance(identity.organization, vec![block], true, above)
                         .await;
-                    connection
-                        .roots(identity.organization, vec![block], before.clone())
-                        .await;
+                    if let Ok(after) = connection
+                        .store
+                        .audience(identity.organization, vec![block])
+                        .await
+                        && (top || after != before)
+                    {
+                        let mut accounts = after;
+                        accounts.extend(before.iter().copied());
+                        connection.hub.roots(identity.organization, &accounts).await;
+                    }
                     if !lost.is_empty() {
                         connection
                             .key_work_changed(identity.organization, before.clone())
@@ -1893,9 +1904,10 @@ impl Client {
                     prelude?;
                     let identity = connection.identity()?;
                     // Followed before it is read, so nothing changed during the read is missed.
-                    if follow {
-                        connection.hub.follow(connection.client, entry).await?;
-                    }
+                    let new = match follow {
+                        true => connection.hub.follow(connection.client, entry).await?,
+                        false => false,
+                    };
                     let page = connection
                         .store
                         .changed_since(identity, entry, after, limit)
@@ -1908,10 +1920,12 @@ impl Client {
                                 .await;
                         }
                         Ok(_) => {}
-                        Err(_) if follow => {
+                        // A follow this read began goes with it; one from before is told the
+                        // next change again.
+                        Err(_) if new => {
                             connection.hub.unfollow(connection.client, entry).await;
                         }
-                        Err(_) => {}
+                        Err(_) => connection.hub.unread(connection.client, entry).await,
                     }
                     page
                 }
@@ -2933,8 +2947,11 @@ impl Connection {
             return;
         };
         for ((client, _, entry), viewing) in followers.into_iter().zip(viewing) {
-            if viewing {
-                self.hub.advance(client, entry, sequence).await;
+            match viewing {
+                true => self.hub.advance(client, entry, sequence).await,
+                // It lost view of what it follows (a grant revoked, a move): told once, it reads
+                // the tree, is refused and lets go of what it showed of it.
+                false => self.hub.left(client, entry, sequence).await,
             }
         }
     }

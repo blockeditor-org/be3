@@ -1915,9 +1915,9 @@ impl Session<'_> {
         if !self.tasks.0.syncing() {
             self.replicas.created((peer, shared));
         }
-        // Heads read from the trees followed (`read_trees`): an open block's moved, unless it is
-        // what its replica has.
-        for (block, head) in self.tasks.0.take_heads() {
+        // Heads the server moved on to, by whatever read learned them (`Peer::take_moved_heads`):
+        // an open block's replica takes each unless it has it.
+        for (block, head) in peer.take_moved_heads() {
             self.replicas.heard_head((peer, shared), block, head);
         }
         // Only what was published drains: a seal kept since stays sending.
@@ -4252,12 +4252,16 @@ async fn heard(
             spawn_listings(peer, shared, tasks);
         }
         Some(Event::Roots) => {
-            shared
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .graph
-                .roots();
+            let known_only = {
+                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                held.graph.roots();
+                held.graph.known_only()
+            };
             spawn_listings(peer, shared, tasks);
+            if !known_only.is_empty() {
+                let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+                tasks.spawn(async move { reread_known_only(&peer, &shared, known_only).await });
+            }
         }
         Some(Event::Paired(be_block_protocol::PairingMessage { from, payload })) => {
             asked_to_pair(shared, from, &payload);
@@ -4412,43 +4416,29 @@ pub(super) fn spawn_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>
     }
     let (trees, unfollowed) = take_follows(shared);
     if !trees.is_empty() || !unfollowed.is_empty() {
-        let (peer, shared, heads) = (
-            Arc::clone(peer),
-            Arc::clone(shared),
-            std::rc::Rc::clone(&tasks.heads),
-        );
-        tasks.spawn(async move { read_trees(&peer, &shared, &heads, trees, unfollowed).await });
+        let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+        tasks.spawn(async move { read_trees(&peer, &shared, trees, unfollowed).await });
     }
 }
 
-/// What changed in the tree of `entry` since `cursor`, every page of it, following it: the
-/// summaries, the blocks that left it, the sequence read to, and the heads that are news to this
-/// device (another than the remote head it knew), which the replicas hear.
-async fn read_tree(
-    peer: &Peer<Store>,
-    entry: Uuid,
-    cursor: u64,
-) -> Result<(Vec<BlockSummary>, Vec<Uuid>, u64, Vec<(Uuid, CommitId)>), ClientError> {
-    const PAGE: u32 = 200;
-    let (mut summaries, mut removed, mut moved) = (Vec::new(), Vec::new(), Vec::new());
-    let mut after = be_block_protocol::ChangeCursor {
-        changed: cursor,
-        block: Uuid::max(),
+/// Reads again the blocks the graph holds that this account may only know exist (`known_only`):
+/// a move or a grant may have opened them, or taken them out of reach.
+async fn reread_known_only(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, blocks: Vec<Uuid>) {
+    let found = match peer.read_summaries(&blocks).await {
+        Ok(found) => found,
+        Err(error) => return record(shared, error),
     };
-    let mut follow = true;
-    loop {
-        let page = peer.changed_page(entry, after, PAGE, follow).await?;
-        follow = false;
-        moved.extend(page.summaries.iter().filter_map(|summary| {
-            let head = summary.head?;
-            (peer.known_remote_head(summary.id) != Some(head)).then_some((summary.id, head))
-        }));
-        peer.learn(&page.summaries).await?;
-        summaries.extend(page.summaries);
-        removed.extend(page.removed);
-        match page.next {
-            Some(next) => after = next,
-            None => return Ok((summaries, removed, page.sequence, moved)),
+    if let Err(error) = peer.learn(&found).await {
+        record(shared, error);
+    }
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    for block in blocks {
+        match found.iter().find(|summary| summary.id == block) {
+            Some(summary) => {
+                let summary = peer.summary_with_outbox(summary.clone());
+                held.graph.put(node_of(peer, &summary), summary.changed);
+            }
+            None => held.graph.forget(block),
         }
     }
 }
@@ -4463,12 +4453,10 @@ fn take_follows(shared: &Arc<Mutex<Shared>>) -> (Vec<(Uuid, u64)>, Vec<Uuid>) {
 
 /// Reads what changed in each tree of `trees` since its cursor, following it (`changed-since`),
 /// and gives the graph what changed of what it holds (`Graph::followed`); the blocks it held that
-/// left a tree are read again, wherever they went. Each head read goes to `heads`, for the
-/// replicas. Unfollows `unfollowed`.
+/// left a tree are read again, wherever they went. Unfollows `unfollowed`.
 async fn read_trees(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
-    heads: &std::cell::RefCell<Vec<(Uuid, CommitId)>>,
     trees: Vec<(Uuid, u64)>,
     unfollowed: Vec<Uuid>,
 ) {
@@ -4478,11 +4466,11 @@ async fn read_trees(
     let reads = futures_util::future::join_all(
         trees
             .iter()
-            .map(|(entry, cursor)| read_tree(peer, *entry, *cursor)),
+            .map(|(entry, cursor)| peer.changed_since(*entry, *cursor, true)),
     );
     let (_, answers) = futures_util::future::join(unfollows, reads).await;
     for ((entry, _), answer) in trees.into_iter().zip(answers) {
-        let (summaries, removed, sequence, moved) = match answer {
+        let (summaries, removed, sequence) = match answer {
             Ok(read) => read,
             Err(error) => {
                 let unreachable = asked_again(
@@ -4501,14 +4489,15 @@ async fn read_trees(
                 }
                 drop(held);
                 // A refusal is the tree's news, as a listing's is: the block is not there for
-                // this account, or not yet (made here and still in the outbox).
-                if !matches!(error, ClientError::Refused(..)) {
+                // this account, or not yet (made here and still in the outbox). Only following
+                // more trees than the server keeps for a connection is an error to show.
+                if !matches!(error, ClientError::Refused(code, _) if code != be_block_protocol::ErrorCode::OverQuota)
+                {
                     record(shared, error);
                 }
                 continue;
             }
         };
-        heads.borrow_mut().extend(moved);
         let opens_inside = summaries.iter().any(|summary| summary.opens_inside);
         let nodes = summaries
             .iter()
@@ -4554,8 +4543,6 @@ pub(super) struct Tasks {
     drained: std::rc::Rc<tokio::sync::watch::Sender<u64>>,
     /// Stops the task following the account's storage, while one does.
     storage: std::rc::Rc<std::cell::RefCell<Option<tokio::sync::oneshot::Sender<()>>>>,
-    /// The heads trees read since the loop last took them (`read_trees`), for the replicas.
-    heads: std::rc::Rc<std::cell::RefCell<Vec<(Uuid, CommitId)>>>,
 }
 
 pub(crate) const STORAGE_FAILED: &str =
@@ -4585,7 +4572,6 @@ impl Tasks {
                 outbox,
                 drained: std::rc::Rc::new(tokio::sync::watch::Sender::new(0)),
                 storage: Default::default(),
-                heads: Default::default(),
             },
             receiver,
         )
@@ -4696,10 +4682,6 @@ impl Tasks {
 
     fn syncing(&self) -> bool {
         self.outbox.borrow().draining
-    }
-
-    fn take_heads(&self) -> Vec<(Uuid, CommitId)> {
-        std::mem::take(&mut self.heads.borrow_mut())
     }
 
     fn take_published(&self) -> Vec<(Uuid, Option<CommitId>, bool)> {
@@ -4903,7 +4885,8 @@ async fn list(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, wanted: Vec<
     for (listing, answer) in wanted.into_iter().zip(answers) {
         let (sequence, summaries) = match answer {
             Ok(listed) => (listed.sequence, listed.blocks),
-            Err(ClientError::Refused(..)) => (0, Vec::new()),
+            // The listing is not this account's to read now: nothing heard before outlasts that.
+            Err(ClientError::Refused(..)) => (u64::MAX, Vec::new()),
             Err(error) => {
                 // See `asked_again`.
                 let unreachable = asked_again(

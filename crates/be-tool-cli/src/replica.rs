@@ -261,16 +261,14 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
         let Some((entry, since)) = self.followed else {
             return;
         };
-        let Ok((changed, _, sequence)) = self.peer.changed_since(entry, since, false).await else {
+        let Ok((_, _, sequence)) = self.peer.changed_since(entry, since, false).await else {
             return;
         };
         self.followed = Some((entry, sequence));
         let ctx = (&self.peer, &self.shared);
-        for summary in changed {
-            if summary.id == self.block
-                && let Some(head) = summary.head
-            {
-                self.replicas.heard_head(ctx, self.block, head);
+        for (block, head) in self.peer.take_moved_heads() {
+            if block == self.block {
+                self.replicas.heard_head(ctx, block, head);
             }
         }
     }
