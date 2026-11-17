@@ -14,6 +14,7 @@ use super::fling::Fling;
 use super::modal::{Modal, ModalHandle, ModalMotion, ModalPlacement};
 use super::rubber_band::{Spring, bounce, rubber_band, spring_back, unband};
 use beui_view::components::overlay::use_overlay_presence;
+use beui_view::drag;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
@@ -22,7 +23,6 @@ use beui_view::types::Color;
 use beui_view::types::Direction;
 use beui_view::types::ScrollPosition;
 use beui_view::types::{BackGesture, CursorIcon, DragGesture, PointerPress, ScrollGesture};
-use beui_view::drag;
 use beui_view::types::{Measured, Modifiers, Rect, Vec2, pos2, vec2};
 
 const CLOSE_SHARE: f32 = 0.4;
@@ -798,8 +798,7 @@ impl Motion {
             .iter()
             .map(|(stop, rest)| (*stop, Some(*rest)))
             .chain([(close, None)]);
-        match snap_to(
-            self.slot,height, velocity, places) {
+        match snap_to(self.slot, height, velocity, places) {
             Some(None) => Phase::Snap {
                 target: Rest::Free(height),
                 velocity: (-velocity).max(0.0),
@@ -951,7 +950,7 @@ impl Motion {
             // Shown, or closed: a place twice the close share down, so a release past the
             // share closes.
             let closes = snap_to(
-            self.slot,
+                self.slot,
                 -self.shifted.get(),
                 velocity,
                 [(0.0, false), (-2.0 * CLOSE_SHARE * self.height(), true)],
