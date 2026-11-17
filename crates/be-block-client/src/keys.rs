@@ -974,6 +974,11 @@ impl KeyBook {
                 levels.sort();
                 levels
             },
+            above: roots
+                .kept
+                .get(&block)
+                .map(|kept| kept.above.clone())
+                .unwrap_or_default(),
         };
         match roots.kept.insert(block, kept.clone()) == Some(kept.clone()) {
             true => None,
@@ -1035,6 +1040,7 @@ impl KeyBook {
             lowering_place: 0,
             current: vec![root],
             levels: vec![(self.account.into_bytes(), Level::Manage)],
+            above: Vec::new(),
         };
         self.roots
             .lock()
@@ -1082,13 +1088,41 @@ impl KeyBook {
     /// from a sender the block's log gives Edit or above, or the organization's log has
     /// administer it, as of the head the key names, or as of the log's head here when this
     /// device's log does not reach that head (or the key names none). A sender the block's log
-    /// names, but not as of that head, held nothing then. One it never names, who may have Edit
-    /// from a block above (the server's tree until parents are signed), is taken, as is any
-    /// key of a block whose log this device never checked (its first, which carries the root).
+    /// names, but not as of that head, held nothing then. One it never names is taken only once
+    /// this device found it held Edit or above on a block the signed parent records place the
+    /// block under (`vouch`, plans/signed_access.md, step 4); any key of a block whose log this
+    /// device never checked is taken (its first, which carries the root).
     ///
     /// A data key is taken from a contact only as an administrator (the settings' data keys,
     /// which key work has them seal to each other): no one else seals one to an account, and
     /// its epoch names its scope's log, which its own block's is not.
+    /// Notes that `account`, whom `block`'s log never names, held Edit or above on a block its
+    /// signed parent records place it under, as `Peer::held_above` found: its seals of the
+    /// block's keys are taken (`sender_may`), across restarts too. Answers what to keep when
+    /// this changed what was kept.
+    pub fn vouch(&self, block: Uuid, account: Uuid) -> Option<crate::refs::KeptLog> {
+        let mut roots = self.roots.lock().unwrap();
+        let kept = roots.kept.get_mut(&block)?;
+        if kept.above.contains(&account.into_bytes()) {
+            return None;
+        }
+        kept.above.push(account.into_bytes());
+        Some(kept.clone())
+    }
+
+    /// Whether `block`'s log, as this device checked or kept it, names `account` at all.
+    pub fn names(&self, block: Uuid, account: Uuid) -> bool {
+        let roots = self.roots.lock().unwrap();
+        let account = account.into_bytes();
+        match roots.logs.get(&block) {
+            Some(log) => log.levels.contains_key(&account),
+            None => roots
+                .kept
+                .get(&block)
+                .is_some_and(|kept| kept.levels.iter().any(|(named, _)| *named == account)),
+        }
+    }
+
     fn sender_may(&self, sender: Uuid, carried: &CarriedKey, kind: KeyKind) -> bool {
         if sender == self.account {
             return true;
@@ -1126,16 +1160,20 @@ impl KeyBook {
         // A block checked in an earlier run but whose log this run has not read (a restart,
         // a refused or short read, offline): judged by the levels kept at the head then, so a
         // sender revoked by then is refused whatever head the key names.
+        let vouched = roots
+            .kept
+            .get(&block)
+            .is_some_and(|kept| kept.above.contains(&account));
         let Some(log) = roots.logs.get(&block) else {
             return roots.kept.get(&block).is_none_or(|kept| {
-                kept.levels
-                    .iter()
-                    .find(|(named, _)| *named == account)
-                    .is_none_or(|(_, level)| *level >= Level::Edit)
+                match kept.levels.iter().find(|(named, _)| *named == account) {
+                    Some((_, level)) => *level >= Level::Edit,
+                    None => vouched,
+                }
             });
         };
         if !log.levels.contains_key(&account) {
-            return true;
+            return vouched;
         }
         let head = carried
             .heads

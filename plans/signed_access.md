@@ -137,7 +137,14 @@ administrator roster and its history. A member with Edit on a child is
 served the parent's whole log, so its full membership. And since a block's
 creator holds Manage on it, "Edit on any block" takes in every member who has
 made one: the organization's member list is visible to every member who has
-made a block. Whether to narrow that is open. A proof path can hide a later revocation
+made a block. Whether to narrow that is open. Since step 4, a viewer of a block
+is also served a path of each block above it (`get-access-log`'s
+`reads_below`), which shows them each ancestor's creator and log root, every
+parent record of it (its current and former parents, who moved it, and in
+which order among its entries), who signed each opening, and the whole level
+history there of whoever moved it, signed below on authority from it, or
+sealed the viewer a key, and of those who granted them. A block's agent is served these too, as any viewer
+inside its block is: it checks its block's log as a reader does. A proof path can hide a later revocation
 behind a reduced entry; for a reader who never seals, that only matters for a
 hosted block's host (plans/hosted_blocks.md, "Accepted limits").
 
@@ -268,9 +275,11 @@ did not sign.
   revocation; never for an escrow key, taken only from an administrator at the
   organization log's head now. A device whose log outdates that head writes
   under no such key; one that does not hold the revocation does.
-- **A key from a sender the block's log never names** (Edit from a block
-  above, which `sender_may` does not look up in the logs above even since step
-  4) is taken, and written under only
+- **A key from a sender the block's log never names** is taken only once
+  this device found the sender holds Edit or above on a block the signed parent
+  records place it under (`KeyBook::vouch`, step 4), as of that block's head
+  then, and kept so across restarts; a sender revoked above since stays
+  vouched for until a log names them. Such a key is written under only
   while it names a head the log reaches with nothing lowering anyone after
   it, or, naming none, only while the log has never lowered anyone. Such a
   sender, revoked above with the server's help, can so have a key they made up
@@ -332,7 +341,8 @@ did not sign.
 - **A reader below Edit checks a sealer only as a contact.** The server picks
   whom a path proves (the sealers it lists): leaving the real sender out
   reduces every entry naming them, and a sender the log then never names is
-  taken as one with Edit from a block above, unchecked there.
+  taken only as one the paths above show holding Edit there (`KeyBook::vouch`),
+  which the server can as well reduce a later revocation of.
   It can as well reduce a named sealer's revocation, which shows the reader
   that someone was lowered, not whom. The same holds offline for the levels
   kept from a path (`KeptLog::levels`), which name only whom it proved. So for
@@ -399,15 +409,22 @@ did not sign.
   one its signer pinned: an editor who pinned a wrong one (taken from a member
   only weakly is refused, `Peer::placement`) misplaces only what they could
   already leak.
-- **Blocks between as they ever lay.** `Authority::Inherited` checks when the
-  block named is reached from the block's placement at the record's place
-  through any placement the blocks between ever had, so a log never stops
-  checking when a block between moves later. A manager of a block once above
-  one between can therefore, with the server, sign records resting on it after
-  it moved away, as for a stale authority. A record resting on a block no
-  longer above anything the reader views, whose log the reader may not view,
-  does not check for that reader, and the block's log is refused to them until
-  a manager signs the grant again from where it lies.
+- **A chain as of its heads.** `Authority::Inherited` names the chain of
+  blocks up to the one it rests on, each with a head of its log: the first
+  where the block lay at the record's place, each next where the one before
+  lay as of its head. The server takes it only with every head current, so a
+  record stays checkable however the blocks between move later; a server
+  colluding with someone who managed above before a move can append one naming
+  heads from before it, as for a stale authority. A record resting on a block
+  no longer above anything the reader views, whose log the reader may not
+  view, does not check for that reader, and the block's log is refused to them
+  until a manager signs the grant again from where it lies.
+- **A move withheld from a device that never saw it.** A device checks a
+  block's log against how far it last checked it (`KeptLog`), ancestors' logs
+  too, so a log cut short of a move it saw counts as withheld. One that never
+  checked a block's log past a move can be served it cut short before the
+  move, and takes the block as still lying where it was: it wraps under the
+  old parent's scope only what it would have before the move.
 - **Moves within the server's tree.** Which blocks lie under a block is still
   the server's listing (`children`, key work's rotations): a device wraps
   nothing under a scope a block's signed parent records do not reach, but the
@@ -619,15 +636,24 @@ instead.
    records (`Record::Parent`, a `Placement` naming the parent's log root) made
    by a member with Edit or above, the creator's carried by `create-block`
    after the root and a mover's by `set-parent`; `Authority::Inherited`
-   checked only through them (`be_block_keys::answer`), the logs above read
-   from the roots they name, never the server's tree, on the server too; keys
+   naming the chain of blocks up to its block, each as of a head the server
+   takes only current, and checked only through the parent records
+   (`be_block_keys::answer`, each log once as of each head), the logs above
+   read from the roots they name, never the server's tree, on the server too;
+   a reduced parent record still says it is one (`Reduced::places`); keys
    wrapped only under the scope of a block they place a block under
-   (`Peer::signed_below`); and the ancestor's path served to a reader below
-   it, proving whoever signs there on authority from it. 3c's hold on grants
+   (`Peer::signed_below`), a creation whose check could not be read sent only
+   through the outbox, which checks it; a contact the block's log never names
+   taken as a sealer only with Edit above (`KeyBook::vouch`); and the
+   ancestor's path served to a reader below it, proving whoever signs there on
+   authority from it or sealed the reader a key. 3c's hold on grants
    and openings resting on `Inherited` authority (`Checked::tainted`) is
    lifted: they seal as any other. Done: a test where the server claims a
    block moved under a scope a contact manages and the next rotation wraps
-   nothing under it, nor does a block made under it; one where a reader
+   nothing under it, nor does a block made under it; one where a block made
+   offline under such a claim is set aside as misplaced; one where a contact
+   the note's log never names hands over a key only with Edit above; a unit
+   test where a chain 24 deep checks in as many log checks; one where a reader
    granted by a manager of the workspace above checks the grant on the
    workspace's path, which proves no one else's grant; one where a kind opened
    by a manager from above is offered to a contact inside; and a unit test

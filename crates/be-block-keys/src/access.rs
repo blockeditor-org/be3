@@ -10,7 +10,9 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::cell::{Cell, RefCell};
+use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 
 use crate::{KeyError, PublicIdentity, RecoverySecret, SigningPublic, verify_signature};
 
@@ -18,8 +20,8 @@ use crate::{KeyError, PublicIdentity, RecoverySecret, SigningPublic, verify_sign
 /// else the account's signing key signs (authorship has a domain of its own).
 const ACCESS_INFO: &[u8] = b"be3.access.v1";
 /// What an entry's hash covers comes after this: the hash of the entry before it, whether it
-/// lowered anyone's access, and its digest (`Entry::digest`), so an entry reduced to those three
-/// (`Reduced`) hashes as the whole entry does.
+/// lowered anyone's access, whether it is a parent record, and its digest (`Entry::digest`), so
+/// an entry reduced to those (`Reduced`) hashes as the whole entry does.
 const ACCESS_HASH_INFO: &[u8] = b"be3.access.hash.v1";
 /// What an entry's digest covers comes after this.
 const ACCESS_DIGEST_INFO: &[u8] = b"be3.access.digest.v1";
@@ -55,12 +57,12 @@ pub enum Record {
 }
 
 impl Record {
-    /// Where a grant or an opening says its signer's Manage comes from.
-    pub fn authority(&self) -> Option<Authority> {
+    /// Where a grant, an opening or a parent record says its signer's right comes from.
+    pub fn authority(&self) -> Option<&Authority> {
         match self {
-            Record::Grant(grant) => Some(grant.authority),
-            Record::Opening(opening) => Some(opening.authority),
-            Record::Parent(parent) => Some(parent.authority),
+            Record::Grant(grant) => Some(&grant.authority),
+            Record::Opening(opening) => Some(&opening.authority),
+            Record::Parent(parent) => Some(&parent.authority),
             _ => None,
         }
     }
@@ -68,7 +70,7 @@ impl Record {
 
 /// Whoever views a block inside may read this kind of settings (`Level::View`), or no longer
 /// (`Level::None`), and where the signer's right to say so comes from.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Opening {
     pub level: Level,
     pub authority: Authority,
@@ -88,7 +90,7 @@ pub enum Placement {
 
 /// The block placed where `placement` says, by a signer whose Edit or above on it comes from
 /// `authority`, as of where it lay before.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Parent {
     pub placement: Placement,
     pub authority: Authority,
@@ -109,7 +111,7 @@ pub enum Level {
 
 /// `grantee`'s access, with the keys the granter verified for them, which a device seals to,
 /// and where the granter's own right to grant it comes from.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Grant {
     pub grantee: [u8; 16],
     pub identity: PublicIdentity,
@@ -120,16 +122,35 @@ pub struct Grant {
 /// Where a signer's Manage comes from. Named in the record, as of an entry of another log, so a
 /// log checks the same however later entries of that log change: a grant an administrator
 /// signed still checks after they are demoted, and one signed after it does not.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum Authority {
     /// This log's own grants (or a signer revoking their own grant).
     Log,
     /// Administering the organization, as of this entry of its log.
     Organization(EntryHash),
-    /// Manage (Edit, for a parent record) on a block above, as of this entry of its log. Above
-    /// as the signed parent records place it (`answer`): the block's own as of the record's place,
-    /// and those of the blocks between, as they ever placed them.
-    Inherited { block: [u8; 16], head: EntryHash },
+    /// Manage (Edit, for a parent record) on a block above, as of the last link: the chain of
+    /// blocks up to it, each named with the head of its log the record rests on. The first is
+    /// where the block lay at the record's place, and each next where the one before lay as of
+    /// its head (`answer`), each log checked from the root the placement under it names. The
+    /// server takes the record only with every head the head of its log now.
+    Inherited(Vec<Link>),
+}
+
+impl Authority {
+    /// The block an `Authority::Inherited` rests on: its chain's last.
+    pub fn above(&self) -> Option<[u8; 16]> {
+        match self {
+            Authority::Inherited(chain) => chain.last().map(|link| link.block),
+            Authority::Log | Authority::Organization(_) => None,
+        }
+    }
+}
+
+/// A block on an `Authority::Inherited` chain, as of an entry of its log.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Link {
+    pub block: [u8; 16],
+    pub head: EntryHash,
 }
 
 /// Whether `account`, with the keys the administrator signing verified, administers the
@@ -367,6 +388,7 @@ impl Entry {
         Reduced {
             previous: self.previous,
             lowers: self.lowers,
+            places: matches!(self.record, Record::Parent(_)),
             digest: self.digest(),
         }
     }
@@ -395,6 +417,10 @@ impl Entry {
 pub struct Reduced {
     pub previous: Option<EntryHash>,
     pub lowers: bool,
+    /// Whether it is a parent record: a block's placement after one reduced so is unknown to
+    /// the reader (`Checked::placement`), so a server that hides a move hides nothing it is
+    /// trusted for.
+    pub places: bool,
     pub digest: EntryHash,
 }
 
@@ -405,7 +431,7 @@ impl Reduced {
             Some(previous) => hash = hash.chain_update([1]).chain_update(previous),
             None => hash = hash.chain_update([0]),
         }
-        hash.chain_update([u8::from(self.lowers)])
+        hash.chain_update([u8::from(self.lowers), u8::from(self.places)])
             .chain_update(self.digest)
             .finalize()
             .into()
@@ -661,8 +687,9 @@ pub struct Checked {
     /// views a block inside.
     pub open_inside: Level,
     /// For a block's log: where its parent records placed it, by place, oldest first; the last
-    /// is where it lies now (`placement`).
-    pub placements: Vec<(usize, Placement)>,
+    /// is where it lies now (`placement`). None for one served reduced, whose placement the
+    /// reader does not know.
+    pub placements: Vec<(usize, Option<Placement>)>,
     /// Each entry's place in the log, root first: whether the log reaches a head an epoch
     /// names (`holds`).
     pub positions: HashMap<EntryHash, usize>,
@@ -749,9 +776,9 @@ impl Checked {
     }
 
     /// Where the block lies as its log last placed it: none for a log that places it nowhere
-    /// (an organization's).
+    /// (an organization's), or whose last parent record was served reduced.
     pub fn placement(&self) -> Option<Placement> {
-        self.placements.last().map(|(_, placement)| *placement)
+        self.placements.last().and_then(|(_, placement)| *placement)
     }
 
     /// `record`, signed by `signer` with `secret` as the next entry of the log of `log` after
@@ -802,7 +829,7 @@ impl Checked {
         &mut self,
         entry: &Entry,
         own: Option<SigningPublic>,
-        authority: Authority,
+        authority: &Authority,
         needs: Level,
         own_revocation: bool,
         outside: &dyn Fn(&Asked) -> Option<SigningPublic>,
@@ -816,7 +843,7 @@ impl Checked {
             Authority::Log => None,
             // Signed with the key this log names for them when it names one: a key retired
             // here signs nothing after, whatever the other log was as of then.
-            ref other => {
+            other => {
                 let placement = self.placement();
                 let asked = Asked {
                     signer: entry.signer,
@@ -908,6 +935,9 @@ pub fn check_log(
             // the kind or lowered anyone the path names.
             StepRef::Reduced(reduced) => {
                 state.partial = true;
+                if reduced.places {
+                    state.placements.push((place, None));
+                }
                 if reduced.lowers {
                     state.last_lowering = place;
                     state.hides_lowering = true;
@@ -963,7 +993,7 @@ pub fn check_log(
                 state.granting(
                     entry,
                     own,
-                    grant.authority,
+                    &grant.authority,
                     Level::Manage,
                     own_revocation,
                     outside,
@@ -982,7 +1012,7 @@ pub fn check_log(
                 state.granting(
                     entry,
                     own,
-                    opening.authority,
+                    &opening.authority,
                     Level::Manage,
                     false,
                     outside,
@@ -1001,8 +1031,8 @@ pub fn check_log(
                 if kind != LogKind::Block || under_itself {
                     return Err(KeyError::Record);
                 }
-                state.granting(entry, own, parent.authority, Level::Edit, false, outside)?;
-                state.placements.push((place, parent.placement));
+                state.granting(entry, own, &parent.authority, Level::Edit, false, outside)?;
+                state.placements.push((place, Some(parent.placement)));
             }
             Record::Administrator(administrator) => {
                 let may = kind == LogKind::Organization
@@ -1159,87 +1189,108 @@ pub struct Asked<'a> {
     pub placement: Option<&'a Placement>,
 }
 
-/// How many logs deep `answer` follows authority named outside a log, and how many blocks it
-/// walks up looking for an ancestor: more than any honest tree needs.
+/// How long an `Authority::Inherited` chain may be: more than any honest tree needs.
 pub const MAX_ANCESTRY: usize = 32;
 
 /// The logs `answer` reads another log's grants from. Which block is above which comes from the
 /// parent records in them alone, and a block's log is checked from the root the record placing
-/// something under it names.
+/// something under it names. Each log is checked at most once as of each head (`checked`), so
+/// authority resting on authority costs linear in the records, not exponential in the depth.
 pub struct Logs<'a> {
     pub organization: [u8; 16],
     /// The root the reader pinned for the organization's log: none for one with no log.
     pub organization_root: Option<EntryHash>,
     /// A log's entries, root first, as far as the reader holds it.
     pub log: &'a dyn Fn(LogKind, [u8; 16]) -> Option<Vec<Step>>,
+    checked: RefCell<HashMap<Checking, Option<Rc<Checked>>>>,
+    checks: Cell<usize>,
+}
+
+/// A log checked from a root as of one of its entries, as `Logs` remembers it.
+type Checking = (LogKind, [u8; 16], EntryHash, EntryHash);
+
+impl<'a> Logs<'a> {
+    pub fn new(
+        organization: [u8; 16],
+        organization_root: Option<EntryHash>,
+        log: &'a dyn Fn(LogKind, [u8; 16]) -> Option<Vec<Step>>,
+    ) -> Self {
+        Self {
+            organization,
+            organization_root,
+            log,
+            checked: RefCell::new(HashMap::new()),
+            checks: Cell::new(0),
+        }
+    }
+
+    /// How many logs `answer` checked through these (once each as of each head).
+    pub fn checks(&self) -> usize {
+        self.checks.get()
+    }
+
+    /// The `kind` log of `log`, checked from `root` as of `head`, with what its records name
+    /// outside it answered from these logs. Remembered, and refused while it is being checked,
+    /// so a chain that comes back round to it proves nothing.
+    fn checked_as_of(
+        &self,
+        kind: LogKind,
+        log: [u8; 16],
+        root: EntryHash,
+        head: EntryHash,
+    ) -> Option<Rc<Checked>> {
+        let key = (kind, log, root, head);
+        if let Some(found) = self.checked.borrow().get(&key) {
+            return found.clone();
+        }
+        self.checked.borrow_mut().insert(key, None);
+        self.checks.set(self.checks.get() + 1);
+        let entries = (self.log)(kind, log);
+        let outside = |asked: &Asked| answer(self, log, asked);
+        let found = entries
+            .and_then(|entries| check_log_as_of(kind, log, root, &entries, head, &outside).ok())
+            .map(Rc::new);
+        self.checked.borrow_mut().insert(key, found.clone());
+        found
+    }
 }
 
 /// `check_log`'s `outside` for the log of `block`, from `logs`: the signer's key in the log a
 /// record names its authority in, checked as of the entry it names, if they held what it needs
-/// there then. For `Authority::Inherited`, the block named must be above: reached from where
-/// `block` lay at the record's place through the parent records of the blocks between (each as
-/// it ever placed itself), and its log is checked from the root the placement under it names.
+/// there then. For `Authority::Inherited`, each link of the chain must be where the one before
+/// lay as of its head, starting from where `block` lay at the record's place, each log checked
+/// from the root the placement under it names.
 pub fn answer(logs: &Logs, block: [u8; 16], asked: &Asked) -> Option<SigningPublic> {
-    answer_within(logs, block, asked, MAX_ANCESTRY)
-}
-
-fn answer_within(
-    logs: &Logs,
-    block: [u8; 16],
-    asked: &Asked,
-    depth: usize,
-) -> Option<SigningPublic> {
-    let depth = depth.checked_sub(1)?;
-    let (kind, log, pinned, head) = match *asked.authority {
+    let (kind, checked) = match asked.authority {
         Authority::Log => return None,
         Authority::Organization(head) => (
             LogKind::Organization,
-            logs.organization,
-            logs.organization_root?,
-            head,
+            logs.checked_as_of(
+                LogKind::Organization,
+                logs.organization,
+                logs.organization_root?,
+                *head,
+            )?,
         ),
-        Authority::Inherited { block: above, head } if above != block => {
-            let root = ancestor_root(logs, *asked.placement?, above, depth)?;
-            (LogKind::Block, above, root, head)
+        Authority::Inherited(chain) => {
+            if chain.is_empty() || chain.len() > MAX_ANCESTRY {
+                return None;
+            }
+            let mut placement = *asked.placement?;
+            let mut reached = None;
+            for link in chain {
+                let Placement::Block { block: up, root } = placement else {
+                    return None;
+                };
+                if up != link.block || up == block {
+                    return None;
+                }
+                let checked = logs.checked_as_of(LogKind::Block, up, root, link.head)?;
+                placement = checked.placement().unwrap_or(Placement::Detached);
+                reached = Some(checked);
+            }
+            (LogKind::Block, reached?)
         }
-        Authority::Inherited { .. } => return None,
     };
-    let entries = (logs.log)(kind, log)?;
-    let outside = |asked: &Asked| answer_within(logs, log, asked, depth);
-    check_log_as_of(kind, log, pinned, &entries, head, &outside)
-        .ok()?
-        .holding(kind, asked.signer, asked.level)
-}
-
-/// The root of `target`'s log, as the placement under it names it, when `target` is reached
-/// from `from` going up: `from` itself, or any block a block between ever placed itself under,
-/// each checked from the root the placement reaching it names.
-fn ancestor_root(
-    logs: &Logs,
-    from: Placement,
-    target: [u8; 16],
-    depth: usize,
-) -> Option<EntryHash> {
-    let mut queue = VecDeque::from([from]);
-    let mut seen = HashSet::new();
-    while let Some(placement) = queue.pop_front() {
-        let Placement::Block { block, root } = placement else {
-            continue;
-        };
-        if block == target {
-            return Some(root);
-        }
-        if !seen.insert(block) || seen.len() > MAX_ANCESTRY {
-            continue;
-        }
-        let Some(entries) = (logs.log)(LogKind::Block, block) else {
-            continue;
-        };
-        let outside = |asked: &Asked| answer_within(logs, block, asked, depth);
-        let Ok(checked) = check_log(LogKind::Block, block, root, &entries, &outside) else {
-            continue;
-        };
-        queue.extend(checked.placements.iter().map(|(_, placement)| *placement));
-    }
-    None
+    checked.holding(kind, asked.signer, asked.level)
 }

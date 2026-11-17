@@ -1780,7 +1780,9 @@ impl TestClient {
         {
             return Authority::Log;
         }
+        // The chain up to the nearest block above that gives it, each as of its head now.
         let mut at = block;
+        let mut chain = Vec::new();
         while let Some(BlockParent::Block(parent)) = self
             .try_read_block(at)
             .await
@@ -1793,16 +1795,17 @@ impl TestClient {
                     .await
                     .unwrap_or_default(),
             );
-            if check(LogKind::Block, parent.into_bytes(), &above)
-                .is_some_and(|checked| {
-                    checked.holding(LogKind::Block, me.into_bytes(), level).is_some()
-                })
-                && let Some(head) = above.last()
-            {
-                return Authority::Inherited {
-                    block: parent.into_bytes(),
-                    head: head.hash(),
-                };
+            let Some(head) = above.last() else {
+                break;
+            };
+            chain.push(be_block_keys::Link {
+                block: parent.into_bytes(),
+                head: head.hash(),
+            });
+            if check(LogKind::Block, parent.into_bytes(), &above).is_some_and(|checked| {
+                checked.holding(LogKind::Block, me.into_bytes(), level).is_some()
+            }) {
+                return Authority::Inherited(chain);
             }
         }
         let organization = decode_steps(
@@ -2012,7 +2015,7 @@ impl TestClient {
         account: Uuid,
         access: be_block_graph::Access,
     ) -> Option<Vec<u8>> {
-        use be_block_keys::{Authority, Grant, LogKind, Opening, Record, Step};
+        use be_block_keys::{Authority, Grant, Opening, Record, Step};
         let opening = account == be_block_graph::ANYONE_INSIDE;
         let me = self.account?;
         let decode = decode_steps;
@@ -2021,16 +2024,7 @@ impl TestClient {
                 .await
                 .ok()?,
         );
-        let organization = decode(
-            self.call(client::organizations::get_organization_log)
-                .await
-                .unwrap_or_default(),
-        );
         let level = crate::access::level(access);
-        let check = |kind, of: [u8; 16], entries: &[Step]| {
-            let pinned = entries.first()?.hash();
-            be_block_keys::check_log(kind, of, pinned, entries, &|_| None).ok()
-        };
         // The last grant the log names for them; the server checks the whole log.
         let named =
             log.iter()
@@ -2048,40 +2042,13 @@ impl TestClient {
         {
             return None;
         }
-        let manages = check(LogKind::Block, block.into_bytes(), &log)
-            .is_some_and(|checked| checked.manager(LogKind::Block, me.into_bytes()).is_some());
         let own = !opening && account == me && level == be_block_keys::Level::None;
-        let mut authority = None;
-        if own || manages {
-            authority = Some(Authority::Log);
-        }
-        let mut at = block;
-        while authority.is_none()
-            && let Some(BlockParent::Block(parent)) = self
-                .try_read_block(at)
-                .await
-                .ok()
-                .and_then(|summary| summary.parent)
-        {
-            at = parent;
-            let above = decode(
-                self.call(|peer| client::blocks::get_access_log(peer, parent))
+        let authority = match own {
+            true => Authority::Log,
+            false => {
+                self.authority(block, &log, be_block_keys::Level::Manage)
                     .await
-                    .ok()?,
-            );
-            if check(LogKind::Block, parent.into_bytes(), &above)
-                .is_some_and(|checked| checked.manager(LogKind::Block, me.into_bytes()).is_some())
-            {
-                authority = Some(Authority::Inherited {
-                    block: parent.into_bytes(),
-                    head: above.last()?.hash(),
-                });
             }
-        }
-        let authority = match (authority, organization.last()) {
-            (Some(authority), _) => authority,
-            (None, Some(head)) => Authority::Organization(head.hash()),
-            (None, None) => Authority::Log,
         };
         // As `Checked::lowers` finds it: below the level the log last named.
         let lowers = named.is_some_and(|named| level < named);

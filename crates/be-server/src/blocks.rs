@@ -139,9 +139,6 @@ impl Visibility {
         self.administrator
     }
 
-    /// Whether this caller is served `block`'s whole access log rather than a proof path
-    /// (plans/signed_access.md, "Who is served what"): it has Edit or above there, or on a block
-    /// below it, whose sealing checks every ancestor's log too.
     /// Whether a block this caller may view lies below `block`, whose log it is then served to
     /// check that block's ancestry and the records resting on it (plans/signed_access.md, step 4).
     pub(crate) fn reads_below(&self, graph: &BlockGraph, block: Uuid) -> bool {
@@ -151,6 +148,9 @@ impl Visibility {
             .any(|entry| graph.ancestors(entry).any(|above| above == block))
     }
 
+    /// Whether this caller is served `block`'s whole access log rather than a proof path
+    /// (plans/signed_access.md, "Who is served what"): it has Edit or above there, or on a block
+    /// below it, whose sealing checks every ancestor's log too.
     pub(crate) fn served_whole(&self, graph: &BlockGraph, block: Uuid) -> bool {
         self.can_edit(graph, block)
             || graph.entry_points(self.account).into_iter().any(|entry| {
@@ -618,16 +618,28 @@ impl ServerStore {
             }
             let whole = viewed && seen.served_whole(graph, block);
             let reader = (!whole).then_some(identity.account);
+            // Above what the caller views: whoever signs below on authority from it, and whoever
+            // sealed the caller a key, who may hold Edit here (`KeyBook::vouch`).
             let also = match viewed {
                 true => Vec::new(),
-                false => crate::access::inherited_signers(database, identity.organization, block)?
-                    .into_iter()
-                    .filter(|(below, _)| {
-                        graph.contains(*below)
-                            && (seen.can_view(graph, *below) || seen.reads_below(graph, *below))
-                    })
-                    .map(|(_, signer)| signer)
-                    .collect(),
+                false => {
+                    let mut also: Vec<Uuid> =
+                        crate::access::inherited_signers(database, identity.organization, block)?
+                            .into_iter()
+                            .filter(|(below, _)| {
+                                graph.contains(*below)
+                                    && (seen.can_view(graph, *below)
+                                        || seen.reads_below(graph, *below))
+                            })
+                            .map(|(_, signer)| signer)
+                            .collect();
+                    also.extend(crate::access::all_sealers(
+                        database,
+                        identity.organization,
+                        identity.account,
+                    )?);
+                    also
+                }
             };
             crate::access::served_log(
                 database,

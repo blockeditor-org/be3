@@ -259,7 +259,8 @@ impl<S: ObjectStore> Peer<S> {
             .await?;
         // Each key goes under the key of a block the signed parent records place it under, never
         // one the server only lists it below (signed access 4): the top under the scope or parent
-        // its summary names, each block below under the one that listed it.
+        // its summary names, walked up once, and each block below placed under the one that
+        // listed it, one log each.
         let top_parent = match super::parent_of(&top)? {
             BlockParent::Block(parent) => Some(parent),
             BlockParent::Root | BlockParent::Detached => None,
@@ -272,7 +273,7 @@ impl<S: ObjectStore> Peer<S> {
         }
         let placed = futures_util::future::join_all(walked.iter().skip(1).map(|node| async {
             match super::parent_of(node)? {
-                BlockParent::Block(parent) => self.signed_below(node.id, parent).await,
+                BlockParent::Block(parent) => self.placed_under(node.id, parent).await,
                 BlockParent::Root | BlockParent::Detached => Err(ClientError::Forged(node.id)),
             }
         }))
