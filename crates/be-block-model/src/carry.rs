@@ -6,14 +6,14 @@
 use be_lib_sequence::marks::{Mark, Marks, Rich, Seed};
 use be_lib_sequence::{SeqOp, Sequence, Splice};
 
-use crate::{Change, Edit, Model, Value};
+use crate::{Change, Edit, Model, ObjectId, Value};
 
 impl<R: Model> crate::Document<R> {
     /// `edit`, made on `before`, as `client` applies it to `after`: the same visible content
     /// loaded afresh. A text or series operation is rebuilt from the visible splices it makes on
     /// `before` (what it shows inserted by `client`), a mark from the formats it leaves, and
-    /// every other change names objects, which keep their ids, and travels unchanged. None when
-    /// nothing of it is left.
+    /// every other change names objects, which keep their ids, and travels unchanged unless the
+    /// object it changes is gone from `after`. None when nothing of it is left.
     pub fn carry_over(edit: &Edit, before: &Self, after: &Self, client: u64) -> Option<Edit> {
         let mut before = before.clone();
         let mut after = after.clone();
@@ -84,7 +84,14 @@ impl<R: Model> crate::Document<R> {
                         })
                         .collect()
                 }
-                change => vec![change.clone()],
+                // One that names an object the content loaded afresh lacks has nothing left
+                // to change.
+                change => match target(change) {
+                    Some(object) if object != ObjectId::ROOT && !after.tree.contains(object) => {
+                        Vec::new()
+                    }
+                    _ => vec![change.clone()],
+                },
             };
             before.change(change);
             for change in &moved {
@@ -93,6 +100,29 @@ impl<R: Model> crate::Document<R> {
             carried.extend(moved);
         }
         (!carried.is_empty()).then_some(Edit(carried))
+    }
+}
+
+/// The existing object `change` changes, removes or moves, if it names one.
+fn target(change: &Change) -> Option<ObjectId> {
+    match change {
+        Change::Set { object, .. }
+        | Change::SetIf { object, .. }
+        | Change::Add { object, .. }
+        | Change::Put { object, .. }
+        | Change::PutIf { object, .. }
+        | Change::Paint { object, .. }
+        | Change::Reshape { object, .. }
+        | Change::Remove { object }
+        | Change::RemoveIf { object, .. }
+        | Change::Move { object, .. }
+        | Change::Stamp { object, .. } => Some(*object),
+        Change::Insert { .. }
+        | Change::MoveRange { .. }
+        | Change::Text { .. }
+        | Change::Mark { .. }
+        | Change::Unmark { .. }
+        | Change::Series { .. } => None,
     }
 }
 
