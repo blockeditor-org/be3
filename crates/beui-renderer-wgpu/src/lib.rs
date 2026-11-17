@@ -6,6 +6,7 @@ use std::rc::Rc;
 
 use bytemuck::{Pod, Zeroable};
 
+use be_lib_layers::LayerId;
 use beui_core::context::{Moved, WindowOutput};
 use beui_core::display::{Display, Group, Layer, Part, bounds_of};
 use beui_core::draw::{Quad, Turn, push_quads};
@@ -14,7 +15,6 @@ use beui_core::fade::Fade;
 use beui_core::filter::Filter;
 use beui_core::font::{GlyphId, GlyphImage};
 use beui_core::painter::{Shape, placed_shape};
-use be_lib_layers::LayerId;
 use beui_draw::compose::Placed;
 use beui_draw::{Draw, DrawAt};
 use beui_types::Color32;
@@ -915,7 +915,10 @@ impl Renderer {
                 })),
         };
         // A composited window's roots hold what its target shows, so they move with it.
-        let roots = self.composition.iter().flat_map(|composition| composition.roots());
+        let roots = self
+            .composition
+            .iter()
+            .flat_map(|composition| composition.roots());
         for texture in std::iter::once(texture).chain(roots) {
             encoder.copy_texture_to_texture(at(texture, left, top), at(scratch, 0.0, 0.0), extent);
             encoder.copy_texture_to_texture(
@@ -1803,13 +1806,9 @@ impl Renderer {
                         self.forced.drawings.insert(drawing.identity().0);
                         self.forced.displays.extend(self.path.iter().copied());
                     }
-                    let at = self.renderer.draw_at(
-                        rect,
-                        clip,
-                        self.screen,
-                        self.pixels_per_point,
-                        true,
-                    );
+                    let at =
+                        self.renderer
+                            .draw_at(rect, clip, self.screen, self.pixels_per_point, true);
                     self.found.push((drawing, at));
                 }
             }
@@ -1981,7 +1980,12 @@ impl Renderer {
         for step in std::mem::take(steps) {
             let runs = match step {
                 Step::Runs(runs) => runs,
-                Step::Filter { steps: ref inner, .. } | Step::Group { steps: ref inner, .. } => {
+                Step::Filter {
+                    steps: ref inner, ..
+                }
+                | Step::Group {
+                    steps: ref inner, ..
+                } => {
                     // An anchored view inside a group or filter cannot be lifted out of it: the
                     // roots split after the step that holds it.
                     let count = nested(inner, lifted);

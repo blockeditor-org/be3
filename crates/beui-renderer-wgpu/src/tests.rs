@@ -20,8 +20,6 @@ mod a_clip_rectangle_hides_what_falls_outside_it;
 mod a_colour_glyph_paints_its_own_colours_beside_tinted_text;
 mod a_colour_vision_filter_recolours_the_region_it_covers;
 mod a_composited_window_draws_screens_in_place_and_its_ui_over_anchored_views;
-mod a_layer_of_a_turned_and_clipped_quad_shows_what_the_quad_shows;
-mod a_screen_in_a_composited_window_blends_over_the_ui_beneath_it_and_fades_with_its_group;
 mod a_drawing_paints_between_the_shapes_around_it;
 mod a_drawing_repaints_only_within_each_damaged_region;
 mod a_faded_scroll_fades_its_content_toward_each_edge_with_more_beyond_it;
@@ -32,6 +30,7 @@ mod a_filter_applied_inside_a_clip_filters_only_what_the_clip_holds;
 mod a_filter_leaves_the_painting_outside_its_region_alone;
 mod a_frame_paints_its_outline_over_its_fill;
 mod a_gpu_lost_mid_frame_is_reopened_and_paints_again;
+mod a_layer_of_a_turned_and_clipped_quad_shows_what_the_quad_shows;
 mod a_layer_painted_above_a_filter_keeps_its_own_colours;
 mod a_punch_clears_what_it_covers;
 mod a_rect_rounds_each_corner_by_its_own_radius;
@@ -42,6 +41,7 @@ mod a_repaint_of_two_regions_leaves_what_lies_between_them;
 mod a_replaced_drawing_is_released_once_it_is_repainted;
 mod a_rotated_rectangle_covers_the_corners_it_turned_onto;
 mod a_rounded_texture_quad_leaves_its_corners_uncovered;
+mod a_screen_in_a_composited_window_blends_over_the_ui_beneath_it_and_fades_with_its_group;
 mod a_scrolled_document_moves_the_rows_it_already_encoded;
 mod a_stroked_path_joins_caps_and_dashes_its_line;
 mod a_texture_drawing_fills_its_rect_and_nothing_else;
@@ -70,8 +70,8 @@ mod two_fills_meeting_on_a_seam_paint_as_one;
 mod two_filters_each_change_the_region_they_cover;
 mod two_regions_repainted_under_a_blur_match_a_full_repaint;
 mod two_renderers_on_one_set_of_resources_share_their_glyphs_and_images;
-mod zoomed_text_stretches_the_glyphs_it_was_rasterised_at;
 mod what_the_ui_paints_between_two_anchored_views_lies_between_them;
+mod zoomed_text_stretches_the_glyphs_it_was_rasterised_at;
 
 use std::cell::RefCell;
 
@@ -440,8 +440,13 @@ impl Draw for Shows {
             });
         }
         let drawn = (inline || !at.composited).then_some((&texture, quad));
-        self.quads
-            .prepare(&pipelines, queue, at.format, [at.screen.x, at.screen.y], drawn);
+        self.quads.prepare(
+            &pipelines,
+            queue,
+            at.format,
+            [at.screen.x, at.screen.y],
+            drawn,
+        );
     }
 
     fn paint(&self, pass: &mut wgpu::RenderPass<'_>, _at: DrawAt) {

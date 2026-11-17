@@ -52,6 +52,10 @@ fn a_rounded_texture_quad_leaves_its_corners_uncovered() {
         white,
         "a corner given none stays square"
     );
-    assert_eq!(capture.pixel(0, 63), black, "each corner has its own radius");
+    assert_eq!(
+        capture.pixel(0, 63),
+        black,
+        "each corner has its own radius"
+    );
     assert_eq!(capture.pixel(31, 63), white);
 }

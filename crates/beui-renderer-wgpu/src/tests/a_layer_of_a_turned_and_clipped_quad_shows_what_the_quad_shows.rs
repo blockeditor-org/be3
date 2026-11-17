@@ -18,8 +18,8 @@ fn a_layer_of_a_turned_and_clipped_quad_shows_what_the_quad_shows() {
         corner_radii: [8.0; 4],
         ..Quad::default()
     };
-    let layer = layer_of(&clipped, (100, 50), 2.0, LayerId(1), Surface::Host(1))
-        .expect("the window shows");
+    let layer =
+        layer_of(&clipped, (100, 50), 2.0, LayerId(1), Surface::Host(1)).expect("the window shows");
     assert_eq!(
         layer.clip,
         Rect::from_min_max(pos2(0.0, 0.0), pos2(50.0, 50.0)),
@@ -38,8 +38,8 @@ fn a_layer_of_a_turned_and_clipped_quad_shows_what_the_quad_shows() {
         rotation: std::f32::consts::FRAC_PI_2,
         ..Quad::default()
     };
-    let layer = layer_of(&turned, (100, 50), 2.0, LayerId(1), Surface::Host(1))
-        .expect("the window shows");
+    let layer =
+        layer_of(&turned, (100, 50), 2.0, LayerId(1), Surface::Host(1)).expect("the window shows");
     let drawn = quad(&layer, 2.0, [0.0; 2]);
     assert!(
         close(drawn.rect, turned.rect)

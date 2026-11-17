@@ -67,10 +67,7 @@ pub fn quad(layer: &Layer, pixels_per_point: f32, origin: [f32; 2]) -> crate::te
         center.x * pixels_per_point - origin[0],
         center.y * pixels_per_point - origin[1],
     ];
-    let half = [
-        clip.width() * scale.0 * 0.5,
-        clip.height() * scale.1 * 0.5,
-    ];
+    let half = [clip.width() * scale.0 * 0.5, clip.height() * scale.1 * 0.5];
     let (width, height) = (layer.size.0 as f32, layer.size.1 as f32);
     let radius = layer.corner_radius.max(0.0) * pixels_per_point;
     crate::texture_quad::Quad {

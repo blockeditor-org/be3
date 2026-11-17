@@ -438,7 +438,9 @@ impl Draw for WindowDraw {
             queue,
             at.format,
             [at.screen.x, at.screen.y],
-            quads.iter().map(|(texture, _, quad)| (&texture.bound, *quad)),
+            quads
+                .iter()
+                .map(|(texture, _, quad)| (&texture.bound, *quad)),
         );
     }
 

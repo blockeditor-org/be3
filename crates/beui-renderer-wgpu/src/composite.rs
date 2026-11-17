@@ -256,7 +256,12 @@ impl Composition {
         let mut layers = Vec::new();
         for (index, segment) in segments.into_iter().enumerate() {
             layers.extend(segment);
-            layers.push(root_layer(index as u32, self.size, pixels_per_point, origin));
+            layers.push(root_layer(
+                index as u32,
+                self.size,
+                pixels_per_point,
+                origin,
+            ));
         }
         let below = layers;
         self.previous = std::mem::replace(
@@ -390,10 +395,21 @@ impl Composition {
             queue,
             self.format,
             screen,
-            [(&self.hole.white, Quad { rect: whole, ..Quad::default() })],
+            [(
+                &self.hole.white,
+                Quad {
+                    rect: whole,
+                    ..Quad::default()
+                },
+            )],
         );
-        self.filled
-            .prepare(&self.pipelines, queue, self.format, screen, [(&self.fill.1, fill)]);
+        self.filled.prepare(
+            &self.pipelines,
+            queue,
+            self.format,
+            screen,
+            [(&self.fill.1, fill)],
+        );
         for [left, top, width, height] in composed {
             if *width == 0 || *height == 0 {
                 continue;

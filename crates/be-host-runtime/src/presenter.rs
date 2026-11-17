@@ -391,7 +391,13 @@ impl Blit {
             ),
         );
         crate::layers::screen(
-            crate::layers::id(self.surface, u64::from(anchored.surface), true, drawing, piece),
+            crate::layers::id(
+                self.surface,
+                u64::from(anchored.surface),
+                true,
+                drawing,
+                piece,
+            ),
             Surface::Anchored {
                 instance: self.surface,
                 surface: anchored.surface,

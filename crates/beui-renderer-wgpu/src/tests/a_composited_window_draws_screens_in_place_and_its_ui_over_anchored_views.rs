@@ -41,7 +41,11 @@ fn a_composited_window_draws_screens_in_place_and_its_ui_over_anchored_views() {
             painter.rect_filled(chrome, 0.0, blue);
         }
     };
-    target.draw(Color32::BLACK, Repaint::Everything, paint(rect(40.0, 16.0, 4.0)));
+    target.draw(
+        Color32::BLACK,
+        Repaint::Everything,
+        paint(rect(40.0, 16.0, 4.0)),
+    );
     let surfaces: Vec<Surface> = target
         .renderer
         .layers()
@@ -74,13 +78,21 @@ fn a_composited_window_draws_screens_in_place_and_its_ui_over_anchored_views() {
             [0, 255, 0, 255],
             "what the host paints over the screen shows over it"
         );
-        assert_eq!(capture.pixel(34, 10), yellow, "the anchored view lies over the host");
+        assert_eq!(
+            capture.pixel(34, 10),
+            yellow,
+            "the anchored view lies over the host"
+        );
         assert_eq!(
             capture.pixel(chrome.0, chrome.1),
             [0, 0, 255, 255],
             "what the host paints after the anchored view shows over it"
         );
-        assert_eq!(capture.pixel(2, 2), [255; 4], "the host's own surface shows");
+        assert_eq!(
+            capture.pixel(2, 2),
+            [255; 4],
+            "the host's own surface shows"
+        );
     };
     check(&target.read(), (41, 17));
 
@@ -100,10 +112,17 @@ fn a_composited_window_draws_screens_in_place_and_its_ui_over_anchored_views() {
         .scissors()
         .expect("the window is drawn again in part")
         .to_vec();
-    let drawn = scissors.iter().fold(None, |drawn: Option<[u32; 4]>, [x, y, width, height]| {
-        let [left, top, right, bottom] = drawn.unwrap_or([*x, *y, x + width, y + height]);
-        Some([left.min(*x), top.min(*y), right.max(x + width), bottom.max(y + height)])
-    });
+    let drawn = scissors
+        .iter()
+        .fold(None, |drawn: Option<[u32; 4]>, [x, y, width, height]| {
+            let [left, top, right, bottom] = drawn.unwrap_or([*x, *y, x + width, y + height]);
+            Some([
+                left.min(*x),
+                top.min(*y),
+                right.max(x + width),
+                bottom.max(y + height),
+            ])
+        });
     assert_eq!(
         drawn,
         Some([36, 16, 44, 20]),
@@ -111,5 +130,9 @@ fn a_composited_window_draws_screens_in_place_and_its_ui_over_anchored_views() {
     );
     let capture = target.read();
     check(&capture, (37, 17));
-    assert_eq!(capture.pixel(41, 17), yellow, "where the chrome left, the anchored view shows");
+    assert_eq!(
+        capture.pixel(41, 17),
+        yellow,
+        "where the chrome left, the anchored view shows"
+    );
 }
