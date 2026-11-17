@@ -2456,8 +2456,8 @@ where
         {
             self.apply_entry(next);
         }
-        // A seal out lets the next edit go (`passes_a_seal`): left until it lands, it would wait
-        // for the next edit to come.
+        // The next edit goes while a seal is out too (`passes_a_seal`): left until the seal
+        // lands, it would wait for the next edit to come.
         if self.waiting.is_none() || self.sealing_out() {
             self.flush();
         }
@@ -2725,8 +2725,8 @@ where
         self.rebuild_visible();
         self.cover_if_settled();
         self.take_heard_seal();
-        // A seal out lets the next edit go (`passes_a_seal`): left until it lands, it would wait
-        // for the next edit to come.
+        // The next edit goes while a seal is out too (`passes_a_seal`): left until the seal
+        // lands, it would wait for the next edit to come.
         if self.waiting.is_none() || self.sealing_out() {
             self.flush();
         }
