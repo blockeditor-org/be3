@@ -601,6 +601,9 @@ struct Open {
     /// The operations it submitted online, oldest first, while they hold edits of `replay`
     /// (`refs::OpenEdits::submissions`): one opened again submits them as they were.
     submissions: Vec<be_block_client::KeptSubmission>,
+    /// Whether one of `submissions` is not kept on the device yet: the next submission writes
+    /// them ahead even if it submits no edit past those kept.
+    unkept_submissions: bool,
     /// Why keeping its edits last failed, until they are kept (`Owing::keep_error`).
     keep_error: Option<String>,
     /// What was kept of its local edits when the host last stopped (`opening.kept-restart`,
@@ -1545,6 +1548,7 @@ impl<H: Host> Replicas<H> {
                 submitted_through,
                 kept_submitted_through: submitted_through,
                 submissions,
+                unkept_submissions: false,
                 keep_error: None,
                 kept_restart,
                 kept_through: given_up + replay_count,
@@ -1584,6 +1588,21 @@ impl<H: Host> Replicas<H> {
 
     pub fn joining(&self) -> bool {
         self.open.values().any(|open| open.joining)
+    }
+
+    /// Of `block`'s open replica: how many of its submissions are unanswered, the restarts of
+    /// the order it reported, and the `through` of each submission it keeps (`Open::submissions`).
+    #[cfg(test)]
+    pub(crate) fn submissions_of(&self, block: Uuid) -> Option<(usize, u64, Vec<u64>)> {
+        let open = self.open.get(self.blocks.get(&block)?)?;
+        Some((
+            open.submitting,
+            open.status.restarts,
+            open.submissions
+                .iter()
+                .map(|submission| submission.through)
+                .collect(),
+        ))
     }
 
     fn joined(
@@ -2238,6 +2257,7 @@ impl<H: Host> Replicas<H> {
             {
                 Ok(()) => {
                     open.kept_submitted_through = through;
+                    open.unkept_submissions = false;
                     open.keep_error = None;
                 }
                 Err(error) => {
@@ -3536,7 +3556,8 @@ impl<H: Host> Replicas<H> {
         }
         open.journaled_taken = status.journaled_taken;
         // The order started over: what was submitted before is passed over, and the edits go
-        // again as new submissions, which hold them otherwise.
+        // again as new submissions, which hold them otherwise. A replica reports a restart
+        // before it submits again (`Replica::flush`), so those are kept from here.
         if status.restarts != open.status.restarts && !open.submissions.is_empty() {
             open.submissions.clear();
             open.edits_changed = true;
@@ -3795,7 +3816,6 @@ impl<H: Host> Replicas<H> {
         let tag = be_block_store::Hash::from_bytes(self.modules.tag(module).0);
         let arrivals = peer.arrivals();
         let online = !made_up && peer.is_attached();
-        let mut identified = false;
         if online
             && let Some(submitted) = be_sdk_type_guest::wire::Submitted::decode(&submission.payload)
             && let Some(open) = self.open.get_mut(&replica)
@@ -3821,14 +3841,14 @@ impl<H: Host> Replicas<H> {
                     payload: submission.payload.clone(),
                 });
                 open.edits_changed = true;
-                identified = true;
+                open.unkept_submissions = true;
             }
         }
         // Written ahead: once the server may hold an edit, a crash must not lose that it was
         // submitted, or under what id, or the edits given again would be numbered anew.
         let mut kept = Ok(());
         if let Some(open) = self.open.get_mut(&replica)
-            && (identified || open.submitted_through > open.kept_submitted_through)
+            && (open.unkept_submissions || open.submitted_through > open.kept_submitted_through)
         {
             let (held, edits, submissions) = kept_edits(open);
             let through = held.submitted_through;
@@ -3837,6 +3857,7 @@ impl<H: Host> Replicas<H> {
                 && let Some(open) = self.open.get_mut(&replica)
             {
                 open.kept_submitted_through = through;
+                open.unkept_submissions = false;
                 open.edits_changed = false;
             }
         }
