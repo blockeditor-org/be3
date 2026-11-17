@@ -1,38 +1,81 @@
 //! The host's half of the root guest's entry (plans/host_as_platform_adapter.md, The root
-//! guest), natively: `Root` runs be-host's own module on the calling thread, which is the
-//! host's frame thread, and serves it the sandbox (be-wasm-sandbox-host) and `be3:root`'s
-//! `host` (crates/be-wasm-root-api).
+//! guest): `Root` runs be-host's own module inline on the host's frame thread, and serves it the
+//! sandbox (be-wasm-sandbox-host) and `be3:root`'s `host` (crates/be-wasm-root-api).
 //!
-//! `Root::frame` is the synchronous, resumable frame entry: it asks the root for a frame
-//! (`frames.frame`, an op the root serves) and steps it until it answers. A step that leaves the
-//! frame unanswered is the root's `Pending`: what it waits on is the ops it left open, its
-//! children's frames (`instance.next`) and `deadline`. The host then waits until one of them
-//! has something for it, steps the root again with it, and answers `deadline` once the frame's
-//! deadline passes. So the root writes ordinary async code that awaits its children, and
-//! answers within one host frame without ever blocking its own thread.
+//! A frame is the root's `frames.frame`, an op the root serves, which the host starts and steps
+//! the root through until it answers. A step that leaves the frame unanswered is the root's
+//! `Pending`: what it waits on is the ops it left open, its children's frames (`instance.next`)
+//! and `deadline`. The host steps the root again once one of them has something for it, and
+//! answers `deadline` once the frame's deadline passes. So the root writes ordinary async code
+//! that awaits its children, and answers within one host frame without ever blocking its own
+//! thread. `Core` is that stepping, the same on every platform; how the host waits between steps
+//! is not:
+//!
+//! - natively (`native`), `Root::frame` waits on a bell its instances, compiles and own wakes
+//!   ring, up to the deadline, so it returns the drawn frame;
+//! - in the browser (`web`), the page may never wait (decisions/the_web_page_never_waits.md), so
+//!   `Root::frame`, called from `requestAnimationFrame`, steps the root as far as it goes and
+//!   returns; a task resumes it whenever its workers answer, a compile finishes, it wakes itself
+//!   or the deadline passes, and the frame is handed over once the root answers.
 
-use std::{
-    sync::{Arc, Condvar, Mutex},
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use be_wasm_guest_host::STEP_TIMEOUT;
-use be_wasm_host::App;
-use be_wasm_ops::{Connection, Incoming, OpError, OpId, Outcome, Reply, Side};
+use be_wasm_ops::{Connection, Incoming, OpError, OpId, Outcome, Reply, Side, Ticket};
 use be_wasm_root_api::{FrameDone, FrameRequest, embed};
-use be_wasm_sandbox_host::{Loader, Server};
+use be_wasm_sandbox_host::Server;
+pub use be_wasm_sandbox_host::{Loader, Staged};
 
-/// The root guest, run inline on the thread that holds it. Dropping it stops the root and every
-/// instance it spawned.
-pub struct Root {
-    app: App,
+#[cfg(not(target_arch = "wasm32"))]
+mod native;
+#[cfg(not(target_arch = "wasm32"))]
+pub use native::Root;
+#[cfg(target_arch = "wasm32")]
+mod web;
+#[cfg(target_arch = "wasm32")]
+pub use web::Root;
+
+/// The root guest as its host steps it, inline on the host's thread.
+trait Inline {
+    /// Queues `frames` for the root's next step.
+    fn deliver(&mut self, frames: Vec<Vec<u8>>);
+    /// Steps the root once, or says why it trapped or panicked.
+    fn step(&mut self) -> Result<(), String>;
+    /// The frames the root sent.
+    fn take_outbound(&mut self) -> Vec<Vec<u8>>;
+    /// Whether the root woke itself since the last call.
+    fn take_wake(&mut self) -> bool;
+}
+
+/// Where a frame got to.
+enum Progress {
+    /// The root answered the frame, or why it never will: it trapped, panicked or took longer
+    /// than its patience.
+    Drawn(Result<FrameDone, String>),
+    /// The root waits for what its host has not had yet: step it again once something it waits
+    /// on rings, or at `until` at the latest.
+    Pending { until: Instant },
+}
+
+/// The frame being drawn.
+struct Drawing {
+    ticket: Ticket<FrameDone>,
+    deadline: Instant,
+    /// When the root itself counts as stopped: its patience past the deadline.
+    give_up: Instant,
+    /// Whether the deadline passed.
+    passed: bool,
+}
+
+/// The stepping both platforms share: the root, its connection, its sandbox and the frame it
+/// draws.
+struct Core<G> {
+    guest: G,
     connection: Connection,
     sandbox: Server,
-    bell: Arc<Bell>,
     /// The `deadline` calls of the frame being drawn, answered once its deadline passes.
     deadlines: Vec<Reply<()>>,
-    /// The frame being drawn: its op, and whether its deadline passed.
-    drawing: Option<(OpId, bool)>,
+    drawing: Option<Drawing>,
     /// How the frame being drawn ended, once it did.
     drawn: Option<Outcome>,
     /// Why the root stopped, once it did: it never runs again.
@@ -41,76 +84,92 @@ pub struct Root {
     patience: Duration,
 }
 
-/// Rung whenever something the root waits on may have arrived: an instance it spawned sent
-/// frames or stopped, a compile finished, or the root woke itself.
-#[derive(Default)]
-struct Bell {
-    rung: Mutex<u64>,
-    ringing: Condvar,
-}
-
-impl Bell {
-    fn rung(&self) -> u64 {
-        *self.rung.lock().unwrap_or_else(|held| held.into_inner())
-    }
-
-    fn ring(&self) {
-        let mut rung = self.rung.lock().unwrap_or_else(|held| held.into_inner());
-        *rung = rung.wrapping_add(1);
-        self.ringing.notify_all();
-    }
-
-    /// Waits until it rings after `since` or `until` passes.
-    fn wait(&self, since: u64, until: Instant) {
-        let rung = self.rung.lock().unwrap_or_else(|held| held.into_inner());
-        let left = until.saturating_duration_since(Instant::now());
-        drop(
-            self.ringing
-                .wait_timeout_while(rung, left, |rung| *rung == since)
-                .unwrap_or_else(|held| held.into_inner()),
-        );
-    }
-}
-
-impl Root {
-    /// Starts `app`, the root guest, loaded on the calling thread, whose staged apps it spawns
-    /// by id are found by `apps`.
-    pub fn start(mut app: App, apps: Loader) -> Result<Self, String> {
-        let bell = Arc::new(Bell::default());
-        let ringer = Arc::clone(&bell);
-        app.on_wake(move || ringer.ring());
-        let ringer = Arc::clone(&bell);
-        let sandbox = Server::new(Arc::new(move || ringer.ring()), apps);
-        app.start()?;
-        let mut root = Self {
-            app,
+impl<G: Inline> Core<G> {
+    /// Takes over `guest`, the root, which has started, and what it sent while it started.
+    fn new(guest: G, sandbox: Server) -> Result<Self, String> {
+        let mut core = Self {
+            guest,
             connection: Connection::new(Side::Host),
             sandbox,
-            bell,
             deadlines: Vec::new(),
             drawing: None,
             drawn: None,
             failure: None,
             patience: STEP_TIMEOUT,
         };
-        root.received()?;
-        Ok(root)
+        core.received()?;
+        Ok(core)
     }
 
-    /// How long past a frame's deadline the root itself may take, `STEP_TIMEOUT` unless set.
-    pub fn with_patience(mut self, patience: Duration) -> Self {
-        self.patience = patience;
-        self
+    /// Whether a frame is being drawn, which on the web may wait between calls.
+    #[cfg(target_arch = "wasm32")]
+    fn drawing(&self) -> bool {
+        self.drawing.is_some()
     }
 
-    /// Draws a frame for `request`, waiting for the root's children until `deadline` and for the
-    /// root itself as long as it takes, up to its patience past the deadline. A root that
-    /// trapped, panicked or took longer says why, and draws nothing again.
-    pub fn frame(&mut self, request: FrameRequest, deadline: Instant) -> Result<FrameDone, String> {
+    /// Asks the root for a frame for `request`, drawn by `deadline`, or says why the root drew
+    /// nothing since it stopped.
+    fn begin(&mut self, request: FrameRequest, deadline: Instant) -> Result<(), String> {
         if let Some(failure) = &self.failure {
             return Err(failure.clone());
         }
-        let drawn = self.draw(request, deadline);
+        let ticket = embed::exports::frames::frame(&mut self.connection, request);
+        self.drawing = Some(Drawing {
+            ticket,
+            deadline,
+            give_up: deadline.max(Instant::now()) + self.patience,
+            passed: false,
+        });
+        Ok(())
+    }
+
+    /// Steps the root as far as it goes without waiting: until it answers the frame, or waits
+    /// for something its host has not had yet.
+    fn advance(&mut self) -> Progress {
+        loop {
+            let Some(drawing) = &self.drawing else {
+                return Progress::Drawn(Err("no frame is being drawn".to_owned()));
+            };
+            let now = Instant::now();
+            // Checked before stepping, so a root that keeps waking itself, or children that keep
+            // sending, cannot hold the frame past it.
+            if now >= drawing.give_up {
+                let failure = format!(
+                    "the root's frame took over {}ms past its deadline",
+                    self.patience.as_millis()
+                );
+                return self.finish(Err(failure));
+            }
+            if now >= drawing.deadline {
+                self.pass_deadline();
+            }
+            self.serve();
+            let Some(drawing) = &self.drawing else {
+                continue;
+            };
+            let ticket = drawing.ticket;
+            // Past the deadline, the root itself may take until its patience runs out.
+            let until = match drawing.passed {
+                true => drawing.give_up,
+                false => drawing.deadline,
+            };
+            if let Some(outcome) = self.drawn.take() {
+                let drawn = ticket
+                    .decode(outcome)
+                    .map_err(|error| format!("the root did not draw its frame: {error}"));
+                return self.finish(drawn);
+            }
+            match self.step() {
+                Ok(true) => {}
+                Ok(false) => return Progress::Pending { until },
+                Err(failure) => return self.finish(Err(failure)),
+            }
+        }
+    }
+
+    /// Ends the frame being drawn with `drawn`: every `deadline` call of it answers, and a root
+    /// that failed draws nothing again.
+    fn finish(&mut self, drawn: Result<FrameDone, String>) -> Progress {
         self.drawing = None;
         self.drawn = None;
         for reply in std::mem::take(&mut self.deadlines) {
@@ -119,47 +178,14 @@ impl Root {
         if let Err(failure) = &drawn {
             self.failure = Some(failure.clone());
         }
-        drawn
-    }
-
-    fn draw(&mut self, request: FrameRequest, deadline: Instant) -> Result<FrameDone, String> {
-        let ticket = embed::exports::frames::frame(&mut self.connection, request);
-        self.drawing = Some((ticket.op(), false));
-        let give_up = deadline.max(Instant::now()) + self.patience;
-        loop {
-            let since = self.bell.rung();
-            let now = Instant::now();
-            // Checked before stepping, so a root that keeps waking itself, or children that keep
-            // sending, cannot hold the frame past it.
-            if now >= give_up {
-                return Err(format!(
-                    "the root's frame took over {}ms past its deadline",
-                    self.patience.as_millis()
-                ));
-            }
-            if now >= deadline {
-                self.pass_deadline();
-            }
-            self.serve();
-            if let Some(outcome) = self.drawn.take() {
-                return ticket
-                    .decode(outcome)
-                    .map_err(|error| format!("the root did not draw its frame: {error}"));
-            }
-            if self.step()? {
-                continue;
-            }
-            // Pending: wait until what the root waits on has something for it.
-            self.bell
-                .wait(since, if now >= deadline { give_up } else { deadline });
-        }
+        Progress::Drawn(drawn)
     }
 
     /// The frame's deadline passed: the root hears it, and every later `deadline` call of the
     /// frame answers at once.
     fn pass_deadline(&mut self) {
-        if let Some((_, passed)) = &mut self.drawing {
-            *passed = true;
+        if let Some(drawing) = &mut self.drawing {
+            drawing.passed = true;
         }
         for reply in std::mem::take(&mut self.deadlines) {
             reply.send(&mut self.connection, &());
@@ -170,19 +196,19 @@ impl Root {
     /// Answers whether it stepped.
     fn step(&mut self) -> Result<bool, String> {
         let frames = self.connection.take_outbound();
-        let woken = self.app.take_wake();
+        let woken = self.guest.take_wake();
         if frames.is_empty() && !woken {
             return Ok(false);
         }
-        self.app.deliver(frames);
-        self.app.step()?;
+        self.guest.deliver(frames);
+        self.guest.step()?;
         self.received()?;
         Ok(true)
     }
 
     /// Takes the frames the root sent.
     fn received(&mut self) -> Result<(), String> {
-        for frame in self.app.take_outbound() {
+        for frame in self.guest.take_outbound() {
             self.connection
                 .receive(&frame)
                 .map_err(|error| format!("the root sent a frame the host cannot read: {error}"))?;
@@ -215,9 +241,7 @@ impl Root {
                             .fail(&mut self.connection, OpError::Canceled);
                     }
                 }
-                Incoming::Completed { op, outcome }
-                    if self.drawing.is_some_and(|(drawing, _)| drawing == op) =>
-                {
+                Incoming::Completed { op, outcome } if self.drawing_op() == Some(op) => {
                     self.drawn = Some(outcome);
                 }
                 // Includes a frame answered after the host gave up on it: no one waits for it.
@@ -229,19 +253,17 @@ impl Root {
         self.sandbox.poll(&mut self.connection);
     }
 
+    fn drawing_op(&self) -> Option<OpId> {
+        self.drawing.as_ref().map(|drawing| drawing.ticket.op())
+    }
+
     fn call(&mut self, call: embed::Call) {
         match call {
-            embed::Call::Host(embed::host::Call::Deadline { reply }) => match self.drawing {
-                Some((_, false)) => self.deadlines.push(reply),
-                Some((_, true)) | None => reply.send(&mut self.connection, &()),
+            embed::Call::Host(embed::host::Call::Deadline { reply }) => match &self.drawing {
+                Some(drawing) if !drawing.passed => self.deadlines.push(reply),
+                Some(_) | None => reply.send(&mut self.connection, &()),
             },
         }
-    }
-}
-
-impl Drop for Root {
-    fn drop(&mut self) {
-        self.app.stop();
     }
 }
 

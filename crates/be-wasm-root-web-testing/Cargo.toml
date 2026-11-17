@@ -1,0 +1,27 @@
+[package]
+name = "be-wasm-root-web-testing"
+description = "The web's half of the root entry and of the sandbox, tested in Chromium"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+be-lib-layers = { path = "../be-lib-layers" }
+be-wasm-guest-host = { path = "../be-wasm-guest-host" }
+be-wasm-ops = { path = "../be-wasm-ops" }
+be-wasm-root-api = { path = "../be-wasm-root-api" }
+be-wasm-root-host = { path = "../be-wasm-root-host" }
+be-wasm-root-testing = { path = "../be-wasm-root-testing" }
+be-wasm-sandbox-api = { path = "../be-wasm-sandbox-api" }
+be-wasm-sandbox-host = { path = "../be-wasm-sandbox-host" }
+be-wasm-threads = { path = "../be-wasm-threads" }
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["Response", "Window"] }
+
+[lints]
+workspace = true

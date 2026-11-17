@@ -53,16 +53,37 @@ impl<P: Pictures> WebGuest<P> {
         wake: Wake,
         waiting: Arc<AtomicBool>,
     ) -> Result<Self, String> {
-        let worker = spawn()?;
-        let inbox = Rc::new(RefCell::new(Inbox::default()));
-        let onmessage = listen(&worker, Rc::clone(&inbox), wake, waiting);
         let message = message("start");
         set(&message, "url", &absolute(url).into());
         if let Some(extension) = extension {
             set(&message, "extension", &absolute(extension).into());
         }
+        Self::starting(&message, wake, waiting)
+    }
+
+    /// Starts a pure guest (guides/app_libraries.md, Pure guests) of `module`, which the page
+    /// compiled, in a worker of its own: the worker instantiates it as it is, answering only its
+    /// transport, so it needs no extension and fetches nothing.
+    pub fn start_module(
+        module: &js_sys::WebAssembly::Module,
+        wake: Wake,
+        waiting: Arc<AtomicBool>,
+    ) -> Result<Self, String> {
+        let message = message("start");
+        set(&message, "module", module);
+        Self::starting(&message, wake, waiting)
+    }
+
+    fn starting(
+        message: &js_sys::Object,
+        wake: Wake,
+        waiting: Arc<AtomicBool>,
+    ) -> Result<Self, String> {
+        let worker = spawn()?;
+        let inbox = Rc::new(RefCell::new(Inbox::default()));
+        let onmessage = listen(&worker, Rc::clone(&inbox), wake, waiting);
         worker
-            .post_message(&message)
+            .post_message(message)
             .map_err(|_| "the guest's worker could not be started".to_owned())?;
         Ok(Self {
             worker,
