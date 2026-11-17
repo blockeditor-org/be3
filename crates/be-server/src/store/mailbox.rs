@@ -7,10 +7,13 @@
 //! A notice can't be deleted in its first `NOTICE_HOLD`: whoever it warns about may hold a
 //! session too, so within it a device hides it only for itself. An account keeps at most
 //! `MAX_ACCOUNT_NOTICES` notices, letting go of the oldest past their hold, so one in its hold
-//! always stays. Letters from accounts are bounded per sender (`MAX_LETTERS_FROM_ONE`) and in
-//! all (`MAX_LETTERS`): past either, the write that would leave one is refused, since letting an
-//! old one go would break the chain of key changes a device follows. Times are kept in
-//! milliseconds.
+//! always stays. Letters of each kind are bounded per sender (`MAX_LETTERS_FROM_ONE`), so
+//! with `MAX_CONTACTS_PER_ACCOUNT` per account. Past it, accepting another link is refused, but
+//! a key change never is: a new phrase is what an account takes after a compromise, so a contact
+//! that never reads its mailbox must not hold it up. The sender's oldest key change goes
+//! instead, and the reader's device, finding the chain it follows broken, takes the contact as
+//! not confirmed until they connect again by a link (`be_block_client::contacts::contacts`).
+//! Times are kept in milliseconds.
 
 use be_block_protocol::{ErrorCode, Letter, Message};
 use rusqlite::{Connection, OptionalExtension, params};
@@ -23,10 +26,9 @@ use crate::ServerError;
 pub const MAX_ACCOUNT_NOTICES: i64 = 20;
 /// How long a notice stays in the mailbox whatever a device deletes, in milliseconds.
 pub const NOTICE_HOLD: i64 = 7 * 86_400_000;
-/// Letters one account may hold from one sender: key changes and accepted cards not yet taken.
+/// Letters of one kind one account holds from one sender: key changes, or accepted cards, not yet
+/// taken.
 pub const MAX_LETTERS_FROM_ONE: i64 = 16;
-/// Letters one account may hold from all senders.
-pub const MAX_LETTERS: i64 = 1_000;
 
 fn now() -> i64 {
     std::time::SystemTime::now()
@@ -52,25 +54,36 @@ pub(crate) fn leave(
 ) -> Result<(), ServerError> {
     let encoded = be_block_protocol::encode(letter).map_err(|_| ServerError::Corrupt)?;
     if let Some(from) = from {
-        let (one, all): (i64, i64) = connection
+        let kind = kind(letter);
+        let held: i64 = connection
             .prepare_cached(
-                "SELECT (SELECT count(*) FROM mailbox WHERE account_id = ?1 AND sender_id = ?2),
-                        (SELECT count(*) FROM mailbox WHERE account_id = ?1 AND sender_id != '')",
+                "SELECT count(*) FROM mailbox WHERE account_id = ?1 AND sender_id = ?2 AND kind = ?3",
             )?
-            .query_row(params![to.to_string(), from.to_string()], |row| {
-                Ok((row.get(0)?, row.get(1)?))
+            .query_row(params![to.to_string(), from.to_string(), kind], |row| {
+                row.get(0)
             })?;
-        if one >= MAX_LETTERS_FROM_ONE {
-            return Err(crate::limits::too_many(
-                "letters one account holds from another not yet taken",
-                MAX_LETTERS_FROM_ONE,
-            ));
-        }
-        if all >= MAX_LETTERS {
-            return Err(crate::limits::too_many(
-                "letters one account holds not yet taken",
-                MAX_LETTERS,
-            ));
+        match letter {
+            Letter::KeyChange(_) if held >= MAX_LETTERS_FROM_ONE => {
+                connection.execute(
+                    "DELETE FROM mailbox WHERE id IN (
+                        SELECT id FROM mailbox
+                        WHERE account_id = ?1 AND sender_id = ?2 AND kind = ?3
+                        ORDER BY id LIMIT ?4)",
+                    params![
+                        to.to_string(),
+                        from.to_string(),
+                        kind,
+                        held - MAX_LETTERS_FROM_ONE + 1
+                    ],
+                )?;
+            }
+            _ if held >= MAX_LETTERS_FROM_ONE => {
+                return Err(crate::limits::too_many(
+                    "letters of one kind one account holds from another not yet taken",
+                    MAX_LETTERS_FROM_ONE,
+                ));
+            }
+            _ => {}
         }
     }
     connection.execute(

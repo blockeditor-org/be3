@@ -857,10 +857,15 @@ keys the granter verified that way, which every device then seals to.
   to the pinned key, and says which (`contacts::Mismatch`: an older key, or a
   copy it can't read, as after a new phrase taken on another device) while
   the server serves it. Key changes are followed from the record kept, in
-  mailbox order, and deleted with the record that follows them written; one
-  that does not open from it (followed already, or forged) goes too, but none
-  while the served record does not open on this device, since the changes may
-  be sealed to a new phrase it lacks (`contacts::contacts`). `PutContact`
+  mailbox order, and deleted with the record that follows them written, with
+  any before the last followed that did not open (forged). One after it that
+  does not open breaks the chain: the server let older ones go past
+  `MAX_LETTERS_FROM_ONE`, or it is sealed to a phrase this account took since.
+  The contact is then listed as not confirmed, named as verified, with nothing
+  sealed to it, and the changes stay until the two connect again by a link,
+  whose write deletes those that lead nowhere from the new card. Nothing is
+  deleted while the served record does not open on this device, since the
+  changes may be sealed to a new phrase it lacks (`contacts::contacts`). `PutContact`
   writes a record only over the one the device read (`replaces`), so a device
   that read fewer changes than another never rolls the record back past a
   change the other already deleted: refused `RecordChanged`, it reads again. A

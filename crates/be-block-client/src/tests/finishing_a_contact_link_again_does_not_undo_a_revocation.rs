@@ -52,6 +52,7 @@ async fn finishing_a_contact_link_again_does_not_undo_a_revocation() {
     // Finished, but stopped before the delete.
     let opened = crate::contacts::finish_links(
         &admin.connection(),
+        admin.account(),
         admin.keys().identity(),
         admin.organization(),
     )

@@ -678,6 +678,7 @@ impl<S: ObjectStore> Peer<S> {
     pub async fn finish_links(&self) -> Result<Vec<crate::contacts::Finished>, ClientError> {
         let finished = crate::contacts::finish_links(
             &self.connection(),
+            self.account,
             self.keys.identity(),
             self.organization,
         )
