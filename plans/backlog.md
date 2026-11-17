@@ -127,6 +127,18 @@ Fixed items are removed as they land.
   holds a submission and controls when a replica loads, and a test of that
   sequence counting exactly what was made.
 
+- **A lost seal's rebase with a merge above it.** When the server lost a
+  seal's `rebase-journal` and the outbox published it and seals made on it
+  since, `journal_for` finds the seal on the server journal's base by walking
+  down the head's single-parent seals. A merge commit between them stops the
+  walk, so the replica opens on the journal's base and merges the head in on
+  top of entries the head already holds, counting them twice. Fix it either by
+  walking a merge's parents too (bounded as the walk is now: by run and by the
+  base's number), or by plans/simpler_server_api.md step 1, where a seal the
+  outbox publishes carries its journal base and the walk goes. Done: a
+  be-host-stack test that loses a seal's rebase, merges a divergent head onto
+  it offline, and counts exactly what was made once the outbox drains.
+
 ## 9. Version control's caches
 
 - **Walks that read thinning as a root.** Depends on #686, which rewrites

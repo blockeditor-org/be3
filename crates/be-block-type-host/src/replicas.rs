@@ -4738,17 +4738,22 @@ pub type Loads = (
     Option<be_sdk_type_api::SealedHead>,
 );
 
-/// What a replica opening at `head` loads: the journal on `head`; or, when `head` is a seal made
-/// on the commit the journal is still on (its holder stopped after the server took the seal and
-/// before it trimmed the journal, `Commit::sealed_through`) and the journal reaches it
-/// (`reaches_seal`), that journal on that commit, with `head` as the sealed head the replica
-/// takes once it replayed it; for the server's journal, that seal may be an ancestor of `head`
-/// along seals (the server lost the seal's rebase, and the outbox published the seal and those
-/// made on it since), which the replica takes the same way and then hears of `head`; or else,
-/// for the server's journal, the journal on its own base,
-/// which the replica opens on because the order goes on from there (it hears of `head` after,
-/// and its holder merges it in). This device's journal on another commit is passed over: what it
-/// numbered offline was sealed into the commits this device keeps.
+/// What a replica opening at `head` loads, in the first of these that holds:
+/// - The journal is on `head`: that journal on `head`.
+/// - `head` is a seal made on the commit the journal is still on (its holder stopped after the
+///   server took the seal and before it trimmed the journal, `Commit::sealed_through`) and the
+///   journal reaches it (`reaches_seal`): that journal on that commit, with `head` as the sealed
+///   head the replica takes once it replayed it.
+/// - For the server's journal, such a seal is an ancestor of `head` along seals (the server lost
+///   the seal's rebase, and the outbox published the seal and those made on it since): the same,
+///   with that seal as the sealed head; the replica hears of `head` after. Plan step 1 of
+///   plans/simpler_server_api.md removes this case, as a seal then carries its journal base.
+/// - The server's journal otherwise: that journal on its own base, which the replica opens on
+///   because the order goes on from there (it hears of `head` after, and its holder merges it
+///   in).
+/// - This device's journal on another commit is passed over: what it numbered offline was
+///   sealed into the commits this device keeps.
+///
 /// Online, the server's journal is the order: with none, the order starts afresh at its head,
 /// so this device's journal is passed over too, unless it holds edits only this device
 /// numbered, which a replica opened on it seals.
@@ -4779,7 +4784,7 @@ pub fn journal_for<S: be_block_store::ObjectStore>(
     let mut sealed = None;
     let mut at = head;
     while let Some(commit) = at {
-        let Some((parent, through)) = peer.sealed_on(commit) else {
+        let Some((parent, through)) = sealed_on(peer, commit) else {
             break;
         };
         if journal.base.commit == parent {
@@ -4795,8 +4800,13 @@ pub fn journal_for<S: be_block_store::ObjectStore>(
         // The server's journal may still be on the base of a seal the head descends from: the
         // server lost the seal's rebase, and the outbox published it and the seals after it
         // (made offline). Its entries up to the seal are in the head; opened on the base, the
-        // replica would merge them in again. It is told of the head after it loads.
-        if !from_server {
+        // replica would merge them in again. It is told of the head after it loads. Seals count
+        // on down the chain, those made offline on it too, so one of an earlier run, or at or
+        // before the base's number, has none made on the base below it: the walk stops there
+        // rather than read the block's history.
+        let below_base = through.restarts < restarts
+            || (through.restarts == restarts && through.sequence <= journal.base.sequence);
+        if !from_server || below_base {
             break;
         }
         at = parent;
@@ -4814,6 +4824,23 @@ pub fn journal_for<S: be_block_store::ObjectStore>(
         }
         None => (None, false, head, None),
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// How many commits `journal_for` read as seals on this thread.
+    pub(crate) static SEALS_READ: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// The commit `commit` was sealed on and how far it holds the order (`Peer::sealed_on`), each
+/// read counted in a test.
+fn sealed_on<S: be_block_store::ObjectStore>(
+    peer: &Peer<S>,
+    commit: CommitId,
+) -> Option<(Option<CommitId>, be_block_commit::SealedThrough)> {
+    #[cfg(test)]
+    SEALS_READ.with(|read| read.set(read.get() + 1));
+    peer.sealed_on(commit)
 }
 
 /// Starts this device's copy of the order afresh at `head` when the server holds no journal,
