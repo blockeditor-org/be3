@@ -29,6 +29,7 @@ async fn a_page_that_reads_on_through_another_trees_change_stops_at_its_own_next
                     block: Uuid::max(),
                 },
                 1000,
+                false,
             )
         })
         .await
@@ -47,7 +48,7 @@ async fn a_page_that_reads_on_through_another_trees_change_stops_at_its_own_next
     let mut pages = 0;
     loop {
         let page = owner
-            .call(|peer| client::blocks::changed_since(peer, work, after.clone(), 1000))
+            .call(|peer| client::blocks::changed_since(peer, work, after.clone(), 1000, false))
             .await
             .expect("changed-since failed");
         pages += 1;

@@ -12,7 +12,7 @@ async fn a_key_opened_from_escrow_arrives_and_unlocks_its_block() {
     let member = harness.member(&admin, "member@example.com").await;
     let team = workspace(&member, "Team").await;
 
-    let listed = admin.list(Listing::Block(team)).await.unwrap();
+    let listed = vec![admin.summary(team).await.unwrap()];
     let [summary] = listed.as_slice() else {
         panic!("the administrator lists {listed:?}");
     };

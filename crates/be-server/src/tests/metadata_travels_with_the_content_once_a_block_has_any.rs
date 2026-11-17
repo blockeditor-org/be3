@@ -10,7 +10,7 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
     let mut other = harness
         .second_connection(&author_connection.token.clone(), organization)
         .await;
-    other.list(BlockParent::Root).await;
+    other.follow(block).await;
 
     let response = author_connection
         .call(|peer| {
@@ -52,14 +52,9 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
         author_connection.read_block(block).await.metadata,
         b"sealed with content"
     );
-    let heard = loop {
-        if let Notice::BlockChanged { block: changed, .. } = other.graph_change().await
-            && changed.id == block
-            && changed.head == Some(head)
-        {
-            break changed;
-        }
-    };
+    let heard = other
+        .heard_change(block, |changed| changed.head == Some(head))
+        .await;
     assert_eq!(heard.metadata, b"sealed with content");
 
     let response = author_connection

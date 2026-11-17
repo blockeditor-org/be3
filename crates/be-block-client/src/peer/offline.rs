@@ -458,7 +458,14 @@ impl<S: ObjectStore> Peer<S> {
             version: None,
             key: Some(creation.key),
             scope,
-            revision: 0,
+            changed: 0,
+            // Its tree is its parent's, as far as this device knows.
+            entry: match creation.parent {
+                BlockParent::Block(parent) => {
+                    self.refs.summary(parent).and_then(|parent| parent.entry)
+                }
+                BlockParent::Root | BlockParent::Detached => Some(creation.block),
+            },
             held: true,
             opens_inside: false,
             sets_access: false,

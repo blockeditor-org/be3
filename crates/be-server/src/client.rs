@@ -6,9 +6,10 @@ use std::{
 
 use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{
-    AccountStorage, Authenticated, BlockChange, BrowserLogin, BrowserLoginState, Collected,
-    Contents, CreatedAgent, Error, ErrorCode, Header, LinkKind, Listing, OrganizationOpened,
-    PairingMessage, RecoveryKey, RelayKind, SessionEvent, SessionState, UploadUrl, embed,
+    AccountStorage, Authenticated, BrowserLogin, BrowserLoginState, Collected,
+    Contents, CreatedAgent, Error, ErrorCode, Header, LinkKind, OrganizationOpened,
+    PairingMessage, RecoveryKey, RelayKind, SessionEvent, SessionState, TreeAdvanced, TreeChange,
+    UploadUrl, embed,
 };
 use be_block_session::Claim;
 use be_wasm_ops::{Backlog, Incoming, OpError, OpId, Outlets, Reply, Started, net::Peer};
@@ -148,14 +149,12 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             blocks::Call::ReadContents { blocks, .. } => Rule::Blocks(blocks.clone(), Access::View),
             blocks::Call::ListHistory { block: of, .. }
             | blocks::Call::GetAccessLog { block: of, .. }
-            | blocks::Call::ChangedSince { root: of, .. } => block(*of, Access::View),
+            | blocks::Call::ChangedSince { entry: of, .. } => block(*of, Access::View),
             blocks::Call::ListAccess { block: of, .. } => block(*of, Access::Manage),
-            // Reading a block is listing it (`Connection::list`): the listing is registered
-            // before the store answers, which refuses less than `KnowExists` as not found.
-            // A listing's `rest`, which leaves out what the caller may not know of.
+            // A listing, and a listing's `rest`, leave out what the caller may not know of.
             blocks::Call::ListBlocks { .. }
             | blocks::Call::ReadSummaries { .. }
-            | blocks::Call::Unlist { .. }
+            | blocks::Call::Unfollow { .. }
             | blocks::Call::CollectDetached { .. } => Rule::Organization,
             blocks::Call::Changes { .. } => Rule::SignedIn,
         },
@@ -281,7 +280,7 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             | blocks::Call::ReadContents { .. }
             | blocks::Call::ReadSummaries { .. }
             | blocks::Call::ListBlocks { .. }
-            | blocks::Call::Unlist { .. }
+            | blocks::Call::Unfollow { .. }
             | blocks::Call::ListHistory { .. }
             | blocks::Call::GetAccessLog { .. }
             | blocks::Call::ChangedSince { .. }
@@ -699,33 +698,17 @@ impl Client {
         let streams = &mut self.streams;
         let sessions = |block: Place| move |route: &Route| matches!(route, Route::Events { block: of, .. } if *of == block);
         match push {
-            Push::BlockChanged {
-                mut block,
-                moved,
-                from,
-            } => {
-                let references = match moved {
-                    Some(moved) => be_block_protocol::ChangedReferences::Moved(moved),
-                    None => be_block_protocol::ChangedReferences::Whole(std::mem::take(
-                        &mut block.references,
-                    )),
-                };
+            Push::TreeAdvanced { entry, sequence } => {
                 streams.send(
                     &mut lock,
-                    BlockChange::Changed {
-                        block,
-                        references,
-                        from,
-                    },
+                    TreeChange::Advanced(TreeAdvanced { entry, sequence }),
                     |route| *route == Route::Changes,
                 )?;
             }
-            Push::BlockRemoved { block, revision } => {
-                streams.send(
-                    &mut lock,
-                    BlockChange::Removed { block, revision },
-                    |route| *route == Route::Changes,
-                )?;
+            Push::Roots => {
+                streams.send(&mut lock, TreeChange::Roots, |route| {
+                    *route == Route::Changes
+                })?;
             }
             Push::SessionChanged { block, state } => {
                 streams.send(&mut lock, SessionEvent::Changed(state), sessions(block))?;
@@ -1356,15 +1339,7 @@ impl Client {
                         )
                         .await?;
                     if let Some(block) = block {
-                        connection
-                            .reannounce_in(
-                                organization,
-                                vec![block],
-                                true,
-                                before,
-                                crate::blocks::Moves::new(),
-                            )
-                            .await;
+                        connection.regranted(organization, block, before).await;
                     }
                     connection.contacts_changed(&[account]).await;
                     Ok(CreatedAgent { agent, token })
@@ -1457,13 +1432,7 @@ impl Client {
                         .await?;
                     if let Some(granted) = accepted.granted {
                         connection
-                            .reannounce_in(
-                                granted.organization,
-                                vec![granted.block],
-                                true,
-                                granted.before,
-                                crate::blocks::Moves::new(),
-                            )
+                            .regranted(granted.organization, granted.block, granted.before)
                             .await;
                     }
                     connection
@@ -1691,10 +1660,16 @@ impl Client {
                             root,
                         )
                         .await?;
-                    let mut announced = vec![block.id];
-                    announced.extend(block.references.iter().copied());
-                    let moves = crate::blocks::Moves::from([(block.id, None)]);
-                    connection.redescribed(identity, announced, moves).await;
+                    let mut changed = vec![block.id];
+                    changed.extend(block.references.iter().copied());
+                    connection
+                        .advance(identity.organization, changed, false, Vec::new())
+                        .await;
+                    if matches!(parent, BlockParent::Root | BlockParent::Detached) {
+                        connection
+                            .roots(identity.organization, vec![block.id], BTreeSet::new())
+                            .await;
+                    }
                     Ok(block)
                 }
                 .await;
@@ -1718,17 +1693,15 @@ impl Client {
                 let set = async {
                     prelude?;
                     let identity = connection.identity()?;
-                    let (block, relinked, moved) = connection
+                    let (block, relinked) = connection
                         .store
                         .set_metadata(identity, block, metadata, references)
                         .await?;
-                    let mut announced = vec![block.id];
-                    announced.extend(relinked);
-                    let moves = moved
-                        .map(|moved| (block.id, Some(moved)))
-                        .into_iter()
-                        .collect();
-                    connection.redescribed(identity, announced, moves).await;
+                    let mut changed = vec![block.id];
+                    changed.extend(relinked);
+                    connection
+                        .advance(identity.organization, changed, false, Vec::new())
+                        .await;
                     Ok(block)
                 }
                 .await;
@@ -1758,24 +1731,14 @@ impl Client {
                             references, metadata,
                         )
                         .await?;
-                    match &outcome {
-                        // Its metadata or references changed: who may be told is the audience.
-                        PublishOutcome::Published(_, Some(redescribed)) => {
-                            let mut blocks = vec![block];
-                            blocks.extend(redescribed.relinked.iter().copied());
-                            let moves = redescribed
-                                .moved
-                                .clone()
-                                .map(|moved| (block, Some(moved)))
-                                .into_iter()
-                                .collect();
-                            connection.redescribed(identity, blocks, moves).await;
-                        }
-                        // Only its head moved: only who was told of it already hears.
-                        PublishOutcome::Published(_, None) => {
-                            connection.announce_head(identity.organization, block).await;
-                        }
-                        PublishOutcome::Rejected(_) => {}
+                    // Its tree advanced, and so did those of the blocks it started or stopped
+                    // referencing.
+                    if let PublishOutcome::Published(_, relinked) = &outcome {
+                        let mut changed = vec![block];
+                        changed.extend(relinked.iter().copied());
+                        connection
+                            .advance(identity.organization, changed, false, Vec::new())
+                            .await;
                     }
                     Ok(match outcome {
                         PublishOutcome::Published(head, _) => {
@@ -1829,12 +1792,19 @@ impl Client {
                 let moved = async {
                     prelude?;
                     let identity = connection.identity()?;
-                    let (before, lost) = connection
+                    let crate::blocks::Moved {
+                        before,
+                        lost,
+                        above,
+                    } = connection
                         .store
                         .set_parent(identity, block, parent, keys)
                         .await?;
                     connection
-                        .reannounce(identity, vec![block], true, before.clone())
+                        .advance(identity.organization, vec![block], true, above)
+                        .await;
+                    connection
+                        .roots(identity.organization, vec![block], before.clone())
                         .await;
                     if !lost.is_empty() {
                         connection
@@ -1867,7 +1837,10 @@ impl Client {
             } => {
                 let listed = async {
                     prelude?;
-                    connection.list(listing, after).await
+                    connection
+                        .store
+                        .list_page(connection.identity()?, listing, after)
+                        .await
                 }
                 .await;
                 self.reply(reply, listed);
@@ -1892,15 +1865,15 @@ impl Client {
                 .await;
                 self.reply(reply, read);
             }
-            Call::Unlist { reply, listing } => {
-                let unlisted = async {
+            Call::Unfollow { reply, entry } => {
+                let unfollowed = async {
                     prelude?;
                     connection.identity()?;
-                    connection.hub.unlist(connection.client, listing).await;
+                    connection.hub.unfollow(connection.client, entry).await;
                     Ok(())
                 }
                 .await;
-                self.reply(reply, unlisted);
+                self.reply(reply, unfollowed);
             }
             Call::Changes { stream } => {
                 if prelude.is_err() {
@@ -1911,16 +1884,36 @@ impl Client {
             }
             Call::ChangedSince {
                 reply,
-                root,
+                entry,
                 after,
                 limit,
+                follow,
             } => {
                 let changed = async {
                     prelude?;
-                    connection
+                    let identity = connection.identity()?;
+                    // Followed before it is read, so nothing changed during the read is missed.
+                    if follow {
+                        connection.hub.follow(connection.client, entry).await?;
+                    }
+                    let page = connection
                         .store
-                        .changed_since(connection.identity()?, root, after, limit)
-                        .await
+                        .changed_since(identity, entry, after, limit)
+                        .await;
+                    match &page {
+                        Ok(page) if page.next.is_none() => {
+                            connection
+                                .hub
+                                .read(connection.client, entry, page.sequence)
+                                .await;
+                        }
+                        Ok(_) => {}
+                        Err(_) if follow => {
+                            connection.hub.unfollow(connection.client, entry).await;
+                        }
+                        Err(_) => {}
+                    }
+                    page
                 }
                 .await;
                 self.reply(reply, changed);
@@ -1941,10 +1934,11 @@ impl Client {
                     prelude?;
                     let identity = connection.identity()?;
                     let collected = connection.store.collect_detached(identity).await?;
-                    for block in &collected.blocks {
+                    // What it deleted lay in the trash, which each member reads again.
+                    if !collected.blocks.is_empty() {
                         connection
                             .hub
-                            .removed(identity.organization, *block, collected.revision)
+                            .announce(identity.organization, Push::Roots)
                             .await;
                     }
                     Ok(Collected {
@@ -2578,7 +2572,7 @@ impl Client {
                         .rotate(identity, roots.clone(), keys)
                         .await?;
                     connection
-                        .reannounce(identity, roots, true, BTreeSet::new())
+                        .advance(identity.organization, roots, true, Vec::new())
                         .await;
                     Ok(())
                 }
@@ -2820,14 +2814,8 @@ impl Connection {
     async fn revoked(&self, revoked: &[contacts::Granted], accounts: &[Uuid]) {
         let mut organizations = BTreeSet::new();
         for granted in revoked {
-            self.reannounce_in(
-                granted.organization,
-                vec![granted.block],
-                true,
-                granted.before.clone(),
-                crate::blocks::Moves::new(),
-            )
-            .await;
+            self.regranted(granted.organization, granted.block, granted.before.clone())
+                .await;
             self.key_work_changed(granted.organization, granted.before.clone())
                 .await;
             organizations.insert(granted.organization);
@@ -2916,140 +2904,56 @@ impl Connection {
         }
     }
 
-    async fn reannounce(
-        &self,
-        identity: Identity,
-        blocks: Vec<Uuid>,
-        subtree: bool,
-        before: BTreeSet<Uuid>,
-    ) {
-        self.reannounce_in(
-            identity.organization,
-            blocks,
-            subtree,
-            before,
-            crate::blocks::Moves::new(),
-        )
-        .await;
-    }
-
-    /// Tells the audience of `blocks` of a change to the first of them that may have moved its
-    /// references or metadata, and to the rest it linked or unlinked; `moves` names what it did
-    /// to references.
-    async fn redescribed(
-        &self,
-        identity: Identity,
-        blocks: Vec<Uuid>,
-        moves: crate::blocks::Moves,
-    ) {
-        self.reannounce_in(identity.organization, blocks, false, BTreeSet::new(), moves)
-            .await;
-    }
-
-    /// Tells the connections that know `block` its summary after a publish that moved only its
-    /// head, which changes no listing's match, so the audience at large need not be read.
-    async fn announce_head(&self, organization: Uuid, block: Uuid) {
-        let members = self.hub.knowing(organization, block).await;
-        if members.is_empty() {
-            return;
-        }
-        self.tell_views(
-            organization,
-            members,
-            vec![block],
-            false,
-            crate::blocks::Moves::new(),
-        )
-        .await;
-    }
-
-    /// Tells each of `members` what it may see of a change to `blocks` (`graph_views`), each
-    /// block matched against its listings by the graph as the change left it.
-    async fn tell_views(
+    /// Tells the followers of the trees `blocks` lie in (with `subtree`, the trees of every
+    /// block below them too) and of those of `above`, the blocks above them before a move,
+    /// that they advanced (`WatchHub::advance`), each one that may still view what it follows.
+    async fn advance(
         &self,
         organization: Uuid,
-        members: Vec<(u64, Identity)>,
         blocks: Vec<Uuid>,
         subtree: bool,
-        moves: crate::blocks::Moves,
+        above: Vec<Uuid>,
     ) {
-        let clients: Vec<u64> = members.iter().map(|(client, _)| *client).collect();
-        let links = self.hub.links(&clients).await;
-        let asked = members
-            .iter()
-            .map(|(_, member)| *member)
-            .zip(links.iter().cloned())
-            .collect();
-        let Ok(views) = self
+        let advanced = self
             .store
-            .graph_views(organization, asked, blocks, subtree, moves, self.client)
-            .await
-        else {
+            .advanced(organization, blocks, subtree, above)
+            .await;
+        let Ok((sequence, path)) = advanced else {
             return;
         };
-        for ((client, links), messages) in clients.into_iter().zip(links).zip(views) {
-            for (message, seen) in messages {
-                self.hub.tell(client, message, seen, &links).await;
+        let followers = self.hub.followers(organization, &path).await;
+        if followers.is_empty() {
+            return;
+        }
+        let asked = followers
+            .iter()
+            .map(|(_, identity, entry)| (*identity, *entry))
+            .collect();
+        let Ok(viewing) = self.store.viewing(organization, asked).await else {
+            return;
+        };
+        for ((client, _, entry), viewing) in followers.into_iter().zip(viewing) {
+            if viewing {
+                self.hub.advance(client, entry, sequence).await;
             }
         }
     }
 
-    async fn reannounce_in(
-        &self,
-        organization: Uuid,
-        blocks: Vec<Uuid>,
-        subtree: bool,
-        before: BTreeSet<Uuid>,
-        moves: crate::blocks::Moves,
-    ) {
-        let Ok(mut accounts) = self.store.audience(organization, blocks.clone()).await else {
+    /// Tells whoever may know of `blocks` now, and `before`, that their roots may have changed
+    /// (`tree-change.roots`): a move or a grant.
+    async fn roots(&self, organization: Uuid, blocks: Vec<Uuid>, before: BTreeSet<Uuid>) {
+        let Ok(mut accounts) = self.store.audience(organization, blocks).await else {
             return;
         };
         accounts.extend(before);
-        let members = self.hub.audience(organization, &accounts).await;
-        self.tell_views(organization, members, blocks, subtree, moves)
-            .await;
+        self.hub.roots(organization, &accounts).await;
     }
 
-    async fn list(
-        &self,
-        listing: Listing,
-        after: Option<Uuid>,
-    ) -> Result<be_block_protocol::Listed, ServerError> {
-        let identity = self.identity()?;
-        let new = self.hub.list(self.client, listing).await?;
-        let listed = match listing {
-            // Whether a listing holds it through references was told as that listing was read,
-            // which stays (`WatchHub::listed`).
-            Listing::Block(block) => self.store.read_block(identity, block).await.map(|summary| {
-                let seen = crate::watch::Seen::default();
-                let told = vec![(block, crate::watch::Facts::of(&summary, seen))];
-                let listed = be_block_protocol::Listed {
-                    revision: summary.revision,
-                    blocks: vec![summary],
-                    rest: Vec::new(),
-                    next: None,
-                };
-                (listed, told)
-            }),
-            _ => {
-                let links = self.hub.links(&[self.client]).await.remove(0);
-                self.store.list_page(identity, listing, after, links).await
-            }
-        };
-        let (listed, told) = match listed {
-            Ok(listed) => listed,
-            Err(error) => {
-                self.hub.refused(self.client, listing, new).await;
-                return Err(error);
-            }
-        };
-        #[cfg(test)]
-        if let Listing::Block(block) = listing {
-            crate::store::held::listing(block).await;
-        }
-        self.hub.listed(self.client, listing, told).await;
-        Ok(listed)
+    /// Who may view `block` and what is below it changed: `before` could know of it.
+    async fn regranted(&self, organization: Uuid, block: Uuid, before: BTreeSet<Uuid>) {
+        self.advance(organization, vec![block], true, Vec::new())
+            .await;
+        self.roots(organization, vec![block], before).await;
     }
 
     async fn announce(&self, block: Place, state: &SessionState) {

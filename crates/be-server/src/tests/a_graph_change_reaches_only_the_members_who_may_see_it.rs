@@ -45,17 +45,12 @@ async fn grant(owner: &mut TestClient, block: Uuid, account: Uuid, access: Acces
     assert!(matches!(response, Ok(())), "{response:?}");
 }
 
-async fn changes(client: &mut TestClient, count: usize) -> Vec<(Uuid, bool)> {
-    let mut seen = Vec::new();
-    for _ in 0..count {
-        seen.push(match client.graph_change().await {
-            Notice::BlockChanged { block, .. } => (block.id, true),
-            Notice::BlockRemoved { block, .. } => (block, false),
-            other => panic!("{other:?}"),
-        });
+/// The next `tree-advanced` or `roots` told, skipping nothing.
+async fn told(client: &mut TestClient) -> Notice {
+    match client.graph_change().await {
+        Notice::TreeAdvanced { entry, .. } => Notice::TreeAdvanced { entry, sequence: 0 },
+        other => other,
     }
-    seen.sort();
-    seen
 }
 
 #[tokio::test]
@@ -81,10 +76,11 @@ async fn a_graph_change_reaches_only_the_members_who_may_see_it() {
 
     grant(&mut owner, folder, account, Access::View).await;
     assert_eq!(
-        changes(&mut viewer, 1).await,
-        [(folder, true)],
-        "a block inside a folder is heard of only once the folder is listed"
+        told(&mut viewer).await,
+        Notice::Roots,
+        "a grant changes what the grantee finds at the top"
     );
+    assert_eq!(viewer.follow(inside).await, folder);
     let listed = viewer.list(BlockParent::Block(folder)).await;
     assert_eq!(
         listed.iter().map(|block| block.id).collect::<Vec<_>>(),
@@ -97,19 +93,44 @@ async fn a_graph_change_reaches_only_the_members_who_may_see_it() {
         })
         .await;
     assert!(matches!(response, Ok(_)), "{response:?}");
-    assert_eq!(changes(&mut viewer, 1).await, [(inside, true)]);
+    assert_eq!(
+        told(&mut viewer).await,
+        Notice::TreeAdvanced {
+            entry: folder,
+            sequence: 0
+        }
+    );
+    let (changed, _) = viewer.read_changes(folder).await;
+    assert!(changed.iter().any(|block| block.id == inside));
 
     grant(&mut owner, folder, account, Access::None).await;
-    let mut expected = vec![(folder, false), (inside, false)];
-    expected.sort();
-    assert_eq!(changes(&mut viewer, 2).await, expected);
+    assert_eq!(told(&mut viewer).await, Notice::Roots);
+    let response = viewer
+        .call(|peer| {
+            client::blocks::changed_since(
+                peer,
+                folder,
+                be_block_protocol::ChangeCursor {
+                    changed: 0,
+                    block: Uuid::max(),
+                },
+                10,
+                false,
+            )
+        })
+        .await;
+    assert!(
+        response.is_err(),
+        "a tree is read only by who may view it: {response:?}"
+    );
 
     let own = outsider.create_block(BlockParent::Root).await;
     assert_eq!(
-        changes(&mut outsider, 1).await,
-        [(own, true)],
+        told(&mut outsider).await,
+        Notice::Roots,
         "the outsider heard of blocks it may not see"
     );
+    assert_eq!(outsider.follow(own).await, own);
 
     harness.stop().await;
 }

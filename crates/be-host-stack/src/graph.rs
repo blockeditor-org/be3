@@ -6,12 +6,41 @@ use std::{
 use be_block_commit::CommitId;
 use be_block_content::{BlockMetadata, Entries};
 use be_block_graph::{Access, BlockParent};
-pub use be_block_protocol::Listing;
 use be_block_repository::{local_id, masked, scope_mask};
 use be_sdk_api::BlockIdRole;
 use uuid::Uuid;
 
 use crate::diff::Diff;
+
+/// What the mirror reads from the server: a listing (`be_block_protocol::Listing`), or one
+/// block's own summary.
+#[derive(
+    Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize,
+)]
+pub enum Listing {
+    Children(BlockParent),
+    Deleted,
+    Shared,
+    Backrefs(Uuid),
+    Block(Uuid),
+    References(Uuid),
+    OpenSettings(Uuid),
+}
+
+impl Listing {
+    /// The server's listing this reads, or none for a block's own summary.
+    pub fn served(self) -> Option<be_block_protocol::Listing> {
+        Some(match self {
+            Self::Children(parent) => be_block_protocol::Listing::Children(parent),
+            Self::Deleted => be_block_protocol::Listing::Deleted,
+            Self::Shared => be_block_protocol::Listing::Shared,
+            Self::Backrefs(block) => be_block_protocol::Listing::Backrefs(block),
+            Self::References(block) => be_block_protocol::Listing::References(block),
+            Self::OpenSettings(block) => be_block_protocol::Listing::OpenSettings(block),
+            Self::Block(_) => return None,
+        })
+    }
+}
 
 #[derive(Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 #[cfg_attr(not(test), derive(Clone))]
@@ -30,6 +59,11 @@ pub struct Node {
     /// Bytes the server keeps for this block alone, and with every block below it.
     pub size: u64,
     pub tree_size: u64,
+    /// The organization's sequence at the block's last change (`block-summary.changed`).
+    pub changed: u64,
+    /// The entry point whose tree the mirror follows to hear of the block's changes
+    /// (`block-summary.entry`).
+    pub entry: Option<Uuid>,
 }
 
 #[cfg(test)]
@@ -57,6 +91,8 @@ impl Clone for Node {
             sets_access: self.sets_access,
             size: self.size,
             tree_size: self.tree_size,
+            changed: self.changed,
+            entry: self.entry,
         }
     }
 }
@@ -137,6 +173,20 @@ struct Listed {
     again: bool,
 }
 
+/// An entry point the mirror follows because some node it holds lies in its tree
+/// (`Node::entry`): read with `changed-since` from `cursor` when the server says its tree
+/// advanced (`Graph::advanced`).
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Follow {
+    /// The nodes held whose entry it is; at none, it is unfollowed.
+    nodes: u32,
+    /// The sequence its tree was read to.
+    cursor: u64,
+    fetch: Fetch,
+    /// Advanced while a read was under way: read once more when it lands.
+    again: bool,
+}
+
 #[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
 pub struct Graph {
     /// Counts the changes to the mirror, for the stack's own work to tell whether it moved;
@@ -147,10 +197,15 @@ pub struct Graph {
     nodes: imbl::OrdMap<Uuid, Arc<Node>>,
     wants: HashMap<Owner, Vec<Query>>,
     listings: imbl::OrdMap<Listing, Listed>,
-    unlisted: Vec<Listing>,
+    /// The newest `changed` heard of each block, so an older answer never undoes a newer one.
     heard: imbl::OrdMap<Uuid, u64>,
-    floor: u64,
     pending: imbl::OrdMap<Uuid, u32>,
+    /// The entry points followed, which only the worker reads.
+    #[serde(skip)]
+    follows: imbl::OrdMap<Uuid, Follow>,
+    /// Entry points no node lies in any more, to unfollow.
+    #[serde(skip)]
+    unfollowed: Vec<Uuid>,
     /// Blocks made here that the drain has not sent yet (`made`): no listing the server answers
     /// can hold one, so it stays a member of the listings it belongs in until the drain sends
     /// its creation (`relist_around`), and they are asked for again.
@@ -194,9 +249,7 @@ pub(crate) struct GraphDelta {
     nodes: Option<<imbl::OrdMap<Uuid, Arc<Node>> as Diff>::Delta>,
     wants: Option<HashMap<Owner, Vec<Query>>>,
     listings: Option<<imbl::OrdMap<Listing, Listed> as Diff>::Delta>,
-    unlisted: Option<Vec<Listing>>,
     heard: Option<<imbl::OrdMap<Uuid, u64> as Diff>::Delta>,
-    floor: Option<u64>,
     pending: Option<<imbl::OrdMap<Uuid, u32> as Diff>::Delta>,
     unpublished: Option<<imbl::OrdSet<Uuid> as Diff>::Delta>,
     derived: Option<<imbl::OrdMap<Uuid, Entries> as Diff>::Delta>,
@@ -220,10 +273,10 @@ impl Diff for Graph {
             nodes,
             wants,
             listings,
-            unlisted,
             heard,
-            floor,
             pending,
+            follows: _,
+            unfollowed: _,
             unpublished,
             nodes_moved: _,
             #[cfg(test)]
@@ -241,9 +294,7 @@ impl Diff for Graph {
             nodes: Diff::diff(&old.nodes, nodes),
             wants: changed(&old.wants, wants),
             listings: Diff::diff(&old.listings, listings),
-            unlisted: changed(&old.unlisted, unlisted),
             heard: Diff::diff(&old.heard, heard),
-            floor: changed(&old.floor, floor),
             pending: Diff::diff(&old.pending, pending),
             unpublished: Diff::diff(&old.unpublished, unpublished),
             derived: Diff::diff(&old.derived, derived),
@@ -256,9 +307,7 @@ impl Diff for Graph {
             nodes,
             wants,
             listings,
-            unlisted,
             heard,
-            floor,
             pending,
             unpublished,
             derived,
@@ -270,9 +319,7 @@ impl Diff for Graph {
             || nodes.is_some()
             || wants.is_some()
             || listings.is_some()
-            || unlisted.is_some()
             || heard.is_some()
-            || floor.is_some()
             || pending.is_some()
             || unpublished.is_some()
             || derived.is_some()
@@ -288,9 +335,7 @@ impl Diff for Graph {
             nodes,
             wants,
             listings,
-            unlisted,
             heard,
-            floor,
             pending,
             unpublished,
             derived,
@@ -310,14 +355,8 @@ impl Diff for Graph {
         if let Some(listings) = listings {
             self.listings.apply(listings);
         }
-        if let Some(unlisted) = unlisted {
-            self.unlisted = unlisted;
-        }
         if let Some(heard) = heard {
             self.heard.apply(heard);
-        }
-        if let Some(floor) = floor {
-            self.floor = floor;
         }
         if let Some(pending) = pending {
             self.pending.apply(pending);
@@ -349,10 +388,10 @@ impl PartialEq for Graph {
             nodes,
             wants,
             listings,
-            unlisted,
             heard,
-            floor,
             pending,
+            follows: _,
+            unfollowed: _,
             unpublished,
             nodes_moved: _,
             #[cfg(test)]
@@ -369,9 +408,7 @@ impl PartialEq for Graph {
             && *nodes == other.nodes
             && *wants == other.wants
             && *listings == other.listings
-            && *unlisted == other.unlisted
             && *heard == other.heard
-            && *floor == other.floor
             && *pending == other.pending
             && *unpublished == other.unpublished
             && *derived == other.derived
@@ -395,13 +432,13 @@ pub struct Dropped {
 }
 
 /// Blocks the server's answer to a listing left out while this device held each as belonging
-/// in it, with the revision the answer was read at and whether it answered a request made
+/// in it, with the sequence the answer was read at and whether it answered a request made
 /// before a change asked for the listing again.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct UnlistedHeld {
     pub listing: Listing,
     pub blocks: Vec<Uuid>,
-    pub revision: u64,
+    pub sequence: u64,
     pub stale: bool,
 }
 
@@ -438,11 +475,7 @@ impl Graph {
             .copied()
             .collect();
         for listing in dropped {
-            if let Some(listed) = self.listings.remove(&listing)
-                && listed.fetch != Fetch::Wanted
-            {
-                self.unlisted.push(listing);
-            }
+            self.listings.remove(&listing);
         }
         let mut changed = self.listings.len() != before;
         for listing in desired {
@@ -482,7 +515,10 @@ impl Graph {
             Query::Shared => {
                 into.insert(Listing::Shared);
             }
+            // The folder's own summary too: its entry is the tree followed for what joins it,
+            // however empty it is.
             Query::Children(parent) => {
+                into.insert(Listing::Block(parent));
                 into.insert(Listing::Children(BlockParent::Block(parent)));
             }
             Query::Backrefs(block) => {
@@ -531,14 +567,12 @@ impl Graph {
         listings
     }
 
-    /// Whether `take_wanted` or `take_unlisted` has anything to take: asked first, since taking
-    /// changes the graph, which copies it while a `Seen` handed over shares it.
+    /// Whether `take_wanted` has anything to take: asked first, since taking changes the graph,
+    /// which copies it while a `Seen` handed over shares it.
     pub fn has_listings_to_take(&self) -> bool {
-        !self.unlisted.is_empty()
-            || self
-                .listings
-                .values()
-                .any(|listed| listed.fetch == Fetch::Wanted)
+        self.listings
+            .values()
+            .any(|listed| listed.fetch == Fetch::Wanted)
     }
 
     pub fn take_wanted(&mut self) -> Vec<Listing> {
@@ -556,11 +590,8 @@ impl Graph {
         found
     }
 
-    pub fn take_unlisted(&mut self) -> Vec<Listing> {
-        std::mem::take(&mut self.unlisted)
-    }
-
-    pub fn listed(&mut self, listing: Listing, nodes: Vec<Node>, revision: u64) {
+    /// A listing's answer, read at the organization's `sequence`.
+    pub fn listed(&mut self, listing: Listing, nodes: Vec<Node>, sequence: u64) {
         let Some(listed) = self.listings.get_mut(&listing) else {
             return;
         };
@@ -600,7 +631,7 @@ impl Graph {
                         || self
                             .heard
                             .get(&node.id)
-                            .is_some_and(|heard| *heard > revision)
+                            .is_some_and(|heard| *heard > sequence)
                 })
                 .filter(|node| member(listing, node, &self.nodes) == Some(true))
                 .map(|node| node.id),
@@ -618,14 +649,13 @@ impl Graph {
             self.unlisted_held.push(UnlistedHeld {
                 listing,
                 blocks: unlisted,
-                revision,
+                sequence,
                 stale,
             });
         }
-        self.floor = self.floor.max(revision);
         for node in nodes {
-            if self.hear(node.id, revision) && !self.pending.contains_key(&node.id) {
-                self.insert(node);
+            if self.hear(node.id, node.changed) && !self.pending.contains_key(&node.id) {
+                self.insert(node, sequence);
             }
         }
         self.prune();
@@ -704,9 +734,17 @@ impl Graph {
         }
     }
 
+    /// A new connection: every listing is read again, and every entry point followed again from
+    /// where it was read to, since the server follows nothing for it yet.
     pub fn relist_all(&mut self) {
         self.heard.clear();
-        self.floor = 0;
+        let entries: Vec<Uuid> = self.follows.keys().copied().collect();
+        for entry in entries {
+            if let Some(follow) = self.follows.get_mut(&entry) {
+                follow.fetch = Fetch::Wanted;
+                follow.again = false;
+            }
+        }
         let fetched: Vec<Listing> = self
             .listings
             .iter()
@@ -785,7 +823,8 @@ impl Graph {
         }
     }
 
-    pub fn put(&mut self, node: Node, revision: u64) {
+    /// A block's summary, read at `sequence` (its own `changed` when nothing says more).
+    pub fn put(&mut self, node: Node, sequence: u64) {
         // A block whose own listing failed, or may (asked for offline before this device made
         // it, or heard of it), answers it now.
         let listing = Listing::Block(node.id);
@@ -796,37 +835,225 @@ impl Graph {
         {
             self.relist(listing);
         }
-        if self.hear(node.id, revision) && !self.pending.contains_key(&node.id) {
-            self.insert(node);
+        if self.hear(node.id, node.changed) && !self.pending.contains_key(&node.id) {
+            self.insert(node, sequence);
         }
     }
 
     /// Puts a node read again from what this device already heard of it (keys arrived that
-    /// open it), as of `revision`; one it does not hold, has a change pending on, or heard of
-    /// at a newer revision since is left as it is.
-    pub fn reread(&mut self, node: Node, revision: u64) {
-        let newest = self.heard.get(&node.id).copied().unwrap_or(self.floor);
-        if revision >= newest
+    /// open it); one it does not hold, has a change pending on, or heard of newer since is left
+    /// as it is.
+    pub fn reread(&mut self, node: Node) {
+        let newest = self.heard.get(&node.id).copied().unwrap_or_default();
+        if node.changed >= newest
             && self.nodes.contains_key(&node.id)
             && !self.pending.contains_key(&node.id)
         {
-            self.insert(node);
+            let changed = node.changed;
+            self.insert(node, changed);
         }
     }
 
-    pub fn remove(&mut self, block: Uuid, revision: u64) {
-        if self.hear(block, revision) {
+    /// A block gone as of `sequence`.
+    pub fn remove(&mut self, block: Uuid, sequence: u64) {
+        if self.hear(block, sequence) {
             self.forget(block);
         }
     }
 
-    fn hear(&mut self, block: Uuid, revision: u64) -> bool {
-        let newest = self.heard.get(&block).copied().unwrap_or(self.floor);
-        if revision < newest {
+    fn hear(&mut self, block: Uuid, changed: u64) -> bool {
+        let newest = self.heard.get(&block).copied().unwrap_or_default();
+        if changed < newest {
             return false;
         }
-        self.heard.insert(block, revision);
+        self.heard.insert(block, changed);
         true
+    }
+
+    /// Whether `node` belongs in what the mirror holds: it holds the block, or one of its
+    /// listings would list it.
+    fn holds_or_lists(&self, node: &Node) -> bool {
+        self.nodes.contains_key(&node.id)
+            || self.listings.contains_key(&Listing::Block(node.id))
+            || node
+                .parent
+                .is_some_and(|parent| self.listings.contains_key(&Listing::Children(parent)))
+            || (node.parent.is_some() && !node.held && self.listings.contains_key(&Listing::Deleted))
+            || node
+                .references
+                .iter()
+                .any(|target| self.listings.contains_key(&Listing::Backrefs(*target)))
+            || self.listings.keys().any(|listing| {
+                matches!(listing, Listing::References(_))
+                    && member(*listing, node, &self.nodes) == Some(true)
+            })
+    }
+
+    /// Counts a node in or out of its entry point's tree (`Follow::nodes`): the first in follows
+    /// it from `at`, the last out unfollows it.
+    fn count_entry(&mut self, entry: Option<Uuid>, at: u64, held: bool) {
+        let Some(entry) = entry else {
+            return;
+        };
+        match held {
+            true => {
+                self.follows
+                    .entry(entry)
+                    .or_insert_with(|| Follow {
+                        cursor: at,
+                        ..Follow::default()
+                    })
+                    .nodes += 1;
+            }
+            false => {
+                let Some(follow) = self.follows.get_mut(&entry) else {
+                    return;
+                };
+                follow.nodes = follow.nodes.saturating_sub(1);
+                if follow.nodes == 0
+                    && let Some(follow) = self.follows.remove(&entry)
+                    && follow.fetch != Fetch::Wanted
+                {
+                    self.unfollowed.push(entry);
+                }
+            }
+        }
+    }
+
+    /// Whether `take_follows` has anything to take.
+    pub fn has_follows_to_take(&self) -> bool {
+        !self.unfollowed.is_empty()
+            || self
+                .follows
+                .values()
+                .any(|follow| follow.fetch == Fetch::Wanted)
+    }
+
+    /// The entry points to read (and follow) from their cursors, and those to unfollow.
+    pub fn take_follows(&mut self) -> (Vec<(Uuid, u64)>, Vec<Uuid>) {
+        let wanted: Vec<(Uuid, u64)> = self
+            .follows
+            .iter()
+            .filter(|(_, follow)| follow.fetch == Fetch::Wanted)
+            .map(|(entry, follow)| (*entry, follow.cursor))
+            .collect();
+        for (entry, _) in &wanted {
+            if let Some(follow) = self.follows.get_mut(entry) {
+                follow.fetch = Fetch::Fetching;
+            }
+        }
+        (wanted, std::mem::take(&mut self.unfollowed))
+    }
+
+    /// The server says the tree of `entry` advanced to `sequence` (`tree-advanced`).
+    pub fn advanced(&mut self, entry: Uuid, sequence: u64) {
+        let Some(follow) = self.follows.get_mut(&entry) else {
+            return;
+        };
+        match follow.fetch {
+            Fetch::Fetching => follow.again = true,
+            _ if follow.cursor < sequence => follow.fetch = Fetch::Wanted,
+            _ => {}
+        }
+    }
+
+    /// What changed in the tree of `entry` up to `sequence`: `nodes` changed in it, and
+    /// `removed` left it. Only what the mirror holds, or a listing it holds would list, is
+    /// taken. Answers the blocks it holds that left the tree, for the worker to read again
+    /// wherever they went.
+    pub fn followed(
+        &mut self,
+        entry: Uuid,
+        nodes: Vec<Node>,
+        removed: &[Uuid],
+        sequence: u64,
+    ) -> Vec<Uuid> {
+        if let Some(follow) = self.follows.get_mut(&entry) {
+            follow.cursor = follow.cursor.max(sequence);
+            follow.fetch = match std::mem::take(&mut follow.again) {
+                true => Fetch::Wanted,
+                false => Fetch::Loaded,
+            };
+        }
+        for node in nodes {
+            // A block whose references changed, or that a block started or stopped referencing,
+            // is in a changed tree: what links to it is read again.
+            self.relist(Listing::Backrefs(node.id));
+            if self.holds_or_lists(&node)
+                && self.hear(node.id, node.changed)
+                && !self.pending.contains_key(&node.id)
+            {
+                self.insert(node, sequence);
+            }
+        }
+        self.prune();
+        self.moved();
+        self.refresh_listings();
+        removed
+            .iter()
+            .copied()
+            .filter(|block| self.nodes.contains_key(block))
+            .collect()
+    }
+
+    /// A read of the tree of `entry` was refused: it is not read again until something follows
+    /// it anew, and the listings holding what lies in it are read again.
+    pub fn follow_failed(&mut self, entry: Uuid) {
+        if let Some(follow) = self.follows.get_mut(&entry) {
+            follow.fetch = Fetch::Failed(String::new());
+            follow.again = false;
+        }
+        let holding: Vec<Listing> = self
+            .listings
+            .iter()
+            .filter(|(_, listed)| {
+                listed.members.iter().any(|block| {
+                    self.nodes
+                        .get(block)
+                        .is_some_and(|node| node.entry == Some(entry))
+                })
+            })
+            .map(|(listing, _)| *listing)
+            .collect();
+        for listing in holding {
+            self.relist(listing);
+        }
+    }
+
+    /// A read of the tree of `entry` failed with the connection it was asked on: it waits for
+    /// the next one, which reads every followed tree again (`relist_all`).
+    pub fn follow_stalled(&mut self, entry: Uuid) {
+        if let Some(follow) = self.follows.get_mut(&entry) {
+            follow.fetch = Fetch::Loaded;
+            follow.again = false;
+        }
+    }
+
+    /// A read of the tree of `entry` never got an answer: it is read again.
+    pub fn unfetch_follow(&mut self, entry: Uuid) {
+        if let Some(follow) = self.follows.get_mut(&entry)
+            && follow.fetch == Fetch::Fetching
+        {
+            follow.fetch = Fetch::Wanted;
+        }
+    }
+
+    /// What lies at the top, in the trash or is shared with this account may have changed
+    /// (`tree-change.roots`): those listings are read again.
+    pub fn roots(&mut self) {
+        for listing in [
+            Listing::Children(BlockParent::Root),
+            Listing::Deleted,
+            Listing::Shared,
+        ] {
+            self.relist(listing);
+        }
+    }
+
+    /// The entry points followed, for a test.
+    #[cfg(any(test, feature = "testing"))]
+    pub fn followed_entries(&self) -> Vec<Uuid> {
+        self.follows.keys().copied().collect()
     }
 
     /// A block made here, kept until the drain sends it: what the server lists before then
@@ -837,18 +1064,20 @@ impl Graph {
 
     pub fn change(&mut self, node: Node) {
         *self.pending.entry(node.id).or_default() += 1;
-        self.insert(node);
+        let changed = node.changed;
+        self.insert(node, changed);
     }
 
     /// A node to change, copied first if a `Seen` handed over shares it: the persistent map
     /// copies the path to it, and the node itself only when shared.
     /// Removes a node, answering whether it was there.
     fn remove_node(&mut self, block: Uuid) -> bool {
-        let removed = self.nodes.remove(&block).is_some();
-        if removed {
-            self.nodes_moved.insert(block);
-        }
-        removed
+        let Some(removed) = self.nodes.remove(&block) else {
+            return false;
+        };
+        self.nodes_moved.insert(block);
+        self.count_entry(removed.entry, 0, false);
+        true
     }
 
     /// Takes the nodes added, changed or removed since the last take (`nodes_moved`), for the
@@ -1053,7 +1282,9 @@ impl Graph {
         self.referenced.remove(&block);
     }
 
-    fn insert(&mut self, mut node: Node) {
+    /// Puts `node` in the mirror, heard as of `at`, where it is covered, and counts it in its
+    /// entry point's tree, so the mirror follows the entries of exactly what it holds.
+    fn insert(&mut self, mut node: Node, at: u64) {
         if let Some(derived) = self.derived.get(&node.id) {
             node.metadata.derived.clone_from(derived);
         }
@@ -1102,8 +1333,16 @@ impl Graph {
         };
         let id = node.id;
         if self.nodes.get(&node.id).map(|known| &**known) != Some(&node) {
+            let before = self.nodes.get(&node.id).map(|known| known.entry);
+            let entry = node.entry;
             self.nodes_moved.insert(node.id);
             self.nodes.insert(node.id, Arc::new(node));
+            if before != Some(entry) {
+                if let Some(before) = before {
+                    self.count_entry(before, at, false);
+                }
+                self.count_entry(entry, at, true);
+            }
             self.moved();
         }
         if changed_references {

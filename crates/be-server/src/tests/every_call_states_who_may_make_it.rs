@@ -307,8 +307,8 @@ impl TestClient {
                 ),
             ),
             (
-                "unlist",
-                answered(client::blocks::unlist(peer, Listing::Children(BlockParent::Root)).await),
+                "unfollow",
+                answered(client::blocks::unfollow(peer, block).await),
             ),
             (
                 "get-organization-log",
@@ -333,6 +333,7 @@ impl TestClient {
                             block: Uuid::max(),
                         },
                         10,
+                        false,
                     )
                     .await,
                 ),
@@ -561,7 +562,7 @@ impl TestClient {
 }
 
 enum Opened {
-    Changes(Stream<BlockChange>),
+    Changes(Stream<be_block_protocol::TreeChange>),
     Paired(Stream<PairingMessage>),
     Storage(Stream<be_block_protocol::AccountStorage>),
     Unit(Stream<()>),

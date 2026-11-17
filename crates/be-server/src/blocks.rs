@@ -48,7 +48,6 @@ const _: () = assert!(
 /// The most changes one page of `changed-since` looks at, those of other trees included.
 const MAX_SCANNED: usize = if cfg!(test) { 6 } else { 20_000 };
 
-use crate::watch::{Links, Seen};
 use crate::{
     ServerError,
     keys::{forget_block_keys, store_keys},
@@ -60,17 +59,19 @@ use crate::{
 };
 
 pub enum PublishOutcome {
-    Published(CommitId, Option<Redescribed>),
+    /// The head moved; with the blocks the publish started or stopped referencing.
+    Published(CommitId, Vec<Uuid>),
     Rejected(Option<CommitId>),
 }
 
-/// What a publish changed besides its block's head: its metadata, its references or both.
-#[derive(Debug)]
-pub struct Redescribed {
-    /// The blocks it started or stopped referencing.
-    pub relinked: Vec<Uuid>,
-    /// How its references moved, if they did.
-    pub moved: Option<ReferenceChange>,
+/// What a move did besides moving its block.
+pub struct Moved {
+    /// Who could know of the block before.
+    pub before: BTreeSet<Uuid>,
+    /// Who no longer views something below it.
+    pub lost: BTreeSet<Uuid>,
+    /// The blocks above it before, whose followers hear it left.
+    pub above: Vec<Uuid>,
 }
 
 pub(crate) struct Visibility {
@@ -420,12 +421,8 @@ fn summary(graph: &BlockGraph, identity: Identity, block: Uuid) -> Option<BlockS
 fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<BlockSummary> {
     let node = graph.get(block)?;
     let access = seen.access(graph, block);
-    let revision = graph.revision();
     if !access.can_view() {
-        return Some(BlockSummary {
-            revision,
-            ..BlockSummary::no_access(block, node.content_type, access)
-        });
+        return Some(BlockSummary::no_access(block, node.content_type, access));
     }
     Some(BlockSummary {
         id: block,
@@ -439,7 +436,8 @@ fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<Bl
         version: Some(node.version),
         key: node.key,
         scope: Some(graph.scope(block)),
-        revision,
+        changed: node.changed,
+        entry: Some(entry_of(graph, seen, block)),
         held: graph.holds(block),
         opens_inside: node.is_open_inside() && graph.settings_owner(block).is_some(),
         sets_access: node.sets_access(),
@@ -449,40 +447,20 @@ fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<Bl
     })
 }
 
-/// What `summary_with` would tell a connection of `block` that decides which of its listings
-/// hold it, read from the graph without making the summary (its metadata and references).
-pub(crate) fn facts_of(
-    graph: &BlockGraph,
-    seen: &Visibility,
-    block: Uuid,
-    told: Seen,
-) -> Option<crate::watch::Facts> {
-    let node = graph.get(block)?;
-    if !seen.access(graph, block).can_view() {
-        return Some(crate::watch::Facts::new(None, true, told, false, false));
+/// The entry point a caller who may view `block` follows to hear of its changes: the highest
+/// block above it, or itself, that the caller may view through every block between them. That
+/// is the top of its tree, or the block where the caller's view starts below a parent it may
+/// not view. O(depth) access checks, each O(depth).
+fn entry_of(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Uuid {
+    let mut entry = block;
+    while let Some(BlockParent::Block(parent)) = graph.get(entry).map(|node| node.parent) {
+        if !graph.contains(parent) || !seen.can_view(graph, parent) {
+            break;
+        }
+        entry = parent;
     }
-    // A `rest` id is sent without its summary: until one is, its references were not told.
-    Some(crate::watch::Facts::new(
-        Some(node.parent),
-        graph.holds(block),
-        told,
-        false,
-        node.is_open_inside() && graph.settings_owner(block).is_some(),
-    ))
+    entry
 }
-
-/// What `links` and the graph say of `block` for the caller `seen` describes.
-fn seen_by(graph: &BlockGraph, seen: &Visibility, links: &Links, block: Uuid, entry: bool) -> Seen {
-    Seen {
-        entry,
-        linked: links.hold(graph, block, |block| seen.can_view(graph, block)),
-    }
-}
-
-/// What a change did to the references of the blocks it announces: one named here moved them
-/// as its change says, or was made (`None`: every reference is new to whoever hears of it), and
-/// any other kept them.
-pub(crate) type Moves = HashMap<Uuid, Option<ReferenceChange>>;
 
 impl ServerStore {
     #[allow(clippy::too_many_arguments)]
@@ -560,7 +538,10 @@ impl ServerStore {
                 block,
                 &root,
             )?;
-            crate::changes::touch(&transaction, identity.organization, &[block])?;
+            // The blocks it references are known to exist by whoever views it: they changed too.
+            let mut touched = vec![block];
+            touched.extend(references.iter().copied());
+            crate::changes::touch(&transaction, graph, identity.organization, &touched)?;
             store_edges(
                 &transaction,
                 &identity.organization.to_string(),
@@ -601,7 +582,7 @@ impl ServerStore {
         block: Uuid,
         metadata: Vec<u8>,
         references: Vec<Uuid>,
-    ) -> Result<(BlockSummary, Vec<Uuid>, Option<ReferenceChange>), ServerError> {
+    ) -> Result<(BlockSummary, Vec<Uuid>), ServerError> {
         let references = distinct(references);
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
         crate::limits::references(&references)?;
@@ -622,122 +603,62 @@ impl ServerStore {
                 "UPDATE blocks SET metadata = ?3, version = version + 1 WHERE organization_id = ?1 AND id = ?2",
                 params![organization, block.to_string(), metadata],
             )?;
-            crate::changes::touch(&transaction, identity.organization, &[block])?;
-            let moved = match relinked {
-                Some(_) => {
-                    let before = graph.references(block);
-                    Some(change_edges(
-                        &transaction,
-                        &organization,
-                        block,
-                        &before,
-                        &references,
-                    )?)
-                }
-                None => None,
-            };
+            let mut touched = vec![block];
+            touched.extend(relinked.iter().flatten().copied());
+            crate::changes::touch(&transaction, graph, identity.organization, &touched)?;
+            if relinked.is_some() {
+                let before = graph.references(block);
+                change_edges(&transaction, &organization, block, &before, &references)?;
+            }
             transaction.commit()?;
             graph.set_references(block, &references)?;
             graph.set_metadata(block, metadata)?;
             graph.touch(block)?;
             let summary = summary(graph, identity, block).ok_or(ServerError::Corrupt)?;
-            Ok((summary, relinked.unwrap_or_default(), moved))
+            Ok((summary, relinked.unwrap_or_default()))
         })
         .await
     }
 
-    /// What each of `members` is told of `blocks` after a change: with `subtree`, of everything
-    /// below them and what that references too, since who may view them moved. `moves` names
-    /// what the change did to references (`Moves`).
-    pub(crate) async fn graph_views(
+    /// The organization's sequence now, and the blocks on the paths of `blocks` (each, and
+    /// every block above it; with `subtree`, every block below them too), and `above` (blocks
+    /// that were above them before a move), whose followers a change of `blocks` advanced
+    /// (`WatchHub::followers`).
+    pub(crate) async fn advanced(
         &self,
         organization: Uuid,
-        members: Vec<(Identity, Links)>,
         blocks: Vec<Uuid>,
         subtree: bool,
-        moves: Moves,
-        from: be_block_protocol::ClientId,
-    ) -> Result<Vec<Vec<(crate::watch::Push, Seen)>>, ServerError> {
-        self.with_graph(organization, move |_, graph, _| {
-            let mut touched = Vec::new();
+        above: Vec<Uuid>,
+    ) -> Result<(u64, Vec<Uuid>), ServerError> {
+        self.with_graph(organization, move |_, graph, database| {
+            let mut path: BTreeSet<Uuid> = above.into_iter().collect();
             for block in blocks {
-                match subtree {
-                    true => touched.extend(graph.subtree(block)),
-                    false => touched.push(block),
+                if subtree {
+                    path.extend(graph.subtree(block));
+                }
+                if path.insert(block) || subtree {
+                    path.extend(graph.ancestors(block));
                 }
             }
-            // A block someone may view gives them `KnowExists` on what it references, which a
-            // move or a grant changes; any other change names the blocks it linked or unlinked.
-            if subtree {
-                let referenced: Vec<Uuid> = touched
-                    .iter()
-                    .flat_map(|block| graph.references(*block))
-                    .collect();
-                touched.extend(referenced);
-            }
-            touched.retain(|block| graph.contains(*block));
-            touched.sort_unstable();
-            touched.dedup();
-            let revision = graph.revision();
-            // Read once for every member: each one's summary of a block it views lists the same
-            // references.
-            let moved: HashMap<Uuid, Option<be_block_protocol::MovedReferences>> = touched
-                .iter()
-                .map(|block| {
-                    let moved = match moves.get(block) {
-                        Some(None) => None,
-                        Some(Some(change)) => Some(change.clone()),
-                        None => Some(ReferenceChange::default()),
-                    };
-                    let moved = moved.map(|change| be_block_protocol::MovedReferences {
-                        change,
-                        digest: be_block_protocol::references_digest(
-                            graph
-                                .get(*block)
-                                .map(|node| node.references.as_slice())
-                                .unwrap_or_default(),
-                        ),
-                    });
-                    (*block, moved)
-                })
-                .collect();
-            Ok(members
+            Ok((
+                crate::changes::current(database, organization)?,
+                path.into_iter().collect(),
+            ))
+        })
+        .await
+    }
+
+    /// Whether each caller may view the block paired with it.
+    pub(crate) async fn viewing(
+        &self,
+        organization: Uuid,
+        asked: Vec<(Identity, Uuid)>,
+    ) -> Result<Vec<bool>, ServerError> {
+        self.with_graph(organization, move |_, graph, _| {
+            Ok(asked
                 .into_iter()
-                .map(|(identity, links)| {
-                    let seen = visibility(identity);
-                    let shared: HashSet<Uuid> = match seen.administrator {
-                        true => HashSet::new(),
-                        false => graph.shared(identity.account).into_iter().collect(),
-                    };
-                    touched
-                        .iter()
-                        .map(|block| match summary_with(graph, &seen, *block) {
-                            Some(found) if found.access.can_know_exists() => {
-                                let entry = found.access.can_view() && shared.contains(block);
-                                let told = seen_by(graph, &seen, &links, *block, entry);
-                                let moved = match found.access.can_view() {
-                                    true => moved.get(block).cloned().flatten(),
-                                    false => None,
-                                };
-                                (
-                                    crate::watch::Push::BlockChanged {
-                                        block: found,
-                                        moved,
-                                        from,
-                                    },
-                                    told,
-                                )
-                            }
-                            _ => (
-                                crate::watch::Push::BlockRemoved {
-                                    block: *block,
-                                    revision,
-                                },
-                                Seen::default(),
-                            ),
-                        })
-                        .collect()
-                })
+                .map(|(identity, block)| visibility(identity).can_view(graph, block))
                 .collect())
         })
         .await
@@ -776,36 +697,6 @@ impl ServerStore {
                 }))
         })
         .await?
-    }
-
-    pub async fn read_block(
-        &self,
-        identity: Identity,
-        block: Uuid,
-    ) -> Result<BlockSummary, ServerError> {
-        self.with_graph(identity.organization, move |_, graph, _| {
-            let Some(node) = graph.get(block) else {
-                return Err(not_found(block));
-            };
-            let seen = visibility(identity);
-            if !seen.can_view(graph, block) {
-                let access = match seen.reaches(graph, block) {
-                    true => graph
-                        .effective_access(block, identity.account)
-                        .max(seen.access(graph, block)),
-                    false => Access::None,
-                };
-                return match access.can_know_exists() {
-                    true => Ok(BlockSummary {
-                        revision: graph.revision(),
-                        ..BlockSummary::no_access(block, node.content_type, access)
-                    }),
-                    false => Err(not_found(block)),
-                };
-            }
-            summary_with(graph, &seen, block).ok_or(ServerError::Corrupt)
-        })
-        .await
     }
 
     /// The summaries of the first of `blocks` that fit in `room` bytes (the first always does),
@@ -927,7 +818,7 @@ impl ServerStore {
                     return Ok(PublishOutcome::Rejected(current));
                 }
                 if current == Some(commit) {
-                    return Ok(PublishOutcome::Published(commit, None));
+                    return Ok(PublishOutcome::Published(commit, Vec::new()));
                 }
                 require_descends(expected, &parents)?;
                 let organization = identity.organization.to_string();
@@ -995,10 +886,6 @@ impl ServerStore {
                 require_keeping_settings(graph, &visibility(identity), block, &references)?;
                 require_one_index(graph, block, &references)?;
                 let relinked = relinked(graph, block, &references);
-                let redescribed = relinked.is_some()
-                    || graph
-                        .get(block)
-                        .is_some_and(|node| node.metadata != metadata);
                 let transaction = be_block_sqlite_schema::write_transaction(database)?;
                 let existing: Option<i64> = transaction
                     .query_row(
@@ -1072,20 +959,15 @@ impl ServerStore {
                         metadata
                     ],
                 )?;
-                crate::changes::touch(&transaction, identity.organization, &[block])?;
-                let moved = match relinked {
-                    Some(_) => {
-                        let before = graph.references(block);
-                        Some(change_edges(
-                            &transaction,
-                            &organization,
-                            block,
-                            &before,
-                            &references,
-                        )?)
-                    }
-                    None => None,
-                };
+                // The blocks it started or stopped referencing changed for whoever knows of
+                // them through it.
+                let mut touched = vec![block];
+                touched.extend(relinked.iter().flatten().copied());
+                crate::changes::touch(&transaction, graph, identity.organization, &touched)?;
+                if relinked.is_some() {
+                    let before = graph.references(block);
+                    change_edges(&transaction, &organization, block, &before, &references)?;
+                }
                 let content_type = graph.get(block).ok_or(ServerError::Corrupt)?.content_type;
                 let policy = crate::retention::policy(
                     content_type,
@@ -1107,10 +989,7 @@ impl ServerStore {
                 store.objects().remove_freed(&freed);
                 Ok(PublishOutcome::Published(
                     commit,
-                    redescribed.then(|| Redescribed {
-                        relinked: relinked.unwrap_or_default(),
-                        moved,
-                    }),
+                    relinked.unwrap_or_default(),
                 ))
             })
         })
@@ -1449,7 +1328,7 @@ impl ServerStore {
         block: Uuid,
         parent: BlockParent,
         keys: KeySet,
-    ) -> Result<(BTreeSet<Uuid>, BTreeSet<Uuid>), ServerError> {
+    ) -> Result<Moved, ServerError> {
         self.with_graph(identity.organization, move |store, graph, database| {
             let seen = visibility(identity);
             require_edit(graph, &seen, block)?;
@@ -1525,10 +1404,11 @@ impl ServerStore {
                 },
             )?;
             store.follow_payer(graph, &transaction, identity, block, parent)?;
-            // The tree it leaves, for `changed-since` to name it to the readers of that tree.
-            let old_top = tree_of(graph, block);
-            // What leaves with it, read before it moves: a move within the same tree is not a
-            // departure from it.
+            // The entry points above it, for `changed-since` to name it to their readers once it
+            // has left them.
+            let entries_before = crate::changes::entries_above(graph, block);
+            let above: Vec<Uuid> = graph.ancestors(block).collect();
+            // What leaves with it, read before it moves.
             let leaving: Vec<crate::changes::Departing> = graph
                 .subtree(block)
                 .into_iter()
@@ -1556,13 +1436,21 @@ impl ServerStore {
                     parent_id
                 ],
             )?;
-            // The block and everything below it lie in another tree now.
-            let stays_in_tree = old_top.is_some() && tree_of(graph, block) == old_top;
+            // The block and everything below it lie elsewhere now: they left each entry point
+            // above them before that is not above them still, within one tree too, so a reader of
+            // a subtree hears of a block moved out of it.
+            let entries_after = crate::changes::entries_above(graph, block);
+            let left: Vec<Uuid> = entries_before
+                .iter()
+                .copied()
+                .filter(|entry| !entries_after.contains(entry))
+                .collect();
             crate::changes::touch_moved(
                 &transaction,
+                graph,
                 identity.organization,
                 &leaving,
-                old_top.filter(|_| !stays_in_tree),
+                &left,
                 be_block_commit::now_milliseconds(),
             )?;
             let forgotten = crate::store::forget_orphaned_block_agents(
@@ -1580,34 +1468,38 @@ impl ServerStore {
             if !forgotten.is_empty() || trashed {
                 store.sessions_changed();
             }
-            Ok((before, lost))
+            Ok(Moved {
+                before,
+                lost,
+                above,
+            })
         })
         .await
     }
 
-    /// A page of `listing` (any but `Listing::Block`) in the order of block ids: the blocks after
-    /// `after`, the first whose summaries fit in `room` bytes (at least one), then the next ids
-    /// that fit in half that, and `next` when the listing goes on. Only the page's blocks are
-    /// summarized. With the page, what the connection is told of each of its blocks.
-    /// A page of `listing`, and the facts the hub keeps of each of its blocks, which `links`
-    /// (the caller's, registered with the listing) decides in part.
+    /// A page of `listing` in the order of block ids: the blocks after `after`, the first whose
+    /// summaries fit in `room` bytes (at least one), then the next ids that fit in half that,
+    /// and `next` when the listing goes on. Only the page's blocks are summarized.
     pub(crate) async fn list_page(
         &self,
         identity: Identity,
         listing: Listing,
         after: Option<Uuid>,
-        links: Links,
-    ) -> Result<(Listed, Vec<(Uuid, crate::watch::Facts)>), ServerError> {
-        self.with_graph(identity.organization, move |store, graph, _| {
+    ) -> Result<Listed, ServerError> {
+        self.with_graph(identity.organization, move |store, graph, database| {
             let seen = visibility(identity);
             let ids = listing_ids(graph, &seen, identity, listing);
             let start = after.map_or(0, |after| ids.partition_point(|id| *id <= after));
-            let entry = listing == Listing::Shared;
-            let mut told = Vec::new();
-            let mut page = listed(graph, Vec::new());
+            let mut page = Listed {
+                sequence: crate::changes::current(database, identity.organization)?,
+                blocks: Vec::new(),
+                rest: Vec::new(),
+                next: None,
+            };
             let mut room = store.listing_page_bytes();
             let mut rest_room = room / 2;
             let mut ids = ids[start..].iter().copied().peekable();
+            let mut last = None;
             // The first blocks, summarized while their summaries fit (at least one).
             while let Some(id) = ids.peek().copied() {
                 let summary = summary_with(graph, &seen, id).ok_or(ServerError::Corrupt)?;
@@ -1616,9 +1508,8 @@ impl ServerStore {
                     break;
                 }
                 room = room.saturating_sub(size);
-                let told_of = seen_by(graph, &seen, &links, id, entry);
-                told.push((id, crate::watch::Facts::of(&summary, told_of)));
                 page.blocks.push(summary);
+                last = Some(id);
                 ids.next();
             }
             // Then ids, with no summary made.
@@ -1628,18 +1519,14 @@ impl ServerStore {
                     break;
                 }
                 rest_room -= size;
-                let told_of = seen_by(graph, &seen, &links, id, entry);
-                told.push((
-                    id,
-                    facts_of(graph, &seen, id, told_of).ok_or(ServerError::Corrupt)?,
-                ));
                 page.rest.push(id);
+                last = Some(id);
                 ids.next();
             }
             if ids.peek().is_some() {
-                page.next = told.last().map(|(id, _)| *id);
+                page.next = last;
             }
-            Ok((page, told))
+            Ok(page)
         })
         .await
     }
@@ -1662,30 +1549,23 @@ impl ServerStore {
         .await
     }
 
-    /// What changed after `since` in `root`'s tree (a top-level block's), from `after`
-    /// (`changes.rs`): the blocks in the tree now that changed, and the blocks that left that
-    /// tree (moved out, or deleted for good from it) since, and are not in it. A page ends at `limit` blocks of either kind, at
-    /// `MAX_PAGE_SUMMARY_BYTES` of summaries, or at `MAX_SCANNED` changes looked at (the changes
-    /// of other trees count), with `next` set.
+    /// What changed after `since` in the tree of `entry` (`changes.rs`), from `after`: the
+    /// blocks in the tree now that changed, and the blocks that left that tree (moved out, or
+    /// deleted for good from it) since, and are not in it. `entry` is any block the caller may
+    /// view, though departures are written only for entry points (`changes::entries_above`). A
+    /// page ends at `limit` blocks of either kind, at `MAX_PAGE_SUMMARY_BYTES` of summaries, or
+    /// at `MAX_SCANNED` changes looked at (the changes of other trees count), with `next` set.
     pub async fn changed_since(
         &self,
         identity: Identity,
-        root: Uuid,
+        entry: Uuid,
         after: ChangeCursor,
         limit: u32,
     ) -> Result<ChangedPage, ServerError> {
         self.with_graph(identity.organization, move |_, graph, database| {
             let seen = visibility(identity);
-            require(graph, &seen, root, Access::View, "readable")?;
-            if graph
-                .get(root)
-                .is_none_or(|node| node.parent != BlockParent::Root)
-            {
-                return Err(ServerError::Refused(
-                    ErrorCode::InvalidRequest,
-                    "changes are asked of a top-level block's tree".into(),
-                ));
-            }
+            require(graph, &seen, entry, Access::View, "readable")?;
+            let root = entry;
             let organization = identity.organization.to_string();
             let limit = (limit as usize).clamp(1, MAX_CHANGES_PER_PAGE);
             let sequence: i64 = database.query_row(
@@ -1702,7 +1582,7 @@ impl ServerStore {
                  WHERE organization_id = ?1 AND (changed > ?2 OR (changed = ?2 AND id > ?3))
                  UNION ALL
                  SELECT block_id, changed, 1 FROM block_departures
-                 WHERE organization_id = ?1 AND root = ?4 AND (owner IS NULL OR owner = ?5)
+                 WHERE organization_id = ?1 AND entry = ?4 AND (owner IS NULL OR owner = ?5)
                    AND (changed > ?2 OR (changed = ?2 AND block_id > ?3))
                  ORDER BY 2, 1",
             )?;
@@ -1884,10 +1764,16 @@ impl ServerStore {
                         "DELETE FROM opened_kinds WHERE organization_id = ?1 AND block_id = ?2",
                         params![organization, block.to_string()],
                     )?;
+                    // Deleted from a tree (not from the trash, which it left as it was
+                    // trashed): its entry points hear of it.
+                    let entries = match tree_of(graph, block) {
+                        Some(_) => crate::changes::entries_above(graph, block),
+                        None => Vec::new(),
+                    };
                     crate::changes::removed(
                         &transaction,
                         identity.organization,
-                        tree_of(graph, block),
+                        &entries,
                         departing(graph, block),
                         be_block_commit::now_milliseconds(),
                     )?;
@@ -1918,7 +1804,6 @@ impl ServerStore {
                 Ok(Collected {
                     blocks: removed,
                     objects: freed.len(),
-                    revision: graph.revision(),
                 })
             })
         })
@@ -2310,7 +2195,9 @@ pub(crate) fn write_grant(
 ) -> Result<(), ServerError> {
     graph.grant(block, account, access)?;
     graph.touch(block)?;
-    crate::changes::touch(database, organization, &[block])?;
+    // Who may view everything below it moved, and each summary says what its reader may do.
+    let below = graph.subtree(block);
+    crate::changes::touch(database, graph, organization, &below)?;
     // A revocation the server makes on its own (`remove-contact`, `remove-member`) of a grant
     // the block's log names waits for a device to sign it (`KeyWork::unsigned_revocations`);
     // a signed one, appended after, clears it (`access::append_grant`).
@@ -2647,15 +2534,14 @@ fn insert_edges(
 }
 
 /// Turns a block's edges from `before` into `after`, writing only the edges that left, joined
-/// or moved; an edge put in between two others takes a position between theirs. Answers the
-/// change, which is what its announcement tells (`moved-references`).
+/// or moved; an edge put in between two others takes a position between theirs.
 fn change_edges(
     transaction: &rusqlite::Transaction<'_>,
     organization: &str,
     block: Uuid,
     before: &[Uuid],
     after: &[Uuid],
-) -> Result<ReferenceChange, ServerError> {
+) -> Result<(), ServerError> {
     let change = ReferenceChange::between(before, after);
     {
         let mut removing = transaction.prepare_cached(
@@ -2671,7 +2557,7 @@ fn change_edges(
         }
     }
     if change.added.is_empty() {
-        return Ok(change);
+        return Ok(());
     }
     let mut positions: HashMap<Uuid, i64> = HashMap::new();
     {
@@ -2713,7 +2599,7 @@ fn change_edges(
             }
             (Some(_), Some(_)) => {
                 store_edges(transaction, organization, block, after)?;
-                return Ok(change);
+                return Ok(());
             }
         };
         for (offset, reference) in after[index..end].iter().enumerate() {
@@ -2724,7 +2610,7 @@ fn change_edges(
         index = end;
     }
     insert_edges(transaction, organization, block, placed)?;
-    Ok(change)
+    Ok(())
 }
 
 /// The objects a commit of `block` holds, in the order it listed them: the commit first.
@@ -2750,8 +2636,7 @@ fn commit_objects(
     Ok(objects)
 }
 
-/// A listing's blocks, as of the revision the graph read them at.
-/// The blocks of `listing` (any but `Listing::Block`) the caller may know of, as a listing
+/// The blocks of `listing` the caller may know of, as a listing
 /// holds them, in the order of their ids.
 fn listing_ids(
     graph: &BlockGraph,
@@ -2810,18 +2695,8 @@ fn listing_ids(
             }
             found.into_values().collect()
         }
-        Listing::Block(block) => vec![block],
     };
     ids.sort_unstable();
     ids.dedup();
     ids
-}
-
-fn listed(graph: &BlockGraph, blocks: Vec<BlockSummary>) -> Listed {
-    Listed {
-        revision: graph.revision(),
-        blocks,
-        rest: Vec::new(),
-        next: None,
-    }
 }

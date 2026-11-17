@@ -53,7 +53,7 @@ async fn a_key_sealed_by_a_contact_verified_later_arrives_as_it_is_verified() {
         .await
         .unwrap();
 
-    let listed = guest.list(Listing::Block(block)).await.unwrap();
+    let listed = vec![guest.summary(block).await.unwrap()];
     guest.learn(&listed).await.unwrap();
     assert!(
         matches!(guest.sealing_key(block).await, Err(ClientError::Locked(_))),

@@ -807,6 +807,13 @@ const SEALED_REMEMBERED: usize = 16;
 /// The most keys `Replicas::searched` holds before it starts over.
 const MOST_SEARCHED_KEYS: usize = 4096;
 
+/// What the host tells the replicas of a block: a session's event, or the head the server holds.
+#[derive(Clone)]
+enum Told {
+    Event(Event),
+    Head { block: Uuid, head: CommitId },
+}
+
 pub struct Replicas<H: Host> {
     pub modules: Modules,
     /// Per block and editor, how many operations the editor sent its replicas, kept across
@@ -826,8 +833,8 @@ pub struct Replicas<H: Host> {
     pending: Vec<Io>,
     relaying: usize,
     left: usize,
-    /// Per block, events behind a relayed message whose key is being searched for.
-    unsealing: HashMap<Uuid, VecDeque<Event>>,
+    /// Per block, what was told behind a relayed message whose key is being searched for.
+    unsealing: HashMap<Uuid, VecDeque<Told>>,
     /// Keys a search is on its way for, which relayed messages wait on.
     searching: HashSet<Uuid>,
     /// Keys a search answered for since a search last opened any or this device last
@@ -2778,20 +2785,36 @@ impl<H: Host> Replicas<H> {
     /// that key: a peer seals with a block's key as soon as it has it, and a search started
     /// elsewhere (`Peer::learn`) may answer only after the message arrived. Once a search for its
     /// key has answered, a message still sealed with it is let go and recorded.
-    pub fn heard(&mut self, (peer, shared): Ctx<'_, H>, event: &Event) {
-        let block = match event {
-            Event::SessionChanged { block, .. }
-            | Event::Relayed { block, .. }
-            | Event::Sequenced { block, .. } => block,
-            // A head another connection published; this connection's own publishes are the
-            // replica's, which it heard of as it made them.
-            Event::BlockChanged { block, own: false } if block.head.is_some() => &block.id,
-            _ => return,
+    pub fn heard(&mut self, ctx: Ctx<'_, H>, event: &Event) {
+        self.told(ctx, Told::Event(event.clone()));
+    }
+
+    /// Takes the head the server holds of `block`, read from its tree (`changed-since`): one
+    /// another connection published, unless it is the head the replica has, published or was
+    /// told already, which is no news.
+    pub fn heard_head(&mut self, ctx: Ctx<'_, H>, block: Uuid, head: CommitId) {
+        self.told(ctx, Told::Head { block, head });
+    }
+
+    fn told(&mut self, (peer, shared): Ctx<'_, H>, told: Told) {
+        let block = match &told {
+            Told::Event(
+                Event::SessionChanged { block, .. }
+                | Event::Relayed { block, .. }
+                | Event::Sequenced { block, .. },
+            )
+            | Told::Head { block, .. } => block,
+            Told::Event(_) => return,
         };
         if let Some(waiting) = self.unsealing.get_mut(block) {
-            waiting.push_back(event.clone());
+            waiting.push_back(told);
             return;
         }
+        let event = match told {
+            Told::Head { block, head } => return self.moved_head(block, head),
+            Told::Event(event) => event,
+        };
+        let event = &event;
         match event {
             Event::SessionChanged { block, state } => {
                 let Some(replica) = self.blocks.get(block).copied() else {
@@ -2823,7 +2846,7 @@ impl<H: Host> Replicas<H> {
                     Ok(bytes) => bytes,
                     Err(ClientError::Locked(key)) if !self.searched.contains(&key) => {
                         self.unsealing
-                            .insert(*block, VecDeque::from([event.clone()]));
+                            .insert(*block, VecDeque::from([Told::Event(event.clone())]));
                         if self.searching.insert(key) {
                             #[cfg(test)]
                             {
@@ -2900,7 +2923,7 @@ impl<H: Host> Replicas<H> {
                     Ok(entry) => api_entry(entry),
                     Err(ClientError::Locked(key)) if !self.searched.contains(&key) => {
                         self.unsealing
-                            .insert(*block, VecDeque::from([event.clone()]));
+                            .insert(*block, VecDeque::from([Told::Event(event.clone())]));
                         if self.searching.insert(key) {
                             #[cfg(test)]
                             {
@@ -2927,36 +2950,27 @@ impl<H: Host> Replicas<H> {
                 }
                 self.replay(replica, replayed);
             }
-            Event::BlockChanged {
-                block:
-                    be_block_protocol::BlockSummary {
-                        id: block,
-                        head: Some(head),
-                        ..
-                    },
-                ..
-            } => {
-                let Some(replica) = self.blocks.get(block).copied() else {
-                    return;
-                };
-                if let Some(open) = self.open.get_mut(&replica) {
-                    // A change that left the head as the replica has it, or as it published
-                    // or was already told it, is no news of the head.
-                    if open.heard == Some(*head)
-                        || open.published.contains(head)
-                        || open.moved.contains(head)
-                    {
-                        return;
-                    }
-                    if open.joining {
-                        open.heard = Some(*head);
-                        return open.early.push(Replayed::Moved { head: *head });
-                    }
-                }
-                self.moved(replica, *head, false);
-            }
             _ => {}
         }
+    }
+
+    fn moved_head(&mut self, block: Uuid, head: CommitId) {
+        let Some(replica) = self.blocks.get(&block).copied() else {
+            return;
+        };
+        if let Some(open) = self.open.get_mut(&replica) {
+            // A change that left the head as the replica has it, or as it published or was
+            // already told it, is no news of the head.
+            if open.heard == Some(head) || open.published.contains(&head) || open.moved.contains(&head)
+            {
+                return;
+            }
+            if open.joining {
+                open.heard = Some(head);
+                return open.early.push(Replayed::Moved { head });
+            }
+        }
+        self.moved(replica, head, false);
     }
 
     /// The host fell behind what the server sent: every replica that is not joining joins its
@@ -3112,9 +3126,9 @@ impl<H: Host> Replicas<H> {
                 }
                 self.searched.insert(key);
                 // Each waiting message is unsealed now, let go, or waits again for its own key.
-                for (_, events) in std::mem::take(&mut self.unsealing) {
-                    for event in events {
-                        self.heard((peer, shared), &event);
+                for (_, waiting) in std::mem::take(&mut self.unsealing) {
+                    for told in waiting {
+                        self.told((peer, shared), told);
                     }
                 }
             }

@@ -31,45 +31,6 @@ use crate::{
 
 const EVENT_CAPACITY: usize = 4096;
 
-/// A changed block's summary with every reference: those the change told whole, or, when it
-/// told what it did to them (`changed-references.moved`), those `held` has with the change
-/// applied. When they do not come out as the server's (a change heard out of order, or
-/// references never held), the block is read again with `reread`, unless `held` already has a
-/// summary as new as the change: one read again for an earlier change of a burst holds this one
-/// too, so the rest of the burst costs no more reads. `None` for such a change, and when the
-/// read fails: the connection is closing, or the block is no longer the caller's to read, which
-/// a later change tells.
-pub(crate) async fn whole<Read: Future<Output = Option<be_block_protocol::BlockSummary>>>(
-    held: Option<&dyn Held>,
-    mut block: be_block_protocol::BlockSummary,
-    references: be_block_protocol::ChangedReferences,
-    reread: impl FnOnce(Uuid) -> Read,
-) -> Option<be_block_protocol::BlockSummary> {
-    match references {
-        be_block_protocol::ChangedReferences::Whole(references) => block.references = references,
-        be_block_protocol::ChangedReferences::Moved(moved) => {
-            let known = held.and_then(|held| held.references(block.id));
-            let applied = known
-                .as_ref()
-                .and_then(|(_, references)| moved.change.apply(references))
-                .filter(|references| {
-                    be_block_protocol::references_digest(references) == moved.digest
-                });
-            match applied {
-                Some(references) => block.references = references,
-                None if known.is_some_and(|(revision, _)| revision >= block.revision) => {
-                    return None;
-                }
-                None => block = reread(block.id).await?,
-            }
-        }
-    }
-    if let Some(held) = held {
-        held.keep(&block);
-    }
-    Some(block)
-}
-
 const PING_FRAME_BYTES: usize = 32;
 
 /// The socket plus the greeting. Once connected no request has a deadline of its own: each is
@@ -103,16 +64,16 @@ type Pump = Pin<Box<dyn Future<Output = ()> + Send>>;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Event {
-    /// A block a listing of the connection holds changed: its head, metadata, place or access.
-    /// `own` when this connection's own call changed it, as its own publishes do.
-    BlockChanged {
-        block: be_block_protocol::BlockSummary,
-        own: bool,
+    /// The tree of an entry point the connection follows changed, up to `sequence`: read it with
+    /// `changed-since` (`Peer::changed_page`). The server tells nothing more of the entry until
+    /// it is read to its end.
+    TreeAdvanced {
+        entry: Uuid,
+        sequence: u64,
     },
-    BlockRemoved {
-        block: Uuid,
-        revision: u64,
-    },
+    /// What lies at the top of the organization, in the trash or is shared with this account may
+    /// have changed: list them again.
+    Roots,
     SessionChanged {
         block: Uuid,
         state: SessionState,
@@ -147,24 +108,9 @@ pub enum Event {
     KeyWork(be_block_protocol::KeyWork),
 }
 
-/// Where a connection finds what a change announced in place of a block's references
-/// (`moved-references`) applies to: the references this device holds of the block, as the
-/// server last told them. It keeps there each summary it hears, so the next change resolves
-/// against it before anyone else has taken this one. `Peer` gives its refs.
-pub trait Held: Send + Sync {
-    /// The references held of `block`, and the revision of the summary they came with.
-    fn references(&self, block: Uuid) -> Option<(u64, Vec<Uuid>)>;
-    fn keep(&self, summary: &be_block_protocol::BlockSummary);
-}
-
 #[derive(Default)]
 struct Registry {
     subscribed: bool,
-    /// What announced changes of references resolve against (`Connection::hold_with`).
-    held: Option<Arc<dyn Held>>,
-    /// This connection as the server names it, once it opened an organization
-    /// (`organization-opened.client`).
-    client: Option<ClientId>,
     sessions: HashMap<Uuid, Arc<client::sessions::Session>>,
 }
 
@@ -179,8 +125,6 @@ pub struct Connection {
     asked_to_close: std::sync::atomic::AtomicBool,
     due: watch::Receiver<Duration>,
     registry: Mutex<Registry>,
-    /// Announced changes read again (`whole`), which tests count.
-    rereads: Arc<std::sync::atomic::AtomicUsize>,
     /// The clock the connection keeps time by (`Clock::real` for an offline one).
     clock: Clock,
 }
@@ -241,7 +185,6 @@ impl Connection {
             asked_to_close: std::sync::atomic::AtomicBool::new(false),
             due: watched,
             registry: Mutex::new(Registry::default()),
-            rereads: Arc::default(),
             clock: clock.clone(),
         });
         spawn(worker(
@@ -278,7 +221,6 @@ impl Connection {
             asked_to_close: std::sync::atomic::AtomicBool::new(true),
             due,
             registry: Mutex::new(Registry::default()),
-            rereads: Arc::default(),
             clock: Clock::real(),
         })
     }
@@ -309,47 +251,15 @@ impl Connection {
             return receiver;
         }
         let events = self.events.clone();
-        let connection = Arc::downgrade(self);
-        let peer = self.peer.clone();
-        let rereads = Arc::clone(&self.rereads);
         let mut changes = client::blocks::changes(&self.peer);
         self.pump(async move {
             while let Some(change) = changes.recv().await {
                 let _ = events.send(match change {
-                    be_block_protocol::BlockChange::Changed {
-                        block,
-                        references,
-                        from,
-                    } => {
-                        let (own, held) =
-                            connection.upgrade().map_or((false, None), |connection| {
-                                let registry = connection.registry();
-                                (registry.client == Some(from), registry.held.clone())
-                            });
-                        let reread = async |block| {
-                            rereads.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                            let listing = be_block_protocol::Listing::Block(block);
-                            match client::blocks::list_blocks(&peer, listing, None).await {
-                                Ok(Ok(listed)) => listed.blocks.into_iter().next(),
-                                failed => {
-                                    tracing::debug!(
-                                        %block,
-                                        ?failed,
-                                        "reading a changed block again failed"
-                                    );
-                                    None
-                                }
-                            }
-                        };
-                        let Some(block) = whole(held.as_deref(), block, references, reread).await
-                        else {
-                            continue;
-                        };
-                        Event::BlockChanged { block, own }
-                    }
-                    be_block_protocol::BlockChange::Removed { block, revision } => {
-                        Event::BlockRemoved { block, revision }
-                    }
+                    be_block_protocol::TreeChange::Advanced(be_block_protocol::TreeAdvanced {
+                        entry,
+                        sequence,
+                    }) => Event::TreeAdvanced { entry, sequence },
+                    be_block_protocol::TreeChange::Roots => Event::Roots,
                 });
             }
         });
@@ -396,25 +306,6 @@ impl Connection {
             }
         });
         receiver
-    }
-
-    /// Resolves announced changes of references against `held` from now on (`Held`). Until
-    /// then a change told as what it did to a block's references costs a round trip, which
-    /// reads the block again.
-    pub fn hold_with(&self, held: Arc<dyn Held>) {
-        self.registry().held = Some(held);
-    }
-
-    /// How many announced changes this connection read the block again for (`whole`).
-    #[cfg(test)]
-    pub(crate) fn rereads(&self) -> usize {
-        self.rereads.load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    /// Takes this connection's id as the organization it opened names it, which tells its own
-    /// changes on `changes` (`Event::BlockChanged::own`).
-    pub fn opened(&self, client: ClientId) {
-        self.registry().client = Some(client);
     }
 
     /// Joins a block's session, running the build `tag` of its type: this connection's id, the

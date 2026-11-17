@@ -53,10 +53,8 @@ mod a_block_sent_after_a_new_escrow_key_is_wrapped_under_it;
 mod a_block_the_server_refused_to_make_is_not_listed_offline;
 mod a_block_the_server_says_is_open_inside_is_sealed_to_no_contact;
 mod a_block_whose_root_the_server_swaps_is_refused;
-mod a_burst_of_changes_behind_one_that_does_not_apply_reads_the_block_once;
-mod a_change_announced_as_what_moved_in_its_references_arrives_with_them_all;
 mod a_change_the_server_refuses_leaves_the_rest_of_the_outbox_to_send;
-mod a_client_tells_its_own_publishes_from_another_devices;
+mod a_device_following_a_tree_hears_another_devices_publish;
 mod a_connect_nobody_answers_times_out;
 mod a_connection_asked_to_close_is_closed_to_everyone_at_once;
 mod a_connection_outlives_a_stall_of_this_process;
@@ -509,8 +507,8 @@ fn scoped(db: &refs::RefsDb) -> refs::Refs {
     .unwrap()
 }
 
-/// A block's summary as the server would tell it, placed under `parent` as of `revision`.
-fn placed(id: u128, parent: BlockParent, revision: u64) -> be_block_protocol::BlockSummary {
+/// A block's summary as the server would tell it, placed under `parent` as of `changed`.
+fn placed(id: u128, parent: BlockParent, changed: u64) -> be_block_protocol::BlockSummary {
     be_block_protocol::BlockSummary {
         id: Uuid::from_u128(id),
         content_type: Uuid::from_u128(0x11_11),
@@ -523,7 +521,8 @@ fn placed(id: u128, parent: BlockParent, revision: u64) -> be_block_protocol::Bl
         version: None,
         key: None,
         scope: None,
-        revision,
+        changed,
+        entry: None,
         held: false,
         opens_inside: false,
         sets_access: false,

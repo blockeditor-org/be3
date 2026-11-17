@@ -869,16 +869,16 @@ impl Shared {
 
     /// Logs each listing whose answer left out blocks this device held as belonging in it
     /// (`Graph::take_unlisted_held`): a list then shows fewer entries than this device made or
-    /// heard of, and the line says which listing, at which revision, and whether the answer was
+    /// heard of, and the line says which listing, at which sequence, and whether the answer was
     /// to a request from before the change that asked for it again.
     pub(crate) fn log_unlisted_held(&mut self) {
         for unlisted in self.graph.take_unlisted_held() {
             eprintln!(
-                "be-host: the answer to {listing:?} at revision {revision} left out {blocks:?}, \
+                "be-host: the answer to {listing:?} at sequence {sequence} left out {blocks:?}, \
                  which this device holds as listed there (an answer to a request from before a \
                  change asked again: {stale}), connected: {connected}",
                 listing = unlisted.listing,
-                revision = unlisted.revision,
+                sequence = unlisted.sequence,
                 blocks = unlisted.blocks,
                 stale = unlisted.stale,
                 connected = self.connected,
@@ -1661,7 +1661,7 @@ impl Session<'_> {
                         }
                     }
                     for event in heard_all {
-                        if matches!(event, Some(Event::BlockChanged { .. }) | None) {
+                        if matches!(event, Some(Event::TreeAdvanced { .. }) | None) {
                             self.versions.announced();
                         }
                         let keyed = matches!(event, Some(Event::KeysChanged));
@@ -1672,7 +1672,7 @@ impl Session<'_> {
                             Some(message) => self.replicas.heard((peer, shared), message),
                             None => self.replicas.resynchronize((peer, shared)),
                         }
-                        heard(peer, shared, &self.tasks.0, self.replicas, event).await;
+                        heard(peer, shared, &self.tasks.0, event).await;
                         if keyed {
                             self.unlock(peer, shared).await;
                         }
@@ -1909,6 +1909,11 @@ impl Session<'_> {
         let (peer, shared) = (self.peer, self.shared);
         if !self.tasks.0.syncing() {
             self.replicas.created((peer, shared));
+        }
+        // Heads read from the trees followed (`read_trees`): an open block's moved, unless it is
+        // what its replica has.
+        for (block, head) in self.tasks.0.take_heads() {
+            self.replicas.heard_head((peer, shared), block, head);
         }
         // Only what was published drains: a seal kept since stays sending.
         for (block, head, refused) in self.tasks.0.take_published() {
@@ -2215,7 +2220,7 @@ async fn drain_outbox(
                         held.graph.relist_around(*block, parent);
                         if let Some(from) = from {
                             held.graph
-                                .relist(be_block_protocol::Listing::Children(*from));
+                                .relist(Listing::Children(*from));
                         }
                     }
                     be_block_client::Drained::Refused {
@@ -2306,11 +2311,11 @@ fn shown_as_refused(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>, block: Uuid
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     let shown = held.graph.get(block).and_then(|node| node.parent);
     let parent = summary.parent;
-    held.graph.put(node_of(peer, &summary), summary.revision);
+    held.graph.put(node_of(peer, &summary), summary.changed);
     held.graph.relist_around(block, parent);
     if let Some(shown) = shown {
         held.graph
-            .relist(be_block_protocol::Listing::Children(shown));
+            .relist(Listing::Children(shown));
     }
 }
 
@@ -3653,7 +3658,7 @@ async fn apply(
                     && let Some(summary) = peer.known_summary(block)
                 {
                     let parent = summary.parent;
-                    held.graph.put(node_of(peer, &summary), summary.revision);
+                    held.graph.put(node_of(peer, &summary), summary.changed);
                     held.graph.relist_around(block, parent);
                 }
             }
@@ -3840,13 +3845,15 @@ async fn apply(
         }
         #[cfg(test)]
         Command::HearHead { block, head } => {
+            // As a tree read would tell it (`read_trees`).
             if let Some(mut summary) = peer.known_summary(block) {
                 summary.head = Some(head);
-                let event = Event::BlockChanged {
-                    block: summary,
-                    own: false,
-                };
-                heard(peer, shared, tasks, replicas, Some(event)).await;
+                shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .graph
+                    .put(node_of(peer, &summary), summary.changed);
+                replicas.heard_head((peer, shared), block, head);
             }
             false
         }
@@ -4228,39 +4235,24 @@ async fn heard(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
     tasks: &Tasks,
-    replicas: &Replicas,
     event: Option<Event>,
 ) {
     match event {
-        Some(Event::BlockChanged { block, .. }) => {
-            let block = peer.summary_with_outbox(block);
-            if let Err(error) = peer.learn(std::slice::from_ref(&block)).await {
-                record(shared, error);
-            }
-            let mut node = node_of(peer, &block);
-            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-            if replicas.is_open(node.id)
-                && let Some(reported) = held.graph.get(node.id).and_then(|node| node.head)
-            {
-                node.head = Some(reported);
-            }
-            let shared_into_view = node.access.can_view()
-                && matches!(node.parent, Some(BlockParent::Block(_)))
-                && !held.graph.covers(node.id);
-            held.graph.put(node, block.revision);
-            if shared_into_view && !held.graph.covers(block.id) {
-                held.graph.relist(Listing::Shared);
-            }
-            if block.opens_inside {
-                held.graph.relist_open_settings();
-            }
-        }
-        Some(Event::BlockRemoved { block, revision }) => {
+        Some(Event::TreeAdvanced { entry, sequence }) => {
             shared
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .graph
-                .remove(block, revision);
+                .advanced(entry, sequence);
+            spawn_listings(peer, shared, tasks);
+        }
+        Some(Event::Roots) => {
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .graph
+                .roots();
+            spawn_listings(peer, shared, tasks);
         }
         Some(Event::Paired(be_block_protocol::PairingMessage { from, payload })) => {
             asked_to_pair(shared, from, &payload);
@@ -4396,26 +4388,156 @@ fn relist(shared: &Arc<Mutex<Shared>>) {
 pub(super) async fn fetch_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) -> bool {
     let mut fetched = false;
     loop {
-        let (unlisted, wanted) = take_listings(shared);
+        let wanted = take_listings(shared);
         if wanted.is_empty() {
-            futures_util::future::join_all(
-                unlisted.into_iter().map(|listing| peer.unlist(listing)),
-            )
-            .await;
             return fetched;
         }
         fetched = true;
-        list(peer, shared, unlisted, wanted).await;
+        list(peer, shared, wanted).await;
     }
 }
 
+/// Reads what the graph wants in a task of its own: the listings, and the trees followed that
+/// advanced; and unfollows the entry points nothing lies in any more.
 pub(super) fn spawn_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) {
-    let (unlisted, wanted) = take_listings(shared);
-    if unlisted.is_empty() && wanted.is_empty() {
-        return;
+    let wanted = take_listings(shared);
+    if !wanted.is_empty() {
+        let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+        tasks.spawn(async move { list(&peer, &shared, wanted).await });
     }
-    let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
-    tasks.spawn(async move { list(&peer, &shared, unlisted, wanted).await });
+    let (trees, unfollowed) = take_follows(shared);
+    if !trees.is_empty() || !unfollowed.is_empty() {
+        let (peer, shared, heads) = (
+            Arc::clone(peer),
+            Arc::clone(shared),
+            std::rc::Rc::clone(&tasks.heads),
+        );
+        tasks.spawn(async move { read_trees(&peer, &shared, &heads, trees, unfollowed).await });
+    }
+}
+
+/// What changed in the tree of `entry` since `cursor`, every page of it, following it: the
+/// summaries, the blocks that left it, the sequence read to, and the heads that are news to this
+/// device (another than the remote head it knew), which the replicas hear.
+async fn read_tree(
+    peer: &Peer<Store>,
+    entry: Uuid,
+    cursor: u64,
+) -> Result<(Vec<BlockSummary>, Vec<Uuid>, u64, Vec<(Uuid, CommitId)>), ClientError> {
+    const PAGE: u32 = 200;
+    let (mut summaries, mut removed, mut moved) = (Vec::new(), Vec::new(), Vec::new());
+    let mut after = be_block_protocol::ChangeCursor {
+        changed: cursor,
+        block: Uuid::max(),
+    };
+    let mut follow = true;
+    loop {
+        let page = peer.changed_page(entry, after, PAGE, follow).await?;
+        follow = false;
+        moved.extend(page.summaries.iter().filter_map(|summary| {
+            let head = summary.head?;
+            (peer.known_remote_head(summary.id) != Some(head)).then_some((summary.id, head))
+        }));
+        peer.learn(&page.summaries).await?;
+        summaries.extend(page.summaries);
+        removed.extend(page.removed);
+        match page.next {
+            Some(next) => after = next,
+            None => return Ok((summaries, removed, page.sequence, moved)),
+        }
+    }
+}
+
+fn take_follows(shared: &Arc<Mutex<Shared>>) -> (Vec<(Uuid, u64)>, Vec<Uuid>) {
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    if !held.graph.has_follows_to_take() {
+        return (Vec::new(), Vec::new());
+    }
+    held.graph.take_follows()
+}
+
+/// Reads what changed in each tree of `trees` since its cursor, following it (`changed-since`),
+/// and gives the graph what changed of what it holds (`Graph::followed`); the blocks it held that
+/// left a tree are read again, wherever they went. Each head read goes to `heads`, for the
+/// replicas. Unfollows `unfollowed`.
+async fn read_trees(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    heads: &std::cell::RefCell<Vec<(Uuid, CommitId)>>,
+    trees: Vec<(Uuid, u64)>,
+    unfollowed: Vec<Uuid>,
+) {
+    let asked_on = peer.connection();
+    let unfollows =
+        futures_util::future::join_all(unfollowed.into_iter().map(|entry| peer.unfollow(entry)));
+    let reads = futures_util::future::join_all(
+        trees
+            .iter()
+            .map(|(entry, cursor)| read_tree(peer, *entry, *cursor)),
+    );
+    let (_, answers) = futures_util::future::join(unfollows, reads).await;
+    for ((entry, _), answer) in trees.into_iter().zip(answers) {
+        let (summaries, removed, sequence, moved) = match answer {
+            Ok(read) => read,
+            Err(error) => {
+                let unreachable = asked_again(
+                    &error,
+                    Arc::ptr_eq(&asked_on, &peer.connection()),
+                    peer.is_attached(),
+                );
+                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                // As a listing's: asked again only when another connection replaced the one it
+                // was asked on; a connection that went is followed again as the next one
+                // relists everything (`Graph::relist_all`).
+                match (unreachable, error.is_unreachable()) {
+                    (true, _) => held.graph.unfetch_follow(entry),
+                    (false, true) => held.graph.follow_stalled(entry),
+                    (false, false) => held.graph.follow_failed(entry),
+                }
+                drop(held);
+                // A refusal is the tree's news, as a listing's is: the block is not there for
+                // this account, or not yet (made here and still in the outbox).
+                if !matches!(error, ClientError::Refused(..)) {
+                    record(shared, error);
+                }
+                continue;
+            }
+        };
+        heads.borrow_mut().extend(moved);
+        let opens_inside = summaries.iter().any(|summary| summary.opens_inside);
+        let nodes = summaries
+            .iter()
+            .filter(|summary| peer.refusal(summary.id).is_none())
+            .map(|summary| node_of(peer, &peer.summary_with_outbox(summary.clone())))
+            .collect();
+        let departed = {
+            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            if opens_inside {
+                held.graph.relist_open_settings();
+            }
+            held.graph.followed(entry, nodes, &removed, sequence)
+        };
+        if departed.is_empty() {
+            continue;
+        }
+        // Where they went, or that they are gone for this account.
+        let Ok(found) = peer.read_summaries(&departed).await else {
+            continue;
+        };
+        if let Err(error) = peer.learn(&found).await {
+            record(shared, error);
+        }
+        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        for block in departed {
+            match found.iter().find(|summary| summary.id == block) {
+                Some(summary) => {
+                    let summary = peer.summary_with_outbox(summary.clone());
+                    held.graph.put(node_of(peer, &summary), sequence);
+                }
+                None => held.graph.remove(block, sequence),
+            }
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -4427,6 +4549,8 @@ pub(super) struct Tasks {
     drained: std::rc::Rc<tokio::sync::watch::Sender<u64>>,
     /// Stops the task following the account's storage, while one does.
     storage: std::rc::Rc<std::cell::RefCell<Option<tokio::sync::oneshot::Sender<()>>>>,
+    /// The heads trees read since the loop last took them (`read_trees`), for the replicas.
+    heads: std::rc::Rc<std::cell::RefCell<Vec<(Uuid, CommitId)>>>,
 }
 
 pub(crate) const STORAGE_FAILED: &str =
@@ -4456,6 +4580,7 @@ impl Tasks {
                 outbox,
                 drained: std::rc::Rc::new(tokio::sync::watch::Sender::new(0)),
                 storage: Default::default(),
+                heads: Default::default(),
             },
             receiver,
         )
@@ -4568,6 +4693,10 @@ impl Tasks {
         self.outbox.borrow().draining
     }
 
+    fn take_heads(&self) -> Vec<(Uuid, CommitId)> {
+        std::mem::take(&mut self.heads.borrow_mut())
+    }
+
     fn take_published(&self) -> Vec<(Uuid, Option<CommitId>, bool)> {
         std::mem::take(&mut self.outbox.borrow_mut().published)
     }
@@ -4607,7 +4736,7 @@ impl Tasks {
                 for summary in &summaries {
                     if let Some(known) = peer.known_summary(summary.id) {
                         let known = peer.summary_with_outbox(known);
-                        held.graph.reread(node_of(&peer, &known), known.revision);
+                        held.graph.reread(node_of(&peer, &known));
                     }
                 }
                 if held.relearning != Some(true) {
@@ -4736,37 +4865,40 @@ impl Tasks {
     }
 }
 
-fn take_listings(shared: &Arc<Mutex<Shared>>) -> (Vec<Listing>, Vec<Listing>) {
+fn take_listings(shared: &Arc<Mutex<Shared>>) -> Vec<Listing> {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     if !held.graph.has_listings_to_take() {
-        return (Vec::new(), Vec::new());
+        return Vec::new();
     }
-    (held.graph.take_unlisted(), held.graph.take_wanted())
+    held.graph.take_wanted()
 }
 
-async fn list(
-    peer: &Arc<Peer<Store>>,
-    shared: &Arc<Mutex<Shared>>,
-    unlisted: Vec<Listing>,
-    wanted: Vec<Listing>,
-) {
+async fn list(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, wanted: Vec<Listing>) {
     // The connection the requests are made on: one that fails after another replaced it says
     // nothing of the listing, and one that fails while it is the current one is a failure.
     let asked_on = peer.connection();
-    let unlists =
-        futures_util::future::join_all(unlisted.into_iter().map(|listing| peer.unlist(listing)));
-    let lists = futures_util::future::join_all(wanted.iter().map(|listing| async move {
-        match *listing {
+    let answers = futures_util::future::join_all(wanted.iter().map(|listing| async move {
+        match listing.served() {
+            Some(served) => peer.listing(served).await,
             // A block's own summary answers from the outbox and offline as `summary` does.
-            Listing::Block(block) => peer.summary(block).await.map(|summary| vec![summary]),
-            listing => peer.list(listing).await,
+            None => {
+                let Listing::Block(block) = *listing else {
+                    unreachable!("only a block's own summary is read apart")
+                };
+                peer.summary(block)
+                    .await
+                    .map(|summary| be_block_client::Listed {
+                        sequence: summary.changed,
+                        blocks: vec![summary],
+                    })
+            }
         }
-    }));
-    let (_, answers) = futures_util::future::join(unlists, lists).await;
+    }))
+    .await;
     for (listing, answer) in wanted.into_iter().zip(answers) {
-        let summaries = match answer {
-            Ok(summaries) => summaries,
-            Err(ClientError::Refused(..)) => Vec::new(),
+        let (sequence, summaries) = match answer {
+            Ok(listed) => (listed.sequence, listed.blocks),
+            Err(ClientError::Refused(..)) => (0, Vec::new()),
             Err(error) => {
                 // See `asked_again`.
                 let unreachable = asked_again(
@@ -4788,14 +4920,12 @@ async fn list(
         if let Err(error) = peer.learn(&summaries).await {
             record(shared, error);
         }
-        let revision = summaries
-            .iter()
-            .map(|summary| summary.revision)
-            .max()
-            .unwrap_or_default();
         // As the outbox stands now, not when the request went: a creation or move kept since,
         // whose block is no longer pending in the graph, is in it (no await from here on).
-        let summaries = peer.with_outbox(listing, summaries);
+        let summaries = match listing.served() {
+            Some(served) => peer.with_outbox(served, summaries),
+            None => summaries,
+        };
         // A block the server refused to make left the files (`Graph::forget` when it was set
         // aside), though its summary still answers from this device (`Peer::summary`), as do
         // the blocks made in it. One whose edits were set aside for lost access is still on the
@@ -4811,7 +4941,7 @@ async fn list(
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .graph
-            .listed(listing, nodes, revision);
+            .listed(listing, nodes, sequence);
     }
 }
 
@@ -4890,7 +5020,7 @@ async fn settled(
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .graph
-                .put(node, summary.revision);
+                .put(node, summary.changed);
             Ok(())
         }
         Err(error) => {
@@ -4914,7 +5044,7 @@ pub(super) async fn refresh(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .graph
-                .put(node, summary.revision);
+                .put(node, summary.changed);
         }
         Err(ClientError::Refused(..)) => shared
             .lock()
@@ -4937,11 +5067,13 @@ pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
         access: summary.access,
         references: summary.references.clone(),
         metadata: metadata.unwrap_or_default(),
-        head: summary.head,
+        head: peer.head_of(summary),
         held: summary.held,
         sets_access: summary.sets_access,
         size: summary.size,
         tree_size: summary.tree_size,
+        changed: summary.changed,
+        entry: summary.entry,
     }
 }
 

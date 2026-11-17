@@ -367,8 +367,8 @@ struct State {
     /// Each block's newest summary: what every listing that holds the block shows of it.
     summaries: HashMap<Uuid, BlockSummary>,
     listings: HashMap<Listing, Vec<Uuid>>,
-    /// The server's revision when it answered each `Children` and `Deleted` listing: a summary
-    /// newer than that is of a block made or moved since (`placed_in`).
+    /// The organization's sequence when the server answered each `Children` and `Deleted`
+    /// listing: a summary that changed after it is of a block made or moved since (`placed_in`).
     listed_at: HashMap<Listing, u64>,
     /// The blocks each parent holds, as their summaries place them.
     placed: HashMap<BlockParent, HashSet<Uuid>>,
@@ -669,22 +669,6 @@ pub(crate) struct Refs {
     state: Mutex<State>,
 }
 
-/// Announced changes of references resolve against the summaries the server last gave
-/// (`Connection::hold_with`).
-impl crate::connection::Held for Refs {
-    fn references(&self, block: Uuid) -> Option<(u64, Vec<Uuid>)> {
-        let state = self.state.lock().unwrap();
-        state
-            .summaries
-            .get(&block)
-            .map(|summary| (summary.revision, summary.references.clone()))
-    }
-
-    fn keep(&self, summary: &BlockSummary) {
-        let _ = self.set_listing(Listing::Block(summary.id), std::slice::from_ref(summary));
-    }
-}
-
 impl Refs {
     fn write(&self, rows: Vec<Row>) -> Result<(), StoreError> {
         if rows.is_empty() {
@@ -832,7 +816,7 @@ impl Refs {
 
     /// Keeps the heads `summaries` name as the server's, but not one `behind` the remote head
     /// already known (`set_remote`). Where `summaries` name a block more than once, only the
-    /// newest head is judged, from the latest summary and, between two of one revision, the one
+    /// newest head is judged, from the latest summary and, between two of one sequence, the one
     /// the other is `behind`: an older one judged against the same known head could otherwise
     /// land after it.
     pub fn observe(
@@ -843,12 +827,11 @@ impl Refs {
         let mut latest: HashMap<Uuid, (u64, CommitId)> = HashMap::new();
         for summary in summaries {
             let Some(head) = summary.head else { continue };
-            let newest = latest.get(&summary.id).is_none_or(|(revision, kept)| {
-                *revision < summary.revision
-                    || (*revision == summary.revision && behind(*kept, head))
+            let newest = latest.get(&summary.id).is_none_or(|(changed, kept)| {
+                *changed < summary.changed || (*changed == summary.changed && behind(*kept, head))
             });
             if newest {
-                latest.insert(summary.id, (summary.revision, head));
+                latest.insert(summary.id, (summary.changed, head));
             }
         }
         let heads: Vec<(Uuid, CommitId)> = latest
@@ -907,7 +890,7 @@ impl Refs {
         let newer = state
             .summaries
             .get(&summary.id)
-            .is_some_and(|known| known.revision > summary.revision);
+            .is_some_and(|known| known.changed > summary.changed);
         if newer || state.summaries.get(&summary.id) == Some(summary) {
             return;
         }
@@ -924,9 +907,15 @@ impl Refs {
         state.listings.insert(listing, ids);
     }
 
-    pub fn set_listing(&self, listing: Listing, blocks: &[BlockSummary]) -> Result<(), StoreError> {
+    /// Keeps a summary the server answered, with what the outbox has yet to send laid over it,
+    /// unless this device has a newer one of the block.
+    pub fn note(&self, summary: &BlockSummary) -> Result<(), StoreError> {
         let mut rows = Vec::new();
-        Self::set_listing_locked(&mut self.state.lock().unwrap(), listing, blocks, &mut rows);
+        {
+            let mut state = self.state.lock().unwrap();
+            let summary = Self::with_outbox_locked(&state, summary.clone());
+            Self::put(&mut state, &summary, &mut rows);
+        }
         self.write(rows)
     }
 
@@ -946,23 +935,23 @@ impl Refs {
         Self::put_listing(state, listing, ids, rows);
     }
 
-    /// Keeps a listing as the server answered it at `revision`, which a `Children` or `Deleted`
+    /// Keeps a listing as the server answered it at `sequence`, which a `Children` or `Deleted`
     /// listing keeps too (`placed_in`).
     pub fn listed(
         &self,
         listing: Listing,
         blocks: &[BlockSummary],
-        revision: u64,
+        sequence: u64,
     ) -> Result<(), StoreError> {
         let mut rows = Vec::new();
         {
             let mut state = self.state.lock().unwrap();
             if matches!(listing, Listing::Children(_) | Listing::Deleted)
-                && state.listed_at.insert(listing, revision) != Some(revision)
+                && state.listed_at.insert(listing, sequence) != Some(sequence)
                 && let Some(ids) = state.listings.get(&listing).cloned()
             {
-                // The listing's row holds the revision, so it is written again even unchanged.
-                rows.push(row(Table::Listing, encode_raw(&listing), &(revision, &ids)));
+                // The listing's row holds the sequence, so it is written again even unchanged.
+                rows.push(row(Table::Listing, encode_raw(&listing), &(sequence, &ids)));
             }
             Self::set_listing_locked(&mut state, listing, blocks, &mut rows);
         }
@@ -987,15 +976,16 @@ impl Refs {
         self.write(rows)
     }
 
-    /// Changes a block's summary on this device, as of the newest revision it knows, and moves it
-    /// between the listings of its old and new parent.
+    /// Changes a block's summary on this device, as of just past the newest sequence it knows (so
+    /// past every listing it read, and before the server's own change, which comes after
+    /// whatever it answered), and moves it between the listings of its old and new parent.
     pub fn revise(&self, mut summary: BlockSummary) -> Result<(), StoreError> {
         let block = summary.id;
         let parent = summary.parent;
         let mut rows = Vec::new();
         {
             let mut state = self.state.lock().unwrap();
-            summary.revision = newest(&state).max(summary.revision);
+            summary.changed = (newest(&state) + 1).max(summary.changed);
             Self::put(&mut state, &summary, &mut rows);
             let listings: Vec<Listing> = state.listings.keys().copied().collect();
             for listing in listings {
@@ -1017,7 +1007,6 @@ impl Refs {
                 }
                 Self::put_listing(&mut state, listing, ids, &mut rows);
             }
-            Self::put_listing(&mut state, Listing::Block(block), vec![block], &mut rows);
         }
         self.write(rows)
     }
@@ -1116,7 +1105,7 @@ impl Refs {
             .iter()
             .filter(|id| !listed.contains(id))
             .filter_map(|id| state.summaries.get(id))
-            .filter(|summary| summary.revision > at)
+            .filter(|summary| summary.changed > at)
             .filter(shown)
             .cloned()
             .collect();
@@ -1141,7 +1130,6 @@ impl Refs {
         let mut found = match listing {
             Listing::Children(parent) => placed(parent),
             Listing::Deleted => placed(BlockParent::Detached),
-            Listing::Block(block) => state.summaries.get(&block).cloned().into_iter().collect(),
             Listing::References(block) => state
                 .summaries
                 .get(&block)
@@ -1255,17 +1243,9 @@ impl Refs {
         }
     }
 
-    pub fn newest_revision(&self) -> u64 {
+    /// The newest sequence this device knows of: of a summary, or of a listing it read.
+    pub fn newest_sequence(&self) -> u64 {
         newest(&self.state.lock().unwrap())
-    }
-
-    /// Offline answers, each as of the newest revision this device knows.
-    pub fn current(&self, mut blocks: Vec<BlockSummary>) -> Vec<BlockSummary> {
-        let newest = self.newest_revision();
-        for summary in &mut blocks {
-            summary.revision = newest;
-        }
-        blocks
     }
 
     pub fn summary(&self, block: Uuid) -> Option<BlockSummary> {
@@ -1904,7 +1884,6 @@ impl Refs {
             let about = |listing: &Listing| match listing {
                 Listing::Children(BlockParent::Block(block))
                 | Listing::Backrefs(block)
-                | Listing::Block(block)
                 | Listing::References(block)
                 | Listing::OpenSettings(block) => gone.contains(block),
                 _ => false,
@@ -2265,10 +2244,9 @@ fn sequence_key(bytes: &[u8]) -> Result<u64, StoreError> {
 }
 
 fn newest(state: &State) -> u64 {
-    state
-        .summaries
-        .values()
-        .map(|summary| summary.revision)
+    let summaries = state.summaries.values().map(|summary| summary.changed);
+    summaries
+        .chain(state.listed_at.values().copied())
         .max()
         .unwrap_or_default()
 }
