@@ -5,7 +5,7 @@ use std::rc::Rc;
 use beui::native::painting::{
     Content, Fade, Frame, Painting, Paints, Pixels, Primitive, Triangle, Vertex as PaintVertex,
 };
-use beui::native::texture_quad::{Bound, Pipelines, Quad, Quads};
+use beui::native::texture_quad::{Bound, Hole, Pipelines, Quad, Quads};
 use beui::{Rect, native::Draw, native::DrawAt, native::Drawing, native::Waker};
 use smithay::backend::allocator::dmabuf::{Dmabuf, WeakDmabuf};
 use smithay::backend::renderer::utils::{Buffer, with_renderer_surface_state};
@@ -26,12 +26,16 @@ pub struct Gpu {
     srgb: bool,
     vulkan: Option<Vulkan>,
     quads: Pipelines,
+    /// Punches a program window's hole in the host's surface.
+    hole: Hole,
 }
 
 impl Gpu {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue, format: wgpu::TextureFormat) -> Self {
         let vulkan = Vulkan::of(&device);
+        let hole = Hole::new(&device, &queue);
         Self {
+            hole,
             quads: Pipelines::new(&device),
             device,
             queue,
@@ -312,7 +316,10 @@ pub struct WindowDraw {
     gpu: Rc<Gpu>,
     layers: Vec<(Rc<SurfaceTexture>, Layer)>,
     buffers: Vec<Buffer>,
+    /// Its surfaces, or where its renderer composites, the holes they show through.
     quads: Quads,
+    /// Its surfaces as layers of the window (`Surface::Host`), where its renderer composites.
+    placed: std::cell::RefCell<Vec<beui::native::compose::Placed>>,
     painted: Rc<Cell<bool>>,
     waker: Option<Waker>,
 }
@@ -337,6 +344,7 @@ impl WindowDraw {
             layers,
             buffers,
             quads: Quads::default(),
+            placed: std::cell::RefCell::new(Vec::new()),
             painted,
             waker,
         })
@@ -397,15 +405,64 @@ impl Draw for WindowDraw {
                     opacity: layer.alpha,
                     ..place(layer.rect, layer.source, layer.buffer, &at)
                 };
-                (&texture.bound, quad)
+                (texture, layer, quad)
             });
+        if !at.composited {
+            self.quads.prepare(
+                &self.gpu.quads,
+                queue,
+                at.format,
+                [at.screen.x, at.screen.y],
+                quads.map(|(texture, _, quad)| (&texture.bound, quad)),
+            );
+            return;
+        }
+        // A program window is a surface the host owns: a layer of the window for each of its
+        // surfaces, under the hole the drawing punches for it in the host's surface.
+        let mut placed = self.placed.borrow_mut();
+        placed.clear();
+        let mut holes = Vec::new();
+        for (texture, layer, quad) in quads {
+            let id = std::hash::BuildHasher::hash_one(
+                &std::hash::BuildHasherDefault::<std::collections::hash_map::DefaultHasher>::default(),
+                layer.surface.id(),
+            );
+            let size = texture.texture.size();
+            let Some(shown) = beui::native::compose::layer_of(
+                &quad,
+                (size.width, size.height),
+                at.pixels_per_point,
+                be_lib_layers::LayerId(id),
+                be_lib_layers::Surface::Host(id),
+            ) else {
+                continue;
+            };
+            holes.push((
+                &self.gpu.hole.white,
+                Quad {
+                    opaque: false,
+                    opacity: 1.0,
+                    ..quad
+                },
+            ));
+            placed.push(beui::native::compose::Placed {
+                layer: shown,
+                texture: texture.bound.clone(),
+                opaque: texture.opaque,
+                srgb_encoded: quad.srgb_encoded,
+            });
+        }
         self.quads.prepare(
-            &self.gpu.quads,
+            &self.gpu.hole.pipelines,
             queue,
             at.format,
             [at.screen.x, at.screen.y],
-            quads,
+            holes,
         );
+    }
+
+    fn layers(&self) -> Vec<beui::native::compose::Placed> {
+        self.placed.borrow().clone()
     }
 
     fn paint(&self, pass: &mut wgpu::RenderPass<'_>, _at: DrawAt) {

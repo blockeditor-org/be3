@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use crate::{Draw, DrawAt};
 
-const PLACED_BYTES: u64 = 80;
+const PLACED_BYTES: u64 = 96;
 const KEPT_RENDERERS: usize = 4;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -13,7 +13,9 @@ pub struct Quad {
     pub clip: [f32; 4],
     pub rotation: f32,
     pub opacity: f32,
-    pub corner_radius: f32,
+    /// The rounding of each of the quad's own corners, in the target's pixels, from its top left
+    /// clockwise (before it is turned): a corner with no radius stays square.
+    pub corner_radii: [f32; 4],
     pub opaque: bool,
     pub srgb_encoded: bool,
 }
@@ -26,7 +28,7 @@ impl Default for Quad {
             clip: [f32::MIN, f32::MIN, f32::MAX, f32::MAX],
             rotation: 0.0,
             opacity: 1.0,
-            corner_radius: 0.0,
+            corner_radii: [0.0; 4],
             opaque: false,
             srgb_encoded: false,
         }
@@ -65,7 +67,7 @@ impl Quad {
     fn bytes(&self, format: wgpu::TextureFormat, screen: [f32; 2]) -> Vec<u8> {
         let flag = |on: bool| f32::from(u8::from(on));
         let [cos, sin] = self.turn();
-        let values: [f32; 20] = [
+        let values: [f32; 24] = [
             self.rect[0],
             self.rect[1],
             self.rect[2],
@@ -85,7 +87,11 @@ impl Quad {
             self.opacity.clamp(0.0, 1.0),
             flag(self.opaque),
             flag(self.srgb_encoded && format.is_srgb()),
-            self.corner_radius.max(0.0),
+            0.0,
+            self.corner_radii[0].max(0.0),
+            self.corner_radii[1].max(0.0),
+            self.corner_radii[2].max(0.0),
+            self.corner_radii[3].max(0.0),
         ];
         values
             .iter()
@@ -399,6 +405,9 @@ pub struct TextureDraw<K: 'static = ()> {
     _kept: K,
     bound: RefCell<Option<(u64, Bound)>>,
     quads: Quads,
+    /// The surface the host owns that the texture shows, when it is one (`hosted`).
+    hosted: Option<u64>,
+    placed: RefCell<Vec<crate::compose::Placed>>,
 }
 
 impl TextureDraw {
@@ -415,11 +424,21 @@ impl<K: 'static> TextureDraw<K> {
             _kept: kept,
             bound: RefCell::new(None),
             quads: Quads::default(),
+            hosted: None,
+            placed: RefCell::new(Vec::new()),
         }
     }
 
     pub fn with(mut self, quad: Quad) -> Self {
         self.quad = quad;
+        self
+    }
+
+    /// Shows the texture as a surface the host owns (`Surface::Host(id)`, such as a program
+    /// window): where the renderer composites, a layer of the window under a hole this drawing
+    /// punches, rather than painted into the window.
+    pub fn hosted(mut self, id: u64) -> Self {
+        self.hosted = Some(id);
         self
     }
 }
@@ -446,6 +465,35 @@ impl<K: 'static> Draw for TextureDraw<K> {
             clip: at.clip,
             ..self.quad
         };
+        let mut placed = self.placed.borrow_mut();
+        placed.clear();
+        if let (true, Some(id)) = (at.composited, self.hosted) {
+            let size = (self.texture.width(), self.texture.height());
+            let id = be_lib_layers::LayerId(id);
+            if let Some(layer) = crate::compose::layer_of(
+                &quad,
+                size,
+                at.pixels_per_point,
+                id,
+                be_lib_layers::Surface::Host(id.0),
+            ) {
+                placed.push(crate::compose::Placed {
+                    layer,
+                    texture: texture.clone(),
+                    opaque: quad.opaque,
+                    srgb_encoded: quad.srgb_encoded,
+                });
+            }
+            let hole = Hole::of(device, queue, &at);
+            self.quads.prepare(
+                &hole.pipelines,
+                queue,
+                at.format,
+                [at.screen.x, at.screen.y],
+                [(&hole.white, Quad { opaque: false, opacity: 1.0, ..quad })],
+            );
+            return;
+        }
         self.quads.prepare(
             &pipelines,
             queue,
@@ -457,5 +505,69 @@ impl<K: 'static> Draw for TextureDraw<K> {
 
     fn paint(&self, pass: &mut wgpu::RenderPass<'_>, _at: DrawAt) {
         self.quads.paint(pass);
+    }
+
+    fn layers(&self) -> Vec<crate::compose::Placed> {
+        self.placed.borrow().clone()
+    }
+}
+
+/// A white pixel drawn to erase: the hole a surface the host owns shows through. One per
+/// renderer, as `Pipelines::of` keeps.
+pub struct Hole {
+    pub pipelines: Pipelines,
+    pub white: Bound,
+}
+
+thread_local! {
+    static HOLES: RefCell<Vec<(u64, Rc<Hole>)>> = const { RefCell::new(Vec::new()) };
+}
+
+impl Hole {
+    pub fn of(device: &wgpu::Device, queue: &wgpu::Queue, at: &DrawAt) -> Rc<Self> {
+        HOLES.with_borrow_mut(|holes| {
+            if let Some((_, hole)) = holes.iter().find(|(id, _)| *id == at.renderer) {
+                return hole.clone();
+            }
+            let hole = Rc::new(Self::new(device, queue));
+            if holes.len() == KEPT_RENDERERS {
+                holes.remove(0);
+            }
+            holes.push((at.renderer, hole.clone()));
+            hole
+        })
+    }
+
+    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
+        let size = wgpu::Extent3d {
+            width: 1,
+            height: 1,
+            depth_or_array_layers: 1,
+        };
+        let white = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("texture quad hole"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        queue.write_texture(
+            white.as_image_copy(),
+            &[255; 4],
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4),
+                rows_per_image: Some(1),
+            },
+            size,
+        );
+        let pipelines = Pipelines::erasing(device);
+        Self {
+            white: pipelines.bind(&white),
+            pipelines,
+        }
     }
 }

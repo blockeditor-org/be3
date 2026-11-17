@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 be-host-programs = { path = "../be-host-programs" }
 be-lib-dmabuf = { path = "../be-lib-dmabuf" }
+be-lib-layers = { path = "../be-lib-layers" }
 beui = { path = "../beui" }
 beui-host = { path = "../beui-host" }
 gvdb = "0.10"

@@ -135,12 +135,33 @@ Every app surface the host shows is drawn from a `be_lib_layers::Layer`
 `Surface::Anchored`, with the runtime's slot), a transform from the surface's pixels to the
 window's points, the clip in its pixels, the rounding of its own corners and its opacity.
 `be-host-runtime/src/layers.rs` makes one from each blit the host's frame paints
-(`Blit::screen_layer`, `Blit::anchored_layer`); natively `AppDrawing` draws it as a texture quad
-in the host's pass (`layers::texture_quad`), in the paint order of the host's UI, which is the
-one `Surface::Root(0)` drawn in that pass. On the web `layers::frame` makes the frame's list
-(Apps on the page in guides/running/web.md) and the page applies it as CSS. The list's hit test
-and damage (`WindowLayers`), and the forwarding router (`be-lib-input-router`), are not used by
-the host yet: its input still goes through beui's forwarding catchers (`AppView`).
+(`Blit::screen_layer`, `Blit::anchored_layer`).
+
+Natively each of the host's windows is composited from its list (`beui_draw::compose`, which
+`presenter::install` turns on; beui-renderer-wgpu's `composite.rs`). The window's renderer
+(present.rs's, and each display's in beui-platform-drm) renders the host's UI into textures of
+its own: `Surface::Root(0)`, and while an anchored view shows, `Surface::Root(1)` for what the
+UI paints after the first one, as the web stacks `#layers` over its canvas. A drawing that shows
+a surface places it as a layer (`Draw::layers`) and paints only its hole: `AppDrawing` erases a
+screen's quad from the root it paints into, an anchored view punches none, be-host-wayland's
+`WindowDraw` and a `TextureDraw` made `hosted` (win32's captured windows) place program windows
+as `Surface::Host`. The renderer then draws the window from the list in a pass of its own:
+the layers placed before the first anchored view, `Root(0)`, the layers placed from it on, and
+`Root(1)`. A composited frame visits every drawing, damaged or not (`Display::drawings` skips
+subtrees that hold none), so the list is whole; a layer id two drawings repeat (a view's pieces
+below and above its children) takes one of its own per repeat. When the anchored view the upper
+root begins at changes, the frame is painted whole, since what the UI paints after it moves
+between the roots. The pass draws again only where the list's damage against last frame's says
+(`WindowLayers::damage`, each root's own damage through its layer), which is what
+`Renderer::scissors` reports and the e-paper display reads. Paintings are unchanged: they come
+from `Paints`, not from the GPU.
+
+A hole is a full erase, as on the web: what a translucent part of a screen shows beneath it is
+the window's background, not the host's UI painted before it, and a view inside an opacity group
+erases only the group's layer. On the web `layers::frame` makes the frame's list (Apps on the
+page in guides/running/web.md) and the page applies it as CSS. The list's hit test and the
+forwarding router (`be-lib-input-router`) are not used by the host yet: its input still goes
+through beui's forwarding catchers (`AppView`).
 
 ## Frames and pacing
 

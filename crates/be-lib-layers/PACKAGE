@@ -104,6 +104,21 @@ write_package_value("be3.cargo", {
             "test_deps": [],
             "test_features": [],
         },
+        "wasi-guest": {
+            "binaries": {},
+            "deps": [
+                "//crates/be-lib-geometry:be-lib-geometry",
+                "//crates/be-lib-input-router:be-lib-input-router",
+                "//crates/be-lib-stable-hash:be-lib-stable-hash",
+                "//crates/be-lib-ui-types:be-lib-ui-types",
+                "//third-party/rust:postcard-1.1.3",
+                "//third-party/rust:serde-1.0.228",
+            ],
+            "examples": {},
+            "features": [],
+            "test_deps": [],
+            "test_features": [],
+        },
         "wasm32": {
             "binaries": {},
             "deps": [

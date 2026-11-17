@@ -1,4 +1,4 @@
-use beui::native::texture_quad::{Bound, Pipelines, Quad};
+use beui::native::texture_quad::{Bound, Hole, Pipelines, Quad};
 
 use crate::presenter::SurfacePresenter;
 
@@ -8,34 +8,9 @@ pub struct Presenter {
 }
 
 pub fn presenter(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<Presenter, String> {
-    let size = wgpu::Extent3d {
-        width: 1,
-        height: 1,
-        depth_or_array_layers: 1,
-    };
-    let hole = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("app canvas hole"),
-        size,
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8Unorm,
-        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-        view_formats: &[],
-    });
-    queue.write_texture(
-        hole.as_image_copy(),
-        &[255; 4],
-        wgpu::TexelCopyBufferLayout {
-            offset: 0,
-            bytes_per_row: Some(4),
-            rows_per_image: Some(1),
-        },
-        size,
-    );
-    let pipelines = Pipelines::erasing(device);
+    let Hole { pipelines, white } = Hole::new(device, queue);
     Ok(Presenter {
-        hole: pipelines.bind(&hole),
+        hole: white,
         pipelines,
     })
 }

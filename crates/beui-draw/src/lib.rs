@@ -4,6 +4,7 @@ use beui_core::drawing::Drawing;
 use beui_core::painting::Paints;
 use beui_types::Vec2;
 
+pub mod compose;
 pub mod texture_quad;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -14,6 +15,10 @@ pub struct DrawAt {
     pub pixels_per_point: f32,
     pub format: wgpu::TextureFormat,
     pub renderer: u64,
+    /// Whether the renderer composites this frame (`compose`): a drawing that shows a surface
+    /// then places it as a layer (`Draw::layers`) and paints only the hole it shows through,
+    /// rather than painting the surface itself.
+    pub composited: bool,
 }
 
 impl DrawAt {
@@ -37,6 +42,13 @@ pub trait Draw: 'static {
     }
 
     fn paint(&self, pass: &mut wgpu::RenderPass<'_>, at: DrawAt);
+
+    /// The surfaces this drawing shows as layers of its window when its renderer composites
+    /// (`DrawAt::composited`), bottom first, as of its last `prepare`. A composited renderer
+    /// prepares every drawing each frame, damaged or not, and asks for them after.
+    fn layers(&self) -> Vec<compose::Placed> {
+        Vec::new()
+    }
 }
 
 pub fn drawing(draw: impl Draw) -> Drawing {

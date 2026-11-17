@@ -1,18 +1,16 @@
 //! The host's layer list (plans/host_as_platform_adapter.md, The layer list), with the host's
-//! own UI as its only producer: every app surface the host's frame shows becomes a `Layer`, and
-//! both platforms draw from the layer rather than from the blit. Natively a layer is drawn as a
-//! texture quad in the host's wgpu pass, in the paint order of the host's UI (`texture_quad`); on
-//! the web the frame's list is applied as CSS to the canvases the page places (`web::canvases`,
-//! `web::overlay`).
-//!
-//! The host's UI is one surface, `Surface::Root(0)`, drawn natively in the same pass the app
-//! layers are drawn in. In the frame's list it sits above the screens it shows and below its
-//! anchored views and what lies over them, as the web stacks its canvas between `#apps` and
-//! `#layers`: where it shows a screen it shows a hole (natively the screen is drawn over what it
-//! painted there).
+//! own UI as its only producer: every app surface the host's frame shows becomes a `Layer`.
+//! Natively a drawing places its layers (`Draw::layers`) and the window's renderer composites
+//! them (beui_draw::compose): the host's UI is `Surface::Root(0)`, and `Root(1)` above the
+//! first anchored view, textures of their own, and a screen shows through the hole its drawing
+//! erases there (`texture_quad` places it). A renderer that does not composite (Space's panels)
+//! has the drawing draw the layer as a texture quad in its pass instead. On the web the frame's
+//! list is applied as CSS to the canvases the page places (`web::canvases`, `web::overlay`),
+//! with the host's canvas as `Root(0)` between `#apps` and `#layers`, showing a hole where it
+//! shows a screen.
 
 use be_lib_layers::{Affine, Layer, LayerId, LayerInput, Surface};
-use beui::{Rect, native::DrawAt, pos2, vec2};
+use beui::{Rect, native::DrawAt, pos2};
 
 use super::presenter::{Painted, Quad};
 
@@ -65,38 +63,13 @@ pub(crate) fn screen(
 }
 
 /// The texture quad that draws `layer` natively, in a pass at `at`: what it shows of its
-/// surface's texture, and where, turned and faded as the layer says.
+/// surface's texture, and where, turned, faded and rounded as the layer says.
 pub(crate) fn texture_quad(layer: &Layer, at: &DrawAt) -> beui::native::texture_quad::Quad {
-    let transform = layer.transform;
-    let (across, down) = (transform.across(), transform.down());
-    // Upright and unflipped only: a turn of exactly half a circle has negative axes and goes
-    // through the other arm as a rotation, so the scale is always positive and the rect never
-    // has a negative size.
-    let (scale, rotation) = match across.y == 0.0 && down.x == 0.0 && across.x > 0.0 && down.y > 0.0
-    {
-        true => (vec2(across.x, down.y), 0.0),
-        false => (
-            vec2(across.length(), down.length()),
-            across.y.atan2(across.x),
-        ),
-    };
-    let clip = layer.clip;
-    let rect = Rect::from_center_size(
-        transform.apply(clip.center()),
-        vec2(clip.width() * scale.x, clip.height() * scale.y),
-    );
-    let (width, height) = (layer.size.0 as f32, layer.size.1 as f32);
-    let source = Rect::from_min_max(
-        pos2(clip.min.x / width, clip.min.y / height),
-        pos2(clip.max.x / width, clip.max.y / height),
-    );
-    Quad {
-        rect,
-        rotation,
-        opacity: layer.opacity,
-        corner_radius: layer.corner_radius,
+    beui::native::texture_quad::Quad {
+        clip: at.clip,
+        srgb_encoded: true,
+        ..beui::native::compose::quad(layer, at.pixels_per_point, [0.0; 2])
     }
-    .placed(source, at)
 }
 
 /// Counts the pieces each view shows, so a layer's id names which of its view's pieces it is
@@ -206,7 +179,7 @@ fn anchored_piece(
     if !shown.is_positive() || !target.is_positive() || !anchored.pixels.is_positive() {
         return None;
     }
-    let per = vec2(
+    let per = beui::vec2(
         anchored.pixels.width() / target.width(),
         anchored.pixels.height() / target.height(),
     );

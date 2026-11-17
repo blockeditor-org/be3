@@ -30,8 +30,12 @@ fn a_layer_draws_natively_as_the_quad_its_blit_drew() {
                 && close(drawn.uv, was.uv)
                 && drawn.clip == was.clip
                 && (drawn.rotation - was.rotation).abs() < 1e-5
-                && (drawn.opacity, drawn.corner_radius) == (was.opacity, was.corner_radius),
+                && (drawn.opacity, drawn.corner_radii) == (was.opacity, was.corner_radii),
             "{drawn:?} draws as {was:?} did"
+        );
+        assert!(
+            drawn.corner_radii[0] == 0.0 && drawn.corner_radii[2] == 0.0,
+            "only the corners where the shown part meets the surface's are rounded: {drawn:?}"
         );
     }
 }

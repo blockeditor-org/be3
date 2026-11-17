@@ -218,8 +218,10 @@ impl Gpu {
         format: wgpu::TextureFormat,
         open_device: OpenDevice,
     ) -> Self {
+        let mut renderer = Renderer::new(&crate::Resources::new(&opened.device, format));
+        renderer.set_window(true);
         Self {
-            renderer: Renderer::new(&crate::Resources::new(&opened.device, format)),
+            renderer,
             instance,
             adapter: opened.adapter,
             device: opened.device,

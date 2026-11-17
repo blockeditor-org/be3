@@ -16,6 +16,7 @@ fn at() -> DrawAt {
         pixels_per_point: 2.0,
         format: wgpu::TextureFormat::Bgra8Unorm,
         renderer: 0,
+        composited: false,
     }
 }
 
