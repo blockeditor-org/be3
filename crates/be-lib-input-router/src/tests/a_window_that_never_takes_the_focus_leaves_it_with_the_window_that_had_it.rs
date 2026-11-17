@@ -12,9 +12,13 @@ fn a_window_that_never_takes_the_focus_leaves_it_with_the_window_that_had_it() {
     router.route(&test, press(250.0, 250.0, false));
     let pressed = router.route(&test, press(350.0, 350.0, true));
     assert!(
-        pressed
-            .iter()
-            .all(|routed| !matches!(routed, Routed::Input { input: Input::Focus(_), .. })),
+        pressed.iter().all(|routed| !matches!(
+            routed,
+            Routed::Input {
+                input: Input::Focus(_),
+                ..
+            }
+        )),
         "no one hears the focus move: {pressed:?}"
     );
     assert_eq!(router.focused(), Some(EDITOR));

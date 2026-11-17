@@ -346,9 +346,9 @@ impl<T: Copy + Eq + Debug> Router<T> {
         let mut left = Vec::new();
         self.entered.retain(|target| {
             let stays = under == Some(*target)
-                || presses.iter().any(|press| {
-                    press.pointer.keeps_hover() && press.target == Some(*target)
-                });
+                || presses
+                    .iter()
+                    .any(|press| press.pointer.keeps_hover() && press.target == Some(*target));
             if !stays {
                 left.push(*target);
             }
@@ -513,9 +513,7 @@ impl<T: Copy + Eq + Debug> Router<T> {
                     | TouchpadGesture::HoldEnded(_) => Phase::Ended,
                     _ => Phase::Moved,
                 };
-                let target = self
-                    .pointer
-                    .and_then(|at| self.gesture(test, at, phase));
+                let target = self.pointer.and_then(|at| self.gesture(test, at, phase));
                 if let Some(target) = target {
                     out.push(Routed::Input {
                         target,
@@ -539,9 +537,9 @@ impl<T: Copy + Eq + Debug> Router<T> {
                         }
                         target
                     }
-                    PenPhase::Up(button) => self
-                        .release(Pointer::Pen, button)
-                        .or_else(|| test.hit(pos)),
+                    PenPhase::Up(button) => {
+                        self.release(Pointer::Pen, button).or_else(|| test.hit(pos))
+                    }
                     PenPhase::Gone => self.cancel(Pointer::Pen).or_else(|| test.hit(pos)),
                     PenPhase::Move => self.moved(test, Pointer::Pen, pos),
                 };
@@ -677,9 +675,8 @@ impl<T: Copy + Eq + Debug> Router<T> {
     ) {
         if pressed {
             if self.carry.is_some() {
-                self.presses.retain(|press| {
-                    !(press.pointer == Pointer::Mouse && press.button == button)
-                });
+                self.presses
+                    .retain(|press| !(press.pointer == Pointer::Mouse && press.button == button));
                 self.presses.push(Press {
                     pointer: Pointer::Mouse,
                     button,

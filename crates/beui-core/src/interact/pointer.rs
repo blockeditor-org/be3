@@ -18,8 +18,8 @@ use beui_types::{Pos2, Rect, Vec2, vec2};
 
 use super::forward;
 use super::hit::{self, Hit, interactive};
-use be_lib_input_router::Phase;
 use super::{WHEEL_LATCH_SLOP, grab};
+use be_lib_input_router::Phase;
 use beui_types::WHEEL_LATCH_TIMEOUT;
 
 #[derive(Default)]
@@ -157,7 +157,6 @@ impl Kind {
             PointerId::Touch(_) => Kind::FINGER,
         }
     }
-
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
