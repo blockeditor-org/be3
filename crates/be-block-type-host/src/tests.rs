@@ -8,6 +8,7 @@ use be_block_store::{Manifest, MemoryStore};
 use be_sdk_type_api::{Description, EditorId, Status};
 use be_sdk_type_testing::probe::{self, Probe};
 use be_sdk_type_testing::sections::{self, Sections};
+use be_sdk_type_testing::tally::{Tally, TallyOp};
 use std::sync::Mutex;
 use uuid::Uuid;
 
@@ -21,6 +22,7 @@ mod a_merge_over_parts_reads_only_the_parts_each_side_changed;
 mod a_modules_answer_is_seen_after_the_host_task_spent_its_budget;
 mod a_relayed_message_sealed_with_a_key_another_search_awaits_waits_for_it;
 mod a_reopened_replica_holds_an_editors_operations_less_those_replayed;
+mod a_replica_opened_again_after_a_restart_is_told_it_and_its_edit_lands_once;
 mod a_replica_opened_again_takes_the_servers_journal_and_this_device_keeps_it;
 mod a_replica_reaches_no_part_of_a_block_it_was_not_handed;
 mod a_replica_that_ended_uncounts_only_the_operations_it_never_took;
@@ -483,4 +485,145 @@ async fn on_the_server(
         .map(|index| content.section(*index).map(<[u8]>::to_vec))
         .collect();
     (name, sections)
+}
+
+// Of a `Tally` whose order restarts with an edit on its way.
+
+/// Waits on the modules and what they answer, without hearing the connection: what the server
+/// ordered meanwhile reaches the replicas only at the next `step`.
+async fn pump_until(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+    what: &str,
+    done: impl Fn(&Replicas<Quiet>) -> bool,
+) {
+    let waited = tokio::time::timeout(std::time::Duration::from_secs(30), async {
+        replicas.pump((peer, shared)).await;
+        while !done(replicas) {
+            replicas.woken().await;
+            replicas.pump((peer, shared)).await;
+        }
+    })
+    .await;
+    assert!(waited.is_ok(), "never {what}");
+}
+
+async fn step_until_replicas(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+    what: &str,
+    done: impl Fn(&Replicas<Quiet>) -> bool,
+) {
+    let waited = tokio::time::timeout(std::time::Duration::from_secs(30), async {
+        while !done(replicas) {
+            step(peer, shared, replicas).await;
+        }
+    })
+    .await;
+    assert!(waited.is_ok(), "never {what}");
+}
+
+/// How many entries the server's order holds of `block`, as this device heard them.
+fn heard_entries_of(peer: &Peer<MemoryStore>, block: Uuid) -> usize {
+    peer.local_journal(block)
+        .ok()
+        .flatten()
+        .map_or(0, |journal| journal.entries.len())
+}
+
+/// The last local edit the submissions `block`'s replica keeps hold.
+fn last_kept(replicas: &Replicas<Quiet>, block: Uuid) -> u64 {
+    replicas
+        .submissions_of(block)
+        .and_then(|(_, _, kept)| kept.into_iter().max())
+        .unwrap_or_default()
+}
+
+fn operate(
+    replicas: &mut Replicas<Quiet>,
+    block: Uuid,
+    editor: EditorId,
+    mirror: &mut be_sdk_type_guest::editor::EditorMirror<Tally>,
+    operation: TallyOp,
+) {
+    let message = mirror.operate(operation).expect("the editor has content");
+    replicas.relay_from_editor(block, editor, message.encode(), std::time::Instant::now());
+}
+
+/// Opens a new `Tally` and restarts its order (a seal of a session state past
+/// `RESTART_STATE_BYTES`) while an edit adding 10 is on its way: the server numbers the edit
+/// after the restart, every replica passes it over, and its replica submits it again carried
+/// over. Returns once the host heard the restart, before it heard the carried edit ordered, with
+/// the block and the number of the local edit it holds. Only what is written ahead of a
+/// submission is kept (`hold_kept_edits`).
+async fn carry_an_edit_over_a_restart(
+    peer: &Arc<Peer<MemoryStore>>,
+    shared: &Arc<Mutex<Quiet>>,
+    replicas: &mut Replicas<Quiet>,
+) -> (Uuid, u64) {
+    let block = peer
+        .create::<Tally>(BlockParent::Root)
+        .await
+        .expect("the tally is made");
+    peer.save(block, &Tally::default(), None)
+        .await
+        .expect("the empty tally is published");
+    replicas
+        .open((peer, shared), block, Tally::CONTENT_TYPE, true)
+        .await
+        .expect("the block opens");
+    while replicas.joining() {
+        replicas.woken().await;
+        replicas.pump((peer, shared)).await;
+    }
+    let editor = 7;
+    let mut mirror = attach_mirror::<Tally>(peer, shared, replicas, block, editor).await;
+    // Only what is written ahead of a submission is kept: no idle pass writes over it.
+    replicas.hold_kept_edits = true;
+
+    let grow = be_sdk_type_guest::RESTART_STATE_BYTES + 1;
+    operate(replicas, block, editor, &mut mirror, TallyOp::Grow(grow));
+    replicas.pump((peer, shared)).await;
+    step_until_replicas(peer, shared, replicas, "had the growth ordered", |replicas| {
+        heard_entries_of(peer, block) >= 1
+            && replicas
+                .submissions_of(block)
+                .is_some_and(|(submitting, ..)| submitting == 0)
+    })
+    .await;
+    receive_frames(shared, editor, &mut mirror);
+
+    // The seal restarts the order; the edit goes before the replica hears the restart.
+    replicas.seal((peer, shared), block, false).await;
+    pump_until(peer, shared, replicas, "submitted the restart", |replicas| {
+        replicas
+            .submissions_of(block)
+            .is_some_and(|(submitting, ..)| submitting == 1)
+    })
+    .await;
+    let grown = last_kept(replicas, block);
+    operate(replicas, block, editor, &mut mirror, TallyOp::Add(10));
+    pump_until(peer, shared, replicas, "submitted the edit", |replicas| {
+        last_kept(replicas, block) > grown
+    })
+    .await;
+    let added = last_kept(replicas, block);
+    step_until_replicas(peer, shared, replicas, "heard the restart", |replicas| {
+        replicas
+            .submissions_of(block)
+            .is_some_and(|(_, restarts, _)| restarts >= 1)
+    })
+    .await;
+    let (_, _, kept) = replicas
+        .submissions_of(block)
+        .expect("the block is open");
+    assert_eq!(
+        kept,
+        [added],
+        "the edit's submission carried over the restart is kept, and none from before it"
+    );
+
+    (block, added)
 }
