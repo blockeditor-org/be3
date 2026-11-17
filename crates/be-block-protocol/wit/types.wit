@@ -64,6 +64,10 @@ interface types {
     /// public and signing halves, the server's own account key.
     type public-key = tuple<u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8>;
 
+    /// The hash of an access log entry (`be_block_keys::EntryHash`): the head of a log as of
+    /// some entry.
+    type entry-hash = tuple<u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8>;
+
     enum organization-role {
         administrator,
         editor,
@@ -160,14 +164,16 @@ interface types {
     /// the server stores (a pinned escrow key, an invitation's or link's
     /// escrow): the two encode alike, which a test of this crate holds.
     /// An organization's escrow key at `epoch`, made by the administrator
-    /// `maker`, whose identity key signs it chained to the epoch before
-    /// (`EscrowKey::chained`): a device takes it only from an administrator
-    /// its checked organization log names.
+    /// `maker` under the organization log's `head`, whose identity key signs
+    /// both chained to the epoch before (`EscrowKey::chained`): a device takes
+    /// it only from an administrator its checked organization log names, once
+    /// that log reaches `head`.
     record escrow-key {
         id: key-id,
         epoch: u64,
         public: public-key,
         signing: public-key,
+        head: entry-hash,
         maker: account-id,
         signature: list<u8>,
     }

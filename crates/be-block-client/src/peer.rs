@@ -902,6 +902,34 @@ impl<S: ObjectStore> Peer<S> {
         if self.keys.escrow_senders_unknown(&keys) {
             self.learn_administrators().await;
         }
+        // A contact's seal is checked against the block's log as of the head its epoch names
+        // (`KeyBook::sender_may`, signed access 3d), so that log is read first for each block a
+        // contact sealed a key of that is new here, when this device pinned its root.
+        let mut sealed_by_contacts: Vec<Uuid> = keys
+            .wrapped
+            .iter()
+            .filter(|wrap| {
+                wrap.wrapped_by == WrappedBy::Account(self.account)
+                    && wrap.sender != self.account
+                    && self.keys.contact(wrap.sender).is_some()
+                    && !self.keys.trusted(wrap.key)
+            })
+            .filter_map(|wrap| {
+                keys.keys
+                    .iter()
+                    .find(|row| row.id == wrap.key)
+                    .copied()
+                    .or_else(|| self.keys.row(wrap.key))
+            })
+            .filter(|row| row.kind != KeyKind::Escrow)
+            .map(|row| row.block)
+            .filter(|block| matches!(self.keys.root_pin(*block), crate::keys::RootPin::Pinned(_)))
+            .collect();
+        sealed_by_contacts.sort();
+        sealed_by_contacts.dedup();
+        for block in sealed_by_contacts {
+            let _ = self.checked_access(block).await;
+        }
         let opened = self.keys.absorb(keys);
         self.settle_escrowed().await;
         Ok(opened)
@@ -1541,6 +1569,7 @@ impl<S: ObjectStore> Peer<S> {
         let checked = around
             .check(self.organization, block, pinned, &entries)
             .ok_or(ClientError::Forged(block))?;
+        self.keys.note_log(block, &checked);
         Ok((entries, checked))
     }
 

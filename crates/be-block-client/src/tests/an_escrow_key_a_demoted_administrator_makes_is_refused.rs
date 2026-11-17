@@ -4,8 +4,15 @@ use crate::EscrowWarning;
 use be_block_keys::EscrowSecret;
 use be_block_protocol::{EscrowKey, OrganizationRole};
 
-/// An escrow key `maker` signs chained to `previous`, put in the chain by the server.
-fn made_by(harness: &Harness, maker: &Peer<MemoryStore>, epoch: u64, previous: Uuid) -> EscrowKey {
+/// An escrow key `maker` signs chained to `previous`, under `head` of the organization's log,
+/// put in the chain by the server.
+fn made_by(
+    harness: &Harness,
+    maker: &Peer<MemoryStore>,
+    epoch: u64,
+    previous: Uuid,
+    head: be_block_keys::EntryHash,
+) -> EscrowKey {
     let organization = maker.organization();
     let secret = EscrowSecret::generate();
     let mut escrow = EscrowKey {
@@ -13,6 +20,7 @@ fn made_by(harness: &Harness, maker: &Peer<MemoryStore>, epoch: u64, previous: U
         epoch,
         public: secret.public().0,
         signing: secret.signing(),
+        head,
         maker: maker.account(),
         signature: Vec::new(),
     };
@@ -43,7 +51,8 @@ async fn an_escrow_key_a_demoted_administrator_makes_is_refused() {
         .await
         .unwrap();
 
-    let made = made_by(&harness, &deputy, pinned.epoch + 1, pinned.id);
+    let head = admin.checked_organization().await.unwrap().unwrap().head;
+    let made = made_by(&harness, &deputy, pinned.epoch + 1, pinned.id, head);
     let device = harness.second(&member).await;
     assert_eq!(
         device.keys().escrow(),
@@ -56,7 +65,9 @@ async fn an_escrow_key_a_demoted_administrator_makes_is_refused() {
         .set_role(deputy.account(), OrganizationRole::Editor)
         .await
         .unwrap();
-    let forged = made_by(&harness, &deputy, made.epoch + 1, made.id);
+    // Under the head that demotes them, as a device that holds it takes no epoch from before.
+    let head = admin.checked_organization().await.unwrap().unwrap().head;
+    let forged = made_by(&harness, &deputy, made.epoch + 1, made.id, head);
     let device = harness.second(&member).await;
     assert_eq!(
         device.keys().escrow(),

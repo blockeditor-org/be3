@@ -43,17 +43,18 @@ impl<S: ObjectStore> Peer<S> {
         if escrow_rotation && let Err(error) = self.make_escrow().await {
             failed.get_or_insert(error);
         }
-        for root in &work.rotations {
-            if let Err(error) = self.rotate(*root).await {
-                failed.get_or_insert(error);
-            }
-        }
-        // Revocations the server made on its own go in the blocks' logs, signed here.
+        // Revocations the server made on its own go in the blocks' logs, signed here, before
+        // the rotations they call for, so each new epoch names a head after them.
         for revoked in &work.unsigned_revocations {
             if let Err(error) = self
                 .grant_as(revoked.block, revoked.account, Access::None, None)
                 .await
             {
+                failed.get_or_insert(error);
+            }
+        }
+        for root in &work.rotations {
+            if let Err(error) = self.rotate(*root).await {
                 failed.get_or_insert(error);
             }
         }
@@ -114,6 +115,11 @@ impl<S: ObjectStore> Peer<S> {
     /// that rests on the server's tree (`Checked::tainted`) counts for nothing. Key work lists
     /// only accounts the server holds a grant row for, so one it revoked is sealed to no more,
     /// signed or not. `organization` is the organization's log, checked.
+    ///
+    /// Each log counts only once it reaches the head the key's epoch names (`KeyBook::heads`,
+    /// signed access 3d), and then as of its head now, at or after that one: a server that
+    /// withholds a revocation, a closing or a demotion made before the epoch gets it sealed to
+    /// no one by that log until it serves the log that far.
     async fn sealing_target(
         &self,
         key: Uuid,
@@ -131,11 +137,13 @@ impl<S: ObjectStore> Peer<S> {
         {
             return self.keys.recipient(account, key);
         }
+        let heads = self.keys.heads(key);
         // Administering the organization gives the escrow key, and with it every key but an
         // owner-only block's: to an administrator its log names, any of them (the settings'
         // scope key and its blocks' data keys, which key work lists for them).
-        if let Some(administrator) =
-            organization.and_then(|checked| checked.administrators.get(&account.into_bytes()))
+        if let Some(administrator) = organization
+            .filter(|checked| heads.organization.is_some_and(|head| checked.holds(&head)))
+            .and_then(|checked| checked.administrators.get(&account.into_bytes()))
         {
             return Some(administrator.public);
         }
@@ -150,6 +158,9 @@ impl<S: ObjectStore> Peer<S> {
             return None;
         };
         let (_, checked) = self.checked_access(block).await.ok()?;
+        if !heads.block.is_some_and(|head| checked.holds(&head)) {
+            return None;
+        }
         let grantee = account.into_bytes();
         if let Some((level, identity)) = checked.grants.get(&grantee)
             && *level >= be_block_keys::Level::View
@@ -204,6 +215,15 @@ impl<S: ObjectStore> Peer<S> {
         }
         self.refresh_keys(Some(walked.iter().map(|node| node.id).collect()))
             .await?;
+        // Each new epoch names the heads of the logs it is made under (signed access 3d): read
+        // now, so they are past the revocation that called for the rotation. A log that does
+        // not check here leaves the head this device last held.
+        let _ = self.checked_organization().await;
+        for node in &walked {
+            if !node.owner_only && super::scope_of(node)? == node.id {
+                let _ = self.checked_access(node.id).await;
+            }
+        }
         let top_scope = super::scope_of(&top)?;
         let outer = match top_scope == top.id {
             true => None,
@@ -257,16 +277,19 @@ impl<S: ObjectStore> Peer<S> {
         Ok(())
     }
 
+    /// Makes the next escrow epoch under the organization log's head now, sealed to each
+    /// other administrator that log names who is a contact, with the keys the log names.
     pub(super) async fn make_escrow(&self) -> Result<(), ClientError> {
         self.refresh_keys(None).await?;
-        let (escrow, mut keys) = self.keys.mint_escrow()?;
-        for member in self.members().await? {
-            if member.role == OrganizationRole::Administrator
-                && member.account != self.account
-                && let Some(public) = self.keys.contact(member.account)
-            {
+        let Some(checked) = self.checked_organization().await? else {
+            return Ok(());
+        };
+        let (escrow, mut keys) = self.keys.mint_escrow(checked.head)?;
+        for (account, identity) in &checked.administrators {
+            let account = Uuid::from_bytes(*account);
+            if account != self.account && self.keys.contact(account).is_some() {
                 keys.wrapped
-                    .push(self.keys.seal_to(escrow.id, member.account, &public)?);
+                    .push(self.keys.seal_to(escrow.id, account, &identity.public)?);
             }
         }
         for row in self.keys.keys_of_kind(KeyKind::Scope) {
@@ -506,7 +529,8 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// The organization's log checked from the root this account pinned; none when it has no
-    /// log (the personal organization).
+    /// log (the personal organization). The key book keeps it as checked
+    /// (`KeyBook::set_organization`): what the heads of an epoch made here name.
     pub async fn checked_organization(
         &self,
     ) -> Result<Option<be_block_keys::Checked>, ClientError> {
@@ -514,15 +538,16 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(None);
         };
         let entries = self.organization_log().await?;
-        be_block_keys::check_log(
+        let checked = be_block_keys::check_log(
             be_block_keys::LogKind::Organization,
             self.organization.into_bytes(),
             pinned,
             &entries,
             &|_, _| None,
         )
-        .map(Some)
-        .map_err(|_| ClientError::Forged(self.organization))
+        .map_err(|_| ClientError::Forged(self.organization))?;
+        self.keys.set_organization(Some(&checked));
+        Ok(Some(checked))
     }
 
     /// A member record signing `account`, with `identity`, in or out of the organization's
