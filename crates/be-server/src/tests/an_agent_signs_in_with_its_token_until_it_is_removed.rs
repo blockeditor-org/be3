@@ -3,8 +3,7 @@ use super::*;
 #[tokio::test]
 async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     let organization = owner.organization("tracker").await;
 
     let response = owner.agent(organization, "Claude").await;
@@ -13,14 +12,8 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
     };
     assert_eq!(agent.name, "Claude");
 
-    let mut bot = harness.client().await;
-    let response = bot
-        .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(token.clone())))
-        .await;
-    let Ok(Authenticated { account, .. }) = response else {
-        panic!("the agent's token did not sign it in: {response:?}");
-    };
-    assert_eq!(account, agent.account);
+    let mut bot = harness.signed_in(&token).await;
+    assert_eq!(bot.id(), agent.account);
     bot.open(organization).await;
     let response = bot
         .call(|peer| {
@@ -53,13 +46,9 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
         refused_as(&response, ErrorCode::MemberNotFound),
         "an agent removed already is not found: {response:?}"
     );
-    let mut again = harness.client().await;
-    let response = again
-        .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(token)))
-        .await;
     assert!(
-        matches!(response, Err(_)),
-        "a removed agent's token still works: {response:?}"
+        harness.sign_in(&token).await.is_err(),
+        "a removed agent's token still works"
     );
 
     harness.stop().await;

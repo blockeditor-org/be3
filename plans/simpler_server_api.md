@@ -172,7 +172,7 @@ In three pieces, each landing whole.
 
 - **3a. read, write, send and events, each naming its organization (done).**
   `be3:server` is one interface, `server` (crates/be-block-protocol/wit/
-  server.wit): `ping`, `device-login(begin | poll)`, `authenticate`,
+  server.wit): `ping`, `device-login(begin | poll)`, `authenticate` (until 3b),
   `read(organization, query, follow) -> page`, `unfollow(organization,
   topic)`, `write(organization, ops) -> list<done>`, `send(organization,
   target, payload)` and `events() -> stream<event>`; the other files keep only
@@ -209,15 +209,27 @@ In three pieces, each landing whole.
   `a_write_whose_second_op_is_refused_keeps_nothing_of_its_first`,
   `a_rotation_missing_one_blocks_key_is_refused_whole`,
   `one_connection_reads_two_organizations_without_reconnecting`.
-- **3b. Signing in in the greeting.** The token goes in the greeting, and the
-  request's Authorization header stands in when the greeting carries none
-  (`be` behind a proxy that injects it, `Credentials::Header`), so
-  `authenticate` goes. Header-only authentication, as proposed, cannot work:
-  a browser cannot set a websocket's Authorization header, and the host,
-  the web build included, signs in with a token in a frame
-  (`Credentials::Token`). `logout` is `RevokeToken` from 3a. Done: a test
-  where a greeting with a bad token is closed before any call; the web build
-  signs in (its host test).
+- **3b. Signing in in the greeting (done).** A client's greeting carries its
+  token after its build (`be_block_protocol::Greeting`, past a zero byte, so
+  another build still reads only the build), and the request's Authorization
+  header stands in when it carries none (`be` behind a proxy that injects it,
+  `Credentials::Header`); `authenticate` is gone. The server's greeting answers
+  who signed in or why not (`Welcome`, `Client::greeted`), and a connection it
+  does not sign in is closed before any call. `Connection::connect` takes the
+  `Credentials` and answers the connection with who signed in; be-block-client's
+  `Peer`, the host (`link.rs`, native and web), `be` and the tests all sign in
+  that way. Header-only authentication, as proposed, cannot work: a browser
+  cannot set a websocket's Authorization header, so the host, the web build
+  included, signs in with a token in the greeting (`Credentials::Token`).
+  `logout` is `RevokeToken` from 3a. Where it differs: an HTTP long-poll
+  session exists only once the post that greets signs in, so the HTTP
+  sessions not signed in (`MAX_UNSIGNED_HTTP_SESSIONS`, their eviction) and
+  `ServerConfig::sign_in_timeout` are gone; a websocket counts as not signed in
+  only until its greeting (`HANDSHAKE_TIMEOUT`). Tests:
+  `a_greeting_that_signs_nothing_in_is_closed_before_any_call`,
+  `proxy_account_authentication_never_discloses_the_token`,
+  be-tool-cli's `be_signs_in_with_only_an_injected_authorization_header`, and
+  the web build's host test.
 - **3c. One form for keys and metadata.** `create-block` and `move` lose
   their `keys`: a batch carries `put-keys` beside them (`[create-block,
   put-keys(rows)]`, `[move, put-keys(rows)]`, a move out of a scope with

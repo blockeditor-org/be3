@@ -3,8 +3,7 @@ use super::*;
 #[tokio::test]
 async fn an_invitation_joins_any_account_as_an_editor_once() {
     let harness = Harness::start().await;
-    let mut admin = harness.client().await;
-    admin.register("admin@example.com").await;
+    let mut admin = harness.member("admin@example.com").await;
     let organization = admin.organization("team").await;
     let link = admin
         .invite(organization)

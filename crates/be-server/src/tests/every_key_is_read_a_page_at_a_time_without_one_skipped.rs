@@ -7,8 +7,7 @@ async fn every_key_is_read_a_page_at_a_time_without_one_skipped() {
         ..ServerConfig::OPEN
     })
     .await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.organization("keys").await;
     // Each block's key row comes to tens of bytes, so these take several pages.
     let mut made = Vec::new();

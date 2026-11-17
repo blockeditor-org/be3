@@ -4,11 +4,10 @@ use be_block_graph::Access;
 #[tokio::test]
 async fn a_block_agent_reaches_no_further_than_its_creator() {
     let harness = Harness::start().await;
-    let mut alice = harness.client().await;
-    alice.register("alice@example.com").await;
+    let mut alice = harness.member("alice@example.com").await;
     let organization = alice.personal().await;
-    let mut bob = harness.client().await;
-    let bob_id = bob.register("bob@example.com").await;
+    let mut bob = harness.member("bob@example.com").await;
+    let bob_id = bob.id();
     bob.personal().await;
     let link = alice.link(None).await;
     let _ = bob.accept(link, &[]).await;

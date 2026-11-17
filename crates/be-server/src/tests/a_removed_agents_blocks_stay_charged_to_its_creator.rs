@@ -3,8 +3,8 @@ use super::*;
 #[tokio::test]
 async fn a_removed_agents_blocks_stay_charged_to_its_creator() {
     let harness = Harness::start().await;
-    let mut creator = harness.client().await;
-    let account = creator.register("keeper@example.com").await;
+    let mut creator = harness.member("keeper@example.com").await;
+    let account = creator.id();
     let organization = creator.organization("team").await;
     let response = creator.agent(organization, "Helper").await;
     let Ok(be_block_protocol::CreatedAgent { agent, token }) = response else {

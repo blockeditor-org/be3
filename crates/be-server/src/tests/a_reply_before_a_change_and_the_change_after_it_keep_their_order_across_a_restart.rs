@@ -3,8 +3,8 @@ use super::*;
 #[tokio::test]
 async fn a_reply_before_a_change_and_the_change_after_it_keep_their_order_across_a_restart() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("author@example.com").await;
+    let mut client = harness.member("author@example.com").await;
+    let account = client.id();
     let organization = client.organization("notes").await;
     let folder = client.create_block(BlockParent::Root).await;
     let inside = client.create_block(BlockParent::Block(folder)).await;

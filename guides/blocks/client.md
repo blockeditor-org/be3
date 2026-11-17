@@ -20,9 +20,12 @@ posts (`transport/native/http.rs`), and both go through `HTTPS_PROXY`;
 origin (native only: a browser cannot add one to a websocket).
 `be_block_client::call_once` makes one call that needs no sign-in as a one-shot
 post (`post_once`: natively the HTTP transport, on the web a `fetch` with
-credentials), which is how a browser sign-in is begun and polled; every
-connection's first call is `authenticate` (guides/blocks/server.md, "Signing
-in").
+credentials), which is how a browser sign-in is begun and polled. Every
+connection signs in with its greeting: `Connection::connect` takes
+`Credentials` (a token, or `Header` for the request's Authorization header a
+proxy injects) and answers the connection and who it signed in as, or the
+server's refusal, the connection then closed (guides/blocks/server.md,
+"Signing in").
 
 It opens the server's one `events` stream on the first `subscribe()` and pumps
 it into one `broadcast` of `be_block_client::Event`. As it attaches, a peer

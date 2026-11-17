@@ -11,8 +11,7 @@ async fn a_device_registers_only_an_endpoint_the_server_would_push_to() {
         ..ServerConfig::OPEN
     })
     .await;
-    let mut member = harness.client().await;
-    member.register("member@example.com").await;
+    let mut member = harness.member("member@example.com").await;
     member.personal().await;
     let device = TestDevice::new();
     let web = |address: &str| device.endpoint(PushService::WebPush, address.to_owned());

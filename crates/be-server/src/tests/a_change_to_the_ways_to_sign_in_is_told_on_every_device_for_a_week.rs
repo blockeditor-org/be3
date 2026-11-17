@@ -9,13 +9,8 @@ async fn a_change_to_the_ways_to_sign_in_is_told_on_every_device_for_a_week() {
     let store = ServerStore::open(&harness.directory).unwrap();
     let account = store.browser_profile(&ada.cookie).await.unwrap().account;
     let device = || async {
-        let mut device = harness.client().await;
         let token = store.issue_session(account).await.unwrap();
-        let signed_in = device
-            .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(token)))
-            .await;
-        assert!(signed_in.is_ok(), "{signed_in:?}");
-        device
+        harness.signed_in(&token).await
     };
     let (mut first, mut second) = (device().await, device().await);
     // A passkey added: mailed, since the account has an email, and told on its devices.

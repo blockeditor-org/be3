@@ -3,16 +3,9 @@ use super::*;
 #[tokio::test]
 async fn pairing_messages_reach_only_the_same_accounts_other_connections() {
     let harness = Harness::start().await;
-    let mut laptop = harness.client().await;
-    laptop.register("owner@example.com").await;
+    let mut laptop = harness.member("owner@example.com").await;
     laptop.organization("notes").await;
-    let mut phone = harness.client().await;
-    let response = phone
-        .call(|peer| {
-            be_block_protocol::client::server::authenticate(peer, Some(laptop.token.clone()))
-        })
-        .await;
-    assert!(matches!(response, Ok(_)));
+    let mut phone = harness.signed_in(&laptop.token).await;
     let mut stranger = harness.member("stranger@example.com").await;
 
     let unheard = stranger

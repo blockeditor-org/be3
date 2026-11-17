@@ -7,11 +7,10 @@ use be_block_session::Membership;
 #[tokio::test]
 async fn a_holder_that_loses_edit_access_hands_the_lease_on() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.personal().await;
-    let mut guest = harness.client().await;
-    let guest_account = guest.register("guest@example.com").await;
+    let mut guest = harness.member("guest@example.com").await;
+    let guest_account = guest.id();
     guest.personal().await;
     let link = owner.link(None).await;
     let _ = guest.accept(link, &[]).await;

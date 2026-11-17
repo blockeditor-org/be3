@@ -7,8 +7,7 @@ use be_block_graph::Access;
 #[tokio::test]
 async fn a_grant_that_changes_nothing_writes_nothing() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     let organization = owner.organization("grants").await;
     let block = owner.create_block(BlockParent::Root).await;
     let (_viewer, account) =

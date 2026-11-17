@@ -3,8 +3,7 @@ use super::*;
 #[tokio::test]
 async fn a_change_made_while_a_follow_is_read_is_read_or_told() {
     let harness = Harness::start().await;
-    let mut writer = harness.client().await;
-    writer.register("author@example.com").await;
+    let mut writer = harness.member("author@example.com").await;
     let organization = writer.organization("notes").await;
     let folder = writer.create_block(BlockParent::Root).await;
     for _ in 0..3 {

@@ -56,14 +56,13 @@ async fn put(client: &mut TestClient, wrapped: Vec<WrappedKey>) -> Result<(), Er
 #[tokio::test]
 async fn a_kind_open_inside_passes_from_one_viewer_inside_to_another() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.personal().await;
-    let mut sharer = harness.client().await;
-    let sharer_id = sharer.register("sharer@example.com").await;
+    let mut sharer = harness.member("sharer@example.com").await;
+    let sharer_id = sharer.id();
     sharer.personal().await;
-    let mut viewer = harness.client().await;
-    let viewer_id = viewer.register("viewer@example.com").await;
+    let mut viewer = harness.member("viewer@example.com").await;
+    let viewer_id = viewer.id();
     viewer.personal().await;
     let link = owner.link(None).await;
     let _ = sharer.accept(link, &[]).await;

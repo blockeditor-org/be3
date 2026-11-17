@@ -4,8 +4,8 @@ use be_block_protocol::Listing;
 #[tokio::test]
 async fn a_blocks_references_are_listed_and_announced_together() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("tracker@example.com").await;
+    let mut client = harness.member("tracker@example.com").await;
+    let account = client.id();
     let organization = client.organization("issues").await;
     let author = Author::new(account);
 

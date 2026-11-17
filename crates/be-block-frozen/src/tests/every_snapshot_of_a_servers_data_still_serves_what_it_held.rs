@@ -96,13 +96,11 @@ async fn sign_in(server: &Running, email: &str) -> (Arc<Connection>, String) {
     else {
         panic!("{email}'s browser sign-in was not approved")
     };
-    let connection = Connection::connect(&socket(server), &be_block_client::Clock::real())
-        .await
-        .unwrap();
-    ask(be_block_protocol::client::server::authenticate(
-        &connection,
-        Some(token.clone()),
-    ))
+    let (connection, _) = Connection::connect(
+        &socket(server),
+        &be_block_client::Clock::real(),
+        &Credentials::Token(token.clone()),
+    )
     .await
     .expect("the token signs in");
     (connection, token)
@@ -717,13 +715,11 @@ async fn check_storage(
         Some(scene::STORAGE_QUOTA),
         "{name}: the storage quota no longer reads in bytes"
     );
-    let agent = Connection::connect(&socket(server), &be_block_client::Clock::real())
-        .await
-        .unwrap();
-    ask(be_block_protocol::client::server::authenticate(
-        &agent,
-        Some(snapshot.agent_token.to_owned()),
-    ))
+    let (agent, _) = Connection::connect(
+        &socket(server),
+        &be_block_client::Clock::real(),
+        &Credentials::Token(snapshot.agent_token.to_owned()),
+    )
     .await
     .unwrap();
     let charged = ask(be_block_protocol::read::<

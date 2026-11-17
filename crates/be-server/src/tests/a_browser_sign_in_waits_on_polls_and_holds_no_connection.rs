@@ -46,11 +46,4 @@ async fn a_browser_sign_in_waits_on_polls_and_holds_no_connection() {
         "a poll sooner than the interval was answered: {soon:?}"
     );
 
-    let mut app = harness.client().await;
-    let response = begin_login(&app.peer).await;
-    assert!(
-        !matches!(response, Ok(Ok(_))),
-        "a connection began a sign-in rather than authenticating: {response:?}"
-    );
-    app.ended().await;
 }

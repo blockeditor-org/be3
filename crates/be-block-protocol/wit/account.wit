@@ -27,9 +27,10 @@ interface account {
         expired,
     }
 
-    /// A signed-in connection. `token` is empty when the token came in the
-    /// request's Authorization header, and in a sign-in a poll approved, which
-    /// signs no connection in, `client` is 0.
+    /// A signed-in connection, as the server's greeting tells it (`Welcome`).
+    /// `token` is empty when the token came in the request's Authorization
+    /// header, and in a sign-in a poll approved, which signs no connection in,
+    /// `client` is 0.
     record authenticated {
         account: account-id,
         email: string,

@@ -3,8 +3,8 @@ use super::*;
 #[tokio::test]
 async fn block_sizes_add_up_their_subtrees_and_follow_moves() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("sizer@example.com").await;
+    let mut client = harness.member("sizer@example.com").await;
+    let account = client.id();
     let organization = client.organization("sizes").await;
     let author = Author::new(account);
     let bytes_of = |hashes: &[Hash]| -> u64 {

@@ -8,7 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use be_block_protocol::{MAX_FRAME_BYTES, read_hello};
+use be_block_protocol::{MAX_FRAME_BYTES, Welcome, hello, read_hello};
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf},
     net::TcpStream,
@@ -19,7 +19,7 @@ use uuid::Uuid;
 use crate::{
     Admitted, Client, HANDSHAKE_TIMEOUT, IDLE_TIMEOUT, OUTBOUND_BYTES, Outbound, ServerError,
     Services,
-    address::{Anonymous, Eviction, Held, PerAddress, Unsigned},
+    address::{Anonymous, Eviction, Held, PerAddress},
     greeting,
 };
 
@@ -50,22 +50,11 @@ const MAX_HEADERS: usize = 64;
 /// HTTP sessions open at once on the whole server, and for one client address.
 const MAX_HTTP_SESSIONS: usize = 1024;
 pub(crate) const MAX_HTTP_SESSIONS_PER_ADDRESS: usize = 32;
-/// HTTP sessions not signed in yet, on the whole server; opening one past this lets go of the
-/// oldest, so they never hold more than this of `MAX_HTTP_SESSIONS`.
-pub(crate) const MAX_UNSIGNED_HTTP_SESSIONS: usize = MAX_HTTP_SESSIONS / 4;
-/// HTTP sessions not signed in that one address (an IPv6 /48) may hold.
-pub(crate) const MAX_UNSIGNED_HTTP_SESSIONS_PER_ADDRESS: usize = 4;
 
+/// The HTTP sessions open, each signed in by the greeting that opened it.
 pub(crate) struct Sessions {
-    open: std::sync::Mutex<HashMap<String, Open>>,
+    open: std::sync::Mutex<HashMap<String, Arc<Mutex<Session>>>>,
     addresses: Arc<PerAddress>,
-    pub(crate) unsigned: Arc<Unsigned>,
-}
-
-#[derive(Clone)]
-struct Open {
-    session: Arc<Mutex<Session>>,
-    eviction: Arc<Eviction>,
 }
 
 impl Default for Sessions {
@@ -73,20 +62,8 @@ impl Default for Sessions {
         Self {
             open: std::sync::Mutex::default(),
             addresses: PerAddress::new(MAX_HTTP_SESSIONS_PER_ADDRESS),
-            unsigned: Unsigned::new(
-                MAX_UNSIGNED_HTTP_SESSIONS,
-                MAX_UNSIGNED_HTTP_SESSIONS_PER_ADDRESS,
-            ),
         }
     }
-}
-
-/// What a new HTTP session holds: its place among its address's sessions, and among those not
-/// signed in.
-pub(crate) struct Reserved {
-    place: Held,
-    anonymous: Anonymous,
-    eviction: Arc<Eviction>,
 }
 
 struct Session {
@@ -102,59 +79,21 @@ struct Session {
 }
 
 impl Session {
-    /// Whether the session should end: unheard from for too long, out of time to sign in (or
-    /// let go of for a newer session that is not signed in), or holding more than it may for a
-    /// client that does not collect it.
+    /// Whether the session should end: unheard from for too long, or holding more than it may
+    /// for a client that does not collect it.
     fn lapsed(&self) -> bool {
-        self.heard.elapsed() > IDLE_TIMEOUT
-            || self.queued.overflowed()
-            || self.client.as_ref().is_some_and(|client| {
-                client
-                    .connection
-                    .sign_in_deadline()
-                    .is_some_and(|deadline| deadline <= tokio::time::Instant::now())
-            })
+        self.heard.elapsed() > IDLE_TIMEOUT || self.queued.overflowed()
     }
 }
 
 impl Sessions {
     /// A place for one more session from `address`, or none while the server or the address
     /// holds as many as it may.
-    fn reserve(&self, address: IpAddr) -> Option<Reserved> {
-        if self.open.lock().unwrap().len() >= MAX_HTTP_SESSIONS && !self.drop_evicted() {
+    fn reserve(&self, address: IpAddr) -> Option<Held> {
+        if self.open.lock().unwrap().len() >= MAX_HTTP_SESSIONS {
             return None;
         }
-        let place = self.addresses.take(address)?;
-        let eviction = Arc::new(Eviction::default());
-        let anonymous = self.unsigned.admit(address, &eviction)?;
-        Some(Reserved {
-            place,
-            anonymous,
-            eviction,
-        })
-    }
-
-    /// Ends the sessions let go of for newer ones not signed in, which the next sweep would;
-    /// answers whether that made room.
-    fn drop_evicted(&self) -> bool {
-        let evicted: Vec<Open> = {
-            let mut open = self.open.lock().unwrap();
-            let ids: Vec<String> = open
-                .iter()
-                .filter(|(_, open)| open.eviction.evicted())
-                .map(|(id, _)| id.clone())
-                .collect();
-            ids.iter().filter_map(|id| open.remove(id)).collect()
-        };
-        let made = !evicted.is_empty();
-        for open in evicted {
-            tokio::spawn(async move {
-                if let Some(client) = open.session.lock().await.client.take() {
-                    client.close().await;
-                }
-            });
-        }
-        made
+        self.addresses.take(address)
     }
 
     fn insert(
@@ -168,7 +107,6 @@ impl Sessions {
         if sessions.len() >= MAX_HTTP_SESSIONS {
             return Err(client);
         }
-        let eviction = Arc::clone(&client.connection.eviction);
         let id = Uuid::new_v4().simple().to_string();
         let session = Session {
             client: Some(client),
@@ -179,13 +117,7 @@ impl Sessions {
             heard: Instant::now(),
             _place: place,
         };
-        sessions.insert(
-            id.clone(),
-            Open {
-                session: Arc::new(Mutex::new(session)),
-                eviction,
-            },
-        );
+        sessions.insert(id.clone(), Arc::new(Mutex::new(session)));
         Ok(id)
     }
 
@@ -194,7 +126,7 @@ impl Sessions {
             .lock()
             .unwrap()
             .get(id)
-            .map(|open| Arc::clone(&open.session))
+            .map(Arc::clone)
     }
 
     pub(crate) async fn sweep(&self) {
@@ -203,7 +135,7 @@ impl Sessions {
             .lock()
             .unwrap()
             .iter()
-            .map(|(id, open)| (id.clone(), Arc::clone(&open.session)))
+            .map(|(id, session)| (id.clone(), Arc::clone(session)))
             .collect();
         for (id, session) in open {
             let Ok(mut held) = session.try_lock() else {
@@ -223,7 +155,7 @@ impl Sessions {
             .lock()
             .unwrap()
             .values()
-            .map(|open| Arc::clone(&open.session))
+            .map(Arc::clone)
             .collect();
         for session in sessions {
             let mut session = session.lock().await;
@@ -246,7 +178,7 @@ impl Sessions {
             .lock()
             .unwrap()
             .drain()
-            .map(|(_, open)| open.session)
+            .map(|(_, session)| session)
             .collect();
         for session in open {
             if let Some(client) = session.lock().await.client.take() {
@@ -581,62 +513,7 @@ async fn answer(
         ));
     };
     let Some(id) = session else {
-        let theirs = frames.first().and_then(|frame| read_hello(frame));
-        let (ours, compatible) = greeting(theirs.as_deref())?;
-        let session = match compatible {
-            true => {
-                let Some(Reserved {
-                    place,
-                    anonymous,
-                    eviction,
-                }) = services.http.reserve(address)
-                else {
-                    return Ok(Answer::refused(
-                        503,
-                        "too many sessions are open; try again later",
-                        false,
-                    ));
-                };
-                let (sending, outbound) = mpsc::unbounded_channel();
-                let queued = Arc::new(Outbound::default());
-                let mut client = {
-                    let queued = Arc::clone(&queued);
-                    Client::open(
-                        services,
-                        address,
-                        false,
-                        (anonymous, eviction),
-                        move |frame| {
-                            if queued.queue(frame.len()) {
-                                let _ = sending.send(frame);
-                            }
-                        },
-                    )
-                    .await
-                };
-                client.connection.header_token = crate::bearer(authorization);
-                match services.http.insert(client, queued, outbound, place) {
-                    Ok(id) => Some(id),
-                    Err(client) => {
-                        client.close().await;
-                        return Ok(Answer::refused(
-                            503,
-                            "too many sessions are open; try again later",
-                            false,
-                        ));
-                    }
-                }
-            }
-            false => None,
-        };
-        return Ok(Answer {
-            status: 200,
-            session,
-            body: framed(&[ours]),
-            keep: compatible,
-            more: false,
-            signed_in: false,
-        });
+        return open_session(frames.first().copied(), authorization, address, services).await;
     };
     let gone = Answer::refused(404, "no such session", true);
     let Some(session) = services.http.get(id) else {
@@ -718,8 +595,7 @@ async fn answer(
         answers.push(frame);
     }
     if closing {
-        // The session's first call did not sign it in, or it logged out: answer what it said,
-        // then end it.
+        // The session logged out: answer what it said, then end it.
         if let Some(client) = held.client.take() {
             client.close().await;
         }
@@ -740,6 +616,71 @@ async fn answer(
         more: !waiting.is_empty() || !outbound.is_empty(),
         signed_in,
     })
+}
+
+/// Answers a post with no session, whose first frame is a greeting: a session it signs in,
+/// with the server's greeting saying who as, or the greeting alone when it is of another build
+/// or signs nothing in.
+async fn open_session(
+    greeting_frame: Option<&[u8]>,
+    authorization: Option<&str>,
+    address: IpAddr,
+    services: &Services,
+) -> Result<Answer, ServerError> {
+    let (ours, greeting) = greeting(greeting_frame.and_then(read_hello).as_ref())?;
+    let greeted = |welcome: &Welcome, session: Option<String>| Answer {
+        status: 200,
+        keep: session.is_some(),
+        signed_in: session.is_some(),
+        session,
+        body: framed(&[hello(ours, welcome)]),
+        more: false,
+    };
+    let Some(greeting) = greeting else {
+        return Ok(Answer {
+            status: 200,
+            session: None,
+            body: framed(&[hello(ours, &())]),
+            keep: false,
+            more: false,
+            signed_in: false,
+        });
+    };
+    let Some(place) = services.http.reserve(address) else {
+        return Ok(Answer::refused(
+            503,
+            "too many sessions are open; try again later",
+            false,
+        ));
+    };
+    let (sending, outbound) = mpsc::unbounded_channel();
+    let queued = Arc::new(Outbound::default());
+    let mut client = {
+        let queued = Arc::clone(&queued);
+        Client::open(services, address, move |frame| {
+            if queued.queue(frame.len()) {
+                let _ = sending.send(frame);
+            }
+        })
+        .await
+    };
+    client.connection.header_token = crate::bearer(authorization);
+    let welcome = client.greeted(greeting.token).await;
+    if welcome.is_err() {
+        client.close().await;
+        return Ok(greeted(&welcome, None));
+    }
+    match services.http.insert(client, queued, outbound, place) {
+        Ok(id) => Ok(greeted(&welcome, Some(id))),
+        Err(client) => {
+            client.close().await;
+            Ok(Answer::refused(
+                503,
+                "too many sessions are open; try again later",
+                false,
+            ))
+        }
+    }
 }
 
 /// The portal's session cookie and its code attempt's (`codes.rs`).
@@ -821,8 +762,9 @@ async fn one_shot(
     else {
         return refuse(&mut stream, 400, "post a greeting and one call").await;
     };
-    let (ours, compatible) = greeting(read_hello(greeting_frame).as_deref())?;
-    if !compatible {
+    let (ours, greeting) = greeting(read_hello(greeting_frame).as_ref())?;
+    let ours = hello(ours, &());
+    if greeting.is_none() {
         return respond_once(&mut stream, framed(&[ours])).await;
     }
     let method = match be_wasm_ops::decode_frame::<be_wasm_ops::Frame>(call) {
@@ -837,17 +779,19 @@ async fn one_shot(
         return refuse(
             &mut stream,
             403,
-            "only signing in and reading an invitation are one-shot calls; connect and authenticate for the rest",
+            "only signing in and reading an invitation are one-shot calls; connect with a token for the rest",
         )
         .await;
     }
     let (sending, mut answered) = mpsc::unbounded_channel();
-    let mut client = Client::open(services, address, true, anonymous, move |frame| {
+    let mut client = Client::open(services, address, move |frame| {
         let _ = sending.send(frame);
     })
     .await;
     let carried = client.receive(call).await;
     client.close().await;
+    // Held until the call is answered: a one-shot call is never signed in.
+    drop(anonymous);
     carried?;
     let mut frames = vec![ours];
     while let Ok(frame) = answered.try_recv() {

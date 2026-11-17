@@ -4,8 +4,7 @@ use be_block_protocol::InvitationState;
 #[tokio::test]
 async fn an_expired_or_revoked_invitation_is_refused() {
     let harness = Harness::start().await;
-    let mut admin = harness.client().await;
-    admin.register("admin@example.com").await;
+    let mut admin = harness.member("admin@example.com").await;
     let organization = admin.organization("team").await;
     let expiring = admin.invite(organization).await.unwrap();
     let revoked = admin.invite(organization).await.unwrap();

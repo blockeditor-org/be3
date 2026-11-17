@@ -3,8 +3,8 @@ use super::*;
 #[tokio::test]
 async fn told_keys_past_the_newest_kept_or_of_a_removed_member_are_news() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let account = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let account = owner.id();
     let organization = owner.personal().await;
     let identity = Identity {
         account,

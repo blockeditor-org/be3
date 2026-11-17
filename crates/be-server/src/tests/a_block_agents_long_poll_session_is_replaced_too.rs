@@ -12,15 +12,10 @@ async fn a_block_agents_long_poll_session_is_replaced_too() {
     let mut stream = tokio::net::TcpStream::connect(harness.address)
         .await
         .unwrap();
-    let (_, session, _) = post(&mut stream, None, &[&hello(BUILD)]).await;
+    let (status, session, _) = post(&mut stream, None, &[&token_hello(&token)]).await;
+    assert_eq!(status, 200);
     let session = session.unwrap();
     let mut posted = Posted::new();
-    let _authenticating =
-        be_block_protocol::client::server::authenticate(&posted.peer, Some(token.clone()));
-    let sent = posted.frames();
-    let (status, _, frames) = post(&mut stream, Some(&session), &[&sent[0]]).await;
-    assert_eq!(status, 200);
-    posted.heard(&frames);
 
     let mut socket = harness.second_connection(&token, organization).await;
     let _listed = posted

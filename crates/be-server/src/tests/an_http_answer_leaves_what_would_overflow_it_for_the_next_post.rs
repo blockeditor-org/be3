@@ -75,8 +75,8 @@ fn answered(frames: &[Vec<u8>]) -> usize {
 #[tokio::test]
 async fn an_http_answer_leaves_what_would_overflow_it_for_the_next_post() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let account = owner.register("large@example.com").await;
+    let mut owner = harness.member("large@example.com").await;
+    let account = owner.id();
     let organization = owner.organization("large").await;
     let author = Author::new(account);
     let block = owner.create_block(BlockParent::Root).await;
@@ -114,16 +114,14 @@ async fn an_http_answer_leaves_what_would_overflow_it_for_the_next_post() {
     let mut stream = tokio::net::TcpStream::connect(harness.address)
         .await
         .unwrap();
-    let (_, session, _) =
-        a_client_speaks_the_protocol_over_http_posts::post(&mut stream, None, &[&hello(BUILD)])
-            .await;
+    let (_, session, _) = a_client_speaks_the_protocol_over_http_posts::post(
+        &mut stream,
+        None,
+        &[&token_hello(&owner.token)],
+    )
+    .await;
     let session = session.unwrap();
     let mut posted = a_client_speaks_the_protocol_over_http_posts::Posted::new();
-    let token = owner.token.clone();
-    let _signed_in = be_block_protocol::client::server::authenticate(&posted.peer, Some(token));
-    let sent = posted.frames();
-    let (frames, _) = post(&mut stream, &session, &sent).await;
-    posted.heard(&frames);
 
     // Each read answers the head's objects that fit in half a frame, a large one among them.
     let mut reads: Vec<_> = large

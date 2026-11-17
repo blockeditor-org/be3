@@ -9,8 +9,8 @@ async fn member(
     organization: Uuid,
     email: &str,
 ) -> (TestClient, Uuid) {
-    let mut member = harness.client().await;
-    let account = member.register(email).await;
+    let mut member = harness.member(email).await;
+    let account = member.id();
     let link = owner.invite(organization).await.expect("inviting failed");
     let accepted = member.accept(link, &[]).await;
     assert!(accepted.is_ok(), "{accepted:?}");
@@ -37,8 +37,8 @@ async fn follow_keys(client: &mut TestClient) {
 #[tokio::test]
 async fn a_stored_key_is_told_only_to_who_may_open_it() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let owner_id = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let owner_id = owner.id();
     let organization = owner.organization("keys").await;
     let folder = owner.scope_root(owner_id, BlockParent::Root).await;
     follow_keys(&mut owner).await;

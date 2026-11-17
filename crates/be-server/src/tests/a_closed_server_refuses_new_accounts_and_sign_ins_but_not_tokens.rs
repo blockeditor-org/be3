@@ -14,15 +14,10 @@ async fn a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens() {
         .unwrap();
 
     let harness = Harness::serve(directory, ServerConfig::default()).await;
-    let mut client = harness.client().await;
-
-    let resumed = client
-        .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(token.clone())))
-        .await;
-    assert!(
-        matches!(resumed, Ok(_)),
-        "a device already signed in was turned away: {resumed:?}"
-    );
+    let resumed = harness.sign_in(&token).await;
+    let Ok(mut client) = resumed else {
+        panic!("a device already signed in was turned away");
+    };
     client.open(organization).await;
 
     harness.stop().await;

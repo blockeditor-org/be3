@@ -6,8 +6,8 @@ use ring::signature::{ECDSA_P256_SHA256_FIXED, UnparsedPublicKey};
 async fn a_push_reaches_members_who_are_not_connected_and_want_it() {
     let harness = Harness::configured(pushing_locally()).await;
     let mut service = TestPushService::start(|_| (201, String::new())).await;
-    let mut owner = harness.client().await;
-    let owner_id = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let owner_id = owner.id();
     let organization = owner.personal().await;
     let block = owner.create_block(BlockParent::Root).await;
     let info = owner

@@ -35,13 +35,12 @@ async fn left(client: &mut TestClient, root: Uuid) -> Vec<Uuid> {
 #[tokio::test]
 async fn changed_since_does_not_name_what_only_its_author_may_read() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     owner.personal().await;
     let mut accounts = Vec::new();
     for email in ["editor@example.com", "viewer@example.com"] {
-        let mut client = harness.client().await;
-        let account = client.register(email).await;
+        let mut client = harness.member(email).await;
+        let account = client.id();
         client.personal().await;
         let link = owner.link(None).await;
         let _ = client.accept(link, &[]).await;

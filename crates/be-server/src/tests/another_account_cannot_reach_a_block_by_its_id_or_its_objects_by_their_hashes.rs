@@ -9,8 +9,8 @@ use be_block_session::Membership;
 #[tokio::test]
 async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_hashes() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let account = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let account = owner.id();
     owner.personal().await;
     let author = Author::new(account);
     let block = owner.create_block(BlockParent::Root).await;
@@ -36,8 +36,7 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
     owner.notifications.clear();
 
     // In an organization of its own, the owner's block is not there.
-    let mut attacker = harness.client().await;
-    attacker.register("attacker@example.com").await;
+    let mut attacker = harness.member("attacker@example.com").await;
     let elsewhere = attacker.organization("elsewhere").await;
     let read = attacker.try_read_block(block).await;
     assert!(refused_as(&read, ErrorCode::BlockNotFound), "{read:?}");
@@ -163,8 +162,8 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
 
     // Inside the owner's organization, an account it shared the block with to view may not take
     // its lease, nor change it.
-    let mut viewer = harness.client().await;
-    let viewer_account = viewer.register("viewer@example.com").await;
+    let mut viewer = harness.member("viewer@example.com").await;
+    let viewer_account = viewer.id();
     viewer.personal().await;
     let link = owner.link(None).await;
     let accepted = viewer.accept(link, &[]).await;

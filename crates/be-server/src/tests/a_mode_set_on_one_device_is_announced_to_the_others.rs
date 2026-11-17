@@ -4,8 +4,7 @@ use be_block_protocol::NotifyMode;
 #[tokio::test]
 async fn a_mode_set_on_one_device_is_announced_to_the_others() {
     let harness = Harness::start().await;
-    let mut phone = harness.client().await;
-    phone.register("member@example.com").await;
+    let mut phone = harness.member("member@example.com").await;
     let organization = phone.personal().await;
     let block = phone.create_block(BlockParent::Root).await;
     let mut laptop = harness

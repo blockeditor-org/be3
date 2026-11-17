@@ -3,8 +3,8 @@ use super::*;
 #[tokio::test]
 async fn a_publish_pushes_the_new_storage_usage_to_its_payer() {
     let harness = Harness::start().await;
-    let mut client = harness.client().await;
-    let account = client.register("pusher@example.com").await;
+    let mut client = harness.member("pusher@example.com").await;
+    let account = client.id();
     client.organization("pushes").await;
     let author = Author::new(account);
     let first = client
@@ -48,19 +48,7 @@ async fn a_publish_pushes_the_new_storage_usage_to_its_payer() {
         }
     }
 
-    let mut stranger = harness.client().await;
-    let refused = stranger
-        .peer
-        .read::<be_block_protocol::AccountStorage>(Query::Storage)
-        .await;
-    assert!(
-        !matches!(refused, Ok(Ok(_))),
-        "a connection that has not signed in is refused: {refused:?}"
-    );
-    stranger.ended().await;
-
-    let mut unopened = harness.client().await;
-    unopened.register("unopened@example.com").await;
+    let mut unopened = harness.member("unopened@example.com").await;
     let usage = unopened
         .call(|peer| peer.ask::<be_block_protocol::AccountStorage>(Query::Storage, true))
         .await;

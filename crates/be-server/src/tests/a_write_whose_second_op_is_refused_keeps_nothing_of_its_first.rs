@@ -5,8 +5,7 @@ use super::*;
 #[tokio::test]
 async fn a_write_whose_second_op_is_refused_keeps_nothing_of_its_first() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
     let organization = owner.organization("team").await;
     let (block, create) = owner.new_block_op(BlockParent::Root).await;
     let refused = Op::SetMetadata {

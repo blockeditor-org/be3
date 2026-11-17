@@ -3,8 +3,8 @@ use super::*;
 #[tokio::test]
 async fn a_trashed_block_reaches_its_reader_as_detached() {
     let harness = Harness::start().await;
-    let mut reader = harness.client().await;
-    let account = reader.register("author@example.com").await;
+    let mut reader = harness.member("author@example.com").await;
+    let account = reader.id();
     let organization = reader.organization("notes").await;
     let block = reader.create_block(BlockParent::Root).await;
     reader.follow(block).await;

@@ -16,8 +16,8 @@ async fn recovery(client: &mut TestClient) -> (Option<[u8; 32]>, Vec<SealedKey>)
 #[tokio::test]
 async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
     let harness = Harness::start().await;
-    let mut owner = harness.client().await;
-    let account = owner.register("owner@example.com").await;
+    let mut owner = harness.member("owner@example.com").await;
+    let account = owner.id();
     let organization = owner.organization("notes").await;
     assert_eq!(
         recovery(&mut owner).await,

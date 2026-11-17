@@ -100,7 +100,8 @@ begins with `be_block_sqlite_schema::write_transaction`, which takes the write
 lock up front, so a second connection to the database (a test or tool opening a
 `ServerStore` beside a running server) waits out `BUSY_TIMEOUT` rather than
 failing with `SQLITE_BUSY`. Where a websocket cannot get through, `POST .../http` carries the
-same frames (`http.rs`): the greeting's answer names a session in a
+same frames (`http.rs`): a post with no session carries the greeting, and
+its answer, once the greeting signs in, names a session in a
 `Be3-Session` header, and each later post carries queued client frames and is
 answered with whatever the server has for the client; notifications wait for
 the next post. An answer stops taking frames once its replies fill
@@ -157,15 +158,18 @@ counts and records nothing: `reserve-uploads` did before it signed.
 - **Greeting.** Each side sends `be_block_protocol::hello` with its build id
   (`be_lib_build_id::current()`, from `build-info.json` beside the executable
   or `--build-info-file`), and the server closes the connection when they
-  differ (`ClientError::Incompatible`). A program with no id fails
+  differ (`ClientError::Incompatible`). Past a zero byte after the build, a
+  client's greeting says its token (`Greeting`) and the server's answers who
+  that signed in (`Welcome`); only the build is read before both ends know
+  they are of one build. A program with no id fails
   (`ClientError::NoBuild`; the server does not start); tests install one with
   `be_lib_build_id::install`. Server and clients ship from one commit, so the
   protocol is never versioned (`decisions/server_protocol_is_unversioned.md`).
 - **Calls.** After the greeting every frame is a be-wasm-ops frame
   (guides/type_modules.md, "Operations and WIT") of the WIT package
   `be3:server` (`crates/be-block-protocol/wit`, generated with `network: true`),
-  whose one interface, `server`, has five calls and one stream beside `ping`,
-  `device-login` and `authenticate`: `read(organization, query, follow)`,
+  whose one interface, `server`, has five calls and one stream beside `ping`
+  and `device-login`: `read(organization, query, follow)`,
   `unfollow(organization, topic)`, `write(organization, ops)`,
   `send(organization, target, payload)` and `events()`. Each call is an op,
   with no request ids. Every call names its organization: none for what is the
@@ -237,10 +241,16 @@ counts and records nothing: `reserve-uploads` did before it signed.
   `target` and fails until a new one is made there too. A block the caller may
   not know exists is refused as `BlockNotFound`, like one that does not exist;
   `PermissionDenied` means it may know it exists.
-- **Signing in.** A connection's first call (after a ping) must sign it in:
-  `authenticate`, answering the account and this connection's `client` id; any
-  other closes it, as does none within `sign_in_timeout` (`ServerConfig`,
-  `HANDSHAKE_TIMEOUT` by default), and so does `revoke-token`
+- **Signing in.** A connection signs in with its greeting, before any call:
+  the token it carries, or with none the request's `Authorization: Bearer`
+  header (`Credentials::Header`, for `be` behind a proxy that injects it;
+  hosting.md, "Proxy account credentials"). The server's greeting answers the
+  account and this connection's `client` id (`authenticated`, its token empty
+  when it came in the header), or the refusal (`InvalidCredentials`, or
+  `NotAuthenticated` with no token at all), and then closes the connection
+  (`Client::greeted`). A browser cannot set a websocket's headers, so the host,
+  the web build too, signs in with a token in the greeting
+  (`Credentials::Token`). `revoke-token` signs out and closes it
   (`Connection::closing`). Signing in through the browser follows RFC 8628's
   device flow over one-shot calls (`http::one_shot`): `POST .../call` carries a
   greeting and one frame, `device-login` (`begin` or `poll`) or the `read` of an
@@ -270,17 +280,16 @@ counts and records nothing: `reserve-uploads` did before it signed.
     address; `MAX_HTTP_SESSIONS` and `MAX_HTTP_SESSIONS_PER_ADDRESS` likewise.
     HTTP sessions are swept every `SWEEP_INTERVAL` by a task off the accept
     loop, which also closes sessions whose token was revoked.
-  - Connections and HTTP sessions not signed in are counted apart
-    (`address::Unsigned`), from a connection's first byte until it signs in
-    (again after a logout): at most `MAX_UNSIGNED_CONNECTIONS` (a quarter of
-    `MAX_CONNECTIONS`) and `MAX_UNSIGNED_HTTP_SESSIONS`, and
-    `MAX_UNSIGNED_CONNECTIONS_PER_ADDRESS` and
-    `MAX_UNSIGNED_HTTP_SESSIONS_PER_ADDRESS` for one address, counted by
+  - Connections not signed in are counted apart (`address::Unsigned`), from
+    a connection's first byte until its greeting signs it in: at most
+    `MAX_UNSIGNED_CONNECTIONS` (a quarter of `MAX_CONNECTIONS`), and
+    `MAX_UNSIGNED_CONNECTIONS_PER_ADDRESS` for one address, counted by
     `unsigned_key` (an IPv6 /48). One past the overall limit lets go of the
     oldest rather than being refused (`Eviction`), so signed-in clients always
     have the rest of the room and a new client still gets in to sign in. A
     connection carrying HTTP posts counts as not signed in until a post is for
-    a signed-in session.
+    a signed-in session; an HTTP session exists only once its greeting signed
+    it in. A one-shot call is never signed in.
   - Pending browser sign-ins and portal form tokens are kept in a
     `browser_auth::Bounded` table, indexed by age and by address: one address
     holds `PENDING_PER_ADDRESS` or `FORMS_PER_ADDRESS`, the server `LIMIT`,
@@ -894,7 +903,8 @@ sign-in gives one answer, so it tells no one which credentials exist. Tests
 use a software authenticator (`fake_authenticator.rs`).
 
 The protocol has the browser sign-in's one-shot `device-login` ("Signing in"
-above), token `authenticate`, header authentication and `revoke-token`; every sign-in method lives in the portal, which
+above), signing in with a token or the Authorization header in the greeting, and
+`revoke-token`; every sign-in method lives in the portal, which
 approves a device's code. `Be3-Gateway-Authorization` is left to a gateway in
 front.
 
