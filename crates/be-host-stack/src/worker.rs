@@ -2986,25 +2986,8 @@ async fn approve_pairing(
 }
 
 async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
-    match peer.finish_links().await {
-        Ok(finished) => {
-            for done in finished {
-                let Some(grant) = done
-                    .grant
-                    .filter(|grant| grant.organization == peer.organization())
-                else {
-                    continue;
-                };
-                let account = Uuid::from_bytes(done.card.account);
-                if let Err(error) = peer
-                    .seal_share(grant.block, account, &done.card.public)
-                    .await
-                {
-                    record(shared, error);
-                }
-            }
-        }
-        Err(error) => record(shared, error),
+    if let Err(error) = peer.finish_links().await {
+        record(shared, error);
     }
     match peer.refresh_contacts().await {
         Ok(contacts) => {
