@@ -383,6 +383,7 @@ fn Shelf(shelf: usize, shelves: Signal<Vec<Vec<&'static str>>>) -> NodeId {
                         width=Size::Custom(120.0)
                         height=Size::Custom(SHELF_ROW)
                         fill=ColorRole::Accent
+                        @test_id="shelf.preview"
                     >
                         <Text>{vegetable.0}</Text>
                     </Frame>

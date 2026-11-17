@@ -17,8 +17,8 @@ The final PR deletes `Draggable`, `DropTarget`, `Take`, `Target`, `DragSource`, 
 `TabStrip`, and `Reorder`'s tree-only `hover`/`part`/`shut`/`resting` with the `visit` and
 `slot_at` only they use (step 6), and replaces the geometry at each site: `bars.rs`'s band logic
 (`resolve_bar`, `dock_reach`, `thrown`, `float_near`, `lift_goal`, `step_lift`), the dock's
-`resolve`/`resolve_in`/`judged`/`takes`, the video timeline's `drop_target_at`, and the game
-board's press state machine. `Reorder` stays, built on the primitives, with its gap spring and
+`resolve`/`resolve_in`/`judged`/`takes`, and the game board's press state machine. The video
+timeline's `drop_target_at` stays as its `custom` site's `place`. `Reorder` stays, built on the primitives, with its gap spring and
 `ReorderGap` (decisions/beui_reorder_stays_over_drop_sites.md). Each step's PR
 reports the lines each site had before and has after. A drag that ends up longer than it was is
 a sign the spec language is missing something; fix the language, not the site.
@@ -241,7 +241,9 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
 2. **Lists (done).** `slots_in` gives places among a list's rows, and one from another list at
    each gap; `Reorder` is built on the primitives and stays
    (decisions/beui_reorder_stays_over_drop_sites.md), and the database lists, kanban, schema,
-   canvas layers and presentation slides use it. The files pane's tree moves to step 6.
+   canvas layers and presentation slides use it. A row carried off its list collapses, so the
+   `Reorder` draws its preview at its own root, where a screen reader finds it once. The files
+   pane's tree moves to step 6.
 3. **Dock tabs, fluid.** The drop highlight goes; the dock moves aside for a carried tab, the way a
    list opens a gap.
    - **Candidates:** for a lifted tab or pane grip, each `DockState` drop is a candidate: group with
@@ -284,8 +286,11 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
    laid-out rects. Bars beside a slot move aside for the carried bar. Update tests that pin the old
    thresholds.
 5. **Apps.**
-   - **video timeline:** `TimelineDropTarget` becomes candidates for attach, base slot (named by
-     neighbour) and offset; `DropMarker` and `land` go, the board draws from `over`.
+   - **video timeline (done):** a `custom` site whose `place` is `drop_target_at`, so a clip
+     lands at the frame under the pointer; `DropMarker` draws from the site's `over`, and a
+     keyboard carry steps along a frame grid the site offers.
+   - **logic-grid's hotbar (done):** slots carry onto other slots and folders, each a place from
+     `place_on`, which offers a node's whole area.
    - **infinite canvas:** item moves become `free`.
    - **game editor:** each `Gesture::Drag { from, to }` is a fixed candidate at `to`'s spot;
      `drag` answers `None` off a piece, so the same press pans.
