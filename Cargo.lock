@@ -3098,6 +3098,7 @@ dependencies = [
 name = "be-wasm-sandbox-host"
 version = "0.1.0"
 dependencies = [
+ "be-wasm-dylink",
  "be-wasm-guest-echo",
  "be-wasm-guest-host",
  "be-wasm-host",

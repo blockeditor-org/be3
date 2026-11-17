@@ -1,7 +1,9 @@
-//! The host's half of the sandbox API for modules from bytes (`be3:sandbox`,
-//! crates/be-wasm-sandbox-api), natively: one `Server` per guest that is granted it, answering its
-//! calls from `be_wasm_host::sandbox` (plans/host_as_platform_adapter.md, The sandbox API). It
-//! will serve the root guest (step 4); only its tests use it today.
+//! The host's half of the sandbox API (`be3:sandbox`, crates/be-wasm-sandbox-api), natively: one
+//! `Server` per guest that is granted it, answering its calls from `be_wasm_host::sandbox`
+//! (plans/host_as_platform_adapter.md, The sandbox API). Staged apps come from a loader the host
+//! plugs in (be-host-runtime's `staged_app`), since finding them is the host's and lies above
+//! be-wasm. It will serve the root guest (step 4) and apps (plans/single_threaded_guests.md);
+//! only its tests use it today.
 
 use std::{
     collections::{BTreeMap, HashMap},
@@ -9,19 +11,23 @@ use std::{
 };
 
 use be_wasm_guest_host::Wake;
-use be_wasm_host::sandbox::{self, Compiling, Instance, Module, ModuleId};
+use be_wasm_host::sandbox::{self, Compiling, Instance, Module, ModuleId, Source, Staged};
 use be_wasm_ops::{Connection, OpError, OpId, Outcome};
-use be_wasm_sandbox_api::embed::sandbox::Call;
+use be_wasm_sandbox_api::{embed::sandbox::Call, sandbox as api};
 
 /// Answers a value once it is known: a reply held until then.
 type Answer<T> = Box<dyn FnOnce(&T) -> (OpId, Outcome)>;
 
 type Frames = Result<Vec<Vec<u8>>, String>;
 
+/// Finds a staged app by its id, or says why there is none to spawn.
+pub type Loader = Box<dyn Fn(&str) -> Result<Staged, String>>;
+
 /// Serves one guest the sandbox. Every module it compiled stays compiled, and every instance it
 /// spawned runs, while the server is held.
 pub struct Server {
     wake: Wake,
+    apps: Loader,
     modules: HashMap<ModuleId, Module>,
     compiling: Vec<(Compiling, Answer<Result<ModuleId, String>>)>,
     instances: BTreeMap<OpId, Served>,
@@ -36,10 +42,11 @@ struct Served {
 
 impl Server {
     /// `wake` is called whenever a compile finishes or an instance sent frames or stopped, after
-    /// which the guest's host calls `poll`.
-    pub fn new(wake: Wake) -> Self {
+    /// which the guest's host calls `poll`. `apps` finds the staged apps the guest spawns by id.
+    pub fn new(wake: Wake, apps: Loader) -> Self {
         Self {
             wake,
+            apps,
             modules: HashMap::new(),
             compiling: Vec::new(),
             instances: BTreeMap::new(),
@@ -56,21 +63,27 @@ impl Server {
             }
             Call::InstanceNew {
                 resource,
-                module,
+                source,
                 config,
             } => {
-                let instance = match self.modules.get(&module) {
-                    Some(module) => sandbox::spawn(
-                        module,
+                let source = match source {
+                    api::Source::Module(module) => match self.modules.get(&module) {
+                        Some(module) => Ok(Source::Module(module.clone())),
+                        None => Err("this guest compiled no module with that id".to_owned()),
+                    },
+                    api::Source::App(app) => (self.apps)(&app).map(Source::App),
+                };
+                let instance = source.and_then(|source| {
+                    sandbox::spawn(
+                        source,
                         sandbox::Config {
                             name: config.name,
                             memory_limit: usize::try_from(config.memory_limit)
                                 .unwrap_or(usize::MAX),
                         },
                         Arc::clone(&self.wake),
-                    ),
-                    None => Err("this guest compiled no module with that id".to_owned()),
-                };
+                    )
+                });
                 self.instances.insert(
                     resource.op(),
                     Served {

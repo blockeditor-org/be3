@@ -4,5 +4,11 @@ cargo_package()
 
 cargo_library()
 
-# GUEST_ECHO_WASM is the module the tests' guest compiles and spawns.
-cargo_test(env = {"GUEST_ECHO_WASM": "$(location //crates/be-wasm-guest-echo:module)"})
+# The modules the tests' guest spawns: GUEST_ECHO_WASM it compiles from bytes,
+# and GUEST_ECHO_APP_WASM, linked against BASE_LIBRARY_WASM, it spawns as a
+# staged app by its id.
+cargo_test(env = {
+    "BASE_LIBRARY_WASM": "$(location //crates/be-sdk-library-base:module)",
+    "GUEST_ECHO_APP_WASM": "$(location //crates/be-wasm-guest-echo:app)",
+    "GUEST_ECHO_WASM": "$(location //crates/be-wasm-guest-echo:module)",
+})

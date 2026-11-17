@@ -8,7 +8,7 @@ fn a_guest_compiles_a_module_and_talks_to_an_instance_of_it() {
             .await
             .unwrap()
             .expect("the echo guest compiles");
-        let instance = guest::sandbox::Instance::new(module, config());
+        let instance = guest::sandbox::Instance::new(Source::Module(module), config());
         instance.send(vec![b"hello".to_vec()]).await.unwrap();
         let mut received = Vec::new();
         while received.len() < 2 {

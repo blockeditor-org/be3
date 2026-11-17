@@ -23,8 +23,8 @@ fn a_module_from_bytes_compiles_once_and_each_instance_runs_on_its_own() {
         name: name.to_owned(),
         memory_limit: 16 << 20,
     };
-    let mut one = sandbox::spawn(&first, config("one"), Arc::clone(&wake)).unwrap();
-    let mut two = sandbox::spawn(&second, config("two"), Arc::clone(&wake)).unwrap();
+    let mut one = sandbox::spawn(sandbox::Source::Module(first.clone()), config("one"), Arc::clone(&wake)).unwrap();
+    let mut two = sandbox::spawn(sandbox::Source::Module(second.clone()), config("two"), Arc::clone(&wake)).unwrap();
     one.send(vec![b"to one".to_vec()]).unwrap();
     two.send(vec![b"to two".to_vec()]).unwrap();
     for (instance, sent) in [(&mut one, b"to one"), (&mut two, b"to two")] {

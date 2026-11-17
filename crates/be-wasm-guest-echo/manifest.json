@@ -1,0 +1,6 @@
+{
+  "id": "be3.echo",
+  "name": "Echo",
+  "version": "0.1.0",
+  "entry_point": "echo.wasm"
+}

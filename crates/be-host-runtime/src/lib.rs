@@ -41,6 +41,8 @@ mod wire;
 /// an app), with the bytes of linear memory it holds.
 #[cfg(not(target_arch = "wasm32"))]
 pub use be_wasm_host::memories as wasm_memories;
+#[cfg(not(target_arch = "wasm32"))]
+pub use wasm::staged_app;
 pub use description::describe;
 pub use events::{Heard, InstanceEvent, listen};
 pub use input::BlockDrag;

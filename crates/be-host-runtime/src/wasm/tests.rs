@@ -10,6 +10,7 @@ use be_sdk_api::{
 use be_wasm_host::{App, Host};
 
 mod a_standalone_triangle_paints_what_the_triangle_linked_against_its_library_paints;
+mod the_sandbox_finds_no_staged_app_for_an_id_no_manifest_has;
 
 const SURFACE: u32 = 1;
 const WIDTH: u32 = 320;

@@ -64,6 +64,16 @@ write_package_value("be3.cargo", {
             "test_deps": [],
             "test_features": [],
         },
+        "wasi-guest": {
+            "binaries": {},
+            "deps": [
+                "//crates/be-wasm-guest-abi:be-wasm-guest-abi",
+            ],
+            "examples": {},
+            "features": [],
+            "test_deps": [],
+            "test_features": [],
+        },
         "wasm32": {
             "binaries": {},
             "deps": [

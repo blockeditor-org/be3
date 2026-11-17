@@ -7,6 +7,13 @@ pub const HANG: &[u8] = b"hang";
 pub const WAKE: &[u8] = b"wake";
 pub const GROW: &[u8] = b"grow";
 pub const FINISH: &[u8] = b"finish";
+/// Asks for the wall clock through WASI, which only the staged app build (:app) has: answered with
+/// `CLOCK_READ` once the clock reads after 2020.
+pub const CLOCK: &[u8] = b"clock";
+pub const CLOCK_READ: &[u8] = b"the clock reads after 2020";
+
+/// The id the staged app build (:app) has in its manifest.
+pub const APP_ID: &str = "be3.echo";
 
 pub const PANIC_MESSAGE: &str = "the echo guest was asked to panic";
 
@@ -41,6 +48,14 @@ impl Guest for Echo {
                     outbound.push(vec![grown[GROWTH - 1]]);
                 }
                 FINISH => return Ok(Flow::Finished),
+                CLOCK => {
+                    let since = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map_err(|error| error.to_string())?;
+                    if since.as_secs() > 1_577_836_800 {
+                        outbound.push(CLOCK_READ.to_vec());
+                    }
+                }
                 _ => outbound.push(frame),
             }
         }
