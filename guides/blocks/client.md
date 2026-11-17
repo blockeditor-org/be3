@@ -23,21 +23,20 @@ in").
 
 It opens connection-wide streams on the first `subscribe()` and a session's as
 `join_session` is called, and pumps every stream into one `broadcast` of
-`be_block_client::Event`. A block's heads arrive as `Event::BlockChanged` on
-the `changes` stream once the block is listed (reading its summary lists it);
-`own` marks a change this connection's own call made, which it learns from
-`organization-opened.client` (`Connection::opened`). A change the server
-announces as what it did to the block's references (`moved-references`) reaches
-listeners with every reference all the same: the pump applies it to what this
-device holds (`Connection::hold_with`, a `Held`: `Peer` gives its refs as it
-opens the organization) and keeps the result there, so the next change resolves
-against it; when the result's `references_digest` is not the server's (a change
-heard out of order, or references never held) it reads the block again, unless
-what it holds is already as new as the change (a read for an earlier change of
-a burst), which makes the change no news (`whole`). A connection with no `Held`
-reads the block again for every such change. Key work arrives as
-`Event::KeyWork`; `Peer::key_work` reads the first value of a stream of it. A receiver that falls behind re-lists
-what it wants and rejoins its sessions, as after a reconnect.
+`be_block_client::Event`. Blocks are read, not announced: `Peer::listing` reads
+a listing and the sequence it was read at (`Listed`), `Peer::summary` one block
+(with `read-summaries`). What changes arrives as trees: `Peer::changed_since(entry,
+since, follow)` reads the tree of an entry point (`block-summary.entry`) from
+a sequence, following it with `follow`, and `Event::TreeAdvanced` tells when a
+followed tree changed, once until it is read to its end
+(guides/blocks/server.md, "Listings and following trees"); `Peer::unfollow`
+stops. `Event::Roots` says the top, the trash or Shared with me may have
+changed. A summary's `changed` orders it against every other of its block: the
+refs database keeps the newest (`Refs::put`), and a change this device makes
+offline is stamped just past the newest sequence it knows (`Refs::revise`). Key
+work arrives as `Event::KeyWork`; `Peer::key_work` reads the first value of a
+stream of it. A receiver that falls behind re-lists what it wants, reads again
+the trees it follows and rejoins its sessions, as after a reconnect.
 
 **Deciding the server is gone.** A socket can stay open with nothing behind it
 (a laptop that slept, a proxy that stopped forwarding) and the transport never
@@ -222,16 +221,17 @@ self-describing: a field marked `skip_serializing_if` is written as nothing and
 never decodes again, so a refs type never uses it, and `#[serde(default)]` does
 nothing for a field missing from an older record.
 
-`Peer::list(listing)` reads any `Listing` (`children` and `summary` are its
-only shorthands): every page of a long one (`listed.next`, in the order of
+`Peer::list(listing)` reads any `Listing` (`Peer::listing` with the sequence
+it was read at; `children` is its only shorthand, and `summary` reads one
+block): every page of a long one (`listed.next`, in the order of
 block ids, so a `References` listing is put back in the block's own order),
 and the summaries
 of each page's `rest` with `read-summaries`, `MAX_SUMMARIES_ASKED` at a time,
 keeping each block once and leaving out a summary read later that the listing
 would no longer hold (`still_in`). A block's references past
 `MAX_REFERENCES` are refused before anything is sealed or put in the outbox
-(`bounded`). The refs database keeps one summary per block, the newest
-revision winning, and a listing is the ids it held: a copy kept per listing went stale offline (a listing fetched
+(`bounded`). The refs database keeps one summary per block, the larger `changed`
+winning, and a listing is the ids it held: a copy kept per listing went stale offline (a listing fetched
 before another device's seal, or the copy a parent's listing held). Offline, a
 listing answers as the summaries place its blocks now:
 
@@ -240,7 +240,7 @@ listing answers as the summaries place its blocks now:
 - its `Backrefs` are the summaries that reference it;
 - a block's `Children`, and the `Deleted` blocks, are those the listing held
   that their summaries still put there, then those whose summaries put them
-  there and are newer than the revision the server answered the listing at
+  there and changed after the sequence the server answered the listing at
   (`Refs::listed`, kept with the listing). So a block made online, moved in,
   or pushed since the listing was fetched shows, and one moved away does not.
 
