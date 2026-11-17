@@ -3707,6 +3707,12 @@ where
             merge_retry_at: self.merge_retry_at,
             seal_retry_at: self.seal_retry_at,
             merge_failures: self.merge_failures,
+            resubmits_through: self
+                .unsent
+                .front()
+                .and_then(|(.., kept)| kept.as_ref())
+                .map(|kept| kept.through)
+                .filter(|through| self.edit_number() < *through),
         }
     }
 

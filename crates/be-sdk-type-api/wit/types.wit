@@ -285,6 +285,10 @@ interface types {
         merge-retry-at: option<u64>,
         seal-retry-at: option<u64>,
         merge-failures: u8,
+        /// The next edit to submit holds what an earlier opening submitted,
+        /// which goes again once the replica has taken the local edits through
+        /// this number.
+        resubmits-through: option<u64>,
     }
 
     /// What undo and redo can do on this device, and why they cannot.

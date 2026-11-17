@@ -732,6 +732,8 @@ pub struct Owing {
     pub clean: bool,
     /// Whether its module says it owes a seal (`Status::owes_seal`).
     pub owes_seal: bool,
+    /// Whether its module says it diverged from the order (`Status::diverged`).
+    pub diverged: bool,
     /// What its module says keeps its edits out of the journal (`Status::unjournaled`).
     pub unjournaled: Option<be_sdk_type_api::Unjournaled>,
     /// The modules' clock as the host last counted (`Modules::now`), which the timers in
@@ -756,6 +758,7 @@ impl Owing {
             journaled: open.status.journaled,
             clean: open.status.clean,
             owes_seal: open.status.owes_seal,
+            diverged: open.status.diverged,
             unjournaled: open.status.unjournaled.clone(),
             now,
             unreported: open.unreported(),
@@ -801,6 +804,11 @@ fn unjournaled(held: &be_sdk_type_api::Unjournaled, now: u64) -> String {
     if held.merge_failures > 0 {
         what.push(format!("{} merge failure(s)", held.merge_failures));
     }
+    if let Some(through) = held.resubmits_through {
+        what.push(format!(
+            "an earlier opening's submission waits for the local edits through {through}"
+        ));
+    }
     format!("out of the journal: {}", what.join(", "))
 }
 
@@ -808,11 +816,12 @@ impl std::fmt::Display for Owing {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             formatter,
-            "{} of type {} (clean: {}, owes a seal: {}, journaled: {}{}, unreported: {}, publishes unanswered: {}, joining: {}, closing: {}, last publish failed: {:?}, last keep failed: {:?})",
+            "{} of type {} (clean: {}, owes a seal: {}, diverged: {}, journaled: {}{}, unreported: {}, publishes unanswered: {}, joining: {}, closing: {}, last publish failed: {:?}, last keep failed: {:?})",
             self.block,
             self.content_type,
             self.clean,
             self.owes_seal,
+            self.diverged,
             self.journaled,
             self.unjournaled
                 .as_ref()
