@@ -1757,8 +1757,11 @@ impl Client {
                             .await;
                     }
                     // Its tree advanced, and so did those of the blocks it started or stopped
-                    // referencing.
-                    if let PublishOutcome::Published(_, relinked, _) = &outcome {
+                    // referencing; a publish of the head on itself (a trim with no new commit)
+                    // moved nothing.
+                    if let PublishOutcome::Published(_, relinked, _) = &outcome
+                        && expected != Some(commit)
+                    {
                         let mut changed = vec![block];
                         changed.extend(relinked.iter().copied());
                         connection
