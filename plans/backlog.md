@@ -578,3 +578,8 @@ Depends on #686 (session catch-ups replaced by server ordering).
   instance's waiting `next` but drops the compiles still under way, so their callers are never
   answered. Done when it answers each with the stop's reason too, with a test that stops a
   server mid-compile.
+- **The PDF renderer keeps its document.** Every render job carries the whole PDF
+  (be-worker-pdf's `Job`), so the editor copies it into the renderer and PDFium loads it again
+  for each tile. Done when the renderer keeps the last document it opened, by the block's
+  revision, behind an Open and a Render message, and a job sends the bytes only when the revision
+  is new, with a be-worker-pdf-render test that renders twice from one Open.

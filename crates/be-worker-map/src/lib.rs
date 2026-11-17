@@ -45,11 +45,8 @@ impl TileId {
 }
 
 /// What the app asks: rasterize `id` from `body`, the tile `source` as the tile source served it.
-/// `requester` is the app's own, and comes back with the answer: every map the app shows shares
-/// one rasterizer.
 #[derive(Serialize, Deserialize)]
 pub struct Job {
-    pub requester: u64,
     pub id: TileId,
     pub source: TileId,
     #[serde(with = "serde_bytes")]
@@ -76,7 +73,6 @@ pub struct TileRaster {
 /// The answer to one `Job`: the tile, or why it could not be drawn.
 #[derive(Serialize, Deserialize)]
 pub struct Rasterized {
-    pub requester: u64,
     pub id: TileId,
     pub result: Result<TileRaster, String>,
 }

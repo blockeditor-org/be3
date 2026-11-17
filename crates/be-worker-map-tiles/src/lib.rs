@@ -44,22 +44,13 @@ impl Work for Tiles {
     }
 
     fn receive(&mut self, message: Vec<u8>, app: &mut App) -> Result<(), String> {
-        let Job {
-            requester,
-            id,
-            source,
-            body,
-        } = Job::decode(&message)?;
+        let Job { id, source, body } = Job::decode(&message)?;
         let tile = self.decode(source, &body);
         let result = match tile.as_ref() {
             Ok(tile) => Ok(raster::rasterize(tile, id.zoom, window(id, source))),
             Err(error) => Err(error.clone()),
         };
-        let answer = Rasterized {
-            requester,
-            id,
-            result,
-        };
+        let answer = Rasterized { id, result };
         app.send(answer.encode());
         Ok(())
     }

@@ -284,14 +284,17 @@ crates/be-sdk-worker; plans/single_threaded_guests.md). The map's
   names.
 - The app starts it with `Worker::spawn("tiles.wasm")`, sends it byte buffers
   with `send` (or a `Sender` from `sender()`) and awaits each answer with
-  `receive`, one buffer a message, whole and in order, in a task:
-  `be_sdk::spawn` for one every editor of the app shares, which no editor's
-  closing cancels. Dropping the `Worker` and its senders stops it; `receive`
-  says why one stopped (it could not start, trapped or panicked).
-- Share one worker between the app's editors (a `thread_local` `Weak` to it,
-  and a requester in each message, so its answers reach the editor that asked)
-  rather than starting one each: a canvas can show more editors than the app
-  may run workers.
+  `receive`, one buffer a message, whole and in order. Dropping the `Worker`
+  and its senders stops it; `receive` says why one stopped (it could not
+  start, trapped or panicked).
+- Work every editor of the app asks of goes to one worker they share, since a
+  canvas can show more editors than the app may run workers: each editor holds
+  a `Shared::new("tiles.wasm", wake)`, sends with `send` and takes its own
+  answers with `try_receive` once `wake` is called. The worker starts with the
+  first and stops with the last; one that stopped (a job it failed stops it)
+  fails what each editor had in flight, and the next `send` starts it anew.
+  Each message carries its client, so a `Work` answers whoever asked without
+  the app's messages naming them. The map and the PDF editor work this way.
 - A worker has WASI and its libraries but no gpu and no host services: it
   computes and sends back bytes, which the app uploads or shows. It may block
   its own thread as long as a job needs.
@@ -303,7 +306,7 @@ crates/be-sdk-worker; plans/single_threaded_guests.md). The map's
   dev-depends on the worker crate and the test calls
   `BeuiTest::serve_worker::<Tiles>("tiles.wasm")`, after which each job the
   editor sends is done before it next steps. A worker crate tests its `Work`
-  through `be_sdk_worker::Hosted`.
+  through `be_sdk_worker::Hosted` (`ask`).
 
 ## 6. Build and verify
 
