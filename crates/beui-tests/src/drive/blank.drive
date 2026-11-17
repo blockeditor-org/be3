@@ -1,0 +1,3 @@
+# A blank after a line's last word hangs past the line's end: in a frame exactly as wide as
+# the words, the line keeps them all on one row.
+wait 'value="Blank hangs"'

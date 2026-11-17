@@ -11,6 +11,7 @@ use beui_macros::view;
 pub enum TextChild {
     Span(Span),
     Gap(Gap),
+    Blank(Blank),
     Break(Break),
     Item(TextItem),
 }
@@ -20,6 +21,7 @@ impl ChildValue for TextChild {
         match self {
             Self::Span(value) => value.finish_component(component, scope),
             Self::Gap(value) => value.finish_component(component, scope),
+            Self::Blank(value) => value.finish_component(component, scope),
             Self::Break(value) => value.finish_component(component, scope),
             Self::Item(value) => value.finish_component(component, scope),
         }
@@ -219,7 +221,7 @@ macro_rules! text_counted {
     };
 }
 
-text_counted!(Span, Gap, Break, TextItem);
+text_counted!(Span, Gap, Blank, Break, TextItem);
 
 impl IntoSegment<TextChild> for Phrase {
     fn into_segment(self) -> ChildSegment<TextChild> {
@@ -289,6 +291,29 @@ impl IntoChild<TextChild> for Gap {
 impl IntoSegment<TextChild> for Gap {
     fn into_segment(self) -> ChildSegment<TextChild> {
         ChildSegment::One(TextChild::Gap(self))
+    }
+}
+
+pub struct Blank {
+    pub(crate) width: f32,
+    #[cfg_attr(
+        beui_html,
+        expect(dead_code, reason = "the HTML core's lines take the text's line-height")
+    )]
+    pub(crate) font: Option<FontId>,
+}
+
+impl ChildValue for Blank {}
+
+impl IntoChild<TextChild> for Blank {
+    fn into_child(self) -> TextChild {
+        TextChild::Blank(self)
+    }
+}
+
+impl IntoSegment<TextChild> for Blank {
+    fn into_segment(self) -> ChildSegment<TextChild> {
+        ChildSegment::One(TextChild::Blank(self))
     }
 }
 
