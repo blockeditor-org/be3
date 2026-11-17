@@ -1374,6 +1374,8 @@ impl<S: ObjectStore> Peer<S> {
                 // and judged again before it is sent (`Peer::send_pending`), which sets it aside
                 // rather than send it under an outdated key.
                 Err(error) if outbox && error.is_unreachable() => return Ok(chosen),
+                // Anything else sealed here may be sent at once: it waits for a connection.
+                Err(error) if error.is_unreachable() => return Err(error),
                 Err(_) => return Err(ClientError::Locked(block)),
             }
             let rotated = newest();
@@ -1533,7 +1535,10 @@ impl<S: ObjectStore> Peer<S> {
         if self.outdated(key, scope).await {
             self.rotate_outdated(scope)
                 .await
-                .map_err(|_| ClientError::Locked(scope))?;
+                .map_err(|error| match error.is_unreachable() {
+                    true => error,
+                    false => ClientError::Locked(scope),
+                })?;
             return self
                 .keys
                 .scope_key(scope)
@@ -2098,11 +2103,14 @@ impl<S: ObjectStore> Peer<S> {
             BlockParent::Detached => return Ok(Placement::Detached),
             BlockParent::Block(above) => above,
         };
-        if !matches!(self.keys.root_pin(above), crate::keys::RootPin::Pinned(_))
-            && !self.local
-            && self.is_attached()
-        {
-            let _ = self.refresh_keys(Some(vec![above])).await;
+        // A root not pinned here may come with the keys the server holds for `above`: one that
+        // cannot be asked for is not known missing, so the caller waits for a connection
+        // rather than find the block locked.
+        if !matches!(self.keys.root_pin(above), crate::keys::RootPin::Pinned(_)) && !self.local {
+            if !self.is_attached() {
+                return Err(ClientError::Disconnected("offline".into()));
+            }
+            self.refresh_keys(Some(vec![above])).await?;
         }
         match self.keys.root_pin(above) {
             crate::keys::RootPin::Pinned(root) => Ok(Placement::Block {
