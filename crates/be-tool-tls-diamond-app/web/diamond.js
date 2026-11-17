@@ -2,8 +2,8 @@
 // the libraries it needs, base, left and right, run by be-wasm-guest-host's
 // guest.js with be-host's app.js in this worker as an app's worker runs
 // one. The app checks
-// its thread-locals on the main thread and on a thread it spawns, which wakes
-// it once it is done; the next step sends [1] if all of them were right. A
+// its thread-locals as it starts, on its one thread; the step after checks
+// them again and sends [1] if all of them were right. A
 // second worker serves one of the libraries with a byte added, which app.js
 // has to refuse, since it no longer hashes to its name.
 
@@ -17,18 +17,13 @@ const START = {
 };
 
 async function diamond() {
-    let woken;
-    const wake = new Promise((resolve) => {
-        woken = resolve;
-    });
     const posted = [];
-    const guest = runtime((message) => (message.kind === "wake" ? woken() : posted.push(message)));
+    const guest = runtime((message) => posted.push(message));
     await guest.receive(START);
     const failed = () => posted.find(({ kind }) => kind === "error");
     if (failed()) {
         return { error: failed().message };
     }
-    await wake;
     await guest.receive({ kind: "step", frames: [] });
     if (failed()) {
         return { error: failed().message };

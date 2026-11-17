@@ -34,7 +34,10 @@ fn escaped(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("\\{byte:02x}")).collect()
 }
 
-fn guest() -> String {
+/// The guest, importing a shared memory (whose gpu imports are fast-API calls) or one of its own,
+/// as every guest does since guests are single-threaded (decisions/guests_are_single_threaded.md),
+/// whose gpu imports are ordinary V8 calls.
+fn guest(shared: bool) -> String {
     let mut data = Data { bytes: Vec::new() };
     let texture = data.put(be_wasm_ops::encode(&abi::TextureDescriptor {
         label: None,
@@ -136,7 +139,7 @@ fn guest() -> String {
     .join("\n");
     format!(
         r#"(module
-            (import "env" "memory" (memory 1 4 shared))
+            (import "env" "memory" (memory 1 4{shared}))
             (import "{GPU}" "create-texture" (func $create_texture (param i32 i32) (result i32)))
             (import "{GPU}" "[method]texture.create-view" (func $create_texture_view (param i32 i32 i32) (result i32)))
             (import "{GPU}" "create-shader-module" (func $create_shader_module (param i32 i32) (result i32)))
@@ -162,15 +165,22 @@ fn guest() -> String {
                     (br_if $draws (local.get $left))))
         )"#,
         data = escaped(&data.bytes),
+        shared = if shared { " shared" } else { "" },
         GPU = be_wasm_gpu_abi::embed::device::MODULE,
     )
 }
 
 fn main() {
+    for (shared, memory) in [(true, "a shared memory"), (false, "an unshared memory")] {
+        measure(shared, memory);
+    }
+}
+
+fn measure(shared: bool, memory: &str) {
     let (device, queue) = wgpu::Device::noop(&wgpu::DeviceDescriptor::default());
     let host = Host::new(device, queue).expect("the host should start");
     let mut app = host
-        .load_bytes(&wat::parse_str(guest()).expect("the guest should assemble"))
+        .load_bytes(&wat::parse_str(guest(shared)).expect("the guest should assemble"))
         .expect("the guest should load");
     app.start().expect("the guest should start");
     let mut fastest = Duration::MAX;
@@ -184,7 +194,7 @@ fn main() {
     }
     let calls = f64::from(DRAWS * 4);
     println!(
-        "{DRAWS} x (set pipeline, set viewport, set scissor, draw), {STEPS} steps: \
+        "{memory}: {DRAWS} x (set pipeline, set viewport, set scissor, draw), {STEPS} steps: \
          fastest {:.1} ns per call, mean {:.1} ns per call",
         fastest.as_nanos() as f64 / calls,
         total.as_nanos() as f64 / calls / STEPS as f64,
