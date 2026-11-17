@@ -253,4 +253,4 @@ mod an_app_that_panics_reports_its_panic_message;
 mod an_interrupted_app_stops_on_every_thread;
 mod an_interrupted_host_loads_no_app;
 mod bytes_that_are_not_a_pure_guests_module_do_not_compile;
-mod the_thread_local_diamond_runs_on_every_thread;
+mod the_thread_local_diamond_runs_on_its_one_thread;
