@@ -203,7 +203,10 @@ view the parent) and refuses it for blocks that belong to what holds them
 (owner-only blocks, settings, edit kinds, search indexes, an Unfiled). A
 transfer has no accept step: the new owner holds the block as soon as the
 record is appended, and can leave it only by giving ownership on, since no
-grant names or lowers an owner. The former owner, the creator included, is then
+grant names or lowers an owner; holding Manage, they may also trash it. The
+server takes a transfer only to a member who is a contact of the giver, and
+refuses one to an account already at `MAX_BLOCKS_PER_ACCOUNT`, checked after
+the contact check so the giver learns an account's count only of a contact. The former owner, the creator included, is then
 a member like any other, whom the new owner may revoke.
 
 **Parent records** place the block (`Placement`:
@@ -307,11 +310,22 @@ it `partial`. How each check reads one:
   administrator and no level, so no seal, escrow wrap or epoch is taken by it.
 - A seal's sender is judged by the records the path shows of them
   (`sender_may`, `settle_escrowed`, kept `levels`), but the server picks whom
-  a path proves: a sender it leaves out is never named, and taken as Edit from
-  above. So for a reader below Edit the sender check is a verified contact
-  check. Accepted ("Accepted limits"): a reader below Edit seals, wraps and
+  a path proves: a sender it leaves out is never named in the block's log,
+  and is taken only if `Peer::held_above` finds them holding Edit on a block
+  above, by the paths of those blocks the server serves, which for a reader
+  below Edit it picks too. So for a reader below Edit the sender check is in
+  effect a verified contact check. Accepted ("Accepted limits"): a reader below Edit seals, wraps and
   writes content under nothing, though it relays its presence under such a
   key.
+- What a path still reveals, accepted: the log's length and where each
+  lowering sits; the whole level history of each sealer and of the chain of
+  signers behind them; who signed each opening; of the organization's log, the
+  whole administrator roster and its history; and of an ancestor's path (served
+  to a reader below it, `reads_below`), its creator and root, every placement
+  it ever had and who made each, and the level history there of every mover
+  and every signer below on authority from it. Fixing the length would take a
+  commitment to the log's state instead of a chain
+  (decisions/editors_are_served_whole_access_logs.md).
 - A path is kept (`KeptLog`) only up to its last whole entry, so a tail the
   server made up after the real head never leaves later logs withheld; the
   newest lowering a path ever showed is kept past that, so a later path that
@@ -694,10 +708,21 @@ who lost access. Cited from code by these names.
   member revoked since, with the server, can seal a made-up key naming a head
   before their revocation; a device whose log outdates that head writes under
   no such key. Never an escrow key, taken only from an administrator at the
-  organization log's head now. A key from a sender the block's log never names,
-  vouched for from above (`KeyBook::vouch`), is written under only while it
-  names a head with nothing lowering anyone after it, or, naming none, while
-  the log never lowered anyone.
+  organization log's head now.
+- **A sender the block's log never names.** Their key is taken only for the
+  one wrap `Peer::held_above` vouched for as it arrived (`KeyBook::vouch`,
+  kept as key, sender and digest of what was sealed, `KeptLog::vouched`),
+  when the signed parent records showed them holding Edit or above on a block
+  above as of those logs' heads then; any other wrap of the key, or a later
+  key, is judged as it arrives. A server that withholds the sender's
+  revocation above from this device gets that wrap vouched for and taken. Such
+  a key is written under only while it names a head with nothing lowering
+  anyone after it, or, naming none, while the log never lowered anyone.
+- **The first key of a block this device never checked** is taken from a
+  verified contact before any log of it is read (`refresh_keys` reads the log
+  of each block whose root it pinned before taking a contact's later seals of
+  it), so a contact, with the server, can hand a device new to a block a key
+  of it naming any heads.
 - **A reader below Edit checks a sealer only as a contact.** The server picks
   whom a path proves, so it can reduce a sealer's revocation (the reader sees
   that someone was lowered, not whom). A revoked editor, with the server, can

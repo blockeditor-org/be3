@@ -22,7 +22,3 @@ never held the key can name other heads for it.
 
 - **A signature on the key row beside the key.** A revoked member, with the
   server, could swap it for one of their own naming an older head.
-- **Rotating each outdated scope from below.** A scope's new epoch is wrapped
-  under a new one of the scope above, so rotating from below would rotate the
-  scopes above again at each level; a rotation starts from the highest
-  outdated scope instead (`Peer::rotation_top`).
