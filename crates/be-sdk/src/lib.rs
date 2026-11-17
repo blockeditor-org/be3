@@ -69,7 +69,7 @@ pub use be_sdk_api::{
     ScreenLockedWatch, ScreenPlacement, ScreenRegion, ScreenRegionState, ScreenSide, ScreenWall,
     ScreenWallState, ScrollDelta, SessionEnd, ShellDialog, Signer, Stopped, StorageUsageWatch,
     SuperKeptWatch, SurfaceRect, TemplateCategory, TemplateDescriptor, TerminalHostBe,
-    TerminalHostDownload, TerminalHostSource, TimedInput, TopBar, TouchPhase, TrayClick,
+    TerminalHostDownload, TerminalHostFile, TerminalHostSource, TimedInput, TopBar, TouchPhase, TrayClick,
     TrayMenuEntry, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle, TrayWatch, VersionBranch,
     VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionOperation,
     VersionStatus, ViewChange, Watched, WebViewCommand, WebViewEvent, WebViewId, WheelTurn,

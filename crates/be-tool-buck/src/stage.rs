@@ -14,7 +14,9 @@
 //! --install-login-session installs.
 //!
 //! The arguments are read in order: a --data or --app-type belongs to the app
-//! named just before it.
+//! named just before it. A MANIFEST= with no module stages the manifest alone, for
+//! a program that reads the app's manifest and type module but never runs it (`be`
+//! for the apps it hosts no component of).
 //!
 //! The stage writes only what it makes itself into OUT (the .sha256 tags,
 //! apps.json and program-files.txt) and, at LAYOUT, every path of the program
@@ -32,7 +34,7 @@ use std::process::ExitCode;
 use sha2::{Digest, Sha256};
 
 const USAGE: &str = "usage: stage OUT LAYOUT [--executable=EXECUTABLE=NAME] [--file=FILE]... [--tree=DIR]... \
-[--index] [--library=MODULE]... (MANIFEST=MODULE [--data=DIR] [--app-type=MODULE])...";
+[--index] [--library=MODULE]... (MANIFEST=[MODULE] [--data=DIR] [--app-type=MODULE])...";
 
 /// What one path in the program is.
 #[derive(Debug, PartialEq, Eq)]
@@ -130,7 +132,7 @@ pub fn layout(arguments: &[String]) -> Result<Layout, String> {
                 let manifest = crate::json(path)?;
                 let id = string(path, &manifest, "id")?;
                 let entry_point = string(path, &manifest, "entry_point")?;
-                if file_name(module)? != entry_point {
+                if !module.is_empty() && file_name(module)? != entry_point {
                     return Err(format!(
                         "{path} names {entry_point} as its entry point, but its module is {module}"
                     ));
@@ -138,7 +140,9 @@ pub fn layout(arguments: &[String]) -> Result<Layout, String> {
                 let name = format!("{id}.app.json");
                 layout.insert(name.clone(), input(0));
                 manifests.push(name);
-                layout.insert(entry_point, input(1));
+                if !module.is_empty() {
+                    layout.insert(entry_point, input(1));
+                }
                 app = Some((path.to_owned(), manifest, id));
             }
         }

@@ -47,36 +47,43 @@ program(
     visibility = ["//crates/be-tool-local:"],
 )
 
-# be with apps beside it, which it reads its block types from and runs the host components of,
-# as a deployed be reads its release's: `./scripts/buck run //crates/be-tool-cli:dev -- ARGS`
-# stages every app; `-c be3.apps=text,database` stages only those and HOST_APPS, each
-# crates/be-app-NAME by its NAME, as be-host's :dev takes it. The bundle is named after them,
-# :dev-database-text, so each selection has outputs of its own.
+app_names = [package.removeprefix("crates/be-app-") for package in app_packages()]
+
+# be with apps beside it, as a deployed be reads its release's:
+# `./scripts/buck run //crates/be-tool-cli:dev -- ARGS`. It stages every app's manifest and type
+# module, and the modules and data of HOST_APPS and those `-c be3.apps=text,database` names,
+# each crates/be-app-NAME by its NAME, as be-host's :dev takes it, whose host components it
+# runs. The bundle is named after them, :dev-database-text, so each selection has outputs of
+# its own.
 dev_extra_apps = sorted({name.strip(): None for name in read_config("be3", "apps", "").split(",") if name.strip() and name.strip() not in HOST_APPS}.keys())
 
-dev_app_names = [package.removeprefix("crates/be-app-") for package in app_packages()]
-
 [
-    fail("be3.apps names {}, which is no crates/be-app-NAME: it is a comma-separated list of {}".format(name, ", ".join(dev_app_names)))
+    fail("be3.apps names {}, which is no crates/be-app-NAME: it is a comma-separated list of {}".format(name, ", ".join(app_names)))
     for name in dev_extra_apps
-    if name not in dev_app_names
+    if name not in app_names
 ]
-
-dev_apps = sorted(HOST_APPS + dev_extra_apps) if dev_extra_apps else dev_app_names
 
 dev_bundle = "-".join(["dev"] + dev_extra_apps) if dev_extra_apps else "dev-bundle"
 
-program(
-    name = dev_bundle,
-    app_types = ["//crates/be-app-{}:types".format(app) for app in dev_apps],
-    binary = ":bin",
-    data = ["//crates/be-app-{}:data".format(app) for app in dev_apps],
-    executable_name = "be",
-    files = ["//buck/program:build-info.json"],
-    index = True,
-    manifests = ["//crates/be-app-{}:manifest".format(app) for app in dev_apps],
-    modules = ["//crates/be-app-{}:module".format(app) for app in dev_apps],
-)
+# Each is be with every app's manifest and type module beside it, which it reads blocks
+# through, and the modules and data of the apps whose host components it runs alone:
+# :terminal-host is what a development build of be-host uploads as a terminal host
+# (guides/terminal.md), built into ~/.cache/be3/terminal-host/ARCH with
+# `--target-platforms root//buck/platforms:linux_ARCH --out`, and runs none.
+[
+    program(
+        name = name,
+        app_types = ["//crates/be-app-{}:types".format(app) for app in app_names],
+        binary = ":bin",
+        data = ["//crates/be-app-{}:data".format(app) if app in hosted else None for app in app_names],
+        executable_name = "be",
+        files = ["//buck/program:build-info.json"],
+        index = True,
+        manifests = ["//crates/be-app-{}:manifest".format(app) for app in app_names],
+        modules = ["//crates/be-app-{}:module".format(app) if app in hosted else None for app in app_names],
+    )
+    for name, hosted in [("terminal-host", []), (dev_bundle, HOST_APPS + dev_extra_apps)]
+]
 
 alias(
     name = "dev",

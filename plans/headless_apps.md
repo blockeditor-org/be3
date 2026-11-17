@@ -52,10 +52,9 @@ graphics. One runtime, not a second one for `be`.
      from the bundle beside it or its release as in c, so an app changing
      never relinks `be` (be-tool-cli's
      `be_reads_a_block_type_from_the_type_module_staged_beside_it`). Like c,
-     not yet run against a real deploy. Left over: a development build's
-     terminal host uploads `:native` alone, which finds no terminal type
-     module; it needs the type modules sent with it, or a release to read
-     (guides/terminal.md).
+     not yet run against a real deploy. A development build's terminal host
+     uploads `be-tool-cli:terminal-host`, `be` with every manifest and type
+     module beside it (guides/terminal.md).
 2. **`be BLOCK host`.** Signs in (as an agent, or a block's agent, as the
    terminal host does), opens the block and runs its type's host component
    while it holds the lease, standing by otherwise. Done: plans/hosted_blocks.md

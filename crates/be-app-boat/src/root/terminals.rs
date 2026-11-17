@@ -260,47 +260,82 @@ pub(crate) fn remove_command(block: Uuid) -> String {
     )
 }
 
-/// Puts `be` of `build` in place unless one with `sha256` is there already: downloaded from
-/// `url`, or uploaded already, under a name of `block`'s own so two installs in one sandbox
-/// never share one, and checked against `sha256` either way before it can run.
+/// Puts `be` of `build` and the files beside it in place unless each is there already with its
+/// SHA-256: `be` downloaded from `url`, or every file uploaded already, each under a name of
+/// `block`'s own so two installs in one sandbox never share one, and checked against its
+/// SHA-256 either way before `be` can run. `files` names each file and its hash, `be` among
+/// them.
 pub(crate) fn be_command(
     build: &str,
     block: Uuid,
     url: Option<&str>,
-    sha256: &str,
+    files: &[(String, String)],
 ) -> Result<String, String> {
     if url.is_some_and(|url| !url.starts_with("https://") || url.contains(['\'', '\\'])) {
         return Err("the host named a download of be that is not a plain https URL".to_owned());
     }
-    if sha256.len() != 64 || !sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err("the host named no SHA-256 for be".to_owned());
+    let listed = listing(files)?;
+    if url.is_some() && files.len() != 1 {
+        return Err("the host named a download of more than be".to_owned());
     }
-    let part = format!("be.part.{block}");
-    let fetch = match url {
-        Some(url) => format!("curl -fsSL -o {part} '{url}'"),
-        None => format!("test -f {part}"),
-    };
-    Ok([
+    let part = |name: &str| format!("{name}.part.{block}");
+    let mut lines = vec![
         "set -e".to_owned(),
         format!("mkdir -p {BE_DIRECTORY}/builds/{build}"),
         format!("cd {BE_DIRECTORY}/builds/{build}"),
         format!(
-            "if echo '{sha256}  be' | sha256sum -c --quiet - 2>/dev/null; then rm -f {part}; exit 0; fi"
+            "if printf '{listed}' | sha256sum -c --quiet - 2>/dev/null; then rm -f *.part.{block}; exit 0; fi"
         ),
-        fetch,
-        format!("echo '{sha256}  {part}' | sha256sum -c --quiet -"),
-        format!("chmod 0755 {part}"),
-        format!("mv {part} be"),
-    ]
-    .join("\n"))
+    ];
+    for (name, sha256) in files {
+        lines.push(match url {
+            Some(url) => format!("curl -fsSL -o {} '{url}'", part(name)),
+            None => format!("test -f {}", part(name)),
+        });
+        lines.push(format!("echo '{sha256}  {}' | sha256sum -c --quiet -", part(name)));
+        let mode = if name == "be" { "0755" } else { "0644" };
+        lines.push(format!("chmod {mode} {}", part(name)));
+    }
+    // `be` last, so a build whose `be` is there has every file beside it.
+    for (name, _) in files.iter().filter(|(name, _)| name != "be") {
+        lines.push(format!("mv {} {name}", part(name)));
+    }
+    lines.push(format!("mv {} be", part("be")));
+    Ok(lines.join("\n"))
 }
 
-/// Whether `build`'s `be` with `sha256` is in the sandbox already: `present` or `missing`.
-pub(crate) fn has_be_command(build: &str, sha256: &str) -> String {
-    format!(
-        "echo '{sha256}  {BE_DIRECTORY}/builds/{build}/be' | sha256sum -c --quiet - 2>/dev/null \
-         && echo present || echo missing"
-    )
+/// `files` as `sha256sum -c` reads them, a line each, once every name is a plain file name
+/// (`be` among them) and every hash a SHA-256.
+fn listing(files: &[(String, String)]) -> Result<String, String> {
+    if !files.iter().any(|(name, _)| name == "be") {
+        return Err("the host named no be".to_owned());
+    }
+    let mut listed = String::new();
+    for (name, sha256) in files {
+        let plain = !name.is_empty()
+            && !name.starts_with('.')
+            && name
+                .chars()
+                .all(|character| character.is_ascii_alphanumeric() || "._-".contains(character));
+        if !plain {
+            return Err(format!("the host named {name:?}, which is no plain file name"));
+        }
+        if sha256.len() != 64 || !sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Err(format!("the host named no SHA-256 for {name}"));
+        }
+        listed.push_str(&format!("{sha256}  {name}\\n"));
+    }
+    Ok(listed)
+}
+
+/// Whether `build`'s `be` and the files beside it are in the sandbox already, each with its
+/// SHA-256: `present` or `missing`.
+pub(crate) fn has_be_command(build: &str, files: &[(String, String)]) -> Result<String, String> {
+    Ok(format!(
+        "cd {BE_DIRECTORY}/builds/{build} 2>/dev/null && printf '{}' | sha256sum -c --quiet - \
+         2>/dev/null && echo present || echo missing",
+        listing(files)?
+    ))
 }
 
 /// The file the terminal host reads, as `BE3_AGENT_CREDENTIALS`: the agent's credentials with
@@ -405,28 +440,34 @@ async fn install(
         )));
     };
     let command = match be.source {
-        TerminalHostSource::Download(download) => {
-            be_command(&build, block, Some(&download.url), &download.sha256)
-        }
-        TerminalHostSource::Bytes(bytes) => {
-            let hash = sha256(&bytes);
-            let held = step!(api::command(
-                &host,
-                &account,
-                &sandbox,
-                &has_be_command(&build, &hash),
-                30,
-            ));
+        TerminalHostSource::Download(download) => be_command(
+            &build,
+            block,
+            Some(&download.url),
+            &[("be".to_owned(), download.sha256)],
+        ),
+        TerminalHostSource::Files(files) => {
+            let hashed: Vec<(String, String)> = files
+                .iter()
+                .map(|file| (file.name.clone(), sha256(&file.bytes)))
+                .collect();
+            let asked = match has_be_command(&build, &hashed) {
+                Ok(asked) => asked,
+                Err(message) => return Some(Err(Trouble::Host(message))),
+            };
+            let held = step!(api::command(&host, &account, &sandbox, &asked, 30));
             if held.trim() != "present" {
-                step!(api::upload(
-                    &host,
-                    &account,
-                    &sandbox,
-                    &format!("{BE_DIRECTORY}/builds/{build}/be.part.{block}"),
-                    bytes,
-                ));
+                for file in files {
+                    step!(api::upload(
+                        &host,
+                        &account,
+                        &sandbox,
+                        &format!("{BE_DIRECTORY}/builds/{build}/{}.part.{block}", file.name),
+                        file.bytes,
+                    ));
+                }
             }
-            be_command(&build, block, None, &hash)
+            be_command(&build, block, None, &hashed)
         }
     };
     let command = match command {

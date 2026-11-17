@@ -39,7 +39,7 @@ be-type-terminal = { path = "../be-type-terminal" }
 be-type-text = { path = "../be-type-text" }
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "signal", "sync", "time"] }
 uuid = { version = "1", features = ["v4", "v7"] }
-# Downloads the host apps from be's release (host_apps.rs).
+# Downloads the apps' manifests, type modules and host apps from be's release (release.rs).
 ureq = "2"
 
 [dev-dependencies]

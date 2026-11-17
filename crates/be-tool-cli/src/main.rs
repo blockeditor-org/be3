@@ -107,9 +107,7 @@ async fn run() -> Result<String, String> {
 /// downloaded by a deployed `be`, only when a command first starts its types.
 fn sources() -> be_tool_cli::tracker::Sources {
     Box::new(|| {
-        for error in be_host_stack::discovery::apps().errors() {
-            eprintln!("be: {error}");
-        }
+        be_tool_cli::apps::found();
         be_host_stack::types::app_sources()
     })
 }
