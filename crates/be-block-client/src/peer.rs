@@ -1077,24 +1077,56 @@ impl<S: ObjectStore> Peer<S> {
         if self.keys.block_of(key) != Some(block) {
             return Err(ClientError::Forged(block));
         }
-        let epoch = self.keys.row(key).map_or(0, |row| row.epoch);
-        let newest = self
-            .keys
-            .keys_of(block, KeyKind::Data)
-            .into_iter()
-            .rev()
-            .find(|row| {
-                row.epoch > epoch && usable(row.id) && self.keys.block_of(row.id) == Some(block)
-            });
-        Ok(newest.map_or(key, |row| row.id))
+        let newest = || {
+            let epoch = self.keys.row(key).map_or(0, |row| row.epoch);
+            self.keys
+                .keys_of(block, KeyKind::Data)
+                .into_iter()
+                .rev()
+                .find(|row| {
+                    row.epoch > epoch
+                        && usable(row.id)
+                        && self.keys.block_of(row.id) == Some(block)
+                })
+                .map_or(key, |row| row.id)
+        };
+        let chosen = newest();
+        // An epoch its scope's log outdates (named before a revocation, a downgrade or a
+        // closing, whose subject may hold it) is written under no more: the scope gets a new
+        // epoch first (signed access 3d).
+        if let Some(scope) = self.refs.summary(block).and_then(|kept| scope_of(&kept).ok())
+            && self.keys.outdated(chosen, scope)
+        {
+            Box::pin(self.rotate(scope)).await?;
+            let rotated = newest();
+            if self.keys.outdated(rotated, scope) {
+                return Err(ClientError::Locked(block));
+            }
+            return Ok(rotated);
+        }
+        Ok(chosen)
     }
 
+    /// The newest scope key of `scope` this device holds; one its log outdates (as
+    /// `sealing_key` finds a data key) is wrapped under no more, so the scope gets a new epoch
+    /// first.
     async fn scope_key(&self, scope: Uuid) -> Result<Uuid, ClientError> {
-        if let Some(key) = self.keys.scope_key(scope) {
-            return Ok(key);
+        let key = match self.keys.scope_key(scope) {
+            Some(key) => key,
+            None => {
+                self.refresh_keys(Some(vec![scope])).await?;
+                self.keys.scope_key(scope).ok_or(ClientError::Locked(scope))?
+            }
+        };
+        if self.keys.outdated(key, scope) {
+            Box::pin(self.rotate(scope)).await?;
+            return self
+                .keys
+                .scope_key(scope)
+                .filter(|key| !self.keys.outdated(*key, scope))
+                .ok_or(ClientError::Locked(scope));
         }
-        self.refresh_keys(Some(vec![scope])).await?;
-        self.keys.scope_key(scope).ok_or(ClientError::Locked(scope))
+        Ok(key)
     }
 
     async fn scope_key_under(&self, parent: Uuid) -> Result<Uuid, ClientError> {
