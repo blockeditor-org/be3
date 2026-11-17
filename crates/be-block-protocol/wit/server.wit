@@ -264,21 +264,29 @@ interface server {
     /// One change a `write` makes. A write's ops apply in order, in one
     /// transaction: one refused refuses the write, and none of it is kept.
     variant op {
+        /// Makes a block. Its data key `key` is a key row the same write
+        /// stores (`put-keys(rows)` after it), checked at the write's end.
         create-block(create-block),
-        /// Stores `objects` and moves the head to `commit` if it is
-        /// `expected`. `held` and `references` are changes from what
-        /// `expected` holds and references, so a commit that changes little
-        /// sends little. With `journal`, a seal of the block's live session:
-        /// its base names `commit`, and the journal starts from it only if
-        /// this publish moves the head, which every participant hears as
-        /// `session-event.sealed`. A trim with no new commit (`commit` is
-        /// `expected` and the head) needs the caller to be in the session and
-        /// its lease holder at the order's tip.
+        /// Moves the head to `commit` if it is `expected`, or with no commit
+        /// sets the metadata and the references alone, the head staying
+        /// `expected` (refused with `block-has-content` when it is not).
+        /// `references` is a change from what `expected` holds (with none,
+        /// the whole list), so a commit that changes little sends little.
+        /// With `journal`, a seal of the block's live session, which needs a
+        /// commit: its base names `commit`, and the journal starts from it
+        /// only if this publish moves the head, which every participant hears
+        /// as `session-event.sealed`. A trim with no new commit (a commit that
+        /// is `expected` and the head) needs the caller to be in the session
+        /// and its lease holder at the order's tip.
         publish(publish),
-        set-metadata(set-metadata),
-        /// Moves a block, with the keys it needs under its new parent, by
-        /// `placement`: the caller's parent record placing it at `parent`,
-        /// the next entry of its access log (guides/blocks/keys.md, "Parent records").
+        /// Moves a block by `placement`: the caller's parent record placing
+        /// it at `parent`, the next entry of its access log
+        /// (guides/blocks/keys.md, "Parent records"). A move into another
+        /// scope carries the keys it needs under its new parent in a
+        /// `put-keys(rows)` of the same write: at the write's end every key
+        /// the move took into the new scope (the moved block's, or its own
+        /// scope key's, and each one's below it the caller may view) opens
+        /// from the new scope's key.
         move(move),
         /// Appends a signed record to an access log once the server checks it
         /// there (guides/blocks/keys.md).
@@ -381,7 +389,6 @@ interface server {
         metadata: list<u8>,
         references: list<block-id>,
         key: key-id,
-        keys: key-set,
         /// Readable by its author alone, for its whole life: a scope root
         /// whose key is sealed only to the author and never escrowed, which
         /// no one else may open, move or grant, administrators included.
@@ -397,28 +404,27 @@ interface server {
 
     record publish {
         block: block-id,
-        commit: commit-id,
         expected: option<commit-id>,
-        parents: list<commit-id>,
-        held: object-change,
-        time: s64,
-        pinned: bool,
+        commit: option<new-commit>,
         references: reference-change,
         metadata: list<u8>,
-        objects: list<list<u8>>,
         journal: option<journal-seal>,
     }
 
-    record set-metadata {
-        block: block-id,
-        metadata: list<u8>,
-        references: list<block-id>,
+    /// The commit a publish moves the head to.
+    record new-commit {
+        id: commit-id,
+        parents: list<commit-id>,
+        /// A change from what `expected` holds.
+        held: object-change,
+        time: s64,
+        pinned: bool,
+        objects: list<list<u8>>,
     }
 
     record move {
         block: block-id,
         parent: block-parent,
-        keys: key-set,
         placement: list<u8>,
     }
 
@@ -564,7 +570,8 @@ interface server {
     variant done {
         /// The op answers nothing.
         nothing,
-        /// `create-block` and `set-metadata`: the block as it is now.
+        /// `create-block`, and `publish` with no commit: the block as it is
+        /// now.
         block(block-summary),
         published(publish-outcome),
         uploads(list<option<upload-url>>),

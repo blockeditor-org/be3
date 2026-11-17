@@ -36,10 +36,13 @@ async fn a_refused_write_demotes_and_disconnects_nobody() {
     assert!(administers(&mut deputy).await.is_ok());
 
     let demote = owner.role_op(account, OrganizationRole::Editor).await;
-    let refused = Op::SetMetadata {
+    let refused = Op::Publish {
         block: Uuid::new_v4(),
+        expected: None,
+        commit: None,
+        references: be_block_protocol::ReferenceChange::between(&[], &Vec::new()),
         metadata: b"a block that is not there".to_vec(),
-        references: Vec::new(),
+        journal: None,
     };
     let written = client::server::write(
         &owner.peer,

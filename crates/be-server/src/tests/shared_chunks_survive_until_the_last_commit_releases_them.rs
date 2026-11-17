@@ -28,15 +28,17 @@ async fn shared_chunks_survive_until_the_last_commit_releases_them() {
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
                 block: block,
-                commit: first,
                 expected: None,
-                parents: Vec::new(),
-                held: objects_change(&[], first_chunks.clone()),
-                time: 1_000,
-                pinned: false,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: first,
+                    parents: Vec::new(),
+                    held: objects_change(&[], first_chunks.clone()),
+                    time: 1_000,
+                    pinned: false,
+                    objects: Vec::new(),
+                }),
                 references: listing(&[], Vec::new()),
                 metadata: Vec::new(),
-                objects: Vec::new(),
                 journal: None,
             })
         })
@@ -48,15 +50,17 @@ async fn shared_chunks_survive_until_the_last_commit_releases_them() {
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
                 block: block,
-                commit: second,
                 expected: Some(first),
-                parents: Some(first).into_iter().collect(),
-                held: objects_change(&first_chunks, second_chunks.clone()),
-                time: 2_000,
-                pinned: false,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: second,
+                    parents: Some(first).into_iter().collect(),
+                    held: objects_change(&first_chunks, second_chunks.clone()),
+                    time: 2_000,
+                    pinned: false,
+                    objects: Vec::new(),
+                }),
                 references: listing(&[], Vec::new()),
                 metadata: Vec::new(),
-                objects: Vec::new(),
                 journal: None,
             })
         })

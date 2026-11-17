@@ -20,15 +20,17 @@ async fn publish_references(
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
                 block: block,
-                commit: commit,
                 expected: expected,
-                parents: expected.into_iter().collect(),
-                held: objects_change(&before, chunks),
-                time: time,
-                pinned: false,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: commit,
+                    parents: expected.into_iter().collect(),
+                    held: objects_change(&before, chunks),
+                    time: time,
+                    pinned: false,
+                    objects: Vec::new(),
+                }),
                 references: references,
                 metadata: Vec::new(),
-                objects: Vec::new(),
                 journal: None,
             })
         })

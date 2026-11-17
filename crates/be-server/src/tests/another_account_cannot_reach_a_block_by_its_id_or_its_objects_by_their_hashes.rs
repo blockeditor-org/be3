@@ -83,15 +83,17 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
                 block: decoy,
-                commit: commit,
                 expected: None,
-                parents: Vec::new(),
-                held: objects_change(&[], chunks.clone()),
-                time: 1_000,
-                pinned: false,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: commit,
+                    parents: Vec::new(),
+                    held: objects_change(&[], chunks.clone()),
+                    time: 1_000,
+                    pinned: false,
+                    objects: Vec::new(),
+                }),
                 references: listing(&[], Vec::new()),
                 metadata: Vec::new(),
-                objects: Vec::new(),
                 journal: None,
             })
         })

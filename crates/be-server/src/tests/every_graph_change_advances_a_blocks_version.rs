@@ -11,10 +11,13 @@ async fn every_graph_change_advances_a_blocks_version() {
 
     let response = owner
         .call(|peer| {
-            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
                 block: block,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &Vec::new()),
                 metadata: vec![1, 2, 3],
-                references: Vec::new(),
+                journal: None,
             })
         })
         .await;

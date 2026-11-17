@@ -119,15 +119,17 @@ impl<S: ObjectStore> Peer<S> {
             Some(self.organization),
             be_block_protocol::Op::Publish {
                 block: block,
-                commit: head,
                 expected: Some(head),
-                parents: vec![head],
-                held: Default::default(),
-                time: 0,
-                pinned: false,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: head,
+                    parents: vec![head],
+                    held: Default::default(),
+                    time: 0,
+                    pinned: false,
+                    objects: Vec::new(),
+                }),
                 references: Default::default(),
                 metadata: Vec::new(),
-                objects: Vec::new(),
                 journal: Some(be_block_protocol::JournalSeal {
                     tag,
                     run,

@@ -256,34 +256,10 @@ impl<S: ObjectStore> Peer<S> {
     fn send_batch(&self, group: Vec<Prepared>) -> Sent<'_> {
         let mut sent = Vec::with_capacity(group.len());
         for ready in group {
-            let Creation {
-                block,
-                content_type,
-                parent,
-                metadata,
-                references,
-                key,
-                keys,
-                owner_only,
-                root,
-                placement,
-                unchecked: _,
-            } = ready.creation.clone();
-            let created = be_block_protocol::write::<be_block_protocol::BlockSummary, _>(
+            let created = be_block_protocol::write_all::<be_block_protocol::BlockSummary, _>(
                 &self.connection(),
                 Some(self.organization),
-                be_block_protocol::Op::CreateBlock {
-                    block: block,
-                    content_type: content_type,
-                    parent: parent,
-                    metadata: metadata,
-                    references: references,
-                    key: key,
-                    keys: keys,
-                    owner_only: owner_only,
-                    root: root,
-                    placement: placement,
-                },
+                ready.creation.ops(),
             );
             let published = ready.publish.clone().map(|pending| {
                 be_block_protocol::write::<be_block_protocol::PublishOutcome, _>(
@@ -291,18 +267,20 @@ impl<S: ObjectStore> Peer<S> {
                     Some(self.organization),
                     be_block_protocol::Op::Publish {
                         block: pending.block,
-                        commit: pending.commit,
                         expected: None,
-                        parents: Vec::new(),
-                        held: be_block_protocol::ObjectChange::between(&[], &pending.chunks),
-                        time: pending.time,
-                        pinned: false,
+                        commit: Some(be_block_protocol::NewCommit {
+                            id: pending.commit,
+                            parents: Vec::new(),
+                            held: be_block_protocol::ObjectChange::between(&[], &pending.chunks),
+                            time: pending.time,
+                            pinned: false,
+                            objects: Vec::new(),
+                        }),
                         references: be_block_protocol::ReferenceChange::between(
                             &[],
                             &pending.references,
                         ),
                         metadata: pending.metadata,
-                        objects: Vec::new(),
                         journal: None,
                     },
                 )

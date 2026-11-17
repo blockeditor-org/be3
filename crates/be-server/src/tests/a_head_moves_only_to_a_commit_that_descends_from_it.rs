@@ -16,15 +16,17 @@ async fn publish_onto(
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
                 block: block,
-                commit: commit,
                 expected: expected,
-                parents: parents,
-                held: change,
-                time: time,
-                pinned: false,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: commit,
+                    parents: parents,
+                    held: change,
+                    time: time,
+                    pinned: false,
+                    objects: Vec::new(),
+                }),
                 references: listing(&[], Vec::new()),
                 metadata: Vec::new(),
-                objects: Vec::new(),
                 journal: None,
             })
         })

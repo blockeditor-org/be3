@@ -1988,21 +1988,10 @@ impl<S: ObjectStore> Peer<S> {
             return self.create_locally(creation);
         }
         let response = crate::ask(
-            be_block_protocol::write::<be_block_protocol::BlockSummary, _>(
+            be_block_protocol::write_all::<be_block_protocol::BlockSummary, _>(
                 &self.connection(),
                 Some(self.organization),
-                be_block_protocol::Op::CreateBlock {
-                    block: block,
-                    content_type: content_type,
-                    parent: parent,
-                    metadata: creation.metadata.clone(),
-                    references: creation.references.clone(),
-                    key: creation.key,
-                    keys: creation.keys.clone(),
-                    owner_only: owner_only,
-                    root: creation.root.clone(),
-                    placement: creation.placement.clone(),
-                },
+                creation.ops(),
             ),
         )
         .await;
@@ -2618,10 +2607,16 @@ impl<S: ObjectStore> Peer<S> {
                 >(
                     &self.connection(),
                     Some(self.organization),
-                    be_block_protocol::Op::SetMetadata {
+                    be_block_protocol::Op::Publish {
                         block: block,
+                        expected: None,
+                        commit: None,
+                        references: be_block_protocol::ReferenceChange::between(
+                            &[],
+                            &references,
+                        ),
                         metadata: sealed.clone(),
-                        references: references.clone(),
+                        journal: None,
                     },
                 ))
                 .await;
@@ -3613,15 +3608,17 @@ impl<S: ObjectStore> Peer<S> {
                     Some(self.organization),
                     be_block_protocol::Op::Publish {
                         block: block,
-                        commit: id,
                         expected: expected,
-                        parents: parents.clone(),
-                        held: held.clone(),
-                        time: time,
-                        pinned: pinned,
+                        commit: Some(be_block_protocol::NewCommit {
+                            id: id,
+                            parents: parents.clone(),
+                            held: held.clone(),
+                            time: time,
+                            pinned: pinned,
+                            objects: objects,
+                        }),
                         references: listed.clone(),
                         metadata: metadata.clone(),
-                        objects: objects,
                         journal: journal.clone(),
                     },
                 ))
@@ -3910,17 +3907,18 @@ impl<S: ObjectStore> Peer<S> {
             BlockParent::Root | BlockParent::Block(_) => self.rescope(block, parent, false).await?,
         };
         let placement = self.signed_parent(block, parent).await?;
-        be_block_protocol::write::<(), _>(
-            &self.connection(),
-            Some(self.organization),
-            be_block_protocol::Op::Move {
-                block: block,
-                parent: parent,
-                keys: keys.clone(),
-                placement: placement,
-            },
-        )
-        .await??;
+        let mut ops = vec![be_block_protocol::Op::Move {
+            block: block,
+            parent: parent,
+            placement: placement,
+        }];
+        if !keys.is_empty() {
+            ops.push(be_block_protocol::Op::PutKeys(
+                be_block_protocol::PutKeys::Rows(keys.clone()),
+            ));
+        }
+        be_block_protocol::write_all::<(), _>(&self.connection(), Some(self.organization), ops)
+            .await??;
         self.recorded(&keys);
         Ok(())
     }

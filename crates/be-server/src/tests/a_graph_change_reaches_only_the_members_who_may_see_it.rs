@@ -86,10 +86,13 @@ async fn a_graph_change_reaches_only_the_members_who_may_see_it() {
 
     let response = owner
         .call(|peer| {
-            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
                 block: inside,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &Vec::new()),
                 metadata: b"sealed name".to_vec(),
-                references: Vec::new(),
+                journal: None,
             })
         })
         .await;

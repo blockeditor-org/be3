@@ -40,7 +40,6 @@ be_wasm_ops_bindgen::generate!({
         "session-query",
         "create-block",
         "publish",
-        "set-metadata",
         "move",
         "grant-record",
         "role-record",
@@ -83,7 +82,7 @@ pub const MAX_SUMMARIES_ASKED: usize = 4096;
 /// fixed fields around them. An answer sized to fit leaves this much of a frame spare.
 pub const FRAME_ENVELOPE_BYTES: usize = 64 * 1024;
 /// The blocks one block references, which its server refuses past (`create-block`,
-/// `set-metadata`, `publish`) and a client before it sends them. Every summary lists them, so
+/// `publish`) and a client before it sends them. Every summary lists them, so
 /// with a block's largest metadata (64 KiB on the server) a summary still fits a frame on its
 /// own, which every answer of many summaries sends alone if it must.
 pub const MAX_REFERENCES: usize = 250_000;
@@ -585,13 +584,26 @@ pub fn write<T: FromDone + Send, C: be_wasm_ops::net::Caller + Clone>(
     op: Op,
 ) -> impl Future<Output = Result<Result<T, Error>, be_wasm_ops::OpError>> + Send + 'static + use<T, C>
 {
-    let pending = client::server::write(caller, organization, vec![op]);
+    write_all(caller, organization, vec![op])
+}
+
+/// Writes `ops` in `organization` in one write (`server.write`), applied whole or not at all,
+/// answered as the case `T` the first makes; what the others make is dropped. A refusal is the
+/// refused op's error, whichever op it was.
+pub fn write_all<T: FromDone + Send, C: be_wasm_ops::net::Caller + Clone>(
+    caller: &C,
+    organization: Option<Uuid>,
+    ops: Vec<Op>,
+) -> impl Future<Output = Result<Result<T, Error>, be_wasm_ops::OpError>> + Send + 'static + use<T, C>
+{
+    let count = ops.len();
+    let pending = client::server::write(caller, organization, ops);
     async move {
         Ok(pending
             .await?
             .map_err(|refused| refused.error)
-            .and_then(|mut done| match (done.pop(), done.is_empty()) {
-                (Some(done), true) => T::from_done(done).ok_or_else(unexpected),
+            .and_then(|done| match (done.len() == count, done.into_iter().next()) {
+                (true, Some(done)) => T::from_done(done).ok_or_else(unexpected),
                 _ => Err(unexpected()),
             }))
     }

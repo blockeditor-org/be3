@@ -112,7 +112,6 @@ pub(crate) fn op_rule(op: &Op) -> Rule {
             BlockParent::Root | BlockParent::Detached => Rule::Member,
         },
         Op::Publish { block: of, .. }
-        | Op::SetMetadata { block: of, .. }
         | Op::Move { block: of, .. }
         | Op::HoldObjects { block: of, .. } => block(*of, Access::Edit),
         Op::AppendLog(record) => match record {
@@ -230,7 +229,6 @@ pub(crate) fn bound_may_write(op: &Op, root: Uuid) -> bool {
         // restore it.
         Op::Move { block, parent, .. } => *block != root && matches!(parent, BlockParent::Block(_)),
         Op::Publish { .. }
-        | Op::SetMetadata { .. }
         | Op::HoldObjects { .. }
         | Op::ReserveUploads(_)
         | Op::PinEscrow(_)
@@ -443,6 +441,8 @@ pub(crate) struct Connection {
     pub(crate) closing: bool,
     /// While a batch runs, what its ops do once it commits (`After`).
     deferred: Option<Vec<After>>,
+    /// What the op being applied asks the write to leave whole, checked at its end.
+    whole: Vec<(Identity, crate::keys::Whole)>,
 }
 
 pub(crate) struct Client {
@@ -575,6 +575,7 @@ impl Client {
                 address,
                 closing: false,
                 deferred: None,
+                whole: Vec::new(),
             },
             peer: Peer::new(be_wasm_ops::Side::Host, sink),
             pushes,
@@ -1452,9 +1453,10 @@ impl Client {
         Ok(())
     }
 
-    /// Applies a write's ops in order. More than one is applied in one store transaction
-    /// (`ServerStore::batch`), so one refused keeps none of them; each op's rule is applied as
-    /// it comes, so it sees what the ops before it did. The caller is admitted by its role as of
+    /// Applies a write's ops in order. More than one, or one that makes or moves a block, is
+    /// applied in one store transaction (`ServerStore::batch`), so one refused keeps none of
+    /// them; each op's rule is applied as it comes, so it sees what the ops before it did, and
+    /// what must hold over them all (`keys::Whole`) is checked once they are all applied. The caller is admitted by its role as of
     /// the write's start (the hub takes a role change only once the write commits): safe, as an
     /// op never raises its caller's own role, and the store's checks inside the transaction see
     /// what the write's own ops wrote.
@@ -1481,7 +1483,12 @@ impl Client {
                 ),
             });
         }
-        if ops.len() < 2 {
+        // A write that makes or moves a block is checked whole at its end, so it is one
+        // transaction even of one op.
+        let checked = ops
+            .iter()
+            .any(|op| matches!(op, Op::CreateBlock { .. } | Op::Move { .. }));
+        if ops.len() < 2 && !checked {
             let mut done = Vec::with_capacity(1);
             for op in ops {
                 done.push(
@@ -1497,13 +1504,24 @@ impl Client {
         let written = store
             .batch(async {
                 let mut done = Vec::with_capacity(ops.len());
+                let mut whole = Vec::new();
                 for (index, op) in ops.into_iter().enumerate() {
                     let index = u32::try_from(index).unwrap_or(u32::MAX);
+                    self.connection.whole.clear();
                     done.push(
                         self.apply(organization, op)
                             .await
                             .map_err(|error| Refused { index, error })?,
                     );
+                    whole.extend(self.connection.whole.drain(..).map(|(identity, check)| {
+                        (identity, index, check)
+                    }));
+                }
+                for (identity, index, check) in whole {
+                    store
+                        .check_whole(identity, check)
+                        .await
+                        .map_err(|error| Refused { index, error })?;
                 }
                 Ok(done)
             })
@@ -1533,12 +1551,12 @@ impl Client {
                 metadata,
                 references,
                 key,
-                keys,
                 owner_only,
                 root,
                 placement,
             } => {
                 let identity = admitted.identity()?;
+                let made = block;
                 let block = connection
                     .store
                     .create_block(
@@ -1549,12 +1567,14 @@ impl Client {
                         metadata,
                         references,
                         key,
-                        keys,
                         owner_only,
                         root,
                         placement,
                     )
                     .await?;
+                connection
+                    .whole
+                    .push((identity, crate::keys::Whole::Made { block: made, key }));
                 let mut changed = vec![block.id];
                 changed.extend(block.references.iter().copied());
                 connection
@@ -1576,15 +1596,21 @@ impl Client {
                 }
                 Ok(Done::Block(block))
             }
-            Op::SetMetadata {
+            Op::Publish {
                 block,
-                metadata,
+                expected,
+                commit: None,
                 references,
+                metadata,
+                journal,
             } => {
                 let identity = admitted.identity()?;
+                if journal.is_some() {
+                    return Err(invalid("a journal's seal is published with a commit"));
+                }
                 let (block, relinked) = connection
                     .store
-                    .set_metadata(identity, block, metadata, references)
+                    .describe(identity, block, expected, metadata, references)
                     .await?;
                 let mut changed = vec![block.id];
                 changed.extend(relinked);
@@ -1600,15 +1626,18 @@ impl Client {
             }
             Op::Publish {
                 block,
-                commit,
                 expected,
-                parents,
-                held,
-                time,
-                pinned,
+                commit:
+                    Some(be_block_protocol::NewCommit {
+                        id: commit,
+                        parents,
+                        held,
+                        time,
+                        pinned,
+                        objects,
+                    }),
                 references,
                 metadata,
-                objects,
                 journal,
             } => {
                 let identity = admitted.identity()?;
@@ -1687,14 +1716,20 @@ impl Client {
             Op::Move {
                 block,
                 parent,
-                keys,
                 placement,
             } => {
                 let identity = admitted.identity()?;
                 let moved = connection
                     .store
-                    .set_parent(identity, block, parent, keys, placement)
+                    .set_parent(identity, block, parent, placement)
                     .await?;
+                connection.whole.push((
+                    identity,
+                    crate::keys::Whole::Moved {
+                        block,
+                        scope_before: moved.scope_before,
+                    },
+                ));
                 connection
                     .after(After::Moved {
                         organization: identity.organization,
@@ -2304,6 +2339,7 @@ impl Connection {
                         before,
                         lost,
                         above,
+                        scope_before: _,
                     },
             } => {
                 // Its roots change for whoever could know of it only when it leaves or reaches

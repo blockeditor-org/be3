@@ -568,7 +568,7 @@ recomputes `derived` (`be_block_content::derived_metadata`); a merge merges `def
 key by key (`BlockMetadata::merge_defined`). Unknown defined keys ride along;
 unknown derived keys are dropped on a new save, since they describe old
 content. `Peer::define` publishes a commit of the current content with new
-metadata, or uses `SetMetadata` on a block with no content yet;
+metadata, or a `publish` with no commit on a block with no content yet;
 `be_host_stack::define` and `set_name` apply it to the mirror first, and
 `describe_implicitly` keeps an open block's derived metadata current until it
 is saved.

@@ -624,6 +624,123 @@ fn latest_scope_key(
         .map(|row| row.id))
 }
 
+/// What a write must leave whole, checked once at its end (`ServerStore::check_whole`).
+pub(crate) enum Whole {
+    /// `block` was made naming `key` its data key.
+    Made { block: Uuid, key: Uuid },
+    /// `block` was moved from below the scope `scope_before` (none from the top or the trash).
+    Moved {
+        block: Uuid,
+        scope_before: Option<Uuid>,
+    },
+}
+
+fn made_whole(
+    connection: &Connection,
+    identity: Identity,
+    block: Uuid,
+    key: Uuid,
+) -> Result<(), ServerError> {
+    match key_row(connection, identity.organization, key)? {
+        Some(row) if row.block == block && row.kind == KeyKind::Data => Ok(()),
+        _ => Err(refused(format!(
+            "block {block} is made with its data key {key}, stored in the same write"
+        ))),
+    }
+}
+
+/// Whether the move of `block` left every key it took into a new scope opening from that
+/// scope's latest key: the block's own scope key if it is a scope whose key does, else its data
+/// key and, below it, each block's data key, or a nested scope's key, of what the mover may view
+/// (`Peer::rescope` sends these). A move within one scope, to the top or the trash, of a block
+/// readable by its author alone, or into a scope with no key, takes no key anywhere new.
+fn moved_whole(
+    connection: &Connection,
+    graph: &BlockGraph,
+    seen: &Visibility,
+    identity: Identity,
+    block: Uuid,
+    scope_before: Option<Uuid>,
+) -> Result<(), ServerError> {
+    let organization = identity.organization;
+    let Some(be_block_graph::BlockParent::Block(parent)) = graph.get(block).map(|node| node.parent)
+    else {
+        return Ok(());
+    };
+    let scope = graph.scope(parent);
+    if scope_before == Some(scope) || graph.owner_only_root(block).is_some() {
+        return Ok(());
+    }
+    let Some(under) = latest_scope_key(connection, organization, scope)? else {
+        return Ok(());
+    };
+    let opens = |key: Uuid| opens_from(connection, organization, key, under);
+    let unwrapped = |key: Uuid| {
+        ServerError::Refused(
+            ErrorCode::KeyMissing,
+            format!("a move into scope {scope} wraps key {key} under that scope's key {under}"),
+        )
+    };
+    if graph.is_scope_root(block)
+        && let Some(own) = latest_scope_key(connection, organization, block)?
+        && opens(own)?
+    {
+        return Ok(());
+    }
+    let mut level = vec![block];
+    while !level.is_empty() {
+        let mut below = Vec::new();
+        for node in level {
+            if node != block {
+                if !seen.can_view(graph, node) || graph.owner_only_root(node).is_some() {
+                    continue;
+                }
+                if graph.is_scope_root(node) {
+                    if let Some(nested) = latest_scope_key(connection, organization, node)?
+                        && !opens(nested)?
+                    {
+                        return Err(unwrapped(nested));
+                    }
+                    continue;
+                }
+            }
+            if let Some(data) = latest_data_key(connection, organization, node)?
+                && !opens(data)?
+            {
+                return Err(unwrapped(data));
+            }
+            below.extend(graph.children(be_block_graph::BlockParent::Block(node)));
+        }
+        level = below;
+    }
+    Ok(())
+}
+
+/// Whether `key` opens from `under`: wrapped under it, or under a key that does.
+fn opens_from(
+    connection: &Connection,
+    organization: Uuid,
+    key: Uuid,
+    under: Uuid,
+) -> Result<bool, ServerError> {
+    let mut seen = BTreeSet::from([key]);
+    let mut next = vec![key];
+    while let Some(key) = next.pop() {
+        for wrap in wraps_of(connection, organization, key)? {
+            let WrappedBy::Key(by) = wrap.wrapped_by else {
+                continue;
+            };
+            if by == under {
+                return Ok(true);
+            }
+            if seen.insert(by) {
+                next.push(by);
+            }
+        }
+    }
+    Ok(false)
+}
+
 pub(crate) fn is_viewer(
     connection: &Connection,
     graph: &BlockGraph,
@@ -906,6 +1023,34 @@ impl ServerStore {
             page_of(database, identity, &served, after, store.key_page_bytes())
         })
         .await
+    }
+
+    /// Checks what a write must leave whole, once it wrote everything (`Whole`): a block it
+    /// made has the data key it names, and a move into another scope left every key it took
+    /// there opening from the new scope's key. A refusal keeps the cached graph, which the
+    /// write's rollback then reads again.
+    pub(crate) async fn check_whole(
+        &self,
+        identity: Identity,
+        check: Whole,
+    ) -> Result<(), ServerError> {
+        self.with_graph(identity.organization, move |_, graph, database| {
+            Ok(match check {
+                Whole::Made { block, key } => made_whole(database, identity, block, key),
+                Whole::Moved {
+                    block,
+                    scope_before,
+                } => moved_whole(
+                    database,
+                    graph,
+                    &visibility(identity),
+                    identity,
+                    block,
+                    scope_before,
+                ),
+            })
+        })
+        .await?
     }
 
     /// Stores `set` and answers whom to tell (`topic.keys`), none when it stored nothing:

@@ -23,15 +23,17 @@ async fn a_blocks_references_are_listed_and_announced_together() {
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
                 block: view,
-                commit: commit,
                 expected: None,
-                parents: Vec::new(),
-                held: objects_change(&[], chunks),
-                time: 1_000,
-                pinned: false,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: commit,
+                    parents: Vec::new(),
+                    held: objects_change(&[], chunks),
+                    time: 1_000,
+                    pinned: false,
+                    objects: Vec::new(),
+                }),
                 references: listing(&[], issues.clone()),
                 metadata: Vec::new(),
-                objects: Vec::new(),
                 journal: None,
             })
         })
@@ -78,15 +80,17 @@ async fn a_blocks_references_are_listed_and_announced_together() {
         .call(|peer| {
             peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
                 block: view,
-                commit: next,
                 expected: Some(commit),
-                parents: vec![commit],
-                held: objects_change(&author.held_by(Some(commit)), chunks),
-                time: 2_000,
-                pinned: false,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: next,
+                    parents: vec![commit],
+                    held: objects_change(&author.held_by(Some(commit)), chunks),
+                    time: 2_000,
+                    pinned: false,
+                    objects: Vec::new(),
+                }),
                 references: listing(&issues, kept),
                 metadata: Vec::new(),
-                objects: Vec::new(),
                 journal: None,
             })
         })

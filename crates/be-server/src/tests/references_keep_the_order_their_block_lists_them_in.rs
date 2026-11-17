@@ -29,15 +29,17 @@ async fn references_keep_the_order_their_block_lists_them_in() {
             .call(|peer| {
                 peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
                     block: deck,
-                    commit: commit,
                     expected: head,
-                    parents: head.into_iter().collect(),
-                    held: objects_change(&held_before, chunks.clone()),
-                    time: time,
-                    pinned: false,
+                    commit: Some(be_block_protocol::NewCommit {
+                        id: commit,
+                        parents: head.into_iter().collect(),
+                        held: objects_change(&held_before, chunks.clone()),
+                        time: time,
+                        pinned: false,
+                        objects: Vec::new(),
+                    }),
                     references: listing(&listed, references.clone()),
                     metadata: Vec::new(),
-                    objects: Vec::new(),
                     journal: None,
                 })
             })

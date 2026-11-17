@@ -29,15 +29,17 @@ async fn a_burst_of_publishes_reaches_a_follower_as_a_few_tree_advances() {
         sent.push(writer.peer.write::<be_block_protocol::PublishOutcome>(
             be_block_protocol::Op::Publish {
                 block: block,
-                commit: head,
                 expected: expected,
-                parents: expected.into_iter().collect(),
-                held: objects_change(&before, chunks),
-                time: 1_000 + index,
-                pinned: false,
+                commit: Some(be_block_protocol::NewCommit {
+                    id: head,
+                    parents: expected.into_iter().collect(),
+                    held: objects_change(&before, chunks),
+                    time: 1_000 + index,
+                    pinned: false,
+                    objects: Vec::new(),
+                }),
                 references: listing(&[], Vec::new()),
                 metadata: Vec::new(),
-                objects: Vec::new(),
                 journal: None,
             },
         ));

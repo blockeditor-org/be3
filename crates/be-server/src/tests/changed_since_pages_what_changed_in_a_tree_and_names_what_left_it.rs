@@ -72,10 +72,13 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     ] {
         let referred = owner
             .call(|peer| {
-                peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata {
+                peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
                     block: parent,
+                    expected: None,
+                    commit: None,
+                    references: be_block_protocol::ReferenceChange::between(&[], &children),
                     metadata: Vec::new(),
-                    references: children,
+                    journal: None,
                 })
             })
             .await;
@@ -102,10 +105,13 @@ async fn changed_since_pages_what_changed_in_a_tree_and_names_what_left_it() {
     // A change to one block lists that block alone.
     let referred = owner
         .call(|peer| {
-            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::Publish {
                 block: stays,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &Vec::new()),
                 metadata: Vec::new(),
-                references: Vec::new(),
+                journal: None,
             })
         })
         .await;

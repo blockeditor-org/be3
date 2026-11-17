@@ -1,6 +1,6 @@
 use super::*;
 use be_block_content::Entries;
-use be_block_protocol::{ErrorCode, KeySet, MAX_REFERENCES};
+use be_block_protocol::{ErrorCode, MAX_REFERENCES};
 use be_type_text::TextContent;
 
 fn refused<T>(answer: Result<T, ClientError>) {
@@ -36,10 +36,13 @@ async fn a_block_referencing_too_many_blocks_is_refused() {
             be_block_protocol::write::<be_block_protocol::BlockSummary, _>(
                 &author.connection(),
                 Some(author.organization()),
-                be_block_protocol::Op::SetMetadata {
+                be_block_protocol::Op::Publish {
                     block: block,
+                    expected: None,
+                    commit: None,
+                    references: be_block_protocol::ReferenceChange::between(&[], &too_many.clone()),
                     metadata: Vec::new(),
-                    references: too_many.clone(),
+                    journal: None,
                 },
             ),
         )
@@ -57,7 +60,6 @@ async fn a_block_referencing_too_many_blocks_is_refused() {
                     metadata: Vec::new(),
                     references: too_many.clone(),
                     key: Uuid::new_v4(),
-                    keys: KeySet::default(),
                     owner_only: false,
                     root: Vec::new(),
                     placement: Vec::new(),
@@ -85,10 +87,13 @@ async fn a_block_referencing_too_many_blocks_is_refused() {
         be_block_protocol::write::<be_block_protocol::BlockSummary, _>(
             &author.connection(),
             Some(author.organization()),
-            be_block_protocol::Op::SetMetadata {
+            be_block_protocol::Op::Publish {
                 block: block,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &most),
                 metadata: Vec::new(),
-                references: most,
+                journal: None,
             },
         ),
     )
