@@ -9,13 +9,14 @@ use beui_view::reactive::*;
 use beui_view::types::Color;
 use beui_view::types::SpanStyle;
 use beui_view::types::Vec2;
-use beui_view::types::{DEFAULT_FONT_SIZE, Piece};
+use beui_view::types::{DEFAULT_FONT_SIZE, GapWidth, Piece};
 use beui_view::types::{FontId, TextAlign, TextLayout};
 
 use super::colors::TextAreaColors;
 use super::look::{BlockGeometry, TextAreaGeometry};
 use super::state::Snapshot;
 
+mod rule;
 mod table;
 
 pub use table::{CellAlign, RowTable, TableColumns, table_columns};
@@ -133,7 +134,7 @@ pub struct Segment {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum SpanKind {
     Text,
-    Space(f32),
+    Space(GapWidth),
     Inline(usize),
 }
 
@@ -550,7 +551,7 @@ impl Builder<'_> {
         self.row.hang = self.row.display.len();
     }
 
-    fn gap(&mut self, width: f32, style: SpanStyle) {
+    fn gap(&mut self, width: GapWidth, style: SpanStyle) {
         let at = self.row.display.len();
         self.row.spans.push(RowSpan {
             range: at..at,
@@ -833,6 +834,14 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         }
         return row;
     }
+    if look.rule && !options.mask {
+        if marked {
+            builder.marker(&look, marker.clone(), body);
+        }
+        builder.rule_row(marker.end..end, marker.is_empty(), body);
+        builder.row.space = line_space(&look, line, &options);
+        return finish(builder, body);
+    }
     let trailing_from = bytes[start..end]
         .iter()
         .rposition(|byte| !matches!(*byte, b' ' | b'\t' | b'\r'))
@@ -959,7 +968,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     if invisibles {
         builder.row.invisibles = invisibles_of(&builder.row, bytes, &marker, trailing_from);
     }
-    hang_into_margin(&mut builder.row, &look, &options);
+    hang_into_margin(&mut builder.row, &look);
     builder.row.space = line_space(&look, line, &options);
     if newline && invisibles {
         let style = SpanStyle {
@@ -983,7 +992,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         .iter()
         .any(|section| section.collapsed && section.line_start == start)
     {
-        builder.gap(options.geometry.ellipsis_gap, body);
+        builder.gap(GapWidth::px(options.geometry.ellipsis_gap), body);
         let style = SpanStyle::new(
             FontId::monospace(options.body_size),
             inputs.colors.gutter_arrow,
@@ -993,7 +1002,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     finish(builder, body)
 }
 
-fn hang_into_margin(row: &mut Row, look: &LineLook, options: &RowOptions) {
+fn hang_into_margin(row: &mut Row, look: &LineLook) {
     if look.hang.is_empty() || !look.marker.is_empty() {
         return;
     }
@@ -1007,10 +1016,7 @@ fn hang_into_margin(row: &mut Row, look: &LineLook, options: &RowOptions) {
             lay_out_text(text, span.style.font, TextLayout::DEFAULT).map(|line| line.size().x)
         })
         .sum();
-    row.outdent = match look.rule {
-        true => width + options.geometry.blocks.rule_gap * options.scale(),
-        false => width,
-    };
+    row.outdent = width;
     row.hang = end;
 }
 

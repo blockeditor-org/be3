@@ -7,6 +7,7 @@ pub use crate::text_children::{Break, Gap, Span, SpanText, TextChild, TextItem};
 use crate::types::Color;
 use crate::types::FontFamily;
 use crate::types::FontId;
+use crate::types::GapWidth;
 use crate::types::Overflow;
 use crate::types::SpanBackground;
 use crate::types::TextAlign;
@@ -100,9 +101,13 @@ pub fn Icon(
     crate::text_children::icon(glyph, size, scale, spacing_em, color)
 }
 
+/// Room in a text that holds no bytes: `width` pixels, plus `share` of the width the text
+/// wraps at (none while it wraps nowhere).
 #[component]
-pub fn Gap(width: f32) -> Gap {
-    Gap { width }
+pub fn Gap(#[prop(default = 0.0)] width: f32, #[prop(default = 0.0)] share: f32) -> Gap {
+    Gap {
+        width: GapWidth { px: width, share },
+    }
 }
 
 #[component]

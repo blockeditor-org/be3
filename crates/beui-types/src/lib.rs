@@ -68,7 +68,7 @@ pub use pixel_grid::PixelGrid;
 pub use preferences::{PreferenceLayers, PreferenceSource};
 pub use region::{Area, Claim, HitRegion};
 pub use text::{
-    CaretHandle, DEFAULT_FONT_SIZE, FontFamily, FontId, HANDLE_RADIUS, LineBox, Overflow, Piece,
+    CaretHandle, DEFAULT_FONT_SIZE, FontFamily, FontId, GapWidth, HANDLE_RADIUS, LineBox, Overflow, Piece,
     RichOptions, SpanBackground, SpanStyle, TextAlign, TextCaret, TextGlyph, TextLayout, TextMark,
     WrapAt, handle_center, toolbar_anchor,
 };
