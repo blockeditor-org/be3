@@ -37,6 +37,7 @@ async fn a_key_wrapped_under_the_settings_key_seals_no_other_block() {
         key: [8; 32],
         block: note.into_bytes(),
         root: None,
+        heads: be_block_keys::Heads::default(),
     };
     let sealed = {
         let ring = be_block_store::Keyring::new();

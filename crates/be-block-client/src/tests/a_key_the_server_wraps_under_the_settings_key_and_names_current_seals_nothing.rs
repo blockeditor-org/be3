@@ -51,6 +51,7 @@ async fn a_key_the_server_wraps_under_the_settings_key_and_names_current_seals_n
                 key: [8; 32],
                 block: note.into_bytes(),
                 root: None,
+                heads: be_block_keys::Heads::default(),
             };
             ring.seal(scope, &carried.encode()).unwrap()
         };

@@ -1,6 +1,6 @@
 # A simpler server protocol
 
-Depends on: plans/signed_access.md steps 3d, 3e and 4, for step 3 on (steps 1
+Depends on: plans/signed_access.md steps 3e and 4, for step 3 on (steps 1
 and 2 here touch none of their calls).
 
 `be3:server` (crates/be-block-protocol/wit) has 76 operations in 10
@@ -108,11 +108,13 @@ which steps 3 and 4 move into `AcceptLink`, `CreateLink` and the mailbox.
 `AppendLog` is where plans/signed_access.md already points: each of
 `set-access`, `set-role`, `sign-member` and `remove-member` carries a signed
 record the server appends to a log once it checks there. What that plan has
-left:
+left, and what it has built that touches these calls:
 
-- **3d (epochs bound to log heads)** changes what `put-keys`, `rotate` and
-  `create-escrow` carry. It lands before step 3, so `PutKeys` is defined once
-  over epochs that name their heads.
+- **3d (epochs bound to log heads)** is built: a scope or data key's epoch
+  names its heads inside what is sealed or wrapped (`CarriedKey::heads`), so
+  `put-keys` and `rotate` carry nothing new, and `create-escrow`'s escrow key
+  names the organization log's head in the clear, signed and checked by the
+  server. `PutKeys` takes them as they are.
 - **3e (proof paths)** changes what `get-access-log` and `get-organization-log`
   serve to readers below Edit. It lands before step 3, so `Log` is defined
   once over the final serving rule.
