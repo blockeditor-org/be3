@@ -1626,11 +1626,9 @@ impl Session<'_> {
                                 after_order.push(command);
                             }
                             command => {
-                                let runs = self
-                                    .uploads
-                                    .defer(command)
-                                    .and_then(|command| ran.served.defer(command));
-                                if let Some(command) = runs {
+                                if let Some(command) =
+                                    admit(&mut self.uploads, ran.served, command)
+                                {
                                     applied |= ran.carry_out(command).await;
                                 }
                             }
@@ -1655,8 +1653,10 @@ impl Session<'_> {
                     };
                     let mut applied = false;
                     for command in self.uploads.runnable() {
-                        step(shared, Some(command.name()));
-                        applied |= ran.run(command).await;
+                        if let Some(command) = ran.served.defer(command) {
+                            step(shared, Some(command.name()));
+                            applied |= ran.carry_out(command).await;
+                        }
                     }
                     crate::changes::wake();
                     applied
@@ -1804,8 +1804,10 @@ impl Session<'_> {
                     calls: &self.calls.0,
                 };
                 for command in std::mem::take(&mut after_order) {
-                    step(shared, Some(command.name()));
-                    moved |= ran.carry_out(command).await;
+                    if let Some(command) = admit(&mut self.uploads, ran.served, command) {
+                        step(shared, Some(command.name()));
+                        moved |= ran.carry_out(command).await;
+                    }
                 }
             }
             if self.line.quiet()
@@ -2783,6 +2785,16 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
     }
     crate::changes::wake();
     None
+}
+
+/// The command back when the loop may carry it out now: it waits (`Uploads::defer`) for the
+/// imported blocks it needs to be uploaded, then (`Served::defer`) its turn behind the lane and
+/// the commands deferred before it. Every command the loop carries out passes here, those that
+/// first waited for the replicas' order (`after_order`) too.
+fn admit(uploads: &mut Uploads, served: &mut Served, command: Command) -> Option<Command> {
+    uploads
+        .defer(command)
+        .and_then(|command| served.defer(command))
 }
 
 impl Ran<'_> {
