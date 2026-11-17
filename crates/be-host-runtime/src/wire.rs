@@ -27,7 +27,9 @@ use be_sdk_api::{
     },
 };
 
-/// What a worker's `receive` hears once its app stopped.
+/// What the host answers a worker's waiting `receive` with when it stops the app's workers. An
+/// app that stopped has lost its channel by then (`Backend::shutdown`), so only a wire that
+/// outlives its sandbox, as in a test, delivers it.
 #[cfg(not(target_arch = "wasm32"))]
 pub(super) const WORKERS_STOPPED: &str = "the app stopped, and its workers with it";
 
