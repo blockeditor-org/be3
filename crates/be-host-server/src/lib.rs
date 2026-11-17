@@ -28,7 +28,6 @@ pub fn start_embedded_server(
     start_embedded_server_at(
         "127.0.0.1:0",
         data_dir,
-        be_server::ServerConfig::OPEN.lease,
         be_server::push::PushConfig::DEFAULT,
     )
 }
@@ -38,7 +37,6 @@ pub fn start_embedded_server(
 pub fn start_embedded_server_at(
     address: &str,
     data_dir: PathBuf,
-    lease: std::time::Duration,
     push: be_server::push::PushConfig,
 ) -> Result<EmbeddedServer, Box<dyn Error + Send + Sync>> {
     let listener = StdTcpListener::bind(address)?;
@@ -62,7 +60,6 @@ pub fn start_embedded_server_at(
                     listener,
                     data_dir,
                     be_server::ServerConfig {
-                        lease,
                         account_quota: None,
                         push,
                         ..be_server::ServerConfig::OPEN

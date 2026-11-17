@@ -30,6 +30,7 @@ async fn a_detached_subtree_is_collected_and_its_objects_freed() {
                 listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await;
@@ -48,6 +49,7 @@ async fn a_detached_subtree_is_collected_and_its_objects_freed() {
                 listing(&[], vec![child]),
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await;

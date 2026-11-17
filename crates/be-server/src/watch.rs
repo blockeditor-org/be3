@@ -5,7 +5,7 @@ use std::{
 
 use be_block_graph::{BlockGraph, BlockParent};
 use be_block_protocol::{
-    BlockSummary, ClientId, Listing, OrganizationRole, PairingMessage, SessionState,
+    BlockSummary, ClientId, Listing, OrganizationRole, PairingMessage,
 };
 use tokio::sync::{
     Mutex,
@@ -44,9 +44,16 @@ pub enum Push {
         block: Uuid,
         revision: u64,
     },
-    SessionChanged {
+    /// The server wrote a membership entry into a session's order.
+    Membership {
         block: Place,
-        state: SessionState,
+        entry: std::sync::Arc<be_block_protocol::MembershipEntry>,
+    },
+    /// A seal moved a session's block's head to `commit`, holding its order through `through`.
+    Sealed {
+        block: Place,
+        commit: be_block_commit::CommitId,
+        through: u64,
     },
     Relayed {
         block: Place,

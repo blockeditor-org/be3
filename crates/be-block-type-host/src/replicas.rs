@@ -10,7 +10,8 @@ use std::sync::PoisonError;
 use be_block_client::{Answer, ClientError, Event, Peer, Reconciled, Saved, Sealed, Write};
 use be_block_commit::CommitId;
 use be_block_graph::BlockParent;
-use be_block_protocol::{ClientId, ErrorCode, SessionState};
+use be_block_protocol::{ClientId, ErrorCode, Participant, SessionState};
+use be_block_session::Membership;
 use be_sdk_type_api::ops::wire::{self, Decode};
 use be_sdk_type_api::{
     Change, Description, EditorId, Endpoint, Opening, PlainFile, PublishOutcome, Recipients,
@@ -44,14 +45,28 @@ const JOINING_OWNER: ClientId = ClientId::MAX;
 
 pub const EARLY_OPEN: std::time::Duration = std::time::Duration::from_millis(250);
 
-fn session_of(client: ClientId, head: Option<CommitId>) -> SessionState {
+/// A session the host makes up for a replica outside the server's (offline, or while it joins):
+/// `clients`, each an editor, the first holding the lease. Its index is 0, which no session the
+/// server answers has (a joiner's own entry is its first at least), and its participants speak
+/// the build `start` gives them, the replica's own.
+fn made_up(clients: &[ClientId]) -> SessionState {
     SessionState {
-        generation: 0,
-        owner: Some(client),
-        participants: vec![client],
-        clean_at: head,
-        tag: None,
+        index: 0,
+        after: 0,
+        participants: clients
+            .iter()
+            .map(|client| Participant {
+                client: *client,
+                tag: be_block_store::Hash::from_bytes([0; 32]),
+                may_edit: true,
+                claimed: None,
+            })
+            .collect(),
     }
+}
+
+fn session_of(client: ClientId) -> SessionState {
+    made_up(&[client])
 }
 
 /// The client a replica with no session edits as, until it joins one (or always, for a local
@@ -69,14 +84,9 @@ fn unjoined_client() -> ClientId {
     }
 }
 
-fn joining_session(client: ClientId, head: Option<CommitId>) -> SessionState {
-    SessionState {
-        generation: 0,
-        owner: Some(JOINING_OWNER),
-        participants: vec![JOINING_OWNER, client],
-        clean_at: head,
-        tag: None,
-    }
+/// While a replica joins, a stand-in holds the lease, so it seals nothing yet.
+fn joining_session(client: ClientId) -> SessionState {
+    made_up(&[JOINING_OWNER, client])
 }
 
 /// The server's journal of a block as joining answered it: sealed, and opened.
@@ -304,8 +314,7 @@ pub enum Io {
         joined: Box<Rejoined>,
     },
     Claimed {
-        replica: ReplicaId,
-        claimed: Box<Result<SessionState, ClientError>>,
+        claimed: Result<(), ClientError>,
     },
     /// A `read-part` made under a stateless request, read.
     Read {
@@ -388,6 +397,16 @@ pub(crate) enum Replayed {
     Lease {
         session: SessionState,
     },
+    /// A membership entry heard while the replica joined: applied to the session the join
+    /// answers, and never sent to the replica itself.
+    Membership {
+        entry: be_block_protocol::MembershipEntry,
+    },
+    /// A seal moved the head (`replica.sealed`).
+    Sealed {
+        commit: CommitId,
+        through: u64,
+    },
     /// Entries of the order, opened. Given only to the replica that heard them: one opened
     /// again reads them in the journal.
     Sequenced {
@@ -428,6 +447,10 @@ impl Replayed {
             }
             Replayed::Lease { session } => {
                 replica.lease(connection, session);
+            }
+            Replayed::Membership { .. } => {}
+            Replayed::Sealed { commit, through } => {
+                replica.sealed(connection, commit, through);
             }
             Replayed::Sequenced { entries } => {
                 replica.sequenced(connection, entries);
@@ -1270,7 +1293,7 @@ impl<H: Host> Replicas<H> {
                         content_type,
                         reader,
                         client,
-                        joining_session(client, head),
+                        joining_session(client),
                         head,
                         None,
                         false,
@@ -1301,7 +1324,7 @@ impl<H: Host> Replicas<H> {
                 // and joins once that changes (`created`).
                 if !peer.is_attached() || uncreated {
                     let client = unjoined_client();
-                    return Ok((client, session_of(client, None), None, true, None));
+                    return Ok((client, session_of(client), None, true, None));
                 }
                 if owned && H::reshaped(shared, block, &kind.schema) {
                     reset::<H>(peer, block, &kind).await?;
@@ -1318,7 +1341,7 @@ impl<H: Host> Replicas<H> {
         let joined = match joined {
             Err(error) if unreachable(&error) && peer.known_summary(block).is_some() => {
                 let client = unjoined_client();
-                Ok((client, session_of(client, None), None, true, None))
+                Ok((client, session_of(client), None, true, None))
             }
             joined => joined,
         };
@@ -1333,7 +1356,7 @@ impl<H: Host> Replicas<H> {
                     // takes no edits it could never journal or publish.
                     return Ok(());
                 }
-                (client, session_of(client, head), head, true, None)
+                (client, session_of(client), head, true, None)
             }
             Ok(joined) => joined,
             Err(ClientError::Locked(_)) if peer.arrivals() == arrivals => {
@@ -1449,8 +1472,14 @@ impl<H: Host> Replicas<H> {
         self.next += 1;
         let replica = self.next;
         let organization = peer.organization();
-        let joining = session.owner == Some(JOINING_OWNER);
+        let joining = session.has(JOINING_OWNER);
         let tag = self.modules.tag(module);
+        let mut session = session;
+        if session.index == 0 {
+            for participant in &mut session.participants {
+                participant.tag = be_block_store::Hash::from_bytes(tag.0);
+            }
+        }
         let kept = kept_commits(peer, block);
         // Local edits no journal held when the host last stopped: given again under the same
         // origin, so those the server's order holds are found there. Before joining, those it
@@ -1730,11 +1759,16 @@ impl<H: Host> Replicas<H> {
         open.joining = false;
         open.made_up = false;
         let edited = open.replay.iter().any(Replayed::local_edit);
-        let generation = session.generation;
+        let mut session = session;
         let early: Vec<Replayed> = std::mem::take(&mut open.early)
             .into_iter()
             .filter(|replayed| match replayed {
-                Replayed::Lease { session, .. } => session.generation >= generation,
+                // Heard after the membership the join answered, or before it and skipped.
+                Replayed::Membership { entry } => {
+                    session.apply(entry);
+                    false
+                }
+                Replayed::Lease { .. } => false,
                 _ => true,
             })
             .collect();
@@ -1896,14 +1930,12 @@ impl<H: Host> Replicas<H> {
             return;
         };
         open.made_up = true;
-        open.session = SessionState {
-            generation: open.session.generation + 1,
-            owner: Some(open.client),
-            participants: vec![open.client],
-            clean_at: None,
-            tag: None,
-        };
-        let session = open.session.clone();
+        let tag = be_block_store::Hash::from_bytes(self.modules.tag(open.module).0);
+        let mut session = session_of(open.client);
+        for participant in &mut session.participants {
+            participant.tag = tag;
+        }
+        open.session = session.clone();
         self.with_replica(replica, |handle, connection| {
             handle.lease(connection, session);
         });
@@ -2284,7 +2316,7 @@ impl<H: Host> Replicas<H> {
     fn ready_to_seal(&mut self, block: Uuid) -> bool {
         if let Some((replica, open)) = self.replica_of(block)
             && open.joining
-            && open.session.owner == Some(JOINING_OWNER)
+            && open.session.has(JOINING_OWNER)
         {
             if open.status.clean {
                 return false;
@@ -2799,6 +2831,12 @@ impl<H: Host> Replicas<H> {
             .map(|(_, open)| (open.client, &open.session))
     }
 
+    /// Who holds the lease of `block`'s session, by its membership.
+    pub fn holder(&self, block: Uuid) -> Option<ClientId> {
+        self.replica_of(block)
+            .and_then(|(_, open)| open.session.holder())
+    }
+
     pub fn claim(&mut self, block: Uuid) {
         if let Some((replica, _)) = self.replica_of(block) {
             self.with_replica(replica, |handle, connection| {
@@ -2830,7 +2868,8 @@ impl<H: Host> Replicas<H> {
     /// key has answered, a message still sealed with it is let go and recorded.
     pub fn heard(&mut self, (peer, shared): Ctx<'_, H>, event: &Event) {
         let block = match event {
-            Event::SessionChanged { block, .. }
+            Event::Membership { block, .. }
+            | Event::Sealed { block, .. }
             | Event::Relayed { block, .. }
             | Event::Sequenced { block, .. } => block,
             // A head another connection published; this connection's own publishes are the
@@ -2843,20 +2882,44 @@ impl<H: Host> Replicas<H> {
             return;
         }
         match event {
-            Event::SessionChanged { block, state } => {
+            Event::Membership { block, entry } => {
                 let Some(replica) = self.blocks.get(block).copied() else {
                     return;
                 };
                 let Some(open) = self.open.get_mut(&replica) else {
                     return;
                 };
+                if open.joining {
+                    return open.early.push(Replayed::Membership {
+                        entry: entry.clone(),
+                    });
+                }
+                if !open.session.apply(entry) {
+                    return;
+                }
                 let replayed = Replayed::Lease {
-                    session: state.clone(),
+                    session: open.session.clone(),
+                };
+                self.replay(replica, replayed);
+            }
+            Event::Sealed {
+                block,
+                commit,
+                through,
+            } => {
+                let Some(replica) = self.blocks.get(block).copied() else {
+                    return;
+                };
+                let Some(open) = self.open.get_mut(&replica) else {
+                    return;
+                };
+                let replayed = Replayed::Sealed {
+                    commit: *commit,
+                    through: *through,
                 };
                 if open.joining {
                     return open.early.push(replayed);
                 }
-                open.session = state.clone();
                 self.replay(replica, replayed);
             }
             Event::Relayed {
@@ -3028,33 +3091,14 @@ impl<H: Host> Replicas<H> {
         }
     }
 
-    fn claimed(
-        &mut self,
-        shared: &Arc<Mutex<H>>,
-        replica: ReplicaId,
-        claimed: Result<SessionState, ClientError>,
-    ) {
-        let state = match claimed {
-            Ok(state) => state,
-            Err(error) if unreachable(&error) => return,
-            // Only an editor may own a block's lease; a viewer's claim changes nothing.
-            Err(ClientError::Refused(ErrorCode::PermissionDenied, _)) => return,
-            Err(error) => return H::record(shared, error),
-        };
-        let Some(open) = self.open.get_mut(&replica) else {
-            return;
-        };
-        let replayed = Replayed::Lease {
-            session: state.clone(),
-        };
-        if open.joining {
-            return open.early.push(replayed);
+    fn claimed(&mut self, shared: &Arc<Mutex<H>>, claimed: Result<(), ClientError>) {
+        match claimed {
+            Ok(()) => {}
+            Err(error) if unreachable(&error) => {}
+            // Only an editor may hold a block's lease; a viewer's claim changes nothing.
+            Err(ClientError::Refused(ErrorCode::PermissionDenied, _)) => {}
+            Err(error) => H::record(shared, error),
         }
-        if state.generation < open.session.generation {
-            return;
-        }
-        open.session = state;
-        self.replay(replica, replayed);
     }
 
     fn answered(&mut self, (peer, shared): Ctx<'_, H>, io: Io) {
@@ -3180,7 +3224,7 @@ impl<H: Host> Replicas<H> {
                 rejoin,
                 joined,
             } => self.rejoined((peer, shared), replica, block, rejoin, *joined),
-            Io::Claimed { replica, claimed } => self.claimed(shared, replica, *claimed),
+            Io::Claimed { claimed } => self.claimed(shared, claimed),
         }
     }
 
@@ -3429,11 +3473,15 @@ impl<H: Host> Replicas<H> {
             }
         };
         open.made_up = false;
-        let generation = session.generation;
+        let mut session = session;
         let early: Vec<Replayed> = early
             .into_iter()
             .filter(|replayed| match replayed {
-                Replayed::Lease { session, .. } => session.generation >= generation,
+                Replayed::Membership { entry } => {
+                    session.apply(entry);
+                    false
+                }
+                Replayed::Lease { .. } => false,
                 _ => true,
             })
             .collect();
@@ -4069,14 +4117,13 @@ impl<H: Host> Replicas<H> {
         replica: ReplicaId,
         call: Call,
     ) -> bool {
-        let Some((block, content_type, made_up, joining, current, reach)) =
+        let Some((block, content_type, made_up, joining, reach)) =
             self.open.get(&replica).map(|open| {
                 (
                     open.block,
                     open.content_type,
                     open.made_up,
                     open.joining,
-                    open.session.generation,
                     Arc::clone(&open.reach),
                 )
             })
@@ -4143,11 +4190,7 @@ impl<H: Host> Replicas<H> {
                 .await;
                 false
             }
-            Call::RebaseJournal {
-                reply,
-                generation,
-                base,
-            } => {
+            Call::RebaseJournal { reply, base } => {
                 self.acknowledge(module, reply);
                 let tag = be_block_store::Hash::from_bytes(self.modules.tag(module).0);
                 let base = be_block_protocol::JournalBase {
@@ -4155,10 +4198,10 @@ impl<H: Host> Replicas<H> {
                     sequence: base.sequence,
                     state: base.state,
                 };
-                // Only the current holder's trims the server's journal; one the module made in a
-                // session since replaced (the made-up one it orders in offline, or a lease that
-                // passed) is kept on this device only.
-                let online = !made_up && peer.is_attached() && generation == current;
+                // The server's journal takes it from the lease holder alone, which it checks
+                // itself; one the module made in a session the host made up (offline, or while
+                // joining) is kept on this device only.
+                let trim = !made_up && peer.is_attached();
                 // An own commit: one a replica of this host sealed, or one this device's outbox
                 // keeps.
                 let own = base.commit.is_some_and(|commit| {
@@ -4168,7 +4211,7 @@ impl<H: Host> Replicas<H> {
                         || peer.pending_commits(block).contains(&commit)
                 });
                 let rebased = peer
-                    .rebase_journal(block, generation, tag, base, online, own)
+                    .rebase_journal(block, tag, base, trim, own)
                     .await;
                 self.journaled(shared, rebased);
                 let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
@@ -4267,11 +4310,14 @@ impl<H: Host> Replicas<H> {
                 merging,
                 content,
                 sealed_through,
+                journal_state,
                 restarts,
             } => {
                 let Some(open) = self.open.get_mut(&replica) else {
                     return false;
                 };
+                let tag = be_block_store::Hash::from_bytes(self.modules.tag(module).0);
+                let shared = Arc::clone(shared);
                 open.publishing += 1;
                 let epoch = open.epoch;
                 let local = made_up || self.keeping || !peer.pending_commits(block).is_empty();
@@ -4306,7 +4352,14 @@ impl<H: Host> Replicas<H> {
                             offline: made_up,
                             restarts,
                         }
-                    }));
+                    }))
+                    // The server's journal starts from a seal of its session as the seal wins
+                    // the head; one made in a session the host made up is this device's alone.
+                    .seals_journal(
+                        sealed_through
+                            .zip(journal_state.clone())
+                            .filter(|_| !made_up),
+                    );
                     if let Some(merging) = merging {
                         write = write.merging(merging.base, merging.ours);
                     }
@@ -4324,6 +4377,33 @@ impl<H: Host> Replicas<H> {
                         Ok(false) => None,
                         Err(error) => Some(Err(error)),
                     };
+                    // This device's journal starts from the seal too; with nothing to commit, the
+                    // server's is trimmed with no new commit.
+                    if let (Some(Ok(Saved::Published(head) | Saved::Kept(head) | Saved::Unchanged(head))), Some(sequence), Some(state)) =
+                        (&saved, sealed_through, journal_state)
+                    {
+                        let base = be_block_protocol::JournalBase {
+                            commit: Some(*head),
+                            sequence,
+                            state,
+                        };
+                        let trim = matches!(saved, Some(Ok(Saved::Unchanged(_))))
+                            && !made_up
+                            && peer.is_attached();
+                        match peer.rebase_journal(block, tag, base, trim, true).await {
+                            Ok(Some(trimmed)) => {
+                                if let Err(error) = trimmed.await
+                                    && !unreachable(&error)
+                                {
+                                    H::record(&shared, error);
+                                }
+                            }
+                            Ok(None) => {}
+                            Err(error) if unreachable(&error) => {}
+                            Err(error) => H::record(&shared, error),
+                        }
+                        send_announcements::<H>(&peer, &shared).await;
+                    }
                     let kept = publishing
                         .kept()
                         .is_some_and(|commit| peer.pending_commits(block).contains(&commit));
@@ -4417,40 +4497,17 @@ impl<H: Host> Replicas<H> {
                 });
                 false
             }
-            Call::ClaimLease { reply, generation } => {
+            Call::Claim { reply } => {
                 self.acknowledge(module, reply);
                 if !peer.is_attached() || made_up {
                     return false;
                 }
-                let claiming = peer.connection().claim_lease(block, generation);
+                let claiming = peer.connection().claim(block);
                 let io = self.io.clone();
                 H::spawn(async move {
                     let claimed = claiming.await;
-                    let _ = io.send(Io::Claimed {
-                        replica,
-                        claimed: Box::new(claimed),
-                    });
+                    let _ = io.send(Io::Claimed { claimed });
                     H::wake();
-                });
-                false
-            }
-            Call::ReportClean {
-                reply,
-                generation,
-                clean_at,
-            } => {
-                self.acknowledge(module, reply);
-                if !peer.is_attached() || made_up {
-                    return false;
-                }
-                let answer = peer.connection().heartbeat(block, generation, clean_at);
-                let shared = Arc::clone(shared);
-                H::spawn(async move {
-                    if let Err(error) = answer.await
-                        && !unreachable(&error)
-                    {
-                        H::record(&shared, error);
-                    }
                 });
                 false
             }
@@ -4803,7 +4860,7 @@ async fn started_from_mirror<S: be_block_store::ObjectStore>(
     session: &SessionState,
     head: Option<CommitId>,
 ) -> Option<be_block_protocol::Journal> {
-    if session.owner != Some(client) {
+    if !session.is_holder(client) {
         return None;
     }
     let mirror = peer.local_journal(block).ok()??;
@@ -4815,7 +4872,7 @@ async fn started_from_mirror<S: be_block_store::ObjectStore>(
         return None;
     }
     let answer = peer
-        .rebase_journal(block, session.generation, tag, mirror.base, true, false)
+        .rebase_journal(block, tag, mirror.base, true, false)
         .await
         .ok()??;
     answer.await.ok()?;

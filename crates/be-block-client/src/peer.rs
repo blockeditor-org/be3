@@ -12,7 +12,7 @@ use be_block_graph::{Access, BlockParent};
 use be_block_keys::{RecoveryPublic, RecoverySecret};
 use be_block_protocol::{
     AccessList, BlockSummary, ChangeCursor, ChangedPage, ClientId, ErrorCode, EscrowKey,
-    HistoryEntry, KeyKind, KeySet, Listing, ObjectChange, OrganizationKind, OrganizationRole,
+    HistoryEntry, JournalBase, KeyKind, KeySet, Listing, ObjectChange, OrganizationKind, OrganizationRole,
     PublishOutcome, ReferenceChange, RelayKind, ServerAccount, WrappedBy, client,
 };
 use be_block_store::{
@@ -164,6 +164,7 @@ pub struct Write<'a> {
     merging: Option<(Option<CommitId>, CommitId)>,
     bookmark: Option<String>,
     sealed_through: Option<be_block_commit::SealedThrough>,
+    journal: Option<(u64, Vec<u8>)>,
 }
 
 impl<'a> Write<'a> {
@@ -190,6 +191,7 @@ impl<'a> Write<'a> {
             merging: None,
             bookmark: None,
             sealed_through: None,
+            journal: None,
         }
     }
 
@@ -218,6 +220,14 @@ impl<'a> Write<'a> {
     /// (`Commit::sealed_through`).
     pub fn sealed_through(mut self, sealed: Option<be_block_commit::SealedThrough>) -> Self {
         self.sealed_through = sealed;
+        self
+    }
+
+    /// The commit seals its block's live session: the server's journal starts from it, holding
+    /// the order through `sequence` with the session state `state`, only if it wins the head
+    /// (`publish`'s `journal-base`). None for a seal made outside the server's session.
+    pub fn seals_journal(mut self, journal: Option<(u64, Vec<u8>)>) -> Self {
+        self.journal = journal;
         self
     }
 }
@@ -2519,6 +2529,7 @@ impl<S: ObjectStore> Peer<S> {
             expected,
             bookmark,
             sealed_through,
+            journal,
             ..
         } = write;
         // The commit it goes on, to tell a write that changes nothing: unknown offline when only
@@ -2570,6 +2581,15 @@ impl<S: ObjectStore> Peer<S> {
             .with_sealed_through(sealed_through);
         let id = self.commits.put(key, &commit)?;
         let sealed = self.commits.vault().seal(key, &metadata.encode())?;
+        let journal_base = journal
+            .map(|(sequence, state)| {
+                Ok::<_, ClientError>(JournalBase {
+                    commit: Some(id),
+                    sequence,
+                    state: self.commits.vault().seal(key, &state)?,
+                })
+            })
+            .transpose()?;
         self.commits.vault().store().sync()?;
         let queued = self.refs.push_publish(Pending {
             block,
@@ -2581,6 +2601,7 @@ impl<S: ObjectStore> Peer<S> {
             pinned,
             references: listed.clone(),
             metadata: sealed.clone(),
+            journal_base,
         })?;
         // Discarded while it was sealed: as if the discard had come first.
         if queued.is_none() {
@@ -2653,6 +2674,7 @@ impl<S: ObjectStore> Peer<S> {
             pinned,
             ref references,
             ref metadata,
+            ref journal_base,
         } = *pending;
         let previous = match expected {
             Some(head) => self.commits.try_get(head)?,
@@ -2692,6 +2714,7 @@ impl<S: ObjectStore> Peer<S> {
                     listed.clone(),
                     metadata.clone(),
                     objects,
+                    journal_base.clone(),
                 ))
             };
             match carried.take() {

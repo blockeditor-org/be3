@@ -233,6 +233,9 @@ pub struct Pending {
     pub references: Vec<Uuid>,
     #[serde(with = "serde_bytes")]
     pub metadata: Vec<u8>,
+    /// For a seal of the block's live session, the journal base it trims the server's journal
+    /// to if it wins the head, its state sealed (`Write::seals_journal`).
+    pub journal_base: Option<be_block_protocol::JournalBase>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

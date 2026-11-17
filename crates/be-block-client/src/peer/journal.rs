@@ -73,18 +73,19 @@ impl<S: ObjectStore> Peer<S> {
         Ok(self.refs.append_journal(block, tag, vec![entry])?)
     }
 
-    /// Seals `base`'s state and starts this device's journal, and when `online` the server's,
-    /// from it, keeping what came after it. What the journal's entries
-    /// up to the base announce goes with `base`'s commit when this device sealed it (`own`),
-    /// sent once the server holds it; the rest is dropped.
-    #[allow(clippy::too_many_arguments)]
+    /// Seals `base`'s state and starts this device's journal from it, keeping what came after
+    /// it. With `trim`, the server's too, with no new commit: a publish of `base`'s commit on
+    /// itself, which the server takes only from the session's lease holder while that commit is
+    /// the head (a seal that publishes a commit carries its base with it instead,
+    /// `Write::seals_journal`). What the journal's entries up to the base announce goes with
+    /// `base`'s commit when this device sealed it (`own`), sent once the server holds it; the
+    /// rest is dropped.
     pub async fn rebase_journal(
         &self,
         block: Uuid,
-        generation: u64,
         tag: Hash,
         base: JournalBase,
-        online: bool,
+        trim: bool,
         own: bool,
     ) -> Result<Option<Answer<()>>, ClientError> {
         let key = self.sealing_key(block).await?;
@@ -97,7 +98,32 @@ impl<S: ObjectStore> Peer<S> {
         let kept = commit.is_some_and(|commit| self.pending_commits(block).contains(&commit));
         self.refs
             .journal_rebased(block, commit, sequence, own, kept)?;
-        Ok(online.then(|| self.connection().rebase_journal(block, generation, sealed)))
+        let Some(head) = commit.filter(|_| trim) else {
+            return Ok(None);
+        };
+        let connection = self.connection();
+        let trimmed = be_block_protocol::client::blocks::publish(
+            &connection,
+            block,
+            head,
+            Some(head),
+            vec![head],
+            Default::default(),
+            0,
+            false,
+            Default::default(),
+            Vec::new(),
+            Vec::new(),
+            Some(sealed),
+        );
+        // Best effort: a trim the server refuses (from a replica that no longer holds the lease
+        // by the server's derivation) leaves the journal to the next seal.
+        Ok(Some(Box::pin(async move {
+            match crate::ask(trimmed).await {
+                Ok(_) | Err(ClientError::Refused(..)) => Ok(()),
+                Err(error) => Err(error),
+            }
+        })))
     }
 
     /// Makes this device's journal of `block` the server's `journal`, sealed as joining answered

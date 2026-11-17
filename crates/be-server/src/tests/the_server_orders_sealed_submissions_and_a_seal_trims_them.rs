@@ -4,7 +4,8 @@ use super::*;
 
 /// The server numbers what a session's participants submit, sealed, and sends each entry to
 /// every participant, its author too, in one order; a submission it numbered already is answered
-/// and not numbered again; and the holder's seal trims the journal to what came after it.
+/// and not numbered again; and the holder's seal trims the journal to what came after it as its
+/// commit wins the head, which every participant hears.
 #[tokio::test]
 async fn the_server_orders_sealed_submissions_and_a_seal_trims_them() {
     let harness = Harness::start().await;
@@ -17,7 +18,7 @@ async fn the_server_orders_sealed_submissions_and_a_seal_trims_them() {
     let _ = phone
         .publish(&author, block, first.0, first.1, None, 1_000)
         .await;
-    let (_, state) = phone.join_session(block).await;
+    phone.join_session(block).await;
     let token = phone.token.clone();
     let mut laptop = harness.second_connection(&token, organization).await;
     laptop.join_session(block).await;
@@ -61,18 +62,38 @@ async fn the_server_orders_sealed_submissions_and_a_seal_trims_them() {
     );
     assert_eq!(journal.entries.len(), 2);
 
-    phone
-        .rebase_journal(
+    let second = author.compose(b"sealed through one\n", 2_000, Some(first.0));
+    let sealed = phone
+        .seal(
+            &author,
             block,
-            state.generation,
-            JournalBase {
-                commit: Some(first.0),
+            second.0,
+            second.1,
+            Some(first.0),
+            2_000,
+            Some(JournalBase {
+                commit: Some(second.0),
                 sequence: 1,
                 state: Vec::new(),
-            },
+            }),
         )
-        .await
-        .unwrap();
+        .await;
+    assert!(
+        matches!(sealed, Ok(be_block_protocol::PublishOutcome::Published(_))),
+        "{sealed:?}"
+    );
+    let heard = loop {
+        if let Notice::Sealed {
+            block: of,
+            commit,
+            through,
+        } = laptop.notification().await
+            && of == block
+        {
+            break (commit, through);
+        }
+    };
+    assert_eq!(heard, (second.0, 1), "every participant hears which head holds what");
     let journal = phone.journal_of(block).await.expect("one entry is left");
     assert_eq!(
         journal

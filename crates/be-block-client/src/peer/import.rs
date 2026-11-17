@@ -228,6 +228,7 @@ impl<S: ObjectStore> Peer<S> {
                 pinned: false,
                 references,
                 metadata: vault.seal(key, &encoded)?,
+                journal_base: None,
             }),
             objects,
             queued: Vec::new(),
@@ -273,6 +274,7 @@ impl<S: ObjectStore> Peer<S> {
                     be_block_protocol::ReferenceChange::between(&[], &pending.references),
                     pending.metadata,
                     Vec::new(),
+                    None,
                 )
             });
             sent.push((ready, created, published));

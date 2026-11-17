@@ -8,7 +8,7 @@ use be_block_client::Event;
 use be_block_client::{ClientError, Peer};
 use be_block_commit::CommitId;
 use be_block_content::LiveEdit;
-use be_block_protocol::{ClientId, SessionState};
+use be_block_protocol::ClientId;
 use be_block_store::ObjectStore;
 use be_block_type_host::{Conflict, HOST_EDITOR, Replicas, Source};
 use be_sdk_type_api::{Description, EditorId, Status};
@@ -216,8 +216,9 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
         self.replicas.session(self.block).map(|(client, _)| client)
     }
 
-    pub fn state(&self) -> Option<&SessionState> {
-        self.replicas.session(self.block).map(|(_, state)| state)
+    /// Who holds the lease of the block's session, by its membership.
+    pub fn holder(&self) -> Option<ClientId> {
+        self.replicas.holder(self.block)
     }
 
     pub fn claim(&mut self) {

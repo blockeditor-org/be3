@@ -7,7 +7,8 @@ use be_block_model::{
     Anchor, BlockRef, Change as ModelChange, Count, Document, Edit, List, Model, ObjectId, Text,
 };
 use be_block_protocol::ClientId;
-use be_block_session::{Lease, Resume, Sequencer};
+use be_block_protocol::{JoinedParticipant, MembershipChange, SessionState};
+use be_block_session::{Membership, Resume, Sequencer};
 use be_block_store::Hash;
 use be_sdk_type_api::{
     Change, Delivery, Description, EditorId, Endpoint, Journal, JournalBase, Opening,
@@ -38,8 +39,8 @@ mod a_forged_arrival_is_replaced_by_the_orders;
 mod a_gesture_is_one_undo_step_and_quick_edits_absorb;
 mod a_head_written_offline_merges_once_its_replica_opens;
 mod a_holder_demoted_while_its_put_is_pending_sends_the_edit_to_the_new_holder;
-mod a_holder_renews_its_lease_while_it_holds_the_session;
-mod a_holder_whose_lease_lapsed_follows_whoever_claims_it;
+mod a_holder_follows_whoever_claims_the_lease;
+mod a_holder_with_nothing_to_do_sets_no_timer;
 mod a_holder_whose_merge_cannot_read_its_parts_makes_no_due_seal_that_would_be_rejected;
 mod a_holder_whose_merge_cannot_read_its_parts_owes_no_seal_until_it_can;
 mod a_holders_edit_too_large_to_relay_goes_by_its_part_and_is_committed_at_once;
@@ -88,7 +89,6 @@ mod a_seal_whose_journal_did_not_reach_the_server_opens_as_the_seal;
 mod a_small_edit_after_a_large_one_lands_in_order_when_the_holder_reads_late;
 mod a_snapshot_counts_an_editors_refused_operation;
 mod a_status_counts_the_local_edits_its_replica_took_since_it_opened;
-mod an_abandoned_lease_is_claimed;
 mod an_edit_a_peers_replacement_dropped_unsent_stays_dropped_after_a_crash;
 mod an_edit_given_again_with_the_submission_that_held_it_lands_once_when_both_reach_the_server;
 mod an_edit_is_lacking_until_the_server_holds_it;
@@ -118,6 +118,7 @@ mod every_replica_stamps_an_operation_with_when_the_server_took_it;
 mod peer_messages_reach_one_peer_or_all_of_them;
 mod peers_keep_what_the_holder_typed_while_its_seal_was_out;
 mod presence_reaches_late_joiners_and_leaves_with_its_client;
+mod the_next_editor_holds_the_lease_once_its_holder_leaves;
 mod two_editors_typing_at_once_keep_their_own_undo_steps;
 mod two_edits_one_submission_held_go_again_as_it_once_both_are_given_again;
 mod two_oversized_edits_in_a_row_land_in_order;
@@ -519,7 +520,8 @@ struct Sim<C: LiveEdit + Clone + Default> {
     commits: BTreeMap<CommitId, Stored>,
     vault: be_block_store::Vault<be_block_store::MemoryStore>,
     head: Option<CommitId>,
-    lease: Lease,
+    /// The session's membership, as the server writes it.
+    lease: SessionState,
     devices: Vec<Device>,
     editors: BTreeMap<(usize, EditorId), EditorMirror<C>>,
     received: BTreeMap<(usize, EditorId), Vec<ToEditor>>,
@@ -585,7 +587,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             commits: BTreeMap::new(),
             vault: vault(),
             head: None,
-            lease: Lease::new(),
+            lease: SessionState::default(),
             devices: (0..devices)
                 .map(|index| Device {
                     client: index as ClientId + 1,
@@ -761,7 +763,11 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         }
         let may_edit = self.devices[device].may_edit;
         let tag = Hash::from_bytes(self.devices[device].tag.0);
-        self.lease.join(client, may_edit, tag, self.now as i64);
+        self.lease.write(
+            self.order.sequence,
+            client,
+            MembershipChange::Joined(JoinedParticipant { tag, may_edit }),
+        );
         self.to(device, |host| {
             be_sdk_type_api::embed::exports::replicas::start(host, vec![0; 32])
         });
@@ -782,7 +788,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             sealed_head,
             kept_restart: self.kept_opening.map_or(0, |(restart, _)| restart),
             kept_through: self.kept_opening.take().map_or(0, |(_, through)| through),
-            ..opening(client, local, self.lease.state().clone())
+            ..opening(client, local, self.lease.clone())
         };
         let replica = self.to(device, |host| Replica::new(host, opening));
         self.devices[device].replica = Some(replica);
@@ -814,7 +820,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             journal,
             sealed_head,
             epoch: self.devices[device].status.epoch + 1,
-            ..opening(client, head, self.lease.state().clone())
+            ..opening(client, head, self.lease.clone())
         };
         self.with_replica(device, |replica, host| replica.reopen(host, opening));
         let editors: Vec<EditorId> = self
@@ -931,7 +937,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         self.devices[device].executor = None;
         self.queue.retain(|(to, _)| *to != device);
         let client = self.devices[device].client;
-        self.lease.leave(client, self.now as i64);
+        self.lease
+            .write(self.order.sequence, client, MembershipChange::Left);
         self.lease_changed(Some(device));
         self.settle();
     }
@@ -1005,13 +1012,42 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     }
 
     fn lease_changed(&mut self, except: Option<usize>) {
-        let session = self.lease.state().clone();
+        let session = self.lease.clone();
         for device in self.open_devices() {
             if Some(device) == except {
                 continue;
             }
             let session = session.clone();
             self.with_replica(device, |replica, host| replica.lease(host, session));
+        }
+    }
+
+    /// The journal starts from `base`, which `device` sealed, as the server trims it; the
+    /// other participants hear of a seal that names a commit (`replica.sealed`).
+    fn trim(&mut self, device: usize, base: JournalBase) {
+        // Another build's entries go: the holder could not have applied them.
+        let other = self.journal_tag != self.devices[device].tag;
+        let entries: Vec<_> = self
+            .journal
+            .take()
+            .map(|journal| journal.entries)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|entry| !other && entry.sequence > base.sequence)
+            .collect();
+        if other || (entries.is_empty() && base.sequence < self.order.sequence) {
+            self.order = Sequencer::starting(base.sequence);
+        }
+        let sealed = base.commit.map(|commit| (commit, base.sequence));
+        self.journal = Some(Journal { base, entries });
+        self.journal_tag = self.devices[device].tag;
+        let Some((commit, through)) = sealed else {
+            return;
+        };
+        for to in self.open_devices() {
+            if to != device && !self.deaf.contains(&to) {
+                self.with_replica(to, |replica, host| replica.sealed(host, commit, through));
+            }
         }
     }
 
@@ -1036,7 +1072,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.devices[device].executor = None;
                 self.devices[device].replica = None;
                 let client = self.devices[device].client;
-                self.lease.leave(client, self.now as i64);
+                self.lease
+            .write(self.order.sequence, client, MembershipChange::Left);
                 self.lease_changed(Some(device));
             }
         }
@@ -1163,14 +1200,6 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             } => {
                 self.to(device, |host| reply.send(host, &()));
                 // As the server: what the sender may not send reaches no one.
-                let may_edit = self.devices[device].may_edit;
-                let allowed = match kind {
-                    RelayKind::Peer => true,
-                    RelayKind::Seal => may_edit,
-                };
-                if !allowed && !matches!(to, Recipients::One(Endpoint::Editor(_))) {
-                    return;
-                }
                 if !matches!(to, Recipients::One(Endpoint::Editor(_) | Endpoint::Host)) {
                     self.sent.push((device, bytes.clone()));
                 }
@@ -1195,7 +1224,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     }
                     Recipients::One(Endpoint::Host) => {}
                     Recipients::Peers => {
-                        let participants = self.lease.state().participants.clone();
+                        let participants = self.lease.clients();
                         for peer in participants {
                             if peer == client {
                                 continue;
@@ -1213,6 +1242,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 merging,
                 content,
                 sealed_through,
+                journal_state,
                 restarts,
             } if !self.stalled => {
                 if self.fail_publishes > 0 {
@@ -1232,10 +1262,26 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.largest_written = self.largest_written.max(content.bytes.len());
                 let parts = be_sdk_type_api::written_parts(&content.bytes, &content.parts);
                 let manifest = self.vault.write(SEALING, C::CONTENT_TYPE, parts).unwrap();
+                // As the server takes a seal's base as it wins the head, and as the host trims
+                // with no new commit when there is nothing to commit.
+                let base = |commit| {
+                    sealed_through
+                        .zip(journal_state.clone())
+                        .map(|(sequence, state)| JournalBase {
+                            commit: Some(commit),
+                            sequence,
+                            state,
+                        })
+                };
                 if let Some(head) = expected
                     && merging.is_none()
                     && self.commits[&head].manifest == manifest
                 {
+                    if let Some(base) = base(head)
+                        && self.lease.is_holder(client)
+                    {
+                        self.trim(device, base);
+                    }
                     let kept = self.kept_publishes;
                     return self.to(device, |host| {
                         let outcome = match kept {
@@ -1256,6 +1302,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 }
                 self.head = Some(head);
                 self.publishes += 1;
+                if let Some(base) = base(head) {
+                    self.trim(device, base);
+                }
                 let kept = self.kept_publishes;
                 self.to(device, |host| {
                     let outcome = match kept {
@@ -1338,22 +1387,14 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 let resume = self.resume(local, self.head);
                 self.to(device, |host| reply.send(host, &Ok(resume)));
             }
-            Call::ClaimLease { reply, generation } => {
+            Call::Claim { reply } => {
                 self.to(device, |host| reply.send(host, &()));
                 if !self.devices[device].may_edit {
                     return;
                 }
-                self.lease.claim(client, generation, self.now as i64);
-                self.lease_changed(None);
-            }
-            Call::ReportClean {
-                reply,
-                generation,
-                clean_at,
-            } => {
-                self.to(device, |host| reply.send(host, &()));
                 self.lease
-                    .heartbeat(client, generation, clean_at, self.now as i64);
+                    .write(self.order.sequence, client, MembershipChange::Claimed);
+                self.lease_changed(None);
             }
             call @ Call::Submit { .. } if self.stalled_submits => self.held.push((device, call)),
             Call::Submit {
@@ -1397,31 +1438,12 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     reply.send(host, &be_sdk_type_api::host::Submitted::Held)
                 });
             }
-            Call::RebaseJournal {
-                reply,
-                generation,
-                base,
-            } => {
+            Call::RebaseJournal { reply, base } => {
                 self.to(device, |host| reply.send(host, &()));
-                let state = self.lease.state();
-                if !state.is_holder(client) || state.generation != generation {
-                    return;
+                // As the server: a trim with no new commit is the holder's, on the head.
+                if self.lease.is_holder(client) && base.commit == self.head {
+                    self.trim(device, base);
                 }
-                // Another build's entries go: the holder could not have applied them.
-                let other = self.journal_tag != self.devices[device].tag;
-                let entries: Vec<_> = self
-                    .journal
-                    .take()
-                    .map(|journal| journal.entries)
-                    .unwrap_or_default()
-                    .into_iter()
-                    .filter(|entry| !other && entry.sequence > base.sequence)
-                    .collect();
-                if other || (entries.is_empty() && base.sequence < self.order.sequence) {
-                    self.order = Sequencer::starting(base.sequence);
-                }
-                self.journal = Some(Journal { base, entries });
-                self.journal_tag = self.devices[device].tag;
             }
             Call::ReportStatus { reply, status } => {
                 self.to(device, |host| reply.send(host, &()));
@@ -1499,7 +1521,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             })
             .entries
             .push(entry.clone());
-        for peer in self.lease.state().participants.clone() {
+        for peer in self.lease.clients() {
             if let Some(to) = self.device_of(peer)
                 && !self.deaf.contains(&to)
             {

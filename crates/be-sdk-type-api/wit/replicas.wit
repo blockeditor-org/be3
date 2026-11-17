@@ -148,15 +148,19 @@ interface replicas {
         /// on opening), and those this device publishes outside the session.
         head-moved: async func(head: commit-id);
 
-        /// The session's state changed.
+        /// The session's membership changed: the lease follows from it.
         lease: async func(session: session-state);
+
+        /// A seal moved the head to `commit`, which holds the order through
+        /// `through`: the server's journal starts from it.
+        sealed: async func(commit: commit-id, through: u64);
 
         /// The order numbered these submissions, in order, this replica's own
         /// among them: the host hands on every one it hears, and reopens the
         /// replica when it missed some.
         sequenced: async func(entries: list<journal-entry>);
 
-        /// Claim a lapsed lease once the replica has loaded, as a terminal host does.
+        /// Claim the lease once the replica has loaded, as a terminal host does.
         claim: async func();
 
         /// False when it did not apply.

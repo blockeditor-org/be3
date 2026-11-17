@@ -54,11 +54,15 @@ interface host {
     /// session's order the content holds: kept with the commit, so what the order numbered
     /// past it while the commit was on its way replays on top of it when the journal is still
     /// on the commit's parent.
+    /// `journal-state`, with it, is the session state as of that number: the server's
+    /// journal starts from the commit with it only if the publish wins the head, and every
+    /// replica hears `replica.sealed`. The host keeps this device's journal likewise.
     publish: async func(
         expected: option<commit-id>,
         merging: option<merging>,
         content: written,
         sealed-through: option<u64>,
+        journal-state: option<list<u8>>,
         /// How many times the session had started over (`status.restarts`): a
         /// seal's sequence counts in that run of the order alone.
         restarts: u64,
@@ -76,11 +80,9 @@ interface host {
     /// The host fetches both histories and runs `be_session::resume`.
     resume-session: async func(local: option<commit-id>) -> result<resume, string>;
 
-    /// Sent once per generation when the lease holder is gone from the participants.
-    claim-lease: async func(generation: u64);
-
-    /// The lease holder's heartbeat.
-    report-clean: async func(generation: u64, clean-at: option<commit-id>);
+    /// Claims the lease, as a terminal host does: the server writes the claim
+    /// into the session's order, and this replica holds the lease from it.
+    claim: async func();
 
     /// Hands the session's order a submission: the server numbers it, keeps it
     /// in the block's journal and every replica hears it (`replica.sequenced`),
@@ -101,11 +103,13 @@ interface host {
         failed(string),
     }
 
-    /// The lease holder of `generation` sealed the order through `base`: the
-    /// journal starts from it, keeping what came after. The announcements kept
-    /// beside the entries `base` holds go with its commit when this device
-    /// sealed it, sent once the server holds it.
-    rebase-journal: async func(generation: u64, base: journal-base);
+    /// The journal starts from `base` with no new commit: the last one out
+    /// restarting it, or a new build starting it over. The server takes it only
+    /// from the lease holder while `base.commit` is the head; this device's
+    /// journal takes it either way. The announcements kept beside the entries
+    /// `base` holds go with its commit when this device sealed it, sent once
+    /// the server holds it.
+    rebase-journal: async func(base: journal-base);
 
     /// Opaque bytes for a peer, every peer, an editor or the host.
     send: async func(to: recipients, kind: relay-kind, bytes: list<u8>);

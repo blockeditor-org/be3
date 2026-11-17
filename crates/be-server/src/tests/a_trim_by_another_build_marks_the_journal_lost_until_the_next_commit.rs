@@ -1,4 +1,5 @@
 use be_block_protocol::JournalBase;
+use be_block_session::Membership;
 
 use super::*;
 
@@ -6,7 +7,7 @@ use super::*;
 /// journal over, and every reader is told edits were lost until the journal moves to another
 /// commit.
 #[tokio::test]
-async fn a_rebase_by_another_build_marks_the_journal_lost_until_the_next_commit() {
+async fn a_trim_by_another_build_marks_the_journal_lost_until_the_next_commit() {
     let harness = Harness::start().await;
     let mut phone = harness.client().await;
     let account = phone.register("phone@example.com").await;
@@ -15,13 +16,13 @@ async fn a_rebase_by_another_build_marks_the_journal_lost_until_the_next_commit(
     let author = Author::new(account);
     let first = author.compose(b"saved\n", 1_000, None);
     let _ = phone
-        .publish(&author, block, first.0, first.1, None, 1_000)
+        .publish(&author, block, first.0, first.1.clone(), None, 1_000)
         .await;
     let old_build = Hash::from_bytes([1; 32]);
     let new_build = Hash::from_bytes([2; 32]);
-    let base = |commit| JournalBase {
+    let base = |commit, sequence| JournalBase {
         commit: Some(commit),
-        sequence: 0,
+        sequence,
         state: Vec::new(),
     };
 
@@ -37,11 +38,11 @@ async fn a_rebase_by_another_build_marks_the_journal_lost_until_the_next_commit(
 
     let mut laptop = harness.second_connection(&token, organization).await;
     let (_, state) = laptop.try_join_as(block, new_build).await.unwrap();
-    assert_eq!(state.tag, Some(new_build));
-    laptop
-        .rebase_journal(block, state.generation, base(first.0))
-        .await
-        .unwrap();
+    assert_eq!(state.tag(), Some(new_build));
+    let trimmed = laptop
+        .trim(&author, block, first.clone(), base(first.0, 0))
+        .await;
+    assert!(trimmed.is_ok(), "{trimmed:?}");
     let journal = journal_of(&mut laptop, block).await;
     assert!(
         journal.is_some_and(|journal| journal.lost && journal.entries.is_empty()),
@@ -49,13 +50,21 @@ async fn a_rebase_by_another_build_marks_the_journal_lost_until_the_next_commit(
     );
 
     let second = author.compose(b"saved again\n", 2_000, Some(first.0));
-    let _ = laptop
-        .publish(&author, block, second.0, second.1, Some(first.0), 2_000)
+    let sealed = laptop
+        .seal(
+            &author,
+            block,
+            second.0,
+            second.1,
+            Some(first.0),
+            2_000,
+            Some(base(second.0, 0)),
+        )
         .await;
-    laptop
-        .rebase_journal(block, state.generation, base(second.0))
-        .await
-        .unwrap();
+    assert!(
+        matches!(sealed, Ok(be_block_protocol::PublishOutcome::Published(_))),
+        "{sealed:?}"
+    );
     let journal = journal_of(&mut laptop, block).await;
     assert!(
         journal.is_none_or(|journal| !journal.lost),

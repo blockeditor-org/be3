@@ -350,7 +350,7 @@ each edit with the host's `submit`: a `be_block_session::Submission` (its id,
 local edits of the replica it holds. Every replica hears the order through
 `replica.sequenced` and applies each entry in order, its own included; what it
 hears early waits in `ahead`. Peers also exchange `SessionMessage`s outside the
-order: `Sealed`, presence and channel messages. The rules an agent most needs:
+order: presence and channel messages. The rules an agent most needs:
 
 - **Entries** (`wire::Entry`): `Operation`, an operation's bytes or the part they
   were put as; `Reload`, the content becomes a commit at that place (`head`: the
@@ -382,15 +382,27 @@ order: `Sealed`, presence and channel messages. The rules an agent most needs:
   part counted), at once when a stash is to be kept, and when it closes. It
   publishes `confirmed` on the head it last sealed, with the first stash in
   `keep` as a second parent; `publish`'s `sealed-through` names the last sequence
-  it holds, which the host keeps with the commit (`Commit::sealed_through`). Once
-  it lands it trims the journal (`rebase-journal`), heartbeats `clean_at` and
-  relays `Sealed`, which every other replica takes once it applied that far. It
-  goes on applying the order while the seal is out. A rejected seal reconciles
+  it holds, which the host keeps with the commit (`Commit::sealed_through`), and
+  `journal-state` the session state as of it: the journal's base, which the host
+  hands the server with the publish (`Write::seals_journal`), so the server trims
+  its journal as the seal wins the head and tells every replica
+  (`replica.sealed`), which takes it once it applied that far; the host trims
+  this device's journal too. With nothing to commit, the host trims with no new
+  commit. It goes on applying the order while the seal is out. A rejected seal reconciles
   and seals once more; a head moved from elsewhere reconciles the holder, which
   merges unsaved work into whatever it fast-forwards or merges onto, stashes its
   side when the merge conflicts, publishes the result and submits it as a head
   `Reload`; it seals nothing while that reload is on its way. A replica made
   holder carries on from the last seal's head: nothing moves with the lease.
+- **The lease.** The host hands the replica the session's membership
+  (`replica.lease`, applying each membership entry it hears), and the replica
+  derives whether it holds the lease from it (`Membership::holder`), as every
+  replica and the server do: there is nothing to renew, and a replica whose
+  holder left holds it from that entry with no claim of its own. `claim` (a
+  terminal host's) asks the server to write a claim, which takes the lease at
+  once. A trim with no new commit (`rebase-journal`: the last one out restarting
+  the session, a new build starting the journal over) reaches the server only
+  from the holder.
 - **Opening.** A replica opens on the journal's base (`opening.journal`) and
   applies its entries, or, with `opening.sealed-head`, applies them on the commit
   the seal was made on and takes the seal as its head once it reached the seal's
@@ -432,12 +444,12 @@ order: `Sealed`, presence and channel messages. The rules an agent most needs:
   and submits a `Keep`. Every editor is sent a new snapshot. The change is
   answered once the server holds the reload, not when the order brings it back:
   a host that waits on the answer may be what would hand the replica the order.
-- **Who sends what.** The server takes submissions only from editors of the
-  session's build. Relayed messages carry the kind the server checked
-  (`relay-kind`, `wire::kind`): `peer` for presence and channel messages, `seal`
-  for `Sealed`; a replica drops a message that asks for more than its stamped
-  kind (`wire::sent_as`). Editors are trusted with the block's content and
-  session; only viewers are kept out. The server holds a part for the whole
+- **Who sends what.** The server takes submissions and claims only from editors,
+  submissions of the session's build alone. Relayed messages are presence and
+  channel messages, which any participant sends (`relay-kind::peer`); which head
+  holds which number comes from the server (`replica.sealed`), never a peer.
+  Editors are trusted with the block's content and session; only viewers are
+  kept out. The server holds a part for the whole
   upload grace, far longer than a lagging replica needs; a replica may read only
   objects of blocks it may view, and opens them with that block's key.
 
@@ -460,7 +472,7 @@ replica:
   durably, the text sealed under the block's key, in the refs database
   (`be-block-client/src/refs/announcements.rs`): until the server answers the
   submission; offline, beside the entry this device numbered, then, when
-  `rebase-journal` starts the journal from a commit this device sealed (one of
+  the journal starts from a commit this device sealed (one of
   the last 16 its replicas published or kept, which `Replicas` remembers per
   block, or one in its outbox), beside that commit while the outbox keeps it.
   A rebase from anyone else's commit drops what waits in the journal: the edit

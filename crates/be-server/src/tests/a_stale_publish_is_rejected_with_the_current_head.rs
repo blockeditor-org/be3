@@ -27,6 +27,7 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
                 listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await;
@@ -49,6 +50,7 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
                 listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await;
@@ -72,6 +74,7 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
                 listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await;

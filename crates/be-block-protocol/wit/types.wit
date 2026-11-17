@@ -210,16 +210,53 @@ interface types {
         sealed: list<u8>,
     }
 
-    /// A block's live session: its lease generation, the connection that holds
-    /// the lease (and so seals), every connection in it, the head its holder
-    /// last reported clean, and the build of the block's type the session
-    /// speaks: its first participant's.
+    /// One connection in a block's live session: the build of the block's
+    /// type it runs, whether it may edit the block, and the index of the
+    /// membership entry of its last claim since it joined.
+    record participant {
+        client: client-id,
+        tag: hash,
+        may-edit: bool,
+        claimed: option<u64>,
+    }
+
+    /// Who is in a block's live session, in the order they joined, as of its
+    /// `index`-th membership entry, written when the order's last number was
+    /// `after`. The lease holder and the build the session speaks follow from
+    /// it (`be_block_session::Membership`): the last claimant still present
+    /// with edit access, else the earliest-joined participant with it; and the
+    /// first participant's build.
     record session-state {
-        generation: u64,
-        owner: option<client-id>,
-        participants: list<client-id>,
-        clean-at: option<commit-id>,
-        tag: option<hash>,
+        index: u64,
+        after: u64,
+        participants: list<participant>,
+    }
+
+    /// A change of who is in a session, which only the server writes.
+    variant membership-change {
+        /// Joined, running the build `tag`.
+        joined(joined-participant),
+        left,
+        /// Its edit access changed while joined: a grant, or a move.
+        access(bool),
+        /// It claimed the lease.
+        claimed,
+    }
+
+    record joined-participant {
+        tag: hash,
+        may-edit: bool,
+    }
+
+    /// A membership entry: the session's `index`-th, about `client`, stamped
+    /// with the order's last number when written (`after`), so it falls
+    /// between that submission and the next. Kept in memory only, never in
+    /// the journal.
+    record membership-entry {
+        index: u64,
+        after: u64,
+        client: client-id,
+        change: membership-change,
     }
 
     /// One submission the session's order numbered: its place (`sequence`),

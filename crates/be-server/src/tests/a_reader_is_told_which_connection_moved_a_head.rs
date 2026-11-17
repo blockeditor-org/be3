@@ -32,6 +32,7 @@ async fn a_reader_is_told_which_connection_moved_a_head() {
                 listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await;

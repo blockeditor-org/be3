@@ -35,7 +35,7 @@ pub use be_wasm_guest_abi as abi;
 pub use file::{BlobFile, DocumentFile, FileForm};
 pub use record::{NoHistory, Recorder};
 pub use replica::{
-    COMMIT_INTERVAL, HEARTBEAT_INTERVAL, JOURNAL_BYTES, QUIET_INTERVAL, RESTART_STATE_BYTES,
+    COMMIT_INTERVAL, JOURNAL_BYTES, QUIET_INTERVAL, RESTART_STATE_BYTES,
 };
 
 use effect::{Answer, Effect, HeadEvent, RequestId};
@@ -669,10 +669,18 @@ impl Module {
                 merging,
                 content,
                 sealed_through,
+                journal_state,
                 restarts,
             } => {
                 let pending = ops::with_parent(replica, || {
-                    host::publish(expected, merging, content, sealed_through, restarts)
+                    host::publish(
+                        expected,
+                        merging,
+                        content,
+                        sealed_through,
+                        journal_state,
+                        restarts,
+                    )
                 });
                 self.answer_later(replica, pending, move |result| {
                     Input::Head(match result.and_then(|published| published) {
@@ -759,15 +767,7 @@ impl Module {
                     result: result.and_then(|resumed| resumed),
                 });
             }
-            Effect::ClaimLease {
-                replica,
-                generation,
-            } => ops::with_parent(replica, || host::claim_lease(generation)).detach(),
-            Effect::ReportClean {
-                replica,
-                generation,
-                clean_at,
-            } => ops::with_parent(replica, || host::report_clean(generation, clean_at)).detach(),
+            Effect::Claim { replica } => ops::with_parent(replica, host::claim).detach(),
             Effect::Submit {
                 replica,
                 submission,
@@ -795,11 +795,9 @@ impl Module {
                     },
                 });
             }
-            Effect::Rebase {
-                replica,
-                generation,
-                base,
-            } => ops::with_parent(replica, || host::rebase_journal(generation, base)).detach(),
+            Effect::Rebase { replica, base } => {
+                ops::with_parent(replica, || host::rebase_journal(base)).detach()
+            }
             Effect::Release { replica } => {
                 let closing = self.shared.state.borrow_mut().closing.remove(&replica);
                 ops::end(replica);
@@ -1044,17 +1042,11 @@ impl replicas::GuestReplica for OpenReplica {
         from: Endpoint,
         bytes: Vec<u8>,
         at: u64,
-        delivery: Option<Delivery>,
+        // Every relay is a peer's (`relay-kind::peer`): nothing in it changes what a replica does.
+        _delivery: Option<Delivery>,
     ) -> LocalFuture<()> {
         self.module.tick(at);
-        self.module.input(
-            self.id,
-            Input::Message {
-                from,
-                bytes,
-                delivery,
-            },
-        );
+        self.module.input(self.id, Input::Message { from, bytes });
         Box::pin(ready(()))
     }
 
@@ -1113,6 +1105,17 @@ impl replicas::GuestReplica for OpenReplica {
 
     fn lease(&self, session: SessionState) -> LocalFuture<()> {
         self.module.input(self.id, Input::Lease { session });
+        Box::pin(ready(()))
+    }
+
+    fn sealed(&self, commit: CommitId, through: u64) -> LocalFuture<()> {
+        self.module.input(
+            self.id,
+            Input::Sealed {
+                head: commit,
+                through,
+            },
+        );
         Box::pin(ready(()))
     }
 

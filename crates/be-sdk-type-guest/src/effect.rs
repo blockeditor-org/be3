@@ -22,6 +22,8 @@ pub(crate) enum Effect {
         content: Written,
         /// The last sequence of the order a seal holds, and the run of the order it is in.
         sealed_through: Option<u64>,
+        /// With `sealed_through`, the session state the journal starts from with the commit.
+        journal_state: Option<Vec<u8>>,
         restarts: u64,
     },
     Stash {
@@ -53,14 +55,8 @@ pub(crate) enum Effect {
         token: Token,
         local: Option<CommitId>,
     },
-    ClaimLease {
+    Claim {
         replica: ReplicaId,
-        generation: u64,
-    },
-    ReportClean {
-        replica: ReplicaId,
-        generation: u64,
-        clean_at: Option<CommitId>,
     },
     Submit {
         replica: ReplicaId,
@@ -70,7 +66,6 @@ pub(crate) enum Effect {
     },
     Rebase {
         replica: ReplicaId,
-        generation: u64,
         base: JournalBase,
     },
     Release {

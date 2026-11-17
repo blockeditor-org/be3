@@ -1,4 +1,5 @@
 use super::*;
+use be_block_session::Membership;
 
 #[tokio::test]
 async fn relayed_session_traffic_passes_through_the_server_sealed() {
@@ -14,8 +15,8 @@ async fn relayed_session_traffic_passes_through_the_server_sealed() {
         .second_connection(&owner.token.clone(), organization)
         .await;
     let (peer_id, state) = peer.join_session(block).await;
-    assert_eq!(state.owner, Some(owner_id));
-    assert!(state.participants.contains(&peer_id));
+    assert!(state.is_holder(owner_id));
+    assert!(state.has(peer_id));
 
     let plaintext = b"insert \"the quick brown fox\" at 12";
     let sealed = author.commits.vault().seal(KEY, plaintext).unwrap();
@@ -28,14 +29,13 @@ async fn relayed_session_traffic_passes_through_the_server_sealed() {
 
     let sent = be_block_commit::now_milliseconds();
     let response = peer
-        .relay(block, Some(owner_id), RelayKind::Seal, sealed.clone())
+        .relay(block, Some(owner_id), RelayKind::Peer, sealed.clone())
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
 
     let joined = owner.notification().await;
     assert!(
-        matches!(joined, Notice::SessionChanged { state: ref changed, .. }
-            if changed.participants.contains(&peer_id)),
+        matches!(joined, Notice::Membership { ref entry, .. } if entry.client == peer_id),
         "the owner was not told a peer joined: {joined:?}"
     );
 

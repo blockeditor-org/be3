@@ -54,15 +54,15 @@ the server are in guides/blocks/keys.md.
   that doubles with each batch given back runs out (`Searching::moving`).
 - **be-block-session**: `Sequencer` (the order's rules: each submission takes
   the next number and the floor, the last barrier, which a barrier moves to
-  itself), `Lease` (who seals, and the build the session speaks: its first
-  participant's, `Lease::speaks`), `resume` (whether a returning peer
+  itself), `Membership` (who is in a session, over the `session-state` the
+  server and every replica hold: `write` and `apply` its entries, `holder`,
+  and the build the session speaks, its first participant's, `speaks`),
+  `resume` (whether a returning peer
   fast-forwards, publishes or merges, decided from history rather than from
   having been away) and the `SessionMessage`s replicas relay. A submission's
   `OpId` is its replica's `origin`, random and kept across its reopenings, and a
   counter it never repeats, so the server answers an id its journal holds
-  without numbering it again. Lease length is `ServerConfig::lease`; tests that
-  claim pass zero (be-host's `Harness::lapsing`, `Lease::lasting(0)` in the
-  replica's `Sim`).
+  without numbering it again.
 - **be-block-graph**: liveness and access.
 
 ### Liveness and reclamation
@@ -319,12 +319,13 @@ counts and records nothing: `upload-urls` did before it signed.
   (`reserve` first confirms any upload of it that arrived) is unproven.
 - **Live sessions** are keyed by organization and block (`watch::Place`): a
   block id is the client's choice, so another organization can hold a block
-  with the same one. Joining needs `View`, and taking a session's lease needs
+  with the same one. Joining needs `View`, and claiming a session's lease needs
   `Edit` (a viewer's claim is refused, and the replica host ignores the
-  refusal). Losing `View` (a grant removed, the block trashed, or a move out of
-  view) ends it: `evict_sessions` takes the account's connections out of the
-  sessions, and `changes` tells them the block's lesser summary or
-  `removed`. Joining checks `View` a second time once registered, so a view
+  refusal). After a grant, a revocation or a move, `recheck_sessions` checks
+  each participant below the block again: one that lost `View` (a grant
+  removed, the block trashed, or a move out of view) leaves, and `changes`
+  tells it the block's lesser summary or `removed`; a change of `Edit` is
+  written into the session's order. Joining checks `View` a second time once registered, so a view
   lost in between does not stay. Trashing a block rotates no keys.
 
 ### Where objects live
@@ -535,39 +536,61 @@ client that has left the session (or never joined) is dropped without an error:
 it is best-effort, and the sender cannot know the other left. Each relay reaches
 participants stamped with when the server took it (`received`, by its clock).
 The server cannot read a relay, so each names its `relay-kind`: `peer` (presence,
-channel messages) needs view access, and `seal` (a seal's news) edit access
-(`rule`). The server stamps what it checked on what it delivers
-(`relayed.kind`), and receivers drop a message that asks for more, since the
-label is the sender's. Editors are trusted with the block's content and session.
+channel messages) needs view access (`rule`), and the server stamps it on what it
+delivers (`relayed.kind`). Editors are trusted with the block's content and session.
 
 **The order.** `submit` needs edit access and a build the session speaks
-(`Lease::speaks`): the server numbers the submission in the block's journal
+(`Membership::speaks`): the server numbers the submission in the block's journal
 (`journal::submit`, one write transaction), stamps it with when it took it, and
-sends it to every participant, its author too (`Push::Sequenced`, read after the
+sends it to every participant, its author too (`Push::Sequenced`, sent after the
 entry is kept, so a connection joining meanwhile reads it in the journal or hears
 it here). Joining registers the participant before it reads the journal. Two
 submissions numbered at once may reach a participant out of order; replicas hold
 what arrives early. The server never opens a payload: it numbers sealed bytes.
-A holder that lost edit access hands the lease
-on at its next heartbeat (`Lease::demote`), which also covers a grant or revoke
-racing a join. The lease goes only to a participant with edit access when it
-joined (`Lease::join`), so a session of viewers alone has no holder, and a
-viewer's claim is refused.
 
-The session registry (`sessions.rs`) indexes leases by client, so leaving them
-all on a disconnect costs what that client joined, and remembers an empty
-session for its `clean_at` for a day and at most `MAX_EMPTY_SESSIONS`.
+**Membership.** The server writes who is in each session into its order:
+joining, leaving, a change of edit access while joined, and a claim (`claim`,
+from a participant with edit access) are membership entries, each stamped with
+the order's last number when written (`after`: it falls between that submission
+and the next) and counted (`index`). They are kept in memory only, never in the
+journal, so numbering stays gapless and churn never fills `MAX_JOURNAL_BYTES`.
+The registry (`sessions.rs`) writes them and sends them and the order's entries
+under one lock, so every participant hears them in one order (`Push::Membership`,
+`Push::Sequenced`); a joiner gets the membership as of the number it joins at in
+`joined` and not its own entry. The holder is derived from it by one function,
+`Membership::holder`, on the server and every replica alike: the last claimant
+still present with edit access, else the earliest-joined participant with it.
+So a session of viewers alone has no holder, a holder that loses edit access
+loses the lease at once, and a claim takes it at once (two devices that claim in
+turn pass it back and forth). Only the server writes leaves: when a socket
+closes, and when a connection goes silent past `ServerConfig::idle_timeout`
+(`IDLE_TIMEOUT`, 90 s), as `leave_all` runs on any disconnect; until then a
+silent holder stays the holder. The registry indexes sessions by client, so
+leaving them all costs what that client joined, and forgets an empty session.
+After a restart every session is empty and rebuilds from joins.
 
 Each block's journal (guides/blocks/client.md, "The journal") is two tables,
 `block_journals` (tag, base, the order's last number and barrier) and
 `journal_entries` (an id unique per block), written by `be_server::journal` and
 deleted with the block. It is kept whether or not anyone is in the session, so
-what nobody sealed waits for the next holder. A rebase is kept only from the
-current holder of its generation; from any other participant it is answered as
-done and not kept, since a holder whose lease lapsed seals on until the next
-`Lease` tells it. A submission is refused while the journal holds another
-build's entries, and bounded by `MAX_JOURNAL_BYTES`; `read-contents` answers
-journals while they fit in a quarter of a frame.
+what nobody sealed waits for the next holder. A seal trims it: `publish` with a
+`journal-base` naming the commit published trims the journal to the base only
+if the publish wins the head's compare-and-swap, in the same transaction
+(`journal::rebase`), and every participant hears which head holds which number
+(`Push::Sealed`). Content never rested on the lease, since every replica applies
+one order: of two devices that both take themselves for the holder, the
+compare-and-swap takes one, and the other is rejected and trims nothing, so a
+trim never outruns its commit, and a sealing publish needs no holder check. A
+trim with no new commit (the last one out restarting the session, a new build
+starting the journal over: a publish of the head on itself) needs the head to be
+the base's commit and the caller to be the holder at the order's tip, by the
+server's derivation. A base past the order's last number is refused; one that
+goes back starts the order afresh only when nothing past the journal's base was
+numbered. A publish from a connection out of the block's session (an outbox
+draining after its replica closed) publishes and trims nothing. A submission is
+refused while the journal holds another build's entries, and bounded by
+`MAX_JOURNAL_BYTES`; `read-contents` answers journals while they fit in a
+quarter of a frame.
 
 **Answers that fit a frame.** A summary carries metadata of up to
 `MAX_METADATA_BYTES` and at most `MAX_REFERENCES` references (as many as an
@@ -912,7 +935,7 @@ starts one beside the web build.
   `stall`, `stall_at_next_request`, `cut`, `hold_new` or `jam_at_next_request`
   connections, go `offline` (cut them and refuse new ones until it is back), and `count` the calls the client starts (method ids are
   `be_block_protocol::__args::<INTERFACE>_<FUNCTION>`), so a test waits for a
-  ping or heartbeat to be sent.
+  ping to be sent.
 - crates/be-host-tests' `Server` runs one in a host test's process, and be-hosts
   join it as devices of its accounts, each through a relay of its own
   (guides/testing_a_gui.md, 6).

@@ -39,6 +39,7 @@ async fn references_keep_the_order_their_block_lists_them_in() {
                     listing(&listed, references.clone()),
                     Vec::new(),
                     Vec::new(),
+                    None,
                 )
             })
             .await;
