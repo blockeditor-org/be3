@@ -1,7 +1,7 @@
 use super::*;
 
-/// A panel that grows while open moves along its side; its beak moves with it on that
-/// same frame, still pointing at the anchor.
+/// A panel that grows while open moves along its side; on that same frame its beak lies along
+/// it and paints its tip at the anchor's centre.
 #[test]
 fn a_beak_follows_its_pointer_frame_when_the_panel_changes_size() {
     let _root = crate::reactive::RootScope::new();
@@ -34,15 +34,25 @@ fn a_beak_follows_its_pointer_frame_when_the_panel_changes_size() {
     let beak = |harness: &Harness| {
         let document = harness.document();
         let overlay = document.overlay_of(overlay.get()).expect("an overlay");
-        document.overlay_beak(overlay).expect("a beak")
+        (
+            document.overlay_beak(overlay).expect("a beak"),
+            document.overlay_beak_points_at(overlay),
+        )
     };
     for grown in [60.0, 200.0, 120.0] {
         width.set(grown);
         harness.frame(Vec::new());
+        let (node, at) = beak(&harness);
+        let panel = harness.rect(pointer.get());
         assert_eq!(
-            harness.rect(beak(&harness)),
-            harness.rect(pointer.get()),
+            harness.rect(node),
+            panel,
             "the beak lies along the panel {grown} wide on the frame it changes size"
+        );
+        assert_eq!(
+            at.map(|at| panel.left() + at),
+            Some(harness.rect(button.get()).center().x),
+            "the beak of the panel {grown} wide paints its tip at the button's centre"
         );
     }
 }

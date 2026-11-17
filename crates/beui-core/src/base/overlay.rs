@@ -748,6 +748,16 @@ impl Document {
         Some(self.arena.get_as::<OverlayNode>(overlay).beak.id())
     }
 
+    /// Where the beak paints its tip, from the left of its pointer frame, or `None` while it
+    /// points at nothing: what the next paint draws, not what layout last asked for.
+    pub fn overlay_beak_points_at(&self, overlay: NodeOf<OverlayNode>) -> Option<f32> {
+        let beak = self.arena.get_as::<OverlayNode>(overlay).beak;
+        let node = self.arena.get_as::<BeakNode>(beak);
+        node.pointing
+            .filter(|_| node.reach > 0.0)
+            .map(|pointing| pointing.at)
+    }
+
     pub fn set_overlay_scrim(&mut self, overlay: NodeOf<OverlayNode>, color: impl Into<Color>) {
         let color = color.into();
         let node = self.arena.get_as::<OverlayNode>(overlay);
