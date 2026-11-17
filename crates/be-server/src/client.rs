@@ -42,8 +42,8 @@ const PUSHES: usize = 4096;
 /// lock.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Rule {
-    /// Anyone, signed in or not, naming no organization: reading an invitation.
-    Anyone,
+    /// Only a one-shot call, never signed in, naming no organization: reading an invitation.
+    OneShot,
     /// The account's own: signed in, naming no organization.
     Account,
     /// Signed in, naming no organization or one the account is a member of.
@@ -100,7 +100,7 @@ pub(crate) fn query_rule(query: &Query) -> Rule {
         | Query::Link(_)
         | Query::ServerInfo => Rule::Account,
         // A bearer read of an invitation, before its holder signs in (a one-shot call).
-        Query::Invitation(_) => Rule::Anyone,
+        Query::Invitation(_) => Rule::OneShot,
         Query::Session { block: of, .. } => block(*of, Access::View),
     }
 }
@@ -267,6 +267,15 @@ fn bound_refused() -> ServerError {
     ServerError::Refused(
         ErrorCode::PermissionDenied,
         "an agent bound to one block may not do this".into(),
+    )
+}
+
+/// What a signed-in connection is told of a call only a one-shot call makes: a browser
+/// sign-in's step, or the read of an invitation (`http::one_shot`, limited per address).
+fn one_shot_only() -> ServerError {
+    ServerError::Refused(
+        ErrorCode::PermissionDenied,
+        "only a one-shot call, made before signing in, may do this".into(),
     )
 }
 
@@ -848,7 +857,7 @@ impl Client {
             Call::Ping { .. } => {}
             Call::DeviceLogin { reply, step } => {
                 let answered = match prelude {
-                    Ok(()) if self.connection.bound.is_some() => Err(bound_refused()),
+                    Ok(()) if self.connection.account.is_some() => Err(one_shot_only()),
                     Ok(()) => self.device_login(step).await,
                     Err(error) => Err(error),
                 };
@@ -961,10 +970,15 @@ impl Client {
             identity: Some(identity),
         };
         match rule {
-            Rule::Anyone => none(Admitted {
-                account,
-                identity: None,
-            }),
+            Rule::OneShot => {
+                if account.is_some() {
+                    return Err(one_shot_only());
+                }
+                none(Admitted {
+                    account,
+                    identity: None,
+                })
+            }
             Rule::Account => {
                 connection.account()?;
                 none(Admitted {

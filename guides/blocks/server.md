@@ -254,7 +254,8 @@ counts and records nothing: `reserve-uploads` did before it signed.
   (`Connection::closing`). Signing in through the browser follows RFC 8628's
   device flow over one-shot calls (`http::one_shot`): `POST .../call` carries a
   greeting and one frame, `device-login` (`begin` or `poll`) or the `read` of an
-  invitation, and is answered and closed with no session, so nothing is held
+  invitation, which a signed-in connection is refused (`Rule::OneShot`), and is
+  answered and closed with no session, so nothing is held
   while a person approves it. `begin` answers a code, a secret, the poll
   interval and the lifetime; a poll sooner than the interval fails `SlowDown`
   and grows it by `SLOW_DOWN`; an approval hands its token out to one poll.

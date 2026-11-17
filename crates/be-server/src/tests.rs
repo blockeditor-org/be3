@@ -491,7 +491,7 @@ type Answered<T> = Result<Result<T, Error>, be_wasm_ops::OpError>;
 impl At {
     fn organization_for(&self, rule: crate::client::Rule) -> Option<Uuid> {
         match rule {
-            crate::client::Rule::Anyone | crate::client::Rule::Account => None,
+            crate::client::Rule::OneShot | crate::client::Rule::Account => None,
             _ => self.organization,
         }
     }
