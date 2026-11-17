@@ -233,7 +233,9 @@ pub struct Searching {
     /// is queued again, until `MAX_WRITE_FAILURES`.
     write_failures: HashMap<Uuid, u32>,
     /// What was set aside after `MAX_WRITE_FAILURES` failed writes to an index in a row, by
-    /// index: queued again on the next connection or once its delay is up.
+    /// index: queued again on the next connection or once its delay is up. A write that could
+    /// not reach the server (`Unwritten::Unreachable`) is set aside here at once, with no delay:
+    /// queued again on the next connection alone.
     failing: HashMap<Uuid, Failing>,
     /// Times in a row an index's writes were set aside, for the delay before the next try.
     set_aside: HashMap<Uuid, u32>,
@@ -765,7 +767,7 @@ impl Searching {
         self.moving
             .iter()
             .map(|moving| moving.due)
-            .chain(self.failing.values().map(|failing| failing.due))
+            .chain(self.failing.values().filter_map(|failing| failing.due))
             .min()
     }
 
@@ -823,6 +825,24 @@ impl Searching {
         }
     }
 
+    /// A batch of `blocks` could not be written to `index` for want of the server
+    /// (`Unwritten::Unreachable`): set aside until the next connection (`reconnected`), counted
+    /// as no failure and shown as no error.
+    pub(crate) fn write_unreachable(&mut self, index: Uuid, blocks: Vec<Uuid>, whole: Vec<Uuid>) {
+        self.whole.extend(whole);
+        let failing = self.failing.entry(index).or_default();
+        failing.due = None;
+        failing.blocks.extend(blocks);
+    }
+
+    /// A settle could not be written to `index` for want of the server, set aside as
+    /// `write_unreachable` sets a batch aside.
+    pub(crate) fn settle_unreachable(&mut self, index: Uuid, settle: Settle) {
+        let failing = self.failing.entry(index).or_default();
+        failing.due = None;
+        failing.settles.push(settle);
+    }
+
     /// Counts a failed write to `index`, and once that makes `MAX_WRITE_FAILURES` in a row,
     /// gives what is set aside for it.
     fn failed_again(&mut self, index: Uuid, now: Duration) -> Option<&mut Failing> {
@@ -839,7 +859,7 @@ impl Searching {
                 .saturating_mul(1 << (*runs - 1).min(16))
                 .min(FAILING_MOST);
         let failing = self.failing.entry(index).or_default();
-        failing.due = due;
+        failing.due = Some(due);
         Some(failing)
     }
 
@@ -848,7 +868,9 @@ impl Searching {
         let due: Vec<Uuid> = self
             .failing
             .iter()
-            .filter(|(_, failing)| now.is_none_or(|now| failing.due <= now))
+            .filter(|(_, failing)| {
+                now.is_none_or(|now| failing.due.is_some_and(|due| due <= now))
+            })
             .map(|(index, _)| *index)
             .collect();
         for index in due {
@@ -886,7 +908,8 @@ struct Failing {
     blocks: Vec<Uuid>,
     /// Its settles, oldest first, put back before any queued since.
     settles: Vec<Settle>,
-    due: Duration,
+    /// When it is queued again; none waits for the next connection alone.
+    due: Option<Duration>,
 }
 
 /// The heads of an index a batch held back was given back at: the mirror's and the one the
@@ -1315,6 +1338,10 @@ async fn index(
                     Err(Unwritten::Moved(_)) => {
                         let heads = index_heads(&peer, &held.graph, index);
                         held.search.hold_moving(index, blocks, heads, clock.now());
+                    }
+                    // Out of reach: written on the next connection, with no error shown.
+                    Err(Unwritten::Unreachable(_)) => {
+                        held.search.write_unreachable(index, put_blocks, read_whole);
                     }
                     // Queued again: what failed may not fail twice. An index that fails every
                     // write waits, and says why. Only the blocks read are: one whose commit
@@ -2076,6 +2103,9 @@ fn settle_indexes(
                         .or_default()
                         .insert(0, settle);
                 }
+                Err(Unwritten::Unreachable(_)) => {
+                    held.search.settle_unreachable(index, settle);
+                }
                 // Settled again, first, as a batch is written again.
                 Err(Unwritten::Failed(error)) => {
                     if held.search.settle_failed(index, settle, clock.now()) {
@@ -2257,13 +2287,18 @@ pub enum Unwritten {
     /// batch another device published meanwhile let go of the head it replaced, with every
     /// object only that head held. The indexer writes it again on its next pass.
     Moved(String),
+    /// The server could not be reached (`ClientError::is_unreachable`): written again on the
+    /// next connection.
+    Unreachable(String),
     Failed(String),
 }
 
 impl std::fmt::Display for Unwritten {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Moved(error) | Self::Failed(error) => formatter.write_str(error),
+            Self::Moved(error) | Self::Unreachable(error) | Self::Failed(error) => {
+                formatter.write_str(error)
+            }
         }
     }
 }
@@ -2272,6 +2307,7 @@ impl From<be_block_client::ClientError> for Unwritten {
     fn from(error: be_block_client::ClientError) -> Self {
         match error {
             be_block_client::ClientError::MissingObject(_) => Self::Moved(error.to_string()),
+            error if error.is_unreachable() => Self::Unreachable(error.to_string()),
             error => Self::Failed(error.to_string()),
         }
     }

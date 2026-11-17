@@ -1244,7 +1244,13 @@ impl<H: Host> Replicas<H> {
         // has) are set aside, never sent, and the block opens under a fresh origin.
         if let Some((kept, Err(error))) = peer.open_edits(block) {
             let content_opens = match error {
-                ClientError::Locked(_) => peer.sealing_key(block).await.is_ok(),
+                ClientError::Locked(_) => match peer.holds_key(block).await {
+                    Ok(holds) => holds,
+                    // Whether the key is here cannot be told: neither locked nor opened, so
+                    // the kept edits stay as they are. It opens once the host reconnects.
+                    Err(error) if error.is_unreachable() => return Ok(()),
+                    Err(_) => false,
+                },
                 _ => true,
             };
             if !content_opens {

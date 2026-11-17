@@ -298,7 +298,9 @@ the connection a stopping stack closed.
 
   Kept edits that do not open while the block's own key is not on the
   device stay as they are, and the block waits locked until keys arrive
-  (`Replicas::lock`), so no replica writes over them. Ones that do not open
+  (`Replicas::lock`), so no replica writes over them. Whether the block's key
+  is here is asked read only (`Peer::holds_key`); offline that cannot be told,
+  and the block is neither locked nor opened until the host reconnects. Ones that do not open
   otherwise (unreadable, or under a key that has not come though the block's
   has, such as a key generation that has not arrived yet: those are set aside,
   not waited for) are set aside (`refs::SetAside`, never sent) with an error
