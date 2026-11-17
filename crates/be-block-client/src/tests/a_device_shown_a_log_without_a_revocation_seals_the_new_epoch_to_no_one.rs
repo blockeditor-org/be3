@@ -51,9 +51,12 @@ async fn a_device_shown_a_log_without_a_revocation_seals_the_new_epoch_to_no_one
             [epoch.to_string(), format!("account:{}", dave.account())],
         )
         .unwrap();
+    // Another device of Carol's, which never held the revocation (one that did refuses a log
+    // short of it outright).
+    let device = harness.second(&carol).await;
 
     let work = || async {
-        let mut work = carol.key_work().await.unwrap();
+        let mut work = device.key_work().await.unwrap();
         work.rotations.clear();
         work.unsealed.retain(|unsealed| unsealed.key != epoch);
         for account in [dave.account(), bob.account()] {
@@ -64,7 +67,7 @@ async fn a_device_shown_a_log_without_a_revocation_seals_the_new_epoch_to_no_one
         }
         work
     };
-    let (_, shown) = carol.checked_access(team).await.unwrap();
+    let (_, shown) = device.checked_access(team).await.unwrap();
     assert!(
         shown
             .grants
@@ -72,7 +75,7 @@ async fn a_device_shown_a_log_without_a_revocation_seals_the_new_epoch_to_no_one
             .is_some_and(|(level, _)| *level == be_block_keys::Level::View),
         "the server withheld no revocation"
     );
-    carol.tend_with(work().await).await.unwrap();
+    device.tend_with(work().await).await.unwrap();
     assert_eq!(
         sealed_to(&harness, epoch, bob.account()),
         0,
@@ -85,7 +88,7 @@ async fn a_device_shown_a_log_without_a_revocation_seals_the_new_epoch_to_no_one
     );
 
     withheld.serve(&harness);
-    carol.tend_with(work().await).await.unwrap();
+    device.tend_with(work().await).await.unwrap();
     assert_eq!(sealed_to(&harness, epoch, dave.account()), 1);
     assert_eq!(sealed_to(&harness, epoch, bob.account()), 0);
 

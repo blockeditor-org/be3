@@ -1,7 +1,7 @@
 use super::*;
 
 use be_block_graph::Access;
-use be_block_keys::{CarriedKey, EntryHash, Heads};
+use be_block_keys::{CarriedKey, EntryHash, Heads, Party, RecoveryPublic};
 use be_block_protocol::KeyKind;
 use be_type_text::{TextBlock, TextContent};
 
@@ -19,6 +19,11 @@ struct Revoked {
 }
 
 async fn revoked(harness: &Harness) -> Revoked {
+    revoked_from(harness, Access::View).await
+}
+
+/// `revoked`, with Bob granted `access` before his revocation.
+async fn revoked_from(harness: &Harness, access: Access) -> Revoked {
     let admin = harness.owner("admin@example.com").await;
     let carol = harness.member(&admin, "carol@example.com").await;
     let bob = harness.member(&admin, "bob@example.com").await;
@@ -36,10 +41,7 @@ async fn revoked(harness: &Harness) -> Revoked {
         .grant(team, carol.account(), Access::Edit)
         .await
         .unwrap();
-    admin
-        .grant(team, bob.account(), Access::View)
-        .await
-        .unwrap();
+    admin.grant(team, bob.account(), access).await.unwrap();
     admin.tend().await.unwrap();
     bob.refresh_keys(None).await.unwrap();
     let old = bob.keys().scope_key(team).unwrap();
@@ -188,6 +190,237 @@ async fn an_offline_device_fails_a_save_rather_than_write_under_a_made_up_key() 
         "an offline save was not refused: {saved:?}"
     );
     assert_eq!(offline.pending().operations, 0);
+
+    harness.stop().await;
+}
+
+/// Puts a key of `block` with id `key` and `kind`, sealed by Bob as `sealed`, in the server's
+/// database, wrapped by `wrapped_by` (an account or a key, as the server writes it).
+fn plant_sealed(
+    harness: &Harness,
+    revoked: &Revoked,
+    key: Uuid,
+    block: Uuid,
+    kind: &str,
+    wrapped_by: String,
+    sealed: Vec<u8>,
+) {
+    let organization = revoked.admin.organization();
+    let database = harness.database();
+    database
+        .execute(
+            "INSERT INTO keys (organization_id, id, block_id, kind, epoch, created)
+             VALUES (?1, ?2, ?3, ?4, 90, 0)",
+            rusqlite::params![
+                organization.to_string(),
+                key.to_string(),
+                block.to_string(),
+                kind
+            ],
+        )
+        .unwrap();
+    database
+        .execute(
+            "INSERT INTO wrapped_keys (organization_id, key_id, wrapped_by, sender, sealed)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![
+                organization.to_string(),
+                key.to_string(),
+                wrapped_by,
+                revoked.bob.account().to_string(),
+                sealed
+            ],
+        )
+        .unwrap();
+}
+
+/// The head of the team's log, past Bob's revocation, as `device` checks it.
+async fn team_head(revoked: &Revoked, device: &Peer<MemoryStore>) -> EntryHash {
+    device.checked_access(revoked.team).await.unwrap().1.head
+}
+
+/// An administrator's device checked the team's log past the revocation of Bob, an editor, then
+/// restarts and is served it short of the revocation. Bob, with the server, wraps a made-up
+/// key of the note to the escrow key naming the head the device kept: the device takes nothing
+/// from the short log, so it does not find Bob granted and the key waits, never taken or
+/// written under (signed access 3d).
+#[tokio::test]
+async fn an_escrow_wrap_from_a_revoked_editor_waits_on_a_log_short_of_what_was_kept() {
+    let harness = Harness::start().await;
+    let revoked = revoked_from(&harness, Access::Edit).await;
+    let refs = refs::RefsDb::memory();
+    let store = MemoryStore::new();
+    let before = harness.device(&revoked.admin, &refs, &store).await;
+    let kept = team_head(&revoked, &before).await;
+    drop(before);
+
+    let escrow = revoked.admin.keys().escrow().unwrap();
+    let made_up = Uuid::new_v4();
+    let carried = CarriedKey {
+        key: [6; 32],
+        block: revoked.note.into_bytes(),
+        root: None,
+        heads: Heads {
+            block: Some(kept),
+            organization: None,
+        },
+    };
+    let sealed = revoked.bob.keys().identity().seal_for(
+        revoked.bob.account().into_bytes(),
+        &Party {
+            account: escrow.id.into_bytes(),
+            public: RecoveryPublic(escrow.public),
+        },
+        made_up.as_bytes(),
+        &carried.encode(),
+    );
+    plant_sealed(
+        &harness,
+        &revoked,
+        made_up,
+        revoked.note,
+        "data",
+        escrow.id.to_string(),
+        sealed,
+    );
+    let withheld = withhold_newest(&harness, revoked.admin.organization(), Some(revoked.team));
+    let restarted = harness.device(&revoked.admin, &refs, &store).await;
+    assert!(
+        restarted.checked_access(revoked.team).await.is_err(),
+        "a log short of what was kept was taken"
+    );
+    assert!(
+        !restarted.keys().has(made_up),
+        "an escrow wrap from a revoked editor was taken on a short log"
+    );
+    restarted
+        .save(revoked.note, &TextBlock::of("after"), revoked.head)
+        .await
+        .unwrap();
+    assert!(
+        !restarted.keys().has(made_up),
+        "the save took the escrow wrap from a revoked editor"
+    );
+    withheld.serve(&harness);
+
+    harness.stop().await;
+}
+
+/// An editor's device checked the team's log past the revocation of Bob, a contact, then
+/// restarts and is served it short of the revocation. Bob seals it made-up keys naming the head
+/// it kept, a scope key of the team and a data key of the note: neither is taken while its log
+/// stays short, the data key never from a contact who does not administer (signed access 3d).
+#[tokio::test]
+async fn a_contacts_seal_waits_on_a_log_short_of_what_was_kept() {
+    let harness = Harness::start().await;
+    let revoked = revoked(&harness).await;
+    befriend(&revoked.carol, &revoked.bob).await;
+    let refs = refs::RefsDb::memory();
+    let store = MemoryStore::new();
+    let before = harness.device(&revoked.carol, &refs, &store).await;
+    let kept = team_head(&revoked, &before).await;
+    drop(before);
+
+    let mut planted = Vec::new();
+    for (block, kind) in [(revoked.team, "scope"), (revoked.note, "data")] {
+        let key = Uuid::new_v4();
+        let carried = CarriedKey {
+            key: [8; 32],
+            block: block.into_bytes(),
+            root: None,
+            heads: Heads {
+                block: Some(kept),
+                organization: None,
+            },
+        };
+        let sealed = revoked.bob.keys().identity().seal_for(
+            revoked.bob.account().into_bytes(),
+            &Party {
+                account: revoked.carol.account().into_bytes(),
+                public: revoked.carol.keys().identity().public(),
+            },
+            key.as_bytes(),
+            &carried.encode(),
+        );
+        plant_sealed(
+            &harness,
+            &revoked,
+            key,
+            block,
+            kind,
+            format!("account:{}", revoked.carol.account()),
+            sealed,
+        );
+        planted.push(key);
+    }
+    let withheld = withhold_newest(&harness, revoked.admin.organization(), Some(revoked.team));
+    let restarted = harness.device(&revoked.carol, &refs, &store).await;
+    restarted.refresh_keys(None).await.unwrap();
+    for key in planted {
+        assert!(
+            !restarted.keys().has(key),
+            "a revoked contact's seal was taken on a short log"
+        );
+    }
+    withheld.serve(&harness);
+
+    harness.stop().await;
+}
+
+/// A device kept every entry of the team's log from its last lowering through its head:
+/// offline, a key naming one between them, made after the revocation and before a later grant,
+/// is current, and the save goes through (signed access 3d).
+#[tokio::test]
+async fn an_offline_save_under_a_key_named_between_the_last_lowering_and_the_head_goes_through()
+{
+    let harness = Harness::start().await;
+    let admin = harness.owner("admin@example.com").await;
+    let carol = harness.member(&admin, "carol@example.com").await;
+    let bob = harness.member(&admin, "bob@example.com").await;
+    let dave = harness.member(&admin, "dave@example.com").await;
+    let erin = harness.member(&admin, "erin@example.com").await;
+    let team = workspace(&admin, "Team").await;
+    let note = admin
+        .create::<TextContent>(BlockParent::Block(team))
+        .await
+        .unwrap();
+    let head = admin
+        .save(note, &TextBlock::of("before"), None)
+        .await
+        .unwrap()
+        .published();
+    for (member, access) in [(&carol, Access::Edit), (&bob, Access::View)] {
+        admin.grant(team, member.account(), access).await.unwrap();
+    }
+    admin.tend().await.unwrap();
+    // The revocation, a grant, the rotation (naming the grant's head), then another grant.
+    admin
+        .grant(team, bob.account(), Access::None)
+        .await
+        .unwrap();
+    admin
+        .grant(team, dave.account(), Access::View)
+        .await
+        .unwrap();
+    admin.tend().await.unwrap();
+    let (entries, _) = admin.checked_access(team).await.unwrap();
+    let between = entries.last().unwrap().hash();
+    admin
+        .grant(team, erin.account(), Access::View)
+        .await
+        .unwrap();
+
+    let refs = refs::RefsDb::memory();
+    let store = MemoryStore::new();
+    let online = harness.device(&carol, &refs, &store).await;
+    assert_eq!(text(&online, note).await, "before");
+    let current = online.keys().keys_of(note, KeyKind::Data).last().unwrap().id;
+    assert_eq!(online.keys().heads(current).block, Some(between));
+    drop(online);
+
+    let offline = harness.offline(&carol, &refs, &store);
+    let saved = offline.save(note, &TextBlock::of("offline"), head).await;
+    assert!(saved.is_ok(), "an offline save under a current key failed: {saved:?}");
 
     harness.stop().await;
 }
