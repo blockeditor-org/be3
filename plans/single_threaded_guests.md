@@ -1,11 +1,12 @@
 # Single-threaded guests
 
 Depends on: none. It builds on the sandbox API and spawning staged apps by id
-(plans/host_as_platform_adapter.md, steps 1 and 2, both built natively). Steps 1 and 2 are
-built, and apps' workers run on the web too.
+(plans/host_as_platform_adapter.md, steps 1 and 2, both built natively). Steps 1 to 3 are
+built: every guest is single-threaded `wasm32-wasip1` (decisions/guests_are_single_threaded.md),
+and what is left is deleting the thread support nothing uses any more.
 
-Every guest is built for `wasm32-wasip1-threads` today: one shared memory per app, threads made
-by `wasi-threads` (`thread-spawn`), and a thread-local block per module per thread. Drop that.
+Every guest was built for `wasm32-wasip1-threads`: one shared memory per app, threads made by
+`wasi-threads` (`thread-spawn`), and a thread-local block per module per thread. Drop that.
 Each guest becomes single-threaded `wasm32-wasip1`, and work that needs another thread runs as an
 instance of its own, spawned through the sandbox API, talking to its spawner by messages.
 
@@ -77,20 +78,25 @@ on its own OS thread and in the browser in its own web worker, so it may wait on
    be-wasm-sandbox-host's `web` half serves an app's workers, each in a web worker of its own.
    Each app's editors share one worker, and an app's tests serve its workers in their own
    instance (`BeuiTest::serve_worker`).
-3. Build every guest, and the C libraries guests link (wasi-libc, libc++, PDFium, FreeType,
-   HarfBuzz, libghostty-vt; PDFium is linked by the PDF renderer, crates/be-worker-pdf-render),
-   for `wasm32-wasip1`: `buck/wasm/defs.bzl`, `buck/toolchains/BUCK`
-   (drop `-pthread`), `buck/constraints/BUCK`, `crates/be-lib-ghostty-vt/BUCK`,
-   `rust-toolchain.toml`, and the test runner (decisions/app_tests_run_as_wasm_guests.md). Write
-   the decision above.
-4. Delete thread support:
+3. Built: every guest, and the C libraries guests link (wasi-libc, libc++, PDFium, FreeType,
+   HarfBuzz, libghostty-vt), is built for `wasm32-wasip1` on the `wasi_guest` platform, without
+   `-pthread`; programs in the browser stay `wasm32-wasip1-threads`. A guest imports an unshared
+   memory, which be-wasm-host and `web/app.js` link its libraries into with no thread-local
+   blocks, so natively its gpu and transport calls are ordinary V8 calls rather than fast-API
+   ones. The thread-local diamond app checks its statics on its one thread.
+4. Delete thread support, which no guest uses any more:
    - the linker's thread-local rewriting (`be-wasm-link`'s `tls.rs`) and the loader's
      thread-local blocks (`thread_local_slot` in `be-wasm-dylink`, `be-wasm-host/src/dylink.rs`,
      `be-host/web/dylink.js`);
    - `thread-spawn` (`be-wasm-host/src/threads.rs`, `be-host/web/threads.js` and `thread.js`);
    - the thread-local diamond crates (`crates/be-tool-tls-diamond-*`) and their tests;
    - what is left of `be-wasm-threads` (`initialize_page`, `initialize_worker`, `may_wait`) and
-     the page's refusal of a thread (`refuseThreads` in `be-host/web/threads.js`).
+     the page's refusal of a thread (`refuseThreads` in `be-host/web/threads.js`);
+   - be-wasm-host's shared app memory (`Memory::Shared`, `Share`) and the fast-API gpu and
+     transport calls that read it (gpu.rs), unless a memory that never moves comes back another
+     way, and the shared-memory checks in `web/app.js`;
+   - be-wasm-link's `pthread_*` entries in `LIBC`, if nothing above the root needs them;
+   - the wat tests in be-wasm-host that import a shared memory or `thread-spawn`.
 5. See whether the base library still has to be a fixed-address root
    (decisions/app_library_base_is_a_fixed_address_root.md): the reason recorded there is the
    threaded std and wasi-libc builds. Libraries could also load after start, since nothing
