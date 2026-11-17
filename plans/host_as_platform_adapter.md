@@ -542,7 +542,10 @@ Each step lands on its own.
        beui, wgpu or be-host-stack; it builds for wasm32): be-host-runtime's `Wire`, `calls`,
        `sent`, `session` and the docks' resolution move into it, and be-host-runtime and
        be-sdk-test's in-process host both use it, so be-sdk-test's own host-side connection
-       goes.
+       goes. It must also trim what a sandbox instance keeps presented (`Instance::surface`) to
+       the surfaces the app's published layout still names, as be-host-runtime's presenter
+       `retain`s its targets; until then an instance holds every surface it ever presented, so a
+       real root's popups would grow it without bound.
      - 4e3. An editor's watches and a block's content in the library: the host side of
        `be3:blocks` (watches, replicas, opens, commands) over a store trait, which
        be-host-runtime implements over be-host-stack and be-sdk-test over its `ContentStore`,
