@@ -242,6 +242,13 @@ Depends on #686 (session catch-ups replaced by server ordering).
   submitted the first edit, and nothing submitted it again once the key came. Done: the cause
   found under `stress` (where the key arrives, and why the refused submission is not given
   again once it does) and fixed at its source, with a test that shows it.
+- **A crash test that once never counted 11 after the restart.**
+  `an_edit_to_a_block_made_editable_again_after_its_edits_were_discarded_lands_once_across_a_crash`
+  (be-host-stack) hung once in 2000 local runs (16 at a time, the harness built once and run
+  directly) at the `wait_for_count(block, 11)` after its restart, with nothing owed, undurable or
+  draining. Whether it counted 1 (the edit lost) or 21 (ordered twice) was not recorded;
+  `wait_for_count` now says what it last counted. Done: the cause found from that output and
+  fixed at its source, with a test that shows it.
 - **A take that returns before another's notices are told.** In a test that runs no frames,
   be-host-stack's pump thread (`start`) applies an update under the stack's lock and tells the
   watchers after it lets go (`take_updates`), so a `take_updates` on the test's thread meanwhile
