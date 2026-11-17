@@ -155,6 +155,16 @@ Fixed items are removed as they land.
   test where many connections submit at once and every participant hears the
   entries in sequence.
 
+- **A silent holder keeps the lease for 90 seconds.** A holder whose
+  connection goes silent without closing stays the holder until be-server
+  drops the connection at `IDLE_TIMEOUT` (90 s), longer than the 30 s the
+  heartbeat lease took before plans/simpler_server_api.md step 1. The client
+  pings every `PING_INTERVAL` (15 s) and gives up after `PONG_WAIT` (20 s), so
+  a server limit of about 2 × `PING_INTERVAL` + `PONG_WAIT` (about 45 s) still
+  keeps every live client. Done: the server's limit derived from the client's
+  ping constants, with a be-server test that a silent connection's leave is
+  written within it.
+
 ## 9. Version control's caches
 
 - **Walks that read thinning as a root.** Depends on #686, which rewrites
@@ -354,6 +364,12 @@ Depends on #686 (session catch-ups replaced by server ordering).
   `Given` stage) waits for good. Done: a restarted app's editor is sent its snapshot in every
   case, shown by a be-host-runtime test that restarts an app with an editor attached and checks
   the content counts as delivered.
+
+- **A folder's mirror once under load.**
+  be-host-stack's `a_folder_whose_share_is_taken_back_leaves_the_mirror_with_what_is_in_it`
+  failed once in 1010 runs (202 tests five times, 12 at a time) and passed 40
+  of 40 alone. Done: the cause found, from a rerun under the same load that
+  keeps its output, and fixed at its source.
 
 ## 16. Host test tools
 

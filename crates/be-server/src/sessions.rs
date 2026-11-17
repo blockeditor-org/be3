@@ -23,7 +23,9 @@ pub struct SessionRegistry {
 }
 
 /// The registry held while a trim with no new commit is written by the lease holder, so no
-/// membership entry moves the lease meanwhile (`SessionRegistry::holding`).
+/// membership entry moves the lease meanwhile (`SessionRegistry::holding`). It is held only
+/// inside a store job, which already has the store: never await the store with it held, since
+/// every join, leave and push waits on the registry.
 pub struct Holding(#[allow(dead_code)] tokio::sync::OwnedMutexGuard<Sessions>);
 
 #[derive(Default)]

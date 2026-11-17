@@ -5,8 +5,7 @@ use super::*;
 use crate::Event;
 
 /// Only the server writes leaves: a holder whose connection is lost stays the holder until the
-/// server sees the socket close (or go silent past `IDLE_TIMEOUT`) and writes its leave, and from
-/// that entry the next editor holds the lease and seals.
+/// server sees the socket close and writes its leave, and from that entry the next editor holds the lease and seals.
 #[tokio::test]
 async fn the_next_editor_seals_once_the_server_writes_a_lost_holders_leave() {
     let harness = Harness::start().await;
