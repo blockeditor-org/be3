@@ -89,6 +89,7 @@ mod a_small_edit_after_a_large_one_lands_in_order_when_the_holder_reads_late;
 mod a_snapshot_counts_an_editors_refused_operation;
 mod a_status_counts_the_local_edits_its_replica_took_since_it_opened;
 mod an_abandoned_lease_is_claimed;
+mod an_edit_a_peers_replacement_dropped_unsent_stays_dropped_after_a_crash;
 mod an_edit_given_again_with_the_submission_that_held_it_lands_once_when_both_reach_the_server;
 mod an_edit_is_lacking_until_the_server_holds_it;
 mod an_edit_kept_across_a_stop_made_before_a_restart_since_is_told_not_sent;
@@ -110,12 +111,15 @@ mod closing_seals_and_releases;
 mod concurrent_edits_converge;
 mod edits_after_an_own_entry_the_journal_holds_are_sent_again_though_the_base_names_no_longer_their_origin;
 mod edits_are_committed_once_they_rest_for_the_quiet_interval;
+mod edits_given_again_with_a_submission_that_holds_other_edits_go_anew;
+mod edits_given_again_with_the_submission_that_held_them_carry_their_announcements;
 mod edits_peer_ops_and_a_close_during_a_pending_merge_wait_behind_it_and_land_on_its_result;
 mod every_replica_stamps_an_operation_with_when_the_server_took_it;
 mod peer_messages_reach_one_peer_or_all_of_them;
 mod peers_keep_what_the_holder_typed_while_its_seal_was_out;
 mod presence_reaches_late_joiners_and_leaves_with_its_client;
 mod two_editors_typing_at_once_keep_their_own_undo_steps;
+mod two_edits_one_submission_held_go_again_as_it_once_both_are_given_again;
 mod two_oversized_edits_in_a_row_land_in_order;
 mod typing_behind_an_unconfirmed_edit_goes_out_as_one_edit;
 mod typing_while_a_seal_waits_for_the_server_shows_at_once;
@@ -206,6 +210,71 @@ impl Root for Counter {
 
 type CounterContent = Document<Counter>;
 
+/// A counter whose every edit announces itself, as a chat's message does.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct AnnouncedCounter(CounterContent);
+
+impl BlockContent for AnnouncedCounter {
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x616e_6e6f_756e_6365_642d_6669_7874_0001);
+
+    fn encode(&self) -> Vec<u8> {
+        self.0.encode()
+    }
+
+    fn decode(bytes: &[u8]) -> Result<Self, be_block_content::ContentError> {
+        CounterContent::decode(bytes).map(Self)
+    }
+}
+
+impl LiveEdit for AnnouncedCounter {
+    type Op = Edit;
+
+    fn apply(&mut self, operation: &Edit) {
+        self.0.apply(operation);
+    }
+
+    fn announcements(&self, _: &Edit) -> Vec<be_block_content::Announcement> {
+        vec![be_block_content::Announcement {
+            key: "counted".to_owned(),
+            text: "counted".to_owned(),
+            several: "counted".to_owned(),
+            mentions: Vec::new(),
+        }]
+    }
+
+    fn absorb_operation(operation: &mut Edit, next: Edit) -> Option<Edit> {
+        CounterContent::absorb_operation(operation, next)
+    }
+
+    fn carry_over(operation: &Edit, before: &Self, after: &Self, client: u64) -> Option<Edit> {
+        CounterContent::carry_over(operation, &before.0, &after.0, client)
+    }
+
+    fn session_state(&self) -> Vec<u8> {
+        LiveEdit::session_state(&self.0)
+    }
+
+    fn adopt_session_state(&mut self, state: &[u8]) -> Result<(), be_block_content::ContentError> {
+        LiveEdit::adopt_session_state(&mut self.0, state)
+    }
+}
+
+impl be_block_content::Merge for AnnouncedCounter {
+    fn merge3(base: &Self, ours: &Self, theirs: &Self) -> be_block_commit::MergeResult<Self> {
+        match CounterContent::merge3(&base.0, &ours.0, &theirs.0) {
+            be_block_commit::MergeResult::Clean(value) => {
+                be_block_commit::MergeResult::Clean(Self(value))
+            }
+            be_block_commit::MergeResult::Conflicted { value, conflicts } => {
+                be_block_commit::MergeResult::Conflicted {
+                    value: Self(value),
+                    conflicts,
+                }
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 struct Prose {
     body: Text,
@@ -289,6 +358,10 @@ fn counter_module() -> Module {
     Module::new(vec![
         Registration::of::<CounterContent>().undo::<CounterContent>(),
     ])
+}
+
+fn announced_counter_module() -> Module {
+    Module::new(vec![Registration::of::<AnnouncedCounter>()])
 }
 
 fn prose_module() -> Module {
