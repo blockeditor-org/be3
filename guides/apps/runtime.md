@@ -5,7 +5,8 @@
 The build stages every `be-app-*` crate beside be-host: its module built for
 `wasm32-wasip1-threads` with the app profile (apps link wgpu with real
 backends, pure guests only with the custom one), its manifest as
-`<app id>.app.json`, its type module and the shared libraries
+`<app id>.app.json`, its type module, its worker modules under
+`workers/<app id>/` (guides/adding_an_app.md, Workers) and the shared libraries
 (guides/app_libraries.md), only as `.wasm`: the host compiles each module as
 it loads. `apps.json` lists the manifests.
 They sit beside the executable natively, in the APK's assets on Android and
@@ -64,20 +65,30 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
     with the memory it defines turned into an import
     (`engine::importing_memory`), so each instance gets a memory of its own
     size; or
-  - a staged app (`Staged`): its entry module and an `Open` that reads it and
-    its libraries, loaded as the host loads that app, with WASI and no
-    display (its gpu calls fail). be-host-runtime's `staged_app` finds one by
-    app id in the staged apps, and its own app starts load through `Staged`
-    too.
+  - a staged app's module (`Staged`): the app's entry point or one of its
+    workers, and an `Open` that reads it and its libraries, loaded as the host
+    loads that app, with WASI and no display (its gpu calls fail).
+    be-host-runtime's `staged_app(app id, module)` is the one place that maps a
+    module's name to a file: the manifest's `entry_point`, or one of its
+    `workers` under `workers/<app id>/`; any other name is refused. Its own app
+    starts load through `Staged` too.
 
   `crates/be-wasm-sandbox-host` serves it to a guest as `be3:sandbox`
   (`crates/be-wasm-sandbox-api`), whose `instance` constructor takes a
-  `source`, `module(module-id)` or `app(app-id)`. Its `Server` is given a
-  `Loader` for apps by id, which the host plugs in (`staged_app`), since
-  finding staged apps lies above be-wasm. It will serve the root guest
-  (step 4) and apps (plans/single_threaded_guests.md); only its tests use it
-  today. The input remapper runs on `be_wasm_host::sandbox`
-  (guides/desktop/login_session.md, Input remaps). The web has no half yet.
+  `source`, `module(module-id)` or `app({app, module})`. Its `Server` is given
+  a `Loader` for staged modules, which the host plugs in (`staged_app`), since
+  finding staged apps lies above be-wasm. be-host-runtime serves every app one
+  (`Wire::with_sandbox`, polled with the app's frames in `Backend::receive`,
+  dropped when the app stops): `Server::for_app` asks the loader only for the
+  app's own id and refuses compiles, so an app spawns only its own modules, its
+  workers (guides/adding_an_app.md, Workers). A spawned module gets no gpu: a
+  worker computes and sends its result back as bytes, which the app uploads
+  itself, so no device is handed to it, and on the web, where each worker
+  would need a device of its own, it needs none. The root guest will be served
+  with `Server::new`, which may spawn any staged app and compile modules
+  (plans/host_as_platform_adapter.md, step 4). The input remapper runs on
+  `be_wasm_host::sandbox` (guides/desktop/login_session.md, Input remaps). The
+  web has no half yet: it refuses an app's sandbox calls as unsupported.
 - **V8's heap.** No guest may declare garbage-collected types (structs,
   arrays) or more than one table, and a table holds at most a million entries
   (`engine::Shape::bounded`): V8 stops delivering a termination once an
@@ -260,7 +271,8 @@ step it for nothing.
 A call that changes nothing drawn costs no frame, and a frame runs only the
 instances something touched, so an idle instance costs nothing. Work off the
 frame (the PDF editor renders pages on its own thread) asks for a frame
-through `request_repaint` or a `be_sdk_beui::native::Waker`.
+through `request_repaint` or a `be_sdk_beui::native::Waker`; a worker's answer
+(guides/adding_an_app.md, Workers) wakes the host, which steps the app with it.
 
 ## Headless
 

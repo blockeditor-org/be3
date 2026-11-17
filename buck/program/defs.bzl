@@ -1,5 +1,5 @@
 load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "keep_profile")
-load("@root//buck/wasm:libraries.bzl", "WasmLibrariesInfo")
+load("@root//buck/wasm:libraries.bzl", "AppWorkersInfo", "WasmLibrariesInfo")
 
 # An app's read-only data, which the app stages beside it under
 # data/<app id>/ and an app reads through the host (ReadData): each file at
@@ -97,7 +97,8 @@ def _lay_out(ctx: AnalysisContext, layout: list, arguments: list, beside: list, 
     ctx.actions.assembled_dir(packed, contents = packed_contents)
 
 # The app as it runs (crates/be-tool-buck's stage): the executable under cargo's name, and
-# beside it every app's module, every library in their closures
+# beside it every app's module, its worker modules under workers/<app id>/, every library in
+# their closures
 # (guides/app_libraries.md) and the type modules. With no binary it
 # is the apps alone. `index` writes the apps.json the app finds the
 # apps through. The web bundle is this rule too: `bindgen` runs
@@ -160,6 +161,9 @@ def _program_impl(ctx: AnalysisContext) -> list[Provider]:
         if module:
             wasm = module[DefaultInfo].default_outputs[0]
             add(cmd_args(manifest, wasm.basename, delimiter = "="), [manifest, wasm])
+            workers = module.get(AppWorkersInfo)
+            for worker in workers.modules if workers else []:
+                add(cmd_args("--worker=", worker, delimiter = ""), [worker])
         else:
             add(cmd_args(manifest, "", delimiter = "="), [manifest])
         if files:

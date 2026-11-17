@@ -2,5 +2,6 @@ use super::*;
 
 mod a_host_component_runs_on_one_type_and_shares_no_id_with_an_editor;
 mod a_manifest_grants_only_extensions_the_host_knows;
+mod a_manifest_names_its_workers_by_plain_file_names;
 mod every_editor_manifest_parses;
 mod manifest_validation;

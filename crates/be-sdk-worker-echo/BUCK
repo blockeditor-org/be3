@@ -1,0 +1,15 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_package")
+load("@root//buck/wasm:defs.bzl", "worker")
+
+cargo_package()
+
+# The smallest worker (be_sdk_worker::worker!), for be-wasm-sandbox-host's
+# tests: the library, whose constants they read, and :module, the worker as an
+# app stages it, linked against the base library, which they spawn as the echo
+# app's worker.
+cargo_library()
+
+worker(
+    libraries = ["//crates/be-sdk-library-base:module"],
+    module = "echo-worker",
+)

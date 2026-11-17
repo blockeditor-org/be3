@@ -37,6 +37,7 @@ fn manifest_validation() {
         extensions: Vec::new(),
         block_agents: false,
         hosts: Vec::new(),
+        workers: Vec::new(),
     };
     assert_eq!(manifest.validate(), Ok(()));
 

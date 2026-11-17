@@ -311,6 +311,15 @@ hosted block's host runs (plans/hosted_blocks.md), in be-host or headless in
 `be` (plans/headless_apps.md); members, the channel and the lease are
 hosted_blocks' to add.
 
+## Workers
+
+An app's workers (guides/adding_an_app.md, Workers) are not an `EditorHost`
+call: `be_sdk::worker::Worker` speaks the sandbox API (`be3:sandbox`,
+`crates/be-wasm-sandbox-api`) on the app's connection, which
+`be-host-runtime/src/wire.rs` hands to the app's
+`be_wasm_sandbox_host::Server` before the `be3:app` calls. The host keeps the
+rule: an app spawns only its own app's modules and compiles none.
+
 ## Extending the protocol
 
 If an editor needs something the host has, add it to the `be3:app` world in

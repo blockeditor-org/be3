@@ -1,7 +1,8 @@
 package be3:sandbox@0.1.0;
 
 /// Instances the host runs for a guest, of modules it compiled from bytes or
-/// of staged apps (plans/host_as_platform_adapter.md, The sandbox API).
+/// of staged apps (plans/host_as_platform_adapter.md, The sandbox API). Apps
+/// are served it too, to start their workers (plans/single_threaded_guests.md).
 /// Natively each instance has a thread and an isolate of its own, and talks to
 /// its spawner by frames.
 interface sandbox {
@@ -19,6 +20,15 @@ interface sandbox {
     /// A staged app, by the id its manifest gives it, such as `be3.checklist`.
     type app-id = string;
 
+    /// A module a staged app stages: the manifest's `entry_point`, which
+    /// starts the app itself, or one of its `workers`, each started at its
+    /// own `app_start` (guides/adding_an_app.md, Workers). The host maps the
+    /// two names to a file; any other name, such as a path, is refused.
+    record staged-module {
+        app: app-id,
+        module: string,
+    }
+
     /// What an instance runs.
     variant source {
         /// A module this guest compiled. The instance is a pure guest
@@ -26,11 +36,13 @@ interface sandbox {
         /// transport, and whatever else it may do, its spawner serves it over
         /// its frames.
         module(module-id),
-        /// A staged app's module, linked against the libraries its manifest
-        /// names and given WASI, as the host runs that app, with no display:
-        /// it has no gpu. Its frames are the app protocol, which the spawner
-        /// answers as the app's host.
-        app(app-id),
+        /// A staged app's module, linked against the libraries it names and
+        /// given WASI, as the host runs that app, with no display: it has no
+        /// gpu. Its frames are whatever the module speaks: the app protocol
+        /// for the entry point, which the spawner answers as the app's host,
+        /// or a worker's own messages. An app is served the sandbox too, and
+        /// may spawn only its own app's modules.
+        app(staged-module),
     }
 
     /// How an instance runs.

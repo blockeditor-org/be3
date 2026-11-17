@@ -1,7 +1,8 @@
 //! Lays out a program as it runs (buck/program/defs.bzl's program): the
 //! executable under cargo's name, each --file beside it as it is, and each
 //! app's manifest renamed <id>.app.json with the module it names, and --data,
-//! the app's read-only data (app_data), under data/<id>/.
+//! the app's read-only data (app_data), under data/<id>/, and --worker, each of
+//! the worker modules its manifest names under "workers", under workers/<id>/.
 //! Each --library is a library the modules are linked against
 //! (guides/app_libraries.md), staged as lib-<its SHA-256>.wasm, which is the
 //! name a module finds it by. --index
@@ -13,8 +14,9 @@
 //! executable, program-files.txt lists every file staged, which is what
 //! --install-login-session installs.
 //!
-//! The arguments are read in order: a --data or --app-type belongs to the app
-//! named just before it. A MANIFEST= with no module stages the manifest alone, for
+//! The arguments are read in order: a --data, --app-type or --worker belongs to
+//! the app named just before it, and an app staged with its module is staged
+//! with every worker its manifest names. A MANIFEST= with no module stages the manifest alone, for
 //! a program that reads the app's manifest and type module but never runs it (`be`
 //! for the apps it hosts no component of).
 //!
@@ -34,7 +36,7 @@ use std::process::ExitCode;
 use sha2::{Digest, Sha256};
 
 const USAGE: &str = "usage: stage OUT LAYOUT [--executable=EXECUTABLE=NAME] [--file=FILE]... [--tree=DIR]... \
-[--index] [--library=MODULE]... (MANIFEST=[MODULE] [--data=DIR] [--app-type=MODULE])...";
+[--index] [--library=MODULE]... (MANIFEST=[MODULE] [--data=DIR] [--app-type=MODULE] [--worker=MODULE]...)...";
 
 /// What one path in the program is.
 #[derive(Debug, PartialEq, Eq)]
@@ -72,6 +74,9 @@ pub fn layout(arguments: &[String]) -> Result<Layout, String> {
     let mut manifests = Vec::new();
     // The app the next --data or --app-type belongs to: its manifest and id.
     let mut app: Option<(String, serde_json::Value, String)> = None;
+    // The workers the app named just before must still be staged with: its manifest's, if it was
+    // staged with its module.
+    let mut unstaged: Vec<String> = Vec::new();
     for (position, argument) in arguments.iter().enumerate() {
         let input = |part: usize| Entry::Input {
             argument: position,
@@ -115,6 +120,19 @@ pub fn layout(arguments: &[String]) -> Result<Layout, String> {
                 );
                 layout.insert(named, input(0));
             }
+            "--worker" => {
+                let (path, _, id) = app
+                    .as_ref()
+                    .ok_or_else(|| format!("{argument} follows no app"))?;
+                let name = file_name(value)?;
+                let Some(at) = unstaged.iter().position(|worker| *worker == name) else {
+                    return Err(format!(
+                        "{path} names no worker {name} it is still to be staged with"
+                    ));
+                };
+                unstaged.remove(at);
+                layout.insert(format!("workers/{id}/{name}"), input(0));
+            }
             "--data" => {
                 let (_, _, id) = app
                     .as_ref()
@@ -129,6 +147,7 @@ pub fn layout(arguments: &[String]) -> Result<Layout, String> {
                 let (path, module) = argument
                     .split_once('=')
                     .ok_or_else(|| format!("{argument} is not MANIFEST=MODULE\n{USAGE}"))?;
+                staged_with_workers(app.as_ref(), &unstaged)?;
                 let manifest = crate::json(path)?;
                 let id = string(path, &manifest, "id")?;
                 let entry_point = string(path, &manifest, "entry_point")?;
@@ -142,11 +161,13 @@ pub fn layout(arguments: &[String]) -> Result<Layout, String> {
                 manifests.push(name);
                 if !module.is_empty() {
                     layout.insert(entry_point, input(1));
+                    unstaged = workers(path, &manifest)?;
                 }
                 app = Some((path.to_owned(), manifest, id));
             }
         }
     }
+    staged_with_workers(app.as_ref(), &unstaged)?;
     if index {
         layout.insert(
             "apps.json".into(),
@@ -253,6 +274,34 @@ fn string(path: &str, manifest: &serde_json::Value, key: &str) -> Result<String,
         .as_str()
         .map(str::to_owned)
         .ok_or_else(|| format!("{path} has no \"{key}\""))
+}
+
+/// The worker modules the manifest names under "workers".
+fn workers(path: &str, manifest: &serde_json::Value) -> Result<Vec<String>, String> {
+    manifest["workers"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|worker| {
+            worker
+                .as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| format!("{path} names a worker that is not a string"))
+        })
+        .collect()
+}
+
+/// Fails if the app named last was staged with its module but without a worker its manifest names.
+fn staged_with_workers(
+    app: Option<&(String, serde_json::Value, String)>,
+    unstaged: &[String],
+) -> Result<(), String> {
+    match (app, unstaged) {
+        (Some((path, _, _)), [worker, ..]) => Err(format!(
+            "{path} names {worker} as a worker, but it was staged without it"
+        )),
+        _ => Ok(()),
+    }
 }
 
 /// The module every block type of the manifest names.

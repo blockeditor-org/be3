@@ -244,12 +244,14 @@ A new WIT interface the host serves to the root guest, and later to apps
 
 Built natively (steps 1 and 2): the WIT is `be3:sandbox` (`crates/be-wasm-sandbox-api`), where
 `spawn` is the `instance` resource's constructor, taking a source, `module(module-id)` or
-`app(app-id)`, and the channel its `send` and `next`; `be_wasm_host::sandbox` does the work and
-`crates/be-wasm-sandbox-host` serves it to a guest (guides/apps/runtime.md, Backends). A compile
-turns the memory a module defines into an import, so one compile serves instances given different
-memory limits. A staged app is found by a loader the host gives the `Server`
-(be-host-runtime's `staged_app`), and runs with its libraries and WASI but no display. The web's
-half is not built: it lands with the first guest on the web that spawns (step 4, or
+`app({app, module})`, and the channel its `send` and `next`; `be_wasm_host::sandbox` does the work
+and `crates/be-wasm-sandbox-host` serves it to a guest (guides/apps/runtime.md, Backends). A
+compile turns the memory a module defines into an import, so one compile serves instances given
+different memory limits. A staged app's module, its entry point or one of its workers, is found by
+a loader the host gives the `Server` (be-host-runtime's `staged_app`), and runs with its libraries
+and WASI but no display. Every app is served one already, for its workers, which spawns only its
+own app's modules and compiles none (plans/single_threaded_guests.md, step 1). The web's half is
+not built: it lands with the first guest on the web that spawns (step 4, or
 plans/single_threaded_guests.md).
 
 An app's platform calls (clipboard, drag and drop, file dialogs, opening URLs) are served by the

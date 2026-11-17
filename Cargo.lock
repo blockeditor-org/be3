@@ -1674,6 +1674,8 @@ dependencies = [
  "be-type-text",
  "be-wasm-guest-host",
  "be-wasm-host",
+ "be-wasm-sandbox-api",
+ "be-wasm-sandbox-host",
  "beui-documents",
  "beui-font-freetype",
  "beui-layer-drive",
@@ -2030,6 +2032,7 @@ dependencies = [
  "be-sdk-manifest",
  "be-sdk-type-guest",
  "be-sdk-ui",
+ "be-sdk-worker",
  "be-type-checklist",
  "be-wasm-gpu-guest",
  "be-wasm-guest-abi",
@@ -2314,6 +2317,21 @@ version = "0.1.0"
 dependencies = [
  "be-lib-geometry",
  "be-sdk-api",
+]
+
+[[package]]
+name = "be-sdk-worker"
+version = "0.1.0"
+dependencies = [
+ "be-wasm-guest-abi",
+ "be-wasm-sandbox-api",
+]
+
+[[package]]
+name = "be-sdk-worker-echo"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-worker",
 ]
 
 [[package]]
@@ -3098,6 +3116,8 @@ dependencies = [
 name = "be-wasm-sandbox-host"
 version = "0.1.0"
 dependencies = [
+ "be-sdk-worker",
+ "be-sdk-worker-echo",
  "be-wasm-dylink",
  "be-wasm-guest-echo",
  "be-wasm-guest-host",
