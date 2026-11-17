@@ -317,11 +317,12 @@ hosted_blocks' to add.
 An app's workers (guides/adding_an_app.md, Workers) are not an `EditorHost`
 call: `be_sdk::worker::Worker` speaks the sandbox API (`be3:sandbox`,
 `crates/be-wasm-sandbox-api`) on the app's connection, which
-`be-sdk-app-host/src/wire.rs` hands to the app's
-`be_wasm_sandbox_host::Server` before the `be3:app` calls. The host keeps the
-rule: an app spawns only its own workers and compiles nothing. An editor test's
-`BeuiTest` answers the same calls itself, running each worker the test serves
-in its own instance (`crates/be-sdk-test/src/workers.rs`).
+`be-sdk-app-host/src/wire.rs` hands to the app's `Sandbox` before the `be3:app`
+calls: be-host-runtime's `AppSandbox` over `be_wasm_sandbox_host::Server`. The
+host keeps the rule: an app spawns only its own workers and compiles nothing. An
+editor test's `BeuiTest` runs the same wire with a sandbox of its own, running
+each worker the test serves in its own instance
+(`crates/be-sdk-test/src/workers.rs`).
 
 ## Extending the protocol
 
