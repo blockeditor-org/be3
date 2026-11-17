@@ -48,7 +48,7 @@ fn a_layout_that_lands_before_the_present_of_its_size_shows_the_last_frame_at_it
     let blit = drawing.blits_in(laid).remove(0);
 
     let layer = blit
-        .screen_layer(&asked, Some((300, 200)), 0)
+        .screen_layer(&asked, Some((300, 200)), 0, 0)
         .expect("the texture on the surface shows");
     assert_eq!(
         (layer.surface, layer.bounds(), layer.clip),
@@ -64,7 +64,7 @@ fn a_layout_that_lands_before_the_present_of_its_size_shows_the_last_frame_at_it
          size the layout asked for"
     );
     let hole = blit
-        .screen_layer(&asked, None, 0)
+        .screen_layer(&asked, None, 0, 0)
         .expect("the web, which has no textures, still punches the hole for its canvas");
     assert_eq!(
         hole.bounds(),

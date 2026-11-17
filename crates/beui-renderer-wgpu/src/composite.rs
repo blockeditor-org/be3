@@ -1,10 +1,10 @@
 //! A composited window (beui_draw::compose; plans/host_as_platform_adapter.md, The layer list):
 //! the window's UI is rendered into textures of its own, the root's surfaces `Surface::Root(0)`
 //! and, while an anchored view shows, `Surface::Root(1)` for what is painted after the first
-//! one, as the web stacks `#layers` over the host's canvas. The window is then drawn from its
-//! layer list in a pass of its own: the layers drawings placed before that anchored view, which
-//! show through the holes they punched in the lower root, the lower root, the layers placed
-//! from the anchored view on, and the upper root.
+//! one, as the web stacks `#layers` over the host's canvas. Screens and program windows are
+//! drawn into the roots in place, in the UI's paint order (`Placed::inline`), and listed for
+//! damage and input. The window is then drawn from its layer list in a pass of its own: the
+//! lower root, the anchored views, and the upper root.
 
 use be_lib_layers::{Affine, Layer, LayerId, LayerInput, Surface, WindowLayers};
 use beui_draw::compose::Placed;
@@ -19,7 +19,12 @@ pub(crate) struct Root {
 }
 
 impl Root {
-    fn new(device: &wgpu::Device, pipelines: &Pipelines, format: wgpu::TextureFormat, size: (u32, u32)) -> Self {
+    fn new(
+        device: &wgpu::Device,
+        pipelines: &Pipelines,
+        format: wgpu::TextureFormat,
+        size: (u32, u32),
+    ) -> Self {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("beui root surface"),
             size: wgpu::Extent3d {
@@ -46,6 +51,26 @@ impl Root {
     }
 }
 
+/// What a drawing placed when it was last prepared, where it was.
+pub(crate) struct Known {
+    /// Held so the identity it is kept under is never another drawing's.
+    #[allow(dead_code)]
+    pub(crate) drawing: beui_core::drawing::Drawing,
+    pub(crate) at: beui_draw::DrawAt,
+    pub(crate) placed: Vec<Placed>,
+}
+
+impl Known {
+    /// A drawing shown in several places is known in each.
+    pub(crate) fn key(
+        drawing: &beui_core::drawing::Drawing,
+        at: &beui_draw::DrawAt,
+    ) -> (usize, u64, [u32; 4]) {
+        let (draw, revision) = drawing.identity();
+        (draw, revision, at.rect.map(f32::to_bits))
+    }
+}
+
 /// What a composited renderer keeps from frame to frame.
 pub(crate) struct Composition {
     pipelines: Pipelines,
@@ -66,6 +91,12 @@ pub(crate) struct Composition {
     list: WindowLayers,
     previous: WindowLayers,
     shown: be_lib_stable_hash::HashMap<LayerId, Placed>,
+    /// What each drawing the window showed last placed, so one that is where it was need not
+    /// be prepared again (`Renderer::place`).
+    pub(crate) known: be_lib_stable_hash::HashMap<(usize, u64, [u32; 4]), Known>,
+    /// The drawings (by `Drawing::identity`'s first half) that placed a composited layer, which
+    /// the next frame visits whether or not they are damaged.
+    pub(crate) lifted: be_lib_stable_hash::HashSet<usize>,
     /// Where the window is drawn again this frame, in the target's pixels (`None`: whole).
     pub(crate) composed: Option<Vec<[u32; 4]>>,
     background: Color32,
@@ -112,7 +143,12 @@ fn write_pixel(queue: &wgpu::Queue, texture: &wgpu::Texture, rgba: [u8; 4]) {
 
 /// The layer that shows root surface `index`, `size` pixels at `pixels_per_point`, whose top
 /// left is the window's `origin` (in pixels): over the whole target.
-pub(crate) fn root_layer(index: u32, size: (u32, u32), pixels_per_point: f32, origin: Vec2) -> Layer {
+pub(crate) fn root_layer(
+    index: u32,
+    size: (u32, u32),
+    pixels_per_point: f32,
+    origin: Vec2,
+) -> Layer {
     let per = pixels_per_point.max(f32::EPSILON).recip();
     Layer {
         id: LayerId(u64::from(index)),
@@ -153,6 +189,8 @@ impl Composition {
             list: WindowLayers::default(),
             previous: WindowLayers::default(),
             shown: be_lib_stable_hash::HashMap::default(),
+            known: be_lib_stable_hash::HashMap::default(),
+            lifted: be_lib_stable_hash::HashSet::default(),
             composed: None,
             background: Color32::TRANSPARENT,
             pixels_per_point: 1.0,
@@ -235,8 +273,8 @@ impl Composition {
             self.previous
                 .damage(&self.list, |layer| match layer.surface {
                     Surface::Root(_) => Some(roots.clone()),
-                    // A drawing that shows a surface is painted again, with its hole, when what
-                    // it shows changes, so a surface's own damage is the roots'.
+                    // The UI damages a drawing whose surface changed, as it did when every
+                    // surface was drawn in place, so a surface's own damage is the roots'.
                     _ => Some(Vec::new()),
                 })
                 .into_iter()
@@ -260,10 +298,11 @@ impl Composition {
                 })
                 .collect::<Vec<_>>()
         });
-        // Each root reports the frame's damage, so it comes once per root.
+        // Each root reports the frame's damage, and a layer's old and new bounds often
+        // overlap: rects that overlap are drawn as one, so nothing is drawn twice and the
+        // display hears of each part once.
         if let Some(composed) = &mut self.composed {
-            composed.sort_unstable();
-            composed.dedup();
+            *composed = merged(std::mem::take(composed));
         }
     }
 
@@ -299,7 +338,7 @@ impl Composition {
                     Surface::Root(0) => Some((&self.lower.bound, quad)),
                     Surface::Root(_) => Some((&self.upper.as_ref()?.bound, quad)),
                     _ => {
-                        let placed = self.shown.get(&layer.id)?;
+                        let placed = self.shown.get(&layer.id).filter(|placed| !placed.inline)?;
                         Some((
                             &placed.texture,
                             Quad {
@@ -366,4 +405,35 @@ impl Composition {
     pub(crate) fn roots(&self) -> impl Iterator<Item = &wgpu::Texture> {
         std::iter::once(&self.lower.texture).chain(self.upper.as_ref().map(|root| &root.texture))
     }
+}
+
+/// `rects` (`[left, top, width, height]`), with any that overlap merged into their bounds until
+/// none do.
+fn merged(mut rects: Vec<[u32; 4]>) -> Vec<[u32; 4]> {
+    let overlap = |[x0, y0, w0, h0]: [u32; 4], [x1, y1, w1, h1]: [u32; 4]| {
+        x0 < x1 + w1 && x1 < x0 + w0 && y0 < y1 + h1 && y1 < y0 + h0
+    };
+    let union = |[x0, y0, w0, h0]: [u32; 4], [x1, y1, w1, h1]: [u32; 4]| {
+        let (left, top) = (x0.min(x1), y0.min(y1));
+        let (right, bottom) = ((x0 + w0).max(x1 + w1), (y0 + h0).max(y1 + h1));
+        [left, top, right - left, bottom - top]
+    };
+    let mut merging = true;
+    while merging {
+        merging = false;
+        let mut index = 0;
+        while index < rects.len() {
+            let found = (index + 1..rects.len()).find(|other| overlap(rects[index], rects[*other]));
+            match found {
+                Some(other) => {
+                    let taken = rects.swap_remove(other);
+                    rects[index] = union(rects[index], taken);
+                    merging = true;
+                }
+                None => index += 1,
+            }
+        }
+    }
+    rects.sort_unstable();
+    rects
 }

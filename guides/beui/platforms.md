@@ -233,9 +233,9 @@ on a device a renderer over the same `Resources`, as be-sdk-beui-platform does
 per app module, beui-layer-space for its panels and beui-platform-drm for its
 displays. `Renderer::capture` reads the presented frame back for a screenshot. A renderer
 `set_window` marks (present.rs's, each DRM display's) is composited while the program turns
-`beui_draw::compose` on, as be-host does: its UI goes into root textures and the window is
-drawn from its layer list (guides/apps/runtime.md, The layer list), and `Renderer::scissors`
-is then where that pass drew.
+`beui_draw::compose` on, as be-host does: its UI goes into root textures, with surfaces
+drawings show in place, and the window is drawn from its layer list (guides/apps/runtime.md,
+The layer list); `Renderer::scissors` is then where that pass drew.
 
 ## Per platform
 

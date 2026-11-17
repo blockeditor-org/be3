@@ -1,8 +1,9 @@
 //! Composited windows (plans/host_as_platform_adapter.md, The layer list): a program that turns
 //! it on (`composite_windows`) has each window's UI rendered into textures of its own, the root's
-//! surfaces, and the window drawn from its layer list in a pass of its own, with the surfaces
-//! its drawings show (`Draw::layers`) as layers between them. The renderer (beui-renderer-wgpu)
-//! does both.
+//! surfaces, and the window drawn from its layer list in a pass of its own. Drawings list the
+//! surfaces they show (`Draw::layers`): screens and program windows are drawn in place in the
+//! UI's paint order (`Placed::inline`), and only an anchored view, which lies over the UI, is
+//! composited between the roots. The renderer (beui-renderer-wgpu) does both.
 
 use std::cell::Cell;
 
@@ -20,6 +21,12 @@ pub struct Placed {
     pub opaque: bool,
     /// Whether the texture holds sRGB-encoded values in a linear format.
     pub srgb_encoded: bool,
+    /// Whether the drawing draws the surface into the root it paints in, in its place in the
+    /// UI's paint order, so the layer is listed for damage and input but not drawn again.
+    /// Screens and program windows are: they blend over the UI beneath them, inside its groups
+    /// and filters. Only an anchored view, which lies over the UI, is composited between the
+    /// roots.
+    pub inline: bool,
 }
 
 thread_local! {
@@ -90,8 +97,8 @@ pub fn quad(layer: &Layer, pixels_per_point: f32, origin: [f32; 2]) -> crate::te
 
 /// The layer that shows what `quad` draws of a texture of `size` pixels, in a target at
 /// `pixels_per_point`: the inverse of `quad`, for a drawing that places a surface it would
-/// otherwise draw as a texture quad. An upright quad's clip is kept to its surface's pixels; a
-/// turned one is shown whole.
+/// otherwise draw as a texture quad. The quad's clip is kept as the bounds, in the surface's
+/// pixels, of what it lets through, which is exact for an upright quad.
 pub fn layer_of(
     quad: &crate::texture_quad::Quad,
     size: (u32, u32),
@@ -119,26 +126,37 @@ pub fn layer_of(
     // The texture's pixel at the quad's top left, then back to the texture's origin.
     let corner = center + turn(-(right - left) * 0.5, -(bottom - top) * 0.5);
     let origin = corner - across * (u0 * width) - down * (v0 * height);
-    let transform = Affine::from_axes(across * per, down * per, pos2(origin.x * per, origin.y * per));
-    let mut clip = Rect::from_min_max(pos2(u0 * width, v0 * height), pos2(u1 * width, v1 * height));
-    if quad.rotation == 0.0 {
-        let [x0, y0, x1, y1] = quad.clip;
-        let to_pixels = |x: f32, y: f32| {
-            pos2(
-                u0 * width + (x - left) / (right - left) * shown,
-                v0 * height + (y - top) / (bottom - top) * shown_down,
-            )
-        };
-        let kept = Rect::from_min_max(to_pixels(x0.max(-1.0e9), y0.max(-1.0e9)), to_pixels(x1.min(1.0e9), y1.min(1.0e9)));
-        clip = clip.intersect(kept);
-    }
+    let transform = Affine::from_axes(
+        across * per,
+        down * per,
+        pos2(origin.x * per, origin.y * per),
+    );
+    // The part of the texture the quad shows, kept to what its clip lets through: the clip's
+    // corners taken back to the texture's pixels, which bound it exactly for an upright quad.
+    let shown = Rect::from_min_max(pos2(u0 * width, v0 * height), pos2(u1 * width, v1 * height));
+    let [x0, y0, x1, y1] = quad.clip.map(|value| value.clamp(-1.0e9, 1.0e9));
+    let to_pixels = transform.inverse()?;
+    let corners = [pos2(x0, y0), pos2(x1, y0), pos2(x1, y1), pos2(x0, y1)]
+        .map(|corner| to_pixels.apply(pos2(corner.x * per, corner.y * per)));
+    let kept = corners[1..].iter().fold(
+        Rect::from_min_max(corners[0], corners[0]),
+        |kept, corner| kept.union(Rect::from_min_max(*corner, *corner)),
+    );
+    let clip = shown.intersect(kept);
+    // The surface's rounding, in the window's points: it rounds the corners of the clip that
+    // meet the surface's edges, so the quad's largest radius stands for all of them.
+    let corner_radius = quad
+        .corner_radii
+        .iter()
+        .fold(0.0_f32, |largest, radius| largest.max(*radius))
+        * per;
     clip.is_positive().then(|| Layer {
         id,
         surface,
         size,
         transform,
         clip,
-        corner_radius: 0.0,
+        corner_radius,
         opacity: quad.opacity.clamp(0.0, 1.0),
         shown: true,
         input: LayerInput::default(),

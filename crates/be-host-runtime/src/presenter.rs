@@ -353,11 +353,12 @@ impl Blit {
         &self,
         placement: &ScreenPlacement,
         texture: Option<(u32, u32)>,
+        drawing: u64,
         piece: usize,
     ) -> Option<Layer> {
         let painted = self.shared.borrow().holds(placement, texture)?;
         crate::layers::screen(
-            crate::layers::id(self.surface, self.screen.0, false, piece),
+            crate::layers::id(self.surface, self.screen.0, false, drawing, piece),
             Surface::Screen {
                 instance: self.surface,
                 surface: placement.surface,
@@ -372,6 +373,7 @@ impl Blit {
         &self,
         anchored: AnchoredSource,
         size: (u32, u32),
+        drawing: u64,
         piece: usize,
     ) -> Option<Layer> {
         let (width, height) = (size.0 as f32, size.1 as f32);
@@ -389,7 +391,7 @@ impl Blit {
             ),
         );
         crate::layers::screen(
-            crate::layers::id(self.surface, u64::from(anchored.surface), true, piece),
+            crate::layers::id(self.surface, u64::from(anchored.surface), true, drawing, piece),
             Surface::Anchored {
                 instance: self.surface,
                 surface: anchored.surface,
@@ -578,9 +580,11 @@ pub(super) fn damaged_pieces(
 }
 
 pub struct AppDrawing {
+    /// The drawing's own id, which its layers' ids carry (`layers::id`).
+    id: u64,
     blits: RefCell<Vec<Blit>>,
-    /// What it draws: its surfaces, or where its renderer composites, the holes its screens
-    /// show through.
+    /// The surfaces it draws: all of them, or where its renderer composites, all but the
+    /// anchored views.
     quads: texture_quad::Quads,
     /// The layers it placed at its last prepare, where its renderer composites.
     placed: RefCell<Vec<beui::native::compose::Placed>>,
@@ -589,6 +593,7 @@ pub struct AppDrawing {
 impl AppDrawing {
     pub fn new(blits: Vec<Blit>) -> Self {
         Self {
+            id: next_drawing(),
             blits: RefCell::new(blits),
             quads: texture_quad::Quads::default(),
             placed: RefCell::new(Vec::new()),
@@ -603,8 +608,6 @@ pub struct Piece {
 }
 
 pub struct ViewDrawing {
-    #[cfg(target_arch = "wasm32")]
-    id: u64,
     template: Blit,
     pieces: Pieces,
     held: Option<Rect>,
@@ -617,8 +620,6 @@ pub type Pieces = Rc<RefCell<Vec<Piece>>>;
 impl ViewDrawing {
     pub(super) fn new(template: Blit, pieces: Pieces, held: Option<Rect>, rotation: f32) -> Self {
         Self {
-            #[cfg(target_arch = "wasm32")]
-            id: next_drawing(),
             template,
             pieces,
             held,
@@ -657,8 +658,6 @@ impl ViewDrawing {
 pub type AnchoredBlits = Rc<RefCell<Vec<Blit>>>;
 
 pub struct AnchoredDrawing {
-    #[cfg(target_arch = "wasm32")]
-    id: u64,
     blits: AnchoredBlits,
     drawing: AppDrawing,
 }
@@ -666,8 +665,6 @@ pub struct AnchoredDrawing {
 impl AnchoredDrawing {
     pub(super) fn new(blits: AnchoredBlits) -> Self {
         Self {
-            #[cfg(target_arch = "wasm32")]
-            id: next_drawing(),
             blits,
             drawing: AppDrawing::new(Vec::new()),
         }
@@ -677,7 +674,7 @@ impl AnchoredDrawing {
 #[cfg(target_arch = "wasm32")]
 impl Drop for AnchoredDrawing {
     fn drop(&mut self) {
-        SHOWN.with(|shown| shown.borrow_mut().remove(&self.id));
+        SHOWN.with(|shown| shown.borrow_mut().remove(&self.drawing.id));
         be_host_base::host::wake();
     }
 }
@@ -709,7 +706,7 @@ impl beui::native::Draw for AnchoredDrawing {
             })
             .collect();
         #[cfg(target_arch = "wasm32")]
-        record_shown(self.id, &blits);
+        record_shown(self.drawing.id, &blits);
         *self.drawing.blits.borrow_mut() = blits;
         self.drawing.prepare(device, queue, encoder, at);
     }
@@ -782,7 +779,6 @@ thread_local! {
     static PREPARED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
-#[cfg(target_arch = "wasm32")]
 fn next_drawing() -> u64 {
     thread_local! {
         static NEXT: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
@@ -793,15 +789,17 @@ fn next_drawing() -> u64 {
     })
 }
 
+/// The blits the frame's drawings showed, in the order they were prepared, each with the id of
+/// the drawing that showed it.
 #[cfg(target_arch = "wasm32")]
-pub fn shown() -> Vec<Blit> {
+pub fn shown() -> Vec<(u64, Blit)> {
     SHOWN.with(|shown| {
         let shown = shown.borrow();
-        let mut ordered: Vec<&(u64, Vec<Blit>)> = shown.values().collect();
-        ordered.sort_by_key(|(order, _)| *order);
+        let mut ordered: Vec<(&u64, &(u64, Vec<Blit>))> = shown.iter().collect();
+        ordered.sort_by_key(|(_, (order, _))| *order);
         ordered
             .into_iter()
-            .flat_map(|(_, blits)| blits.iter().cloned())
+            .flat_map(|(id, (_, blits))| blits.iter().map(|blit| (*id, blit.clone())))
             .collect()
     })
 }
@@ -828,7 +826,7 @@ fn record_shown(id: u64, blits: &[Blit]) {
 #[cfg(target_arch = "wasm32")]
 impl Drop for ViewDrawing {
     fn drop(&mut self) {
-        SHOWN.with(|shown| shown.borrow_mut().remove(&self.id));
+        SHOWN.with(|shown| shown.borrow_mut().remove(&self.drawing.id));
         be_host_base::host::wake();
     }
 }
@@ -843,7 +841,7 @@ impl beui::native::Draw for ViewDrawing {
     ) {
         let blits = self.blits(&at);
         #[cfg(target_arch = "wasm32")]
-        record_shown(self.id, &blits);
+        record_shown(self.drawing.id, &blits);
         *self.drawing.blits.borrow_mut() = blits;
         self.drawing.prepare(device, queue, encoder, at);
     }
@@ -973,15 +971,16 @@ impl beui::native::Draw for AppDrawing {
                     Some(anchored) => {
                         // The index is taken whether or not the surface has a texture yet, as
                         // the web takes it (layers::frame), so a piece has the same id on both.
-                        let piece = pieces.next(blit.surface, u64::from(anchored.surface), true);
+                        let piece =
+                            pieces.next(blit.surface, u64::from(anchored.surface), true, self.id);
                         platform
                             .size(blit.surface, anchored.surface)
-                            .and_then(|size| blit.anchored_layer(anchored, size, piece))
+                            .and_then(|size| blit.anchored_layer(anchored, size, self.id, piece))
                     }
                     None => region.and_then(|placement| {
                         let texture = platform.size(blit.surface, placement.surface);
-                        let piece = pieces.next(blit.surface, blit.screen.0, false);
-                        blit.screen_layer(&placement, texture, piece)
+                        let piece = pieces.next(blit.surface, blit.screen.0, false, self.id);
+                        blit.screen_layer(&placement, texture, self.id, piece)
                     }),
                 };
                 blit.status.set(match failure {
@@ -1001,48 +1000,39 @@ impl beui::native::Draw for AppDrawing {
                 }
             }
             let platform = &*platform;
-            if at.composited
-                && let Some(hole) = &presenter.hole
-            {
-                // The renderer composites the layers; the drawing punches the holes its screens
-                // show through in the host's own surface. An anchored view lies over it.
-                let mut layers = self.placed.borrow_mut();
-                let mut holes = Vec::new();
-                for (slot, surface, layer) in placed {
-                    let Some(texture) = platform.texture(slot, surface) else {
-                        continue;
-                    };
-                    if matches!(layer.surface, Surface::Screen { .. }) {
-                        holes.push(texture_quad::Quad {
-                            opacity: 1.0,
-                            ..crate::layers::texture_quad(&layer, &at)
-                        });
-                    }
+            // A screen is drawn here, in the host UI's paint order, blending over what the
+            // host painted beneath it and inside its groups and filters. Where the renderer
+            // composites, every layer is also listed for damage and input, and an anchored
+            // view, which lies over the host's UI, is composited between the roots instead.
+            let mut layers = self.placed.borrow_mut();
+            let mut drawn = Vec::new();
+            for (slot, surface, layer) in placed {
+                let Some(texture) = platform.texture(slot, surface) else {
+                    continue;
+                };
+                let inline = !matches!(layer.surface, Surface::Anchored { .. });
+                if inline || !at.composited {
+                    drawn.push((
+                        texture,
+                        platform.shown(crate::layers::texture_quad(&layer, &at)),
+                    ));
+                }
+                if at.composited {
                     layers.push(beui::native::compose::Placed {
                         layer,
                         texture: texture.clone(),
                         opaque: false,
                         srgb_encoded: true,
+                        inline,
                     });
                 }
-                self.quads.prepare(
-                    &hole.pipelines,
-                    queue,
-                    at.format,
-                    [at.screen.x, at.screen.y],
-                    holes.into_iter().map(|quad| (&hole.white, quad)),
-                );
-                return;
             }
             self.quads.prepare(
                 platform.pipelines(),
                 queue,
                 at.format,
                 [at.screen.x, at.screen.y],
-                placed.into_iter().filter_map(|(slot, surface, layer)| {
-                    let quad = platform.shown(crate::layers::texture_quad(&layer, &at));
-                    Some((platform.texture(slot, surface)?, quad))
-                }),
+                drawn,
             );
         });
     }
@@ -1062,8 +1052,6 @@ thread_local! {
 
 struct Presenter {
     platform: Option<PlatformPresenter>,
-    /// What punches a screen's hole where the renderer composites (natively).
-    hole: Option<texture_quad::Hole>,
 }
 
 pub(super) fn install(setup: &beui::native::Setup) -> Availability {
@@ -1073,16 +1061,13 @@ pub(super) fn install(setup: &beui::native::Setup) -> Availability {
     let platform = build_presenter(&gpu.device, &gpu.queue);
     let availability = Availability(platform.as_ref().map(|_| ()).map_err(Clone::clone));
     // Natively the host's windows are composited from their layers (be-lib-layers): its UI is
-    // painted into the root's surfaces and every app surface is a layer between them. The web
+    // painted into the root's surfaces, with each anchored view a layer between them. The web
     // places its canvases from the frame's layers instead (`web::canvases`).
-    let hole = cfg!(not(target_arch = "wasm32")).then(|| {
-        beui::native::compose::composite_windows();
-        texture_quad::Hole::new(&gpu.device, &gpu.queue)
-    });
+    #[cfg(not(target_arch = "wasm32"))]
+    beui::native::compose::composite_windows();
     PRESENTER.with(|presenter| {
         *presenter.borrow_mut() = Some(Presenter {
             platform: platform.ok(),
-            hole,
         });
     });
     availability

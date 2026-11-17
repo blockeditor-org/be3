@@ -1835,7 +1835,7 @@ impl Runtime {
 
 #[cfg(target_arch = "wasm32")]
 pub fn place_screens(
-    blits: &[Blit],
+    blits: &[(u64, Blit)],
     viewport: beui::Vec2,
     pixels_per_point: f32,
     scale: f32,

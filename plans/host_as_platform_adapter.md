@@ -188,15 +188,19 @@ its canvases.
 Built (step 4b): natively each window is drawn from its list in a pass of its own
 (`beui_draw::compose`, beui-renderer-wgpu's `composite.rs`; guides/apps/runtime.md, The layer
 list). The window's renderer paints the host's UI into textures, `Surface::Root(0)` and, while an
-anchored view shows, `Root(1)` for what is painted after the first one; drawings place their
-surfaces as layers (`Draw::layers`) and punch holes for screens, program windows are
-`Surface::Host` (Wayland's `WindowDraw`, win32's `TextureDraw::hosted`), one list per
-renderer, so per OS window and per display, with no `window` set yet. The pass draws again only
-where `WindowLayers::damage` says, which is the e-paper display's damage. `texture_quad` takes a
-radius per corner, and restacking damages only where two layers that swapped order overlap. A
-hole is a full erase, as on the web, so a translucent part of a screen shows the window's
-background rather than the host's UI beneath it: the root guest (4f) decides what lies under its
-holes.
+anchored view shows, `Root(1)` for what is painted after the first one. Drawings list the
+surfaces they show (`Draw::layers`), program windows as `Surface::Host` (Wayland's `WindowDraw`,
+win32's `TextureDraw::hosted`), one list per renderer, so per OS window and per display, with no
+`window` set yet. Screens and program windows are still drawn in place in the UI's paint order,
+so nothing changes visibly: they blend over the UI beneath them and inside its groups and
+filters. The pass composites only the roots and the anchored views between them, and draws
+again only where `WindowLayers::damage` says, which is the e-paper display's damage.
+`texture_quad` takes a radius per corner, and restacking damages only where two layers that
+swapped order overlap. Cost: two textures the window's size, the second only while an anchored
+view shows, and a pass over the damaged area drawing one quad per root and anchored view; a
+frame also walks the displays that hold drawings and prepares those that were damaged or moved.
+Compositing a screen apart from the UI, rather than in place, waits for the root guest (4f),
+which decides what lies under its screens (a hole, as on the web, or a root split around them).
 
 ## Input
 

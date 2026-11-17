@@ -141,27 +141,29 @@ Natively each of the host's windows is composited from its list (`beui_draw::com
 `presenter::install` turns on; beui-renderer-wgpu's `composite.rs`). The window's renderer
 (present.rs's, and each display's in beui-platform-drm) renders the host's UI into textures of
 its own: `Surface::Root(0)`, and while an anchored view shows, `Surface::Root(1)` for what the
-UI paints after the first one, as the web stacks `#layers` over its canvas. A drawing that shows
-a surface places it as a layer (`Draw::layers`) and paints only its hole: `AppDrawing` erases a
-screen's quad from the root it paints into, an anchored view punches none, be-host-wayland's
-`WindowDraw` and a `TextureDraw` made `hosted` (win32's captured windows) place program windows
-as `Surface::Host`. The renderer then draws the window from the list in a pass of its own:
-the layers placed before the first anchored view, `Root(0)`, the layers placed from it on, and
-`Root(1)`. A composited frame visits every drawing, damaged or not (`Display::drawings` skips
-subtrees that hold none), so the list is whole; a layer id two drawings repeat (a view's pieces
-below and above its children) takes one of its own per repeat. When the anchored view the upper
-root begins at changes, the frame is painted whole, since what the UI paints after it moves
-between the roots. The pass draws again only where the list's damage against last frame's says
-(`WindowLayers::damage`, each root's own damage through its layer), which is what
-`Renderer::scissors` reports and the e-paper display reads. Paintings are unchanged: they come
-from `Paints`, not from the GPU.
+UI paints after the first one, as the web stacks `#layers` over its canvas. Every drawing that
+shows a surface lists it (`Draw::layers`): `AppDrawing` its screens and anchored views,
+be-host-wayland's `WindowDraw` and a `TextureDraw` made `hosted` (win32's captured windows) their
+program windows as `Surface::Host`. Screens and program windows are still drawn in place, in the
+UI's paint order (`Placed::inline`), so they blend over what lies beneath them and fade with the
+groups they are in; only an anchored view, which lies over the UI, is left to the renderer,
+which draws the window from the list in a pass of its own: `Root(0)`, the anchored views,
+`Root(1)`.
 
-A hole is a full erase, as on the web: what a translucent part of a screen shows beneath it is
-the window's background, not the host's UI painted before it, and a view inside an opacity group
-erases only the group's layer. On the web `layers::frame` makes the frame's list (Apps on the
-page in guides/running/web.md) and the page applies it as CSS. The list's hit test and the
-forwarding router (`be-lib-input-router`) are not used by the host yet: its input still goes
-through beui's forwarding catchers (`AppView`).
+The renderer finds every drawing the window shows each frame by walking only the displays
+that hold drawings (`Display::drawings`), and keeps what each placed while it stays where it
+was (`Drawing::identity` and its `DrawAt`), so only a damaged or moved drawing is prepared. It
+visits a drawing that placed an anchored view whether or not it is damaged, so the roots split
+where it paints; when that anchored view changes, the frame is painted whole, since what the UI
+paints after it moves between the roots. A layer's id names the drawing that shows it
+(`layers::id`), so a view's parts below and above its children, or a preview shown twice, never
+share one. The pass draws again only where the list's damage against last frame's says
+(`WindowLayers::damage`, each root's own damage through its layer, overlapping rects merged),
+which is what `Renderer::scissors` reports and the e-paper display reads. Paintings are
+unchanged: they come from `Paints`, not from the GPU. On the web `layers::frame` makes the
+frame's list (Apps on the page in guides/running/web.md) and the page applies it as CSS. The
+list's hit test and the forwarding router (`be-lib-input-router`) are not used by the host yet:
+its input still goes through beui's forwarding catchers (`AppView`).
 
 ## Frames and pacing
 

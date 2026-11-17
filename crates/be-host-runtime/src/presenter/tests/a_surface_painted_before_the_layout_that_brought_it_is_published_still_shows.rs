@@ -27,7 +27,7 @@ fn a_surface_painted_before_the_layout_that_brought_it_is_published_still_shows(
         layer: None,
     };
     let hole = blit
-        .screen_layer(&fresh, None, 0)
+        .screen_layer(&fresh, None, 0, 0)
         .expect("the web still punches the surface's hole once its layout is published");
     assert!(
         crate::layers::canvas_style(&hole, 1.0, 0).is_some(),
@@ -37,7 +37,7 @@ fn a_surface_painted_before_the_layout_that_brought_it_is_published_still_shows(
         .borrow_mut()
         .publish(&ScreenLayout::default(), Vec::new(), None);
     assert!(
-        blit.screen_layer(&fresh, None, 0).is_none(),
+        blit.screen_layer(&fresh, None, 0, 0).is_none(),
         "a surface the published layout no longer holds is forgotten"
     );
 }
