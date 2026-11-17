@@ -207,9 +207,16 @@ An instance's last event is `Closed`.
 
 An editor that answers late is shown in a later frame without holding the host
 up. Until then its last painting is drawn at the size it was painted, from the
-view's top-left, cropped and never stretched (`presenter.rs`, `unstretched`).
-In the browser the answer always lands in a later frame, since the host
-cannot block on a worker.
+view's top-left, cropped where the view is smaller and never stretched; where
+the view is larger, the rest shows the view's backdrop (the app's clear colour,
+`Backdrop` in `app_view.rs`, which fills the box the view is laid out in). Every
+path that draws a painting into its view (native, web, paint snapshots, damage)
+places it through `Blit::shown_at` and `presenter::unscaled`, from the size of
+what is drawn (the texture or painting, never the size the layout asked for,
+since a layout commit can land before the present that brings textures of its
+size) and its raster over the view's zoom, so one point always shows the same
+number of its pixels on both axes. In the browser the answer always lands in a
+later frame, since the host cannot block on a worker.
 
 Each frame an app draws is two steps of its guest: one lays out and sends
 `laid-out`, the next paints. The calls an app makes without waiting on them
