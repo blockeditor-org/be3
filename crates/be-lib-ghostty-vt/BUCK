@@ -93,7 +93,7 @@ genrule(
     + per_cross_platform(
         "x86_64-unknown-linux-gnu",
         cross_triple,
-        {"root//buck/platforms:wasi_setting": "wasm32-wasip1-threads"},
+        {"root//buck/platforms:wasi_guest_setting": "wasm32-wasip1"},
     )
     + "\nwindows_sdk="
     + per_cross_platform(

@@ -41,11 +41,12 @@ case "$triple" in
     # freestanding archive linked into the app's own module. Freestanding is
     # what also turns off the Kitty graphics protocol, whose image loading
     # wants a filesystem and a clock that WebAssembly has neither of.
-    wasm32-*)
+    # Only a guest links it, and a guest is single-threaded wasm32-wasip1, so
+    # it is built without atomics: lld refuses to link an object that uses
+    # them into a module whose memory is not shared.
+    wasm32-wasip1)
         zig_target='wasm32-freestanding'
-        # What the app's own objects are compiled with: an object without
-        # these cannot be linked into a module with a shared memory at all.
-        zig_cpu='generic+atomics+bulk_memory+mutable_globals+sign_ext'
+        zig_cpu='generic+bulk_memory+mutable_globals+sign_ext'
         zig_optimize='ReleaseSmall'
         ;;
     x86_64-unknown-linux-gnu) zig_target='x86_64-linux-gnu' ;;

@@ -1,5 +1,5 @@
 load("@root//buck/cargo:defs.bzl", "cargo_package")
-load("@root//buck/wasm:defs.bzl", "wasm_library")
+load("@root//buck/wasm:defs.bzl", "GUEST_SYSROOT", "wasm_library")
 
 cargo_package()
 
@@ -9,15 +9,13 @@ cargo_package()
 # C++ library above it (beui's FreeType and HarfBuzz, an app's PDFium) shares
 # one copy: libc++ and libc++abi whole (WHOLE_LIBRARIES in crates/be-wasm-link),
 # and setjmp's three functions, the ones LLVM's -wasm-enable-sjlj calls.
-_sysroot = "$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads"
-
 wasm_library(
     module = "base",
     rustc_flags = [
-        "-Clink-arg=-L{}/noeh".format(_sysroot),
+        "-Clink-arg=-L{}/noeh".format(GUEST_SYSROOT),
         "-Clink-arg=-lc++",
         "-Clink-arg=-lc++abi",
-        "-Clink-arg={}/libsetjmp.a".format(_sysroot),
+        "-Clink-arg={}/libsetjmp.a".format(GUEST_SYSROOT),
         "-Clink-arg=--undefined=__wasm_setjmp",
         "-Clink-arg=--undefined=__wasm_setjmp_test",
         "-Clink-arg=--undefined=__wasm_longjmp",

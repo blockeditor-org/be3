@@ -40,9 +40,9 @@ def per_cross_platform(default, value, extra = {}):
 def plan_name(platform: str) -> str:
     return platform.replace("_", "-", 1)
 
-# Every plan, and the setting a configuration is matched to it by. The three
-# wasi plans are the same triple, and the two host plans another: the guest's
-# and the HTML core's settings are the plain one's with one more constraint, so
+# Every plan, and the setting a configuration is matched to it by. The wasi
+# and wasi-html plans are one triple, the guest's another (wasm32-wasip1), and
+# the two host plans a third: the guest's and the HTML core's settings are the plain one's with one more constraint, so
 # select() takes them as the more specific.
 PLAN_SETTINGS = {
     "linux-x86_64": "root//buck/platforms:linux_x86_64_setting",

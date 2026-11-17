@@ -119,14 +119,21 @@ differently and its symbols would not match.
 
 ### The root
 
-The root is the module holding std and wasi-libc. Rust's prebuilt std for
-`wasm32-wasip1-threads` and wasi-libc are compiled with absolute addresses,
-which rust-lld refuses in a `-shared` link, so the root is linked at fixed
-addresses and owns its data, stack, heap, table and main-thread TLS block;
-the loader places everything else above it
-(decisions/app_library_base_is_a_fixed_address_root.md).
+The root is the module holding std and wasi-libc. Rust's prebuilt std and
+wasi-libc are compiled with absolute addresses, which rust-lld refuses in a
+`-shared` link, so the root is linked at fixed addresses and owns its data,
+stack, heap and table; it imports the memory the loader makes, and the loader
+places everything else above it
+(decisions/app_library_base_is_a_fixed_address_root.md). Every guest is
+single-threaded `wasm32-wasip1` (decisions/guests_are_single_threaded.md), so
+that memory is not shared.
 
 ## Thread-locals
+
+A single-threaded guest has none: LLVM lowers a thread-local to plain data
+when atomics are off, so its modules import no `GOT.tls` and have no
+thread-local blocks, and what follows is left for threaded guests until
+plans/single_threaded_guests.md deletes it.
 
 LLVM compiles a thread-local access as an offset from the module's own
 `__tls_base`, which cannot reach another module's thread-locals, yet an app
@@ -140,10 +147,10 @@ grows: natively a free list in `be-wasm-host/src/dylink.rs`, in a browser a
 list in the shared memory under a lock (`be-host/web/dylink.js`), since any
 worker may start or end a thread.
 
-`crates/be-tool-tls-diamond-{base,left,right,app}` test it: an app reaching a
-thread-local in each of three libraries, on the main thread and a spawned one,
-run natively on V8 (`the_thread_local_diamond_runs_on_every_thread`) and in
-Chromium (`//crates/be-tool-tls-diamond-app:web-test`).
+`crates/be-tool-tls-diamond-{base,left,right,app}` are an app reaching a
+thread-local in each of three libraries, now on its one thread, run natively
+on V8 (`the_thread_local_diamond_runs_on_every_thread`) and in Chromium
+(`//crates/be-tool-tls-diamond-app:web-test`).
 
 ## Loading
 
@@ -151,7 +158,7 @@ Chromium (`//crates/be-tool-tls-diamond-app:web-test`).
 module's data goes, its table slots, what answers each import, and its TLS
 block. `crates/be-wasm-host/src/dylink.rs` (natively, on V8 through the JavaScript
 WebAssembly API called from Rust) and `crates/be-host/web/dylink.js` (the
-browser, through be-wasm-gpu-shim) only carry it out the same way: instantiate the root against the shared memory and run
+browser, through be-wasm-gpu-shim) only carry it out the same way: instantiate the root against the memory and run
 `_initialize`, grow the memory for the other modules' data, then instantiate
 and relocate each module in order and run its constructors before anything
 above it is instantiated. Each spawned thread links the whole list again from
