@@ -245,7 +245,19 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
    `Reorder` draws its preview at its own root, where a screen reader finds it once. The files
    pane's tree moves to step 6.
 3. **Dock tabs, fluid.** The drop highlight goes; the dock moves aside for a carried tab, the way a
-   list opens a gap.
+   list opens a gap. In slices:
+   - **3a (done): the dock on the board**, still with its highlight. Tab bars are `Reorder`s and
+     `TabStrip` is gone; a pane's grip lifts through `Interactive`'s `drag`; `DockTiles` is a drop
+     site of `custom` places, one over the home window's tiles and one per window the host opens,
+     each answering the drop the dock's `resolve` gives at the point where the state admits it,
+     so a locked place is no place and the refused marker is gone. `when_held(ALT, ..)` floats,
+     and while held its places are the only ones; the board never chooses a place in another
+     window than the pointer's; a carry let go outside every window is its source's
+     (`Carry::outside`), which floats the tab there. A carried tab is listed once, as its bar's
+     preview. Tool bars stay on the old `DropTarget` until step 4.
+   - **3b: the fluid preview.** The candidates, the preview, the carried tab, panels keeping their
+     size and bars moving with their pane, below; the highlight and `resolve` go.
+   - **3c: panels stay built, and keyboard carries between bars**, below.
    - **Candidates:** for a lifted tab or pane grip, each `DockState` drop is a candidate: group with
      a pane, split a pane or the whole dock on an edge, insert into a tab bar after a tab, or float.
      It carries the `DockLayout` that `layout_tree` gives for the state after it. Locks leave
@@ -273,7 +285,7 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      the keyboard must keep its focus: hide its row with opacity and close its slot with the gap,
      rather than `collapsed`, which blurs it on HTML (`display: none`) and leaves it unplaced
      natively. `Reorder` rows are not focusable today, so only Alt+arrow steps move them.
-   - **`TabStrip` goes.** Step 2b moved the old `Reorder` unchanged into beui-dock-host as the
+   - **`TabStrip` goes (done, 3a).** Step 2b moved the old `Reorder` unchanged into beui-dock-host as the
      private `TabStrip`, because the dock still splits panes from the old `DropTarget`, which
      only its drags reach. Tab bars become drop sites over `slots_in` like every other list,
      and `TabStrip` is deleted. This step comes right after step 5, so the copy does not

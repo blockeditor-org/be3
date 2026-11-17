@@ -369,6 +369,12 @@ modules of `beui-core-html`, each registering a pass with `frame::on_layout`
 that runs before paint; `ResizeObserver`s call `frame::relayout()` so a resize
 is corrected in the same frame.
 
+An `Interactive` that drags captures the pointer on press, so the drag goes on outside it,
+unless a node inside it takes that press's click (a button in a `Reorder` row, a dock tab):
+a captured pointer's click goes to the capturing element, so it captures only once the press
+moves a drag's threshold, following the press on the window until then
+(`beui-core-html/src/interactive.rs`).
+
 Back is the browser's back, reaching what `Dismiss::Back` reaches natively
 (guides/beui/overlays.md, Back and `BackSlide`).
 
