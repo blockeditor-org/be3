@@ -24,6 +24,7 @@ mod tests;
 
 use std::{
     collections::{HashMap, HashSet},
+    convert::Infallible,
     mem::ManuallyDrop,
     path::{Path, PathBuf},
     ptr::NonNull,
@@ -892,25 +893,24 @@ impl be_wasm_guest_host::Presented for PresentedTexture {
     }
 }
 
-/// Run on a thread of its own, an app reports each step what it presented, with the time its gpu
-/// calls and submits took. An app with no display presents nothing.
 impl Runnable for App {
-    type Presented = PresentedTexture;
+    type Presented = Infallible;
 
-    fn start(&mut self) -> Result<Produced<PresentedTexture>, String> {
+    fn start(&mut self) -> Result<Produced<Infallible>, String> {
         App::start(self)?;
-        Ok(self.produced(StepTime::default()))
+        Ok(Produced::sent(self.take_outbound(), StepTime::default()))
     }
 
-    fn step(&mut self, frames: Vec<Vec<u8>>) -> Result<Produced<PresentedTexture>, String> {
+    fn step(&mut self, frames: Vec<Vec<u8>>) -> Result<Produced<Infallible>, String> {
         self.take_wake();
         let started = Instant::now();
         self.deliver(frames);
         App::step(self)?;
-        Ok(self.produced(StepTime {
+        let took = StepTime {
             step: started.elapsed(),
             ..StepTime::default()
-        }))
+        };
+        Ok(Produced::sent(self.take_outbound(), took))
     }
 
     fn take_wake(&mut self) -> bool {
@@ -926,14 +926,45 @@ impl Runnable for App {
     }
 }
 
-impl App {
-    /// What a step that took `took` produced: the frames it sent, and the surfaces it presented,
-    /// each once.
-    fn produced(&mut self, took: StepTime) -> Produced<PresentedTexture> {
-        let (gpu, submit) = self.take_gpu_time();
+/// An app with a display, run on a thread of its own: each step reports what it presented, with
+/// the time its gpu calls and submits took. be-host-runtime runs its apps so, and the sandbox the
+/// staged apps a root spawns.
+pub struct Presenting(pub App);
+
+impl Runnable for Presenting {
+    type Presented = PresentedTexture;
+
+    fn start(&mut self) -> Result<Produced<PresentedTexture>, String> {
+        let sent = Runnable::start(&mut self.0)?;
+        Ok(self.produced(sent))
+    }
+
+    fn step(&mut self, frames: Vec<Vec<u8>>) -> Result<Produced<PresentedTexture>, String> {
+        let sent = Runnable::step(&mut self.0, frames)?;
+        Ok(self.produced(sent))
+    }
+
+    fn take_wake(&mut self) -> bool {
+        self.0.take_wake()
+    }
+
+    fn on_wake(&self, wake: HostWake) {
+        Runnable::on_wake(&self.0, wake);
+    }
+
+    fn stop(&mut self) {
+        self.0.stop();
+    }
+}
+
+impl Presenting {
+    /// What a step that `sent` produced, with the surfaces it presented, each once.
+    fn produced(&mut self, sent: Produced<Infallible>) -> Produced<PresentedTexture> {
+        let app = &mut self.0;
+        let (gpu, submit) = app.take_gpu_time();
         let mut presented: Vec<PresentedTexture> = Vec::new();
-        for surface in self.take_presented() {
-            let Some((texture, generation)) = self.surface(surface) else {
+        for surface in app.take_presented() {
+            let Some((texture, generation)) = app.surface(surface) else {
                 continue;
             };
             presented.retain(|held| held.surface != surface);
@@ -945,12 +976,12 @@ impl App {
         }
         Produced {
             painted: !presented.is_empty(),
-            outbound: self.take_outbound(),
+            outbound: sent.outbound,
             presented,
             took: StepTime {
                 gpu,
                 submit,
-                ..took
+                ..sent.took
             },
         }
     }

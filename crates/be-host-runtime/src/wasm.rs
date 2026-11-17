@@ -10,7 +10,7 @@ use super::backend::{worker_file, worker_path};
 
 use be_sdk_manifest::AppManifest;
 use be_wasm_guest_host::thread::{self, Threaded};
-use be_wasm_host::{Host, PresentedTexture, sandbox::Staged};
+use be_wasm_host::{Host, PresentedTexture, Presenting, sandbox::Staged};
 
 use super::{
     surface::{SurfaceFrame, gpu},
@@ -211,7 +211,7 @@ fn start(
     let mailbox = host.imports();
     let channel = host.spawn(
         format!("app {}", app.identity.id),
-        move |host| staged.load(host),
+        move |host| staged.load(host).map(Presenting),
         Arc::new(be_host_base::host::wake),
         Arc::clone(&waiting),
         |run| be_host_base::panic_guard::contain(run),
