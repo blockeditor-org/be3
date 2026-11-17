@@ -199,8 +199,8 @@ In two pieces, each landing whole.
   answers summaries or contents; a signed-in `link` and the anonymous
   `invitation` are two queries; `set-metadata` stays an op beside `publish`,
   and `create-block` and `move` still carry their keys; `append-log` takes a
-  grant, a role or a member record (no owner record yet: signed access step
-  5); `put-keys` is `rows`, `rotate`, `escrow` or `reseal`, each with its own
+  grant or an owner record (`grant`, as `set-access` carried both), a role or
+  a member record; `put-keys` is `rows`, `rotate`, `escrow` or `reseal`, each with its own
   rule; notices, contacts, links, `put-contact` and `pin-escrow` wait for step
   4; `remove-member` and the notify modes (`notify-modes`, `set-notify-mode`,
   `topic.notify-modes`) are as they were, decisions (a) and (b) unanswered;

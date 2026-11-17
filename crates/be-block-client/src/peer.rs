@@ -4057,13 +4057,7 @@ impl<S: ObjectStore> Peer<S> {
                 )
             })?
             .encode();
-        client::blocks::set_access(
-            &self.connection(),
-            block,
-            account,
-            Access::Manage,
-            Some(record),
-        )
+        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Grant { block: block, account: account, access: Access::Manage, signed: Some(record) }))
         .await??;
         Ok(())
     }
