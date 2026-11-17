@@ -36,26 +36,6 @@ app_types = rule(
     impl = _app_types_impl,
 )
 
-# Every app's manifest and type module in one file (crates/be-tool-buck's bundle), which
-# an executable that is its whole release, `be`, carries with include_bytes!.
-def _type_bundle_impl(ctx: AnalysisContext) -> list[Provider]:
-    out = ctx.actions.declare_output(ctx.label.name + ".bundle")
-    command = cmd_args(ctx.attrs._tools[RunInfo], "bundle", out.as_output())
-    for manifest, types in zip(ctx.attrs.manifests, ctx.attrs.app_types):
-        modules = types[DefaultInfo].default_outputs
-        command.add(cmd_args(manifest, modules[0] if modules else "", delimiter = "="))
-    ctx.actions.run(command, category = "type_bundle")
-    return [DefaultInfo(default_output = out)]
-
-type_bundle = rule(
-    attrs = {
-        "app_types": attrs.list(attrs.dep()),
-        "manifests": attrs.list(attrs.source()),
-        "_tools": attrs.default_only(attrs.exec_dep(default = "root//crates/be-tool-buck:bin", providers = [RunInfo])),
-    },
-    impl = _type_bundle_impl,
-)
-
 # The SHA-256 of every file of a program's directory, as app-hashes.json
 # (crates/be-tool-buck's hashes): what a release publishes beside its apps, so
 # `be` can check each app file it downloads from it.

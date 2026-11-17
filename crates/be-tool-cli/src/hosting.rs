@@ -2,7 +2,7 @@
 //! whose manifest's `hosts` names the block's type, through be-host-runtime with no window,
 //! presenter or gpu (`be_host_runtime::Headless`), on a block stack the caller started. The
 //! app is staged beside `be`, or downloaded from a deployed `be`'s release as the runtime reads
-//! it (`crate::host_apps`).
+//! it (`crate::release`).
 
 use std::{path::Path, sync::Arc, time::Duration};
 
@@ -25,7 +25,7 @@ impl Hosting {
         client: Uuid,
         cache: &Path,
     ) -> Result<Self, String> {
-        crate::host_apps::serve(cache)?;
+        crate::release::serve(cache)?;
         let (app, host) = be_host_stack::discovery::manifests()
             .into_iter()
             .find_map(|manifest| {

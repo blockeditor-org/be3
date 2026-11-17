@@ -4,6 +4,7 @@ mod a_file_the_release_does_not_list_fails;
 mod a_list_of_hashes_other_than_the_one_be_ships_with_is_refused;
 mod a_release_file_is_downloaded_once_then_read_from_the_cache;
 mod a_release_file_that_does_not_match_its_hash_fails_naming_it;
+mod nothing_is_downloaded_until_an_app_file_is_read;
 
 /// A release at `https://mirror.test/data/build/web` holding `files`, which counts the fetches
 /// of each URL, its hashes listed as `listed` gives them, and `apps` naming that list as a
@@ -63,7 +64,7 @@ impl Fake {
 }
 
 fn cache() -> PathBuf {
-    let directory = std::env::temp_dir().join(format!("be-host-apps-{}", uuid::Uuid::new_v4()));
+    let directory = std::env::temp_dir().join(format!("be-release-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&directory).expect("the cache is made");
     directory
 }

@@ -18,11 +18,11 @@ graphics. One runtime, not a second one for `be`.
   that need a person or a screen (pickers, dialogs) refused.
 - An app that asks for the gpu there gets an error it can handle; a host
   component never needs one.
-- `be` finds the apps it runs as be-host does, with no app's wasm, list or
-  hash compiled in (it still embeds manifests and type modules, step 1d): a
-  build made here reads those staged beside it (`be-tool-cli:dev`), and a
-  deployed `be` downloads the one it runs from its own release, checked
-  against the list of hashes its `build-info.json` pins and cached by them
+- `be` finds its apps as be-host does, with no app's wasm, manifest, type
+  module, list or hash compiled in: a build made here reads those staged
+  beside it (`be-tool-cli:dev`), and a deployed `be` downloads the manifests,
+  type modules and apps it uses from its own release, checked against the
+  list of hashes its `build-info.json` pins and cached by them
   (guides/apps/runtime.md, "Headless"), so `be` stays one small download.
 - Whatever be-host's headless `:dev` needs that this provides, it shares
   rather than keeping its own.
@@ -47,11 +47,15 @@ graphics. One runtime, not a second one for `be`.
      `be_runs_an_apps_host_component_with_no_display`). Not yet run against a
      real deploy: only releases deployed after it name their `apps`.
    - d. No app list in `be` at all (the user's decision: "the app list should
-     not be in be at all"): be-tool-cli's `:app-types` (`APP_TYPES`) still
-     embeds every app's manifest and type module, so an app's manifest or
-     type changing relinks `be`. `be` reads manifests and type modules through
-     `be_host_stack::discovery` instead, from the bundle beside it or its
-     release as in c, so manifests have one source. Next.
+     not be in be at all"): done. `be` reads manifests and type modules
+     through `be_host_stack::discovery` (`be_host_stack::types::app_sources`),
+     from the bundle beside it or its release as in c, so an app changing
+     never relinks `be` (be-tool-cli's
+     `be_reads_a_block_type_from_the_type_module_staged_beside_it`). Like c,
+     not yet run against a real deploy. Left over: a development build's
+     terminal host uploads `:native` alone, which finds no terminal type
+     module; it needs the type modules sent with it, or a release to read
+     (guides/terminal.md).
 2. **`be BLOCK host`.** Signs in (as an agent, or a block's agent, as the
    terminal host does), opens the block and runs its type's host component
    while it holds the lease, standing by otherwise. Done: plans/hosted_blocks.md
