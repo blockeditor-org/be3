@@ -113,8 +113,8 @@ interface types {
         scope: option<block-id>,
         /// The organization's change sequence at the block's last change to what it holds,
         /// where it lies or who may view it (`organizations.change_sequence`): of two summaries
-        /// of one block, the one with the larger `changed` is the newer. Zero for a block the
-        /// reader only knows exists.
+        /// of one block, the one with the larger `changed` is the newer. A block the reader
+        /// only knows exists carries its own too, so it orders after one read while viewed.
         changed: u64,
         /// The entry point whose tree a reader follows to hear of this block's changes
         /// (`changed-since`): the top of its tree (a top-level block, or the block at the top

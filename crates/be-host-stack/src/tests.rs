@@ -9,6 +9,7 @@ use super::*;
 use crate::search::Searching;
 
 mod a_folder_another_device_fills_is_followed_with_only_what_is_shown_mirrored;
+mod a_linked_block_moved_out_of_view_shows_as_no_access_not_where_it_was;
 mod a_folder_whose_share_is_taken_back_leaves_the_mirror_with_what_is_in_it;
 mod a_batch_given_back_waits_for_its_index_to_move_on_or_a_growing_delay;
 mod a_batch_on_an_index_head_the_server_let_go_is_written_on_the_newer_one;

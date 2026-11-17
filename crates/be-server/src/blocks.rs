@@ -422,7 +422,12 @@ fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<Bl
     let node = graph.get(block)?;
     let access = seen.access(graph, block);
     if !access.can_view() {
-        return Some(BlockSummary::no_access(block, node.content_type, access));
+        // Its own `changed` still, so this lesser summary orders after the one a reader held
+        // while it could view the block.
+        return Some(BlockSummary {
+            changed: node.changed,
+            ..BlockSummary::no_access(block, node.content_type, access)
+        });
     }
     Some(BlockSummary {
         id: block,

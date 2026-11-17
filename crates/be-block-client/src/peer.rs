@@ -1624,6 +1624,13 @@ impl<S: ObjectStore> Peer<S> {
         )
     }
 
+    /// Whether the server's head of `block`, as this device knows it, has moved on past `head`
+    /// (`behind`): a moved head this device published on top of before it was taken.
+    pub fn superseded(&self, block: Uuid, head: CommitId) -> bool {
+        self.known_remote_head(block)
+            .is_some_and(|known| known != head && self.behind()(head, known))
+    }
+
     pub fn known_remote_head(&self, block: Uuid) -> Option<CommitId> {
         self.refs.remote(block)
     }

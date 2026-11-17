@@ -438,7 +438,8 @@ pub struct Dropped {
 pub struct UnlistedHeld {
     pub listing: Listing,
     pub blocks: Vec<Uuid>,
-    pub sequence: u64,
+    /// None for a listing the server refused.
+    pub sequence: Option<u64>,
     pub stale: bool,
 }
 
@@ -649,7 +650,8 @@ impl Graph {
             self.unlisted_held.push(UnlistedHeld {
                 listing,
                 blocks: unlisted,
-                sequence,
+                // A refused listing answers at no sequence of its own (`u64::MAX`).
+                sequence: (sequence != u64::MAX).then_some(sequence),
                 stale,
             });
         }
@@ -799,6 +801,12 @@ impl Graph {
         self.listings
             .values()
             .any(|listed| matches!(listed.fetch, Fetch::Wanted | Fetch::Fetching))
+    }
+
+    /// Whether `block` has a change made here pending, or was made here and not sent yet: the
+    /// server's word on it is not news until then.
+    pub fn unsettled(&self, block: Uuid) -> bool {
+        self.pending.contains_key(&block) || self.unpublished.contains(&block)
     }
 
     pub fn covers(&self, block: Uuid) -> bool {
