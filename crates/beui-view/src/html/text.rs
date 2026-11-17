@@ -111,6 +111,17 @@ pub(crate) fn text(
         };
         set_style(node, "white-space", Some(white_space.to_owned()));
         set_style(node, "overflow-wrap", wrap.map(str::to_owned));
+        // What a gap's share is a share of: the width the text wraps at, and none while it
+        // wraps nowhere, as natively.
+        set_style(
+            node,
+            "--beui-gap-room",
+            Some(match wrap {
+                Some(_) => "100%",
+                None => "0px",
+            }
+            .to_owned()),
+        );
         set_style(node, "display", clamp.map(|_| "-webkit-box".to_owned()));
         set_style(
             node,
@@ -197,9 +208,9 @@ impl TextChild {
                 let width = match gap.width.share == 0.0 {
                     true => css::px(gap.width.px),
                     false => format!(
-                        "max(0px, calc({} + {}%))",
+                        "max(0px, calc({} + {} * var(--beui-gap-room, 0px)))",
                         css::px(gap.width.px),
-                        css::number(gap.width.share * 100.0)
+                        css::number(gap.width.share)
                     ),
                 };
                 set_style(node, "width", Some(width));
