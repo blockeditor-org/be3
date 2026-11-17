@@ -1513,6 +1513,7 @@ impl<H: Host> Replicas<H> {
                 editors: BTreeMap::new(),
                 status: Status {
                     head,
+                    restarts: kept_restart,
                     ..Status::default()
                 },
                 session,
@@ -3534,6 +3535,12 @@ impl<H: Host> Replicas<H> {
             open.reported_clean(status.sealed_taken);
         }
         open.journaled_taken = status.journaled_taken;
+        // The order started over: what was submitted before is passed over, and the edits go
+        // again as new submissions, which hold them otherwise.
+        if status.restarts != open.status.restarts && !open.submissions.is_empty() {
+            open.submissions.clear();
+            open.edits_changed = true;
+        }
         let became_unreadable = status.unreadable.is_some() && open.status.unreadable.is_none();
         open.status = status.clone();
         if became_unreadable {
