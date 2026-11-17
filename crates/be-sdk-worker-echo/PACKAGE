@@ -64,6 +64,16 @@ write_package_value("be3.cargo", {
             "test_deps": [],
             "test_features": [],
         },
+        "wasi-guest": {
+            "binaries": {},
+            "deps": [
+                "//crates/be-sdk-worker:be-sdk-worker",
+            ],
+            "examples": {},
+            "features": [],
+            "test_deps": [],
+            "test_features": [],
+        },
         "windows-arm64": {
             "binaries": {},
             "deps": [
