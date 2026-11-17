@@ -86,7 +86,7 @@ pub fn DockBarGrip(
                 size=ButtonSize::Toolbar
                 open
                 bounds
-                placement=Placement::BelowStart
+                placement=Placement::BELOW_START
                 click_opens=false
                 secondary_opens=true
                 on_click={move || {

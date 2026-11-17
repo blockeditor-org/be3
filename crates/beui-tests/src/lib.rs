@@ -1018,7 +1018,7 @@ fn OverlayFixture() -> NodeId {
             {trigger}
             <Overlay
                 anchor={&anchor}
-                placement={Placement::BelowStart}
+                placement={Placement::BELOW_START}
                 open={open}
                 on_dismiss={move |reason: Dismiss| {
                     dismissed.set(format!("{reason:?}"));
@@ -1102,7 +1102,7 @@ fn CoveringFixture() -> NodeId {
                 {opener("menu", menu)}
                 {opener("below", below)}
                 {placed(Placement::Menu, menu, "Menu")}
-                {placed(Placement::BelowStart, below, "Below")}
+                {placed(Placement::BELOW_START, below, "Below")}
             </List>
         </List>
     }

@@ -90,8 +90,8 @@ pub fn Popover(
         None => OverlayAnchor::Node(node),
     };
     let placement = placement.map(|placement| match placement {
-        PopoverPlacement::Below => Placement::BelowStart,
-        PopoverPlacement::Beside => Placement::RightStart,
+        PopoverPlacement::Below => Placement::BELOW_START,
+        PopoverPlacement::Beside => Placement::RIGHT_START,
         PopoverPlacement::Over(inset) => Placement::Over(inset),
     });
     view! {

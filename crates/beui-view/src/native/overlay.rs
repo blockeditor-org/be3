@@ -51,7 +51,7 @@ pub(crate) fn overlay(
     content: BuildFn<NodeId>,
 ) -> NodeId {
     let overlay = with_document(|document| {
-        let overlay = document.create_overlay(anchor.get_untracked(), Placement::BelowStart);
+        let overlay = document.create_overlay(anchor.get_untracked(), Placement::BELOW_START);
         document.set_overlay_trigger(overlay, trigger);
         document.set_overlay_pointer(overlay, pointer);
         overlay

@@ -21,7 +21,7 @@ use beui_macros::component;
 #[component]
 pub fn Overlay(
     anchor: Prop<OverlayAnchor>,
-    #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
+    #[prop(default = Placement::BELOW_START)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
     #[prop(default = Color::TRANSPARENT)] scrim: Prop<Color>,
     #[prop(default = 0.0)] scrim_radius: Prop<f32>,

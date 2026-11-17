@@ -332,7 +332,7 @@ impl OverlayNode {
         );
         let available = match (inside, self.placement) {
             (true, _) => anchor_rect.intersect(area).size().max(Vec2::ZERO),
-            (false, Placement::Popover { margin, .. }) => {
+            (false, Placement::Beside { margin, .. }) => {
                 area.shrink(f32::from(margin)).size().max(Vec2::ZERO)
             }
             (false, _) => area.size(),
@@ -376,7 +376,7 @@ impl OverlayNode {
         area: Rect,
         out: &Rects,
     ) {
-        if !matches!(self.placement, Placement::Popover { .. }) {
+        if !self.points() {
             return;
         }
         let Some(frame) = self
@@ -411,7 +411,7 @@ impl OverlayNode {
         });
         let reach = doc.arena.get_as::<BeakNode>(beak).reach;
         let pointing = placed.and_then(|rect| {
-            if !matches!(self.placement, Placement::Popover { .. }) {
+            if !self.points() {
                 return None;
             }
             let (lowest, highest) = beak_room(reach, &style, rect);
@@ -438,6 +438,15 @@ impl OverlayNode {
         if let Some(rect) = placed {
             crate::layout::layout(doc, painter, beak.id(), rect, out);
         }
+    }
+
+    /// Whether the content stands off its anchor by its pointer frame and points a beak at it:
+    /// above or below its anchor, where the beak can point.
+    fn points(&self) -> bool {
+        matches!(
+            self.placement,
+            Placement::Beside { side, .. } if side.vertical()
+        )
     }
 
     pub(crate) fn dims(&self) -> bool {

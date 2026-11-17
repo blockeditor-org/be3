@@ -825,7 +825,7 @@ fn MenuRow(
                 view! {
                     <Overlay
                         anchor=button
-                        placement=Placement::RightStart
+                        placement=Placement::RIGHT_START
                         bounds={state.bounds}
                         open={open}
                         on_dismiss={move |_: Dismiss| open.set(false)}

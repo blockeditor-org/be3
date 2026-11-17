@@ -49,7 +49,7 @@ pub fn ContextMenu(
     #[prop(default = None)] toolbar_at: Prop<Option<Rect>>,
     #[prop(default = true)] opens_on_hold: bool,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    /// `Placement::Menu`, or `BelowStart` for a menu that must keep clear of what it opened
+    /// `Placement::Menu`, or `Placement::BELOW_START` for a menu that must keep clear of what it opened
     /// from, such as a bar.
     #[prop(default = Placement::Menu)]
     placement: Prop<Placement>,
@@ -241,7 +241,7 @@ fn Toolbar(
     view! {
         <Overlay
             anchor
-            placement=Placement::Above
+            placement=Placement::ABOVE_CENTER
             policy=LayerPolicy::Pass
             traps_focus=false
             open=true

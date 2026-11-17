@@ -43,31 +43,47 @@ to a band's edges on the axis the placement opens along (`layer::banded`), so
 a button's panel in a bar opens just past the whole bar while lining up with
 the button.
 
-`BelowStart` opens below its anchor, or above when only that side has room,
-and when neither side has room takes the roomier one and shrinks (scrolling
-what it holds), so it never covers its anchor: completions, tooltips and
-popovers keep their input or button in view. `Placement::Menu`, which menus
-(`MenuPopup`, context menus) and selects use, instead covers its anchor when
-neither side has room, as low as the window allows, and shrinks only when it
-is taller than the window (`layer::resolve_rect`, `layer::room_beside`). A
-menu that must keep clear of what opened it passes `placement=BelowStart` to
-its `MenuButton` or `ContextMenu`: a dock bar's grip and the desktop bar's own
-menus (tray, layouts, window chips), which must not hide the bar. The
-HTML core places a `Menu` from its measured size, since CSS anchor positioning
-cannot cover the anchor; so unlike a `BelowStart`, which CSS keeps on its
-anchor, an open menu there moves only when beui lays out again, not as a DOM
-scroller under its anchor scrolls.
+`Placement::Beside { side, align, gap, margin }` is the anchored placement:
+`side` is `AnchorSide::{Above, Below, Left, Right}`, `align` lines it up with
+the anchor's start edge, centre or end edge (`AnchorAlign`), `gap` keeps it off
+the anchor and `margin` off the window's edges. The constants
+`Placement::BELOW_START`, `ABOVE_CENTER`, `LEFT_END` and the rest name all
+twelve with no gap; `.gap(n)` and `.margin(n)` add them. It opens on its side,
+or on the other when only that one has room, and when neither has room takes
+the roomier one and shrinks (scrolling what it holds), so it never covers its
+anchor: completions, tooltips and popovers keep their input or button in view.
+Along its side it shifts to stay in the window. `layer::room` is how much room
+it will get there (like Floating UI's `size`), so content can size itself to
+it before it opens. `Placement::Menu`, which menus (`MenuPopup`, context
+menus) and selects use, instead covers its anchor when neither side has room,
+as low as the window allows, and shrinks only when it is taller than the
+window (`layer::resolve_rect`). A menu that must keep clear of what opened it
+passes `placement=Placement::BELOW_START` to its `MenuButton` or
+`ContextMenu`: a dock bar's grip and the desktop bar's own menus (tray,
+layouts, window chips), which must not hide the bar. The HTML core places a
+`Menu` from its measured size, since CSS anchor positioning cannot cover the
+anchor; so unlike a `Beside`, which CSS keeps on its anchor (`position-area`
+with flip fallbacks, the gap as the margin facing the anchor), an open menu
+there moves only when beui lays out again, not as a DOM scroller under its
+anchor scrolls. Something placed at a point rather than beside anything (the
+dock's drop marker) is `At`.
 
 `bounds` (window coordinates) narrows the room an overlay is placed, flipped,
 shifted and shrunk in; a menu passes it to its submenus, and a panel that must
 not cover a dock's bands takes the dock's area. The HTML core ignores it, and
-fits menus with CSS anchor fallbacks and a `max-height` from
-`layer::room_beside`.
+fits menus and `Beside` overlays with CSS anchor fallbacks and a `max-width`
+and `max-height` from `layer::room`.
 
-`Placement::Popover` centres content `gap` below the anchor and can point a
-beak at it. The beak lies outside the content's frame and takes no room, so
-give it room with padding: an app's host draws whatever lies outside an
-overlay's content under the editors it holds.
+An overlay `Beside` its anchor above or below it with a `pointer` frame stands
+that frame `gap` off the anchor and can point a beak at it (popovers are
+`BELOW_CENTER` with a gap and margin). The beak lies outside the content's
+frame and takes no room, so give it room with padding: an app's host draws
+whatever lies outside an overlay's content under the editors it holds.
+
+Text-area completions and inline widget popups stay non-modal on touch: they
+open `Beside` their field as on a mouse, not as a sheet. Sheets are modal, and
+these must leave the field they belong to live, so this is decided, not a gap
+to fill.
 
 ### Overlays stay in their window
 
