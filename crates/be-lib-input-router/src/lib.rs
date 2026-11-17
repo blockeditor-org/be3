@@ -19,6 +19,11 @@ use be_lib_ui_types::input::{
     TouchpadGesture,
 };
 
+/// How far, in points, the pointer may move while a wheel or held gesture stays latched to
+/// what it began on: a finger landing on a touchpad jitters the pointer this much. beui's
+/// latch of a wheel to the node that took it (beui-core's `interact`) uses it too.
+pub const WHEEL_LATCH_SLOP: f32 = 2.0;
+
 /// What the router asks of the surfaces of one window, however they are found.
 pub trait HitTest {
     type Target: Copy + Eq + Debug;
@@ -250,9 +255,11 @@ impl<T: Copy + Eq + Debug> Router<T> {
         pointer: Pointer,
         at: Pos2,
     ) -> Option<T> {
-        // A held gesture whose end never came lets go once the pointer moves: a touchpad holds
-        // it still while it scrolls, and a pointer that rests where it was moves nothing.
-        if pointer.keeps_hover() && self.gesture.is_some_and(|(_, began)| began != at) {
+        // A held gesture whose end never came lets go once the pointer moves past the slop: a
+        // touchpad holds it nearly still while it scrolls, and a pointer that rests where it
+        // was moves nothing.
+        let moved_off = |(_, began): (Option<T>, Pos2)| began.distance(at) > WHEEL_LATCH_SLOP;
+        if pointer.keeps_hover() && self.gesture.is_some_and(moved_off) {
             self.gesture = None;
         }
         for press in &mut self.presses {
