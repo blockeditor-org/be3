@@ -7,8 +7,8 @@ use be_block_protocol::OrganizationRole;
 /// epoch at hand, which the demoted administrator reached through escrow: offline it knows of
 /// no demotion, so the edit is sealed under that epoch and kept. Reconnecting, it reads the
 /// organization's log before sending, finds the epoch outdated by the demotion, and seals the
-/// edit again under a new epoch (signed access 7), which the demoted administrator, with the
-/// server, does not open; what was first sealed never leaves the device (signed access 8).
+/// edit again under a new epoch, which the demoted administrator, with the
+/// server, does not open; what was first sealed never leaves the device.
 #[tokio::test]
 async fn an_edit_made_offline_across_a_demotion_is_sealed_again_under_a_key_the_demoted_never_get()
 {

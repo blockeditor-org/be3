@@ -7,7 +7,7 @@ use be_block_keys::{CarriedKey, Entry, Party, RecoveryPublic};
 /// block only through escrow cannot tell (nothing else pins its root), so it takes the member's
 /// key, but weakly: its root shows as unverified (`RootPin::Weak`), the key vouches for nothing
 /// and is handed on to no one, so the made-up log spreads to no other device
-/// (plans/signed_access.md, "A member roots a block an administrator never pinned").
+/// (guides/blocks/keys.md, "Accepted limits").
 #[tokio::test]
 async fn a_member_who_roots_a_block_they_do_not_hold_is_taken_only_weakly() {
     let harness = Harness::start().await;

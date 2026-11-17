@@ -1,10 +1,10 @@
 //! Sealing an edit made offline again under a new epoch of its scope, when the logs show the
-//! one it was sealed under outdated by the time it is sent (plans/signed_access.md, step 7).
+//! one it was sealed under outdated by the time it is sent (guides/blocks/keys.md, "Outdated
+//! epochs").
 
 use std::collections::HashMap;
 
 use be_block_commit::{Commit, CommitId};
-use be_block_keys::{Level, LogKind};
 use be_block_store::{ObjectStore, Part};
 use uuid::Uuid;
 
@@ -22,7 +22,7 @@ impl<S: ObjectStore> Peer<S> {
     /// lost access. False when it cannot be: this account may no longer write the block as the
     /// logs show now, or no epoch it can vouch for can be made. Offline, the error.
     pub(super) async fn reseal(&self, block: Uuid) -> Result<bool, ClientError> {
-        if !self.may_still_write(block).await? {
+        if !self.may_write_signed(block).await? {
             return Ok(false);
         }
         let key = match self.sealing_key(block).await {
@@ -148,25 +148,5 @@ impl<S: ObjectStore> Peer<S> {
             journal,
             ..pending.clone()
         })
-    }
-
-    /// Whether this account may still write `block` as its signed logs show now: Edit or above
-    /// in the block's own log, or from outside it (administering the organization, or a block
-    /// above). A log that does not check, or is not served, shows nothing. Offline, the error.
-    async fn may_still_write(&self, block: Uuid) -> Result<bool, ClientError> {
-        let checked = match self.checked_access(block).await {
-            Ok((_, checked)) => checked,
-            Err(error) if error.is_unreachable() => return Err(error),
-            Err(_) => return Ok(false),
-        };
-        let me = self.account.into_bytes();
-        if checked.holding(LogKind::Block, me, Level::Edit).is_some() {
-            return Ok(true);
-        }
-        match self.authority_outside(block, &checked, Level::Edit).await {
-            Ok(_) => Ok(true),
-            Err(error) if error.is_unreachable() => Err(error),
-            Err(_) => Ok(false),
-        }
     }
 }

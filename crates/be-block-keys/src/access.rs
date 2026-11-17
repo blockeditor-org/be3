@@ -1,4 +1,4 @@
-//! Signed access records (plans/signed_access.md): each block, and each company organization,
+//! Signed access records (guides/blocks/keys.md): each block, and each company organization,
 //! has a log of entries signed by the members who made them, which devices check back to the
 //! log's root before they act on who may do what.
 //!
@@ -39,7 +39,7 @@ pub enum Record {
     /// with.
     Root(Root),
     /// An account took a new recovery phrase: its records after this are signed with `new`
-    /// (plans/signed_access.md, "A new recovery phrase").
+    /// (guides/blocks/keys.md, "Identity, new phrases and devices").
     Retirement(Retirement),
     /// A member's access to the block, as a member who may give it gave it; revoking is a grant
     /// of `Level::None`.
@@ -52,11 +52,11 @@ pub enum Record {
     /// who may give access gave it: a grant to no one by name, so it names no keys.
     Opening(Opening),
     /// Where the block lies, as a member with Edit or above placed it: made there, or moved
-    /// (plans/signed_access.md, step 4).
+    /// (guides/blocks/keys.md, "Parent records").
     Parent(Parent),
     /// Ownership of the block moves to another account, as its owner gave it
-    /// (plans/signed_access.md, step 5): the new owner holds what authorship gives, Manage, and
-    /// the former keeps Edit.
+    /// (guides/blocks/keys.md, "Owner records"): the new owner holds what authorship gives, Manage,
+    /// and the former keeps Edit.
     Owner(Owner),
 }
 
@@ -247,7 +247,7 @@ pub struct Root {
 /// `lowers` says whether it lowered anyone's access (a revocation, a downgrade, a closing; a
 /// demotion, or an administrator signed out), as `check_log` finds it must: its signer sets it
 /// (`Checked::next`) and any other value makes the log refused. The entry's hash covers it
-/// outside the digest, so a reader served the entry reduced (`Reduced`, plans/signed_access.md,
+/// outside the digest, so a reader served the entry reduced (`Reduced`, guides/blocks/keys.md,
 /// "Who is served what") still knows which epochs it outdates.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Entry {
@@ -427,7 +427,7 @@ impl Entry {
     }
 }
 
-/// An entry reduced to what chains it (plans/signed_access.md, "Who is served what"): the hash of
+/// An entry reduced to what chains it (guides/blocks/keys.md, "Who is served what"): the hash of
 /// the entry before it, whether it lowered anyone's access, and the digest of the rest, which
 /// hash as the whole entry does (`Entry::hash`). It says nothing of whom it is about.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -547,7 +547,7 @@ impl StepRef<'_> {
 }
 
 /// `entries`, a whole log of `kind`, as a proof path for `reader`, a member below Edit
-/// (plans/signed_access.md, "Who is served what"): the entries that prove the access of the
+/// (guides/blocks/keys.md, "Who is served what"): the entries that prove the access of the
 /// reader and of each of `sealers` (whoever sealed it a key, which it judges the seal by) whole,
 /// and every other reduced to what chains it (`Reduced`), so the reader learns nothing of other
 /// members.
@@ -558,9 +558,9 @@ impl StepRef<'_> {
 /// the reader signed (an agent it made), and so the accounts those name; every opening of a
 /// kind to anyone inside, which names no one; every parent record, so the reader walks where the
 /// block lies (and the signers' own right there); every owner record, so the reader knows who
-/// owns the block and that its former owners grant no more; and in an organization's log every administrator
-/// record and every record about someone who ever administered it, so no demotion is hidden
-/// there: an honest organization path reduces no entry that lowered anyone.
+/// owns the block and that its former owners grant no more; and in an organization's log every
+/// administrator record and every record about someone who ever administered it, so no demotion is
+/// hidden there: an honest organization path reduces no entry that lowered anyone.
 pub fn proof_path(
     kind: LogKind,
     entries: &[Entry],
@@ -639,11 +639,11 @@ pub struct CarriedKey {
 }
 
 /// The heads of the access logs a key's epoch was made under, as its maker held them
-/// (plans/signed_access.md, 3d): a device seals or wraps the epoch only to those granted as of
-/// a head at or after these, once it holds the log up to them, so a server that withholds a
-/// revocation, a closing or a demotion from it gets the epoch sealed to no one meanwhile. Each
-/// is none where its maker held no such log, and an epoch naming none is sealed by that log to
-/// no one.
+/// (guides/blocks/keys.md, "Epochs name their heads"): a device seals or wraps the epoch only to
+/// those granted as of a head at or after these, once it holds the log up to them, so a server that
+/// withholds a revocation, a closing or a demotion from it gets the epoch sealed to no one
+/// meanwhile. Each is none where its maker held no such log, and an epoch naming none is sealed by
+/// that log to no one.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Heads {
     /// The log of the scope it is a key of: the block's own for a scope key, the scope's it is
@@ -747,7 +747,7 @@ pub struct Checked {
     /// later reduced entry may have lowered any of them. Only `positions`, `head`,
     /// `last_lowering` (so `holds`, `current_at` and `outdates`), and `open_inside`, closed by
     /// any reduced lowering after it, hold as for a whole log. Nothing is sealed to anyone, nor
-    /// signed, by a partial log (plans/signed_access.md, "Who is served what").
+    /// signed, by a partial log (guides/blocks/keys.md, "Who is served what").
     pub partial: bool,
 }
 

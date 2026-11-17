@@ -10,10 +10,10 @@ async fn grant_carol(revoked: &Revoked, access: Access) {
 }
 
 /// An edit set aside as sealed under an outdated key, its author demoted by the time it is
-/// sent so that it is not sealed again (signed access 7), holds back what is made of its block
+/// sent so that it is not sealed again, holds back what is made of its block
 /// after it, as an edit the server refuses does, even once its author may write again, until it
 /// is discarded: then the block takes the next edit, under a new epoch of the team Bob never
-/// gets, and its head uploads as before (signed access 3d).
+/// gets, and its head uploads as before.
 #[tokio::test]
 async fn a_block_whose_edit_was_set_aside_as_outdated_takes_the_next_one_once_it_is_discarded() {
     let harness = Harness::start().await;

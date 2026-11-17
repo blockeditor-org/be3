@@ -21,7 +21,7 @@ pub use keys::{EscrowWarning, KeyBook};
 pub use peer::{
     BlockRead, Credentials, Drained, Listed, MAX_NOTIFICATION_AGE_MILLISECONDS,
     MAX_NOTIFICATION_TEXT, Notification, OpenedNotification, Peer, PeerConfig, Reconciled,
-    Resolver, Saved, Sealed, SealsJournal, Signer, Write,
+    PendingRotation, Resolver, Saved, Sealed, SealsJournal, Signer, Write,
 };
 pub use refs::{
     Aside, KeptChange, KeptEdit, KeptSubmission, ListedBlock, OpenEdits, PendingCounts, RefsDb,
@@ -146,14 +146,15 @@ pub enum ClientError {
     Contended,
     Locked(uuid::Uuid),
     /// The server served access records for the block that do not check back to the root
-    /// this device pinned (plans/signed_access.md).
+    /// this device pinned (guides/blocks/keys.md).
     Forged(uuid::Uuid),
     /// The server served the block's access log (or, for the organization's id, the
     /// organization's) short of what this device checked of it before: it holds back history,
-    /// so nothing is taken from it (plans/signed_access.md, 3d).
+    /// so nothing is taken from it (guides/blocks/keys.md, "Epochs name their heads").
     Withheld(uuid::Uuid),
     /// What would be sent of the block is sealed under a key epoch its access log shows
-    /// outdated, which someone who lost access may hold: not sent (plans/signed_access.md, 3d).
+    /// outdated, which someone who lost access may hold: not sent (guides/blocks/keys.md, "Epochs
+    /// name their heads").
     Outdated(uuid::Uuid),
     /// This device's edits to the block were discarded and it may not edit it: it keeps none
     /// (`Refs::keep_open_edits`).

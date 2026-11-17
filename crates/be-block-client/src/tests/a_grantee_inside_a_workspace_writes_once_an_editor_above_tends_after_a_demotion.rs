@@ -8,7 +8,7 @@ use be_block_protocol::OrganizationRole;
 /// their save there is refused (`Locked`; the host holds it and submits it again as keys
 /// arrive). The workspace's manager, connected but writing nothing, is told key work changed
 /// and rotates the workspace from its top as it tends; the grantee's save then goes through,
-/// under an epoch the demoted administrator, with the server, does not open (signed access 8).
+/// under an epoch the demoted administrator, with the server, does not open.
 #[tokio::test]
 async fn a_grantee_inside_a_workspace_writes_once_an_editor_above_tends_after_a_demotion() {
     let harness = Harness::start().await;
@@ -65,6 +65,7 @@ async fn a_grantee_inside_a_workspace_writes_once_an_editor_above_tends_after_a_
     manager.tend().await.unwrap();
     let team_after = manager.keys().scope_key(team).unwrap();
     assert_ne!(team_after, team_before, "tending rotated nothing");
+    assert_eq!(manager.pending_rotations(), Vec::new());
     // Tending again finds nothing more to rotate.
     manager.tend().await.unwrap();
     assert_eq!(manager.keys().scope_key(team), Some(team_after));

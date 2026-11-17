@@ -292,7 +292,8 @@ impl BlockGraph {
         self.blocks.len()
     }
 
-    /// Counts the calls that may have changed the graph (everything taking `&mut self`), so a caller can tell whether a failed action left it as it was.
+    /// Counts the calls that may have changed the graph (everything taking `&mut self`), so a
+    /// caller can tell whether a failed action left it as it was.
     pub const fn changes(&self) -> u64 {
         self.changes
     }
@@ -638,9 +639,9 @@ impl BlockGraph {
         Some(node)
     }
 
-    /// Moves ownership of `id` to `author` (an owner record, plans/signed_access.md step 5):
-    /// they hold what authorship gives from now on, and the block counts among theirs. What the
-    /// former author keeps is a grant the caller writes.
+    /// Moves ownership of `id` to `author` (an owner record, guides/blocks/keys.md, "Owner
+    /// records"): they hold what authorship gives from now on, and the block counts among theirs.
+    /// What the former author keeps is a grant the caller writes.
     pub fn set_author(&mut self, id: Uuid, author: Uuid) -> Result<(), GraphError> {
         let node = self.node_mut(id)?;
         let former = std::mem::replace(&mut node.author, author);

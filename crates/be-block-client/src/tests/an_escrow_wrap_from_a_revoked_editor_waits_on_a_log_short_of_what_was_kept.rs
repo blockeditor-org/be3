@@ -4,7 +4,7 @@ use super::*;
 /// restarts and is served it short of the revocation. Bob, with the server, wraps a made-up
 /// key of the note to the escrow key naming the head the device kept: the device takes nothing
 /// from the short log, so it does not find Bob granted and the key waits, never taken or
-/// written under (signed access 3d).
+/// written under.
 #[tokio::test]
 async fn an_escrow_wrap_from_a_revoked_editor_waits_on_a_log_short_of_what_was_kept() {
     let harness = Harness::start().await;

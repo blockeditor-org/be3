@@ -3,7 +3,7 @@ use super::*;
 /// A member joins the organization's log only by a record an administrator's device signs, from
 /// the invitation it made (or an agent's maker). One the server adds on its own is in no record:
 /// administrators' key work lists it, so does its own, and no administrator's device signs it
-/// in, so the escrow wraps it writes wait (signed access 3a-members).
+/// in, so the escrow wraps it writes wait.
 #[tokio::test]
 async fn a_member_the_server_adds_is_listed_as_signed_in_by_no_one() {
     let harness = Harness::start().await;

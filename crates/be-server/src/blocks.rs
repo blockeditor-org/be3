@@ -140,7 +140,8 @@ impl Visibility {
     }
 
     /// Whether a block this caller may view lies below `block`, whose log it is then served to
-    /// check that block's ancestry and the records resting on it (plans/signed_access.md, step 4).
+    /// check that block's ancestry and the records resting on it (guides/blocks/keys.md, "Parent
+    /// records").
     pub(crate) fn reads_below(&self, graph: &BlockGraph, block: Uuid) -> bool {
         graph
             .entry_points(self.account)
@@ -149,7 +150,7 @@ impl Visibility {
     }
 
     /// Whether this caller is served `block`'s whole access log rather than a proof path
-    /// (plans/signed_access.md, "Who is served what"): it has Edit or above there, or on a block
+    /// (guides/blocks/keys.md, "Who is served what"): it has Edit or above there, or on a block
     /// below it, whose sealing checks every ancestor's log too.
     pub(crate) fn served_whole(&self, graph: &BlockGraph, block: Uuid) -> bool {
         self.can_edit(graph, block)
@@ -2130,9 +2131,9 @@ impl ServerStore {
     }
 
     /// `set-access` carrying an owner record: ownership of `block` moves from its owner, the
-    /// caller, to `account` (plans/signed_access.md, step 5). The new owner holds what authorship
-    /// gives and the former keeps Edit (`be_block_keys::FORMER_OWNER`), in the log as in the
-    /// graph. Answers who could view the block before, as a grant does.
+    /// caller, to `account` (guides/blocks/keys.md, "Owner records"). The new owner holds what
+    /// authorship gives and the former keeps Edit (`be_block_keys::FORMER_OWNER`), in the log as in
+    /// the graph. Answers who could view the block before, as a grant does.
     async fn transfer_owner(
         &self,
         identity: Identity,

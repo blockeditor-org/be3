@@ -4,7 +4,7 @@ use be_block_graph::Access;
 
 /// A block made where the signed parent records cannot be read (offline, or a read that does
 /// not answer) takes the scope its parent's kept summary names, unchecked, and goes up only
-/// through the outbox, which checks it first (signed access 4): one made under a folder the
+/// through the outbox, which checks it first: one made under a folder the
 /// server claimed lies in a contact's workspace, where the owner holds the contact's scope
 /// key, is set aside as misplaced, its keys wrapped there never sent.
 #[tokio::test]

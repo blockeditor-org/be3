@@ -1,9 +1,9 @@
 use super::*;
 
 /// A proof path's reduced entries after its last whole one could be a tail the server made up,
-/// which no honest log reaches (plans/signed_access.md, 3e): a device keeps a path only as far
-/// as its last whole entry, so the honest log served after it is taken, not withheld, while one
-/// cut short of that whole entry still is.
+/// which no honest log reaches (guides/blocks/keys.md, "Proof paths"): a device keeps a path only
+/// as far as its last whole entry, so the honest log served after it is taken, not withheld, while
+/// one cut short of that whole entry still is.
 #[test]
 fn a_tail_the_server_makes_up_after_a_proof_path_is_not_kept() {
     let creator = RecoveryPhrase::generate().secret();

@@ -36,6 +36,6 @@ bases, floors and times, never content.
 
 - The server can drop, hold back or replay an entry, or number it differently for different
   participants, which would leave their copies different. It cannot read or forge one. Fork
-  detection would catch the last (plans/signed_access.md, Accepted limits, "Forks").
+  detection would catch the last (guides/blocks/keys.md, "Accepted limits", "Forks").
 - Offline there is no server: the device numbers in its own order over its own journal, and
   what it orders reaches the others as a commit that merges, not as operations.

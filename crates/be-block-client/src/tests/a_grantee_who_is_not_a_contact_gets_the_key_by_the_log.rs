@@ -5,8 +5,8 @@ use be_block_protocol::Unsealed;
 use be_type_text::{TextBlock, TextContent};
 
 /// A device seals a block's key to whoever its log grants, with the keys the grant names,
-/// contact or not, and the grantee opens a key from a sender the organization's log names
-/// (signed access 3c). A grantee who is no contact of the sealer reads, but what it pins is
+/// contact or not, and the grantee opens a key from a sender the organization's log names.
+/// A grantee who is no contact of the sealer reads, but what it pins is
 /// that sender's word: its root is weak, unverified, and the key vouches for nothing.
 #[tokio::test]
 async fn a_grantee_who_is_not_a_contact_gets_the_key_by_the_log() {

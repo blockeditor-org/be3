@@ -349,7 +349,7 @@ pub(crate) fn store_keys(
                         "account {account} is not a member of this organization"
                     )));
                 }
-                // To a contact, or to a grantee the block's log names (signed access 3c), with
+                // To a contact, or to a grantee the block's log names, with
                 // the keys its grant names, which a device checks as the server does.
                 let granted = row.kind == KeyKind::Scope
                     && crate::access::granted_level(connection, organization, row.block, account)?
@@ -896,8 +896,8 @@ pub(crate) fn forget_block_keys(
 
 impl ServerStore {
     /// A page of the keys `get-keys` serves: those after `after` in the order of their ids, each
-    /// with its wraps, while they fit in `ServerConfig::key_page_bytes` (at least one). A key made with a
-    /// smaller id while a client pages is not skipped for good: `keys-changed` tells it to
+    /// with its wraps, while they fit in `ServerConfig::key_page_bytes` (at least one). A key made
+    /// with a smaller id while a client pages is not skipped for good: `keys-changed` tells it to
     /// read again.
     pub async fn get_keys(
         &self,
@@ -1205,7 +1205,8 @@ impl ServerStore {
             }
             // Checked as devices check it (`verify_escrow`): made and signed by an administrator
             // the organization's log names, chained to the epoch before, under the log's head
-            // now, so a demotion is behind every new epoch (plans/signed_access.md, 3d).
+            // now, so a demotion is behind every new epoch (guides/blocks/keys.md, "Epochs name
+            // their heads").
             let head = crate::access::checked_organization_log(database, organization)?
                 .map(|checked| checked.head);
             if head != Some(escrow.head) {
@@ -1571,7 +1572,7 @@ impl ServerStore {
     }
 }
 
-/// The organization's members its log does not name (signed access 3a-members), whose escrow
+/// The organization's members its log does not name, whose escrow
 /// wraps administrators do not open until one is signed in: every such member, to an
 /// administrator; the caller alone, to a member, so its device shows that it waits. None in an
 /// organization with no log.

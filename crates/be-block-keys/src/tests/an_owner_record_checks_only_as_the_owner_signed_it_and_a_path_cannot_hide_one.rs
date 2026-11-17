@@ -2,7 +2,7 @@ use super::*;
 
 /// Ownership moves only by the owner's record; the new owner manages the block, no grant names
 /// them, and the old owner keeps Edit and grants no more. A proof path that reduces the transfer
-/// still leaves the old owner no Manage (plans/signed_access.md, step 5).
+/// still leaves the old owner no Manage (guides/blocks/keys.md, "Owner records").
 #[test]
 fn an_owner_record_checks_only_as_the_owner_signed_it_and_a_path_cannot_hide_one() {
     let creator = RecoveryPhrase::generate().secret();

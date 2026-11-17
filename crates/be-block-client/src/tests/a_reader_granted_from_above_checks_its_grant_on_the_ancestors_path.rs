@@ -16,9 +16,9 @@ fn granted(steps: &[Step]) -> Vec<[u8; 16]> {
 }
 
 /// A reader granted a note by a manager of the workspace above it, on `Authority::Inherited`,
-/// checks that grant (plans/signed_access.md, step 4): the note's signed parent record places
-/// it in the workspace and names the root of its log, and the workspace, which the reader may
-/// not view, is served to it as a proof path proving the granter's Manage, and no one else's
+/// checks that grant (guides/blocks/keys.md, "Parent records"): the note's signed parent record
+/// places it in the workspace and names the root of its log, and the workspace, which the reader
+/// may not view, is served to it as a proof path proving the granter's Manage, and no one else's
 /// grant. The grant rests on no server word, so the note's key is sealed to the reader by it.
 #[tokio::test]
 async fn a_reader_granted_from_above_checks_its_grant_on_the_ancestors_path() {

@@ -11,8 +11,8 @@ plans/deferred/anonymous_share_links.md).
   invitation. An opener from outside the organization becomes a guest, which
   may not create blocks, grant access or make links there.
 - A grant checked in the block's access log stands in for a contact check
-  when a device seals a key (plans/signed_access.md, "Sealing to someone who
-  is not a contact"): the grant names the grantee's keys as a member with the
+  when a device seals a key (guides/blocks/keys.md,
+  "Trust"): the grant names the grantee's keys as a member with the
   right level verified them, so a sealer needs no contact row of its own, and
   the grantee accepts a key from a sender a checked record names.
 - A Join member (plans/hosted_blocks.md) may message the block's host over the

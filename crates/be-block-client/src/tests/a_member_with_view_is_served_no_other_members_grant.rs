@@ -15,8 +15,8 @@ fn granted(steps: &[Step]) -> Vec<[u8; 16]> {
         .collect()
 }
 
-/// A member with View is served a proof path of the block's log (plans/signed_access.md, 3e):
-/// the root and its own grant whole (and the grant of whoever sealed it a key, here the
+/// A member with View is served a proof path of the block's log (guides/blocks/keys.md, "Proof
+/// paths"): the root and its own grant whole (and the grant of whoever sealed it a key, here the
 /// creator, whose right is the root), every other entry reduced to what chains it, so no other
 /// member's grant reaches it; and of the organization's log, no other member's record. The path
 /// still checks from the root it pinned, the key sealed to it opens and reads, and a revocation

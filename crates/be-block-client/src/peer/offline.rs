@@ -770,7 +770,7 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(Drained::SetAside { block, why });
         }
         // Made offline under the scope a kept summary named: its keys go up only wrapped under
-        // the key of a block the signed parent records place it under (signed access 4).
+        // the key of a block the signed parent records place it under.
         if creation.unchecked && self.misplaced(&creation).await? {
             let why = crate::refs::Aside::Misplaced;
             self.move_to_unsent(block, Some(why))?;
@@ -963,7 +963,7 @@ impl<S: ObjectStore> Peer<S> {
             }
             // Sealed offline under a key the log now shows outdated (`send_pending`): the edit
             // is this account's and only its key may be held by someone who lost access, so it
-            // is sealed again under a new epoch this device vouches for (signed access 7). Set
+            // is sealed again under a new epoch this device vouches for. Set
             // aside, never sent, when this account may no longer write the block as the logs
             // show now, or no such epoch can be made.
             Err(ClientError::Outdated(_)) => {

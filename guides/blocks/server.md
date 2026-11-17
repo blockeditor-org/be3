@@ -402,7 +402,7 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   a member who is their contact, and the block counts against the new owner's
   bound on blocks (`OverQuota`), checked after the rest, so an owner learns
   whether an account is at its bound only of a contact.
-- Each block has an access log (plans/signed_access.md; table `access_log`,
+- Each block has an access log (guides/blocks/keys.md; table `access_log`,
   `be-server/src/access.rs`), served by `get-access-log` to its viewers and to
   anyone viewing a block below it (`Visibility::reads_below`), who checks its
   ancestry and the records resting on it there. Its root comes with

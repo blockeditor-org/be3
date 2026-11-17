@@ -47,7 +47,7 @@ fn plant(
 
 /// A device takes a key a contact seals it only if the block's log grants that contact Edit or
 /// above as of the head the key's epoch names, or as of the log's head here when the key names
-/// none this device's log reaches (signed access 3d). A contact revoked from the block makes up
+/// none this device's log reaches. A contact revoked from the block makes up
 /// keys and seals them to an editor: naming a head after their revocation, no head, or a head
 /// the log has no entry for, none is taken; nor is one from a contact who only ever viewed. One
 /// naming a head from before, while they still edited, is taken: which epoch a device writes

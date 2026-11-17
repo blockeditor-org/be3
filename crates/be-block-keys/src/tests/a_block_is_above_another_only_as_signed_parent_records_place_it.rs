@@ -5,7 +5,7 @@ use super::*;
 /// the head the record names, each log checked from the root the placement under it names: so
 /// the server can neither put a block under an ancestor someone else manages, nor serve a
 /// made-up log for a real one, nor count a block above that it lay under only at another time
-/// (plans/signed_access.md, step 4).
+/// (guides/blocks/keys.md, "Parent records").
 #[test]
 fn a_block_is_above_another_only_as_signed_parent_records_place_it() {
     let alice = RecoveryPhrase::generate().secret();

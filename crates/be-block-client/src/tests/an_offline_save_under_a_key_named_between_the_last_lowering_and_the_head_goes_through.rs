@@ -2,7 +2,7 @@ use super::*;
 
 /// A device kept every entry of the team's log from its last lowering through its head:
 /// offline, a key naming one between them, made after the revocation and before a later grant,
-/// is current, and the save goes through (signed access 3d).
+/// is current, and the save goes through.
 #[tokio::test]
 async fn an_offline_save_under_a_key_named_between_the_last_lowering_and_the_head_goes_through() {
     let harness = Harness::start().await;

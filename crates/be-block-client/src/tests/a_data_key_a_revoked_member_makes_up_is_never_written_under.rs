@@ -10,7 +10,7 @@ use be_type_text::{TextBlock, TextContent};
 /// as the block's newest. Naming no head, a head no log holds, one from before the revocation
 /// or the newest, an editor's device opens it but never writes under it: it was opened through
 /// an epoch the log outdates, so the save gives the scope a new epoch first, also on a device
-/// that has read no log yet (signed access 3d).
+/// that has read no log yet.
 #[tokio::test]
 async fn a_data_key_a_revoked_member_makes_up_is_never_written_under() {
     let harness = Harness::start().await;

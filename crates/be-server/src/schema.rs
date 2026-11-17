@@ -137,7 +137,7 @@ const SCHEMA: &str = "
         change_sequence INTEGER NOT NULL DEFAULT 0
     );
 
-    -- A company organization's access log (plans/signed_access.md), in order,
+    -- A company organization's access log (guides/blocks/keys.md), in order,
     -- as access_log keeps a block's.
     CREATE TABLE organization_log (
         organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -231,7 +231,7 @@ const SCHEMA: &str = "
         PRIMARY KEY (organization_id, id)
     );
 
-    -- Each block's access log (plans/signed_access.md), in order: entries as
+    -- Each block's access log (guides/blocks/keys.md), in order: entries as
     -- be_block_keys::Entry::encode wrote them, each checked as devices check it.
     CREATE TABLE access_log (
         organization_id TEXT NOT NULL,

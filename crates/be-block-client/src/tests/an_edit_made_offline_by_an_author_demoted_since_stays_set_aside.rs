@@ -2,7 +2,7 @@ use super::*;
 
 /// Carol edits offline under the key Bob made up, and is demoted to View meanwhile. Back
 /// online, the logs show the key outdated and Carol no longer writing the block: her edit is
-/// not sealed again under a new epoch, but set aside, never sent (signed access 7).
+/// not sealed again under a new epoch, but set aside, never sent.
 #[tokio::test]
 async fn an_edit_made_offline_by_an_author_demoted_since_stays_set_aside() {
     let harness = Harness::start().await;

@@ -11,6 +11,19 @@ use uuid::Uuid;
 use super::Peer;
 use crate::ClientError;
 
+/// A rotation `tend` owes a tree a demotion outdated (`Peer::rotate_demoted`) that failed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PendingRotation {
+    /// The tree's top, the scope the rotation starts from (`Peer::rotation_top`).
+    pub top: Uuid,
+    /// When it first failed, in commit time (`Peer::latest_believed`, milliseconds).
+    pub since: i64,
+    /// How many `tend`s it failed in since.
+    pub failures: u32,
+    /// The last failure.
+    pub error: String,
+}
+
 impl<S: ObjectStore> Peer<S> {
     /// The organization's key work for this account: the first value of a `key-work-changed`
     /// stream, which starts with it.
@@ -117,13 +130,16 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// Gives a new epoch, from the top, to every scope this device holds and may edit whose
-    /// newest key a demotion outdates (`KeyBook::demoted`, signed access 8), each tree once
-    /// (`rotation_top`): a member reaching a scope only from inside it cannot rotate it, as its
-    /// new epoch is wrapped under the scope above, so the editors above do it when key work
-    /// tells them of the demotion rather than at their next write there, which may never come.
-    /// Opportunistic: a scope this device cannot rotate is left to one that can, and one
-    /// another device rotated first is seen current once its keys are read. Answers whether
-    /// it rotated any.
+    /// newest key a demotion outdates (`KeyBook::demoted`), each tree once (`rotation_top`): a
+    /// member reaching a scope only from inside it cannot rotate it, as its new epoch is
+    /// wrapped under the scope above, so the editors above do it when key work tells them of
+    /// the demotion rather than at their next write there, which may never come. Whether this
+    /// account may edit a tree's top is judged from its signed logs (`may_write_signed`), as a
+    /// reseal judges it, never the server's summary. Opportunistic: a scope this device cannot
+    /// rotate is left to one that can, and one another device rotated first is seen current
+    /// once its keys are read. A rotation that fails is kept as pending since its first failure
+    /// (`pending_rotations`) until one goes through or the tree is current again. Answers
+    /// whether it rotated any.
     async fn rotate_demoted(&self) -> bool {
         let Ok(Some(_)) = self.checked_organization().await else {
             return false;
@@ -144,49 +160,91 @@ impl<S: ObjectStore> Peer<S> {
         scopes.sort();
         scopes.dedup();
         scopes.retain(|scope| demoted(*scope));
+        self.pending_rotations
+            .lock()
+            .unwrap()
+            .retain(|top, _| demoted(*top));
         let mut rotated = false;
         for scope in scopes {
             if !demoted(scope) {
                 continue;
             }
             let top = self.rotation_top(scope).await;
-            let Ok(summary) = self.summary(top).await else {
-                continue;
-            };
-            if !summary.access.can_edit() {
+            if !matches!(self.may_write_signed(top).await, Ok(true)) {
                 continue;
             }
             // Another device of an editor above may have rotated it since key work told them.
             if self.refresh_keys(Some(vec![top])).await.is_err() || !demoted(top) {
+                self.pending_rotations.lock().unwrap().remove(&top);
                 continue;
             }
-            if self.rotate(top).await.is_ok() {
-                rotated = true;
+            match self.rotate(top).await {
+                Ok(()) => {
+                    self.pending_rotations.lock().unwrap().remove(&top);
+                    rotated = true;
+                }
+                Err(error) => self.rotation_failed(top, &error),
             }
         }
         rotated
     }
 
-    /// The key `key` is sealed to `account` with, as the logs name them (signed access 3c): to
+    /// Notes that the rotation `tend` owes the tree under `top` failed again, so a grantee
+    /// inside it, refused as `Locked` meanwhile, can be diagnosed from an editor above.
+    fn rotation_failed(&self, top: Uuid, error: &ClientError) {
+        let now = self.latest_believed();
+        let mut pending = self.pending_rotations.lock().unwrap();
+        let entry = pending.entry(top).or_insert(PendingRotation {
+            top,
+            since: now,
+            failures: 0,
+            error: String::new(),
+        });
+        entry.failures += 1;
+        entry.error = error.to_string();
+        tracing::warn!(
+            %top,
+            since = entry.since,
+            failures = entry.failures,
+            %error,
+            "a rotation a demotion calls for failed again"
+        );
+    }
+
+    /// The trees a demotion outdated whose rotation this device's `tend` owes and could not do
+    /// yet, oldest first: until one goes through, a grantee inside the tree who reaches it only
+    /// from inside is refused as `Locked`.
+    pub fn pending_rotations(&self) -> Vec<PendingRotation> {
+        let mut pending: Vec<PendingRotation> = self
+            .pending_rotations
+            .lock()
+            .unwrap()
+            .values()
+            .cloned()
+            .collect();
+        pending.sort_by_key(|rotation| (rotation.since, rotation.top));
+        pending
+    }
+
+    /// The key `key` is sealed to `account` with, as the logs name them: to
     /// the server, only the organization settings' scope key (`KeyBook::recipient`); any key,
     /// the escrow key among them, to an administrator, with the keys the organization's log
     /// names; an owner-only block's keys to no one (`KeyBook::owner_only_covers`); a scope
     /// key, to a grantee its block's own log names with View or above, with the keys the grant
     /// names, contact or not, or, for a kind its log opens to anyone inside, to a contact the
     /// server lists as viewing inside. That log is checked from the root this device pinned in
-    /// full (a weak root is a member's word, plans/signed_access.md); a grant or opening on
+    /// full (a weak root is a member's word, `RootPin::Weak`); a grant or opening on
     /// authority from a block above counts as the logs above, reached through signed parent
-    /// records, prove it (signed access 4). Key work lists
+    /// records, prove it. Key work lists
     /// only accounts the server holds a grant row for, so one it revoked is sealed to no more,
     /// signed or not. `organization` is the organization's log, checked.
     ///
-    /// Each log counts only once it reaches the head the key's epoch names (`KeyBook::heads`,
-    /// signed access 3d), and then as of its head now, at or after that one: a server that
-    /// withholds a revocation, a closing or a demotion made before the epoch gets it sealed to
-    /// no one by that log until it serves the log that far. And only while the epoch is current
-    /// by it (`Checked::current_at`): one named before an entry that lowered someone's access
-    /// is sealed to no one, and when it is its scope's newest, the scope is due a rotation
-    /// (`Target::Outdated`).
+    /// Each log counts only once it reaches the head the key's epoch names (`KeyBook::heads`), and
+    /// then as of its head now, at or after that one: a server that withholds a revocation, a
+    /// closing or a demotion made before the epoch gets it sealed to no one by that log until it
+    /// serves the log that far. And only while the epoch is current by it (`Checked::current_at`):
+    /// one named before an entry that lowered someone's access is sealed to no one, and when it is
+    /// its scope's newest, the scope is due a rotation (`Target::Outdated`).
     async fn sealing_target(
         &self,
         key: Uuid,
@@ -222,10 +280,10 @@ impl<S: ObjectStore> Peer<S> {
         // scope key and its blocks' data keys, which key work lists for them). A key naming no
         // organization head (one minted before this device read the organization's log, which
         // connecting does first) goes to no administrator this way. An administrator now may
-        // hold an epoch a demotion outdates: it is written under no more (`KeyBook::outdated`,
-        // signed access 8), and the settings' keys reach a new administrator this way.
-        // A proof path names no administrator it does not prove, and hides whom a reduced entry
-        // demoted: only a whole log seals.
+        // hold an epoch a demotion outdates: it is written under no more (`KeyBook::outdated`), and
+        // the settings' keys reach a new administrator this way. A proof path names no
+        // administrator it does not prove, and hides whom a reduced entry demoted: only a whole log
+        // seals.
         if let Some(administrator) = organization
             .filter(|checked| !checked.partial)
             .filter(|checked| organization_head.is_some_and(|head| checked.holds(&head)))
@@ -266,7 +324,7 @@ impl<S: ObjectStore> Peer<S> {
         }
         // A kind of settings its log opens to whoever views a block inside is offered by its
         // viewers to their contacts. That the contact views inside is the server's word
-        // (plans/signed_access.md, "Grants the server changes first"); that the kind is open is
+        // (guides/blocks/keys.md, "Grants the server changes first"); that the kind is open is
         // the log's, so a block no manager opened is offered to no one.
         match checked.open_inside >= be_block_keys::Level::View {
             true => self.keys.contact(account).into(),
@@ -310,7 +368,7 @@ impl<S: ObjectStore> Peer<S> {
         self.refresh_keys(Some(walked.iter().map(|node| node.id).collect()))
             .await?;
         // Each key goes under the key of a block the signed parent records place it under, never
-        // one the server only lists it below (signed access 4): the top under the scope or parent
+        // one the server only lists it below: the top under the scope or parent
         // its summary names, walked up once, and each block below placed under the one that
         // listed it, one log each.
         let top_parent = match super::parent_of(&top)? {
@@ -333,7 +391,7 @@ impl<S: ObjectStore> Peer<S> {
         placed
             .into_iter()
             .collect::<Result<Vec<()>, ClientError>>()?;
-        // Each new epoch names the heads of the logs it is made under (signed access 3d): read
+        // Each new epoch names the heads of the logs it is made under: read
         // now, so they are past the revocation that called for the rotation. A log that does
         // not check here leaves the head this device last held.
         let _ = self.checked_organization().await;

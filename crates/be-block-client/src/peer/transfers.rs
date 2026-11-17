@@ -108,7 +108,7 @@ impl<S: ObjectStore> Peer<S> {
                 .collect();
             // What the server lacks goes up only if no log this device holds shows its key
             // outdated: whatever path asks (an outbox commit, a snapshot, a fork), what was
-            // sealed offline under such a key never leaves it (signed access 3d).
+            // sealed offline under such a key never leaves it.
             for (hash, _) in &wanted {
                 if let Some(block) = Box::pin(self.sealed_outdated(**hash)).await {
                     return Err(ClientError::Outdated(block));

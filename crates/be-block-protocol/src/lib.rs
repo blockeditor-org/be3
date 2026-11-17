@@ -307,8 +307,9 @@ pub struct EscrowKey {
     pub epoch: u64,
     pub public: [u8; 32],
     pub signing: [u8; 32],
-    /// The head of the organization's access log it was made under (plans/signed_access.md,
-    /// 3d): a device takes it, and seals it, only once it holds the log that far.
+    /// The head of the organization's access log it was made under (guides/blocks/keys.md,
+    /// "Epochs name their heads"): a device takes it, and seals it, only once it holds the log that
+    /// far.
     pub head: [u8; 32],
     /// The administrator who made it, whose identity key signs `chained`.
     pub maker: Uuid,

@@ -15,7 +15,7 @@ fn sealed(database: &rusqlite::Connection, key: Uuid, account: Uuid) -> i64 {
 }
 
 /// A kind its author opened to anyone inside and closed again, by a signed closing, is
-/// offered to no contact the server goes on listing (signed access 3c).
+/// offered to no contact the server goes on listing.
 #[tokio::test]
 async fn a_kind_opened_then_closed_is_sealed_to_no_contact() {
     let harness = Harness::start().await;

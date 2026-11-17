@@ -156,7 +156,7 @@ impl Pinned {
 }
 
 /// Makes a company organization with this account as its administrator, rooting its access
-/// log at the account's keys (plans/signed_access.md) and pinning that root for it. The server
+/// log at the account's keys (guides/blocks/keys.md) and pinning that root for it. The server
 /// takes a root only as the caller's current keys, so they are registered first when the
 /// server holds none yet.
 pub async fn create_organization(
@@ -378,7 +378,7 @@ pub struct NewIdentity {
     pub own: Vec<OwnSealed>,
     pub changes: Vec<KeyChange>,
     /// An entry retiring the old keys for the new ones in each access log the account signed
-    /// in (plans/signed_access.md, "A new recovery phrase").
+    /// in (guides/blocks/keys.md, "Identity, new phrases and devices").
     pub retirements: Vec<be_block_protocol::Retirement>,
 }
 
@@ -577,7 +577,7 @@ pub async fn accept_link(
     expected: Expected,
 ) -> Result<(Link, ContactCard), ClientError> {
     // The card names these keys; the server holds them first, so a record the link's owner
-    // signs naming them (a member signed in, signed access 3a-members) checks.
+    // signs naming them (a member signed in) checks.
     register_identity(connection, identity).await?;
     let (link, card) = open_link(connection, code, expected).await?;
     let after = served_verified(connection, identity)

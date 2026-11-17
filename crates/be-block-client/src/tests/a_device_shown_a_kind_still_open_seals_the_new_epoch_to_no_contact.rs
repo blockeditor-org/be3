@@ -7,7 +7,7 @@ use be_block_protocol::Unsealed;
 /// scope by a grant of its own): the server
 /// withholds the closing from another of the author's devices and lists a contact viewing
 /// inside as due the epoch. That device, shown the kind still open, offers the epoch to no
-/// contact until it holds the log up to the epoch's head, which closes it (signed access 3d),
+/// contact until it holds the log up to the epoch's head, which closes it,
 /// while it offers a kind still open to the same contact.
 #[tokio::test]
 async fn a_device_shown_a_kind_still_open_seals_the_new_epoch_to_no_contact() {

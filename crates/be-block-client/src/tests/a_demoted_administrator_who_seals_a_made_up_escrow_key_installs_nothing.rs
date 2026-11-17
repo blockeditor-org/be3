@@ -8,7 +8,7 @@ use be_block_protocol::{EscrowKey, OrganizationRole, WrappedBy};
 /// their contact. That device holds the secret but takes neither it nor the epoch: an escrow
 /// key is taken from a contact only while the organization's log names them an administrator
 /// at its head, and an epoch someone else made only through the signed chain, so nothing new
-/// is escrowed under it (signed access 3d).
+/// is escrowed under it.
 #[tokio::test]
 async fn a_demoted_administrator_who_seals_a_made_up_escrow_key_installs_nothing() {
     let harness = Harness::start().await;

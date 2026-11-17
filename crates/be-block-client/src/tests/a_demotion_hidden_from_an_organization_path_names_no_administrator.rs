@@ -7,7 +7,7 @@ use be_block_protocol::{KeyKind, KeyRow, KeySet, WrappedBy, WrappedKey};
 use be_block_store::Keyring;
 
 /// An honest proof path of an organization's log keeps every administrator record whole
-/// (plans/signed_access.md, 3e), so one that reduces an entry that lowered anyone hides a
+/// (guides/blocks/keys.md, "Proof paths"), so one that reduces an entry that lowered anyone hides a
 /// demotion. A reader served such a path names no administrator by it: a key the demoted
 /// administrator seals it as one is not taken, though the same seal is taken by a path that
 /// shows them administering still, at the head before the demotion.

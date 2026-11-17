@@ -5,7 +5,7 @@ use super::*;
 /// epoch. A person's edit made offline is never refused: it is sealed and kept here, under the
 /// key Bob made up. Judged again before it is sent, it is sealed again under a new epoch of the
 /// team, which Bob never gets, and sent; what was sealed under the made-up key never leaves the
-/// device (signed access 7).
+/// device.
 #[tokio::test]
 async fn an_edit_made_offline_under_a_made_up_key_is_sealed_again_under_a_key_bob_never_gets() {
     let harness = Harness::start().await;

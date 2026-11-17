@@ -11,9 +11,10 @@ use be_block_protocol::{EscrowKey, KeyKind, KeyRow, KeySet, WrappedBy, WrappedKe
 use be_block_store::{ContentKey, Keyring, StoreError};
 use uuid::Uuid;
 
-/// Its locks are taken in one order, `rows`, then `roots` and `trusted`, then `server_held` and `under_owner_only`,
-/// then `escrow` and `escrowed`, then `escrow_secrets`, then `ring`'s own: `absorb` holds `rows` while it opens keys, so nothing
-/// that holds a later lock takes an earlier one.
+/// Its locks are taken in one order, `rows`, then `roots` and `trusted`, then `server_held` and
+/// `under_owner_only`, then `escrow` and `escrowed`, then `escrow_secrets`, then `ring`'s own:
+/// `absorb` holds `rows` while it opens keys, so nothing that holds a later lock takes an earlier
+/// one.
 pub struct KeyBook {
     account: Uuid,
     organization: Uuid,
@@ -222,8 +223,8 @@ pub struct Escrowed {
     pub root: Option<EntryHash>,
     /// The log heads its epoch was made under, as the wrap carries them.
     pub heads: Heads,
-    /// From an escrow wrap; else sealed to this account by a member who is not a contact
-    /// (signed access 3c), which is never trusted.
+    /// From an escrow wrap; else sealed to this account by a member who is not a contact,
+    /// which is never trusted.
     pub escrow: bool,
 }
 
@@ -518,8 +519,9 @@ impl KeyBook {
     }
 
     /// Drops a key opened from an escrow wrap whose carried root disagrees with the root this
-    /// device pinned for its block, and marks the block's root conflicting (`RootPin::Conflicting`),
-    /// so a planted root shows rather than quietly holding back the genuine wraps.
+    /// device pinned for its block, and marks the block's root conflicting
+    /// (`RootPin::Conflicting`), so a planted root shows rather than quietly holding back the
+    /// genuine wraps.
     pub fn conflicting_escrowed(&self, key: Uuid, root: EntryHash) {
         let Some((escrowed, _)) = self.escrowed.lock().unwrap().remove(&key) else {
             return;
@@ -1082,17 +1084,17 @@ impl KeyBook {
     }
 
     /// Whether a key `sender`, a contact, sealed to this account, carried as `carried`, may be
-    /// taken (plans/signed_access.md, 3d). An escrow key only from an administrator the
-    /// organization's log names at its head as this device checked it: never as of a head the
-    /// sender names, since a demoted administrator would name one from before. Any other key
-    /// from a sender the block's log gives Edit or above, or the organization's log has
+    /// taken (guides/blocks/keys.md, "Epochs name their heads"). An escrow key only from an
+    /// administrator the organization's log names at its head as this device checked it: never as
+    /// of a head the sender names, since a demoted administrator would name one from before. Any
+    /// other key from a sender the block's log gives Edit or above, or the organization's log has
     /// administer it, as of the head the key names, or as of the log's head here when this
     /// device's log does not reach that head (or the key names none). A sender the block's log
     /// names, but not as of that head, held nothing then. A key from one it never names is taken
     /// only once this device found, as that key arrived, that its sender held Edit or above on
-    /// a block the signed parent records place the block under (`vouch`, plans/signed_access.md,
-    /// step 4); any key of a block whose log this device never checked is taken (its first,
-    /// which carries the root).
+    /// a block the signed parent records place the block under (`vouch`, guides/blocks/keys.md,
+    /// "Parent records"); any key of a block whose log this device never checked is taken (its
+    /// first, which carries the root).
     ///
     /// A data key is taken from a contact only as an administrator (the settings' data keys,
     /// which key work has them seal to each other): no one else seals one to an account, and
@@ -1269,11 +1271,11 @@ impl KeyBook {
 
     /// Whether the organization's log, as this device last checked it (or, with none read this
     /// run, kept it), outdates the epoch of `key`, which names `head` of it: an administrator
-    /// was demoted or signed out after it, and may hold the epoch through escrow (signed access
-    /// 8). So a demotion makes every scope under the escrow due a rotation at its next write, as
-    /// a revocation does its block's. A head the log does not reach counts as its root, as for
-    /// a block's log. Never a key an owner-only scope covers, which no escrow holds; never in an
-    /// organization this device holds no log of (the personal one has none).
+    /// was demoted or signed out after it, and may hold the epoch through escrow. So a demotion
+    /// makes every scope under the escrow due a rotation at its next write, as a revocation does
+    /// its block's. A head the log does not reach counts as its root, as for a block's log. Never a
+    /// key an owner-only scope covers, which no escrow holds; never in an organization this device
+    /// holds no log of (the personal one has none).
     fn demoted_since(&self, roots: &Roots, key: Uuid, head: Option<EntryHash>) -> bool {
         if self.owner_only_covers(key) {
             return false;

@@ -3,7 +3,7 @@ use super::*;
 /// An editor's device checked the team's log past the revocation of Bob, a contact, then
 /// restarts and is served it short of the revocation. Bob seals it made-up keys naming the head
 /// it kept, a scope key of the team and a data key of the note: neither is taken while its log
-/// stays short, the data key never from a contact who does not administer (signed access 3d).
+/// stays short, the data key never from a contact who does not administer.
 #[tokio::test]
 async fn a_contacts_seal_waits_on_a_log_short_of_what_was_kept() {
     let harness = Harness::start().await;

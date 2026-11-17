@@ -323,11 +323,11 @@ pub enum Aside {
     /// It was sealed offline under a key epoch its block's access log shows outdated, which
     /// someone who lost access may hold, and could not be sealed again under a new epoch
     /// (`Peer::reseal`: this account may no longer write the block, or no epoch could be made),
-    /// so this device never sent it (plans/signed_access.md, 3d and step 7).
+    /// so this device never sent it (guides/blocks/keys.md, "Epochs name their heads").
     KeyOutdated,
     /// It was made offline under a scope the server's tree named, which the signed parent
     /// records do not place its parent under, so its keys were never sent wrapped there
-    /// (plans/signed_access.md, step 4).
+    /// (guides/blocks/keys.md, "Parent records").
     Misplaced,
 }
 
@@ -436,8 +436,7 @@ struct State {
 /// How far this device last checked a scope's access log, kept across restarts: a log the
 /// server serves later must reach `head` or counts as withheld, and when no log can be read an
 /// epoch is current only if it names one of `current`, every entry from the last that lowered
-/// anyone's access (at `lowering_place`) through the head (signed access 3d,
-/// `KeyBook::outdated`).
+/// anyone's access (at `lowering_place`) through the head (/// `KeyBook::outdated`).
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct KeptLog {
     pub head: [u8; 32],
