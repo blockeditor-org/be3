@@ -11,7 +11,7 @@ fn a_rounded_texture_quad_leaves_its_corners_uncovered() {
         &picture,
         beui_draw::texture_quad::Quad {
             rect: [0.0, 0.0, 64.0, 64.0],
-            corner_radius: 16.0,
+            corner_radii: [16.0; 4],
             ..Default::default()
         },
     );
@@ -37,7 +37,7 @@ fn a_rounded_texture_quad_leaves_its_corners_uncovered() {
         beui_draw::texture_quad::Quad {
             rect: [0.0, 0.0, 32.0, 64.0],
             uv: [0.0, 0.0, 0.5, 1.0],
-            corner_radius: 16.0,
+            corner_radii: [16.0, 0.0, 0.0, 16.0],
             ..Default::default()
         },
     );
@@ -45,11 +45,13 @@ fn a_rounded_texture_quad_leaves_its_corners_uncovered() {
     assert_eq!(
         capture.pixel(0, 0),
         black,
-        "a corner of the whole texture is rounded"
+        "a corner given a radius is rounded"
     );
     assert_eq!(
         capture.pixel(31, 0),
         white,
-        "where the source rect cuts the texture, its edge stays square"
+        "a corner given none stays square"
     );
+    assert_eq!(capture.pixel(0, 63), black, "each corner has its own radius");
+    assert_eq!(capture.pixel(31, 63), white);
 }

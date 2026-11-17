@@ -285,45 +285,41 @@ impl WindowLayers {
 
     /// What changed on the window between `self` and `next`, in its points, for a display that
     /// redraws only part of itself (e-paper's `FB_DAMAGE_CLIPS`): each shown surface's own
-    /// damage (`damage`, in its pixels) through its layer, and the old and new bounds of every
-    /// layer that moved, appeared, went, changed stacking or changed its opacity, clip or
-    /// visibility. `damage` answers `None` for a surface redrawn whole.
+    /// damage (`damage`, in its pixels) through its layer, the old and new bounds of every layer
+    /// that moved, appeared, went or changed its opacity, clip or visibility, and where two layers
+    /// that both lists place alike overlap and swapped order. `damage` answers `None` for a
+    /// surface redrawn whole.
     pub fn damage(
         &self,
         next: &WindowLayers,
         damage: impl Fn(&Layer) -> Option<Vec<Rect>>,
     ) -> Vec<Rect> {
-        let before: HashMap<LayerId, &Layer> =
-            self.layers.iter().map(|layer| (layer.id, layer)).collect();
-        let after: HashMap<LayerId, &Layer> =
-            next.layers.iter().map(|layer| (layer.id, layer)).collect();
-        // Stacking changed for a layer whose rank among the layers both lists hold differs.
-        let ranks: HashMap<LayerId, usize> = self
+        let before: HashMap<LayerId, (usize, &Layer)> = self
             .layers
             .iter()
-            .filter(|layer| after.contains_key(&layer.id))
             .enumerate()
-            .map(|(rank, layer)| (layer.id, rank))
+            .map(|(rank, layer)| (layer.id, (rank, layer)))
             .collect();
+        let after: HashMap<LayerId, &Layer> =
+            next.layers.iter().map(|layer| (layer.id, layer)).collect();
         let mut out = Vec::new();
         let whole = |out: &mut Vec<Rect>, layer: &Layer| {
             if layer.shown && layer.bounds().is_positive() {
                 out.push(layer.bounds());
             }
         };
-        let mut rank = 0;
-        let mut damaged = Vec::new();
+        // The shown layers placed alike in both lists, in their new order, with their old rank.
+        let mut kept: Vec<(usize, &Layer)> = Vec::new();
         for layer in &next.layers {
             match before.get(&layer.id) {
                 None => whole(&mut out, layer),
-                Some(old) => {
-                    let restacked = ranks.get(&layer.id) != Some(&rank);
-                    rank += 1;
-                    if restacked || !old.placed_as(layer) {
-                        whole(&mut out, old);
-                        whole(&mut out, layer);
-                    } else if layer.shown {
-                        damaged.push(layer);
+                Some((_, old)) if !old.placed_as(layer) => {
+                    whole(&mut out, old);
+                    whole(&mut out, layer);
+                }
+                Some((rank, _)) => {
+                    if layer.shown {
+                        kept.push((*rank, layer));
                     }
                 }
             }
@@ -333,7 +329,19 @@ impl WindowLayers {
                 whole(&mut out, layer);
             }
         }
-        for layer in damaged {
+        // A pair that swapped order shows differently only where both show. A layer that moved
+        // or changed is damaged whole already, which covers any pair it is in.
+        for (index, (rank, lower)) in kept.iter().enumerate() {
+            for (other, upper) in &kept[index + 1..] {
+                if other < rank {
+                    let overlap = lower.bounds().intersect(upper.bounds());
+                    if overlap.is_positive() {
+                        out.push(overlap);
+                    }
+                }
+            }
+        }
+        for (_, layer) in kept {
             match damage(layer) {
                 None => whole(&mut out, layer),
                 Some(rects) => out.extend(rects.into_iter().filter_map(|rect| {

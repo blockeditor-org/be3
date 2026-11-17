@@ -181,20 +181,22 @@ surfaces by handle (`Surface::Root`, `Screen`, `Anchored`, `Host`), with the tra
 surface's pixels to the window's points, the clip in the surface's pixels, the rounding of the
 surface's own corners, and `WindowLayers::damage`. It serializes (`LayerList::encode`), as the
 root's frame carries it (step 4a). The host's own UI is its only producer
-(`be-host-runtime/src/layers.rs`): natively each app surface the host's frame shows is drawn
-from its layer as a texture quad in the host's pass, in the host UI's paint order, so the root's
-surface is that pass rather than a texture; the web builds the frame's list (screens under
+(`be-host-runtime/src/layers.rs`); the web builds the frame's list (screens under
 `Surface::Root(0)`, anchored views and what lies over them above it) and applies it as CSS to
-its canvases. Not built yet (step 4b): drawing the list in a pass of its own over textures of
-the root's surfaces, a list for each OS window (the host's frame makes one, with no `window`),
-program windows as `Surface::Host`, and the damage the e-paper display reads coming from the
-list rather than
-from beui's retained tree. Two gaps to close then: natively `texture_quad` rounds every corner
-of a layer's clip, where the web and `Layer::corner_radius` round only those that meet the
-surface's edges (`Layer::rounded`), so the texture quad needs a radius per corner; and
-`WindowLayers::damage` takes a layer whose rank among the kept layers changed as restacked, so
-raising one layer to the top damages every layer it passes, where only the pairs that overlap
-and swapped order need it.
+its canvases.
+
+Built (step 4b): natively each window is drawn from its list in a pass of its own
+(`beui_draw::compose`, beui-renderer-wgpu's `composite.rs`; guides/apps/runtime.md, The layer
+list). The window's renderer paints the host's UI into textures, `Surface::Root(0)` and, while an
+anchored view shows, `Root(1)` for what is painted after the first one; drawings place their
+surfaces as layers (`Draw::layers`) and punch holes for screens, program windows are
+`Surface::Host` (Wayland's `WindowDraw`, win32's `TextureDraw::hosted`), one list per
+renderer, so per OS window and per display, with no `window` set yet. The pass draws again only
+where `WindowLayers::damage` says, which is the e-paper display's damage. `texture_quad` takes a
+radius per corner, and restacking damages only where two layers that swapped order overlap. A
+hole is a full erase, as on the web, so a translucent part of a screen shows the window's
+background rather than the host's UI beneath it: the root guest (4f) decides what lies under its
+holes.
 
 ## Input
 
@@ -468,7 +470,7 @@ Each step lands on its own.
    - 4a. Built: the root entry natively (The root guest): `be3:root`, `Root` running a root
      inline and serving it the sandbox and the frame's deadline, and the layer list as the
      frame's answer, tested with a root that settles one child. be-host runs no root yet.
-   - 4b. The host draws the layer list in a pass of its own: its UI painted to a texture as
+   - 4b. Built: the host draws the layer list in a pass of its own: its UI painted to a texture as
      `Surface::Root(0)` (and `Root(1)` for what lies over anchored views, as the web stacks
      `#layers`), app surfaces composited from the list, one list per OS window, program windows
      as `Surface::Host`, the e-paper damage from `WindowLayers::damage`, a radius per corner in

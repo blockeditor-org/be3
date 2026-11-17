@@ -18,6 +18,7 @@ be-lib-ui-types = { path = "../be-lib-ui-types" }
 wgpu = { version = "29", default-features = false, features = ["vulkan"] }
 
 [dev-dependencies]
+be-lib-layers = { path = "../be-lib-layers" }
 beui-paint-snapshot = { path = "../beui-paint-snapshot" }
 
 [lints]

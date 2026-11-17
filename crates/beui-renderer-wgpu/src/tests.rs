@@ -19,7 +19,9 @@ mod a_bounded_renderer_filters_and_paints_only_within_its_bounds;
 mod a_clip_rectangle_hides_what_falls_outside_it;
 mod a_colour_glyph_paints_its_own_colours_beside_tinted_text;
 mod a_colour_vision_filter_recolours_the_region_it_covers;
+mod a_composited_window_shows_surfaces_through_their_holes_and_its_ui_over_anchored_ones;
 mod a_drawing_paints_between_the_shapes_around_it;
+mod drawings_that_place_one_layer_id_each_show_in_a_composited_window;
 mod a_drawing_repaints_only_within_each_damaged_region;
 mod a_faded_scroll_fades_its_content_toward_each_edge_with_more_beyond_it;
 mod a_fill_with_fractional_bounds_lands_on_whole_pixels;
@@ -374,6 +376,70 @@ struct Patch {
     pipeline: wgpu::RenderPipeline,
     bind_group: wgpu::BindGroup,
     placement: wgpu::Buffer,
+}
+
+/// Shows a texture as a layer of a composited window, punching its hole when it is a screen.
+pub struct Shows {
+    texture: wgpu::Texture,
+    surface: be_lib_layers::Surface,
+    id: u64,
+    quads: beui_draw::texture_quad::Quads,
+    placed: RefCell<Vec<beui_draw::compose::Placed>>,
+}
+
+impl Shows {
+    pub fn new(texture: wgpu::Texture, surface: be_lib_layers::Surface, id: u64) -> Self {
+        Self {
+            texture,
+            surface,
+            id,
+            quads: Default::default(),
+            placed: RefCell::new(Vec::new()),
+        }
+    }
+}
+
+impl Draw for Shows {
+    fn prepare(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        _encoder: &mut wgpu::CommandEncoder,
+        at: DrawAt,
+    ) {
+        assert!(at.composited, "the window is composited");
+        let quad = beui_draw::texture_quad::Quad {
+            rect: at.rect,
+            clip: at.clip,
+            ..Default::default()
+        };
+        let size = (self.texture.width(), self.texture.height());
+        let layer = beui_draw::compose::layer_of(&quad, size, at.pixels_per_point, be_lib_layers::LayerId(self.id), self.surface)
+            .expect("the surface shows");
+        *self.placed.borrow_mut() = vec![beui_draw::compose::Placed {
+            layer,
+            texture: beui_draw::texture_quad::Pipelines::of(device, &at).bind(&self.texture),
+            opaque: false,
+            srgb_encoded: false,
+        }];
+        let hole = beui_draw::texture_quad::Hole::of(device, queue, &at);
+        let holes = matches!(self.surface, be_lib_layers::Surface::Screen { .. }).then_some((&hole.white, quad));
+        self.quads.prepare(
+            &hole.pipelines,
+            queue,
+            at.format,
+            [at.screen.x, at.screen.y],
+            holes,
+        );
+    }
+
+    fn paint(&self, pass: &mut wgpu::RenderPass<'_>, _at: DrawAt) {
+        self.quads.paint(pass);
+    }
+
+    fn layers(&self) -> Vec<beui_draw::compose::Placed> {
+        self.placed.borrow().clone()
+    }
 }
 
 #[derive(Default)]

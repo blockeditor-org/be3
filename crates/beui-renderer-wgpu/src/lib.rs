@@ -13,13 +13,16 @@ use beui_core::drawing::Drawing;
 use beui_core::fade::Fade;
 use beui_core::filter::Filter;
 use beui_core::font::{GlyphId, GlyphImage};
-use beui_core::painter::placed_shape;
+use beui_core::painter::{Shape, placed_shape};
+use be_lib_layers::{LayerId, Surface};
+use beui_draw::compose::Placed;
 use beui_draw::{Draw, DrawAt};
 use beui_types::Color32;
 use beui_types::geometry::Region;
 use beui_types::{Image, ImageId};
 use beui_types::{Pos2, Rect, Vec2};
 
+mod composite;
 pub mod filter;
 mod group;
 pub mod present;
@@ -318,6 +321,12 @@ pub struct Renderer {
     bounds: Option<[u32; 4]>,
     whole: bool,
     scratch: Option<wgpu::Texture>,
+    /// Whether this renderer draws a window, which is composited while the program composites
+    /// windows (`beui_draw::compose`).
+    window: bool,
+    composition: Option<composite::Composition>,
+    /// Runs that erase each damaged region, which clear the upper root there.
+    cleared: Vec<Run>,
 }
 
 struct Bound {
@@ -557,6 +566,9 @@ struct Frame<'a> {
     drawings: Vec<(Drawing, DrawAt)>,
     opacities: Vec<f32>,
     overflow: bool,
+    /// Whether the frame is composited, so every drawing is visited, damaged or not, to place
+    /// its layers.
+    composited: bool,
 }
 
 impl Frame<'_> {
@@ -641,6 +653,15 @@ impl Frame<'_> {
             steps,
         });
         self.opacities.push(opacity);
+    }
+
+    /// Whether a drawing reaching `reach` is visited: where it is damaged, and anywhere it shows
+    /// while the frame is composited.
+    fn visits(&self, reach: [f32; 4]) -> bool {
+        match self.composited {
+            true => reach[0] < reach[2] && reach[1] < reach[3],
+            false => self.damages(reach),
+        }
     }
 
     fn damages(&self, reach: [f32; 4]) -> bool {
@@ -765,7 +786,22 @@ impl Renderer {
             bounds: None,
             whole: true,
             scratch: None,
+            window: false,
+            composition: None,
+            cleared: Vec::new(),
         }
+    }
+
+    /// Marks this renderer as drawing a window, which is composited while the program
+    /// composites windows (`beui_draw::compose::composite_windows`).
+    pub fn set_window(&mut self, window: bool) {
+        self.window = window;
+    }
+
+    /// The layers this renderer composited its last frame from, in the window's points, when it
+    /// composites.
+    pub fn layers(&self) -> Option<&be_lib_layers::WindowLayers> {
+        Some(self.composition.as_ref()?.list())
     }
 
     pub fn resources(&self) -> &Resources {
@@ -867,12 +903,16 @@ impl Renderer {
                     view_formats: &[],
                 })),
         };
-        encoder.copy_texture_to_texture(at(texture, left, top), at(scratch, 0.0, 0.0), extent);
-        encoder.copy_texture_to_texture(
-            at(scratch, 0.0, 0.0),
-            at(texture, left + by[0], top + by[1]),
-            extent,
-        );
+        // A composited window's roots hold what its target shows, so they move with it.
+        let roots = self.composition.iter().flat_map(|composition| composition.roots());
+        for texture in std::iter::once(texture).chain(roots) {
+            encoder.copy_texture_to_texture(at(texture, left, top), at(scratch, 0.0, 0.0), extent);
+            encoder.copy_texture_to_texture(
+                at(scratch, 0.0, 0.0),
+                at(texture, left + by[0], top + by[1]),
+                extent,
+            );
+        }
     }
 
     pub fn id(&self) -> u64 {
@@ -896,6 +936,27 @@ impl Renderer {
         pixels_per_point: f32,
         repaint: Repaint,
     ) -> Repaint {
+        let composited = self.window && beui_draw::compose::compositing();
+        let mut repaint = repaint;
+        match composited {
+            true => {
+                let size = (screen.x.max(0.0) as u32, screen.y.max(0.0) as u32);
+                if self
+                    .composition
+                    .as_ref()
+                    .is_none_or(|composition| !composition.fits(self.format, size))
+                {
+                    self.composition = Some(composite::Composition::new(
+                        device,
+                        queue,
+                        self.format,
+                        size,
+                    ));
+                    repaint = Repaint::Everything;
+                }
+            }
+            false => self.composition = None,
+        }
         {
             let mut shared = self.resources.0.borrow_mut();
             if shared.full() {
@@ -948,7 +1009,7 @@ impl Renderer {
                 )
             }
         };
-        let (instances, steps, mut frame) = loop {
+        let (instances, mut steps, mut frame) = loop {
             let mut frame = Frame {
                 queue,
                 damaged: damaged.as_deref(),
@@ -960,6 +1021,7 @@ impl Renderer {
                 drawings: Vec::new(),
                 opacities: Vec::new(),
                 overflow: false,
+                composited,
             };
             frame.space([0.0; 2], OPEN, Fade::NONE);
             let top = self.list_top;
@@ -997,6 +1059,23 @@ impl Renderer {
         }
         queue.write_buffer(&self.space_buffer, 0, &spaces);
         self.record_drawings(device, queue, &frame.drawings);
+        let placed = match composited {
+            true => self.split(&mut steps, damaged.is_none()),
+            false => Some(Vec::new()),
+        };
+        let Some(placed) = placed else {
+            // What is painted after the first anchored view moves between the roots, so they
+            // are painted whole.
+            self.release_drawings();
+            return self.prepare(
+                device,
+                queue,
+                output,
+                screen,
+                pixels_per_point,
+                Repaint::Everything,
+            );
+        };
         self.release_drawings();
         if self.lists.len() > 2 * self.live + LISTED {
             self.sweep(output, pixels_per_point);
@@ -1024,6 +1103,19 @@ impl Renderer {
         };
         self.steps = steps;
         self.filters = prepared;
+        if let Some(composition) = &mut self.composition {
+            let background = match repaint {
+                Repaint::Region { background, .. } => Some(background),
+                Repaint::Everything => None,
+            };
+            composition.take(
+                placed,
+                pixels_per_point,
+                origin,
+                self.scissors.as_deref(),
+                background,
+            );
+        }
         if instances.is_empty() {
             return repaint;
         }
@@ -1093,6 +1185,7 @@ impl Renderer {
             clip: Rect::EVERYTHING,
             fade: Fade::NONE,
         };
+        self.cleared.clone_from(&cleared);
         let mut emitted = Emitted {
             instances,
             background: runs,
@@ -1119,7 +1212,12 @@ impl Renderer {
                 Layer::Shape(shape) => {
                     let shape = placed_shape(shape, at.offset, at.clip);
                     quads.clear();
-                    push_quads(&shape, at.factor, frame.damaged, &mut quads);
+                    // A composited frame visits every drawing (`Frame::visits`).
+                    let damaged = match (frame.composited, &shape) {
+                        (true, Shape::Drawing { .. }) => None,
+                        _ => frame.damaged,
+                    };
+                    push_quads(&shape, at.factor, damaged, &mut quads);
                     for quad in quads.drain(..) {
                         match self.encoding(frame.queue, quad) {
                             Some(Encoding::Instance {
@@ -1193,7 +1291,8 @@ impl Renderer {
     }
 
     fn walk(&mut self, frame: &mut Frame, display: &Display, at: Walk, steps: &mut Vec<Step>) {
-        if !frame.damages(at.reach(display)) {
+        let reach = at.reach(display);
+        if !(frame.damages(reach) || display.drawings > 0 && frame.visits(reach)) {
             return;
         }
         let key = at.key(display);
@@ -1329,7 +1428,7 @@ impl Renderer {
         bound: [f32; 4],
     ) -> Option<Run> {
         let clip = overlap(clip, bound);
-        if !frame.damages(overlap(rect, clip)) {
+        if !frame.visits(overlap(rect, clip)) {
             return None;
         }
         let shift = |[left, top, right, bottom]: [f32; 4]| {
@@ -1347,6 +1446,7 @@ impl Renderer {
             pixels_per_point: frame.pixels_per_point,
             format: self.format,
             renderer: self.id,
+            composited: frame.composited,
         };
         frame.drawings.push((drawing.clone(), at));
         Some(Run {
@@ -1603,6 +1703,98 @@ impl Renderer {
         })
     }
 
+    /// Splits a composited frame's steps between the roots, at the first drawing that places an
+    /// anchored view (`Surface::Anchored`): the upper root's steps begin there, cleared first
+    /// where it is damaged. Returns the layers the frame's drawings place, bottom first, each
+    /// with whether it lies over the lower root; or `None` when the upper root would begin at
+    /// another anchored view than last frame's on a frame not painted whole, which moves what is
+    /// painted after it between the roots.
+    fn split(&mut self, steps: &mut Vec<Step>, whole: bool) -> Option<Vec<(Placed, bool)>> {
+        fn layers_of(runs: &[Run]) -> impl Iterator<Item = (usize, Vec<Placed>)> + '_ {
+            runs.iter().enumerate().filter_map(|(index, run)| {
+                let (drawing, _) = run.drawing.as_ref()?;
+                let layers = drawing.draw::<Rc<dyn Draw>>()?.layers();
+                (!layers.is_empty()).then_some((index, layers))
+            })
+        }
+        fn nested(steps: &[Step], into: &mut Vec<Placed>) {
+            for step in steps {
+                match step {
+                    Step::Runs(runs) => into.extend(layers_of(runs).flat_map(|(_, layers)| layers)),
+                    Step::Filter { steps, .. } | Step::Group { steps, .. } => nested(steps, into),
+                }
+            }
+        }
+        let anchored = |layers: &[Placed]| {
+            layers.iter().find_map(|placed| {
+                matches!(placed.layer.surface, Surface::Anchored { .. }).then_some(placed.layer.id)
+            })
+        };
+        let mut placed = Vec::new();
+        // Where the upper root begins: a step, and the run in it, or the step after it.
+        let mut at: Option<(usize, Option<usize>, LayerId)> = None;
+        for (index, step) in steps.iter().enumerate() {
+            let mut found = Vec::new();
+            match step {
+                Step::Runs(runs) => {
+                    for (run, layers) in layers_of(runs) {
+                        if at.is_none()
+                            && let Some(id) = anchored(&layers)
+                        {
+                            at = Some((index, Some(run), id));
+                        }
+                        let lifted = at.is_some();
+                        placed.extend(layers.into_iter().map(|layer| (layer, lifted)));
+                    }
+                    continue;
+                }
+                Step::Filter { steps, .. } | Step::Group { steps, .. } => nested(steps, &mut found),
+            }
+            let lifted = at.is_some();
+            if !lifted && let Some(id) = anchored(&found) {
+                at = Some((index, None, id));
+            }
+            placed.extend(found.into_iter().map(|layer| (layer, lifted)));
+        }
+        // Ids are unique in a list: a drawing that repeats another's (such as a view's pieces
+        // drawn above its children, counted apart from those below) takes one of its own for
+        // each time it repeats, which is as stable as the order the drawings show them in.
+        let mut seen = HashMap::<LayerId, u64>::default();
+        for (shown, _) in &mut placed {
+            let repeats = seen.entry(shown.layer.id).or_default();
+            if *repeats > 0 {
+                shown.layer.id = LayerId(std::hash::BuildHasher::hash_one(
+                    &be_lib_stable_hash::State::default(),
+                    (shown.layer.id.0, *repeats),
+                ));
+            }
+            *repeats += 1;
+        }
+        let composition = self.composition.as_mut()?;
+        let splits_at = at.map(|(_, _, id)| id);
+        if !whole && splits_at != composition.splits_at {
+            return None;
+        }
+        composition.splits_at = splits_at;
+        composition.split = at.map(|(index, run, _)| match run {
+            Some(run) => {
+                let Step::Runs(runs) = &mut steps[index] else {
+                    unreachable!("a run is in a step of runs");
+                };
+                let upper = runs.split_off(run);
+                steps.insert(index + 1, Step::Runs(upper));
+                index + 1
+            }
+            None => index + 1,
+        });
+        if let Some(split) = composition.split
+            && !whole
+        {
+            steps.insert(split, Step::Runs(self.cleared.clone()));
+        }
+        Some(placed)
+    }
+
     fn record_drawings(
         &self,
         device: &wgpu::Device,
@@ -1630,21 +1822,26 @@ impl Renderer {
         }
     }
 
+    /// Where the frame draws on its target, `None` where it draws it whole: what its UI
+    /// damaged, or for a composited window, where its layers changed (`composite`).
     pub fn scissors(&self) -> Option<&[[u32; 4]]> {
-        self.scissors.as_deref()
+        match &self.composition {
+            Some(composition) => composition.composed.as_deref(),
+            None => self.scissors.as_deref(),
+        }
     }
 
-    /// Draws everything in one pass, for a frame with no filter and no group, which
-    /// need passes of their own.
-    fn paint(&self, pass: &mut wgpu::RenderPass<'_>) {
+    /// Draws `steps` in one pass, for a frame with no filter and no group, which need passes
+    /// of their own.
+    fn paint(&self, pass: &mut wgpu::RenderPass<'_>, steps: &[Step]) {
         debug_assert!(self.filters.is_empty() && self.opacities.is_empty());
         let Some(scissors) = &self.scissors else {
-            self.draw_steps(pass, &self.steps, None);
+            self.draw_steps(pass, steps, None);
             return;
         };
         for scissor in scissors {
             if clip(pass, *scissor) {
-                self.draw_steps(pass, &self.steps, Some(*scissor));
+                self.draw_steps(pass, steps, Some(*scissor));
             }
         }
     }
@@ -1683,10 +1880,50 @@ impl Renderer {
         } else {
             self.idle_groups = 0;
         }
+        let Some(mut composition) = self.composition.take() else {
+            self.render_into(device, queue, encoder, target, load, 0..self.steps.len());
+            return;
+        };
+        // A composited window: its UI into the roots, below and above its first anchored view,
+        // then the window from its layers.
+        let split = composition
+            .split
+            .unwrap_or(self.steps.len())
+            .min(self.steps.len());
+        let cleared = |load| match (self.whole, load) {
+            (true, wgpu::LoadOp::Clear(color)) => wgpu::LoadOp::Clear(color),
+            (true, _) => wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+            (false, _) => wgpu::LoadOp::Load,
+        };
+        let (lower, upper) = (cleared(load), cleared(wgpu::LoadOp::Load));
+        let view = composition.lower.view.clone();
+        self.render_into(device, queue, encoder, &view, lower, 0..split);
+        match composition.split {
+            Some(_) => {
+                let view = composition.upper(device).view.clone();
+                self.render_into(device, queue, encoder, &view, upper, split..self.steps.len());
+            }
+            None => composition.upper = None,
+        }
+        composition.compose(queue, encoder, target, load);
+        self.composition = Some(composition);
+    }
+
+    /// Renders `steps` of the frame into `target`.
+    fn render_into(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        load: wgpu::LoadOp<wgpu::Color>,
+        steps: std::ops::Range<usize>,
+    ) {
+        let size = self.target;
         if self.filters.is_empty() && self.opacities.is_empty() {
             self.effects.clear();
             let mut pass = self.begin(encoder, target, load);
-            self.paint(&mut pass);
+            self.paint(&mut pass, &self.steps[steps]);
             return;
         }
         if self.empty() {
@@ -1711,13 +1948,22 @@ impl Renderer {
         for effects in &mut self.effects {
             effects.ensure(device, size);
         }
-        let steps = std::mem::take(&mut self.steps);
+        let held = std::mem::take(&mut self.steps);
         let mut load = load;
         for scissor in scissors {
-            self.render_steps(device, queue, encoder, target, load, scissor, &steps, 0);
+            self.render_steps(
+                device,
+                queue,
+                encoder,
+                target,
+                load,
+                scissor,
+                &held[steps.clone()],
+                0,
+            );
             load = wgpu::LoadOp::Load;
         }
-        self.steps = steps;
+        self.steps = held;
     }
 
     #[allow(clippy::too_many_arguments)]

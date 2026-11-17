@@ -127,8 +127,18 @@ impl Quad {
         self.turning().bounds(self.rect)
     }
 
+    /// The texture quad that shows `source` (a fraction of the texture) over this quad, in a
+    /// pass at `at`: its rounding rounds only the corners where `source` meets the texture's,
+    /// since the rounding is the surface's own. The host drew a blit so before it drew layers,
+    /// which its tests check them against.
+    #[cfg(test)]
     pub(super) fn placed(&self, source: Rect, at: &DrawAt) -> texture_quad::Quad {
         let scale = at.pixels_per_point;
+        let radius = self.corner_radius.max(0.0) * scale;
+        let (left, top) = (source.min.x <= 0.0, source.min.y <= 0.0);
+        let (right, bottom) = (source.max.x >= 1.0, source.max.y >= 1.0);
+        let corner_radii = [left && top, right && top, right && bottom, left && bottom]
+            .map(|rounded| if rounded { radius } else { 0.0 });
         texture_quad::Quad {
             rect: [
                 self.rect.min.x * scale,
@@ -140,7 +150,7 @@ impl Quad {
             clip: at.clip,
             rotation: self.rotation,
             opacity: self.opacity.clamp(0.0, 1.0),
-            corner_radius: self.corner_radius.max(0.0) * scale,
+            corner_radii,
             srgb_encoded: true,
             ..texture_quad::Quad::default()
         }
@@ -569,7 +579,11 @@ pub(super) fn damaged_pieces(
 
 pub struct AppDrawing {
     blits: RefCell<Vec<Blit>>,
+    /// What it draws: its surfaces, or where its renderer composites, the holes its screens
+    /// show through.
     quads: texture_quad::Quads,
+    /// The layers it placed at its last prepare, where its renderer composites.
+    placed: RefCell<Vec<beui::native::compose::Placed>>,
 }
 
 impl AppDrawing {
@@ -577,6 +591,7 @@ impl AppDrawing {
         Self {
             blits: RefCell::new(blits),
             quads: texture_quad::Quads::default(),
+            placed: RefCell::new(Vec::new()),
         }
     }
 }
@@ -701,6 +716,10 @@ impl beui::native::Draw for AnchoredDrawing {
 
     fn paint(&self, pass: &mut wgpu::RenderPass<'_>, at: DrawAt) {
         self.drawing.paint(pass, at);
+    }
+
+    fn layers(&self) -> Vec<beui::native::compose::Placed> {
+        self.drawing.layers()
     }
 }
 
@@ -832,6 +851,10 @@ impl beui::native::Draw for ViewDrawing {
     fn paint(&self, pass: &mut wgpu::RenderPass<'_>, at: DrawAt) {
         self.drawing.paint(pass, at);
     }
+
+    fn layers(&self) -> Vec<beui::native::compose::Placed> {
+        self.drawing.layers()
+    }
 }
 
 impl Paints for ViewDrawing {
@@ -903,6 +926,7 @@ impl beui::native::Draw for AppDrawing {
         at: DrawAt,
     ) {
         let blits = self.blits.borrow();
+        self.placed.borrow_mut().clear();
         PRESENTER.with(|presenter| {
             let mut presenter = presenter.borrow_mut();
             let Some(presenter) = presenter.as_mut() else {
@@ -943,7 +967,7 @@ impl beui::native::Draw for AppDrawing {
                 if !frames.is_empty() {
                     platform.retain(blit.surface, &surfaces);
                 }
-                // Every app surface is drawn from its layer (crate::layers), as the web places
+                // Every app surface is shown from its layer (crate::layers), as the web places
                 // its canvases from the frame's layers.
                 let layer = match blit.layer {
                     Some(anchored) => {
@@ -973,24 +997,58 @@ impl beui::native::Draw for AppDrawing {
                             unreachable!("a blit's layer is an app's surface")
                         }
                     };
-                    placed.push((
-                        blit.surface,
-                        surface,
-                        platform.shown(crate::layers::texture_quad(&layer, &at)),
-                    ));
+                    placed.push((blit.surface, surface, layer));
                 }
             }
             let platform = &*platform;
+            if at.composited
+                && let Some(hole) = &presenter.hole
+            {
+                // The renderer composites the layers; the drawing punches the holes its screens
+                // show through in the host's own surface. An anchored view lies over it.
+                let mut layers = self.placed.borrow_mut();
+                let mut holes = Vec::new();
+                for (slot, surface, layer) in placed {
+                    let Some(texture) = platform.texture(slot, surface) else {
+                        continue;
+                    };
+                    if matches!(layer.surface, Surface::Screen { .. }) {
+                        holes.push(texture_quad::Quad {
+                            opacity: 1.0,
+                            ..crate::layers::texture_quad(&layer, &at)
+                        });
+                    }
+                    layers.push(beui::native::compose::Placed {
+                        layer,
+                        texture: texture.clone(),
+                        opaque: false,
+                        srgb_encoded: true,
+                    });
+                }
+                self.quads.prepare(
+                    &hole.pipelines,
+                    queue,
+                    at.format,
+                    [at.screen.x, at.screen.y],
+                    holes.into_iter().map(|quad| (&hole.white, quad)),
+                );
+                return;
+            }
             self.quads.prepare(
                 platform.pipelines(),
                 queue,
                 at.format,
                 [at.screen.x, at.screen.y],
-                placed.into_iter().filter_map(|(slot, surface, quad)| {
+                placed.into_iter().filter_map(|(slot, surface, layer)| {
+                    let quad = platform.shown(crate::layers::texture_quad(&layer, &at));
                     Some((platform.texture(slot, surface)?, quad))
                 }),
             );
         });
+    }
+
+    fn layers(&self) -> Vec<beui::native::compose::Placed> {
+        self.placed.borrow().clone()
     }
 
     fn paint(&self, pass: &mut wgpu::RenderPass<'_>, _at: DrawAt) {
@@ -1004,6 +1062,8 @@ thread_local! {
 
 struct Presenter {
     platform: Option<PlatformPresenter>,
+    /// What punches a screen's hole where the renderer composites (natively).
+    hole: Option<texture_quad::Hole>,
 }
 
 pub(super) fn install(setup: &beui::native::Setup) -> Availability {
@@ -1012,9 +1072,17 @@ pub(super) fn install(setup: &beui::native::Setup) -> Availability {
     };
     let platform = build_presenter(&gpu.device, &gpu.queue);
     let availability = Availability(platform.as_ref().map(|_| ()).map_err(Clone::clone));
+    // Natively the host's windows are composited from their layers (be-lib-layers): its UI is
+    // painted into the root's surfaces and every app surface is a layer between them. The web
+    // places its canvases from the frame's layers instead (`web::canvases`).
+    let hole = cfg!(not(target_arch = "wasm32")).then(|| {
+        beui::native::compose::composite_windows();
+        texture_quad::Hole::new(&gpu.device, &gpu.queue)
+    });
     PRESENTER.with(|presenter| {
         *presenter.borrow_mut() = Some(Presenter {
             platform: platform.ok(),
+            hole,
         });
     });
     availability

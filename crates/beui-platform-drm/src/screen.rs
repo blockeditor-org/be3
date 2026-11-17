@@ -86,6 +86,8 @@ impl Screen {
         let picture = rotation.turned(size);
         let retained = retained(gpu.device(), picture);
         let turned = (rotation != Rotation::Normal).then(|| gpu.sprite(&retained, true));
+        let mut renderer = Renderer::new(gpu.resources());
+        renderer.set_window(true);
         Self {
             size,
             rotation,
@@ -93,7 +95,7 @@ impl Screen {
             rect: Rect::ZERO,
             scale: 1.0,
             zoom: 1.0,
-            renderer: Renderer::new(gpu.resources()),
+            renderer,
             retained,
             turned,
             pending: Some(Repaint::Everything),
