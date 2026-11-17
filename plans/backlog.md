@@ -57,6 +57,12 @@ Fixed items are removed as they land.
   app worker's canvases and it keeps none. Done when the web keeps a hidden view's last canvas
   frame the same way, with a web test that shows it again before its app answers.
 
+- **One popover placement.** `unstyled::Popover` still takes its own
+  `PopoverPlacement { Below, Beside, Over }` and maps it onto `Placement`, a
+  second placement enum beside the one every other overlay takes. Done (popups
+  step B2): every popup takes `Placement` and one open state, and
+  `PopoverPlacement` is gone.
+
 ## 7. Sessions
 
 - **A seal of its own during a join that holds kept edits.** `rejoined` seals

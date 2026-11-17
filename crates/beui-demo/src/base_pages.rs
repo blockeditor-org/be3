@@ -1232,13 +1232,30 @@ const PLACEMENTS: [(Placement, &str); 12] = [
     (Placement::RIGHT_END, "right end"),
 ];
 
-/// Every side and alignment an overlay can open at beside its anchor, all at once.
+/// Where the corner sample's marker stands, from the window's bottom right corner.
+const CORNER_MARKER: Rect = Rect {
+    min: Pos2::new(-80.0, -40.0),
+    max: Pos2::new(-40.0, -20.0),
+};
+
+/// Every side and alignment an overlay can open at beside its anchor, all at once; and near
+/// the window's corner, where they flip and shift to stay in it, clear of its edges.
 #[sample]
 #[component]
 fn PlacementSet() -> NodeId {
     let theme = use_theme();
     let anchor = NodeRef::new();
     let open = create_signal(false);
+    let corner = create_signal(false);
+    let marker = NodeRef::new();
+    let viewport = use_viewport_size();
+    let marked = create_memo(move || {
+        OverlayAnchor::Point(CORNER_MARKER.min + viewport.get())
+    });
+    let near_corner = [
+        (Placement::BELOW_START.gap(4).margin(8), "below start", "demo.corner.below"),
+        (Placement::RIGHT_START.gap(4).margin(8), "right start", "demo.corner.right"),
+    ];
     let face = theme.control;
     let ink = theme.text;
     view! {
@@ -1260,6 +1277,56 @@ fn PlacementSet() -> NodeId {
                     <Text color={ink}>"Show every placement"</Text>
                 </Frame>
             </Interactive>
+            <Frame padding={Sides { left: 130.0, top: 0.0, right: 0.0, bottom: 0.0 }}>
+                <Interactive
+                    @test_id="demo.placements.corner.trigger"
+                    on_click={move || corner.update(|corner| *corner = !*corner)}
+                >
+                    <Frame fill=face radius={Radius::Md.px()} padding={Sides::symmetric(16.0, 10.0)}>
+                        <Text color={ink}>"Near the corner"</Text>
+                    </Frame>
+                </Interactive>
+            </Frame>
+            <Overlay
+                anchor={marked}
+                placement=Placement::At
+                policy=LayerPolicy::Inert
+                traps_focus=false
+                dismissable=false
+                open={corner}
+                on_dismiss={|_: Dismiss| {}}
+            >
+                <Frame
+                    @node_ref=&marker
+                    @test_id="demo.placements.corner"
+                    width={CORNER_MARKER.width()}
+                    height={CORNER_MARKER.height()}
+                    fill={theme.control}
+                    radius={Radius::Sm.px()}
+                />
+            </Overlay>
+            <ForEach value={(0..near_corner.len()).collect::<Vec<usize>>()}>|index: usize|
+                <Overlay
+                    anchor=marker
+                    placement={near_corner[index].0}
+                    policy=LayerPolicy::Inert
+                    traps_focus=false
+                    dismissable=false
+                    open={corner}
+                    on_dismiss={|_: Dismiss| {}}
+                >
+                    <Frame
+                        @test_id={near_corner[index].2}
+                        width=100.0
+                        fill={theme.surface}
+                        outline={move || Some(Outline::new(theme.border.get(), 1.0))}
+                        radius={Radius::Sm.px()}
+                        padding={Sides::symmetric(6.0, 2.0)}
+                    >
+                        <Text color={theme.text}>{near_corner[index].1}</Text>
+                    </Frame>
+                </Overlay>
+            </ForEach>
             <ForEach value={(0..PLACEMENTS.len()).collect::<Vec<usize>>()}>|index: usize|
                 <Overlay
                     anchor=anchor
