@@ -53,6 +53,17 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   relaxed SIMD, garbage-collected types or a second memory, and its memory's
   maximum is capped (`MEMORY_LIMIT`). The app host has no fuel and no
   canonical NaNs.
+- **Modules from bytes.** `be_wasm_host::sandbox` is the native half of the
+  sandbox API (plans/host_as_platform_adapter.md): `compile` checks a pure
+  guest's module and compiles it on a thread of its own, once per process for
+  the same bytes (by SHA-256, held while anything holds the `Module`), with the
+  memory it defines turned into an import (`engine::importing_memory`), so
+  each instance `spawn` starts, on a thread and isolate of its own, gets a
+  memory capped at its own `Config::memory_limit`. An `Instance` is a
+  `Worker` over that thread's channel; dropping it terminates its isolate.
+  `crates/be-wasm-sandbox-host` serves it to a guest as `be3:sandbox`
+  (`crates/be-wasm-sandbox-api`), and the input remapper runs on it
+  (guides/desktop/login_session.md, Input remaps). The web has no half yet.
 - **V8's heap.** No guest may declare garbage-collected types (structs,
   arrays) or more than one table, and a table holds at most a million entries
   (`engine::Shape::bounded`): V8 stops delivering a termination once an

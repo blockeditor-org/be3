@@ -191,8 +191,9 @@ guest implements `be_wasm_guest_abi::Guest` and exports it with
 
 A pure guest imports only `be3_host`: no gpu, library, WASI, threads or clock.
 It is a `wasm32_module` (wasm32-unknown-unknown), not an `app()`. A type module
-is one; `crates/be-wasm-guest-echo` is the smallest. The host refuses any
-other import and caps its memory.
+is one, and so is the input remapper, which runs in the sandbox for modules
+from bytes (guides/apps/runtime.md, Backends); `crates/be-wasm-guest-echo` is
+the smallest. The host refuses any other import and caps its memory.
 
 ### The host half
 

@@ -23,6 +23,8 @@ members = [
     "crates/be-block-model-derive",
     "crates/be-wasm-ops",
     "crates/be-wasm-ops-bindgen",
+    "crates/be-wasm-sandbox-api",
+    "crates/be-wasm-sandbox-host",
     "crates/be-block-protocol",
     "crates/be-server-portal",
     "crates/be-server-portal-ui",

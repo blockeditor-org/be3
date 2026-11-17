@@ -34,8 +34,13 @@ const SHORTENED: [&str; 3] = ["_R", "_Z", "anon."];
 const SHORT_SYMBOL_BYTES: usize = 12;
 const BASE64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
+/// The SHA-256 of `bytes`.
+pub fn sha256(bytes: &[u8]) -> [u8; 32] {
+    Sha256::digest(bytes).into()
+}
+
 pub fn identity(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
+    sha256(bytes)
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()

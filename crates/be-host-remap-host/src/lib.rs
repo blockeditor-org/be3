@@ -1,19 +1,23 @@
 use std::collections::BTreeSet;
+use std::sync::Arc;
+use std::time::Duration;
 
 use be_lib_remap::names::{BUTTON_FIRST, CODE_LIMIT, Modifier};
 use be_lib_remap::protocol::{decode, encode};
 use be_lib_remap::{Input, Output, Reply, Request, Source, Window};
-use wasmi::{
-    Config, Engine, Instance, Linker, Memory, Module, Store, StoreLimits, StoreLimitsBuilder,
-    TypedFunc,
-};
+use be_wasm_guest_host::Deadline;
+use be_wasm_host::sandbox::{self, Instance, Module};
 
 pub use be_lib_remap;
 
 pub mod capture;
 
-pub const START_FUEL: u64 = 50_000_000;
-pub const CALL_FUEL: u64 = 5_000_000;
+/// How long the remaps may take to start, from spawning their instance to answering `Start`.
+pub const START_TIME: Duration = Duration::from_secs(1);
+/// How long the remaps may take to answer anything else: input waits for them meanwhile.
+pub const CALL_TIME: Duration = Duration::from_millis(500);
+/// How long a module may take to compile.
+pub const COMPILE_TIME: Duration = Duration::from_secs(10);
 pub const MEMORY_BYTES: usize = 16 << 20;
 pub const FAILURES_BEFORE_STOPPING: usize = 3;
 pub const FAILURE_WINDOW: u64 = 60_000_000;
@@ -26,7 +30,6 @@ const KEY_L: u16 = 38;
 const TERMINAL_KEYS: [u16; 12] = [59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 87, 88];
 
 pub struct Remapper {
-    engine: Engine,
     module: Module,
     running: Option<Running>,
     config: Option<Vec<u8>>,
@@ -42,22 +45,20 @@ pub struct Remapper {
     problems: Vec<String>,
 }
 
+/// The remaps' instance, which runs in the sandbox on a thread of its own and answers each
+/// request with one frame.
 struct Running {
-    store: Store<StoreLimits>,
-    memory: Memory,
-    buffer: TypedFunc<u32, u32>,
-    handle: TypedFunc<u32, u64>,
+    instance: Instance,
 }
 
 impl Remapper {
+    /// Compiles `module`, waiting for the sandbox to finish.
     pub fn new(module: &[u8]) -> Result<Self, String> {
-        let mut config = Config::default();
-        config.consume_fuel(true);
-        let engine = Engine::new(&config);
-        let module = Module::new(&engine, module)
+        let module = sandbox::compile(module.to_vec(), Arc::new(|| {}))
+            .wait(COMPILE_TIME)
+            .unwrap_or_else(|| Err("it took too long to compile".to_owned()))
             .map_err(|error| format!("this is not a remap module: {error}"))?;
         Ok(Self {
-            engine,
             module,
             running: None,
             config: None,
@@ -223,7 +224,7 @@ impl Remapper {
         let Some(running) = self.running.as_mut() else {
             return Err("the remaps did not start".to_owned());
         };
-        let reply = running.call(&encode(request), CALL_FUEL)?;
+        let reply = running.call(&encode(request), CALL_TIME)?;
         Ok(self.settle(reply, now))
     }
 
@@ -232,14 +233,14 @@ impl Remapper {
             return Ok(());
         }
         let config = self.config.clone().unwrap_or_default();
-        let mut running = Running::new(&self.engine, &self.module)?;
+        let mut running = Running::new(&self.module)?;
         let request = Request::Start {
             config,
             window: self.window.clone(),
             held: self.physical.iter().copied().collect(),
             pressed: self.pressed.iter().copied().collect(),
         };
-        let reply = running.call(&encode(&request), START_FUEL)?;
+        let reply = running.call(&encode(&request), START_TIME)?;
         if let Some(problem) = reply.problem {
             self.stopped = true;
             self.problems.push(format!(
@@ -338,77 +339,38 @@ fn valid(source: Source) -> bool {
 }
 
 impl Running {
-    fn new(engine: &Engine, module: &Module) -> Result<Self, String> {
-        let limits = StoreLimitsBuilder::new().memory_size(MEMORY_BYTES).build();
-        let mut store = Store::new(engine, limits);
-        store.limiter(|limits| limits);
-        store
-            .set_fuel(START_FUEL)
-            .map_err(|error| format!("the remaps could not be given fuel: {error}"))?;
-        let linker = Linker::<StoreLimits>::new(engine);
-        let instance = linker
-            .instantiate_and_start(&mut store, module)
+    fn new(module: &Module) -> Result<Self, String> {
+        let config = sandbox::Config {
+            name: "input remaps".to_owned(),
+            memory_limit: MEMORY_BYTES,
+        };
+        let instance = sandbox::spawn(module, config, Arc::new(|| {}))
             .map_err(|error| format!("the remaps would not start: {error}"))?;
-        let memory = instance
-            .get_memory(&store, "memory")
-            .ok_or_else(|| "the remap module exports no memory".to_owned())?;
-        Ok(Self {
-            buffer: export(&store, &instance, "be_remap_buffer")?,
-            handle: export(&store, &instance, "be_remap_handle")?,
-            store,
-            memory,
-        })
+        Ok(Self { instance })
     }
 
-    fn call(&mut self, request: &[u8], fuel: u64) -> Result<Reply, String> {
-        let length = u32::try_from(request.len())
-            .map_err(|_| "the request is too long for the remaps".to_owned())?;
-        self.store
-            .set_fuel(fuel)
-            .map_err(|error| format!("the remaps could not be given fuel: {error}"))?;
-        let pointer = self
-            .buffer
-            .call(&mut self.store, length)
-            .map_err(|error| stopped(&error))?;
-        self.memory
-            .write(&mut self.store, pointer as usize, request)
-            .map_err(|_| "the remaps gave a buffer outside their memory".to_owned())?;
-        let answer = self
-            .handle
-            .call(&mut self.store, length)
-            .map_err(|error| stopped(&error))?;
-        let pointer = (answer >> 32) as usize;
-        let length = (answer & u64::from(u32::MAX)) as usize;
-        if length > MOST_REPLY_BYTES {
+    /// Sends `request` and waits up to `within` for the one frame that answers it. A module that
+    /// takes longer is dropped by the caller, which terminates it.
+    fn call(&mut self, request: &[u8], within: Duration) -> Result<Reply, String> {
+        let deadline = Deadline::after(within);
+        self.instance
+            .send(vec![request.to_vec()])
+            .map_err(|error| format!("they stopped: {error}"))?;
+        let answers = self
+            .instance
+            .wait(deadline)
+            .map_err(|error| format!("they stopped: {error}"))?;
+        let [reply] = answers.as_slice() else {
+            return Err(match answers.is_empty() {
+                true => "they did not answer in time".to_owned(),
+                false => "they answered more than once".to_owned(),
+            });
+        };
+        if reply.len() > MOST_REPLY_BYTES {
             return Err("the remaps answered at too great a length".to_owned());
         }
-        let end = pointer
-            .checked_add(length)
-            .ok_or_else(|| "the remaps answered outside their memory".to_owned())?;
-        let reply = self
-            .memory
-            .data(&self.store)
-            .get(pointer..end)
-            .ok_or_else(|| "the remaps answered outside their memory".to_owned())?;
         decode(reply).map_err(|error| format!("the remaps answered with nothing readable: {error}"))
     }
-}
-
-fn stopped(error: &wasmi::Error) -> String {
-    match error.as_trap_code() {
-        Some(wasmi::TrapCode::OutOfFuel) => "they ran out of fuel".to_owned(),
-        _ => format!("they stopped: {error}"),
-    }
-}
-
-fn export<Parameters: wasmi::WasmParams, Results: wasmi::WasmResults>(
-    store: &Store<StoreLimits>,
-    instance: &Instance,
-    name: &str,
-) -> Result<TypedFunc<Parameters, Results>, String> {
-    instance
-        .get_typed_func(store, name)
-        .map_err(|error| format!("the remap module has no usable {name}: {error}"))
 }
 
 #[cfg(test)]

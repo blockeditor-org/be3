@@ -242,6 +242,14 @@ A new WIT interface the host serves to the root guest, and later to apps
   resumable frame, which returns `Pending` until they complete. The root's frame entry is an
   export the host calls, not a guest call, so that decision does not cover it.
 
+Built natively for modules from bytes (step 1): the WIT is `be3:sandbox`
+(`crates/be-wasm-sandbox-api`), where `spawn` is the `instance` resource's constructor and the
+channel its `send` and `next`; `be_wasm_host::sandbox` does the work and
+`crates/be-wasm-sandbox-host` serves it to a guest (guides/apps/runtime.md, Backends). A compile
+turns the memory a module defines into an import, so one compile serves instances given different
+memory limits. The web's half is not built: it lands with the first guest on the web that spawns
+(step 2 or 4).
+
 An app's platform calls (clipboard, drag and drop, file dialogs, opening URLs) are served by the
 host directly for that app, and the compositor can turn them off for it.
 
@@ -253,7 +261,7 @@ Other users:
   today (guides/type_modules.md).
 - The Games app keeps running game modules on wasmi inside its own module (tabletop-host), since
   neither V8 nor the web has canonical NaNs.
-- The input remapper (`be-host-remap-host`, on wasmi today) runs through it.
+- The input remapper (`be-host-remap-host`) runs through it (step 1).
 
 ## The GPU
 
@@ -400,8 +408,23 @@ Decisions to rewrite when this lands:
 
 Each step lands on its own.
 
-1. The sandbox API for modules from bytes. Move the remapper onto it.
-2. Spawning staged apps. A test guest embeds one editor without the host's compositor.
+1. Built: the sandbox API for modules from bytes, natively, and the remapper on it (its fuel
+   became a time limit, past which its isolate is terminated).
+2. Spawning staged apps. A test guest embeds one editor without the host's compositor. This is
+   more than its line suggests, and needs:
+   - `spawn` by app id, served by the host's staged-app loader (be-host-runtime's `wasm.rs`, with
+     the manifest, libraries, WASI, threads and the gpu device), so a variant of the `instance`
+     constructor served from the be-host family rather than from be-wasm-sandbox-host, with
+     `config`'s threads and libraries;
+   - the host side of the app protocol in a guest: configuring screens, the editor's watches
+     (preferences, fonts, input) and a block's content. Today that is be-host-runtime, native and
+     tied to beui; the test guest could start from be-sdk-test's host half (`ContentStore`,
+     `link.rs`), which already runs in wasm but in process with the editor, not over a channel;
+   - a surface for the editor that never leaves the GPU: the host attaches textures from its own
+     device to an app's surfaces (`App::attach_surface`), and the spawner can only name them by
+     handle. Nothing shows a surface a guest names until step 3's layer list, so either step 3
+     comes first, or this step's test checks only that the editor laid out and presented to the
+     surface it was given.
 3. The layer list and the forwarding router, and how native and the web realize them, with the
    host's current UI as their only producer, so nothing changes visibly.
 4. The synchronous, resumable root entry. The compositor takes over `src/compositor`,

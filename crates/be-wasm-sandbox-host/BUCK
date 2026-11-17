@@ -1,0 +1,8 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_package", "cargo_test")
+
+cargo_package()
+
+cargo_library()
+
+# GUEST_ECHO_WASM is the module the tests' guest compiles and spawns.
+cargo_test(env = {"GUEST_ECHO_WASM": "$(location //crates/be-wasm-guest-echo:module)"})

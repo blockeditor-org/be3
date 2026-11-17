@@ -1,0 +1,17 @@
+[package]
+name = "be-wasm-sandbox-host"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-wasm-guest-host = { path = "../be-wasm-guest-host" }
+be-wasm-host = { path = "../be-wasm-host" }
+be-wasm-ops = { path = "../be-wasm-ops" }
+be-wasm-sandbox-api = { path = "../be-wasm-sandbox-api" }
+
+[dev-dependencies]
+be-wasm-guest-echo = { path = "../be-wasm-guest-echo" }
+
+[lints]
+workspace = true
