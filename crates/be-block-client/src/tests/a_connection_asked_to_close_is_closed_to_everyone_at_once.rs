@@ -6,9 +6,7 @@ use super::*;
 #[tokio::test]
 async fn a_connection_asked_to_close_is_closed_to_everyone_at_once() {
     let harness = Harness::start().await;
-    let connection = Connection::connect(&harness.url, &Clock::real())
-        .await
-        .expect("the connection opens");
+    let connection = harness.connection(&harness.url, &Clock::real()).await;
     assert!(!connection.is_closed());
 
     connection.close();
