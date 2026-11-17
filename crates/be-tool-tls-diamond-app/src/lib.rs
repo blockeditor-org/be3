@@ -31,8 +31,8 @@ unsafe extern "C" {
 }
 
 // A guest is single-threaded (decisions/guests_are_single_threaded.md), so the
-// sequence runs on its one thread; the step it wakes for checks that what it
-// left stayed put between calls.
+// sequence runs on its one thread; it asks for a step, which checks that what
+// it left stayed put between calls.
 // unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "C" fn app_start() {
