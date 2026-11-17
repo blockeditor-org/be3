@@ -156,7 +156,7 @@ pub(crate) fn root_layer(
 ) -> Layer {
     let per = pixels_per_point.max(f32::EPSILON).recip();
     Layer {
-        id: LayerId(u64::from(index)),
+        id: LayerId::root(index),
         surface: Surface::Root(index),
         size,
         transform: Affine {

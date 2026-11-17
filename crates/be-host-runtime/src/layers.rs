@@ -103,7 +103,7 @@ pub(crate) fn id(slot: u32, of: u64, anchored: bool, drawing: u64, piece: usize)
 #[cfg(any(target_arch = "wasm32", test))]
 fn root(viewport: beui::Vec2) -> Layer {
     Layer {
-        id: LayerId(0),
+        id: LayerId::root(0),
         surface: Surface::Root(0),
         size: (
             viewport.x.ceil().max(1.0) as u32,

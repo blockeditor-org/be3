@@ -459,22 +459,17 @@ fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) -> Opti
                 | TouchpadGesture::HoldEnded(_) => Phase::Ended,
                 _ => Phase::Moved,
             };
-            let found = forward::Catchers::at(wheel_sink(doc, frame, event.window, event.pos));
-            let sink = doc.forward.router.gesture(&found, event.pos, phase);
+            let found = wheel_sink(doc, frame, event.window, event.pos);
+            let sink = forward::gesture(doc, found, event.pos, phase);
             doc.pointers.route(sink);
         }
         PointerPhase::Zoom(factor) => {
             let path = hit(doc, frame.rects, event.window, event.pos, false).path;
-            let found = forward::Catchers::at(
-                match gesture_claimant(doc, frame.rects, &path, event.pos) {
-                    Some(_) => None,
-                    None => wheel_sink(doc, frame, event.window, event.pos),
-                },
-            );
-            let sink = doc
-                .forward
-                .router
-                .gesture(&found, event.pos, Phase::Moved);
+            let found = match gesture_claimant(doc, frame.rects, &path, event.pos) {
+                Some(_) => None,
+                None => wheel_sink(doc, frame, event.window, event.pos),
+            };
+            let sink = forward::gesture(doc, found, event.pos, Phase::Moved);
             doc.pointers.route(sink);
             let candidates = match gesture_claimant(doc, frame.rects, &path, event.pos) {
                 Some(claimant) => vec![claimant],
@@ -1487,16 +1482,16 @@ fn wheel(doc: &mut Document, frame: &Frame, event: PointerEvent, delta: Vec2, fl
     let pos = event.pos;
     let path = hit(doc, frame.rects, event.window, pos, false).path;
     let claimed = gesture_claimant(doc, frame.rects, &path, pos);
-    let found = forward::Catchers::at(match claimed {
+    let found = match claimed {
         Some(_) => None,
         None => wheel_sink(doc, frame, event.window, pos),
-    });
+    };
     let phase = match event.phase {
         PointerPhase::ScrollStarted => Phase::Began,
         PointerPhase::ScrollEnded { .. } => Phase::Ended,
         _ => Phase::Moved,
     };
-    let sink = doc.forward.router.gesture(&found, pos, phase);
+    let sink = forward::gesture(doc, found, pos, phase);
     doc.pointers.route(sink);
     let (delta, fling) = match event.modifiers.shift && delta.x == 0.0 && fling.x == 0.0 {
         true => (vec2(delta.y, 0.0), vec2(fling.y, 0.0)),

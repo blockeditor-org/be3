@@ -42,8 +42,10 @@ pub trait HitTest {
     /// never take it).
     fn takes_focus(&self, target: Self::Target) -> bool;
 
-    /// Whether a press at `at` pans the camera there rather than pressing anything (beui's
-    /// middle press over a gesture area): it goes to no surface, even one the pointer holds.
+    /// Whether a press at `at` pans the camera there rather than pressing anything: it goes to
+    /// no surface, even one the pointer holds. beui answers it for a middle press over a gesture
+    /// area; the layer list's test will answer it from its layers' gesture areas
+    /// (plans/host_as_platform_adapter.md, step 4f).
     fn pans(&self, _at: Pos2) -> bool {
         false
     }
@@ -75,8 +77,11 @@ pub enum Pointer {
     Mouse,
     Pen,
     Touch(TouchId),
-    /// A pointer the platform does not report, such as one another program relays.
-    Other(u8),
+    /// The keyboard carrying a dragged item, which no platform reports as a pointer.
+    Keyboard,
+    /// A pointer another program or window relays as points (a dock bar an app's grip
+    /// carries), which no platform reports either.
+    Relayed,
 }
 
 impl Pointer {
@@ -134,7 +139,8 @@ pub struct Router<T> {
     under: Option<T>,
     entered: Vec<T>,
     presses: Vec<Press<T>>,
-    gesture: Option<Option<T>>,
+    /// A held gesture's surface (`None`: no surface's), and where the pointer was when it began.
+    gesture: Option<(Option<T>, Pos2)>,
     focused: Option<T>,
     locked: Option<T>,
     keys: Vec<Key>,
@@ -238,7 +244,17 @@ impl<T: Copy + Eq + Debug> Router<T> {
 
     /// `pointer` moved to `at`: the surface holding its press while it is pressed (none, if
     /// the press landed on none), else the one under it.
-    pub fn moved<H: HitTest<Target = T>>(&mut self, test: &H, pointer: Pointer, at: Pos2) -> Option<T> {
+    pub fn moved<H: HitTest<Target = T>>(
+        &mut self,
+        test: &H,
+        pointer: Pointer,
+        at: Pos2,
+    ) -> Option<T> {
+        // A held gesture whose end never came lets go once the pointer moves: a touchpad holds
+        // it still while it scrolls, and a pointer that rests where it was moves nothing.
+        if pointer.keeps_hover() && self.gesture.is_some_and(|(_, began)| began != at) {
+            self.gesture = None;
+        }
         for press in &mut self.presses {
             if press.pointer == pointer {
                 press.at = at;
@@ -267,32 +283,51 @@ impl<T: Copy + Eq + Debug> Router<T> {
     }
 
     /// `pointer`'s presses end unreleased: the surface they were held for, which hears the
-    /// cancel.
+    /// cancel. A held gesture ends with them.
     pub fn cancel(&mut self, pointer: Pointer) -> Option<T> {
+        self.gesture = None;
         let held = self.held(pointer);
         self.presses.retain(|press| press.pointer != pointer);
         held
     }
 
     /// A wheel, pinch or touchpad gesture at `at`: the surface it is for. One that begins held
-    /// (a touchpad's scroll or swipe) stays with the surface it began on until it ends; any
-    /// other goes to whichever takes it where it is (`claimant`).
-    pub fn gesture<H: HitTest<Target = T>>(&mut self, test: &H, at: Pos2, phase: Phase) -> Option<T> {
+    /// (a touchpad's scroll or swipe) stays with the surface it began on until it ends, the
+    /// pointer moves or leaves, a press is cancelled, the window loses the keyboard or the
+    /// surface goes (`end_gesture`, `forget`); any other goes to whichever takes it where it is
+    /// (`claimant`).
+    pub fn gesture<H: HitTest<Target = T>>(
+        &mut self,
+        test: &H,
+        at: Pos2,
+        phase: Phase,
+    ) -> Option<T> {
         match phase {
             Phase::Began => {
                 let target = claimant(test, at);
-                self.gesture = Some(target);
+                self.gesture = Some((target, at));
                 target
             }
             Phase::Moved => match self.gesture {
-                Some(latched) => latched,
+                Some((latched, _)) => latched,
                 None => claimant(test, at),
             },
             Phase::Ended => match self.gesture.take() {
-                Some(latched) => latched,
+                Some((latched, _)) => latched,
                 None => claimant(test, at),
             },
         }
+    }
+
+    /// The surface a held gesture is latched to (`None` inside: to no surface), if one is held.
+    pub fn latched(&self) -> Option<Option<T>> {
+        self.gesture.map(|(latched, _)| latched)
+    }
+
+    /// Ends a held gesture whose end will not come: the window lost the keyboard or the
+    /// pointer, or the surface it is latched to went.
+    pub fn end_gesture(&mut self) {
+        self.gesture = None;
     }
 
     /// A pointer that shows hover was delivered to `target`: it hears `PointerLeft` once the
@@ -329,6 +364,7 @@ impl<T: Copy + Eq + Debug> Router<T> {
             Input::Focus(focused) => {
                 if !focused {
                     self.unlock_into(&mut out);
+                    self.end_gesture();
                 }
                 self.to_focus(Input::Focus(focused), &mut out);
             }
@@ -404,6 +440,7 @@ impl<T: Copy + Eq + Debug> Router<T> {
             }
             Input::PointerLeft => {
                 self.pointer = None;
+                self.end_gesture();
                 if let Some(carry) = &mut self.carry
                     && let Some(over) = carry.over.take()
                 {
@@ -423,6 +460,7 @@ impl<T: Copy + Eq + Debug> Router<T> {
                 self.button(test, pos, button, pressed, input, &mut out);
             }
             Input::PointersCancelled => {
+                self.end_gesture();
                 let mut told = Vec::new();
                 let mut pointers: Vec<Pointer> =
                     self.presses.iter().map(|press| press.pointer).collect();
@@ -430,7 +468,7 @@ impl<T: Copy + Eq + Debug> Router<T> {
                 pointers.sort_by_key(|pointer| match pointer {
                     Pointer::Mouse => 0,
                     Pointer::Pen => 1,
-                    Pointer::Other(_) => 2,
+                    Pointer::Keyboard | Pointer::Relayed => 2,
                     Pointer::Touch(_) => 3,
                 });
                 pointers.dedup();
@@ -457,8 +495,8 @@ impl<T: Copy + Eq + Debug> Router<T> {
                     Some(at) => self.gesture(test, at, phase),
                     None => match phase {
                         Phase::Began => None,
-                        Phase::Moved => self.gesture.flatten(),
-                        Phase::Ended => self.gesture.take().flatten(),
+                        Phase::Moved => self.latched().flatten(),
+                        Phase::Ended => self.gesture.take().and_then(|(latched, _)| latched),
                     },
                 };
                 if let Some(target) = target {
@@ -571,7 +609,7 @@ impl<T: Copy + Eq + Debug> Router<T> {
                     pos: press.at,
                     force: None,
                 },
-                Pointer::Pen | Pointer::Other(_) => continue,
+                Pointer::Pen | Pointer::Keyboard | Pointer::Relayed => continue,
             };
             deliver(test, placer, input, press.at, &mut out);
         }
@@ -613,8 +651,8 @@ impl<T: Copy + Eq + Debug> Router<T> {
         gone(&mut self.under);
         gone(&mut self.focused);
         gone(&mut self.locked);
-        if let Some(latched) = &mut self.gesture {
-            gone(latched);
+        if self.latched() == Some(Some(target)) {
+            self.end_gesture();
         }
         self.entered.retain(|entered| *entered != target);
         self.presses.retain(|press| press.target != Some(target));
