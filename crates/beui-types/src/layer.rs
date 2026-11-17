@@ -514,10 +514,7 @@ fn beside(
         (false, false) => {
             let roomier = wanted.max(other);
             if vertical && roomier > 0.0 {
-                match vertical {
-                    true => size.y = roomier,
-                    false => size.x = roomier,
-                }
+                size.y = roomier;
             }
             match wanted >= other {
                 true => first,
@@ -553,12 +550,11 @@ fn beside(
     Rect::from_min_size(origin, size)
 }
 
-/// The room an overlay at `placement` gets beside `anchor` in `viewport`, like Floating UI's
-/// `size`: what `resolve_rect` shrinks it to at most. A `Beside` overlay above or below has the
-/// roomier of its side and the other (less its gap) in height, and one to the left or right,
-/// which never shrinks across its side, the window, less its margin either way; a menu, which covers its anchor where neither side has
-/// room, the whole window; an `Inside*` overlay the anchor's part of the window; anything
-/// else the window.
+/// The room an overlay at `placement` gets beside `anchor_rect` in `viewport`, like Floating
+/// UI's `size`: what `resolve_rect` shrinks it to at most. `Beside`, above or below: the
+/// window's width, and the roomier side's height less the gap. Left or right, which never
+/// shrinks: the window. Either way less the margin. A menu: the window. An `Inside*` overlay:
+/// the anchor's part of the window. Anything else: the window.
 pub fn room(viewport: Rect, anchor_rect: Rect, placement: Placement) -> Vec2 {
     let room = match placement {
         Placement::Beside {
