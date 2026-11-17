@@ -172,6 +172,17 @@ impl Server {
         self.poll(connection);
     }
 
+    /// Stops every instance the guest spawned, answering each `next` it waits on with `why`, as
+    /// when its host stops serving it the sandbox (an app that stopped).
+    pub fn stop(self, why: &str, connection: &mut Connection) {
+        for served in self.instances.into_values() {
+            if let Some((_, next)) = served.next {
+                let (op, outcome) = next(&Err(why.to_owned()));
+                connection.complete(op, outcome);
+            }
+        }
+    }
+
     /// An op the guest canceled: an instance it dropped stops, and a `next` it no longer waits for
     /// is answered as canceled. Answers whether the op was the sandbox's.
     pub fn canceled(&mut self, op: OpId, connection: &mut Connection) -> bool {
