@@ -42,11 +42,36 @@ pub enum Record {
     Administrator(Administrator),
     /// Who is a member of the organization, in its log.
     Member(Member),
+    /// A kind of settings opened to whoever views a block inside, or closed again, as a member
+    /// who may give access gave it: a grant to no one by name, so it names no keys.
+    Opening(Opening),
+}
+
+impl Record {
+    /// Where a grant or an opening says its signer's Manage comes from.
+    pub fn authority(&self) -> Option<Authority> {
+        match self {
+            Record::Grant(grant) => Some(grant.authority),
+            Record::Opening(opening) => Some(opening.authority),
+            _ => None,
+        }
+    }
+}
+
+/// Whoever views a block inside may read this kind of settings (`Level::View`), or no longer
+/// (`Level::None`), and where the signer's right to say so comes from.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Opening {
+    pub level: Level,
+    pub authority: Authority,
 }
 
 /// A member's access to a block, from least to most (`be_block_graph::Access`).
-#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(
+    Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize,
+)]
 pub enum Level {
+    #[default]
     None,
     KnowExists,
     View,
@@ -361,6 +386,49 @@ pub struct Checked {
     /// through whoever granted it, so on the server's tree until parents are signed: no device
     /// seals to them by it (plans/signed_access.md, 3c).
     pub tainted: HashSet<[u8; 16]>,
+    /// For a block's log: whether its last opening (`Record::Opening`) opened it to whoever
+    /// views a block inside, and whether that opening rests on the server's tree as a tainted
+    /// grant does.
+    pub open_inside: Level,
+    pub open_inside_tainted: bool,
+}
+
+impl Checked {
+    /// Checks that `entry`, a grant or an opening naming `authority`, is signed by someone who
+    /// may give access at its place (Manage from this log or from `outside`, or anyone revoking
+    /// their own grant), notes its signer's key, and tells whether it rests on the server's tree
+    /// (`tainted`), directly or through whoever signed it.
+    fn granting(
+        &mut self,
+        entry: &Entry,
+        own: Option<SigningPublic>,
+        authority: Authority,
+        own_revocation: bool,
+        outside: &dyn Fn([u8; 16], &Authority) -> Option<SigningPublic>,
+    ) -> Result<bool, KeyError> {
+        let level = self
+            .grants
+            .get(&entry.signer)
+            .map_or(Level::None, |(level, _)| *level);
+        let signing = match authority {
+            Authority::Log if own_revocation || level == Level::Manage => own,
+            Authority::Log => None,
+            // Signed with the key this log names for them when it names one: a key retired
+            // here signs nothing after, whatever the other log was as of then.
+            ref other => outside(entry.signer, other).map(|signing| own.unwrap_or(signing)),
+        };
+        let Some(signing) = signing.filter(|signing| entry.signed_by(signing)) else {
+            return Err(KeyError::Record);
+        };
+        // One who grants from outside the log holds a record in it now, retired here as in any
+        // log they signed in.
+        self.signers.entry(entry.signer).or_insert(signing);
+        Ok(match authority {
+            Authority::Inherited { .. } => true,
+            Authority::Log => self.tainted.contains(&entry.signer),
+            Authority::Organization(_) => false,
+        })
+    }
 }
 
 /// Checks the `kind` log of `log` from its root, which must be the one `pinned`, to its head:
@@ -439,36 +507,14 @@ pub fn check_log(
                 }
             }
             Record::Grant(grant) => {
-                let level = state
-                    .grants
-                    .get(&entry.signer)
-                    .map_or(Level::None, |(level, _)| *level);
                 let own_revocation = grant.grantee == entry.signer && grant.level == Level::None;
-                let signing = match grant.authority {
-                    Authority::Log if own_revocation || level == Level::Manage => own,
-                    Authority::Log => None,
-                    // Signed with the key this log names for them when it names one: a key
-                    // retired here signs nothing after, whatever the other log was as of then.
-                    ref other => outside(entry.signer, other).map(|signing| own.unwrap_or(signing)),
-                };
                 // Authorship is Manage from the root (and, later, owner records) alone: no grant
                 // lowers or names the creator.
-                let may = kind == LogKind::Block
-                    && grant.grantee != checked.creator
-                    && signing.is_some_and(|signing| entry.signed_by(&signing));
-                if !may {
+                if kind != LogKind::Block || grant.grantee == checked.creator {
                     return Err(KeyError::Record);
                 }
-                // One who grants from outside the log holds a record in it now, retired here as
-                // in any log they signed in.
-                if let Some(signing) = signing {
-                    state.signers.entry(entry.signer).or_insert(signing);
-                }
-                let tainted = match grant.authority {
-                    Authority::Inherited { .. } => true,
-                    Authority::Log => state.tainted.contains(&entry.signer),
-                    Authority::Organization(_) => false,
-                };
+                let tainted =
+                    state.granting(entry, own, grant.authority, own_revocation, outside)?;
                 match tainted && grant.level > Level::None {
                     true => state.tainted.insert(grant.grantee),
                     false => state.tainted.remove(&grant.grantee),
@@ -477,6 +523,14 @@ pub fn check_log(
                 state
                     .grants
                     .insert(grant.grantee, (grant.level, grant.identity));
+            }
+            Record::Opening(opening) => {
+                if kind != LogKind::Block || opening.level > Level::View {
+                    return Err(KeyError::Record);
+                }
+                let tainted = state.granting(entry, own, opening.authority, false, outside)?;
+                state.open_inside = opening.level;
+                state.open_inside_tainted = tainted && opening.level > Level::None;
             }
             Record::Administrator(administrator) => {
                 let may = kind == LogKind::Organization

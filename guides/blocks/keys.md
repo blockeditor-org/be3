@@ -150,8 +150,9 @@ untrusted. A device hands a key on with a root only when it holds that root
 pinned in full (`KeyBook::carried_plain`).
 
 Records after the root: grants (`Record::Grant`, a revocation is a grant to
-`None`) in a block's log, each naming where its signer's Manage comes from
-(`Authority`); administrators and members (`Record::Administrator`,
+`None`) and openings of a kind of settings to anyone inside (`Record::Opening`,
+closing is an opening to `None`) in a block's log, each naming where its
+signer's Manage comes from (`Authority`); administrators and members (`Record::Administrator`,
 `Record::Member`) in the organization's. `set-access`, `set-role`,
 `create-agent`, `sign-member`, `remove-member` and `remove-contact` carry them,
 and the server appends each once it checks at the log's head as devices check
@@ -190,9 +191,11 @@ every data key rewrapped, a new data key per block. The server takes it only
 whole. Content is not resealed, except that the lease holder of a live session
 on a rekeyed block seals once more (`Session::rekey`), which reseals the parts it
 reuses under the new key (`Vault::write`). A rotation nobody can do yet
-waits until a client that may edit the block tends. A kind open inside
-(guides/settings.md) is also offered by any viewer to its own contacts among
-the viewers, since the owner's editors may know none of them.
+waits until a client that may edit the block tends. A kind its own log opens
+to anyone inside (`Checked::open_inside`, guides/settings.md) is also offered
+by any viewer to its own contacts the server lists among the viewers, since the
+owner's editors may know none of them; the server's `opens_inside` alone
+offers nothing.
 
 Not built yet: a move into another scope lists the subtree a level at a time,
 and old data keys of a block this device cannot open are not rewrapped, so

@@ -2003,11 +2003,11 @@ impl ServerStore {
                     ));
                 }
             }
-            // Grants to anyone inside and to the server are standing exceptions no device seals
-            // to by grant, so they are rows alone. Any other grant is a record in the block's
-            // access log, as is the revocation of one the log names.
-            let standing = account == ANYONE_INSIDE
-                || account == crate::organization::server_account(database)?;
+            // A grant to the server is a standing exception no device seals to by grant, so it
+            // is a row alone. Any other grant is a record in the block's access log (opening a
+            // kind to anyone inside, an opening record), as is the revocation of one the log
+            // names.
+            let standing = account == crate::organization::server_account(database)?;
             let record = match (standing, record) {
                 (true, Some(_)) => {
                     return Err(ServerError::Refused(

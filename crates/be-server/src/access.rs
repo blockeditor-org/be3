@@ -1,7 +1,7 @@
 //! Access logs (plans/signed_access.md): each block's signed records, root first, kept in the
 //! clear and checked here as devices check them, so a good server and a device never disagree.
 
-use be_block_graph::{Access, BlockGraph};
+use be_block_graph::{ANYONE_INSIDE, Access, BlockGraph};
 use be_block_keys::{
     Authority, Checked, Entry, EntryHash, Level, LogKind, Logs, PublicIdentity, Record,
     RecoveryPublic, SigningPublic,
@@ -226,6 +226,7 @@ fn insert_entry(
         Record::Administrator(administrator) => administrator.account,
         Record::Member(member) => member.account,
         Record::Retirement(retirement) => retirement.account,
+        Record::Opening(_) => entry.signer,
     };
     let accounts = [entry.signer, named];
     match kind {
@@ -397,7 +398,7 @@ pub(crate) fn checked_block_log(
     .map_err(|_| refused("the record does not follow the log it goes in"))
 }
 
-/// The level `block`'s log grants `account`, if it names them.
+/// The level `block`'s log grants `account`, if it names them (for anyone inside, its last opening).
 pub(crate) fn granted_level(
     connection: &Connection,
     graph: &BlockGraph,
@@ -410,6 +411,9 @@ pub(crate) fn granted_level(
         return Ok(None);
     }
     let checked = checked_block_log(connection, graph, organization, block, &entries)?;
+    if account == ANYONE_INSIDE {
+        return Ok(Some(checked.open_inside));
+    }
     Ok(checked
         .grants
         .get(&account.into_bytes())
@@ -443,18 +447,24 @@ pub(crate) fn append_grant(
     record: &[u8],
 ) -> Result<(), ServerError> {
     let entry = Entry::decode(record).map_err(|_| refused("the record does not read"))?;
-    let Record::Grant(grant) = &entry.record else {
-        return Err(refused("access is set by a grant record"));
+    // Opening a kind to anyone inside is an opening record; any other grant names its grantee.
+    let (named, granted, authority) = match &entry.record {
+        Record::Grant(grant) => (grant.grantee, grant.level, grant.authority),
+        Record::Opening(opening) => (ANYONE_INSIDE.into_bytes(), opening.level, opening.authority),
+        _ => return Err(refused("access is set by a grant record")),
     };
     if entry.signer != signer.into_bytes()
-        || grant.grantee != grantee.into_bytes()
-        || grant.level != level(access)
+        || named != grantee.into_bytes()
+        || granted != level(access)
     {
         return Err(refused(
             "the grant record is signed by its caller and grants what the call sets",
         ));
     }
-    if access > Access::None && identity_of(connection, grantee)? != Some(grant.identity) {
+    if let Record::Grant(grant) = &entry.record
+        && access > Access::None
+        && identity_of(connection, grantee)? != Some(grant.identity)
+    {
         return Err(refused("a grant names the keys its grantee holds now"));
     }
     // Authority is named as of the other log's head now: a demotion or revocation there before
@@ -462,7 +472,7 @@ pub(crate) fn append_grant(
     let head = |kind, log| {
         entries(connection, kind, organization, log).map(|entries| entries.last().map(Entry::hash))
     };
-    let current = match grant.authority {
+    let current = match authority {
         Authority::Log => true,
         Authority::Organization(at) => head(LogKind::Organization, organization)? == Some(at),
         Authority::Inherited {
