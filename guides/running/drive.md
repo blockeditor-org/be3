@@ -170,8 +170,11 @@ screen waits for content (its own block's, or a block it watches beside it, such
 app's view state: one that is offline and not cached keeps `settle` waiting), while an account
 request is pending, and while the block store has
 work queued or edits to journal, or, while hurried, to seal (unhurried, a type module seals after
-a quiet spell, which counts as out of step instead). Sending the outbox and asking the server for a block's
-revisions count as unsynced instead (below). A command that needs the server still runs in the
+a quiet spell, which counts as out of step instead). Loading a listing the server never answered
+(a folder's children, what links to a block) is busy too, but reading one again after the server
+answered it (a change the server pushed, a new connection) keeps showing what it held, so, like
+sending the outbox and asking the server for a block's revisions, it counts as unsynced instead
+(below): a connection that silently stops answering never holds up `settle`. A command that needs the server still runs in the
 block store's loop, so the commands queued behind it keep the host busy until it is answered or
 the connection is declared lost; the busy reason names the step the loop is in. It is never
 busy on its error screen.

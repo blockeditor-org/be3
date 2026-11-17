@@ -453,6 +453,9 @@ impl Seen {
         if self.listing_revisions > 0 {
             reasons.push("the block store asks the server for a block's revisions".to_owned());
         }
+        if self.graph.refreshing() {
+            reasons.push("the block store reads parts of the graph again".to_owned());
+        }
         if self.recounting {
             reasons.push("the block store has yet to count what waits to be sent".to_owned());
         }
@@ -498,7 +501,7 @@ impl Seen {
             (self.typing, "a block type module has yet to settle"),
             (self.uploading > 0, "the block store uploads files"),
             (
-                self.graph.fetching(),
+                self.graph.loading(),
                 "the block store loads the organization's graph",
             ),
         ]
