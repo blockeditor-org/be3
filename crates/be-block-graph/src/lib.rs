@@ -638,6 +638,30 @@ impl BlockGraph {
         Some(node)
     }
 
+    /// Moves ownership of `id` to `author` (an owner record, plans/signed_access.md step 5):
+    /// they hold what authorship gives from now on, and the block counts among theirs. What the
+    /// former author keeps is a grant the caller writes.
+    pub fn set_author(&mut self, id: Uuid, author: Uuid) -> Result<(), GraphError> {
+        let node = self.node_mut(id)?;
+        let former = std::mem::replace(&mut node.author, author);
+        let granted = node.grants.contains_key(&former);
+        if former == author {
+            return Ok(());
+        }
+        if !granted {
+            unindex(&mut self.entries, former, id);
+        }
+        if let Entry::Occupied(mut count) = self.authored.entry(former) {
+            *count.get_mut() -= 1;
+            if *count.get() == 0 {
+                count.remove();
+            }
+        }
+        self.entries.entry(author).or_default().insert(id);
+        *self.authored.entry(author).or_default() += 1;
+        Ok(())
+    }
+
     pub fn grant(&mut self, id: Uuid, account: Uuid, access: Access) -> Result<(), GraphError> {
         let node = self.node_mut(id)?;
         let author = node.author;

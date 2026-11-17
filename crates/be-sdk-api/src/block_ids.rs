@@ -100,6 +100,7 @@ impl crate::embed::host_services::Call {
             | Self::ReadPlainFile { block, .. }
             | Self::ListAccess { block, .. }
             | Self::SetAccess { block, .. }
+            | Self::TransferOwnership { block, .. }
             | Self::MakeContactLink { block, .. }
             | Self::CreateBlockAgent { block, .. }
             | Self::SetNotifyMode { block, .. } => visit(block),

@@ -54,6 +54,10 @@ pub enum Record {
     /// Where the block lies, as a member with Edit or above placed it: made there, or moved
     /// (plans/signed_access.md, step 4).
     Parent(Parent),
+    /// Ownership of the block moves to another account, as its owner gave it
+    /// (plans/signed_access.md, step 5): the new owner holds what authorship gives, Manage, and
+    /// the former keeps Edit.
+    Owner(Owner),
 }
 
 impl Record {
@@ -75,6 +79,18 @@ pub struct Opening {
     pub level: Level,
     pub authority: Authority,
 }
+
+/// The block's new owner, with the keys the owner signing verified for them, which a device
+/// seals to as to a grantee's.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Owner {
+    pub account: [u8; 16],
+    pub identity: PublicIdentity,
+}
+
+/// What the former owner keeps once an owner record moves ownership on: they may still edit, but
+/// grant nothing more.
+pub const FORMER_OWNER: Level = Level::Edit;
 
 /// Where a block lies, as a parent record (`Record::Parent`) places it.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
@@ -389,6 +405,7 @@ impl Entry {
             previous: self.previous,
             lowers: self.lowers,
             places: matches!(self.record, Record::Parent(_)),
+            owns: matches!(self.record, Record::Owner(_)),
             digest: self.digest(),
         }
     }
@@ -421,6 +438,10 @@ pub struct Reduced {
     /// the reader (`Checked::placement`), so a server that hides a move hides nothing it is
     /// trusted for.
     pub places: bool,
+    /// Whether it is an owner record: one reduced so still lowers its signer, the owner then,
+    /// to what a former owner keeps, so a server that hides a transfer leaves no one the old
+    /// owner's Manage (`check_log`).
+    pub owns: bool,
     pub digest: EntryHash,
 }
 
@@ -431,7 +452,11 @@ impl Reduced {
             Some(previous) => hash = hash.chain_update([1]).chain_update(previous),
             None => hash = hash.chain_update([0]),
         }
-        hash.chain_update([u8::from(self.lowers), u8::from(self.places)])
+        hash.chain_update([
+            u8::from(self.lowers),
+            u8::from(self.places),
+            u8::from(self.owns),
+        ])
             .chain_update(self.digest)
             .finalize()
             .into()
@@ -532,7 +557,8 @@ impl StepRef<'_> {
 /// signer of each entry whole, so each signer's own right at its place checks too; every entry
 /// the reader signed (an agent it made), and so the accounts those name; every opening of a
 /// kind to anyone inside, which names no one; every parent record, so the reader walks where the
-/// block lies (and the signers' own right there); and in an organization's log every administrator
+/// block lies (and the signers' own right there); every owner record, so the reader knows who
+/// owns the block and that its former owners grant no more; and in an organization's log every administrator
 /// record and every record about someone who ever administered it, so no demotion is hidden
 /// there: an honest organization path reduces no entry that lowered anyone.
 pub fn proof_path(
@@ -555,10 +581,15 @@ pub fn proof_path(
         Record::Administrator(made) => Some(made.account),
         Record::Member(member) => Some(member.account),
         Record::Retirement(retirement) => Some(retirement.account),
+        Record::Owner(owner) => Some(owner.account),
         Record::Opening(_) | Record::Parent(_) => None,
     };
     let always = |entry: &Entry| match &entry.record {
-        Record::Root(_) | Record::Opening(_) | Record::Administrator(_) | Record::Parent(_) => true,
+        Record::Root(_)
+        | Record::Opening(_)
+        | Record::Administrator(_)
+        | Record::Parent(_)
+        | Record::Owner(_) => true,
         Record::Member(member) => administrators.contains(&member.account),
         Record::Retirement(retirement) => administrators.contains(&retirement.account),
         Record::Grant(_) => false,
@@ -683,6 +714,10 @@ pub struct Checked {
     pub administrators: HashMap<[u8; 16], PublicIdentity>,
     /// For an organization's log: its members other than through administering it.
     pub members: HashMap<[u8; 16], Named>,
+    /// For a block's log: who owns the block (holds what authorship gives), its creator until
+    /// an owner record moves it on. None for an organization's log, and on a proof path after
+    /// an owner record served reduced, which hides whom it named.
+    pub owner: Option<[u8; 16]>,
     /// For a block's log: whether its last opening (`Record::Opening`) opened it to whoever
     /// views a block inside.
     pub open_inside: Level,
@@ -771,6 +806,8 @@ impl Checked {
                     && self.administrators.contains_key(&member.account)
                     && last(&member.account).is_some_and(|before| before > Level::None)
             }
+            // The owner always holds Manage, and keeps less.
+            Record::Owner(_) => true,
             Record::Root(_) | Record::Retirement(_) | Record::Parent(_) => false,
         }
     }
@@ -811,6 +848,15 @@ impl Checked {
             lowers,
             record,
         ))
+    }
+
+    /// `former` no longer owns the block: they keep what a former owner keeps
+    /// (`FORMER_OWNER`), with the keys last named for them.
+    fn demote_owner(&mut self, former: [u8; 16]) {
+        if let Some((level, _)) = self.grants.get_mut(&former) {
+            *level = FORMER_OWNER;
+        }
+        self.set_level(former, FORMER_OWNER);
     }
 
     fn set_level(&mut self, account: [u8; 16], level: Level) {
@@ -873,7 +919,9 @@ impl Checked {
 /// log it checked to its head. A grant names where its signer's Manage comes from
 /// (`Authority`); `outside` answers for another log, as of the entry the grant names, with the
 /// signer's key there if they held what the record needs then (`Asked`). A parent record is
-/// made by a signer with Edit or above, and places the block anywhere but under itself.
+/// made by a signer with Edit or above, and places the block anywhere but under itself. An owner
+/// record is made only by the block's owner (its creator, or whom the last owner record named),
+/// who keeps Edit after it (`FORMER_OWNER`); no grant names the owner.
 ///
 /// A proof path (`Step::Reduced` among the entries) checks the same where whole; a reduced entry
 /// is taken for what its hash commits to (the chain, and whether it lowered anyone), and the log
@@ -908,6 +956,7 @@ pub fn check_log(
             state
                 .grants
                 .insert(checked.creator, (Level::Manage, checked.identity));
+            state.owner = Some(checked.creator);
         }
         LogKind::Organization => {
             state
@@ -937,6 +986,16 @@ pub fn check_log(
                 state.partial = true;
                 if reduced.places {
                     state.placements.push((place, None));
+                }
+                // A transfer is signed by the owner, whom it lowers: hidden, it still leaves
+                // them no more than a former owner keeps, and the new owner unknown.
+                if reduced.owns {
+                    if kind != LogKind::Block || !reduced.lowers {
+                        return Err(KeyError::Record);
+                    }
+                    if let Some(former) = state.owner.take() {
+                        state.demote_owner(former);
+                    }
                 }
                 if reduced.lowers {
                     state.last_lowering = place;
@@ -985,9 +1044,9 @@ pub fn check_log(
             }
             Record::Grant(grant) => {
                 let own_revocation = grant.grantee == entry.signer && grant.level == Level::None;
-                // Authorship is Manage from the root (and, later, owner records) alone: no grant
-                // lowers or names the creator.
-                if kind != LogKind::Block || grant.grantee == checked.creator {
+                // Authorship is Manage from the root and owner records alone: no grant lowers or
+                // names the owner.
+                if kind != LogKind::Block || state.owner == Some(grant.grantee) {
                     return Err(KeyError::Record);
                 }
                 state.granting(
@@ -1033,6 +1092,24 @@ pub fn check_log(
                 }
                 state.granting(entry, own, &parent.authority, Level::Edit, false, outside)?;
                 state.placements.push((place, Some(parent.placement)));
+            }
+            Record::Owner(owner) => {
+                // Only the owner moves ownership on, signing with their current key, to
+                // someone else.
+                let may = kind == LogKind::Block
+                    && state.owner == Some(entry.signer)
+                    && owner.account != entry.signer
+                    && own.is_some_and(|signing| entry.signed_by(&signing));
+                if !may {
+                    return Err(KeyError::Record);
+                }
+                state.demote_owner(entry.signer);
+                state.signers.insert(owner.account, owner.identity.signing);
+                state
+                    .grants
+                    .insert(owner.account, (Level::Manage, owner.identity));
+                state.set_level(owner.account, Level::Manage);
+                state.owner = Some(owner.account);
             }
             Record::Administrator(administrator) => {
                 let may = kind == LogKind::Organization

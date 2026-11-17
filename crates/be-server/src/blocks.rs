@@ -1960,6 +1960,11 @@ impl ServerStore {
         access: Access,
         record: Option<Vec<u8>>,
     ) -> Result<Option<BTreeSet<Uuid>>, ServerError> {
+        if let Some(record) = record.as_ref().filter(|record| crate::access::is_owner_record(record)) {
+            return self
+                .transfer_owner(identity, block, account, access, record.clone())
+                .await;
+        }
         self.with_graph(identity.organization, move |store, graph, database| {
             let leaving = account == identity.account && access == Access::None;
             match leaving {
@@ -2116,6 +2121,105 @@ impl ServerStore {
             if !forgotten.is_empty() {
                 store.sessions_changed();
             }
+            Ok(Some(before))
+        })
+        .await
+    }
+
+    /// `set-access` carrying an owner record: ownership of `block` moves from its owner, the
+    /// caller, to `account` (plans/signed_access.md, step 5). The new owner holds what authorship
+    /// gives and the former keeps Edit (`be_block_keys::FORMER_OWNER`), in the log as in the
+    /// graph. Answers who could view the block before, as a grant does.
+    async fn transfer_owner(
+        &self,
+        identity: Identity,
+        block: Uuid,
+        account: Uuid,
+        access: Access,
+        record: Vec<u8>,
+    ) -> Result<Option<BTreeSet<Uuid>>, ServerError> {
+        self.with_graph(identity.organization, move |_, graph, database| {
+            require_manage(graph, &visibility(identity), block)?;
+            let node = graph.get(block).ok_or(ServerError::Corrupt)?;
+            if node.author != identity.account {
+                return Err(ServerError::Refused(
+                    ErrorCode::PermissionDenied,
+                    format!("only the owner of block {block} gives its ownership away"),
+                ));
+            }
+            let fixed = node.owner_only
+                || graph.owner_only_root(block).is_some()
+                || node.is_search_index()
+                || node.is_edit_kind()
+                || node.unfiled()
+                || be_block::holds_owner_only(node.content_type);
+            if fixed {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    format!("block {block} belongs to what holds it, so its ownership never moves"),
+                ));
+            }
+            if access != Access::Manage
+                || account == identity.account
+                || account == ANYONE_INSIDE
+                || account == crate::organization::server_account(database)?
+            {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "ownership moves to another member, who manages the block".into(),
+                ));
+            }
+            if !crate::store::is_member_of(database, account, identity.organization)? {
+                return Err(ServerError::Refused(
+                    ErrorCode::PermissionDenied,
+                    "that account is not a member of this organization".into(),
+                ));
+            }
+            if !crate::contacts::is_contact(database, identity.account, account)? {
+                return Err(ServerError::Refused(
+                    ErrorCode::NotAContact,
+                    "give ownership only to your contacts: send them a contact link first".into(),
+                ));
+            }
+            let before = graph.audience(block);
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
+            crate::access::append_owner(
+                &transaction,
+                identity.organization,
+                block,
+                identity.account,
+                account,
+                &record,
+            )?;
+            graph.set_author(block, account)?;
+            transaction.execute(
+                "UPDATE blocks SET author = ?3 WHERE organization_id = ?1 AND id = ?2",
+                params![
+                    identity.organization.to_string(),
+                    block.to_string(),
+                    account.to_string()
+                ],
+            )?;
+            // The log grants the new owner Manage, as the row does: authorship alone gives it
+            // only while they can view the parent, which a block given away from somewhere
+            // they cannot see would not be.
+            write_grant(
+                graph,
+                &transaction,
+                identity.organization,
+                block,
+                account,
+                Access::Manage,
+            )?;
+            write_grant(
+                graph,
+                &transaction,
+                identity.organization,
+                block,
+                identity.account,
+                Access::Edit,
+            )?;
+            transaction.commit()?;
             Ok(Some(before))
         })
         .await

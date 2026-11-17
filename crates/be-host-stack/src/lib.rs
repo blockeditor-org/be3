@@ -2065,6 +2065,20 @@ pub fn set_access(
     });
 }
 
+/// Gives ownership of `block`, which the account owns, to `account`; `reply` hears whether the
+/// server took it, or the refusal to show (offline, it needs the server).
+pub fn transfer_ownership(
+    block: Uuid,
+    account: Uuid,
+    reply: impl FnOnce(Result<(), String>) + Send + 'static,
+) {
+    send(Command::TransferOwnership {
+        block,
+        account,
+        reply: replies::expect(reply),
+    });
+}
+
 /// Every block whose notification mode the account set to other than `all`, once the server
 /// has said: read when the host connects and again whenever another device changes one.
 pub fn notify_modes() -> Option<Vec<(Uuid, be_block_protocol::NotifyMode)>> {

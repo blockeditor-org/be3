@@ -444,6 +444,7 @@ fn insert_entry(
         Record::Administrator(administrator) => administrator.account,
         Record::Member(member) => member.account,
         Record::Retirement(retirement) => retirement.account,
+        Record::Owner(owner) => owner.account,
         Record::Opening(_) | Record::Parent(_) => entry.signer,
     };
     let accounts = [entry.signer, named];
@@ -709,6 +710,38 @@ pub(crate) fn append_grant(
         ],
     )?;
     Ok(())
+}
+
+/// Whether `record` is an owner record: `set-access` carrying one moves the block's ownership
+/// (`append_owner`) rather than granting.
+pub(crate) fn is_owner_record(record: &[u8]) -> bool {
+    Entry::decode(record).is_ok_and(|entry| matches!(entry.record, Record::Owner(_)))
+}
+
+/// Appends `record`, signed by `signer`, to `block`'s log once it checks at its head: an owner
+/// record moving ownership to `owner`, naming the keys the server holds for them. The log
+/// refuses it unless `signer` owns the block there.
+pub(crate) fn append_owner(
+    connection: &Connection,
+    organization: Uuid,
+    block: Uuid,
+    signer: Uuid,
+    owner: Uuid,
+    record: &[u8],
+) -> Result<(), ServerError> {
+    let entry = Entry::decode(record).map_err(|_| refused("the record does not read"))?;
+    let Record::Owner(named) = &entry.record else {
+        return Err(refused("ownership moves by an owner record"));
+    };
+    if entry.signer != signer.into_bytes() || named.account != owner.into_bytes() {
+        return Err(refused(
+            "the owner record is signed by its caller and names whom the call makes owner",
+        ));
+    }
+    if identity_of(connection, owner)? != Some(named.identity) {
+        return Err(refused("an owner record names the keys its owner holds now"));
+    }
+    append_checked(connection, organization, block, entry)
 }
 
 /// `account`'s signing key, if the organization's log, checked to its head, names it an
