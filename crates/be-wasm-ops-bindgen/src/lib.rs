@@ -351,10 +351,15 @@ impl Generator {
         let mut embed_exports = Modules::default();
         let mut bounds = Vec::new();
         let mut dispatches = Vec::new();
+        let mut exported = Vec::new();
         for interface in exports.iter().filter(callable) {
             let module = generator.module_name(*interface);
             let methods = generator.methods(*interface)?;
             args.extend(generator.args(&module, &methods));
+            exported.extend(methods.iter().map(|method| {
+                let (constant, name) = (&method.constant, &method.name);
+                quote!((crate::__args::#constant, #name))
+            }));
             let guest = generator.guest_export(*interface, &module, &methods)?;
             let embed = generator.embed_export(*interface, &module, &methods)?;
             let nest = generator.nest(*interface);
@@ -440,6 +445,16 @@ impl Generator {
 
                 pub fn method_name(method: ::be_wasm_ops::MethodId) -> ::core::option::Option<&'static str> {
                     METHODS
+                        .iter()
+                        .find(|(id, _)| *id == method)
+                        .map(|(_, name)| *name)
+                }
+
+                /// The methods the world exports, which the host calls: `METHODS` for them.
+                pub const EXPORTED_METHODS: &[(::be_wasm_ops::MethodId, &str)] = &[#(#exported),*];
+
+                pub fn exported_method_name(method: ::be_wasm_ops::MethodId) -> ::core::option::Option<&'static str> {
+                    EXPORTED_METHODS
                         .iter()
                         .find(|(id, _)| *id == method)
                         .map(|(_, name)| *name)
