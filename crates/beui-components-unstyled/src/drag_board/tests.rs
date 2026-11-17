@@ -81,7 +81,6 @@ impl Fixture {
             fixture: self,
             name,
             node: self.node(rect, order),
-            takes: Rc::new(|_| Take::Drop),
             hides_preview: false,
             holds: false,
         }
@@ -130,26 +129,11 @@ struct TargetBuilder<'a> {
     fixture: &'a Fixture,
     name: &'static str,
     node: NodeRef,
-    takes: Rc<dyn Fn(DragPoint) -> Take>,
     hides_preview: bool,
     holds: bool,
 }
 
 impl TargetBuilder<'_> {
-    fn declines(self) -> Self {
-        Self {
-            takes: Rc::new(|_| Take::Pass),
-            ..self
-        }
-    }
-
-    fn refuses(self) -> Self {
-        Self {
-            takes: Rc::new(|_| Take::Refuse),
-            ..self
-        }
-    }
-
     fn hides_preview(self) -> Self {
         Self {
             hides_preview: true,
@@ -176,7 +160,6 @@ impl TargetBuilder<'_> {
             id: 0,
             node: self.node,
             accepts: Rc::new(|payload| payload.is::<&str>()),
-            takes: self.takes,
             carrying: Rc::new(move |on| carrying.push(format!("{name} carrying {on}"))),
             over: Rc::new(move |point: Option<(&dyn Any, DragPoint)>| {
                 over.push(match point {
@@ -211,8 +194,6 @@ mod a_carried_item_drops_on_the_topmost_target_under_the_pointer;
 mod a_drag_begun_at_a_mouse_point_follows_the_first_pointer_that_moves_it;
 mod a_lifted_carry_scrolls_the_scroller_whose_edge_holds_it;
 mod a_release_over_no_target_cancels_the_drag;
-mod a_target_that_declines_the_drop_lets_the_one_beneath_take_it;
-mod a_target_that_refuses_the_drop_hears_the_item_over_it_and_sends_it_home;
 mod edge_scrolling_runs_the_topmost_scroller_whose_band_holds_the_pointer;
 mod escape_cancels_a_drag_over_a_target_without_dropping_it;
 mod every_target_hears_the_drag_end_before_the_drop;

@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 pub use crate::types::drag::{
     Accepts, DragPoint, DragSource, Driver, Dropped, EDGE_BAND, EdgeScroller, Order, Outside, Over,
-    Pending, Space, Take, Target,
+    Pending, Space, Target,
 };
 pub use crate::types::drag::{
     After, Candidate, CandidateId, Carry, CarryFace, CarryId, DragFrame, DragSpec, Evaluated,
