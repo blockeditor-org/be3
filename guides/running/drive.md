@@ -168,20 +168,21 @@ A program has settled once a frame asks for no other and `Program::busy` gives n
 be-host is busy while an app starts, owes a frame or has unanswered input, while an editor on
 screen waits for content (its own block's, or a block it watches beside it, such as the text
 app's view state: one that is offline and not cached keeps `settle` waiting), while an account
-request is pending, and while the block store has
-work queued or edits to journal, or, while hurried, to seal (unhurried, a type module seals after
-a quiet spell, which counts as out of step instead). Loading a listing the server never answered
-(a folder's children, what links to a block) is busy too, but reading one again after the server
-answered it (a change the server pushed, a new connection) keeps showing what it held, so, like
-sending the outbox and asking the server for a block's revisions, it counts as unsynced instead
-(below): a connection that silently stops answering never holds up `settle`. A command that needs the server still runs in the
+request is pending, and while the block store has work queued or edits to journal, or, while
+hurried, to seal (unhurried, a type module seals after a quiet spell, which counts as out of step
+instead). Loading a listing the server never answered (a folder's children, what links to a
+block) is busy too, but reading one again after the server answered it (once this device's
+creation or move reaches the server, on a new connection, or for a change the server pushed)
+keeps showing what it held, so, like sending the outbox and asking the server for a block's
+revisions, it counts as unsynced instead (below), and a connection that silently stops answering
+does not hold up `settle` with it. A command that needs the server still runs in the
 block store's loop, so the commands queued behind it keep the host busy until it is answered or
 the connection is declared lost; the busy reason names the step the loop is in. It is never
 busy on its error screen.
 
 `drive synced` waits for more: settled, and `Program::out_of_step` gives no reason. be-host gives
-one while its block store is not connected, has edits waiting to be sent, or has yet to ask for
-what changed since it connected (what it asks for arrives by push after); it fails on a program
+one while its block store is not connected, has edits waiting to be sent, reads a listing again,
+or has yet to ask for what changed since it connected (what it asks for arrives by push after); it fails on a program
 with nothing outside its window to keep in step with. With the clock stopped, a program quiet but
 still out of step may be waiting on a timer of its own (be-host's type modules seal after a quiet
 spell and back off before retrying, on the frame clock): once nothing is in flight that could

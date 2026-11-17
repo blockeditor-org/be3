@@ -1868,8 +1868,13 @@ impl Session<'_> {
                 if moved || held.typing != typing {
                     held.progressed += 1;
                 }
-                let due = (idle && held.waiting == 0 && held.pending() == 0 && !held.arriving)
-                    .then(|| self.replicas.modules.held_due())
+                // A listing read again waits on the server, whose answer can make progress.
+                let due = (idle
+                    && held.waiting == 0
+                    && held.pending() == 0
+                    && !held.arriving
+                    && !held.graph.refreshing())
+                .then(|| self.replicas.modules.held_due())
                     .flatten();
                 (
                     std::mem::replace(&mut held.typing, typing),

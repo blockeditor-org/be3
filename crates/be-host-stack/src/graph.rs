@@ -813,9 +813,10 @@ impl Graph {
         })
     }
 
-    /// Whether a listing the server answered before is being read again (a change it pushed, a
-    /// new connection): what it held keeps showing meanwhile, so this waits on the server alone,
-    /// and a connection that silently stopped answering holds it until it is declared lost.
+    /// Whether a listing the server answered before is being read again (once this device's
+    /// creation or move reaches the server, on a new connection, or for a change the server
+    /// pushed): what it held keeps showing meanwhile, so this waits on the server alone, and a
+    /// connection that silently stopped answering holds it until it is declared lost.
     pub fn refreshing(&self) -> bool {
         self.listings.values().any(|listed| {
             listed.answered && matches!(listed.fetch, Fetch::Wanted | Fetch::Fetching)

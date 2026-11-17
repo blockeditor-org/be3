@@ -59,4 +59,22 @@ fn a_held_clock_is_offered_a_modules_timer_only_while_nothing_is_in_flight() {
     wait_until("the edit made after the seal is still owed", |shared| {
         shared.owing > 0
     });
+
+    // A listing read again waits on the server too, whose answer can make progress: while it is
+    // under way, no timer is offered.
+    wait_until("the top of the files is listed", |shared| {
+        shared.graph.ready(Query::Roots)
+    });
+    harness.relay().hold_requests(true);
+    refetch(Query::Roots);
+    // Taken by a round, which then rests: that round has published what it offers.
+    let due = crate::wait_until("the listing is read again and the worker rests", |shared| {
+        (shared.graph.refreshing()
+            && !shared.graph.has_listings_to_take()
+            && shared.parked.is_some())
+        .then_some(shared.modules_due)
+    });
+    assert_eq!(due, None, "with a listing read again, no timer is offered");
+    harness.relay().hold_requests(false);
+    wait_until("the listing is answered", |shared| !shared.graph.refreshing());
 }
