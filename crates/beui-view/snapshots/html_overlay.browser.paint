@@ -40,7 +40,7 @@ BE3BROWSER 1
     "<dialog class=\"beui-overlay\" role=\"generic\" popover=\"manual\" open=\"\" style=\"position-anchor: --beui-anchor-1-0; position-area: bottom; position-try-fallbacks: flip-block; margin-top: 12px; max-width: calc(100vw - 16px);\">",
     "<!--[-->",
     "<div style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); padding: 8px 8px 8px 8px; justify-items: stretch; align-items: stretch; background-color: #1e1e28; border-radius: 6px 6px 6px 6px;\">",
-    "<div style=\"font: 14px Inter, NotoEmoji, system-ui, sans-serif; line-height: 16px; color: #fafaf7; white-space: pre-wrap; overflow-wrap: break-word;\">",
+    "<div style=\"font: 14px Inter, NotoEmoji, system-ui, sans-serif; line-height: 16px; color: #fafaf7; white-space: pre-wrap; overflow-wrap: break-word; --beui-gap-room: 100%;\">",
     "Pointing up</div>",
     "</div>",
     "<!--]-->",

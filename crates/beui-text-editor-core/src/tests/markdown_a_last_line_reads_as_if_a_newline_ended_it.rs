@@ -7,7 +7,12 @@ fn markdown_a_last_line_reads_as_if_a_newline_ended_it() {
     let look = |source: &str| {
         let mut tester = EditorTester::with_language(source.as_bytes(), TextLanguage::Markdown);
         let look = tester.editor.highlight().line_look(0);
-        (look.rule, look.heading, look.list, source[look.marker].to_owned())
+        (
+            look.rule,
+            look.heading,
+            look.list,
+            source[look.marker].to_owned(),
+        )
     };
     for line in ["---", "***", "# a", "- [ ] ", "- [x] ", "- [ ] a"] {
         assert_eq!(look(line), look(&format!("{line}\n")), "{line:?}");
