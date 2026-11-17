@@ -228,10 +228,16 @@ catcher under the event, which a drag between Wayland windows needs), `Left`,
 text, IME and drops. The host keeps no capture, hover or
 focus of its own (`be_host_runtime::forward_view` for an app,
 `be_host_wayland::Compositor` for a window), so capture, claims, overlays,
-focus, interception and the lock apply to both by one set of rules.
-`be-lib-input-router` holds the same rules for surfaces rather than nodes,
-over a hit test such as the layer list's (plans/host_as_platform_adapter.md,
-Input); the host does not route through it yet.
+focus, interception and the lock apply to both by one set of rules. Those rules
+are `be-lib-input-router`'s `Router`, which beui-core keeps one of per document
+(`interact::forward`): a press holds its catcher per pointer and button until it
+lifts (a middle press that pans a camera holds none), a held scroll or touchpad
+gesture stays with the catcher it began on, a catcher hears `Left` once the
+pointer is neither over it nor pressed on it by the mouse or pen, and the focus
+is told as it moves. What lies under a point is beui's hit test, handed to the
+router as `forward::Catchers`. The same router routes between surfaces over the
+layer list's hit test (plans/host_as_platform_adapter.md, Input), which the host
+does not do yet.
 `beui_core::interact::forward::Replay` turns a `ForwardedInput` back into the
 raw `Input` a platform would push (positions relative to the catcher over its
 zoom, `PointersCancelled` for a press that ended unreleased, `PointerRested` for a
@@ -265,8 +271,9 @@ An event goes through, in order:
    outside of, claims and capture, the pointer's session, and focus.
 4. Keys, one at a time along the focus path (above). A key one listener takes
    is gone, text and all; a key bound for a program goes no further.
-5. `forward::route`: the pointer to the catcher under it, a press to its
-   catcher until all buttons lift, keys, text and IME to the focused one.
+5. `forward::route`: the pointer to the catcher the router names for it (the
+   one under it, or the one its press holds), keys, text and IME to the focused
+   one.
 
 So no editor reads the frame's events itself. A host showing several documents
 in one frame (the inspector beside the program) gives each its share with

@@ -177,7 +177,9 @@ groups they are in; only an anchored view, which lies over the UI, is left to th
 which draws the window from the list in a pass of its own: `Root(0)`, the first anchored view,
 `Root(1)`, the next, and so on, so what the UI paints between two anchored views (a second
 view's scrim) lies between them. An anchored view inside a group or filter splits the roots
-after it.
+after it, so it ignores the group's opacity and filter, and what the group paints after it lands
+below it; the renderer says so once on stderr. Each anchored view shown costs a root texture the
+window's size, on top of `Root(0)`.
 
 The renderer finds every drawing the window shows each frame by walking only the displays
 that hold drawings (`Display::drawings`), and keeps what each placed while it stays where it
@@ -193,8 +195,8 @@ share one. The pass draws again only where the list's damage against last frame'
 which is what `Renderer::scissors` reports and the e-paper display reads. Paintings are
 unchanged: they come from `Paints`, not from the GPU. On the web `layers::frame` makes the
 frame's list (Apps on the page in guides/running/web.md) and the page applies it as CSS. The
-list's hit test and the forwarding router (`be-lib-input-router`) are not used by the host yet:
-its input still goes through beui's forwarding catchers (`AppView`).
+host's input goes through beui's forwarding catchers (`AppView`), which route by
+`be-lib-input-router`'s rules over beui's hit test; the list's own hit test is not used yet.
 
 ## Frames and pacing
 

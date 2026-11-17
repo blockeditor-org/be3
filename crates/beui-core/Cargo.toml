@@ -19,6 +19,7 @@ beui-reactive = { path = "../beui-reactive" }
 be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 thumbhash = "0.1"
 be-lib-ui-types = { path = "../be-lib-ui-types" }
+be-lib-input-router = { path = "../be-lib-input-router" }
 beui-lucide = { path = "../beui-lucide" }
 unicode-linebreak = "0.1.5"
 

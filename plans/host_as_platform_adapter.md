@@ -209,7 +209,11 @@ that shows, and a pass over the damaged area drawing one quad per root and ancho
 frame also walks the displays that hold drawings and their ancestors (on the CPU), and prepares
 the drawings that were damaged or moved. Keeping the list across frames and patching it from the
 tree's changes would remove the walk.
-Compositing a screen apart from the UI, rather than in place, waits for the root guest (4f),
+Known limit: an anchored view nested in a group or filter only avoids the worst case. The roots
+split after the group, so the view ignores the group's opacity and filter, and what the group
+paints after it lands below it; the renderer says so once on stderr. The compositor in the root
+(4g) should place anchored views outside groups, or the list grow a group of its own.
+Compositing a screen apart from the UI, rather than in place, waits for the root guest (4g),
 which decides what lies under its screens (a hole, as on the web, or a root split around them).
 
 ## Input
@@ -261,11 +265,29 @@ Built (step 3): the router is `be-lib-input-router` (`Router`, over a `HitTest`)
 `WindowLayers` is its 2D test (each layer's `LayerInput`: hit and gesture areas, `captures`,
 `focuses`, `placer`). It routes pointer capture and hover, gestures outermost first, a finger
 landing for an outer claim, keys with the compositor's chords, focus on press, the pointer lock,
-handing over a press and drag and drop. It does not route the host's input yet: the host's UI is
-one beui document whose forwarding catchers route as before, and the layers it produces take
-the default `LayerInput`. The router takes over in step 4c, with the host's UI (later the compositor)
-declaring each layer's input, and with the IME area, accessibility actions by node id and drive's presses
-going through it.
+handing over a press and drag and drop.
+
+Built (step 4c): the router is the only place these rules live. beui-core's forwarding catchers
+route through it (`interact::forward`): each pointer event asks it who holds the pointer
+(`Router::press`, `moved`, `release`, `cancel`, one hold per pointer and button), a wheel or
+touchpad gesture who takes it (`gesture`, a held one latched to the catcher it began on), and
+the end of the frame who heard the pointer leave and the focus move (`entered`, `hover`,
+`focus`). Its hit test (`forward::Catchers`) is beui's own: the catcher beui's hit test finds
+under the point, after its overlays, scrims, claims and the camera's gesture areas, and whether
+a middle press pans (`HitTest::pans`). `Router::route` builds the same steps into routing a
+window's raw `Input`, for the host once it routes between surfaces. Where the router's rules and
+the catchers' differed, the catchers' were kept, since every host test relies on them: a key's
+release goes to the focus (only a chord the compositor took sends its release there too),
+a mouse's or pen's press holds its catcher for its other buttons, and each finger is its own
+pointer. The one change is latching: a held scroll or touchpad gesture now stays with the catcher
+it began on. The IME area, accessibility actions by node id and drive's presses already take
+this path, since they reach catchers through beui's document.
+
+What is left, with the compositor in the root (4f, 4g): the host's input goes through `Router`
+over the last committed `WindowLayers` rather than through beui's document, with `AppView`
+declaring each layer's `LayerInput`, the host's UI its root's area, and the chords it takes
+along the focus (its actions, the palette, Tab and F6 between surfaces) as the router's
+intercepted chords.
 
 On the web, a focused cross-origin iframe keeps its keys, so the compositor's chords reach it only
 once the user presses outside it, as in a browser. An iframe placed in a pan-and-zoom editor sits
@@ -492,10 +514,9 @@ Each step lands on its own.
      `#layers`), app surfaces composited from the list, one list per OS window, program windows
      as `Surface::Host`, the e-paper damage from `WindowLayers::damage`, a radius per corner in
      the texture quad, and restacking damaging only the pairs that overlap and swapped order.
-   - 4c. The router routes the host's input: `AppView` declares each layer's `LayerInput` (hit
-     and gesture areas, scrims and popups, placers), and be-host's input goes through `Router`
-     over the last committed `WindowLayers` rather than through beui's forwarding catchers, with
-     the IME area, accessibility actions by node id and drive's presses on the same path.
+   - 4c. Built: the router replaces beui's forwarding over beui's catchers (Input, Built
+     (step 4c)): beui-core's forwarding catchers route through `Router`, with beui's hit test
+     as its `HitTest`, so its rules live in one place; nothing changes visibly.
    - 4d. Built: the web's half of the sandbox and of the root entry: the page compiles with
      `WebAssembly.compile` and spawns a worker per instance, and calls the root inline from
      `requestAnimationFrame`, resuming it as its workers answer; tested with 4a's root in
@@ -508,11 +529,19 @@ Each step lands on its own.
      orchestration (pacing, settle, restarts, grafting accessibility trees) become a guest
      library, and a root built on it embeds an editor without the host's compositor, shown by
      a host test. The root gets its `input` export here.
-   - 4f. The compositor moves into the root: `src/compositor`, `src/ui`, the camera and
+   - 4f. The router over the layer list: the `HitTest` moves from beui's catchers to the last
+     committed `WindowLayers`. `AppView`, anchored views, scrims and popups declare each layer's
+     `LayerInput` (hit and gesture areas, `captures`, `focuses`, `placer`), the host's UI its
+     root's area from beui's hit regions, and beui a chord list for the focus (its actions, the
+     palette, Tab and F6) as the router's intercepted chords; be-host's input goes through
+     `Router::route` before beui sees it, with the IME area transformed by its layer,
+     accessibility actions reaching a surface by node id and drive's presses on the same path.
+     It may land with 4g, once the compositor declares the layers itself.
+   - 4g. The compositor moves into the root: `src/compositor`, `src/ui`, the camera and
      be-host-accounts-ui, talking to the native block stack by the messages it uses today
      (`ChangeWatch`) until step 5 moves the stack. drive's commands split as The root guest
      says. be-host runs the root through 4a's entry, draws its layer list (4b) and routes by
-     its declared input (4c), and its own beui UI goes. This is most of step 4 and may split
+     its declared input (4f), and its own beui UI goes. This is most of step 4 and may split
      further by area: the lock screen and onboarding, dialogs and toasts, the debug panels,
      the editors and the camera.
 5. The block stack as an instance the root guest spawns, behind capabilities, building on the
