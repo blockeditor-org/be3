@@ -834,14 +834,6 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         }
         return row;
     }
-    if look.rule && !options.mask {
-        if marked {
-            builder.marker(&look, marker.clone(), body);
-        }
-        builder.rule_row(marker.end..end, marker.is_empty(), body);
-        builder.row.space = line_space(&look, line, &options);
-        return finish(builder, body);
-    }
     let trailing_from = bytes[start..end]
         .iter()
         .rposition(|byte| !matches!(*byte, b' ' | b'\t' | b'\r'))
@@ -852,6 +844,15 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     };
     let run_starts = |at: usize| runs.binary_search_by_key(&at, |run| run.at).is_ok();
     let mut index = start;
+    let mut rule = None;
+    if look.rule && !options.mask {
+        if marked {
+            builder.marker(&look, marker.clone(), body);
+            marked = false;
+        }
+        index = trailing_from.max(marker.end);
+        rule = Some(builder.rule(marker.end..index, marker.is_empty(), body));
+    }
     while index < end || marked {
         if marked && index >= marker.start {
             builder.marker(&look, marker.clone(), body);
@@ -998,6 +999,9 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
             inputs.colors.gutter_arrow,
         );
         builder.push(ELLIPSIS, end..end, false, style, SpanKind::Text);
+    }
+    if let Some(rule) = rule {
+        builder.fit_rule(rule);
     }
     finish(builder, body)
 }
