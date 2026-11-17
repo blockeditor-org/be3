@@ -64,9 +64,17 @@ fn a_begin_commits_an_undo_cancels_and_leaving_cancels_its_own() {
     gesture(&mut holds, 2, Gesture::BeginTentative);
     gesture(&mut holds, 1, Gesture::Commit);
     let undo = holds.undo();
-    assert!(undo.settled && undo.counted.is_empty());
-    assert_eq!(undo.ended, [(gesture_of(2), false)]);
+    assert!(undo.undone && undo.counted.is_empty() && undo.ended.is_empty());
+    assert_eq!(undo.voided, [gesture_of(2)]);
     assert_eq!(undo.released.len(), 4);
+    // The voided gesture stays open: what its editor sends before it hears is held, and none
+    // of it counts however it ends.
+    let late = serial(&operate(&mut holds, 2));
+    let commit = gesture(&mut holds, 2, Gesture::Commit);
+    assert_eq!(commit.this, This::Ended);
+    assert!(commit.settled && commit.counted.is_empty());
+    assert!(commit.released.contains(&late));
+    assert!(!holds.holding());
 
     gesture(&mut holds, 1, Gesture::BeginTentative);
     operate(&mut holds, 1);
