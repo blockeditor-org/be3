@@ -807,6 +807,12 @@ impl Graph {
         self.pending.contains_key(&block) || self.unpublished.contains(&block)
     }
 
+    /// Whether a change made here to `block` (its creation among them) waits for the peer to
+    /// take it (`settle`): until then the peer knows the block as it was, or not at all.
+    pub fn changing(&self, block: Uuid) -> bool {
+        self.pending.contains_key(&block)
+    }
+
     pub fn covers(&self, block: Uuid) -> bool {
         self.pending.contains_key(&block)
             || self.placing.contains(&block)
@@ -1166,9 +1172,12 @@ impl Graph {
         *count -= 1;
         if *count == 0 {
             self.pending.remove(&block);
-            if !self.covers(block) && self.remove_node(block) {
-                self.moved();
+            // Moved even when the node stays as it was: what waited on the change (`changing`)
+            // looks again.
+            if !self.covers(block) {
+                self.remove_node(block);
             }
+            self.moved();
             return true;
         }
         false
