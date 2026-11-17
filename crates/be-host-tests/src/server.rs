@@ -118,7 +118,9 @@ impl Server {
                     .find(|row| row.account == contact.id)
                     .map(|row| row.sealed)
                     .unwrap_or_default();
-                store.put_contact(of.id, contact.id, vec![7; 64], held).await
+                store
+                    .put_contact(of.id, contact.id, vec![7; 64], held)
+                    .await
             })
             .unwrap_or_else(|error| {
                 panic!("the test server could not change the contact: {error}")
