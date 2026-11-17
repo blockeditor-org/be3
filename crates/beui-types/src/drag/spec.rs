@@ -111,6 +111,16 @@ pub enum DragSpec<D> {
         held: Box<DragSpec<D>>,
         otherwise: Box<DragSpec<D>>,
     },
+    /// `spec`'s place, drawn under the pointer at the size of the place, held at the same
+    /// fraction of it as the item was grabbed: a dock's tab takes the shape of the pane it
+    /// would open while the pointer still carries it.
+    Shaped(Box<DragSpec<D>>),
+    /// `spec`'s places only at points `open` lets through (where nothing covers the site, a
+    /// menu or another window over it); elsewhere the item floats.
+    Open {
+        spec: Box<DragSpec<D>>,
+        open: Rc<dyn Fn(DragPoint) -> bool>,
+    },
     /// A nested site: chosen while the pointer is in `region`, which chooses from there on.
     Into { region: NodeRef, drop: D },
     /// A site whose places are a function of the point (a timeline, where a clip lands at the
@@ -206,6 +216,19 @@ impl<D> DragSpec<D> {
         }
     }
 
+    /// The place this chooses, with the item drawn under the pointer at the place's size.
+    pub fn shaped(self) -> Self {
+        DragSpec::Shaped(Box::new(self))
+    }
+
+    /// These places only at points `open` lets through.
+    pub fn open_where(self, open: impl Fn(DragPoint) -> bool + 'static) -> Self {
+        DragSpec::Open {
+            spec: Box::new(self),
+            open: Rc::new(open),
+        }
+    }
+
     /// The same spec with another reach, radius, stickiness or throw speed, where it has one.
     pub fn with_distance(self, distance: f32) -> Self {
         match self {
@@ -298,6 +321,11 @@ impl<D: 'static> DragSpec<D> {
             DragSpec::Following { spec, along } => DragSpec::Following {
                 spec: Box::new(spec.map(drop)),
                 along,
+            },
+            DragSpec::Shaped(spec) => DragSpec::Shaped(Box::new(spec.map(drop))),
+            DragSpec::Open { spec, open } => DragSpec::Open {
+                spec: Box::new(spec.map(drop)),
+                open,
             },
             DragSpec::Into { region, drop: into } => DragSpec::Into {
                 region,
@@ -753,6 +781,36 @@ fn walk<'s, D: Clone>(
             };
             Some(Found { item, ..found })
         }
+        DragSpec::Shaped(spec) => {
+            let found = walk(spec, evaluation, last, carried, next, along)?;
+            if !found.placed() || found.floating {
+                return Some(found);
+            }
+            // Held at the fraction of the item it was grabbed at, so the pointer stays on
+            // the same part of it whatever its size.
+            let grabbed = evaluation.point.item;
+            let fraction = |at: f32, length: f32| match length > 0.0 {
+                true => (-at / length).clamp(0.0, 1.0),
+                false => 0.5,
+            };
+            let size = found.item.size();
+            let held = Vec2::new(
+                fraction(grabbed.min.x, grabbed.width()) * size.x,
+                fraction(grabbed.min.y, grabbed.height()) * size.y,
+            );
+            Some(Found {
+                item: Rect::from_min_size(evaluation.point.pos - held, size),
+                ..found
+            })
+        }
+        DragSpec::Open { spec, open } => {
+            // Ids stay the same whether or not the point is open, so walk it either way.
+            let found = walk(spec, evaluation, last, carried, next, along);
+            match open(evaluation.point) {
+                true => found,
+                false => found.map(|_| floated(carried)),
+            }
+        }
         DragSpec::Into { region, drop } => {
             let node = region.try_get()?;
             let (rect, _) = (evaluation.placed)(node)?;
@@ -853,7 +911,9 @@ pub fn rests<D>(spec: &DragSpec<D>, placed: &dyn Fn(NodeId) -> Option<(Rect, f32
             }
             DragSpec::SnapRadius { spec, .. }
             | DragSpec::Thrown { spec, .. }
-            | DragSpec::Following { spec, .. } => walk(spec, placed, next, into),
+            | DragSpec::Following { spec, .. }
+            | DragSpec::Shaped(spec)
+            | DragSpec::Open { spec, .. } => walk(spec, placed, next, into),
             DragSpec::Free { .. }
             | DragSpec::Floating
             | DragSpec::Into { .. }
@@ -884,7 +944,9 @@ pub fn nodes<D>(spec: &DragSpec<D>) -> Vec<NodeRef> {
             }
             DragSpec::SnapRadius { spec, .. }
             | DragSpec::Thrown { spec, .. }
-            | DragSpec::Following { spec, .. } => walk(spec, into),
+            | DragSpec::Following { spec, .. }
+            | DragSpec::Shaped(spec)
+            | DragSpec::Open { spec, .. } => walk(spec, into),
             DragSpec::Free { area, .. } => into.push(*area),
             DragSpec::Into { region, .. } => into.push(*region),
             DragSpec::Custom { node, .. } => into.push(*node),
