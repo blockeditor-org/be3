@@ -21,13 +21,11 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use beui_components_unstyled::Choice;
+use beui_components_unstyled::DragPoint;
 use beui_components_unstyled::ChoiceItem;
 use beui_components_unstyled::ChoiceKind;
 use beui_components_unstyled::ChoiceOption;
 use beui_components_unstyled::ChoiceOptionHandle;
-use beui_components_unstyled::DragPoint;
-use beui_components_unstyled::DropHandle;
-use beui_components_unstyled::DropTarget;
 use beui_components_unstyled::Scroll;
 use beui_components_unstyled::ScrollStyle;
 use beui_components_unstyled::back_slide::{BackSlide, SlideCurves};
@@ -234,18 +232,10 @@ struct TabBar {
     tabs: NodeRef,
 }
 
-/// A tool bar carried by its grip, on the old drag board until its bands become places
-/// (plans/declarative_dragging.md, step 4).
-#[derive(Clone, Copy, PartialEq)]
-struct Drag {
-    dragged: DockDragged,
-}
-
 #[derive(Clone, Copy)]
 struct State {
     state: Binding<DockState>,
     on_close: Callback<TabId>,
-    drag: Signal<Option<Drag>>,
     /// This dock among the others in the document, for its carries (`DockCarry`).
     id: u64,
     /// The dock's drop site's `over`, where a carried tab or pane would land, once
@@ -349,7 +339,9 @@ struct State {
     bar_placements: Signal<HashMap<String, WindowPlacement>>,
     bar_key: Func<TabId, Option<String>>,
     tab_key: Func<TabId, Option<String>>,
-    bar_grab: StoredCell<(Vec2, Vec2)>,
+    /// A bar the dock carries for a press it relays (`PointerId::Relayed`: an app's grip, or a
+    /// grip in the window the bar was popped into), and where the bar was laid out at the lift.
+    relayed: Signal<Option<(TabId, Rect)>>,
     bar_margin: f32,
     covers: Signal<BarCovers>,
     floats: Signal<BarFloats>,
@@ -1247,31 +1239,6 @@ impl State {
         }
     }
 
-    fn begin_drag(&self, dragged: DockDragged) {
-        self.drag.set(Some(Drag { dragged }));
-    }
-
-    /// A tool bar carried over the dock (the old drag board's `on_over`).
-    fn drag_over(&self, point: Option<DragPoint>) {
-        let Some(drag) = self.drag.get_untracked() else {
-            return;
-        };
-        if let (DockDragged::Bar(_), Some(point)) = (drag.dragged, point) {
-            self.move_lift(point);
-        }
-    }
-
-    fn end_drag(&self) {
-        self.drop_lift();
-        self.drag.set(None);
-    }
-
-    fn drop_at(&self, dragged: DockDragged, point: DragPoint) {
-        if let DockDragged::Bar(bar) = dragged {
-            self.drop_bar(bar, point);
-        }
-    }
-
     fn bar_admits(&self, leaf: LeafId, dragged: DockDragged) -> bool {
         self.state.with_untracked(|state| {
             let target = DockDrop::Tab { leaf, index: 0 };
@@ -1641,7 +1608,14 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     let menus = create_signal(DockMenus::default());
     let notices = create_signal(DockNotices::default());
     let offers = create_signal(HashMap::default());
-    let drag = create_signal(None);
+    let id = NEXT_DOCK.with(|next| next.replace(next.get() + 1));
+    let carried_bar = create_memo(move || {
+        let carry = carrying::<DockCarry>().filter(|carry| carry.dock == id)?;
+        match carry.dragged {
+            DockDragged::Bar(bar) => Some(bar),
+            _ => None,
+        }
+    });
     let dock = State {
         state,
         windows: store(RefCell::default()),
@@ -1656,8 +1630,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         handles: create_signal(HashMap::default()),
         owner: store(owner_scope()),
         on_close,
-        drag,
-        id: NEXT_DOCK.with(|next| next.replace(next.get() + 1)),
+        id,
         over: create_signal(None),
         bar_place: create_signal(None),
         landing: create_signal(None),
@@ -1704,7 +1677,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         bar_placements: create_signal(HashMap::default()),
         bar_key,
         tab_key,
-        bar_grab: StoredCell::new((Vec2::ZERO, Vec2::ZERO)),
+        relayed: create_signal(None),
         bar_margin,
         covers,
         floats,
@@ -1713,7 +1686,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         bars_away,
         bar_band: bar_band
             .unwrap_or_else(|| RenderFn::new(|handle: DockBarBandHandle| handle.body)),
-        lifting: Lifting::new(state),
+        lifting: Lifting::new(state, carried_bar),
         dragged_edits: store(RefCell::default()),
         thickness: splitter_thickness,
         reach: splitter_reach,
@@ -1785,7 +1758,6 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
             })
         }),
     };
-    dock.start_lifting();
     dock.bring_forward_when_shown();
     dock.forget_content_keyboard_when_taken();
     api.fill(DockApi(dock));
@@ -2285,7 +2257,7 @@ fn DockTiles(dock: State) -> NodeId {
         windows
     });
     // A carried tab or pane lands on a place the dock's layout offers (`State::spec`), and the
-    // dock parts for it there; the old drag board's target below carries only tool bars.
+    // dock parts for it there.
     let tiles = NodeRef::new();
     let site = use_drop_site(
         Func::new(move |carry: DockCarry| {
@@ -2297,49 +2269,46 @@ fn DockTiles(dock: State) -> NodeId {
         }),
     );
     dock.over.set(Some(site.over));
-    view! {
-        <DropTarget
-            on_over={move |point: Option<(DockDragged, DragPoint)>| dock.drag_over(point.map(|(_, point)| point))}
-            on_drop={move |(dragged, point): (DockDragged, DragPoint)| dock.drop_at(dragged, point)}
-        >|handle: DropHandle| {
-            let carrying = handle.carrying;
-            create_effect(move || {
-                if carrying.get() {
-                    return;
+    // A carried tool bar lands in a slot of a band, or floats (`State::bar_spec`).
+    let bars = use_drop_site(
+        Func::new(move |carry: DockCarry| {
+            carry.dock == dock.id && matches!(carry.dragged, DockDragged::Bar(_))
+        }),
+        Func::new(move |carry: DockCarry| match carry.dragged {
+            DockDragged::Bar(bar) => dock.bar_spec(bar, tiles),
+            _ => beui_view::drag::floating(),
+        }),
+        Callback::new(move |(carry, place): (DockCarry, bars::BarPlace)| {
+            if let DockDragged::Bar(bar) = carry.dragged {
+                dock.commit_bar(bar, place);
+            }
+        }),
+    );
+    dock.lifting.over.set(Some(bars.over));
+    let built = view! {
+        <List @node_ref=&tiles spacing=0.0>
+            <Dynamic value={move || current.with(DockState::main)}>|surface: SurfaceId| {
+                let dock = dock;
+                view! {
+                    <ListItem grow=1.0>
+                        <DockTreeView dock tree={Tree::Surface(surface)} />
+                    </ListItem>
                 }
-                let moving = dock.drag.with_untracked(|drag| {
-                    drag.as_ref().is_some_and(|drag| matches!(drag.dragged, DockDragged::Bar(_)))
-                });
-                if moving {
-                    dock.end_drag();
+            }</Dynamic>
+            <ForEach value={windows}>|surface: SurfaceId| {
+                let dock = dock;
+                view! {
+                    <DockWindowView dock surface />
                 }
-            });
-            let built = view! {
-                <List @node_ref=&tiles spacing=0.0>
-                    <Dynamic value={move || current.with(DockState::main)}>|surface: SurfaceId| {
-                        let dock = dock;
-                        view! {
-                            <ListItem grow=1.0>
-                                <DockTreeView dock tree={Tree::Surface(surface)} />
-                            </ListItem>
-                        }
-                    }</Dynamic>
-                    <ForEach value={windows}>|surface: SurfaceId| {
-                        let dock = dock;
-                        view! {
-                            <DockWindowView dock surface />
-                        }
-                    }</ForEach>
-                    <DockBarWindows dock />
-                    <DockBarLifted dock />
-                </List>
-            };
-            // Measured from the start, so a lift reads where the tiles are at once, also on
-            // a core that measures a node only once asked (`State::spec`).
-            measure(built);
-            built
-        }</DropTarget>
-    }
+            }</ForEach>
+            <DockBarWindows dock />
+            <DockBarLifted dock />
+        </List>
+    };
+    // Measured from the start, so a lift reads where the tiles are at once, also on
+    // a core that measures a node only once asked (`State::spec`).
+    measure(built);
+    built
 }
 
 #[component]
@@ -3784,10 +3753,6 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             });
             view! {
                 <Root clear_color=Color::TRANSPARENT>
-                    <DropTarget
-                        on_over={move |point: Option<(DockDragged, DragPoint)>| dock.drag_over(point.map(|(_, point)| point))}
-                        on_drop={move |(dragged, point): (DockDragged, DragPoint)| dock.drop_at(dragged, point)}
-                    >|_: DropHandle|
                         <Frame width=outer_width height=outer_height>
                             <Canvas>
                                 <CanvasItem
@@ -4014,7 +3979,6 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                 }</ForEach>
                             </Canvas>
                         </Frame>
-                    </DropTarget>
                 </Root>
             }
             .child()

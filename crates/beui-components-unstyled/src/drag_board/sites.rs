@@ -295,6 +295,25 @@ impl Board {
     /// Chooses a place for `point`. Only a change is told: the site it left hears it is over
     /// nothing, and the site it is over hears the place chosen in it when that changes.
     pub(crate) fn place(&self, point: DragPoint, released: bool) {
+        // A carry kept in a window reads a point over another in that window's points.
+        let kept = self
+            .placing
+            .borrow()
+            .as_ref()
+            .and_then(|placing| placing.carry.window);
+        let point = match kept {
+            Some(window) if window != point.window => {
+                match beui_view::reactive::window_point(point.pos, point.window, window) {
+                    Some(pos) => DragPoint {
+                        pos,
+                        window,
+                        ..point
+                    },
+                    None => point,
+                }
+            }
+            _ => point,
+        };
         let space = Rc::clone(&self.space);
         // A place in another window than the pointer's is not there for it: its rect is in
         // that window's points. A node whose window is not known yet (before the core first

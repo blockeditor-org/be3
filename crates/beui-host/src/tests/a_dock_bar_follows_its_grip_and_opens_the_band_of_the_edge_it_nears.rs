@@ -2,7 +2,7 @@ use super::*;
 use crate::dock::{DockAlign, DockBarPlacement, DockEdge};
 
 #[test]
-fn a_dock_bar_follows_its_grip_and_grows_into_the_band_of_the_edge_it_nears() {
+fn a_dock_bar_follows_its_grip_and_opens_the_band_of_the_edge_it_nears() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = bar_dock(
         DockBarPlacement::Over(DockEdge::Top, DockAlign::Center),
@@ -37,25 +37,16 @@ fn a_dock_bar_follows_its_grip_and_grows_into_the_band_of_the_edge_it_nears() {
     let near = pos2(body.right() - 6.0, body.center().y);
     harness.hover(near);
     harness.frame(Vec::new());
-    let opening = harness.rect(harness.find("dock.bar.band.right"));
-    let mut widths = vec![opening.width()];
-    for _ in 0..30 {
-        harness.frame(Vec::new());
-        widths.push(harness.rect(harness.find("dock.bar.band.right")).width());
-    }
+    harness.frame(Vec::new());
     let band = harness.rect(harness.find("dock.bar.band.right"));
     let docked = harness.rect(harness.find("bar.9"));
     assert!(
-        widths.windows(2).all(|pair| pair[1] >= pair[0] - 0.01) && widths[0] < band.width() - 4.0,
-        "nearing the right edge, the band along it grows open: {widths:?}"
-    );
-    assert!(
         docked.height() > docked.width(),
-        "the bar stands up along the edge it nears: {docked:?}"
+        "nearing the right edge, the bar stands up along it: {docked:?}"
     );
     assert!(
         band.contains_rect(docked.shrink(0.5)),
-        "the bar sits in the band it has grown: {docked:?} in {band:?}"
+        "and sits in the band that opens there: {docked:?} in {band:?}"
     );
     let narrowed = harness.rect(harness.find("content.1"));
     assert!(
@@ -64,13 +55,6 @@ fn a_dock_bar_follows_its_grip_and_grows_into_the_band_of_the_edge_it_nears() {
     );
 
     harness.hover(held);
-    harness.frame(Vec::new());
-    let closing = harness.rect(harness.find("dock.bar.band.right")).width();
-    assert!(
-        closing > 0.0 && closing < band.width(),
-        "pulled away, the band closes up rather than vanishing: {closing} of {}",
-        band.width()
-    );
     for _ in 0..30 {
         harness.frame(Vec::new());
     }
@@ -79,7 +63,7 @@ fn a_dock_bar_follows_its_grip_and_grows_into_the_band_of_the_edge_it_nears() {
             .document()
             .find_test_id("dock.bar.band.right")
             .is_none(),
-        "and is gone once it has closed"
+        "pulled away, the band closes"
     );
     let floating = harness.rect(harness.find("bar.9"));
     assert!(

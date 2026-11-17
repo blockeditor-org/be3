@@ -2,7 +2,7 @@ use super::*;
 use crate::dock::{DockAlign, DockBarPlacement, DockEdge};
 
 #[test]
-fn a_bar_docks_only_close_to_an_edge_and_holds_on_a_little_past_where_it_docked() {
+fn a_bar_docks_only_within_a_bar_of_an_edge_and_holds_on_a_little_past_it() {
     let _root = crate::reactive::RootScope::new();
     let (document, _dock) = bar_dock(
         DockBarPlacement::Over(DockEdge::Top, DockAlign::Center),
@@ -26,28 +26,26 @@ fn a_bar_docks_only_close_to_an_edge_and_holds_on_a_little_past_where_it_docked(
     harness.down(grip, PointerButton::Primary);
     harness.hover(grip + vec2(0.0, 20.0));
     harness.hover(body.center());
-    harness.hover(from_right(thickness * 0.75));
+    harness.hover(from_right(thickness * 1.25));
     harness.pause(Duration::from_millis(200));
     assert!(
         !docked(&harness),
-        "three quarters of a bar from the right edge, the bar opens no band there"
+        "a bar and a quarter from the right edge, the bar opens no band there"
     );
-    harness.hover(from_right(thickness * 0.25));
+    harness.hover(from_right(thickness * 0.75));
     harness.pause(Duration::from_millis(200));
     assert!(
         docked(&harness),
-        "a quarter of a bar from it, the band opens"
+        "within a bar of it, the band opens"
     );
     harness.hover(from_right(thickness * 1.25));
     harness.pause(Duration::from_millis(200));
     assert!(
         docked(&harness),
-        "pulled back out past where it docked, the band holds on to it"
+        "pulled back out a little past a bar, the band holds on to it"
     );
     harness.hover(from_right(thickness * 2.0));
-    for _ in 0..30 {
-        harness.frame(Vec::new());
-    }
+    harness.pause(Duration::from_millis(200));
     assert!(!docked(&harness), "two bars out, it lets go");
     harness.up(from_right(thickness * 2.0), PointerButton::Primary);
     harness.settle();

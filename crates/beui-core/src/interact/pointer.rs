@@ -76,7 +76,7 @@ impl Pointers {
                     session.pos - session.shift,
                     session.origin - session.shift,
                 )),
-                PointerId::Mouse | PointerId::Pen | PointerId::Keyboard => None,
+                PointerId::Mouse | PointerId::Pen | PointerId::Keyboard | PointerId::Relayed => None,
             })
     }
 
@@ -157,7 +157,7 @@ impl Kind {
 
     fn of(pointer: PointerId) -> Kind {
         match pointer {
-            PointerId::Mouse | PointerId::Pen | PointerId::Keyboard => Kind::MOUSE,
+            PointerId::Mouse | PointerId::Pen | PointerId::Keyboard | PointerId::Relayed => Kind::MOUSE,
             PointerId::Touch(_) => Kind::FINGER,
         }
     }

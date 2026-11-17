@@ -752,7 +752,11 @@ pub(super) fn DockHeldSize(dock: State, children: Child) -> NodeId {
     // Measured from the start, so the lift reads the size at once, also where measurement
     // comes a frame late.
     let measured = create_signal(None::<ReadSignal<Option<Measured>>>);
-    let carrying = create_memo(move || dock.carried().is_some());
+    // A carried tool bar only opens and closes bands, so the panels beside them resize then.
+    let carrying = create_memo(move || {
+        dock.carried()
+            .is_some_and(|dragged| !matches!(dragged, DockDragged::Bar(_)))
+    });
     create_effect_on(
         move || carrying.get(),
         move |&carrying, _| {

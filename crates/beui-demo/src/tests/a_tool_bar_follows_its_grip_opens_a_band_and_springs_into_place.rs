@@ -3,7 +3,7 @@ use beui::{PointerButton, vec2};
 use beui_host::native::testing::Target;
 
 #[test]
-fn a_tool_bar_follows_its_grip_grows_into_a_band_and_springs_into_place() {
+fn a_tool_bar_follows_its_grip_opens_a_band_and_springs_into_place() {
     let mut test = alone(WIDE, Page::DockBars);
     test.frame(Vec::new());
     test.settle();
@@ -31,10 +31,10 @@ fn a_tool_bar_follows_its_grip_grows_into_a_band_and_springs_into_place() {
     let band = test.rect_of("dock.bar.band.top");
     let tools = test.rect_of("bars.tools");
     assert!(
-        band.height() < tools.height() - 2.0,
-        "the band along the top is still growing open: {band:?} for {tools:?}"
+        band.contains_rect(tools.shrink(0.5)),
+        "the band along the top opens with the bar in it: {tools:?} in {band:?}"
     );
-    test.snapshot("a_tool_bar_growing_into_the_band_along_the_top");
+    test.snapshot("a_tool_bar_opening_the_band_along_the_top");
 
     test.hover(Target::point(held));
     test.pause(std::time::Duration::from_millis(200));
