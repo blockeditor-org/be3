@@ -317,6 +317,10 @@ pub struct Peer<S: ObjectStore> {
     /// How many times keys arrived (`keys_changed`): a search for keys under way as it changes
     /// asks once more, since what arrived may have come after the server answered.
     keys_arrived: Arc<std::sync::atomic::AtomicU64>,
+    /// The newest head the server took on from one this device knew, per block, by whatever read
+    /// learned it, until taken (`take_moved_heads`): one per block, so a peer that never takes
+    /// them holds no more than it knows blocks.
+    moved_heads: Mutex<HashMap<Uuid, CommitId>>,
     /// How many outbox drains are under way: announcements wait for their end
     /// (`send_announcements`).
     draining: std::sync::atomic::AtomicUsize,
@@ -493,6 +497,7 @@ impl<S: ObjectStore> Peer<S> {
             tried: Arc::default(),
             unsigned: Mutex::new(Vec::new()),
             keys_arrived: Arc::default(),
+            moved_heads: Mutex::new(HashMap::new()),
             draining: std::sync::atomic::AtomicUsize::new(0),
             whole: Mutex::new(HashSet::new()),
             forged: Mutex::new(authorship::Forged::default()),
@@ -925,7 +930,20 @@ impl<S: ObjectStore> Peer<S> {
 
     /// Keeps the server's heads `summaries` name (`behind`).
     fn observe(&self, summaries: &[BlockSummary]) {
-        let _ = self.refs.observe(summaries, self.behind());
+        if let Ok(moved) = self.refs.observe(summaries, self.behind())
+            && !moved.is_empty()
+        {
+            self.moved_heads.lock().unwrap().extend(moved);
+        }
+    }
+
+    /// The heads the server moved on to since this was last asked, from one this device knew
+    /// (`Refs::observe`): read by a listing, a tree or a summary alike. A head this device
+    /// published is known as it publishes, so it is none of them.
+    pub fn take_moved_heads(&self) -> Vec<(Uuid, CommitId)> {
+        std::mem::take(&mut *self.moved_heads.lock().unwrap())
+            .into_iter()
+            .collect()
     }
 
     /// Whether a remote head this device hears of is behind the one it knows. The server's head
