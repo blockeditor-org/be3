@@ -380,6 +380,19 @@ Depends on #686 (session catch-ups replaced by server ordering).
   failed once in 1010 runs (202 tests five times, 12 at a time) and passed 40
   of 40 alone. Done: the cause found, from a rerun under the same load that
   keeps its output, and fixed at its source.
+- **A paired device's tree item that never came.**
+  `an_offline_device_says_a_block_it_never_opened_is_not_on_it_yet` timed out
+  once under verify waiting 30 s for `TreeItem "Garden"`. The server's late
+  `tree-advanced` (a change told after the follower read it, which left the
+  tree untold for the rest of the connection) could cause it, but the wait
+  never failed in 300 runs under `stress` (`--parallel 4 --latency 75`), before
+  that fix or after it, so the fix is not credited with it. Done: a failure of
+  that wait found under `stress` and its cause fixed at its source.
+- **A text typed into right after it is made.** The same test times out at its
+  `type 'Plant the tomatoes'` with "a block type module has yet to settle",
+  1 to 2 runs in 100 under `stress` at `--latency 75`. Done: the module that
+  never settles found and fixed at its source, and the test passes 300 runs at
+  that latency.
 
 ## 16. Host test tools
 
