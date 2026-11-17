@@ -116,11 +116,13 @@ pub(crate) fn text(
         set_style(
             node,
             "--beui-gap-room",
-            Some(match wrap {
-                Some(_) => "100%",
-                None => "0px",
-            }
-            .to_owned()),
+            Some(
+                match wrap {
+                    Some(_) => "100%",
+                    None => "0px",
+                }
+                .to_owned(),
+            ),
         );
         set_style(node, "display", clamp.map(|_| "-webkit-box".to_owned()));
         set_style(

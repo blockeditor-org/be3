@@ -19,7 +19,7 @@ BE3BROWSER 1
     "<div style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); padding: 10px 10px 10px 10px; justify-items: start; align-items: start;\">",
     "<div style=\"display: flex; flex-direction: row; align-items: start; gap: 20px;\">",
     "<div style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); justify-items: stretch; align-items: stretch; background-color: #e1e4ec; flex: 0 0 auto;\">",
-    "<div style=\"font: 16px Inter, NotoEmoji, system-ui, sans-serif; line-height: 18px; color: #1e1e28; white-space: pre-wrap; overflow-wrap: break-word;\">",
+    "<div style=\"font: 16px Inter, NotoEmoji, system-ui, sans-serif; line-height: 18px; color: #1e1e28; white-space: pre-wrap; overflow-wrap: break-word; --beui-gap-room: 100%;\">",
     "Placed at its corner</div>",
     "</div>",
     "<div style=\"width: 200px; height: auto; aspect-ratio: 200 / 110; max-width: 100%; flex: 0 0 auto;\">",
