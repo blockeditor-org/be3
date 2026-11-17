@@ -167,9 +167,11 @@ impl<S: ObjectStore> Peer<S> {
         // owner-only block's: to an administrator its log names, any of them (the settings'
         // scope key and its blocks' data keys, which key work lists for them). A key naming no
         // organization head (one minted before this device read the organization's log, which
-        // connecting does first) goes to no administrator this way.
+        // connecting does first) goes to no administrator this way. An administrator now may
+        // hold an epoch a demotion outdates: that it is no longer written under is the block's
+        // and the escrow's concern, and the settings' keys reach a new administrator this way.
         if let Some(administrator) = organization
-            .filter(|checked| organization_head.is_some_and(|head| checked.current_at(&head)))
+            .filter(|checked| organization_head.is_some_and(|head| checked.holds(&head)))
             .and_then(|checked| checked.administrators.get(&account.into_bytes()))
         {
             return Target::Seal(administrator.public);

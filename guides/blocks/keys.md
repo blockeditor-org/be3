@@ -202,14 +202,24 @@ maker through every sender (`KeyBook::heads`).
 - **Outdated epochs.** A log's `last_lowering` is its newest entry that
   lowered anyone's access (a revocation, a downgrade, a closing; a demotion or
   an administrator signed out). An epoch naming a head before it is outdated
-  (`Checked::outdates`): its subject may hold it. Key work seals it to no one,
-  and treats the scope as due a rotation when it is the scope's newest
-  (`Target::Outdated`); a device about to write or wrap under a data or scope
-  key its cached log outdates rotates the scope first (`Peer::sealing_key`,
-  `scope_key`, `KeyBook::outdated`); and an escrow epoch the organization's
-  log outdates is wrapped under no more, so keys wait unescrowed for the next.
-  So an epoch a server got a withheld device to make, naming a head before a
-  revocation, is not written under by a device that holds the revocation.
+  (`Checked::outdates`): its subject may hold it. So is a key naming no head,
+  or one the log does not reach even read again, once the log has lowered
+  anyone (it counts as named at the root), and a key opened through an
+  outdated epoch, whatever it names (`KeyBook::outdated`): otherwise a revoked
+  member could wrap a made-up key under an epoch they hold, which no seal names
+  them in, and have it listed as newest. Key work seals an outdated epoch to no
+  grantee, and treats the scope as due a rotation when it is the scope's
+  newest (`Target::Outdated`); to an administrator the log names now it seals
+  any key, so one made after a demotion still gets the settings' keys. A
+  device about to write or wrap under a data or scope key its log outdates
+  rotates the scope first (`Peer::sealing_key`, `scope_key`), judging by the
+  log as it last checked it (key work, sealing, a contact's seal or a rotation
+  reads it): until it reads the log again it writes under an epoch a
+  revocation since outdates. An escrow epoch the organization's log outdates
+  is wrapped under no more, so keys wait unescrowed for the next, with no
+  warning (the gap after a demotion is no fault). So an epoch a server got a
+  withheld device to make, naming a head before a revocation, is not written
+  under by a device that holds the revocation.
 - **Taking a contact's seal.** An escrow key only from a contact the
   organization's log names an administrator at its head now. Any other key
   only from a contact the block's log gives Edit or above, or the
