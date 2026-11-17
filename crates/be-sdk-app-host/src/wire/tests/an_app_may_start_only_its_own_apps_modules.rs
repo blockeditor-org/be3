@@ -15,6 +15,27 @@ fn unstaged(app: &str, module: &str) -> Result<be_wasm_host::sandbox::Staged, St
     Err(format!("asked for {app}'s {module}"))
 }
 
+/// The host's sandbox, as be-host-runtime serves it (`AppSandbox`).
+struct Served(be_wasm_sandbox_host::Server);
+
+impl crate::sandbox::Sandbox for Served {
+    fn call(&mut self, call: be_wasm_sandbox_api::embed::sandbox::Call, connection: &mut Connection) {
+        self.0.call(call, connection);
+    }
+
+    fn canceled(&mut self, op: OpId, connection: &mut Connection) -> bool {
+        self.0.canceled(op, connection)
+    }
+
+    fn poll(&mut self, connection: &mut Connection) {
+        self.0.poll(connection);
+    }
+
+    fn stop(self: Box<Self>, why: &str, connection: &mut Connection) {
+        self.0.stop(why, connection);
+    }
+}
+
 fn config() -> Config {
     Config {
         name: "worker".to_owned(),
@@ -46,11 +67,11 @@ fn spawned(guest: &be_sdk_api::ops::guest::Executor, app: &str) -> Next {
 /// refuses it a module from bytes, which stay the root guest's.
 #[test]
 fn an_app_may_start_only_its_own_apps_modules() {
-    let mut wire = Wire::default().with_sandbox(be_wasm_sandbox_host::Server::for_app(
+    let mut wire = Wire::default().with_sandbox(Served(be_wasm_sandbox_host::Server::for_app(
         Arc::new(|| {}),
         APP.to_owned(),
         Box::new(unstaged),
-    ));
+    )));
     let (guest, _, mut heard) = opened(&mut wire);
 
     let own = spawned(&guest, "");
