@@ -1005,8 +1005,8 @@ impl ServerStore {
 
     /// Deletes every agent `creator` made, in every organization, as taking an account back
     /// does (plans/crypto_audit.md, 9): any of them may be an intruder's. Answers their names,
-    /// for the notice. Grants signed to them (signed_access step 3b) are left for a device of
-    /// someone who manages the block to revoke, as for any grantee whose account is gone.
+    /// for the notice. Grants signed to them (guides/blocks/keys.md, "Access logs") are left for a
+    /// device of someone who manages the block to revoke, as for any grantee whose account is gone.
     pub(crate) async fn delete_agents_created_by(
         &self,
         creator: Uuid,
@@ -1718,8 +1718,8 @@ fn delete_agent(
 
 /// Deletes the blocks' agents of `organization` whose block was collected, who lost their grant
 /// on it, or whose creator no longer manages it, after a change that may have done any of
-/// these (a grant, a move, a role, a member or contact removed, a collection); answers them. The caller tells
-/// `ServerStore::sessions_changed` once its transaction commits, which closes their
+/// these (a grant, a move, a role, a member or contact removed, a collection); answers them. The
+/// caller tells `ServerStore::sessions_changed` once its transaction commits, which closes their
 /// connections.
 /// Whether moving `moved` put some block's agent's block in the trash, whose connections
 /// then close (`Connection::signed_in`).

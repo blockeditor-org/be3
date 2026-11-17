@@ -6,7 +6,7 @@ use be_block_protocol::{OrganizationRole, Unsealed, WrappedBy};
 /// new escrow epoch, then restarts, and the server serves the log short of the demotion. The
 /// device takes nothing from that log: it judges by what it kept, so the escrow epoch from
 /// before the demotion, which the demoted administrator holds, is wrapped under no more, and
-/// nothing is sealed to them as an administrator (signed access 3d).
+/// nothing is sealed to them as an administrator.
 #[tokio::test]
 async fn a_member_served_the_organizations_log_short_of_a_demotion_escrows_and_seals_nothing_to_them()
  {

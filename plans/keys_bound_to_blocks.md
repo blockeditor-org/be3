@@ -1,7 +1,6 @@
 # Keys bound to their blocks
 
-Depends on: none. Fixes items 1, 2 and 3 of plans/crypto_audit.md; touches
-plans/signed_access.md where noted.
+Depends on: none. Fixes items 1, 2 and 3 of plans/crypto_audit.md.
 
 Today a device seals to whatever account `KeyBook::contact` answers (the
 server's own, too), trusts any key wrapped under a key it trusts (the
@@ -58,12 +57,12 @@ untrusted), and `sealing_key` uses it only for the settings block itself,
 never for a block the server's graph places under the settings: the server can
 place any block there, and a device would then write it under a key the server
 knows. Where a block lives is the server's word in general (it can reparent a
-block before a device mints new keys for it), which plans/signed_access.md
-takes up.
+block before a device mints new keys for it), which the signed parent
+records now settle (guides/blocks/keys.md, "Parent records").
 
 A viewer of block A colluding with the server could wrap a key it chose under
 A's scope key, labelled as block B. That is "the server and one contact can
-read a block" (plans/signed_access.md), whose signed roots and records bind
+read a block" (guides/blocks/keys.md, "Access logs"), whose signed roots and records bind
 which key may wrap which; the graph's scope relation would buy nothing here,
 since the server tells it. keys.md says so.
 
@@ -156,7 +155,8 @@ seals are anonymous, or the server's seal of the settings key) still read
 their block. Anyone who knows the escrow's public key, the server included,
 can seal a made-up key of block X to it and so show administrators forged
 content of X. Authenticating escrow wraps (a member's `seal_for` to the escrow
-key) closes it; that goes with plans/signed_access.md's administrator records.
+key) closes it; built with the organization log's member records (guides/blocks/keys.md,
+"Access logs").
 
 ## Reads across blocks
 
@@ -195,4 +195,4 @@ be-block-client, with the harness's server database playing the attacker:
 guides/blocks/keys.md (Trust, sealed bytes, What the server can and cannot
 do), guides/blocks/client.md (notifications), the decisions on deterministic
 nonces and on the server-sealed settings key, and plans/crypto_audit.md
-(items 1-3 fixed, the escrow gap moved to signed_access).
+(items 1-3 fixed, the escrow gap closed by authenticated escrow wraps).

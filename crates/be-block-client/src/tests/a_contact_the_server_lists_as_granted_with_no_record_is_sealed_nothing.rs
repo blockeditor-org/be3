@@ -15,7 +15,7 @@ fn sealed(database: &rusqlite::Connection, key: Uuid, account: Uuid) -> i64 {
 }
 
 /// A device seals a block's scope key only to those its log names, with the keys their grant
-/// names (signed access 3c): a verified contact the server lists as due the key, with no grant
+/// names: a verified contact the server lists as due the key, with no grant
 /// in the log, is sealed nothing; once a manager's signed grant names them, the same listing
 /// seals it to them.
 #[tokio::test]

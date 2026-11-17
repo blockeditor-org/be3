@@ -1,7 +1,7 @@
 use super::*;
 
-/// A proof path (plans/signed_access.md, 3e) checks from the same root to the same head as the
-/// whole log, with only the reader's grant and its granter's whole: no other member's grant
+/// A proof path (guides/blocks/keys.md, "Proof paths") checks from the same root to the same head
+/// as the whole log, with only the reader's grant and its granter's whole: no other member's grant
 /// reaches it, yet it tells which epochs a revocation outdates, as the whole log does, and a
 /// closing it cannot see shuts the kind it opened. An entry that says it lowered no one when it
 /// did, or a reduced entry relabelled so, does not check.

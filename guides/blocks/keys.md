@@ -151,9 +151,13 @@ Design records: `decisions/deterministic_seal_nonce.md`,
 
 ### Access logs
 
-Who may do what is moving from server rows to records members sign
-(plans/signed_access.md, decisions/the_server_never_vouches_for_an_identity.md).
-Each block has a log of `be_block_keys::Entry`s, each signed with the
+Who may do what is a record a member signs, and devices act only on records
+they check back to the block's creator
+(decisions/the_server_never_vouches_for_an_identity.md): given `None` or
+`KnowExists`, the server can withhold or destroy a block, never read or write
+it, alone or with anyone its managers did not choose, apart from that
+decision's standing exceptions and the limits below ("Accepted limits"). Each
+block has a log of `be_block_keys::Entry`s, each signed with the
 signer's account signing key in a domain of its own (`be3.access.v1`) and
 naming the hash of the entry before it. The first is the root: the block's
 creator and their keys, made by `Peer::creation` (and `import`) and sent with
@@ -183,7 +187,7 @@ signer's right comes from (`Authority`); administrators and members
 `create-block` carries the creator's parent record after the root; the server
 appends each once it checks at the log's head as devices check it.
 
-**Owner records** (plans/signed_access.md, step 5) move a block's ownership:
+**Owner records** move a block's ownership:
 only its owner (the root's creator, or whom the last owner record named, held
 as `Checked::owner`) signs one, naming another account and the keys it verified
 for them, sent as `set-access` with Manage (`Peer::transfer`, the share
@@ -196,9 +200,13 @@ path keeps every owner record whole, and a reduced entry says whether it is one
 and the owner unknown. The server moves the block's author with it (giving the
 new owner a Manage row, since authorship alone gives Manage only while they can
 view the parent) and refuses it for blocks that belong to what holds them
-(owner-only blocks, settings, edit kinds, search indexes, an Unfiled).
+(owner-only blocks, settings, edit kinds, search indexes, an Unfiled). A
+transfer has no accept step: the new owner holds the block as soon as the
+record is appended, and can leave it only by giving ownership on, since no
+grant names or lowers an owner. The former owner, the creator included, is then
+a member like any other, whom the new owner may revoke.
 
-**Parent records** (plans/signed_access.md, step 4) place the block (`Placement`:
+**Parent records** place the block (`Placement`:
 the top, Recently Deleted, or under a block with the hash of that block's log
 root, which the signer pinned in full: `Peer::placement`), signed by a member
 with Edit or above on it (from its log, administering the organization, or a
@@ -240,7 +248,23 @@ log (`Checked`) also tells whether it reaches an entry (`holds`) and each
 account's level as of any entry it reaches (`level_as_of`; for an
 organization's log, administering it is Manage).
 
-**Proof paths** (plans/signed_access.md, 3e, "Who is served what"). A log is
+**Who is served what.** A sealer must see every entry up to the head, since
+an entry reduced to its hash could be the revocation of whom it seals to, or of
+their granter; so whoever holds Edit, who seals (and reads all the content
+anyway), is served whole logs: the block's, every ancestor's it may view, and
+the organization's. That reveals little: everyone granted on an ancestor
+already reaches the block (decisions/block_access_is_the_highest_grant_on_the_path_up.md)
+and its managers see them (`list-access`); an editor newly learns that set,
+the ancestors' grant history and their parent records, and of the
+organization's log, who is or was an administrator. Since a block's creator
+holds Manage on it, every member who has made a block is served the
+organization's whole log, and so its member list; whether to narrow that is
+open. Readers below Edit never seal and are served proof paths
+(decisions/editors_are_served_whole_access_logs.md). No log goes to
+`KnowExists`, which anyone gets by naming an id in their own block's
+references: the log names every grantee.
+
+**Proof paths.** A log is
 served whole to a member with Edit or above (on the block or a block below it;
 for the organization's, on any block, or administering it), who seals, and to
 anyone else as a proof path (`be_block_keys::proof_path`): `Step`s, each an
@@ -285,22 +309,27 @@ it `partial`. How each check reads one:
   (`sender_may`, `settle_escrowed`, kept `levels`), but the server picks whom
   a path proves: a sender it leaves out is never named, and taken as Edit from
   above. So for a reader below Edit the sender check is a verified contact
-  check. Accepted (plans/signed_access.md, "Accepted limits"): a reader below
-  Edit seals, wraps and writes content under nothing, though it relays its
-  presence under such a key.
+  check. Accepted ("Accepted limits"): a reader below Edit seals, wraps and
+  writes content under nothing, though it relays its presence under such a
+  key.
 - A path is kept (`KeptLog`) only up to its last whole entry, so a tail the
   server made up after the real head never leaves later logs withheld; the
   newest lowering a path ever showed is kept past that, so a later path that
   drops the tail outdates the same epochs.
 
-**Epochs name their heads** (plans/signed_access.md, 3d). A key minted here
+**Epochs name their heads**, so a server that withholds a revocation from a
+device cannot have that device seal the next epoch to the revoked member.
+A key minted here
 names the heads of its scope's log (a scope key's own block; for a data key,
 the scope it is wrapped under) and the organization's, as this device last
 checked them (`KeyBook::note_log`, `set_organization`; a scope whose log it
 never checked names its pinned root, so a device whose logs are stale names
 stale heads), and a rotation reads the logs of the scopes it rekeys first.
 The heads ride inside the key (`CarriedKey::heads`), so they come from its
-maker through every sender (`KeyBook::heads`).
+maker through every sender (`KeyBook::heads`), and no one who never held the
+key can name other heads for it
+(decisions/key_epochs_name_their_heads_inside_the_key.md). An escrow epoch
+names the organization's head in its signed record (`EscrowKey::head`).
 
 - **Sealing.** Key work seals a key to a grantee or a contact inside only once
   the block's log, as served now, reaches the key's block head, and to an
@@ -325,7 +354,7 @@ maker through every sender (`KeyBook::heads`).
   any key, so one made after a demotion still gets the settings' keys. The
   organization's log outdates the same way every key under the escrow (any
   but one an owner-only scope covers) naming an organization head before its
-  last demotion (`KeyBook::demoted_since`, plans/signed_access.md step 8):
+  last demotion (`KeyBook::demoted_since`):
   the demoted administrator may hold it through escrow, so a demotion makes
   every scope due a rotation: at its next write, and in each device's `tend`
   for every such scope it may edit (`Peer::rotate_demoted`), since a grantee
@@ -428,9 +457,58 @@ by any viewer to its own contacts the server lists among the viewers, since the
 owner's editors may know none of them; the server's `opens_inside` alone
 offers nothing.
 
+A demotion (or an administrator signed out) rotates nothing at once: it
+outdates every epoch under the escrow ("Outdated epochs"), and two paths
+rotate them. A write, block made or relay in an outdated scope rotates it
+first (`Peer::rotate_outdated`); and the server tells every member's devices
+that key work changed on a demotion or a member's removal, whose `tend`
+rotates every outdated tree this device may edit at its top
+(`Peer::rotate_demoted`, judged from the signed logs as a reseal judges it,
+`Peer::may_write_signed`). Both start from the highest outdated scope above
+(`Peer::rotation_top`), one `Rotate` per tree, as a revocation on its top
+costs: rotating each scope from below would rotate the scopes above again at
+each level, since a scope's new epoch is wrapped under a new one of the scope
+above. So within one round of key work every tree some connected editor at
+its top can rotate is rotated, the organization's content keys once over. An
+administrator's device holds most scopes through escrow and tries every
+outdated tree in one `tend`; administrators tending at once race, and each
+reads a tree's keys again just before rotating it (`refresh_keys`) and skips
+one already rotated, so the later ones mostly skip, though two at the same
+moment can both rotate it. A member who reaches a scope only from inside it
+cannot rotate it: until an editor above tends, their saves there are refused
+as `Locked` (the host submits them again as keys arrive), and an edit made
+offline is set aside (`Aside::KeyOutdated`) if no rotation reached the scope
+by the time it is sent. A tree whose rotation fails stays listed in
+`Peer::pending_rotations` (its top, since when, how many times, the last
+error) and logged at each failure, until one goes through or it is current
+again, so a grantee stuck on `Locked` can be diagnosed from the editors above.
+
 Not built yet: a move into another scope lists the subtree a level at a time,
 and old data keys of a block this device cannot open are not rewrapped, so
 that history stays closed to the new scope.
+
+### Grants the server changes first
+
+The server may withhold at once, but never adds access a device did not sign.
+Where it acts first, a device signs after:
+
+- **A contact link's grant.** Its maker does not know who will accept, so no
+  grant can name them: accepting applies the server row at once, the scope key
+  reaches the accepter sealed with the link's code, and the maker's device
+  signs the grant when it finishes the link (`finish_links`). Until then no
+  other device seals the accepter a later epoch.
+- **Removals the server makes on its own** (agents collected or deleted,
+  `remove-contact` in another organization) revoke the server rows at once and
+  wait in key work (`unsigned-revocations`) for a manager's device to sign
+  them; a device sealing by the log also checks the server's row, so nobody
+  seals them a new epoch meanwhile. Removals made from a device carry their
+  signed revocations.
+- **Who views inside.** A kind its log opens to anyone inside is offered by a
+  viewer to its contacts the server lists as viewing a block inside: that
+  they view stays the server's word, but only for a kind a manager opened.
+- **The server's own account** holds the organization settings' scope key by a
+  row with no record (decisions/server_enforced_settings_are_shared_with_the_server.md);
+  no record can name the server, so it is never a sealing target by grant.
 
 ### Escrow (company organizations)
 
@@ -497,8 +575,7 @@ one signature at a time (`keys::verify_escrow`) and pins the newest verified
   device, which take nothing the old key signs in that log after it. The
   endorsement is bound to no time or epoch: whoever holds an old phrase can
   retire it in any log where it is still current, at any later moment, so a
-  thief who retires first wins those logs (plans/signed_access.md, "Accepted
-  limits"). Each
+  thief who retires first wins those logs ("Accepted limits"). Each
   verified contact gets a key change naming both new public keys
   (`contacts::new_identity`, `RecoverySecret::seal_key_change`, kept in
   `key_changes`); a contact's device
@@ -595,6 +672,99 @@ Edit can write as someone else.
   after asking the server is remembered for that connection (`Forged`), so a
   forged row shown again asks nothing until the device reconnects.
 
+### Accepted limits
+
+What the signed logs still leave to the server, or to the server with someone
+who lost access. Cited from code by these names.
+
+- **What a revoked member held** stays readable to them: every epoch before
+  the rotation.
+- **Withheld revocations.** A device knows a log only as far as the server
+  served it, or as it kept it (`KeptLog`). A server that withholds a
+  revocation, a closing or a demotion from a device keeps an older epoch
+  current there, and the epochs it makes name heads before it; a device that
+  holds it rotates them away when it writes or tends. Nothing tells the person
+  when an epoch is never sealed because its head is never served: the grantee
+  sees the block as not shared yet. A revocation, or a move, a device never
+  held in any run it cannot catch: a server can serve a device new to a block
+  a log cut short, and a device that never checked past a move wraps under the
+  old parent's scope only what it would have before it.
+- **Made-up keys.** A key a contact seals is taken as their Edit (or
+  administering) as of a head they choose among those the log holds, so a
+  member revoked since, with the server, can seal a made-up key naming a head
+  before their revocation; a device whose log outdates that head writes under
+  no such key. Never an escrow key, taken only from an administrator at the
+  organization log's head now. A key from a sender the block's log never names,
+  vouched for from above (`KeyBook::vouch`), is written under only while it
+  names a head with nothing lowering anyone after it, or, naming none, while
+  the log never lowered anyone.
+- **A reader below Edit checks a sealer only as a contact.** The server picks
+  whom a path proves, so it can reduce a sealer's revocation (the reader sees
+  that someone was lowered, not whom). A revoked editor, with the server, can
+  hand such a reader a made-up key naming the head now: the reader writes
+  content under nothing by a partial log, but relays its presence and cursors
+  under it. Refusing such seals would refuse every honest epoch from an editor
+  granted before any revocation
+  (decisions/editors_are_served_whole_access_logs.md).
+- **Stale heads on making.** A key minted on a device whose logs are stale
+  names those stale heads: current only on devices behind as far.
+- **An honest epoch from an administrator demoted since** cannot be verified
+  by a device that holds the demotion, which stays on the older epoch it
+  verified (or none, when the demotion outdates that one), warning
+  `Substituted` or `Unverified`.
+- **Forks.** A server that shows different devices different histories, with
+  a revoked member's help, can read what a device it keeps on the old branch
+  writes, and that device keeps taking records an old key signs after a
+  retirement it never sees. It can also number a live session's operations
+  differently for different participants
+  (decisions/live_edits_are_ordered_by_the_server.md). The fix, not planned
+  yet, is fork detection: signed log heads carried in sessions, relays and
+  commits, compared when two devices meet; for a session, each seal would name
+  the last sequence it holds and a signed digest of the order up to it (each
+  entry's sequence, floor and arrival as the server assigned them, its OpId,
+  base and payload as its author sent them), so a participant that applied a
+  different order reports the fork.
+- **Stale authority.** A grant names the organization's or an ancestor's log
+  as of an entry of its signer's choosing (`Authority`, `Link`); the server
+  takes it only at that log's head, but one colluding with a demoted
+  administrator, or a manager since revoked above, can append one naming an
+  entry from before, and devices take it. A record resting on a block no
+  longer above anything the reader views does not check for that reader until
+  a manager signs it again from where it lies.
+- **What a parent record proves on a device**: that its signer held Edit or
+  above on the moved block. Edit on the destination, and Manage where
+  `BlockGraph::move_refusal` asks for it, are the server's checks alone, so an
+  editor, with the server, can place a block under one they manage and take
+  Manage of it: they could already read it and leak its keys.
+- **The server's tree.** Which blocks lie under a block is the server's
+  listing (`children`, key work's rotations): a device wraps nothing under a
+  scope the signed parent records do not reach, but the server can leave a
+  block out of a rotation or a move's rewrapping.
+- **A member roots a block an administrator never pinned.** An administrator
+  who reaches a block only through escrow takes its root from a member's wrap,
+  weakly (`RootPin::Weak`), so a member, with the server, can show it a
+  made-up log and content as that block, shown unverified; the block's own
+  members are not fooled. An administrator cannot re-wrap a key it took
+  weakly, so after an escrow rotation such a block is escrowed again only by
+  its own members' devices (key work's `unescrowed`); a stretch of unescrowed
+  keys after a rotation is that, not a fault. The fix considered, not made:
+  each block's root registered in the organization's log as it is made, the
+  first claim winning, at an organization-log entry per block. An
+  administrator's own escrow wrap is taken without checking the block's log,
+  so a malicious administrator can root a block another reaches only through
+  escrow; it reads everything through escrow anyway.
+- **Authorship** is the root's and the owner records'. A transfer needs no
+  acceptance ("Owner records").
+- **A leaked phrase** acts as the account until a retirement lands: it reads
+  and writes what the account may and signs records, which stay valid after.
+  The thief who retires first wins those logs, and a retirement's endorsement
+  is bound to no time, so an old phrase can be retired in any log where it is
+  still current.
+- **A new phrase grows with the account.** `set-recovery-key` carries one
+  retirement (300 to 400 bytes) per log the account signed in, so past roughly
+  20,000 blocks it no longer fits in one frame (`MAX_FRAME_BYTES`) and the
+  account cannot take a new phrase. Not fixed yet (plans/backlog.md, 18).
+
 ## Contacts
 
 Every sharing relationship starts with a link passed outside the host: a grant
@@ -688,7 +858,7 @@ an epoch made under a head before it keeps that epoch current for them; a
 made-up key from a contact is taken as their Edit, or administering, as of a
 head they choose among those the log holds, never for an escrow key; and a
 key minted on a device whose logs are stale names those stale heads;
-plans/signed_access.md, "Accepted limits"); what an escrow-only administrator, or a grantee
+"Accepted limits"); what an escrow-only administrator, or a grantee
 who is no contact of the sender, sees of a block whose root only a member's
 wrap carried (a member and the server together can show it a made-up log and
 content, shown unverified: `RootPin::Weak`); whether a reader below Edit,

@@ -1261,7 +1261,7 @@ impl Client {
                             .drop_member(identity.organization, account)
                             .await;
                     }
-                    // A demotion outdates every epoch under the escrow (signed access 8): every
+                    // A demotion outdates every epoch under the escrow: every
                     // member's devices hear of it, so their next write rotates its scope.
                     match role {
                         be_block_protocol::OrganizationRole::Administrator => {

@@ -6,7 +6,7 @@ use be_block_protocol::{OrganizationRole, Unsealed};
 /// organization's log it was made under. The server withholds the demotion from another of the
 /// other administrator's devices and lists the demoted one as due the new epoch: that device,
 /// shown them still administering, seals it to no one until it holds the log up to the epoch's
-/// head, which demotes them; then to the other administrator alone (signed access 3d).
+/// head, which demotes them; then to the other administrator alone.
 #[tokio::test]
 async fn a_device_shown_an_administrator_not_yet_demoted_seals_them_no_new_escrow_key() {
     let harness = Harness::start().await;

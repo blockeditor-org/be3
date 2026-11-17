@@ -37,7 +37,7 @@ fn plant(
 }
 
 /// A key a contact seals, of a block whose log never names them, is taken only when they hold
-/// Edit or above on a block the signed parent records place it under (signed access 4): with
+/// Edit or above on a block the signed parent records place it under: with
 /// the server, a contact with no right anywhere above hands over no made-up scope key; an
 /// editor of the workspace above does.
 #[tokio::test]

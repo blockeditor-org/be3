@@ -1,4 +1,4 @@
-//! Access logs (plans/signed_access.md): each block's signed records, root first, kept in the
+//! Access logs (guides/blocks/keys.md): each block's signed records, root first, kept in the
 //! clear and checked here as devices check them, so a good server and a device never disagree.
 
 use be_block_graph::{ANYONE_INSIDE, Access, BlockParent};
@@ -628,7 +628,8 @@ pub(crate) fn checked_block_log(
     .map_err(|_| refused("the record does not follow the log it goes in"))
 }
 
-/// The level `block`'s log grants `account`, if it names them (for anyone inside, its last opening).
+/// The level `block`'s log grants `account`, if it names them (for anyone inside, its last
+/// opening).
 pub(crate) fn granted_level(
     connection: &Connection,
     organization: Uuid,

@@ -1,7 +1,6 @@
 # Crypto audit: fixes
 
-Depends on: none. Items 6, 9 and 10 touch plans/signed_access.md (noted on
-each); do them with it or after it.
+Depends on: none.
 
 An audit of the key and crypto code for security and simplicity, against
 guides/blocks/keys.md: be-block-keys, the seal and sign paths in
@@ -9,7 +8,8 @@ be-block-client and be-host-stack, escrow, recovery and rotation, contacts and
 pairing, sign-in in be-server, the vault, backups, web push and the signed
 records. Each finding names the attacker, what they do and what they gain.
 Paths are as of a72f0b3f3. The server deciding who may hold a block's keys is
-plans/signed_access.md's and is not repeated here.
+settled by the signed access logs (guides/blocks/keys.md, "Access logs")
+and is not repeated here.
 
 ## Who has what
 
@@ -98,7 +98,7 @@ Each item is marked when it is taken and when it lands (the fixing commit).
    `row.display_name` and `row.email` (contacts.rs:196), not the verified
    card's. Attack, by the server, against someone with two verified contacts
    Bob and Mallory: label Mallory's row "Bob"; sharing with "Bob" seals the key
-   to Mallory. Signed grants (plans/signed_access.md) don't help: the user
+   to Mallory. Signed grants don't help: the user
    picks the wrong account. Fix: show the card's name and email.
 6. **An owner-only block's data keys can be escrowed.** `escrow_wrap_under`
    (keys.rs:329) refuses only version-8 key ids, which are owner-only scope
@@ -108,7 +108,7 @@ Each item is marked when it is taken and when it lands (the fixing commit).
    the owner's device escrows it and administrators read the owner-only
    settings, breaking decisions/owner_only_settings_are_never_escrowed.md. The
    `unsealed` loop likewise seals the owner-only scope key to a listed contact
-   (that part overlaps signed_access). Fix: refuse anything inside an
+   (that part is settled by sealing only to grantees the log names). Fix: refuse anything inside an
    owner-only scope, not just its scope key.
 7. **A deletion is checked against whoever signed it, not the message's
    author.** Chat offers Delete only on one's own messages, but
@@ -133,16 +133,16 @@ Each item is marked when it is taken and when it lands (the fixing commit).
    a passkey or an agent (`CreateAgent` needs only an app session); after the
    owner recovers, the intruder signs straight back in, and the agent's token
    still works. Fix: recovery lists every identity and agent for review and
-   drops those added since the last proof the owner trusts. Agents overlap
-   signed_access.
+   drops those added since the last proof the owner trusts. Agents are
+   signed in by their makers (guides/blocks/keys.md, "Access logs").
 10. **The escrow chain can be forked by a demoted administrator with the
     server.** `verify_escrow` (keys.rs:134) accepts a newer epoch signed by the
     last key the device verified, which the demoted administrator still holds;
     the server serves their epoch to members pinned at the old one and hides
     the real one, so `escrow_warning` never fires, and those members escrow to
     the demoted administrator for good. The server doesn't check chain
-    signatures (be-server keys.rs:1088). Overlaps signed_access step 3: bind
-    escrow epochs to administrator records in the organization log.
+    signatures (be-server keys.rs:1088). Escrow epochs are now bound to
+    administrator records in the organization log (`EscrowKey::head`).
 
 ### Low
 
@@ -292,7 +292,7 @@ test-only fakes behind `cfg(test)`.
 ## Order
 
 1, 2 and 3 first, together: they share the fix of tying a key to its block and
-to who may hold it. Then 4 and 5 (contacts), 6, 7, 8, 9. 10 goes with
-signed_access step 3. The low items and the simplifications can follow in any
+to who may hold it. Then 4 and 5 (contacts), 6, 7, 8, 9. 10 is settled
+by the organization log. The low items and the simplifications can follow in any
 order, except the vault's nonce and associated data (Primitives), which
 belongs with 3.

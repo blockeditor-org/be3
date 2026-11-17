@@ -4,7 +4,7 @@ use be_block_graph::Access;
 use be_block_protocol::Unsealed;
 
 /// Each new key epoch names the head of the block's log it was made under, and a device seals
-/// it only once it holds the log that far (signed access 3d). The server withholds a
+/// it only once it holds the log that far. The server withholds a
 /// revocation from an editor's device and lists the revoked member as due the epoch the
 /// rotation after it made: the device seals it to no one, not even a grantee it is due to,
 /// until the server serves the log up to the epoch's head; then it seals it to the grantee

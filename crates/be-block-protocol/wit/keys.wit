@@ -8,7 +8,7 @@ interface keys {
         own-sealed, public-key, sealed-key,
     };
 
-    /// What an access log is the log of (plans/signed_access.md).
+    /// What an access log is the log of (guides/blocks/keys.md).
     enum log-kind {
         block,
         organization,

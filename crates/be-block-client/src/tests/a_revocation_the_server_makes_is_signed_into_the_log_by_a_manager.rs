@@ -16,7 +16,7 @@ async fn revoked(peer: &Peer<MemoryStore>, block: Uuid, account: Uuid) -> bool {
 /// A removal made from a device carries its signed revocations, so the log revokes at once; one
 /// the server makes on its own (a block's agent whose maker no longer manages its block) is
 /// listed to those who manage the block, not to anyone else, sealed to no one meanwhile, and
-/// signed into the log by a manager's next `tend` (signed access 3c).
+/// signed into the log by a manager's next `tend`.
 #[tokio::test]
 async fn a_revocation_the_server_makes_is_signed_into_the_log_by_a_manager() {
     let harness = Harness::start().await;

@@ -3,7 +3,7 @@
 No device trusts a person, a key or a right because the server said so. Who
 someone is comes from a contact link, a link's secret or a key change sealed
 with a verified key; what they may do comes from records signed by members
-(plans/signed_access.md). Given `None` or `KnowExists` on a block, the server
+(guides/blocks/keys.md, "Access logs"). Given `None` or `KnowExists` on a block, the server
 may withhold, delay or destroy it, never read or write it, alone or with
 anyone the block's managers did not choose. Given View, it may also write,
 since Edit is enforced by the server alone.
@@ -29,7 +29,7 @@ its word:
   (plans/hosted_blocks.md): devices check that the host has Edit, but not
   which editor the server picked.
 - **Freshness.** Which log head and key epoch are newest, short of a fork
-  (plans/signed_access.md, "Accepted limits").
+  (guides/blocks/keys.md, "Accepted limits").
 
 ## Why
 
@@ -45,7 +45,7 @@ matter.
   moves, or a player and see the world.
 - Grants as server rows that devices seal to: the server could name any real
   contact as granted (guides/blocks/keys.md, "What the server can and cannot
-  do"), which plans/signed_access.md removes.
+  do"), which the signed access logs replaced.
 - Separate keys for Edit and View: it would stop a server with View from
   writing, which is accepted, at the cost of a second key per scope and its
   rotation.

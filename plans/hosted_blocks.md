@@ -1,7 +1,6 @@
 # Hosted blocks
 
-Depends on: plans/signed_access.md; plans/headless_apps.md for step 4's
-headless host only. Join links are plans/share_links.md's step 3, which waits on
+Depends on: plans/headless_apps.md for step 4's headless host only. Join links are plans/share_links.md's step 3, which waits on
 step 3 here.
 
 A hosted block is run by a host: one member with Edit, online, holding the
@@ -56,8 +55,8 @@ a role inside the app, since the share dialog grants no roles. A game:
 ## The channel
 
 - **The host is an account.** The server says which account holds the lease,
-  and the joiner is served that account's proof path (plans/signed_access.md,
-  "Who is served what"): its grant, its authorship or an owner record, at Edit
+  and the joiner is served that account's proof path (guides/blocks/keys.md,
+  "Proof paths"): its grant, its authorship or an owner record, at Edit
   or above. The host's static key is the X25519 identity key that record names,
   so only that account's devices can complete the handshake, and the server
   cannot stand in a host of its own or pass the lease to one without Edit. No
@@ -69,7 +68,7 @@ a role inside the app, since the share dialog grants no roles. A game:
   the log head the host's proof was checked at, so both sides agree on which
   block and which state of its access they speak under. The host admits the
   joiner when its grant checks
-  (Join or above, plans/signed_access.md) and it is not banned. Every later
+  (Join or above, guides/blocks/keys.md, "Access logs") and it is not banned. Every later
   message is sealed under the session's keys with its own nonce, so the server
   can neither read, forge, reorder nor replay one. A host change or reconnect
   starts a new handshake.
@@ -135,12 +134,12 @@ a role inside the app, since the share dialog grants no roles. A game:
 ## Accepted limits
 
 - A Join member checks the host on a proof path, which can hide a later
-  revocation of the host's Edit behind a hash (plans/signed_access.md, "Who is
-  served what"). A server that hides it can keep routing to a revoked editor,
+  revocation of the host's Edit behind a hash (guides/blocks/keys.md, "Accepted
+  limits"). A server that hides it can keep routing to a revoked editor,
   who then reads the players' moves; it reads nothing stored, having lost its
   keys at the rotation.
 - A leaked recovery phrase lets its holder host or join as the account
-  (plans/signed_access.md, "Accepted limits").
+  (guides/blocks/keys.md, "Accepted limits").
 
 ## Order of work
 

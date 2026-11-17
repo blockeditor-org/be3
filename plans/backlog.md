@@ -462,12 +462,17 @@ Depends on #686 (session catch-ups replaced by server ordering).
 
 ## 18. Keys
 
-- **Retire plans/signed_access.md.** Every step is built, so the plan goes,
-  but guides, decisions, code comments and tests cite its "Accepted limits"
-  and "Who is served what", and plans/hosted_blocks.md and
-  plans/share_links.md depend on it. Done: those sections live in
-  guides/blocks/keys.md (or a decisions/ record), every reference names the
-  new place, the Depends-on lines name what remains, and the plan is deleted.
+- **A new phrase grows with the account.** `set-recovery-key` carries one
+  retirement (about 300 to 400 bytes) per access log the account signed in,
+  which is every block it ever made, beside the resealed keys that grow the
+  same way, and `get-recovery-key` decodes each of those logs to serve its
+  head. Past roughly 20,000 blocks a new phrase no longer fits in one frame
+  (`MAX_FRAME_BYTES`), which locks a heavy user out of the one answer to a
+  stolen phrase. Either send the change in parts committed by a last call
+  that keeps the all-or-nothing check, or keep one account-level keys log
+  holding the retirement once, which a block's check looks the signer's
+  current key up in. Done: an account with more blocks than one frame's worth
+  of retirements takes a new phrase, and every log is retired.
 
 - **A test server that lies in its answers.** Fixes for what "the server
   alone" can do (a block's parent, its current key, its history, a rollback)
@@ -487,8 +492,8 @@ Depends on #686 (session catch-ups replaced by server ordering).
   the key's epoch. Offline writes report `Saved::Kept`, version control's
   included, so this is the usual path. Done: the drain reseals such a commit
   (and those built on it) under the current key before sending it, or the
-  server refuses one sealed under a superseded key (plans/signed_access.md's
-  key epochs), shown by a client test where a member is removed while another
+  server refuses one sealed under a superseded key (guides/blocks/keys.md,
+  "Epochs name their heads"), shown by a client test where a member is removed while another
   device writes offline and the removed member cannot open what it sends.
 
 - **A link's record below its own device's pin.** A record a contact link

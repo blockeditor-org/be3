@@ -15,7 +15,7 @@ fn sealed(database: &rusqlite::Connection, key: Uuid, account: Uuid) -> i64 {
 }
 
 /// A kind of settings is offered to a viewer's contacts only when its own log opens it to
-/// anyone inside (signed access 3c): a server that turns an ordinary block into a kind open
+/// anyone inside: a server that turns an ordinary block into a kind open
 /// inside, and lists a contact as due its key, gets nothing sealed to them; a kind its author
 /// opened by a signed opening is sealed to the same contact.
 #[tokio::test]

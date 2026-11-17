@@ -36,7 +36,7 @@ fn made_by(
 /// of its head. A demoted administrator still holds the identity key that signed their epochs,
 /// and the server will put whatever it likes in the chain; together they make an epoch the
 /// device refuses, so members never escrow to the demoted administrator (crypto audit 10); and
-/// a device that holds the demotion wraps under no epoch from before it (signed access 3d).
+/// a device that holds the demotion wraps under no epoch from before it.
 #[tokio::test]
 async fn an_escrow_key_a_demoted_administrator_makes_is_refused() {
     let harness = Harness::start().await;

@@ -1,7 +1,6 @@
 # Share links
 
-Depends on: plans/signed_access.md; plans/hosted_blocks.md step 3 for step 3
-only.
+Depends on: plans/hosted_blocks.md step 3 for step 3 only.
 
 "Anyone with the link": a link that grants any level up to Edit on a block to
 whoever opens it, with no grant naming them first. It is passed outside the
@@ -18,10 +17,10 @@ able to use a link it relays or stores
   for View and above, a key that opens the block's scope key, sealed with it
   as pending grants are (`Peer::offer`). The secret also carries the hashes of
   the block's log root and of its organization's root, which the opener pins
-  (plans/signed_access.md, "Root"), so a guest can check records an
+  (guides/blocks/keys.md, "Access logs"), so a guest can check records an
   administrator signed.
 - Making one stores a **link record** in the block's access log
-  (plans/signed_access.md): level, who may open it, the lookup id and the
+  (guides/blocks/keys.md, "Access logs"): level, who may open it, the lookup id and the
   link's public key, signed by a member with Manage.
 - Opening one: the account signs a grant to its own keys with the link key
   and adds it to the log. A device checks it through the link record, so a
@@ -32,8 +31,8 @@ able to use a link it relays or stores
 - **Keys after a rotation.** The scope key in the link opens the epochs
   current when the link was made. Later epochs reach openers through key
   work's `unsealed`, as for any grantee: their grant names their keys, so any
-  editor's `tend` seals to them (plans/signed_access.md, "Sealing to someone
-  who is not a contact"). An opener after a rotation therefore waits for an
+  editor's `tend` seals to them (guides/blocks/keys.md,
+  "Trust"). An opener after a rotation therefore waits for an
   editor to come online. The maker keeps nothing.
 - Revoking the link is a signed revocation of its record; every grant made
   through it falls with it, and the block rotates as for any lost access.

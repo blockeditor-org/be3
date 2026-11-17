@@ -7,7 +7,7 @@ use be_block_keys::{Authority, Record, Step};
 /// on, naming their Manage as administering the organization (`Authority::Organization`): the
 /// reader's proof path of the block's log carries that grant whole, and checks it against its
 /// proof path of the organization's log, whose administrator records are all whole
-/// (plans/signed_access.md, 3e). No other member's grant reaches it.
+/// (guides/blocks/keys.md, "Proof paths"). No other member's grant reaches it.
 #[tokio::test]
 async fn a_reader_granted_by_an_administrator_checks_its_path_through_the_organizations() {
     let harness = Harness::start().await;

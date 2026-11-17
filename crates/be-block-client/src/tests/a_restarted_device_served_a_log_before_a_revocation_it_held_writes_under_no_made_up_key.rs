@@ -3,7 +3,7 @@ use super::*;
 /// A device checked the team's log past Bob's revocation, then restarts, and the server serves
 /// it the log only up to before the revocation: it takes nothing from that log, judges by what
 /// it kept of the earlier one, and gives the team a new epoch rather than write under the key
-/// Bob made up (signed access 3d).
+/// Bob made up.
 #[tokio::test]
 async fn a_restarted_device_served_a_log_before_a_revocation_it_held_writes_under_no_made_up_key() {
     let harness = Harness::start().await;

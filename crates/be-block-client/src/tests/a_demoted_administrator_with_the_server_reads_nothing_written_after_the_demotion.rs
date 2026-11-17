@@ -46,7 +46,7 @@ pub(super) fn opened_with_the_server(
 /// demotion outdates every epoch under the escrow made before it: a member's next write in a
 /// scope gives it a new epoch first, from the highest scope above it that is outdated too, and
 /// what they write after the demotion opens with no key the demoted administrator and the
-/// server hold together (signed access 8).
+/// server hold together.
 #[tokio::test]
 async fn a_demoted_administrator_with_the_server_reads_nothing_written_after_the_demotion() {
     let harness = Harness::start().await;

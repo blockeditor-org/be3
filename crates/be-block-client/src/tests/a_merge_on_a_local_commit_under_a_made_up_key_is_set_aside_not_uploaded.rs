@@ -3,7 +3,7 @@ use super::*;
 /// Offline, Carol makes a commit under the key Bob made up, withdraws it from the outbox, and
 /// merges it into the head: the merge waits in the outbox, the commit it merges only in her
 /// store. Sealing the outbox again reseals the merge alone, which still holds that commit: it
-/// is never uploaded, and the merge is set aside rather than sent (signed access 7).
+/// is never uploaded, and the merge is set aside rather than sent.
 #[tokio::test]
 async fn a_merge_on_a_local_commit_under_a_made_up_key_is_set_aside_not_uploaded() {
     let harness = Harness::start().await;

@@ -2,8 +2,8 @@ use super::*;
 
 use be_block_keys::Owner;
 
-/// Ownership of a block moves by an owner record its owner signs (plans/signed_access.md,
-/// step 5): the new owner manages it and reads it, and the old owner keeps Edit but grants
+/// Ownership of a block moves by an owner record its owner signs (guides/blocks/keys.md,
+/// "Owner records"): the new owner manages it and reads it, and the old owner keeps Edit but grants
 /// nothing more, whether signed at the head now or at one from before the transfer.
 #[tokio::test]
 async fn a_block_s_ownership_moves_and_its_old_owner_grants_no_more() {

@@ -2,7 +2,7 @@ use super::*;
 
 /// A checked log answers who held what as of any entry it reaches, and nothing for one it does
 /// not, and which heads an entry lowering someone's access outdates: what a device checks a
-/// key's epoch against (plans/signed_access.md, 3d).
+/// key's epoch against (guides/blocks/keys.md, "Epochs name their heads").
 #[test]
 fn a_log_tells_each_level_as_of_each_of_its_entries() {
     let creator = RecoveryPhrase::generate().secret();

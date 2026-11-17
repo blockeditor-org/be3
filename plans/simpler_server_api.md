@@ -89,39 +89,39 @@ deleted), `Push(block, mentions, keys)` (what `notify` does).
 
 ## Prerequisites
 
-Besides plans/signed_access.md (below), work in flight on the integration
+Besides the signed access logs (below, built), work in flight on the integration
 branch lands first: kept submissions and submission identity (be-block-client's
 session and journal code, and the server's `journal.rs`), which step 1
 rewrites around; and the finishing of invitation links
 (`finish_links`, contacts and links in be-block-client and be-host-stack),
 which steps 3 and 4 move into `AcceptLink`, `CreateLink` and the mailbox.
 
-## Signed access first
+## Signed access logs
 
-`AppendLog` is where plans/signed_access.md already points: each of
+`AppendLog` is where the signed access logs (guides/blocks/keys.md, "Access
+logs") already point: each of
 `set-access`, `set-role`, `sign-member` and `remove-member` carries a signed
-record the server appends to a log once it checks there. What that plan has
-left, and what it has built that touches these calls:
+record the server appends to a log once it checks there. What is built that
+touches these calls:
 
-- **3d (epochs bound to log heads)** is built: a scope or data key's epoch
+- **Epochs bound to log heads**: a scope or data key's epoch
   names its heads inside what is sealed or wrapped (`CarriedKey::heads`), so
   `put-keys` and `rotate` carry nothing new, and `create-escrow`'s escrow key
   names the organization log's head in the clear, signed and checked by the
   server. `PutKeys` takes them as they are.
-- **3e (proof paths)** is built: `get-access-log` and `get-organization-log`
+- **Proof paths**: `get-access-log` and `get-organization-log`
   serve each entry as a `be_block_keys::Step`, whole or reduced, and decide
   which by the caller's access and who sealed it a key, with no new argument,
   so `Log(block | organization)` takes that serving rule as it is.
-- **4 (signed parents)** is built: `set-parent` carries the mover's parent
+- **Signed parents**: `set-parent` carries the mover's parent
   record (`placement`) and `create-block` the creator's after the root, each
   appended as a grant is, so `Move` and `CreateBlock` take them as they are, and
   `AppendLog` could take a move's record too. `get-access-log` serves a block
   to a caller viewing it or a block below it (a proof path of an ancestor), so
   `Log(block)` takes that rule.
-- **5 (owner transfer)** is built with no call of its own: `set-access`
+- **Owner transfer** has no call of its own: `set-access`
   carries the owner record (`Record::Owner`) as it carries a grant, so
   `AppendLog` takes it as one more record.
-- **6 (guides)** is unaffected.
 
 ## Order of work
 
@@ -266,7 +266,7 @@ that list, reorder and link blocks pass. Guides: guides/blocks/server.md
   block.
 - **(b) Removing a member no record names.** A person accepting an invitation
   joins before any administrator's device signs a member record for them
-  (plans/signed_access.md 3a-members), so `remove-member` without a record
+  (guides/blocks/keys.md, "Access logs"), so `remove-member` without a record
   stays, and does not fit `AppendLog`. Recommended: sign every member in when
   they accept. The administrator who makes an invitation appends an invitation
   record to the organization's log naming a public key derived from the link's

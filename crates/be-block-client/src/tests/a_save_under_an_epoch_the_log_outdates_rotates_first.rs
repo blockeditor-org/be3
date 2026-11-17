@@ -7,7 +7,7 @@ use be_type_text::{TextBlock, TextContent};
 /// A manager revokes a reader and no device has rotated yet. An editor whose device has read
 /// the log since, so holds the revocation, saves: the newest epoch names a head before it, so
 /// the save gives the scope a new epoch first and writes under a key the revoked reader never
-/// gets (signed access 3d).
+/// gets.
 #[tokio::test]
 async fn a_save_under_an_epoch_the_log_outdates_rotates_first() {
     let harness = Harness::start().await;

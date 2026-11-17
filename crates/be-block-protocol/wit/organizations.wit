@@ -45,7 +45,7 @@ interface organizations {
     /// Makes company organization `id`, chosen by the caller, with the caller
     /// as its administrator. `root` is the root of its access log
     /// (`be_block_keys::Entry::root`), signed by the caller with its current
-    /// keys (plans/signed_access.md); `pinned` is what the caller pins for it,
+    /// keys (guides/blocks/keys.md); `pinned` is what the caller pins for it,
     /// sealed to itself, as `pin-escrow` keeps it.
     create-organization: async func(
         id: organization-id,
@@ -130,8 +130,8 @@ interface members {
 
     /// Makes the agent account `account`, the id derived from the caller and
     /// the agent's keys (be_block_keys::agent_account), in `organization` with the recovery key
-    /// `recovery` and the signing key `signing` derived with it, a contact card for the caller, and its escrow key sealed
-    /// for it. With `bound-to`, which needs Manage on that block, the agent
+    /// `recovery` and the signing key `signing` derived with it, a contact card for the caller, and
+    /// its escrow key sealed for it. With `bound-to`, which needs Manage on that block, the agent
     /// is granted Edit on it by the signed grant and reaches nothing else: it
     /// is a block's agent (`member.bound-to`), removed with its grant or its
     /// block.

@@ -45,7 +45,7 @@ fn plant(
 
 /// An escrow wrap is sealed from its sender, and an administrator opens it only from a member
 /// the organization's log names, who the block's log names with Edit or above; the root it
-/// carries is pinned only then, and weakly (signed access 3a). Neither the server, sealing anonymously to
+/// carries is pinned only then, and weakly. Neither the server, sealing anonymously to
 /// the escrow key, nor a member who cannot edit the block makes a key, or a root, an
 /// administrator takes; the member's genuine wrap pins the real root, so an administrator who
 /// reaches the block only through escrow checks its log, and its members keep their pin.

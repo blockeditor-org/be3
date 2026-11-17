@@ -4,7 +4,7 @@ use be_sdk_test::HostCall;
 use super::*;
 
 /// The block's owner offers ownership to someone with access from their row, and gives it only
-/// once they confirm; no one else is offered it (plans/signed_access.md, step 5).
+/// once they confirm; no one else is offered it (guides/blocks/keys.md, "Owner records").
 #[test]
 fn the_owner_gives_a_block_away_from_the_share_dialog_once_confirmed() {
     let (mut fixture, block) = editor();

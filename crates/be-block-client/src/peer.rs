@@ -70,6 +70,7 @@ pub use notifications::{
 
 pub use authorship::Signer;
 pub use import::Imported;
+pub use rotation::PendingRotation;
 pub use prefixes::Registry;
 
 #[derive(Clone)]
@@ -345,6 +346,9 @@ pub struct Peer<S: ObjectStore> {
     /// The members key work last listed as signed into the organization's log by no record
     /// (`KeyWork::unsigned_members`).
     unsigned: Mutex<Vec<Uuid>>,
+    /// The trees a demotion outdated whose rotation `tend` owes and has failed, by top
+    /// (`rotate_demoted`, `pending_rotations`).
+    pending_rotations: Mutex<HashMap<Uuid, PendingRotation>>,
     /// How many times keys arrived (`keys_changed`): a search for keys under way as it changes
     /// asks once more, since what arrived may have come after the server answered.
     keys_arrived: Arc<std::sync::atomic::AtomicU64>,
@@ -447,12 +451,12 @@ impl<S: ObjectStore> Peer<S> {
         Ok(peer)
     }
 
-    /// A local account's peer, which has no server (guides/blocks/client.md, Saving and the outbox): its organization
-    /// is made on this device the first time, with this account its one member, and what it
-    /// makes is final as it is made. A commit is the block's head once it is sealed, as the
-    /// server would take it, compared with the head it went on (`send_pending`), and creations,
-    /// moves and definitions are settled as they are kept (`settle_locally`), so nothing waits
-    /// to be sent. Listings answer from what the device holds (`Refs::local_listing`), and
+    /// A local account's peer, which has no server (guides/blocks/client.md, Saving and the
+    /// outbox): its organization is made on this device the first time, with this account its one
+    /// member, and what it makes is final as it is made. A commit is the block's head once it is
+    /// sealed, as the server would take it, compared with the head it went on (`send_pending`), and
+    /// creations, moves and definitions are settled as they are kept (`settle_locally`), so nothing
+    /// waits to be sent. Listings answer from what the device holds (`Refs::local_listing`), and
     /// everything that needs a server, sharing above all, is refused as offline.
     pub fn local(
         config: PeerConfig,
@@ -538,6 +542,7 @@ impl<S: ObjectStore> Peer<S> {
             current: Mutex::new(HashMap::new()),
             tried: Arc::default(),
             unsigned: Mutex::new(Vec::new()),
+            pending_rotations: Mutex::new(HashMap::new()),
             keys_arrived: Arc::default(),
             moved_heads: Mutex::new(HashMap::new()),
             draining: std::sync::atomic::AtomicUsize::new(0),
@@ -797,11 +802,11 @@ impl<S: ObjectStore> Peer<S> {
 
     /// Takes the keys opened from escrow wraps (`KeyBook::escrowed`) whose sender administers
     /// the organization (holding the escrow key, they read everything it opens, and pass on a
-    /// root only one they pinned), or whom the block's log names with Edit or above: checked from the root this device pinned for the block, or,
-    /// for one it pinned none for (reached only through escrow), from the root the wrap carries,
-    /// which is then pinned. A member could so root a block id an administrator never pinned at
-    /// themselves (plans/signed_access.md, "Accepted limits"); the server, which is no member,
-    /// cannot. Others wait: a grant may come.
+    /// root only one they pinned), or whom the block's log names with Edit or above: checked from
+    /// the root this device pinned for the block, or, for one it pinned none for (reached only
+    /// through escrow), from the root the wrap carries, which is then pinned. A member could so
+    /// root a block id an administrator never pinned at themselves (guides/blocks/keys.md,
+    /// "Accepted limits"); the server, which is no member, cannot. Others wait: a grant may come.
     pub(crate) async fn settle_escrowed(&self) {
         // Again while a pass takes a key: a root it pinned may settle, or conflict with, a wrap
         // a pass looked at before.
@@ -971,11 +976,11 @@ impl<S: ObjectStore> Peer<S> {
             self.learn_administrators().await;
         }
         // A contact's seal is checked against the block's log as of the head its epoch names
-        // (`KeyBook::sender_may`, signed access 3d), so that log is read first for each block a
+        // (`KeyBook::sender_may`), so that log is read first for each block a
         // contact sealed a key of that is new here, when this device pinned its root. A key from
         // a sender the log never names is taken only when the sender is found, as it arrives, to
         // hold Edit or above on a block the signed parent records place the block under
-        // (`KeyBook::vouch`, signed access 4).
+        // (`KeyBook::vouch`).
         // A contact's seal of a block this device has not pinned the root of waits until the
         // rest is taken: this account's own keys pin roots, whose logs are then read first.
         let block_of_key = |key: Uuid| {
@@ -1203,7 +1208,7 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// The key `block` is sealed with now. One its scope's log outdates gets the scope a new
-    /// epoch first (signed access 3d), and when that cannot go through, the write fails as
+    /// epoch first, and when that cannot go through, the write fails as
     /// `Locked`: what is sealed here may be uploaded at once (a part, a relay, a journal entry).
     pub async fn sealing_key(&self, block: Uuid) -> Result<Uuid, ClientError> {
         self.sealing_key_for(block, false).await
@@ -1255,7 +1260,7 @@ impl<S: ObjectStore> Peer<S> {
         let chosen = newest();
         // An epoch its scope's log outdates (named before a revocation, a downgrade or a
         // closing, whose subject may hold it) is written under no more: the scope gets a new
-        // epoch first (signed access 3d).
+        // epoch first.
         let kept = match self.refs.summary(block) {
             Some(kept) => Some(kept),
             None => self.summary(block).await.ok(),
@@ -1356,7 +1361,7 @@ impl<S: ObjectStore> Peer<S> {
 
     /// `scope`, or the highest scope above it, up the scopes this device holds keys of, whose
     /// newest key is outdated as `scope`'s is. A demotion outdates every scope under the escrow
-    /// at once (signed access 8), and a scope's new epoch is wrapped under the one above it,
+    /// at once, and a scope's new epoch is wrapped under the one above it,
     /// which must be new too: rotating from below would rotate each scope above again for each
     /// level, where rotating from the top once rotates every scope under it.
     pub(super) async fn rotation_top(&self, scope: Uuid) -> Uuid {
@@ -1974,7 +1979,7 @@ impl<S: ObjectStore> Peer<S> {
     /// Where `parent` is, as a parent record placing a block there names it: under a block,
     /// with the root of its log this device pinned in full (made here, or carried by a trusted
     /// key of it), never one the server serves, so the logs above a block are checked from roots
-    /// its own records carry (plans/signed_access.md, step 4).
+    /// its own records carry (guides/blocks/keys.md, "Parent records").
     async fn placement(
         &self,
         parent: BlockParent,
@@ -2009,7 +2014,7 @@ impl<S: ObjectStore> Peer<S> {
     /// placement under it names, and `above`'s matching the root this device pinned for it. A
     /// block whose creation waits in the outbox lies where this device's own record placed it.
     /// So a key of `block` is never wrapped under a scope key the server only claims is above it
-    /// (plans/signed_access.md, step 4). A local account has no server to claim anything.
+    /// (guides/blocks/keys.md, "Parent records"). A local account has no server to claim anything.
     pub(crate) async fn signed_below(&self, block: Uuid, above: Uuid) -> Result<(), ClientError> {
         use be_block_keys::Placement;
         if block == above || self.local {
@@ -2143,6 +2148,30 @@ impl<S: ObjectStore> Peer<S> {
             placement = above.placement();
         }
         Ok(None)
+    }
+
+    /// Whether this account may write `block` as its signed logs show now: Edit or above in the
+    /// block's own log, or from outside it (`authority_outside`: administering the organization,
+    /// or a block above), never the server's word. The one rule for writing on after the logs
+    /// changed: resealing an outdated edit (`reseal`) and rotating a tree a demotion outdated
+    /// (`rotate_demoted`). A log that does not check, or is not served, shows nothing. Offline,
+    /// the error.
+    pub(super) async fn may_write_signed(&self, block: Uuid) -> Result<bool, ClientError> {
+        use be_block_keys::{Level, LogKind};
+        let checked = match self.checked_access(block).await {
+            Ok((_, checked)) => checked,
+            Err(error) if error.is_unreachable() => return Err(error),
+            Err(_) => return Ok(false),
+        };
+        let me = self.account.into_bytes();
+        if checked.holding(LogKind::Block, me, Level::Edit).is_some() {
+            return Ok(true);
+        }
+        match self.authority_outside(block, &checked, Level::Edit).await {
+            Ok(_) => Ok(true),
+            Err(error) if error.is_unreachable() => Err(error),
+            Err(_) => Ok(false),
+        }
     }
 
     /// Where this account's `level` on the block `checked` is the log of comes from outside
@@ -3383,7 +3412,7 @@ impl<S: ObjectStore> Peer<S> {
             ref journal,
         } = *pending;
         // Sealed offline under a key judged then by what was kept, or not at all: judged again
-        // now, and never sent under an epoch the logs show outdated (signed access 3d). Refused
+        // now, and never sent under an epoch the logs show outdated. Refused
         // as the server would refuse it, so the drain seals the edit again (`reseal`) or sets it
         // aside, never loses it.
         if self.sent_outdated(block, id).await? {
@@ -3900,7 +3929,7 @@ impl<S: ObjectStore> Peer<S> {
     ) -> Result<KeySet, ClientError> {
         let moved = self.summary(block).await?;
         // Made a scope where it lies, its key goes under the parent's scope only once the signed
-        // parent records place it there (signed access 4); a move places it by its own record.
+        // parent records place it there; a move places it by its own record.
         if own && let BlockParent::Block(above) = parent {
             self.signed_below(block, above).await?;
         }
@@ -4030,8 +4059,8 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// Moves ownership of `block`, which this account owns, to `account`, a verified contact
-    /// (plans/signed_access.md, step 5): seals them the block's key, then sends the owner record
-    /// naming the keys this device verified for them. They hold Manage from then on, as its
+    /// (guides/blocks/keys.md, "Owner records"): seals them the block's key, then sends the owner
+    /// record naming the keys this device verified for them. They hold Manage from then on, as its
     /// owner; this account keeps Edit and grants nothing more there.
     pub async fn transfer(&self, block: Uuid, account: Uuid) -> Result<(), ClientError> {
         use be_block_keys::{Owner, Record};

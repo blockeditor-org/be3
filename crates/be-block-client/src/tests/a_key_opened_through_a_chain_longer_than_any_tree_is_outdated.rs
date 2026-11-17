@@ -7,7 +7,7 @@ use be_block_store::{ContentKey, Keyring};
 /// A key is judged by every key it was opened through, up to the most any honest tree holds
 /// (`keys::MAX_PATH`): a chain longer than that, each key naming the log's current head, is
 /// judged outdated, as is a key opened through another in a scope whose log this device
-/// never read nor kept (signed access 3d).
+/// never read nor kept.
 #[test]
 fn a_key_opened_through_a_chain_longer_than_any_tree_is_outdated() {
     let identity = RecoveryPhrase::generate().secret();
