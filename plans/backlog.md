@@ -460,6 +460,28 @@ Depends on #686 (session catch-ups replaced by server ordering).
   beui-core-html's `watch()` seeds the signal synchronously the first time it
   is made, and those eager `measure` calls at build go.
 
+- **A drag source's face sizes its child as no `Interactive` does.** An
+  `Interactive` given `drag` wraps its children in a list (`CarriedFace`), so
+  its child takes its own height rather than the source's; a child that fills
+  whatever it is given (a canvas) collapses, and the game's stage lays its
+  `Interactive` over the table instead. Making the child grow moves the dock
+  tabs' labels, which rely on the list. Done: the face lays its child out as a
+  plain `Interactive` does, the dock tabs keeping their look.
+- **Keyboard carries of game pieces.** The game's stage is one focusable
+  source, so the keyboard lifts nothing from it (a press without a piece is a
+  pan); a piece is moved from the keyboard only by clicking it and its target.
+  Done: each movable piece is a focusable source, its targets reached with the
+  arrows, shown by a test that moves a chess piece from the keyboard.
+- **A sheet's detents from the keyboard.** A sheet chooses its detent with
+  `closest(detents).thrown()` only where its drag lets go, so no key steps it
+  between detents. Done: the sheet's handle steps between its detents with the
+  arrows, shown by a test.
+- **The display arrangement refits for a carried display.** The area's view
+  fits the arrangement at the lift, so a display carried to a place beyond
+  that fit draws outside the area, over the rows below. Done: the area refits
+  to the arrangement the chosen place makes, with places read relative to the
+  refit, shown by a painting of a display carried below another.
+
 ## 18. Keys
 
 - **A test server that lies in its answers.** Fixes for what "the server
