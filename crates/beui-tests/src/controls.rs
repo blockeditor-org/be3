@@ -1,6 +1,7 @@
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{Align, Direction};
+use beui_text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
 
 #[component]
 pub fn ButtonsFixture() -> NodeId {
@@ -258,6 +259,44 @@ pub fn TextAreaFixture() -> NodeId {
                     @test_id="text_area.note"
                 />
             </Frame>
+            <Text>{report}</Text>
+        </List>
+    }
+}
+
+/// A markdown rule's row, its characters sharing the line, is one line tall like any other:
+/// the text with a rule is as tall as the text with a one-letter paragraph in its place.
+#[component]
+pub fn TextRuleFixture() -> NodeId {
+    let area = |text: &'static str, id: &'static str| {
+        let document = std::sync::Arc::new(TextBuffer::new(text))
+            as std::sync::Arc<dyn beui_text_editor_core::Document>;
+        let state = TextAreaState::new(document);
+        state.execute(EditorCommand::SetLanguage(TextLanguage::Markdown));
+        let height = create_signal(None::<f32>);
+        let area = view! {
+            <Frame width=Size::Custom(240.0) height=Size::Custom(160.0)>
+                <TextArea
+                    @test_id={id}
+                    state={state}
+                    line_numbers=false
+                    find=false
+                    on_content_size={move |size: beui::Vec2| height.set(Some(size.y))}
+                />
+            </Frame>
+        };
+        (area, height)
+    };
+    let (ruled, rule) = area("Above\n\n---\n\nBelow", "text_rule.rule");
+    let (plain, letter) = area("Above\n\nx\n\nBelow", "text_rule.plain");
+    let report = create_memo(move || match (rule.get(), letter.get()) {
+        (Some(rule), Some(letter)) if (rule - letter).abs() < 0.5 => "Rule is one line".to_owned(),
+        (rule, letter) => format!("Rule {rule:?} letter {letter:?}"),
+    });
+    view! {
+        <List spacing=Space::Md>
+            {ruled}
+            {plain}
             <Text>{report}</Text>
         </List>
     }
