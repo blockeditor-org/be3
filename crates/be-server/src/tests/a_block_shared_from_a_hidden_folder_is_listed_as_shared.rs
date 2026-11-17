@@ -4,14 +4,10 @@ use be_block_graph::Access;
 async fn listed(client: &mut TestClient, shared: bool) -> Vec<Uuid> {
     let response = client
         .call(|peer| {
-            client::blocks::list_blocks(
-                peer,
-                match shared {
+            peer.read::<be_block_protocol::Listed>(be_block_protocol::Query::List { listing: match shared {
                     true => Listing::Shared,
                     false => Listing::Children(BlockParent::Root),
-                },
-                None,
-            )
+                }, after: None })
         })
         .await;
     let Ok(be_block_protocol::Listed { blocks, .. }) = response else {
@@ -35,34 +31,22 @@ async fn a_block_shared_from_a_hidden_folder_is_listed_as_shared() {
     let mut guest = harness.member("guest@example.com").await;
     let response = owner
         .call(|peer| {
-            client::contacts::create_link(
-                peer,
-                Uuid::from_u128(1),
-                Vec::new(),
-                Vec::new(),
-                be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
+            peer.write::<()>(be_block_protocol::Op::CreateLink { link: Uuid::from_u128(1), card: Vec::new(), code: Vec::new(), kind: be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                     organization,
                     escrow: Vec::new(),
-                }),
-            )
+                }) })
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let _ = guest
         .call(|peer| {
-            client::contacts::accept_link(
-                peer,
-                Uuid::from_u128(1),
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-            )
+            peer.write::<()>(be_block_protocol::Op::AcceptLink { link: Uuid::from_u128(1), card: Vec::new(), contact: Vec::new(), key: Vec::new() })
         })
         .await;
     guest.open(organization).await;
     let token = guest.token.clone();
     let Ok(Authenticated { account, .. }) = guest
-        .call(|peer| client::account::authenticate(peer, Some(token)))
+        .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(token)))
         .await
     else {
         panic!("the guest could not re-authenticate");

@@ -17,19 +17,19 @@ async fn proxy_account_authentication_never_discloses_the_token() {
         next_binary(&mut socket).await.unwrap();
         let mut client = TestClient::over(socket);
         let response = client
-            .call(|peer| client::account::authenticate(peer, None))
+            .call(|peer| be_block_protocol::client::server::authenticate(peer, None))
             .await;
         match token {
             Some(token) if token == owner.token => {
                 assert!(matches!(response, Ok(Authenticated { token, .. }) if token.is_empty()));
                 assert!(matches!(
                     client
-                        .call(|peer| client::organizations::list_organizations(peer))
+                        .call(|peer| peer.read::<Vec<be_block_protocol::Organization>>(be_block_protocol::Query::Organizations))
                         .await,
                     Ok(_)
                 ));
                 let _ = client
-                    .call(|peer| client::account::logout(peer, None))
+                    .call(|peer| peer.write::<()>(be_block_protocol::Op::RevokeToken(None)))
                     .await;
             }
             _ => assert!(matches!(response, Err(_))),
@@ -38,7 +38,7 @@ async fn proxy_account_authentication_never_discloses_the_token() {
     let mut client = harness.client().await;
     assert!(matches!(
         client
-            .call(|peer| client::account::authenticate(peer, Some(owner.token.clone())))
+            .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(owner.token.clone())))
             .await,
         Err(_)
     ));

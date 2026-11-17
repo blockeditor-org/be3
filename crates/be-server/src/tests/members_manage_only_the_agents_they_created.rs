@@ -26,7 +26,7 @@ async fn members_manage_only_the_agents_they_created() {
             panic!("a member could not create an agent: {response:?}");
         };
         let listed = owner
-            .call(|peer| client::members::list_members(peer))
+            .call(|peer| peer.read::<Vec<be_block_protocol::Member>>(be_block_protocol::Query::Members))
             .await
             .expect("listing members failed");
         assert_eq!(
@@ -36,7 +36,7 @@ async fn members_manage_only_the_agents_they_created() {
             "only an administrator lists another's agent: {listed:?}"
         );
         let listed = other
-            .call(|peer| client::members::list_members(peer))
+            .call(|peer| peer.read::<Vec<be_block_protocol::Member>>(be_block_protocol::Query::Members))
             .await
             .expect("listing members failed");
         assert!(
@@ -51,7 +51,7 @@ async fn members_manage_only_the_agents_they_created() {
         assert!(matches!(removed, Ok(())), "{removed:?}");
         let mut bot = harness.client().await;
         let refused = bot
-            .call(|peer| client::account::authenticate(peer, Some(token)))
+            .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(token)))
             .await;
         assert!(matches!(refused, Err(_)));
     }

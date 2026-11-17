@@ -16,7 +16,7 @@ async fn a_grant_or_a_key_for_someone_not_a_contact_is_refused() {
     assert!(refused_as(&granted, ErrorCode::NotAContact), "{granted:?}");
     assert!(refused_as(&keyed, ErrorCode::NotAContact), "{keyed:?}");
     let listed = owner
-        .call(|peer| client::blocks::list_access(peer, shared.block))
+        .call(|peer| peer.read::<be_block_protocol::AccessList>(be_block_protocol::Query::Access(shared.block)))
         .await;
     let Ok(list) = listed else {
         panic!("listing access failed: {listed:?}");
@@ -55,6 +55,6 @@ async fn attempts(
     };
     (
         owner.grant(shared.block, stranger, Access::View).await,
-        owner.call(|peer| client::keys::put_keys(peer, keys)).await,
+        owner.call(|peer| peer.write::<()>(be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(keys)))).await,
     )
 }

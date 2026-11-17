@@ -10,7 +10,7 @@ async fn one_shot_calls_only_sign_in_and_are_rate_limited() {
     let peer = Peer::new(be_wasm_ops::Side::Guest, move |frame| {
         let _ = sending.send(frame);
     });
-    let mut authenticating = client::account::authenticate(&peer, Some(token));
+    let mut authenticating = be_block_protocol::client::server::authenticate(&peer, Some(token));
     let _ = poll(&mut authenticating);
     let call = sent.try_recv().expect("the call was started");
     let (status, _) = post_bytes(&harness, "/api/be/call", &framed(&[hello(BUILD), call])).await;

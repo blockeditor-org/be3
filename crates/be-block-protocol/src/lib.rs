@@ -509,22 +509,25 @@ fn unexpected() -> Error {
 
 /// Reads `query` in `organization` (`server.read`), as the page case `T` it is answered with.
 /// The call starts now, so calls made one after another reach the server in that order.
-pub fn read<T: FromPage + Send>(
-    caller: &(impl be_wasm_ops::net::Caller + Clone),
+pub fn read<T: FromPage + Send, C: be_wasm_ops::net::Caller + Clone>(
+    caller: &C,
     organization: Option<Uuid>,
     query: Query,
-) -> impl Future<Output = Result<Result<T, Error>, be_wasm_ops::OpError>> + Send + 'static {
+) -> impl Future<Output = Result<Result<T, Error>, be_wasm_ops::OpError>> + Send + 'static + use<T, C>
+{
     answered(client::server::read(caller, organization, query, false))
 }
 
-/// Reads `query` and follows its topic (`server.read` with `follow`): what changes after it
-/// arrives as `server.events`.
-pub fn follow<T: FromPage + Send>(
-    caller: &(impl be_wasm_ops::net::Caller + Clone),
+/// Reads `query` as `read` does, and with `follow` follows its topic first (`server.read`): what
+/// changes after it arrives as `server.events`.
+pub fn ask<T: FromPage + Send, C: be_wasm_ops::net::Caller + Clone>(
+    caller: &C,
     organization: Option<Uuid>,
     query: Query,
-) -> impl Future<Output = Result<Result<T, Error>, be_wasm_ops::OpError>> + Send + 'static {
-    answered(client::server::read(caller, organization, query, true))
+    follow: bool,
+) -> impl Future<Output = Result<Result<T, Error>, be_wasm_ops::OpError>> + Send + 'static + use<T, C>
+{
+    answered(client::server::read(caller, organization, query, follow))
 }
 
 fn answered<T: FromPage + Send>(
@@ -534,11 +537,12 @@ fn answered<T: FromPage + Send>(
 }
 
 /// Writes one op in `organization` (`server.write`), answered as the case `T` it makes.
-pub fn write<T: FromDone + Send>(
-    caller: &(impl be_wasm_ops::net::Caller + Clone),
+pub fn write<T: FromDone + Send, C: be_wasm_ops::net::Caller + Clone>(
+    caller: &C,
     organization: Option<Uuid>,
     op: Op,
-) -> impl Future<Output = Result<Result<T, Error>, be_wasm_ops::OpError>> + Send + 'static {
+) -> impl Future<Output = Result<Result<T, Error>, be_wasm_ops::OpError>> + Send + 'static + use<T, C>
+{
     let pending = client::server::write(caller, organization, vec![op]);
     async move {
         Ok(pending.await?.map_err(|refused| refused.error).and_then(|mut done| {
