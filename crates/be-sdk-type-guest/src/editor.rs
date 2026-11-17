@@ -7,7 +7,11 @@ use uuid::Uuid;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum Gesture {
+    /// Opens an undo group: its edits are written as they happen and undo as one step.
     Begin,
+    /// Opens a tentative gesture: its edits are shown at once but held from peers and the
+    /// journal until it commits (decisions/tentative_edits_wait_for_release.md).
+    BeginTentative,
     Commit,
     Cancel,
     /// Ends the current undo step without opening a gesture, so the next edit starts one of
@@ -151,6 +155,14 @@ pub enum ToEditor {
     /// type module failed, its parts cannot be read), and says why: until a snapshot arrives,
     /// the editor reads it as failed rather than loading.
     Failed(String),
+    /// The replica ended the editor's gesture `id` itself: an undo cancelled its tentative
+    /// layer, or the content its edits moved was replaced or did not carry over a restart. With
+    /// `cancelled`, none of its edits are kept: the editor stops previewing it, and its later
+    /// edits are dropped until it ends the gesture as it would have.
+    GestureEnded {
+        id: u64,
+        cancelled: bool,
+    },
 }
 
 mod range_result {
@@ -482,6 +494,9 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
                 self.fail(reason);
                 None
             }
+            // What the replica shows already dropped the gesture's edits; an editor's own
+            // gestures are followed above it (plans/tentative_gestures.md, step 3).
+            ToEditor::GestureEnded { .. } => None,
         }
     }
 

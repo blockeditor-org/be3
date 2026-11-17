@@ -200,6 +200,10 @@ struct ContentLink {
     /// lacks it again (an app that starts, an editor out of step), until the answer is relayed.
     deliveries: u64,
     awaiting_preview: bool,
+    /// Whether the editor holds a gesture open in the block, an undo group or a tentative one:
+    /// a link that goes cancels it, so a tentative gesture's held edits leave no trace. The
+    /// protocol names no gesture yet, so an editor holds one at a time
+    /// (plans/tentative_gestures.md, step 3).
     gesturing: bool,
     described: Option<be_block_content::Entries>,
 }
@@ -1017,7 +1021,9 @@ impl Instances {
             return false;
         };
         match &message {
-            Some(FromEditor::Gesture(Gesture::Begin)) => link.gesturing = true,
+            Some(FromEditor::Gesture(Gesture::Begin | Gesture::BeginTentative)) => {
+                link.gesturing = true;
+            }
             Some(FromEditor::Gesture(Gesture::Commit | Gesture::Cancel)) => link.gesturing = false,
             _ => {}
         }

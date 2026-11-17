@@ -27,6 +27,10 @@ pub trait Recorder<C: LiveEdit>: Default {
         let _ = origin;
     }
 
+    fn void(&mut self, gesture: GestureId) {
+        let _ = gesture;
+    }
+
     fn cancel(&mut self, content: &C, gesture: GestureId) -> Vec<C::Op> {
         let _ = (content, gesture);
         Vec::new()
@@ -90,6 +94,10 @@ impl<C: Undo> Recorder<C> for History<C, u64> {
 
     fn split(&mut self, origin: Option<u64>) {
         History::split(self, origin);
+    }
+
+    fn void(&mut self, gesture: GestureId) {
+        History::void(self, gesture);
     }
 
     fn cancel(&mut self, content: &C, gesture: GestureId) -> Vec<C::Op> {
