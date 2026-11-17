@@ -335,6 +335,9 @@ struct State {
     forward: Signal<(u64, Option<TabId>)>,
     remembered: Stored<RefCell<HashMap<TabId, NodeId>>>,
     content_keyboard: StoredCell<Option<TabId>>,
+    /// A tab moved while the focus was on it in its bar (`State::focus_on_tab`), whose pane
+    /// gives its panel the keyboard once it shows it, as its row is built again elsewhere.
+    keyboard_after_move: StoredCell<Option<TabId>>,
     /// The floating windows the focus is in.
     focused_windows: Signal<Vec<SurfaceId>>,
     keyboard: ReadSignal<bool>,
@@ -1300,6 +1303,15 @@ impl State {
     }
 
     fn move_into_bar(&self, leaf: LeafId, moved: ReorderMove<Entry, DockCarry>) {
+        // A tab moved within its own bar keeps its row, and the focus on it.
+        if let DockDragged::Entry(entry) = moved.payload.dragged
+            && self
+                .state
+                .with_untracked(|state| state.locate(entry).map(|(at, _)| at))
+                != Some(leaf)
+        {
+            self.keyboard_follows_move(entry);
+        }
         self.edit(|state| {
             let entries = state.entries(leaf);
             match moved.payload.dragged {
@@ -1675,6 +1687,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         forward,
         remembered: store(RefCell::default()),
         content_keyboard: StoredCell::new(None),
+        keyboard_after_move: StoredCell::new(None),
         focused_windows: create_signal(Vec::new()),
         keyboard: use_document_keyboard(),
         bar_panels: store(RefCell::default()),
@@ -1992,7 +2005,11 @@ fn DockStack(dock: State) -> NodeId {
                 .flatten()
                 .filter(|left| Some(*left) != tab);
             let held = left.is_some_and(|left| dock.remember_focus(left));
-            given.set(tab.filter(|_| held));
+            let moved = tab.is_some() && dock.keyboard_after_move.get() == tab;
+            if moved {
+                dock.keyboard_after_move.set(None);
+            }
+            given.set(tab.filter(|_| held || moved));
             panel.set(tab);
         },
     );
@@ -2860,7 +2877,11 @@ fn DockShownBody(dock: State, leaf: Option<LeafId>, shown: Memo<Option<TabId>>) 
                 .flatten()
                 .filter(|left| Some(*left) != tab);
             let held = left.is_some_and(|left| dock.remember_focus(left));
-            given.set(tab.filter(|_| held));
+            let moved = tab.is_some() && dock.keyboard_after_move.get() == tab;
+            if moved {
+                dock.keyboard_after_move.set(None);
+            }
+            given.set(tab.filter(|_| held || moved));
             panel.set(tab);
         },
     );

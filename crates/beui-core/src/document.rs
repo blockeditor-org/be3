@@ -1507,7 +1507,7 @@ impl Document {
             .filter_map(|embed| embed.upgrade())
             .collect();
         for embed in &embeds {
-            embed.hold();
+            embed.hold(self.layout_pass);
         }
         let mut measurement = FrameMeasurement::new();
         self.work.reset();

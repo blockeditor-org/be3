@@ -85,6 +85,26 @@ impl State {
         tabs.into_iter().any(|tab| self.remember_focus(tab))
     }
 
+    /// Whether the focus is on `entry`'s tab in its bar: a tab moved by the keyboard, whose
+    /// row a move into another bar or pane builds again there, which loses the focus.
+    pub(super) fn focus_on_tab(&self, entry: Entry) -> bool {
+        let Some((leaf, _)) = self.state.with_untracked(|state| state.locate(entry)) else {
+            return false;
+        };
+        let bar = self.bars.value().borrow().get(&leaf).and_then(|bar| bar.tabs.try_get());
+        bar.is_some_and(|bar| bar.focus_is_within())
+    }
+
+    /// Before a move that builds the focused tab's row again elsewhere (`focus_on_tab`): the
+    /// pane that shows it next gives its panel the keyboard, as pressing its tab would.
+    pub(super) fn keyboard_follows_move(&self, entry: Entry) {
+        let tab = match entry {
+            Entry::Tab(tab) if self.focus_on_tab(entry) => Some(tab),
+            _ => None,
+        };
+        self.keyboard_after_move.set(tab);
+    }
+
     pub(super) fn give_keyboard(&self, tab: TabId) {
         let given = match self.dialog_focus.get_untracked() {
             Some(dialog) if self.dialog_root(dialog) == Some(tab) => {
