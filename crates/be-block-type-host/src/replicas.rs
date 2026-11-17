@@ -3457,7 +3457,14 @@ impl<H: Host> Replicas<H> {
         }
         // What its made-up session took while the join was on its way, after `created` asked a
         // seal of what it held, is committed here first: reopened on its head, it would be lost.
-        let unsealed = open.joined_settled && (!open.status.clean || open.unreported());
+        // The answer comes back here once that seal is answered. Asked again only for what a
+        // seal can commit: a replica unclean only for an edit it cannot submit until it joins
+        // (which `replay` gives again) owes none, and asking it again each time would never end.
+        let unsealed = open.joined_settled
+            && match open.sealed_joining {
+                false => !open.status.clean || open.unreported(),
+                true => open.status.owes_seal,
+            };
         if unsealed {
             open.sealed_joining = true;
             self.seal_later(block, false);
