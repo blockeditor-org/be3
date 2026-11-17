@@ -302,7 +302,8 @@ impl<C: Channel> Worker<C> {
             }
         }
         for presented in produced.presented {
-            self.released.retain(|surface| *surface != presented.surface());
+            self.released
+                .retain(|surface| *surface != presented.surface());
             self.presented
                 .retain(|held| held.surface() != presented.surface());
             self.presented.push(presented);

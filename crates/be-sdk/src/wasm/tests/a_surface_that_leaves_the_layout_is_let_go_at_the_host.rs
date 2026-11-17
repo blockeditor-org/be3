@@ -6,7 +6,11 @@ use super::*;
 #[test]
 fn a_surface_that_leaves_the_layout_is_let_go_at_the_host() {
     let mut rig = Rig::new(Some(space()));
-    rig.open(vec![layer(1, 0, Rect::from_min_size(pos2(220.0, 130.0), vec2(60.0, 40.0)))]);
+    rig.open(vec![layer(
+        1,
+        0,
+        Rect::from_min_size(pos2(220.0, 130.0), vec2(60.0, 40.0)),
+    )]);
     rig.draw();
     let [(_, surface)] = rig.anchored_screens()[..] else {
         panic!("one anchored view is open");
@@ -14,7 +18,10 @@ fn a_surface_that_leaves_the_layout_is_let_go_at_the_host() {
 
     rig.open(Vec::new());
     rig.draw();
-    assert!(rig.anchored_screens().is_empty(), "its screen left the layout");
+    assert!(
+        rig.anchored_screens().is_empty(),
+        "its screen left the layout"
+    );
     assert!(
         be_wasm_gpu_guest::acquire_surface_texture(surface).is_err(),
         "the host no longer holds the surface, though the app never dropped it itself"

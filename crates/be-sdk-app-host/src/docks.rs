@@ -238,11 +238,7 @@ impl Docks {
         self.docked.contains(&instance)
     }
 
-    pub fn resolve(
-        &self,
-        placer: EditorInstanceId,
-        path: &DockTabPath,
-    ) -> Option<(Uuid, u64)> {
+    pub fn resolve(&self, placer: EditorInstanceId, path: &DockTabPath) -> Option<(Uuid, u64)> {
         if path.via.is_empty() || self.docked(placer) {
             return None;
         }
@@ -299,12 +295,7 @@ impl Docks {
         taken
     }
 
-    pub fn set_menu(
-        &mut self,
-        instance: EditorInstanceId,
-        view: ViewId,
-        items: Vec<MenuItem>,
-    ) {
+    pub fn set_menu(&mut self, instance: EditorInstanceId, view: ViewId, items: Vec<MenuItem>) {
         let key = (instance, view);
         if self
             .menus
@@ -337,7 +328,10 @@ impl Docks {
     }
 
     /// The app and instance that place a docked instance, and the child it is to them.
-    pub fn placed_by(&self, instance: EditorInstanceId) -> Option<(String, EditorInstanceId, ChildId)> {
+    pub fn placed_by(
+        &self,
+        instance: EditorInstanceId,
+    ) -> Option<(String, EditorInstanceId, ChildId)> {
         let (placer, child, _) = self.placer_of(instance)?;
         Some((self.apps.get(&placer)?.clone(), placer, child))
     }

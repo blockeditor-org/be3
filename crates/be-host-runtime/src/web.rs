@@ -51,15 +51,13 @@ pub(super) fn discard_prepared() {}
 pub(super) fn wire(app: &AppManifest) -> super::wire::Wire {
     super::wire::Wire::granting(app.extensions.clone())
         .offering(super::published::offered)
-        .with_sandbox(
-        be_wasm_sandbox_host::Server::for_app(
+        .with_sandbox(be_wasm_sandbox_host::Server::for_app(
             Arc::new(be_host_base::host::wake),
             app.identity.id.clone(),
             Box::new(|app_id, module| {
                 super::backend::worker_file(app_id, module).map(be_wasm_sandbox_host::Staged::new)
             }),
-        ),
-    )
+        ))
 }
 
 pub(super) fn spawn(

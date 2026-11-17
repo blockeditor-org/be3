@@ -3,7 +3,9 @@
 
 use std::cell::RefCell;
 
-use be_sdk_api::{ChildId, DockMessage, DockTabPath, DockUpdate, EditorInstanceId, MenuItem, ViewId};
+use be_sdk_api::{
+    ChildId, DockMessage, DockTabPath, DockUpdate, EditorInstanceId, MenuItem, ViewId,
+};
 pub(super) use be_sdk_app_host::docks::{DockedChild, Docks, Pick};
 use uuid::Uuid;
 
@@ -95,4 +97,3 @@ pub(super) fn take_picks(app: &str) -> Vec<Pick> {
 pub(super) fn take(app: &str) -> Vec<(EditorInstanceId, DockUpdate)> {
     DOCKS.with(|docks| docks.borrow_mut().take(app))
 }
-
