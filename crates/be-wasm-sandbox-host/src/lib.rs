@@ -2,8 +2,9 @@
 //! `Server` per guest that is granted it, answering its calls from `be_wasm_host::sandbox`
 //! (plans/host_as_platform_adapter.md, The sandbox API). Staged apps come from a loader the host
 //! plugs in (be-host-runtime's `staged_app`), since finding them is the host's and lies above
-//! be-wasm. It will serve the root guest (step 4) and apps (plans/single_threaded_guests.md);
-//! only its tests use it today.
+//! be-wasm. be-host-runtime serves one to every app (`Server::for_app`), which may spawn only its
+//! own app's modules, its workers (plans/single_threaded_guests.md); it will serve the root guest
+//! (`Server::new`, plans/host_as_platform_adapter.md, step 4).
 
 use std::{
     collections::{BTreeMap, HashMap},
@@ -20,15 +21,22 @@ type Answer<T> = Box<dyn FnOnce(&T) -> (OpId, Outcome)>;
 
 type Frames = Result<Vec<Vec<u8>>, String>;
 
-/// Finds a staged app by its id, or says why there is none to spawn. It is `Send`, so a `Server`
-/// may move to the thread of the guest it serves.
-pub type Loader = Box<dyn Fn(&str) -> Result<Staged, String> + Send>;
+/// Finds a module a staged app stages, by the app's id and the module's name, or says why there
+/// is none to spawn. It is `Send`, so a `Server` may move to the thread of the guest it serves.
+pub type Loader = Box<dyn Fn(&str, &str) -> Result<Staged, String> + Send>;
+
+/// Why an app may not compile a module from bytes: those stay the root guest's until a plan gives
+/// apps a reason for them (plans/single_threaded_guests.md, step 1).
+pub const APPS_COMPILE_NOTHING: &str = "an app may not compile a module from bytes";
 
 /// Serves one guest the sandbox. Every module it compiled stays compiled, and every instance it
 /// spawned runs, while the server is held.
 pub struct Server {
     wake: Wake,
     apps: Loader,
+    /// The app this server serves, which may spawn only its own modules and compiles none; `None`
+    /// for the root guest, which may spawn any.
+    app: Option<String>,
     modules: HashMap<ModuleId, Module>,
     compiling: Vec<(Compiling, Answer<Result<ModuleId, String>>)>,
     instances: BTreeMap<OpId, Served>,
@@ -48,15 +56,39 @@ impl Server {
         Self {
             wake,
             apps,
+            app: None,
             modules: HashMap::new(),
             compiling: Vec::new(),
             instances: BTreeMap::new(),
         }
     }
 
+    /// Serves the app with the id `app`: it may spawn only modules its own app stages (its entry
+    /// point and its workers), which `apps` is asked for only with its id, and compiles nothing.
+    pub fn for_app(wake: Wake, app: String, apps: Loader) -> Self {
+        Self {
+            app: Some(app),
+            ..Self::new(wake, apps)
+        }
+    }
+
+    /// The staged module `module` of the app `app`, if this guest may spawn it.
+    fn staged(&self, app: &str, module: &str) -> Result<Staged, String> {
+        match &self.app {
+            Some(own) if own != app => Err(format!(
+                "{own} may spawn only its own modules, not {app}'s"
+            )),
+            _ => (self.apps)(app, module),
+        }
+    }
+
     /// Takes one of the guest's calls.
     pub fn call(&mut self, call: Call, connection: &mut Connection) {
         match call {
+            Call::Compile { reply, .. } if self.app.is_some() => {
+                let refused: Result<ModuleId, String> = Err(APPS_COMPILE_NOTHING.to_owned());
+                reply.send(connection, &refused);
+            }
             Call::Compile { reply, bytes } => {
                 let compiling = sandbox::compile(bytes, Arc::clone(&self.wake));
                 self.compiling
@@ -72,7 +104,9 @@ impl Server {
                         Some(module) => Ok(Source::Module(module.clone())),
                         None => Err("this guest compiled no module with that id".to_owned()),
                     },
-                    api::Source::App(app) => (self.apps)(&app).map(Source::App),
+                    api::Source::App(staged) => {
+                        self.staged(&staged.app, &staged.module).map(Source::App)
+                    }
                 };
                 let instance = source.and_then(|source| {
                     sandbox::spawn(

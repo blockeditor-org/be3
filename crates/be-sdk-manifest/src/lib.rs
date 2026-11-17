@@ -37,6 +37,9 @@ pub struct AppManifest {
     pub block_agents: bool,
     /// The app's host components (guides/apps/host_services.md, "Host components").
     pub hosts: Vec<HostManifest>,
+    /// The app's worker modules, by file name, which it may start through the sandbox API
+    /// (guides/adding_an_app.md, Workers).
+    pub workers: Vec<String>,
 }
 
 /// A host component: a component of the app's wasm with no frame, which the host opens on a
@@ -190,6 +193,7 @@ pub enum ManifestError {
     TemplateWithoutBlockType,
     ServiceWithTemplates,
     DuplicateHost,
+    InvalidWorker,
 }
 
 impl fmt::Display for ManifestError {
@@ -213,6 +217,9 @@ impl fmt::Display for ManifestError {
             Self::NoEditors => {
                 formatter.write_str("the app declares no editors and no block types")
             }
+            Self::InvalidWorker => formatter.write_str(
+                "a worker is not a plain .wasm file name, is named twice, or is the entry point",
+            ),
             Self::DuplicateHost => formatter.write_str(
                 "a host component shares an id or name with an editor or another host, or two run on one type",
             ),
@@ -302,6 +309,15 @@ impl AppManifest {
                 return Err(ManifestError::InvalidNetworkHost);
             }
         }
+        for (index, worker) in self.workers.iter().enumerate() {
+            manifest_string("worker", worker)?;
+            if !plain_module(worker)
+                || *worker == self.entry_point
+                || self.workers[..index].contains(worker)
+            {
+                return Err(ManifestError::InvalidWorker);
+            }
+        }
         for (index, extension) in self.extensions.iter().enumerate() {
             if !EXTENSIONS.contains(&extension.as_str())
                 || self.extensions[..index].contains(extension)
@@ -354,3 +370,15 @@ fn manifest_string(field: &'static str, value: &str) -> Result<(), ManifestError
 }
 #[cfg(test)]
 mod tests;
+
+/// Whether `name` is a module's plain file name, such as `tiles.wasm`: no path, only ASCII
+/// letters, digits, `.`, `-` and `_`, ending in `.wasm`.
+pub fn plain_module(name: &str) -> bool {
+    name.strip_suffix(".wasm").is_some_and(|stem| {
+        !stem.is_empty()
+            && !stem.starts_with('.')
+            && stem
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_'))
+    })
+}

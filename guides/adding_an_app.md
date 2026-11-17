@@ -233,6 +233,8 @@ The `be_sdk_manifest` types document every field. What is easy to get wrong:
   to any other app.
 - `block_types` belong to the type, not an editor (adding_a_block.md, Declare
   it in the manifest).
+- `workers` names the app's worker modules by file name (`"tiles.wasm"`),
+  each a plain `.wasm` name other than the entry point (5, Workers).
 
 The first editor found for a type is its built-in editor; others are offered
 beside it (Open with, and the Default editors setting). Only the workspace's
@@ -252,6 +254,35 @@ own; the host sends them.
 Data an app ships rather than keeps in a workspace goes in its `app()`'s
 `data`, staged under `data/<app id>/` and read with `list_data`/`read_data`
 (the games editor ships every game module this way).
+
+### Workers
+
+Work that should not hold up the app's frames (rendering a PDF page,
+rasterizing map tiles) runs in a worker: an instance of a module of the app's
+own, on a thread and isolate of its own natively, that the app talks to by
+messages (`be_sdk::worker`, crates/be-sdk-worker;
+plans/single_threaded_guests.md).
+
+- The worker is a crate of its own: a `Work` (`start`, then `receive` for each
+  message, answering through `App::send`) exported with
+  `be_sdk::worker::worker!`, built with `worker(module = "tiles")` from
+  `buck/wasm/defs.bzl`, linked against the app's libraries as an app is.
+  crates/be-sdk-worker-echo is the smallest.
+- The app names it in `app(workers = ["//crates/be-app-foo-tiles:module"])`
+  and in its manifest's `"workers": ["tiles.wasm"]`; the stage puts it under
+  `workers/<app id>/` and refuses an app staged without a worker its manifest
+  names.
+- The app starts it with `Worker::spawn("tiles.wasm")`, sends it byte buffers
+  with `send` (or a `Sender` from `sender()`) and awaits each answer with
+  `receive`, one buffer a message, whole and in order. Dropping the `Worker`
+  and its senders stops it; `receive` says why one stopped (it could not
+  start, trapped or panicked).
+- A worker has WASI and its libraries but no gpu and no host services: it
+  computes and sends back bytes, which the app uploads or shows. It may block
+  its own thread as long as a job needs.
+- An app may spawn only its own app's modules, named, never by a path, and
+  compiles no module from bytes (guides/apps/runtime.md, Backends). The web
+  serves no workers yet: there `receive` fails at once.
 
 ## 6. Build and verify
 

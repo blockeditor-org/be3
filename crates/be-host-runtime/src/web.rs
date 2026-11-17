@@ -45,6 +45,12 @@ pub(super) fn hand_over_device() {}
 
 pub(super) fn discard_prepared() {}
 
+/// The wire to `app`. The web serves apps no sandbox yet, so a worker an app spawns says so
+/// (plans/single_threaded_guests.md).
+pub(super) fn wire(app: &AppManifest) -> super::wire::Wire {
+    super::wire::Wire::granting(app.extensions.clone())
+}
+
 pub(super) fn spawn(
     _app: &AppManifest,
     module: String,

@@ -46,6 +46,10 @@ pub struct ManifestDocument {
     /// that the host runs on a block of one type (`HostManifest`).
     #[serde(default)]
     pub hosts: InOrder<HostDocument>,
+    /// The app's worker modules, by file name (`tiles.wasm`), each built by a crate of its own
+    /// and staged beside the app under `workers/<id>/` (guides/adding_an_app.md, Workers).
+    #[serde(default)]
+    pub workers: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -274,6 +278,7 @@ impl ManifestDocument {
                     })
                 })
                 .collect::<Result<_, ManifestError>>()?,
+            workers: self.workers,
         };
         manifest.validate()?;
         Ok(manifest)

@@ -4,10 +4,7 @@ use super::*;
 fn a_guest_spawns_a_staged_app_by_its_id_and_talks_to_it() {
     let mut pump = Pump::new();
     let received = pump.run(async {
-        let instance = guest::sandbox::Instance::new(
-            Source::App(be_wasm_guest_echo::APP_ID.to_owned()),
-            app_config(),
-        );
+        let instance = guest::sandbox::Instance::new(echo_app(), app_config());
         instance
             .send(vec![b"hello".to_vec(), be_wasm_guest_echo::CLOCK.to_vec()])
             .await

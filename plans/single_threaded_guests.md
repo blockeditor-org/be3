@@ -1,7 +1,8 @@
 # Single-threaded guests
 
 Depends on: none. It builds on the sandbox API and spawning staged apps by id
-(plans/host_as_platform_adapter.md, steps 1 and 2, both built natively).
+(plans/host_as_platform_adapter.md, steps 1 and 2, both built natively). Step 1 is built
+natively.
 
 Every guest is built for `wasm32-wasip1-threads` today: one shared memory per app, threads made
 by `wasi-threads` (`thread-spawn`), and a thread-local block per module per thread. Drop that.
@@ -62,17 +63,18 @@ not write its own.
 
 ## Steps
 
-1. Serve the sandbox API to apps. An app may spawn only its own staged module, at another entry
-   point, with the imports the host serves that app. The `app(app-id)` source starts the
-   manifest's module at its usual `app_start`, so a worker widens the source to
-   `app { id, module }` and the loader to `(app-id, module)`, rather than adding an entry point to
-   `config`, which keeps be-host-runtime's `staged_app` the one place that maps names to files.
-   The host serves the spawning app's `Server` a loader that answers only its own id.
-   A spawned app has no display today, so whether a worker gets the gpu is this step's choice.
-   Modules from bytes stay the root guest's until a plan gives apps a reason for them (the Games
-   app's game modules would be one).
-   Then a worker API in be-sdk over that spawn: an entry point, a channel, and byte
-   buffers carried as messages.
+1. Built natively: the sandbox API served to apps, and a worker API in be-sdk over it. A worker
+   is a module of its own crate (`be_sdk::worker::worker!`, built with `worker()`), named in the
+   app's manifest under `workers` and staged under `workers/<app id>/`; the source is
+   `app({app, module})` and the loader `(app-id, module)`, and be-host-runtime's `staged_app` maps
+   the entry point and the workers to files and refuses any other name. Each app's `Server`
+   (`Server::for_app`) asks the loader only for its own id and refuses compiles: modules from
+   bytes stay the root guest's until a plan gives apps a reason for them (the Games app's game
+   modules would be one). A worker gets no gpu: it sends its result back as bytes, which the app
+   uploads, so no device is handed over, and the web would need none per worker. The app's side is
+   `Worker::spawn`, `send` and `receive`, a byte buffer a message (guides/adding_an_app.md,
+   Workers). The web's half is not built: its host refuses an app's sandbox calls, so a worker
+   there fails at once; it lands with step 2's ports or the root guest on the web.
 2. Port the map and PDF workers to it.
 3. Build every guest, and the C libraries guests link (wasi-libc, libc++, PDFium, FreeType,
    HarfBuzz, libghostty-vt), for `wasm32-wasip1`: `buck/wasm/defs.bzl`, `buck/toolchains/BUCK`

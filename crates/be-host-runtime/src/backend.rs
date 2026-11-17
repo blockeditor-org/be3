@@ -53,7 +53,7 @@ impl Backend {
             module: discovery::entry_point(&app.identity.id, &app.entry_point),
             worker: None,
             mailbox: None,
-            wire: Wire::granting(app.extensions.clone()),
+            wire: platform::wire(app),
             started: host::now(),
             error: None,
         }
@@ -63,7 +63,7 @@ impl Backend {
         self.shutdown();
         self.started = host::now();
         self.error = None;
-        self.wire = Wire::granting(app.extensions.clone());
+        self.wire = platform::wire(app);
         let Some(module) = self.module.clone() else {
             self.error = Some(NO_ENTRY_POINT.to_owned());
             return;
@@ -125,6 +125,7 @@ impl Backend {
                 self.error.get_or_insert(failure);
             }
         }
+        self.wire.poll_sandbox();
         if let Some(failure) = worker.queue(self.wire.take_outbound()) {
             self.fail(failure);
         }
@@ -225,6 +226,7 @@ impl Backend {
     pub(super) fn shutdown(&mut self) {
         self.worker = None;
         self.mailbox = None;
+        self.wire.stop_sandbox();
     }
 
     pub(super) fn offer(&mut self, image: u64, picture: &Picture) {
