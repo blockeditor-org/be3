@@ -39,8 +39,6 @@ pub struct EmbedState {
     /// panel shown in another pane, its old pane removed by the frame's input) is never heard
     /// unplaced on the way. A placement is told at once.
     holding: Cell<bool>,
-    /// The last layout pass before the frame held it began.
-    held_after: Cell<u64>,
     /// The layout pass that last placed it.
     placed_in: Cell<u64>,
     inert: Cell<bool>,
@@ -83,17 +81,8 @@ impl EmbedState {
     }
 
     /// From now until `release`, going unplaced is told only at the release.
-    pub(crate) fn hold(&self, pass: u64) {
+    pub(crate) fn hold(&self) {
         self.holding.set(true);
-        self.held_after.set(pass);
-    }
-
-    /// Whether a layout pass placed it since `pass`, or, while a frame holds it, since the frame
-    /// began: a frame lays out again for timers due (`LATE_TIMER_ROUNDS`), and its old parent
-    /// may let it go in a later pass than its new one placed it.
-    fn placed_since(&self, pass: u64) -> bool {
-        let placed = self.placed_in.get();
-        placed == pass || (self.holding.get() && placed > self.held_after.get())
     }
 
     pub(crate) fn release(&self) {
@@ -247,8 +236,11 @@ impl Element for EmbedNode {
     }
 
     fn unplaced(&mut self, doc: &mut Document) {
-        // Placed under another parent earlier in this pass, it has moved, not gone.
-        if self.state.placed_since(doc.layout_pass()) {
+        // Placed under another parent earlier in this pass, it has moved, not gone. Only this
+        // pass counts: a move changes both parents in one update, so both are laid out in the
+        // same pass, while one placed in an earlier pass of the frame and let go in a later one
+        // has gone (an inspector stacking over its program once measured).
+        if self.state.placed_in.get() == doc.layout_pass() {
             return;
         }
         self.forget();
