@@ -489,7 +489,7 @@ pub(crate) fn escrow_chain(
     organization: Uuid,
 ) -> Result<Vec<EscrowKey>, ServerError> {
     let mut statement = connection.prepare_cached(
-        "SELECT id, epoch, public, signing, maker, signature FROM keys
+        "SELECT id, epoch, public, signing, maker, signature, head FROM keys
          WHERE organization_id = ?1 AND block_id = ?1 AND kind = 'escrow'
          ORDER BY epoch",
     )?;
@@ -501,16 +501,18 @@ pub(crate) fn escrow_chain(
             row.get::<_, Vec<u8>>(3)?,
             row.get::<_, String>(4)?,
             row.get::<_, Vec<u8>>(5)?,
+            row.get::<_, Vec<u8>>(6)?,
         ))
     })?;
     let mut chain = Vec::new();
     for row in rows {
-        let (id, epoch, public, signing, maker, signature) = row?;
+        let (id, epoch, public, signing, maker, signature, head) = row?;
         chain.push(EscrowKey {
             id: parse_uuid(&id)?,
             epoch: u64::try_from(epoch).map_err(|_| ServerError::Corrupt)?,
             public: public.try_into().map_err(|_| ServerError::Corrupt)?,
             signing: signing.try_into().map_err(|_| ServerError::Corrupt)?,
+            head: head.try_into().map_err(|_| ServerError::Corrupt)?,
             maker: parse_uuid(&maker)?,
             signature,
         });
@@ -1203,7 +1205,15 @@ impl ServerStore {
                 )));
             }
             // Checked as devices check it (`verify_escrow`): made and signed by an administrator
-            // the organization's log names, chained to the epoch before.
+            // the organization's log names, chained to the epoch before, under the log's head
+            // now, so a demotion is behind every new epoch (plans/signed_access.md, 3d).
+            let head = crate::access::checked_organization_log(database, organization)?
+                .map(|checked| checked.head);
+            if head != Some(escrow.head) {
+                return Err(refused(
+                    "an escrow key names the head of the organization's log it is made under",
+                ));
+            }
             let maker = crate::access::administrator_signing(database, organization, identity.account)?;
             let chained = escrow.chained(
                 organization,
@@ -1221,8 +1231,8 @@ impl ServerStore {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             transaction.execute(
                 "INSERT INTO keys
-                    (organization_id, id, block_id, kind, epoch, created, public, signing, maker, signature)
-                 VALUES (?1, ?2, ?1, 'escrow', ?3, ?4, ?5, ?6, ?8, ?7)",
+                    (organization_id, id, block_id, kind, epoch, created, public, signing, maker, signature, head)
+                 VALUES (?1, ?2, ?1, 'escrow', ?3, ?4, ?5, ?6, ?8, ?7, ?9)",
                 params![
                     organization.to_string(),
                     escrow.id.to_string(),
@@ -1231,7 +1241,8 @@ impl ServerStore {
                     escrow.public.to_vec(),
                     escrow.signing.to_vec(),
                     escrow.signature,
-                    escrow.maker.to_string()
+                    escrow.maker.to_string(),
+                    escrow.head.to_vec()
                 ],
             )?;
             store_keys(

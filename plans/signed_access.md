@@ -150,12 +150,27 @@ below Edit is served the sender's proof path beside the sealed key. `get-signing
 A device knows the log only as far as the server has shown it. If Alice
 revokes Bob on her laptop, the server can keep showing Carol's phone the log
 without that entry, and Carol's phone, doing key work, would seal the next key
-to Bob. So every new key epoch names the log head it was made under, signed
-with the account key of whoever made it; a device seals or wraps an epoch
-only to members granted as of that head or later, and must hold the whole
-log up to that head to check it. A revocation is always followed
-by a rotation, whose new epoch names a head at or after the revocation, so no
+to Bob. So every new key epoch names the log heads it was made under (the
+block's and the organization's, `be_block_keys::Heads`); a device seals an
+epoch only to members granted as of a head at or after those, and must hold
+the whole log up to them to check it. A revocation is always followed by a
+rotation, whose new epoch names a head at or after the revocation, so no
 device that sees that epoch can seal it to Bob.
+
+Built (3d) this way: a scope or data key's heads travel inside the key itself
+(`CarriedKey::heads`), sealed or wrapped by its maker and passed on unchanged
+by every sender after, so they are as good as the key's own sender, and no one
+who never held the key can name other heads for it; a signature on the key
+row beside it could be swapped by a revoked member, with the server, for one
+of their own naming an older head. The rotating device reads the logs first,
+so the heads are current. An escrow epoch names the organization's head in
+its signed record (`EscrowKey::head`), which the server checks is the head it
+holds; a device takes an epoch only once it holds the log up to that head,
+so one made after a demotion is taken past it only by a device that holds the
+demotion. A device takes a key a contact seals it only when the block's log,
+as far as it holds it, grants that contact Edit or above as of the head the
+key names (or the organization's log has them administer it as of its head):
+the log is read first when this device pinned the block's root.
 
 This stops a server that only withholds. It does not stop one that **forks**
 the log, showing Carol's phone a history that never reaches the revocation or
@@ -211,6 +226,18 @@ did not sign.
 
 - What a revoked member already held stays readable to them: the keys of
   every epoch before the rotation.
+- **The rotating device is the server's choice.** Key work hands a rotation to
+  whichever editor tends first, and the revoker's device is not always it.
+  A server that withholds a revocation from the device it hands the rotation
+  to gets an epoch naming a head before the revocation, which that device,
+  and any shown the log only that far, seal to the revoked member. The fix,
+  not built: the device that signs a revocation makes the rotation itself
+  (existing tests have another editor rotate, so it changes who does).
+- **A backdated head.** A sender names its key's heads, so a member revoked
+  since, with the server, can make up a key naming a head from before their
+  revocation and seal it to a contact, who takes it as their Edit as of that
+  head allows. What keeps a device from writing under it is which epoch is
+  current, still the server's word.
 - `Edit` and `View` hold the same keys; Edit stays enforced by the server, so
   a server granted View can write
   (decisions/the_server_never_vouches_for_an_identity.md).
@@ -422,7 +449,7 @@ instead.
      or a kind's signed closing, can have the next epoch sealed to the
      revoked member or to a contact inside, since a served log need only
      extend the pinned root, not reach the newest head), and checking a
-     contact sender's Edit as of that head. Done: a test where a grantee who is not a contact gets
+     contact sender's Edit as of that head (both built in 3d). Done: a test where a grantee who is not a contact gets
      the key and a contact with no grant does not; one where the server lists
      a contact as granted with no record and no key reaches them; one where
      the server makes an ordinary block a kind open inside and nothing is
@@ -432,10 +459,16 @@ instead.
      to members granted as of that head and must hold the log up to it. The
      same holds for the organization's log: a server that withholds an
      administrator's demotion keeps them sealed keys until a device holds
-     the log up to the head an epoch names. Done: a test where the server
-     withholds a revocation from a device and that device seals the new
-     epoch to nobody until it has the log up to the epoch's head; the same
-     for a withheld closing of a kind open inside, and a withheld demotion.
+     the log up to the head an epoch names. Built ("Key epochs and withheld
+     revocations"): heads inside each key (`CarriedKey::heads`), the escrow
+     epoch's in its signed record (`EscrowKey::head`), a contact's seal taken
+     only as the log grants them Edit as of the head its key names, and key
+     work's revocations signed before the rotations they call for. Done: a
+     test where the server withholds a revocation from a device and that
+     device seals the new epoch to nobody until it has the log up to the
+     epoch's head; the same for a withheld closing of a kind open inside, and
+     a withheld demotion; and one where a key a contact seals under a head
+     after their revocation is not taken.
    - **3e. Proof paths.** Whole logs to Edit and above, proof paths to
      readers below Edit ("Who is served what"). Done: a test where a member
      with View is served no other member's grant.

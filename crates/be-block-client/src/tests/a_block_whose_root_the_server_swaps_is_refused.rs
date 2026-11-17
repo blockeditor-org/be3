@@ -106,6 +106,7 @@ async fn a_block_whose_root_the_server_swaps_is_refused() {
         key: [4; 32],
         block: note.into_bytes(),
         root: Some(forged.hash()),
+        heads: be_block_keys::Heads::default(),
     };
     let sealed = owner.keys().identity().seal_for(
         owner.account().into_bytes(),
