@@ -653,7 +653,12 @@ fn made_whole(
 /// scope's latest key: the block's own scope key if it is a scope whose key does, else its data
 /// key and, below it, each block's data key, or a nested scope's key, of what the mover may view
 /// (`Peer::rescope` sends these). A move within one scope, to the top or the trash, of a block
-/// readable by its author alone, or into a scope with no key, takes no key anywhere new.
+/// readable by its author alone, or into a scope with no key, takes no key anywhere new. What
+/// lies in a block readable by its author alone is skipped, as `rescope` skips an owner-only
+/// block and what is below it; a nested scope moved out of one is not, and `rescope` wraps its
+/// key under the new scope too. Only the scope's latest key counts: a key wrapped under an older
+/// one (a block trashed while its scope rotated) is wrapped again. A few queries a block moved,
+/// inside the write's transaction, as `rescope` lists and wraps each one.
 fn moved_whole(
     connection: &Connection,
     graph: &BlockGraph,

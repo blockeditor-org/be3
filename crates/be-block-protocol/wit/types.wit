@@ -25,7 +25,6 @@ interface types {
         storage,
         organization-not-found,
         login-disabled,
-        block-has-content,
         key-missing,
         not-a-contact,
         link-not-found,

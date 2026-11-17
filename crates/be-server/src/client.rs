@@ -1608,10 +1608,18 @@ impl Client {
                 if journal.is_some() {
                     return Err(invalid("a journal's seal is published with a commit"));
                 }
-                let (block, relinked) = connection
+                let described = connection
                     .store
                     .describe(identity, block, expected, metadata, references)
                     .await?;
+                let (block, relinked) = match described {
+                    Ok(described) => described,
+                    Err(head) => {
+                        return Ok(Done::Published(
+                            be_block_protocol::PublishOutcome::Rejected(head),
+                        ));
+                    }
+                };
                 let mut changed = vec![block.id];
                 changed.extend(relinked);
                 connection

@@ -1,7 +1,8 @@
 use super::*;
 
 /// A publish with no commit sets a block's metadata and references while its head is
-/// `expected`, which stays its head; one expecting another head is refused.
+/// `expected`, which stays its head; one expecting another head is rejected with the head, as
+/// a stale publish with a commit is.
 #[tokio::test]
 async fn a_publish_with_no_commit_changes_the_metadata_and_leaves_the_head() {
     let harness = Harness::start().await;
@@ -29,17 +30,11 @@ async fn a_publish_with_no_commit_changes_the_metadata_and_leaves_the_head() {
         journal: None,
     };
     let stale = connection
-        .call(|peer| peer.write::<BlockSummary>(describe(None)))
+        .call(|peer| peer.write::<be_block_protocol::PublishOutcome>(describe(None)))
         .await;
-    assert!(
-        matches!(
-            stale,
-            Err(Error {
-                code: ErrorCode::BlockHasContent,
-                ..
-            })
-        ),
-        "{stale:?}"
+    assert_eq!(
+        stale,
+        Ok(be_block_protocol::PublishOutcome::Rejected(Some(head)))
     );
     let described = connection
         .call(|peer| peer.write::<BlockSummary>(describe(Some(head))))

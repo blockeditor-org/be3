@@ -596,8 +596,9 @@ impl ServerStore {
     }
 
     /// A publish with no commit: sets `block`'s metadata and references while its head is
-    /// `expected`, which stays the head. `references` is a change from what `expected` holds,
-    /// the whole list with none.
+    /// `expected`, which stays the head, answering the block and the blocks it started or
+    /// stopped referencing; else the head, as a stale publish is rejected. `references` is a
+    /// change from what `expected` holds, the whole list with none.
     pub async fn describe(
         &self,
         identity: Identity,
@@ -605,7 +606,7 @@ impl ServerStore {
         expected: Option<CommitId>,
         metadata: Vec<u8>,
         references: ReferenceChange,
-    ) -> Result<(BlockSummary, Vec<Uuid>), ServerError> {
+    ) -> Result<Result<(BlockSummary, Vec<Uuid>), Option<CommitId>>, ServerError> {
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
         crate::limits::references(&references.removed)?;
         if references.added.len() > crate::limits::MAX_REFERENCES {
@@ -621,13 +622,7 @@ impl ServerStore {
             require_edit(graph, &visibility(identity), block)?;
             let head = graph.head(block);
             if head != expected {
-                return Err(ServerError::Refused(
-                    ErrorCode::BlockHasContent,
-                    match head {
-                        Some(head) => format!("block {block}'s head is {head}"),
-                        None => format!("block {block} has no content yet"),
-                    },
-                ));
+                return Ok(Err(head));
             }
             let listed = match expected {
                 Some(_) => graph.references(block),
@@ -661,7 +656,7 @@ impl ServerStore {
             graph.set_metadata(block, metadata)?;
             graph.touch(block)?;
             let summary = summary(graph, identity, block).ok_or(ServerError::Corrupt)?;
-            Ok((summary, relinked.unwrap_or_default()))
+            Ok(Ok((summary, relinked.unwrap_or_default())))
         })
         .await
     }

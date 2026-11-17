@@ -336,7 +336,8 @@ counts and records nothing: `reserve-uploads` did before it signed.
   everything, replacing the references its block was made with. A publish
   with no commit sets the metadata and the reference change alone while the
   head is `expected`, which it leaves the head (`describe`), answered with the
-  block's summary; another head refuses it (`BlockHasContent`). A client sends
+  block's summary; another head rejects it with that head, as a stale commit
+  is (`be_block_protocol::Described`). A client sends
   one only for a block with no content yet: once there is content, its
   metadata goes in the commit.
 - **Storage** is charged to each block's payer (`blocks.payer`): its parent's

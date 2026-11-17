@@ -531,6 +531,24 @@ answers!(FromDone, from_done, Done {
     Token => String,
 });
 
+/// What a `publish` with no commit answers: the block as it is now, or, when its head was not
+/// the one expected, that head, as a stale publish with a commit is rejected.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Described {
+    Block(BlockSummary),
+    Rejected(Option<be_block_commit::CommitId>),
+}
+
+impl FromDone for Described {
+    fn from_done(done: Done) -> Option<Self> {
+        match done {
+            Done::Block(summary) => Some(Self::Block(summary)),
+            Done::Published(PublishOutcome::Rejected(head)) => Some(Self::Rejected(head)),
+            _ => None,
+        }
+    }
+}
+
 impl FromDone for () {
     fn from_done(done: Done) -> Option<Self> {
         matches!(done, Done::Nothing).then_some(())
