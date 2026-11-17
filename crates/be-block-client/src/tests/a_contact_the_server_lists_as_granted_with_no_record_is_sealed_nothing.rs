@@ -49,7 +49,8 @@ async fn a_contact_the_server_lists_as_granted_with_no_record_is_sealed_nothing(
         .await
         .unwrap();
     let mut work = admin.key_work().await.unwrap();
-    work.unsealed.retain(|unsealed| unsealed.account != member.account());
+    work.unsealed
+        .retain(|unsealed| unsealed.account != member.account());
     work.unsealed.push(Unsealed {
         key: scope,
         account: member.account(),

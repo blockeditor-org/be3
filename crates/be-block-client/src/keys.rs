@@ -893,14 +893,25 @@ impl KeyBook {
                     if vouched {
                         return None;
                     }
-                    let public = self.escrow.lock().unwrap().members.get(&wrap.sender)?.public;
+                    let public = self
+                        .escrow
+                        .lock()
+                        .unwrap()
+                        .members
+                        .get(&wrap.sender)?
+                        .public;
                     let from = Party {
                         account: wrap.sender.into_bytes(),
                         public,
                     };
                     let plain = self
                         .identity
-                        .open_from(&from, self.account.into_bytes(), wrap.key.as_bytes(), &wrap.sealed)
+                        .open_from(
+                            &from,
+                            self.account.into_bytes(),
+                            wrap.key.as_bytes(),
+                            &wrap.sealed,
+                        )
                         .ok()?;
                     self.hold_escrowed(wrap, row?, &plain, false);
                     return None;
@@ -1116,7 +1127,8 @@ impl KeyBook {
     /// minted or opened `key` under one, whatever the server's rows say. Such a key is its
     /// author's alone, never escrowed, so never sealed to anyone else either.
     pub fn owner_only_covers(&self, key: Uuid) -> bool {
-        be_block_protocol::owner_only_key(key) || self.under_owner_only.lock().unwrap().contains(&key)
+        be_block_protocol::owner_only_key(key)
+            || self.under_owner_only.lock().unwrap().contains(&key)
     }
 
     /// Moves on each time keys are recorded (`record`).

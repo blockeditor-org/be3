@@ -49,7 +49,10 @@ async fn a_kind_opened_on_authority_from_above_is_sealed_to_no_contact() {
     deputy.open_inside(kind, Access::View).await.unwrap();
     let (_, checked) = admin.checked_access(kind).await.unwrap();
     assert_eq!(checked.open_inside, be_block_keys::Level::View);
-    assert!(checked.open_inside_tainted, "the opening rests on the block above");
+    assert!(
+        checked.open_inside_tainted,
+        "the opening rests on the block above"
+    );
 
     let mut work = admin.key_work().await.unwrap();
     work.unsealed.retain(|unsealed| unsealed.key != key);

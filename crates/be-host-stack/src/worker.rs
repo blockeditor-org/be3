@@ -3364,12 +3364,10 @@ async fn contact(
             }
             reply.send(accepted.map_err(|error| error.to_string()));
         }
-        ContactCommand::Remove(account) => {
-            match peer.remove_contact(account).await {
-                Ok(()) => tasks.sync_contacts(peer, shared).await,
-                Err(error) => record(shared, error),
-            }
-        }
+        ContactCommand::Remove(account) => match peer.remove_contact(account).await {
+            Ok(()) => tasks.sync_contacts(peer, shared).await,
+            Err(error) => record(shared, error),
+        },
     }
     crate::changes::wake();
 }

@@ -2458,7 +2458,11 @@ impl Client {
                         true => {
                             connection
                                 .store
-                                .contact_revocations(identity.account, account, identity.organization)
+                                .contact_revocations(
+                                    identity.account,
+                                    account,
+                                    identity.organization,
+                                )
                                 .await?
                         }
                         false => {

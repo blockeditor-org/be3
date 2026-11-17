@@ -680,7 +680,6 @@ pub(crate) async fn finish_links(
     Ok(finished)
 }
 
-
 /// Invites whoever opens the link into `organization`, as an editor: a link any account on
 /// the server accepts, once, before it expires. Its code is sealed to the inviter too, so the
 /// organization's invite list can show the link again (`invitation_link_code`).

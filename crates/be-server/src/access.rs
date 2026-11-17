@@ -429,8 +429,10 @@ pub(crate) fn names_grant(
     block: Uuid,
     account: Uuid,
 ) -> Result<bool, ServerError> {
-    Ok(granted_level(connection, graph, organization, block, account)?
-        .is_some_and(|level| level > Level::None))
+    Ok(
+        granted_level(connection, graph, organization, block, account)?
+            .is_some_and(|level| level > Level::None),
+    )
 }
 
 /// Appends `record`, signed by `signer`, to `block`'s log once it checks at its head: a grant of
@@ -503,7 +505,11 @@ pub(crate) fn append_grant(
     connection.execute(
         "DELETE FROM unsigned_revocations
          WHERE organization_id = ?1 AND block_id = ?2 AND account_id = ?3",
-        params![organization.to_string(), block.to_string(), grantee.to_string()],
+        params![
+            organization.to_string(),
+            block.to_string(),
+            grantee.to_string()
+        ],
     )?;
     Ok(())
 }
@@ -698,7 +704,10 @@ pub(crate) fn revocations_for(
             return Err(refused("a revocation is a grant record"));
         };
         let at = (Uuid::from_bytes(entry.log), Uuid::from_bytes(grant.grantee));
-        if grant.level != Level::None || !named.contains(&at) || found.insert(at, record.clone()).is_some() {
+        if grant.level != Level::None
+            || !named.contains(&at)
+            || found.insert(at, record.clone()).is_some()
+        {
             return Err(refused(
                 "the revocations are those of the grants the removal revokes, once each",
             ));
