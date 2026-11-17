@@ -4,8 +4,8 @@ use std::{
 };
 
 use be_block_keys::{
-    CarriedKey, EntryHash, EscrowSecret, Party, PublicIdentity, RecoveryPublic, RecoverySecret,
-    SigningPublic,
+    CarriedKey, Checked, EntryHash, EscrowSecret, Heads, Level, Party, PublicIdentity,
+    RecoveryPublic, RecoverySecret, SigningPublic,
 };
 use be_block_protocol::{EscrowKey, KeyKind, KeyRow, KeySet, WrappedBy, WrappedKey};
 use be_block_store::{ContentKey, Keyring, StoreError};
@@ -71,6 +71,12 @@ struct Roots {
     /// alone), never shown as verified, and pinned in full only once a trusted key carries the
     /// same root.
     weak: HashMap<Uuid, EntryHash>,
+    /// The log heads each key's epoch was made under (`be_block_keys::Heads`), as this device
+    /// minted it or as the trusted key that first opened carried them: passed on with it.
+    heads: HashMap<Uuid, Heads>,
+    /// Each block's log as this device last checked it (`KeyBook::note_log`): the heads a key
+    /// minted here names, and what a contact's seal is checked against (`sender_may`).
+    logs: HashMap<Uuid, Checked>,
 }
 
 /// What a device holds of a block's access log root.
@@ -149,6 +155,9 @@ struct Escrow {
     /// Its members (administrators among them), with the keys its log names: those an escrow
     /// wrap is opened from.
     members: HashMap<Uuid, PublicIdentity>,
+    /// The log itself as last checked: how far it reaches (an epoch is taken only once it
+    /// reaches the head the epoch names) and who administered it as of each entry.
+    log: Option<Checked>,
 }
 
 /// A key opened from an escrow wrap, before it is taken: its block, the member who sealed it,
@@ -159,6 +168,8 @@ pub struct Escrowed {
     pub block: Uuid,
     pub sender: Uuid,
     pub root: Option<EntryHash>,
+    /// The log heads its epoch was made under, as the wrap carries them.
+    pub heads: Heads,
     /// From an escrow wrap; else sealed to this account by a member who is not a contact
     /// (signed access 3c), which is never trusted.
     pub escrow: bool,
@@ -216,13 +227,16 @@ impl Rows {
 /// The latest escrow key this device trusts: the one it pinned, or a newer one it holds the
 /// secret of, or, epoch by epoch, a newer one signed by its maker chained to the one before,
 /// where the maker is one of `administrators` (the organization's log, checked to its head as
-/// this device holds it). A demoted administrator, still holding the escrow keys of their time,
-/// signs no epoch a device takes, nor does the server.
+/// this device holds it) and that log reaches the head the epoch names (`holds`). A demoted
+/// administrator, still holding the escrow keys of their time, signs no epoch a device takes,
+/// nor does the server; and an epoch made after a demotion is taken only by a device that
+/// holds the demotion, so a server that withholds it gets no epoch taken past it.
 pub fn verify_escrow(
     organization: Uuid,
     pinned: Option<&EscrowKey>,
     chain: &[EscrowKey],
     administrators: Option<&HashMap<Uuid, SigningPublic>>,
+    holds: impl Fn(&EntryHash) -> bool,
     held: impl Fn(&EscrowKey) -> bool,
 ) -> Option<EscrowKey> {
     let mut sorted: Vec<&EscrowKey> = chain.iter().collect();
@@ -240,6 +254,7 @@ pub fn verify_escrow(
         if let Some(known) = &verified
             && newer
             && next.epoch == known.epoch + 1
+            && holds(&next.head)
             && let Some(maker) = maker
             && be_block_keys::verify_signature(
                 &maker.0,
@@ -374,6 +389,7 @@ impl KeyBook {
     pub fn set_organization(&self, checked: Option<&be_block_keys::Checked>) {
         {
             let mut escrow = self.escrow.lock().unwrap();
+            escrow.log = checked.cloned();
             escrow.administrators = checked.map(|checked| {
                 checked
                     .administrators
@@ -474,6 +490,7 @@ impl KeyBook {
                 true => roots.pin_weak(escrowed.block, root),
                 false => roots.pin(escrowed.block, root),
             }
+            roots.heads.entry(key).or_insert(escrowed.heads);
         }
         self.ring
             .insert(key, ContentKey::from_bytes(secret), escrowed.block);
@@ -531,12 +548,13 @@ impl KeyBook {
     }
 
     fn settle_escrow(&self) {
-        let (pinned, chain, administrators) = {
+        let (pinned, chain, administrators, log) = {
             let escrow = self.escrow.lock().unwrap();
             (
                 escrow.pinned.clone(),
                 escrow.chain.clone(),
                 escrow.administrators.clone(),
+                escrow.log.clone(),
             )
         };
         let verified = verify_escrow(
@@ -544,6 +562,7 @@ impl KeyBook {
             pinned.as_ref(),
             &chain,
             administrators.as_ref(),
+            |head| log.as_ref().is_some_and(|log| log.holds(head)),
             |escrow| self.holds_escrow(escrow),
         );
         self.escrow.lock().unwrap().verified = verified;
@@ -614,7 +633,7 @@ impl KeyBook {
     /// A new escrow key, chained to the latest, with its secret sealed to this account. It is
     /// not this device's escrow until the server holds it (`adopt_escrow`): a key made
     /// meanwhile and wrapped under it would be refused by a server that does not know it.
-    pub fn mint_escrow(&self) -> Result<(EscrowKey, KeySet), StoreError> {
+    pub fn mint_escrow(&self, head: EntryHash) -> Result<(EscrowKey, KeySet), StoreError> {
         let previous = {
             let escrow = self.escrow.lock().unwrap();
             escrow
@@ -636,6 +655,7 @@ impl KeyBook {
             epoch: previous.as_ref().map_or(1, |previous| previous.epoch + 1),
             public: secret.public().0,
             signing: secret.signing(),
+            head,
             maker: self.account,
             signature: Vec::new(),
         };
@@ -648,11 +668,17 @@ impl KeyBook {
             .unwrap()
             .insert(escrow.id, secret.to_bytes());
         self.trusted.lock().unwrap().insert(escrow.id);
-        self.roots
-            .lock()
-            .unwrap()
-            .blocks
-            .insert(escrow.id, self.organization);
+        {
+            let mut roots = self.roots.lock().unwrap();
+            roots.blocks.insert(escrow.id, self.organization);
+            roots.heads.insert(
+                escrow.id,
+                Heads {
+                    block: None,
+                    organization: Some(head),
+                },
+            );
+        }
         let wrapped = vec![self.seal_to(escrow.id, self.account, &self.identity.public())?];
         Ok((
             escrow,
@@ -761,8 +787,94 @@ impl KeyBook {
             key: plain,
             block: block.into_bytes(),
             root: roots.pinned.get(block).copied(),
+            heads: roots.heads.get(&key).copied().unwrap_or_default(),
         }
         .encode())
+    }
+
+    /// The log heads `key`'s epoch was made under, as this device minted it or a trusted key
+    /// carried them: none it knows of when it holds neither.
+    pub fn heads(&self, key: Uuid) -> Heads {
+        self.roots
+            .lock()
+            .unwrap()
+            .heads
+            .get(&key)
+            .copied()
+            .unwrap_or_default()
+    }
+
+    /// Keeps `block`'s log as this device just checked it: the heads a key minted here for it
+    /// names, and what a contact's seal of its keys is checked against.
+    pub fn note_log(&self, block: Uuid, checked: &Checked) {
+        self.roots
+            .lock()
+            .unwrap()
+            .logs
+            .insert(block, checked.clone());
+    }
+
+    /// The heads a key of `block` minted now is made under: the newest of `block`'s log and of
+    /// the organization's this device checked, or the root it pinned for a block it has not
+    /// checked the log of (as on making it).
+    fn current_heads(&self, block: Uuid) -> Heads {
+        let block_head = {
+            let roots = self.roots.lock().unwrap();
+            roots
+                .logs
+                .get(&block)
+                .map(|checked| checked.head)
+                .or_else(|| roots.pinned.get(&block).copied())
+        };
+        let organization = self
+            .escrow
+            .lock()
+            .unwrap()
+            .log
+            .as_ref()
+            .map(|checked| checked.head);
+        Heads {
+            block: block_head,
+            organization,
+        }
+    }
+
+    /// Whether a key `sender`, a contact, sealed to this account, carried as `carried`, may be
+    /// taken: its sender held Edit or above in the block's log as of the head its epoch names,
+    /// or administered the organization as of the organization's (plans/signed_access.md, 3d),
+    /// as far as this device holds those logs. A sender the block's log names with less is
+    /// refused; one it does not name, who may have Edit from a block above (the server's tree
+    /// until parents are signed), is not.
+    fn sender_may(&self, sender: Uuid, carried: &CarriedKey) -> bool {
+        if sender == self.account {
+            return true;
+        }
+        let account = sender.into_bytes();
+        let administered = {
+            let escrow = self.escrow.lock().unwrap();
+            match (escrow.log.as_ref(), carried.heads.organization) {
+                (Some(log), Some(head)) if log.holds(&head) => {
+                    Some(log.level_as_of(account, &head) == Some(Level::Manage))
+                }
+                _ => None,
+            }
+        };
+        if administered == Some(true) {
+            return true;
+        }
+        // An escrow key travels as the organization's: only an administrator hands it on.
+        if carried.block == self.organization.into_bytes() {
+            return administered.is_none();
+        }
+        let block = Uuid::from_bytes(carried.block);
+        let roots = self.roots.lock().unwrap();
+        let (Some(log), Some(head)) = (roots.logs.get(&block), carried.heads.block) else {
+            return true;
+        };
+        match log.level_as_of(account, &head) {
+            Some(level) => level >= Level::Edit,
+            None => true,
+        }
     }
 
     /// The key `bytes` opened to, when they carry the block `row` is a key of. A trusted key
@@ -777,6 +889,9 @@ impl KeyBook {
         roots.blocks.insert(row.id, row.block);
         if vouched && let Some(root) = carried.root {
             roots.pin(row.block, root);
+        }
+        if vouched {
+            roots.heads.entry(row.id).or_insert(carried.heads);
         }
         Some(Opened {
             bytes: carried.key,
@@ -872,6 +987,7 @@ impl KeyBook {
                     block: row.block,
                     sender: wrap.sender,
                     root: carried.root,
+                    heads: carried.heads,
                     escrow,
                 },
                 carried.key,
@@ -920,14 +1036,21 @@ impl KeyBook {
                     account: wrap.sender.into_bytes(),
                     public,
                 };
-                self.identity
+                let plain = self
+                    .identity
                     .open_from(
                         &sender,
                         self.account.into_bytes(),
                         wrap.key.as_bytes(),
                         &wrap.sealed,
                     )
-                    .ok()?
+                    .ok()?;
+                if self.contact(wrap.sender).is_some()
+                    && !self.sender_may(wrap.sender, &CarriedKey::decode(&plain).ok()?)
+                {
+                    return None;
+                }
+                plain
             }
             WrappedBy::Account(_) => return None,
             // Opened only from a member the organization's log names, with the keys it names,
@@ -1063,9 +1186,12 @@ impl KeyBook {
             kind,
             epoch,
         };
+        let heads = self.current_heads(block);
         self.ring.insert(row.id, ContentKey::random(), block);
         self.trusted.lock().unwrap().insert(row.id);
-        self.roots.lock().unwrap().blocks.insert(row.id, block);
+        let mut roots = self.roots.lock().unwrap();
+        roots.blocks.insert(row.id, block);
+        roots.heads.insert(row.id, heads);
         row
     }
 

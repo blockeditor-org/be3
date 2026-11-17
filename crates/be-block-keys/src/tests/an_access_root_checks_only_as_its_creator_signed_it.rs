@@ -59,10 +59,15 @@ fn an_access_root_checks_only_as_its_creator_signed_it() {
         key: [3; 32],
         block,
         root: Some(root.hash()),
+        heads: Heads {
+            block: Some(root.hash()),
+            organization: Some([9; 32]),
+        },
     };
     assert_eq!(CarriedKey::decode(&carried.encode()), Ok(carried));
     let unvouched = CarriedKey {
         root: None,
+        heads: Heads::default(),
         ..carried
     };
     assert_eq!(

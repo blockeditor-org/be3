@@ -13,7 +13,10 @@ async fn a_block_made_while_an_escrow_key_is_minted_wraps_under_the_one_the_serv
         .keys()
         .escrow()
         .expect("the creator pins its escrow key");
-    let (minted, _) = admin.keys().mint_escrow().unwrap();
+    let (minted, _) = admin
+        .keys()
+        .mint_escrow(admin.checked_organization().await.unwrap().unwrap().head)
+        .unwrap();
     assert_eq!(
         admin.keys().escrow(),
         Some(held.clone()),
