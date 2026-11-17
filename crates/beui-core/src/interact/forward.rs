@@ -181,7 +181,11 @@ pub(super) fn route(
     };
     let focused = alive(doc, doc.focused_node());
     let window = ctx.input(|input| input.pointer.window);
-    let hovered = position.and_then(|pos| sink_at(doc, rects, window, pos));
+    // Under the pointer only where it can reach, as `reforward` judges it, so the two never
+    // take turns telling a sink under a layer that holds input from it that the pointer left.
+    let hovered = position
+        .and_then(|pos| sink_at(doc, rects, window, pos))
+        .filter(|sink| reachable(doc, *sink));
     let pointer_events = ctx.input(|input| input.pointer_events.clone());
     let routed = std::mem::take(&mut doc.pointers.routed);
     let mut deliveries: Vec<(NodeId, Vec<Forwarded>)> = Vec::new();
@@ -195,6 +199,7 @@ pub(super) fn route(
         }
     };
     let mut entered = Vec::new();
+    let mut reached = Vec::new();
     let mut pointed = 0;
     for (index, event) in events.iter().enumerate() {
         while let Some(pointer_event) = pointer_events
@@ -215,6 +220,7 @@ pub(super) fn route(
                 local: Pos2::ZERO
                     + (pointer_event.pos - rects.get(&node).map_or(Pos2::ZERO, |rect| rect.min)),
             });
+            reached.extend(to);
             deliver(
                 to,
                 Forwarded::Pointer {
@@ -258,6 +264,18 @@ pub(super) fn route(
         if alive(doc, Some(left)).is_some() {
             deliver(Some(left), Forwarded::Left);
         }
+    }
+    // A sink that came under a mouse resting where it was (it moved there, or what covered it
+    // went) hears where the pointer is, as `reforward` tells it after a layout: without it, a
+    // sink told it was left keeps thinking so.
+    let resting = ctx.input(|input| input.pointer.mouse().map(|pos| (input.pointer.window, pos)));
+    if let (Some(sink), Some((window, pos))) = (alive(doc, hovered), resting)
+        && was_hovered != hovered
+        && !reached.contains(&sink)
+    {
+        doc.forward.router.entered(sink);
+        let moved = resting_move(doc, ctx, rects, window, pos);
+        deliver(Some(sink), moved);
     }
     for told in doc.forward.router.focus(focused) {
         if let be_lib_input_router::Routed::Input {
