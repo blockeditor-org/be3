@@ -11,7 +11,7 @@ async fn left(client: &mut TestClient, root: Uuid) -> Vec<Uuid> {
     };
     for _ in 0..50 {
         let page = client
-            .call(|peer| client::blocks::changed_since(peer, root, after.clone(), 100))
+            .call(|peer| client::blocks::changed_since(peer, root, after.clone(), 100, false))
             .await
             .expect("changed-since failed");
         removed.extend(page.removed);

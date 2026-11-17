@@ -1952,7 +1952,7 @@ async fn catch_up(
         block: Uuid::max(),
     };
     loop {
-        let page = peer.changed_page(root, after, PAGE).await?;
+        let page = peer.changed_page(root, after, PAGE, false).await?;
         peer.learn(&page.summaries).await?;
         let blocks: Vec<(Uuid, ListedBlock)> = page
             .summaries

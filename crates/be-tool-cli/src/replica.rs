@@ -134,6 +134,9 @@ pub struct Session<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> {
     events: broadcast::Receiver<Event>,
     closed: watch::Receiver<bool>,
     mirror: EditorMirror<C>,
+    /// The entry point whose tree holds the block, followed so another device's publish
+    /// reaches the replica, and the sequence read to.
+    followed: Option<(Uuid, u64)>,
 }
 
 impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
@@ -156,6 +159,7 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
             events,
             closed,
             mirror: EditorMirror::default(),
+            followed: None,
         };
         if !be_block_type_host::is_known(content_type) {
             return Err(format!("no type module has the block type {content_type}"));
@@ -171,6 +175,7 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
                 false => errors.join("; "),
             });
         }
+        session.follow().await;
         session.settle().await;
         if let Some(failure) = session.mirror.failure() {
             return Err(format!("block {block}: {failure}"));
@@ -238,6 +243,38 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
         self.settle().await;
     }
 
+    /// Follows the tree the block lies in, from its summary now.
+    async fn follow(&mut self) {
+        let Ok(summary) = self.peer.summary(self.block).await else {
+            return;
+        };
+        let Some(entry) = summary.entry else {
+            return;
+        };
+        if let Ok((_, _, since)) = self.peer.changed_since(entry, summary.changed, true).await {
+            self.followed = Some((entry, since));
+        }
+    }
+
+    /// Reads what changed in the followed tree, and tells the replica the block's head.
+    async fn advanced(&mut self) {
+        let Some((entry, since)) = self.followed else {
+            return;
+        };
+        let Ok((changed, _, sequence)) = self.peer.changed_since(entry, since, false).await else {
+            return;
+        };
+        self.followed = Some((entry, sequence));
+        let ctx = (&self.peer, &self.shared);
+        for summary in changed {
+            if summary.id == self.block
+                && let Some(head) = summary.head
+            {
+                self.replicas.heard_head(ctx, self.block, head);
+            }
+        }
+    }
+
     fn say(&mut self, message: FromEditor) {
         self.replicas
             .send_as_host(self.block, &message, Instant::now());
@@ -284,6 +321,11 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
                     self.peer.keys_changed();
                     // The session's block opened before this woke, so none is left closed.
                     self.replicas.unlock(ctx).await;
+                }
+                Some(Event::TreeAdvanced { entry, .. })
+                    if self.followed.is_some_and(|(followed, _)| followed == entry) =>
+                {
+                    self.advanced().await;
                 }
                 Some(event) => self.replicas.heard(ctx, &event),
                 None => self.replicas.resynchronize(ctx),

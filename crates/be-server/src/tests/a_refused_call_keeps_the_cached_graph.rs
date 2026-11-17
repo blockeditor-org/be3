@@ -16,7 +16,17 @@ async fn a_refused_call_keeps_the_cached_graph() {
     };
 
     for _ in 0..3 {
-        let read = store.read_block(identity, Uuid::new_v4()).await;
+        let read = store
+            .changed_since(
+                identity,
+                Uuid::new_v4(),
+                be_block_protocol::ChangeCursor {
+                    changed: 0,
+                    block: Uuid::max(),
+                },
+                10,
+            )
+            .await;
         assert!(matches!(read, Err(ServerError::Refused(..))), "{read:?}");
     }
     assert_eq!(store.graph_loads(), 1, "a refused read reloaded the graph");

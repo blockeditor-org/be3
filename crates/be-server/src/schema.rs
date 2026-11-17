@@ -271,16 +271,16 @@ const SCHEMA: &str = "
 
     CREATE TABLE block_departures (
         organization_id TEXT NOT NULL,
-        root            TEXT NOT NULL,
+        entry           TEXT NOT NULL,
         block_id        TEXT NOT NULL,
         changed         INTEGER NOT NULL,
         time            INTEGER NOT NULL,
         owner           TEXT,
-        PRIMARY KEY (organization_id, root, block_id)
+        PRIMARY KEY (organization_id, entry, block_id)
     );
 
     CREATE INDEX block_departures_changed
-        ON block_departures (organization_id, root, changed, block_id);
+        ON block_departures (organization_id, entry, changed, block_id);
 
     CREATE INDEX block_departures_time
         ON block_departures (organization_id, time);
@@ -511,11 +511,6 @@ const SCHEMA: &str = "
 
     CREATE UNIQUE INDEX journal_entries_by_id
         ON journal_entries (organization_id, block_id, origin, counter);
-
-    CREATE TABLE revision_floor (
-        id              INTEGER PRIMARY KEY CHECK (id = 1),
-        revision        INTEGER NOT NULL
-    );
 
     CREATE TABLE push_key (
         id              INTEGER PRIMARY KEY CHECK (id = 1),

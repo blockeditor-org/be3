@@ -30,10 +30,9 @@ async fn removing_a_member_shuts_them_out_and_rotates_what_they_could_read() {
 
     admin.remove_member(removed.account()).await.unwrap();
     assert!(
-        crate::ask(be_block_protocol::client::blocks::list_blocks(
+        crate::ask(be_block_protocol::client::blocks::read_summaries(
             &removed.connection(),
-            Listing::Block(note),
-            None
+            vec![note],
         ))
         .await
         .is_err(),

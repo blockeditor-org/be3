@@ -1259,6 +1259,9 @@ pub fn duplicate(from: Uuid, to: Uuid) -> Option<Uuid> {
         sets_access: false,
         size: 0,
         tree_size: 0,
+        // Its tree is the server's word, once the drain sends it.
+        changed: 0,
+        entry: None,
     })]);
     send(Command::Duplicate {
         from,
@@ -1952,6 +1955,9 @@ pub fn create(
         sets_access: false,
         size: 0,
         tree_size: 0,
+        // Its tree is the server's word, once the drain sends it.
+        changed: 0,
+        entry: None,
     })]);
     send(Command::Create {
         block,
@@ -2422,6 +2428,9 @@ pub fn import(
             sets_access: false,
             size: 0,
             tree_size: 0,
+            // Its tree is the server's word, once the drain sends it.
+            changed: 0,
+            entry: None,
         }));
         if let Some(bytes) = &block.content {
             edits.push(Edit::Stage {

@@ -415,6 +415,7 @@ pub(crate) fn store_keys(
             current.insert(row.block, *row);
         }
     }
+    let rekeyed: Vec<Uuid> = current.keys().copied().collect();
     for (block, row) in current {
         connection.execute(
             "UPDATE blocks SET key_id = ?3 WHERE organization_id = ?1 AND id = ?2",
@@ -425,6 +426,10 @@ pub(crate) fn store_keys(
             ],
         )?;
         graph.set_key(block, row.id)?;
+    }
+    // A summary names its block's key, so a block with a new one changed.
+    if !rekeyed.is_empty() {
+        crate::changes::touch(connection, graph, organization, &rekeyed)?;
     }
     for wrap in &set.wrapped {
         let changed = connection.execute(

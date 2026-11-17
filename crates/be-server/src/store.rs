@@ -35,44 +35,6 @@ pub(crate) mod held {
         (started, release)
     }
 
-    type HeldListing = (
-        tokio::sync::oneshot::Sender<()>,
-        tokio::sync::oneshot::Receiver<()>,
-    );
-
-    static LISTINGS: Mutex<Option<HashMap<Uuid, HeldListing>>> = Mutex::new(None);
-
-    /// Makes the next read of `block`'s own listing tell `reached` once the store answered it,
-    /// then wait, before the connection records what it was told, until the returned sender
-    /// sends or is dropped.
-    pub(crate) fn hold_listing(
-        block: Uuid,
-    ) -> (
-        tokio::sync::oneshot::Receiver<()>,
-        tokio::sync::oneshot::Sender<()>,
-    ) {
-        let (reached, started) = tokio::sync::oneshot::channel();
-        let (release, held) = tokio::sync::oneshot::channel();
-        LISTINGS
-            .lock()
-            .unwrap()
-            .get_or_insert_with(HashMap::new)
-            .insert(block, (reached, held));
-        (started, release)
-    }
-
-    pub(crate) async fn listing(block: Uuid) {
-        let held = LISTINGS
-            .lock()
-            .unwrap()
-            .as_mut()
-            .and_then(|held| held.remove(&block));
-        if let Some((reached, held)) = held {
-            let _ = reached.send(());
-            let _ = held.await;
-        }
-    }
-
     pub(super) fn wait(organization: Uuid) {
         let held = HELD
             .lock()
@@ -147,35 +109,6 @@ impl std::ops::Deref for ServerStore {
     }
 }
 
-/// Revisions handed out between two raises of `revision_floor`: the floor is written once per
-/// this many changes, not once per change.
-const REVISIONS_RESERVED: u64 = 1 << 16;
-
-/// Raises the stored floor past every revision this run may hand out before it raises it again,
-/// and answers where this run counts from: `from`, or at the start the floor a previous run left.
-/// A summary's revision then only grows across restarts, which devices rely on to tell newer
-/// from older (be-block-client's refs keep the newest summary of each block).
-fn reserve_revisions(connection: &Connection, from: Option<u64>) -> Result<u64, ServerError> {
-    let start = match from {
-        Some(from) => from,
-        None => connection
-            .query_row(
-                "SELECT revision FROM revision_floor WHERE id = 1",
-                [],
-                |row| row.get::<_, i64>(0),
-            )
-            .optional()?
-            .map_or(0, |floor| u64::try_from(floor).unwrap_or_default()),
-    };
-    let floor = i64::try_from(start + REVISIONS_RESERVED).unwrap_or(i64::MAX);
-    connection.execute(
-        "INSERT INTO revision_floor (id, revision) VALUES (1, ?1)
-         ON CONFLICT (id) DO UPDATE SET revision = MAX(revision, excluded.revision)",
-        params![floor],
-    )?;
-    Ok(start)
-}
-
 pub struct Shared {
     database: Arc<Mutex<Connection>>,
     pub(crate) session_changes: tokio::sync::watch::Sender<u64>,
@@ -184,9 +117,6 @@ pub struct Shared {
     /// A read-only connection beside the writer (the database is in WAL mode), for reads that
     /// must not wait behind writes: whether a reader may download an object.
     reader: std::sync::Mutex<Connection>,
-    revision: std::sync::atomic::AtomicU64,
-    /// How far `revision` may run before `revision_floor` is raised again (`REVISIONS_RESERVED`).
-    reserved: std::sync::atomic::AtomicU64,
     graph_loads: std::sync::atomic::AtomicU64,
     object_refs: std::sync::Mutex<ObjectRefs>,
     pub(crate) remembered: remembered::Remembered,
@@ -235,15 +165,12 @@ impl ServerStore {
             rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )?;
         reader.busy_timeout(be_block_sqlite_schema::BUSY_TIMEOUT)?;
-        let floor = reserve_revisions(&connection, None)?;
         Ok(Self(Arc::new(Shared {
             database: Arc::new(Mutex::new(connection)),
             session_changes: tokio::sync::watch::channel(0).0,
             objects,
             graphs: std::sync::Mutex::new(HashMap::new()),
             reader: std::sync::Mutex::new(reader),
-            revision: std::sync::atomic::AtomicU64::new(floor),
-            reserved: std::sync::atomic::AtomicU64::new(floor + REVISIONS_RESERVED),
             graph_loads: std::sync::atomic::AtomicU64::new(0),
             object_refs: std::sync::Mutex::new(object_refs),
             remembered: remembered::Remembered::default(),
@@ -1420,14 +1347,11 @@ struct Cached {
 pub struct Collected {
     pub blocks: Vec<Uuid>,
     pub objects: usize,
-    pub revision: u64,
 }
 
 impl ServerStore {
-    /// Advances the revision counter on every call, under the lock every graph read and change
-    /// takes, so a larger revision is always a later view. Clients order out-of-order replies
-    /// and announcements by it, and a listing kept offline by the revision it was read at. It
-    /// only grows, across restarts too: `revision_floor` holds where the next start begins.
+    /// Runs `action` on the organization's cached graph, under the lock every graph read and
+    /// change takes.
     pub(crate) async fn with_graph<R: Send + 'static>(
         &self,
         organization: Uuid,
@@ -1482,16 +1406,6 @@ impl ServerStore {
         };
         let mut held = cached.write().expect("a cached graph is never poisoned");
         let graph = &mut held.graph;
-        let revision = self
-            .revision
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-            + 1;
-        if revision >= self.reserved.load(std::sync::atomic::Ordering::Relaxed) {
-            let reserved = reserve_revisions(database, Some(revision))? + REVISIONS_RESERVED;
-            self.reserved
-                .fetch_max(reserved, std::sync::atomic::Ordering::Relaxed);
-        }
-        graph.advance_to(revision);
         let changes = (graph.changes(), total_changes(database)?);
         let outcome = action(graph);
         // A refusal that changed nothing leaves the cache as it was, so a stream of refused
@@ -1917,7 +1831,7 @@ pub(crate) fn load_graph(
     {
         let mut statement = connection.prepare(
             "SELECT id, content_type, author, parent_kind, parent_id, head, metadata, version, key_id,
-                owner_only
+                owner_only, changed
              FROM blocks WHERE organization_id = ?1",
         )?;
         let rows = statement.query_map([organization.to_string()], |row| {
@@ -1932,6 +1846,7 @@ pub(crate) fn load_graph(
                 row.get::<_, i64>(7)?,
                 row.get::<_, String>(8)?,
                 row.get::<_, bool>(9)?,
+                row.get::<_, i64>(10)?,
             ))
         })?;
         for row in rows {
@@ -1949,6 +1864,7 @@ pub(crate) fn load_graph(
         version,
         key,
         owner_only,
+        changed,
     ) in &nodes
     {
         let mut node = BlockNode::new(
@@ -1966,6 +1882,7 @@ pub(crate) fn load_graph(
             .transpose()?;
         node.metadata.clone_from(metadata);
         node.version = u64::try_from(*version).map_err(|_| ServerError::Corrupt)?;
+        node.changed = u64::try_from(*changed).map_err(|_| ServerError::Corrupt)?;
         node.key = match key.is_empty() {
             true => None,
             false => Some(parse_uuid(key)?),
@@ -1974,7 +1891,7 @@ pub(crate) fn load_graph(
         let _ = (parent_kind, parent_id);
         graph.insert(parse_uuid(id)?, node)?;
     }
-    for (id, _, _, parent_kind, parent_id, _, _, _, _, _) in &nodes {
+    for (id, _, _, parent_kind, parent_id, _, _, _, _, _, _) in &nodes {
         let parent = decode_parent(*parent_kind, parent_id.clone())?;
         graph.set_parent(parse_uuid(id)?, parent)?;
     }

@@ -67,7 +67,7 @@ async fn a_block_a_shared_one_links_to_shows_only_that_it_exists() {
             .await
             .ok()
             .map(|summary| BlockSummary {
-                revision: 0,
+                changed: 0,
                 ..summary
             }),
         Some(BlockSummary::no_access(

@@ -3,9 +3,9 @@ use std::{path::PathBuf, time::Duration};
 use be_block_commit::{Commit, CommitId, CommitStore};
 use be_block_graph::BlockParent;
 use be_block_protocol::{
-    Authenticated, BlockChange, BlockSummary, ClientId, Error, ErrorCode, HistoryEntry, Hold,
+    Authenticated, BlockSummary, ChangeCursor, ClientId, Error, ErrorCode, HistoryEntry, Hold,
     KeyKind, KeyRow, KeySet, Listing, ObjectLength, OrganizationRole, PairingMessage, RelayKind,
-    SessionEvent, SessionState, UploadUrl, WrappedBy, WrappedKey, client,
+    SessionEvent, SessionState, TreeAdvanced, TreeChange, UploadUrl, WrappedBy, WrappedKey, client,
 };
 use be_block_session::{Resume, resume};
 use be_block_store::{ChunkerConfig, ContentKey, Hash, Keyring, MemoryStore, ObjectStore, Vault};
@@ -19,6 +19,9 @@ use uuid::Uuid;
 
 use super::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+mod a_follower_of_a_shared_subtree_hears_a_block_leave_it_within_one_tree;
+mod a_burst_of_publishes_reaches_a_follower_as_a_few_tree_advances;
+mod a_reply_before_a_change_and_the_change_after_it_keep_their_order_across_a_restart;
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
 mod a_block_agent_is_deleted_with_its_block_or_its_grant;
 mod a_block_agent_is_refused_while_its_block_is_in_the_trash;
@@ -29,13 +32,11 @@ mod a_block_agents_long_poll_session_is_replaced_too;
 mod a_block_agents_new_connection_replaces_the_open_one;
 mod a_block_holds_a_bounded_number_of_agents_of_its_own;
 mod a_block_in_unfiled_stays_live_without_a_listing_until_it_is_deleted;
-mod a_block_linked_before_it_exists_is_announced_only_once_it_does;
 mod a_block_shared_from_a_hidden_folder_is_listed_as_shared;
 mod a_blocks_references_are_listed_and_announced_together;
 mod a_browser_preflight_to_the_s3_endpoint_is_answered;
 mod a_browser_sign_in_waits_on_polls_and_holds_no_connection;
 mod a_bunny_storage_zone_holds_a_backup;
-mod a_change_to_a_block_listed_only_by_id_comes_whole;
 mod a_change_to_the_ways_to_sign_in_is_told_on_every_device_for_a_week;
 mod a_changed_provider_email_held_by_another_account_is_not_taken;
 mod a_client_speaks_the_protocol_over_http_posts;
@@ -46,11 +47,9 @@ mod a_code_is_refused_after_five_wrong_tries_once_expired_and_once_replaced;
 mod a_code_signs_in_only_the_browser_that_asked_for_it;
 mod a_codes_link_opened_in_another_browser_shows_the_code_and_signs_nothing_in;
 mod a_commit_from_the_far_future_is_refused;
-mod a_connection_hears_only_of_the_blocks_it_listed;
-mod a_connection_holds_a_bounded_number_of_listings;
+mod a_connection_hears_only_of_the_trees_it_follows;
+mod a_connection_follows_a_bounded_number_of_entry_points;
 mod a_connection_holds_a_bounded_number_of_streams_and_sessions;
-mod a_connection_keeps_only_so_many_refused_listings;
-mod a_connection_reads_more_blocks_than_it_may_hold_listings;
 mod a_contact_card_the_server_swaps_does_not_open;
 mod a_detached_subtree_is_collected_and_its_objects_freed;
 mod a_device_registers_only_an_endpoint_the_server_would_push_to;
@@ -59,13 +58,11 @@ mod a_grant_or_a_key_for_someone_not_a_contact_is_refused;
 mod a_grant_that_changes_nothing_writes_nothing;
 mod a_graph_change_reaches_only_the_members_who_may_see_it;
 mod a_head_moves_only_to_a_commit_that_descends_from_it;
-mod a_head_published_while_its_block_is_being_read_reaches_the_reader;
 mod a_holder_that_loses_edit_access_hands_the_lease_on;
 mod a_key_work_stream_starts_with_the_current_value;
 mod a_kind_open_inside_passes_from_one_viewer_inside_to_another;
 mod a_link_or_a_proof_begins_only_with_the_settings_pages_check;
 mod a_link_or_a_proof_needs_a_sign_in_at_the_provider_just_now;
-mod a_listing_answers_the_revision_it_was_read_at_and_later_changes_come_after_it;
 mod a_listing_pages_in_id_order_without_skipping_a_block_that_stays;
 mod a_login_link_for_a_new_email_makes_its_account;
 mod a_login_link_signs_in_once_and_ends_other_sessions;
@@ -101,7 +98,6 @@ mod a_push_reaches_members_who_are_not_connected_and_want_it;
 mod a_push_service_refusing_the_server_or_redirecting_does_not_cost_the_right_endpoints;
 mod a_push_service_that_never_answers_delays_only_its_own_account;
 mod a_range_get_reads_part_of_an_s3_object;
-mod a_reader_is_told_which_connection_moved_a_head;
 mod a_rebase_by_another_build_marks_the_journal_lost_until_the_next_commit;
 mod a_rebase_from_other_than_the_holder_of_its_generation_is_answered_and_not_kept;
 mod a_rebase_past_the_orders_last_entry_is_refused;
@@ -125,7 +121,6 @@ mod a_submission_from_a_build_the_session_does_not_speak_is_refused;
 mod a_trashed_block_reaches_its_reader_as_detached;
 mod a_type_with_a_short_retention_keeps_only_its_recent_states;
 mod a_viewers_session_state_reaches_no_participant_and_an_editors_does;
-mod a_watched_folder_hears_each_entry_added_in_bytes_that_do_not_grow_with_it;
 mod accepting_either_kind_of_link_makes_two_contacts;
 mod accounts_stranded_by_a_removed_provider_are_counted;
 mod adding_a_provider_or_moving_its_email_tells_the_account;
@@ -215,7 +210,6 @@ mod relayed_session_traffic_passes_through_the_server_sealed;
 mod removing_a_contact_revokes_what_the_two_shared;
 mod removing_the_email_it_signs_in_with_clears_the_accounts_email;
 mod requests_sent_before_a_close_are_still_carried_out;
-mod revisions_keep_counting_up_across_a_restart;
 mod revoking_a_session_announces_only_a_change;
 mod revoking_an_http_session_removes_its_access;
 mod rotating_an_agents_token_revokes_every_older_one;
@@ -226,7 +220,6 @@ mod signing_keys_are_served_only_for_accounts_the_caller_knows;
 mod strangers_never_stop_the_owner_getting_a_code_from_an_address_they_signed_in_from;
 mod the_access_list_leaves_administrators_to_the_organization_line;
 mod the_browser_authorization_requires_the_private_secret_and_works_once;
-mod the_hub_keeps_the_same_for_a_folder_however_many_entries_it_holds;
 mod the_portal_serves_its_assets_immutably_beside_a_hydrating_page;
 mod the_portals_cookies_are_host_cookies_over_https;
 mod the_providers_file_is_checked_and_keeps_its_secrets;
@@ -335,15 +328,11 @@ const TYPE_BUILD: be_block_store::Hash = be_block_store::Hash::from_bytes([3; 32
 
 #[derive(Clone, Debug, PartialEq)]
 enum Notice {
-    BlockChanged {
-        block: BlockSummary,
-        moved: Option<be_block_protocol::MovedReferences>,
-        from: ClientId,
+    TreeAdvanced {
+        entry: Uuid,
+        sequence: u64,
     },
-    BlockRemoved {
-        block: Uuid,
-        revision: u64,
-    },
+    Roots,
     SessionChanged {
         block: Uuid,
         state: SessionState,
@@ -367,7 +356,7 @@ enum Notice {
 }
 
 enum Heard {
-    Changes(Stream<BlockChange>),
+    Changes(Stream<TreeChange>),
     Paired(Stream<PairingMessage>),
     Contacts(Stream<()>),
     Session(Uuid, Stream<SessionEvent>),
@@ -379,23 +368,10 @@ impl Heard {
         match self {
             Heard::Changes(stream) => stream.poll_recv(context).map(|change| {
                 change.map(|change| match change {
-                    BlockChange::Changed {
-                        mut block,
-                        references,
-                        from,
-                    } => {
-                        let moved = match references {
-                            be_block_protocol::ChangedReferences::Whole(references) => {
-                                block.references = references;
-                                None
-                            }
-                            be_block_protocol::ChangedReferences::Moved(moved) => Some(moved),
-                        };
-                        Notice::BlockChanged { block, moved, from }
+                    TreeChange::Advanced(TreeAdvanced { entry, sequence }) => {
+                        Notice::TreeAdvanced { entry, sequence }
                     }
-                    BlockChange::Removed { block, revision } => {
-                        Notice::BlockRemoved { block, revision }
-                    }
+                    TreeChange::Roots => Notice::Roots,
                 })
             }),
             Heard::Paired(stream) => stream.poll_recv(context).map(|message| {
@@ -451,6 +427,8 @@ struct TestClient {
     pump: Option<tokio::task::JoinHandle<()>>,
     /// The account this client signed in as, whose keys are `test_secret`'s.
     account: Option<Uuid>,
+    /// Where this client has read each entry point it follows to (`follow`).
+    cursors: std::collections::HashMap<Uuid, ChangeCursor>,
 }
 
 /// Identity secrets tests gave accounts besides `test_secret`'s (an agent's, a new phrase's), by
@@ -562,6 +540,7 @@ impl TestClient {
             client: None,
             closing: Some(closing),
             pump: Some(pump),
+            cursors: std::collections::HashMap::new(),
         }
     }
 
@@ -639,24 +618,121 @@ impl TestClient {
         first(client::keys::key_work_changed(&self.peer)).await
     }
 
-    /// Reads a block, so `changes` tells this connection its next heads.
-    async fn follow(&mut self, block: Uuid) {
-        self.read_block(block).await;
+    /// Follows the entry point of `block`'s tree from now on, so `changes` tells this connection
+    /// as it advances; answers the entry.
+    async fn follow(&mut self, block: Uuid) -> Uuid {
+        let entry = self
+            .read_block(block)
+            .await
+            .entry
+            .expect("a block this client views has an entry point");
+        self.follow_entry(entry).await;
+        entry
     }
 
-    /// Waits for `changes` to tell that `block`'s head is `head`, skipping what else it tells;
-    /// answers the connection that moved it.
-    async fn heard_head(&mut self, block: Uuid, head: CommitId) -> ClientId {
+    /// Follows `entry` from now on (`changed-since`'s `follow`), reading to the end of it.
+    async fn follow_entry(&mut self, entry: Uuid) {
+        let sequence = self
+            .call(|peer| {
+                client::blocks::changed_since(
+                    peer,
+                    entry,
+                    ChangeCursor {
+                        changed: u64::MAX >> 1,
+                        block: Uuid::max(),
+                    },
+                    1,
+                    true,
+                )
+            })
+            .await
+            .expect("following failed")
+            .sequence;
+        self.cursors.insert(
+            entry,
+            ChangeCursor {
+                changed: sequence,
+                block: Uuid::max(),
+            },
+        );
+    }
+
+    /// Reads what changed in the tree of `entry` since this client last read it, every page,
+    /// and moves its cursor past it: the summaries of what changed, and what left it.
+    async fn read_changes(&mut self, entry: Uuid) -> (Vec<BlockSummary>, Vec<Uuid>) {
+        let mut after = self.cursors.get(&entry).copied().unwrap_or(ChangeCursor {
+            changed: 0,
+            block: Uuid::max(),
+        });
+        let (mut summaries, mut removed) = (Vec::new(), Vec::new());
         loop {
-            if let Notice::BlockChanged {
-                block: changed,
-                from,
-                ..
-            } = self.graph_change().await
-                && changed.id == block
-                && changed.head == Some(head)
-            {
-                return from;
+            let page = self
+                .call(|peer| client::blocks::changed_since(peer, entry, after, 100, false))
+                .await
+                .expect("reading changes failed");
+            summaries.extend(page.summaries);
+            removed.extend(page.removed);
+            match page.next {
+                Some(next) => after = next,
+                None => {
+                    self.cursors.insert(
+                        entry,
+                        ChangeCursor {
+                            changed: page.sequence,
+                            block: Uuid::max(),
+                        },
+                    );
+                    return (summaries, removed);
+                }
+            }
+        }
+    }
+
+    /// Waits until a tree this client follows tells that `block` left it, reading each change
+    /// it is told of; answers the entry it left.
+    async fn heard_left(&mut self, block: Uuid) -> Uuid {
+        loop {
+            if let Notice::TreeAdvanced { entry, .. } = self.graph_change().await {
+                let (_, removed) = self.read_changes(entry).await;
+                if removed.contains(&block) {
+                    return entry;
+                }
+            }
+        }
+    }
+
+    /// Waits until a tree this client follows tells of a change to `block` that `matches`,
+    /// reading each change it is told of; answers its summary.
+    async fn heard_change(
+        &mut self,
+        block: Uuid,
+        matches: impl Fn(&BlockSummary) -> bool,
+    ) -> BlockSummary {
+        loop {
+            if let Notice::TreeAdvanced { entry, .. } = self.graph_change().await {
+                let (summaries, _) = self.read_changes(entry).await;
+                if let Some(found) = summaries
+                    .into_iter()
+                    .find(|summary| summary.id == block && matches(summary))
+                {
+                    return found;
+                }
+            }
+        }
+    }
+
+    /// Waits until the tree of `block`'s entry point (which this client follows) tells that
+    /// `block`'s head is `head`, reading each change it is told of.
+    async fn heard_head(&mut self, block: Uuid, head: CommitId) {
+        loop {
+            if let Notice::TreeAdvanced { entry, .. } = self.graph_change().await {
+                let (summaries, _) = self.read_changes(entry).await;
+                if summaries
+                    .iter()
+                    .any(|summary| summary.id == block && summary.head == Some(head))
+                {
+                    return;
+                }
             }
         }
     }
@@ -767,10 +843,7 @@ impl TestClient {
     async fn notification(&mut self) -> Notice {
         loop {
             let next = self.next_notification().await;
-            if !matches!(
-                next,
-                Notice::BlockChanged { .. } | Notice::BlockRemoved { .. }
-            ) {
+            if !matches!(next, Notice::TreeAdvanced { .. } | Notice::Roots) {
                 return next;
             }
         }
@@ -779,10 +852,7 @@ impl TestClient {
     async fn graph_change(&mut self) -> Notice {
         loop {
             let next = self.next_notification().await;
-            if matches!(
-                next,
-                Notice::BlockChanged { .. } | Notice::BlockRemoved { .. }
-            ) {
+            if matches!(next, Notice::TreeAdvanced { .. } | Notice::Roots) {
                 return next;
             }
         }
@@ -1061,7 +1131,8 @@ impl TestClient {
         self.try_read_block(block).await.expect("read failed")
     }
 
-    /// Reads a block's summary through `list-blocks`, answering the server's refusal.
+    /// Reads a block's summary through `read-summaries`, answering a block it may not know of
+    /// as not found.
     async fn try_read_block(&mut self, block: Uuid) -> Result<BlockSummary, Error> {
         let answered = read_block(&self.peer, block)
             .await
@@ -1115,20 +1186,19 @@ impl TestClient {
 }
 
 /// PUTs `bytes` to an upload URL with its headers, answering the status.
-/// A block's summary: what `list-blocks` lists for `Listing::Block`, which follows the block
-/// from then on. The call is sent at once, as any call is, and answered when awaited.
+/// A block's summary, read with `read-summaries`; a block the caller may not know of is not
+/// found. The call is sent at once, as any call is, and answered when awaited.
 fn read_block(
     peer: &Peer,
     block: Uuid,
 ) -> impl Future<Output = Result<Result<BlockSummary, Error>, be_wasm_ops::OpError>> + use<> {
-    let listing = client::blocks::list_blocks(peer, Listing::Block(block), None);
+    let read = client::blocks::read_summaries(peer, vec![block]);
     async move {
-        Ok(listing.await?.map(|listed| {
-            listed
-                .blocks
-                .into_iter()
-                .next()
-                .expect("a block's listing lists the block")
+        Ok(read.await?.and_then(|mut read| {
+            read.pop().flatten().ok_or_else(|| Error {
+                code: ErrorCode::BlockNotFound,
+                message: format!("block {block} is not there for the caller"),
+            })
         }))
     }
 }

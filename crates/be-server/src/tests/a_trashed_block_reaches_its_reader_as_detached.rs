@@ -18,15 +18,11 @@ async fn a_trashed_block_reaches_its_reader_as_detached() {
         })
         .await;
     assert!(matches!(trashed, Ok(())), "{trashed:?}");
-    loop {
-        let notification = reader.graph_change().await;
-        if let Notice::BlockChanged { block: changed, .. } = &notification
-            && changed.id == block
-            && changed.parent == Some(BlockParent::Detached)
-        {
-            break;
-        }
-    }
+    reader
+        .heard_change(block, |changed| {
+            changed.parent == Some(BlockParent::Detached)
+        })
+        .await;
 
     let restored = trasher
         .call(|peer| client::blocks::set_parent(peer, block, BlockParent::Root, KeySet::default()))
@@ -70,16 +66,12 @@ async fn a_trashed_block_reaches_its_reader_as_detached() {
         panic!("collection failed: {response:?}");
     };
     assert!(collected.blocks.contains(&block));
-    loop {
-        let notification = reader.graph_change().await;
-        if matches!(notification, Notice::BlockRemoved { block: gone, .. } if gone == block) {
-            break;
-        }
-        assert!(
-            !matches!(&notification, Notice::BlockChanged { block: changed, .. } if changed.id == block && changed.parent != Some(BlockParent::Detached)),
-            "{notification:?}"
-        );
-    }
+    while reader.graph_change().await != Notice::Roots {}
+    let response = reader.try_read_block(block).await;
+    assert!(
+        refused_as(&response, ErrorCode::BlockNotFound),
+        "{response:?}"
+    );
 
     harness.stop().await;
 }
