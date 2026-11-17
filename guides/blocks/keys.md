@@ -322,11 +322,18 @@ maker through every sender (`KeyBook::heads`).
   them in, and have it listed as newest. Key work seals an outdated epoch to no
   grantee, and treats the scope as due a rotation when it is the scope's
   newest (`Target::Outdated`); to an administrator the log names now it seals
-  any key, so one made after a demotion still gets the settings' keys. A
-  device about to write or wrap under a data or scope key its log outdates
-  rotates the scope first (`Peer::sealing_key`, `scope_key`), judging by the
-  logs of the scope and of every scope above it the key was opened through
-  (`KeyBook::logs_to_read`, `Roots::through`, at most `keys::MAX_PATH` deep,
+  any key, so one made after a demotion still gets the settings' keys. The
+  organization's log outdates the same way every key under the escrow (any
+  but one an owner-only scope covers) naming an organization head before its
+  last demotion (`KeyBook::demoted_since`, plans/signed_access.md step 8):
+  the demoted administrator may hold it through escrow, so a demotion makes
+  every scope due a rotation at its next write. A
+  device about to write or wrap under a data or scope key its logs outdate
+  rotates the scope first (`Peer::sealing_key`, `scope_key`), from the highest
+  scope above it whose newest key is outdated too (`Peer::rotation_top`), so
+  one rotation covers a tree a demotion outdated whole, judging by the
+  logs of the scope and of every scope above it the key was opened through,
+  and the organization's (`KeyBook::logs_to_read`, `Roots::through`, at most `keys::MAX_PATH` deep,
   longer counting as outdated), as it last checked them (key work, sealing, a
   contact's seal or a rotation reads them; one it never read since starting,
   it reads first, each once per key in a run). How far it checked each scope's
@@ -432,7 +439,10 @@ AEAD key: an object whose header named the escrow's id opens with nothing. The
 first administrator device
 to open the organization makes it (`CreateEscrow`), and `mint_scope` seals
 every new scope key to it too, so administrators open everything. Demoting or
-removing an administrator records an escrow rotation: the next epoch is signed
+removing an administrator records an escrow rotation, and tells every
+member's devices that key work changed, whose `tend` reads the organization's
+log, so each scope under the escrow rotates at its next write (Outdated
+epochs above): the next epoch is signed
 over `EscrowKey::chained` by its maker's identity key, an administrator the
 device's checked organization log names at its current head, and covers the
 organization log's head it was made under (`EscrowKey::head`): the server
