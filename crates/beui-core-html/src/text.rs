@@ -478,10 +478,6 @@ impl TextModel {
     pub fn set_font(&self, font: FontId) {
         self.decor.borrow_mut().font = Some(font);
     }
-
-    pub fn font(&self) -> Option<FontId> {
-        self.decor.borrow().font
-    }
 }
 
 /// How far a space advances in `font`, as the browser lays it out; `None` outside one.

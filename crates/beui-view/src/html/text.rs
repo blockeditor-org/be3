@@ -64,6 +64,7 @@ pub(crate) fn text(
     let model = TextModel::new(node);
     let held = model.clone();
     let sized = font.clone();
+    let measured = font.clone();
     bind(font, move |font| {
         held.set_font(font);
         set_style(node, "font", Some(css::font(font)));
@@ -168,8 +169,10 @@ pub(crate) fn text(
                 model.set_single(Run::new(&element, span.text, glyphed));
             }
         }
-        Ok(child) => Children::from(ChildSegment::One(child)).mount(host(&model, glyphed)),
-        Err(children) => children.mount(host(&model, glyphed)),
+        Ok(child) => {
+            Children::from(ChildSegment::One(child)).mount(host(&model, glyphed, measured))
+        }
+        Err(children) => children.mount(host(&model, glyphed, measured)),
     }
     let rendered = model.clone();
     create_binding(move || rendered.render(&glyphs.get()));
@@ -197,8 +200,9 @@ fn inline(kind: &'static str, tag: &'static str, styles: &[(&'static str, &str)]
 }
 
 impl TextChild {
-    /// `font` is the text's, which a `Blank` without one of its own is measured in.
-    fn build(self, glyphed: bool, font: Option<FontId>) -> (NodeId, Piece) {
+    /// `font` is the text's, which a `Blank` without one of its own is measured in, again
+    /// whenever it changes.
+    fn build(self, glyphed: bool, font: Option<Prop<FontId>>) -> (NodeId, Piece) {
         match self {
             TextChild::Span(span) => span.build(glyphed),
             TextChild::Item(item) => (item.node, Piece::Item(item.data)),
@@ -245,12 +249,13 @@ impl TextChild {
                         Some(if font.italic { "italic" } else { "normal" }.to_owned()),
                     );
                 }
-                let measured = blank.font.or(font);
+                let own = blank.font;
                 let fonts = beui_core_html::page::use_font_changes();
                 let width = blank.width;
                 create_binding(move || {
                     fonts.track();
-                    let space = measured
+                    let space = own
+                        .or_else(|| font.as_ref().map(|font| font.get()))
                         .and_then(beui_core_html::text::space_advance)
                         .unwrap_or(0.0);
                     set_style(node, "letter-spacing", Some(css::px(width - space)));
@@ -282,6 +287,9 @@ impl SlotChild for TextChild {
         *stored
     }
 
+    /// A child stored away from any `Text` (in a run of children not yet mounted) keeps only
+    /// its node: its piece, which the text reads its content and layout from, is dropped, so
+    /// no `Text` reaches this; a `Blank` here would be measured in no font.
     fn store(self) -> NodeId {
         self.build(false, None).0
     }
@@ -290,11 +298,12 @@ impl SlotChild for TextChild {
 struct TextHost {
     model: Rc<TextModel>,
     glyphed: bool,
+    font: Prop<FontId>,
 }
 
 impl SlotHost<TextChild> for TextHost {
     fn store(&self, child: TextChild) -> NodeId {
-        let (node, piece) = child.build(self.glyphed, self.model.font());
+        let (node, piece) = child.build(self.glyphed, Some(self.font.clone()));
         self.model.insert(node, piece);
         node
     }
@@ -312,10 +321,11 @@ impl SlotHost<TextChild> for TextHost {
     }
 }
 
-fn host(model: &Rc<TextModel>, glyphed: bool) -> Rc<dyn SlotHost<TextChild>> {
+fn host(model: &Rc<TextModel>, glyphed: bool, font: Prop<FontId>) -> Rc<dyn SlotHost<TextChild>> {
     Rc::new(TextHost {
         model: model.clone(),
         glyphed,
+        font,
     })
 }
 

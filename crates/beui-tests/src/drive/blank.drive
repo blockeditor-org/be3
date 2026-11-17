@@ -4,3 +4,7 @@ wait 'value="Blank hangs, narrower wraps"'
 # In the browser the blank is a space in the text's font, so a mark over it is as tall as the
 # line and its glyph sits on the line.
 #web wait 'value="Blank box tall and wide, its glyph on its line"'
+# A blank with no font of its own stays as wide when its text's font changes.
+#web wait 'value="Grown blank 14 wide in 14 pixel text"'
+click '#blank.grow'
+#web wait 'value="Grown blank 14 wide in 24 pixel text"'
