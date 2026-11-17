@@ -9,6 +9,8 @@ fn grabbing_the_bar_between_two_panes_off_centre_moves_it_only_as_far_as_the_poi
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
     harness.drag(tab, pos2(WIDE_VIEWPORT.x - 20.0, WIDE_VIEWPORT.y / 2.0));
     harness.frame(Vec::new());
+    // The panes glide from where the preview drew them into the split.
+    harness.frames_to_settle();
     let before = harness.rect(harness.find("content.1"));
     let edge = pos2(before.right() + 3.5, WIDE_VIEWPORT.y / 2.0);
 
