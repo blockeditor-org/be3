@@ -46,26 +46,29 @@ fn plant(
 }
 
 /// A device takes a key a contact seals it only if the block's log grants that contact Edit or
-/// above as of the head the key's epoch names (signed access 3d). A contact revoked from the
-/// block makes up a key naming a head after their revocation and seals it to an editor: the
-/// editor's device does not take it. One naming a head from before, while they still edited,
-/// is taken: which epoch a device writes under is still the server's word.
+/// above as of the head the key's epoch names, or as of the log's head here when the key names
+/// none this device's log reaches (signed access 3d). A contact revoked from the block makes up
+/// keys and seals them to an editor: naming a head after their revocation, no head, or a head
+/// the log has no entry for, none is taken; nor is one from a contact who only ever viewed. One
+/// naming a head from before, while they still edited, is taken: which epoch a device writes
+/// under is checked against the log (`KeyBook::outdated`), not who sealed it.
 #[tokio::test]
 async fn a_key_a_contact_seals_after_their_revocation_is_not_taken() {
     let harness = Harness::start().await;
     let admin = harness.owner("admin@example.com").await;
     let carol = harness.member(&admin, "carol@example.com").await;
     let bob = harness.member(&admin, "bob@example.com").await;
+    let vera = harness.member(&admin, "vera@example.com").await;
     befriend(&carol, &bob).await;
+    befriend(&carol, &vera).await;
     let team = workspace(&admin, "Team").await;
-    admin
-        .grant(team, carol.account(), Access::Edit)
-        .await
-        .unwrap();
-    admin
-        .grant(team, bob.account(), Access::Edit)
-        .await
-        .unwrap();
+    for (member, access) in [
+        (&carol, Access::Edit),
+        (&bob, Access::Edit),
+        (&vera, Access::View),
+    ] {
+        admin.grant(team, member.account(), access).await.unwrap();
+    }
     admin.tend().await.unwrap();
     carol.refresh_keys(None).await.unwrap();
     let (entries, _) = carol.checked_access(team).await.unwrap();
@@ -82,19 +85,30 @@ async fn a_key_a_contact_seals_after_their_revocation_is_not_taken() {
         block: team.into_bytes(),
         root: carol.keys().root(team),
         heads: be_block_keys::Heads {
-            block: Some(head),
+            block: head,
             organization: None,
         },
     };
-    let after = Uuid::new_v4();
-    plant(&harness, &bob, &carol, after, team, &made_up(revoked));
+    let mut refused = Vec::new();
+    for (sender, head) in [
+        (&bob, Some(revoked)),
+        (&bob, None),
+        (&bob, Some([9; 32])),
+        (&vera, Some(editing)),
+    ] {
+        let key = Uuid::new_v4();
+        plant(&harness, sender, &carol, key, team, &made_up(head));
+        refused.push(key);
+    }
     let before = Uuid::new_v4();
-    plant(&harness, &bob, &carol, before, team, &made_up(editing));
+    plant(&harness, &bob, &carol, before, team, &made_up(Some(editing)));
     carol.refresh_keys(None).await.unwrap();
-    assert!(
-        !carol.keys().has(after),
-        "a key a contact sealed under a head where they no longer edit was taken"
-    );
+    for key in refused {
+        assert!(
+            !carol.keys().has(key),
+            "a key a contact who does not edit as of its head sealed was taken"
+        );
+    }
     assert!(carol.keys().trusted(before));
 
     harness.stop().await;

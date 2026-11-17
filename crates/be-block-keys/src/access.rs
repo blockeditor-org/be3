@@ -345,7 +345,8 @@ pub struct CarriedKey {
 /// no one.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Heads {
-    /// The log of the block it is a key of; none for an escrow key.
+    /// The log of the scope it is a key of: the block's own for a scope key, the scope's it is
+    /// wrapped under for a data key; none for an escrow key.
     pub block: Option<EntryHash>,
     /// The organization's log; none in an organization with no log.
     pub organization: Option<EntryHash>,
@@ -428,6 +429,10 @@ pub struct Checked {
     /// its grants (the creator's Manage at the root); for an organization's, administering it
     /// as Manage.
     pub levels: HashMap<[u8; 16], Vec<(usize, Level)>>,
+    /// The place of the newest entry that lowered anyone's access (a revocation, a downgrade,
+    /// a closing; in an organization's log, a demotion or an administrator signed out), or the
+    /// root's: an epoch named under a head before it is outdated (`outdates`).
+    pub last_lowering: usize,
 }
 
 impl Checked {
@@ -448,9 +453,29 @@ impl Checked {
             .map(|(_, level)| *level)
     }
 
+    /// Whether an epoch named under `head` is current by this log: the log reaches `head`, and
+    /// nothing after it lowered anyone's access, so all it was sealed to may hold it still.
+    pub fn current_at(&self, head: &EntryHash) -> bool {
+        self.positions
+            .get(head)
+            .is_some_and(|at| *at >= self.last_lowering)
+    }
+
+    /// Whether an epoch named under `head` is outdated by this log: the log reaches `head`, and
+    /// an entry after it lowered someone's access, whom the epoch may have been sealed to.
+    pub fn outdates(&self, head: &EntryHash) -> bool {
+        self.positions
+            .get(head)
+            .is_some_and(|at| *at < self.last_lowering)
+    }
+
     fn set_level(&mut self, account: [u8; 16], level: Level) {
         let at = self.positions.len() - 1;
-        self.levels.entry(account).or_default().push((at, level));
+        let held = self.levels.entry(account).or_default();
+        if held.last().is_some_and(|(_, before)| level < *before) {
+            self.last_lowering = at;
+        }
+        held.push((at, level));
     }
 
     /// Checks that `entry`, a grant or an opening naming `authority`, is signed by someone who
@@ -595,6 +620,9 @@ pub fn check_log(
                     return Err(KeyError::Record);
                 }
                 let tainted = state.granting(entry, own, opening.authority, false, outside)?;
+                if opening.level < state.open_inside {
+                    state.last_lowering = state.positions.len() - 1;
+                }
                 state.open_inside = opening.level;
                 state.open_inside_tainted = tainted && opening.level > Level::None;
             }
