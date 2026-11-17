@@ -14,7 +14,7 @@ fn an_overlay_anchors_its_content_to_a_node_and_points_at_it() {
                         <Frame @node_ref=&tip width={60.0} height={30.0} fill={GREEN} />
                         <Overlay
                             anchor={&menu}
-                            placement={Placement::BelowStart}
+                            placement={Placement::BELOW_START}
                             policy={LayerPolicy::Pass}
                             open={true}
                         >
@@ -22,7 +22,7 @@ fn an_overlay_anchors_its_content_to_a_node_and_points_at_it() {
                         </Overlay>
                         <Overlay
                             anchor={&tip}
-                            placement={Placement::Popover { gap: 12, margin: 8 }}
+                            placement={Placement::BELOW_CENTER.gap(12).margin(8)}
                             policy={LayerPolicy::Pass}
                             pointer={bubble}
                             beak={8.0}

@@ -55,7 +55,7 @@ pub enum SheetWhen {
 pub fn Anchored(
     style: AnchoredStyle,
     anchor: Prop<OverlayAnchor>,
-    #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
+    #[prop(default = Placement::BELOW_START)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
     open: Prop<bool>,
     #[prop(default = SheetWhen::Touched)] sheet: Prop<SheetWhen>,

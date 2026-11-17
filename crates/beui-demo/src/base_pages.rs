@@ -13,7 +13,9 @@ use beui::primitives::{Grid, List};
 use beui::reactive::Painter;
 use beui::styled::Glide;
 use beui::unstyled::FirstFit;
-use beui::{Align, Align2, Corners, Dismiss, Extent, Justify, Outline, Placement, Track};
+use beui::{
+    Align, Align2, Corners, Dismiss, Extent, Justify, LayerPolicy, Outline, Placement, Track,
+};
 use beui::{Color, Pos2, vec2};
 use beui::{FillRule, LineCap, LineJoin, Path, Stroke};
 use beui::{Overflow, TextLayout, WrapAt};
@@ -951,6 +953,9 @@ pub(crate) fn LayeringPage() -> NodeId {
             <Sample title="Group opacity" code={vec![FadedOverlap::SOURCE]}>
                 <FadedOverlap />
             </Sample>
+            <Sample title="Placements" code={vec![PlacementSet::SOURCE]}>
+                <PlacementSet />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -1224,7 +1229,7 @@ fn AnchoredOverlay() -> NodeId {
             </Interactive>
             <Overlay
                 anchor=anchor
-                placement=Placement::BelowStart
+                placement=Placement::BELOW_START
                 open={open}
                 on_dismiss={move |_: Dismiss| open.set(false)}
             >
@@ -1244,6 +1249,75 @@ fn AnchoredOverlay() -> NodeId {
                 </Frame>
             </Overlay>
         </List>
+    }
+}
+
+const PLACEMENTS: [(Placement, &str); 12] = [
+    (Placement::ABOVE_START, "above start"),
+    (Placement::ABOVE_CENTER, "above center"),
+    (Placement::ABOVE_END, "above end"),
+    (Placement::BELOW_START, "below start"),
+    (Placement::BELOW_CENTER, "below center"),
+    (Placement::BELOW_END, "below end"),
+    (Placement::LEFT_START, "left start"),
+    (Placement::LEFT_CENTER, "left center"),
+    (Placement::LEFT_END, "left end"),
+    (Placement::RIGHT_START, "right start"),
+    (Placement::RIGHT_CENTER, "right center"),
+    (Placement::RIGHT_END, "right end"),
+];
+
+/// Every side and alignment an overlay can open at beside its anchor, all at once.
+#[sample]
+#[component]
+fn PlacementSet() -> NodeId {
+    let theme = use_theme();
+    let anchor = NodeRef::new();
+    let open = create_signal(false);
+    let face = theme.control;
+    let ink = theme.text;
+    view! {
+        <Frame padding={Sides::symmetric(120.0, 40.0)}>
+            <List direction=Direction::Horizontal spacing=0.0>
+            <Interactive
+                @test_id="demo.placements.trigger"
+                on_click={move || open.update(|open| *open = !*open)}
+            >
+                <Frame
+                    @node_ref=&anchor
+                    @test_id="demo.placements.anchor"
+                    width=320.0
+                    height=110.0
+                    fill=face
+                    radius={Radius::Md.px()}
+                    padding=12.0
+                >
+                    <Text color={ink}>"Show every placement"</Text>
+                </Frame>
+            </Interactive>
+            <ForEach value={(0..PLACEMENTS.len()).collect::<Vec<usize>>()}>|index: usize|
+                <Overlay
+                    anchor=anchor
+                    placement={PLACEMENTS[index].0.gap(4)}
+                    policy=LayerPolicy::Inert
+                    traps_focus=false
+                    dismissable=false
+                    open={open}
+                    on_dismiss={|_: Dismiss| {}}
+                >
+                    <Frame
+                        @test_id={format!("demo.placement.{index}")}
+                        fill={theme.surface}
+                        outline={move || Some(Outline::new(theme.border.get(), 1.0))}
+                        radius={Radius::Sm.px()}
+                        padding={Sides::symmetric(6.0, 2.0)}
+                    >
+                        <Text color={theme.text}>{PLACEMENTS[index].1}</Text>
+                    </Frame>
+                </Overlay>
+            </ForEach>
+            </List>
+        </Frame>
     }
 }
 

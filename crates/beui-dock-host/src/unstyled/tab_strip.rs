@@ -1071,7 +1071,7 @@ where
                 <TabStripStatus announcement={announcement.read_only()} />
                 <Overlay
                     anchor={anchor}
-                    placement=Placement::BelowStart
+                    placement=Placement::BELOW_START
                     policy=LayerPolicy::Inert
                     level=LayerLevel::Top
                     traps_focus=false
