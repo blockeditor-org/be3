@@ -24,7 +24,7 @@ use beui_view::types::{Color, Modifiers, Pos2, Rect};
 use super::dialog::{DialogParts, DockDialogHandle};
 use super::{
     BarCovers, BarFloats, Dock, DockApi, DockAwayHandle, DockBarBandHandle, DockBarHandle,
-    DockChromeHandle, DockConfig, DockCurves, DockGripHandle, DockHighlightHandle,
+    DockChromeHandle, DockConfig, DockCurves, DockGripHandle,
     DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockStripHandle, DockSwitchHandle,
     DockSwitcherHandle, DockTabHandle, DockTabKeys,
 };
@@ -555,7 +555,6 @@ struct HostStyle {
     splitter: Option<RenderFn<DockSplitterHandle, NodeId>>,
     strip: Option<RenderFn<DockStripHandle, NodeId>>,
     grip: Option<RenderFn<DockGripHandle, NodeId>>,
-    highlight: Option<RenderFn<DockHighlightHandle, NodeId>>,
     preview: Option<RenderFn<DockPreviewHandle, NodeId>>,
     stack: Option<RenderFn<DockStackHandle, NodeId>>,
     switcher: Option<RenderFn<DockSwitcherHandle, NodeId>>,
@@ -656,7 +655,6 @@ fn HostedDock(layout: DockHostLayout, style: HostStyle) -> NodeId {
         splitter,
         strip,
         grip,
-        highlight,
         preview,
         stack,
         switcher,
@@ -833,7 +831,6 @@ fn HostedDock(layout: DockHostLayout, style: HostStyle) -> NodeId {
                 splitter,
                 strip,
                 grip,
-                highlight,
                 preview,
                 stack,
                 switcher,
@@ -940,7 +937,6 @@ pub fn DockHost(
     splitter: Option<RenderFn<DockSplitterHandle, NodeId>>,
     strip: Option<RenderFn<DockStripHandle, NodeId>>,
     grip: Option<RenderFn<DockGripHandle, NodeId>>,
-    highlight: Option<RenderFn<DockHighlightHandle, NodeId>>,
     preview: Option<RenderFn<DockPreviewHandle, NodeId>>,
     stack: Option<RenderFn<DockStackHandle, NodeId>>,
     switcher: Option<RenderFn<DockSwitcherHandle, NodeId>>,
@@ -984,7 +980,6 @@ pub fn DockHost(
         splitter,
         strip,
         grip,
-        highlight,
         preview,
         stack,
         switcher,
