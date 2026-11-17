@@ -247,7 +247,8 @@ reaches the network (`host.fetch` instead), opens a file (`read_data` for
 staged data), or uses wasm-bindgen. It links against the shared libraries
 (guides/app_libraries.md); `app(libraries = [...])` overrides that. A C or C++
 library links in as a position-independent static library through
-`app(extra_deps = [...])` (PDFium, `third-party/pdfium`). `std::thread` works,
+`app(extra_deps = [...])`, or a worker's `cargo_library(extra_deps = [...])`
+(PDFium, `third-party/pdfium`, in crates/be-worker-pdf-render). `std::thread` works,
 but only the app's first thread may call the GPU. An app has no fonts of its
 own; the host sends them.
 
@@ -259,32 +260,50 @@ Data an app ships rather than keeps in a workspace goes in its `app()`'s
 
 Work that should not hold up the app's frames (rendering a PDF page,
 rasterizing map tiles) runs in a worker: an instance of a module of the app's
-own, on a thread and isolate of its own natively, that the app talks to by
-messages (`be_sdk::worker`, crates/be-sdk-worker;
-plans/single_threaded_guests.md).
+own, on a thread and isolate of its own natively and in a web worker of its own
+in the browser, that the app talks to by messages (`be_sdk::worker`,
+crates/be-sdk-worker; plans/single_threaded_guests.md). The map's
+(crates/be-worker-map, be-worker-map-tiles) and the PDF editor's
+(crates/be-worker-pdf, be-worker-pdf-render) are the examples to copy.
 
-- The worker is a crate of its own: a `Work` (`start`, then `receive` for each
-  message, answering through `App::send`) exported with
-  `be_sdk::worker::worker!`, built with `worker(module = "tiles")` from
-  `buck/wasm/defs.bzl`, linked against the app's libraries as an app is.
-  crates/be-sdk-worker-echo is the smallest.
-- The app names it in `app(workers = ["//crates/be-app-foo-tiles:module"])`
+- `be-worker-<app>` holds the messages the app and its workers exchange,
+  encoded however suits them (both examples use postcard, with `serde_bytes`
+  for pixels), and the module names. The app depends on it alone: an app links
+  whatever it depends on, so it must not depend on a worker's work.
+- `be-worker-<app>-<worker>` is one worker: a `Work` (`start`, then `receive`
+  for each message, answering through `App::send`), and beside its Cargo.toml
+  a `worker.rs` that only calls `be_sdk_worker::worker!` on it, which
+  `worker(module = "tiles")` from `buck/wasm/defs.bzl` links as `:module`
+  (against the app's libraries unless `libraries` says; both examples need only
+  the base library). A C library it needs goes in its `cargo_library`'s
+  `extra_deps`, so the app never links it. crates/be-sdk-worker-echo is the
+  smallest.
+- The app names it in `app(workers = ["//crates/be-worker-foo-tiles:module"])`
   and in its manifest's `"workers": ["tiles.wasm"]`; the stage puts it under
   `workers/<app id>/` and refuses an app staged without a worker its manifest
   names.
 - The app starts it with `Worker::spawn("tiles.wasm")`, sends it byte buffers
   with `send` (or a `Sender` from `sender()`) and awaits each answer with
-  `receive`, one buffer a message, whole and in order. Dropping the `Worker`
-  and its senders stops it; `receive` says why one stopped (it could not
-  start, trapped or panicked).
+  `receive`, one buffer a message, whole and in order, in a task:
+  `be_sdk::spawn` for one every editor of the app shares, which no editor's
+  closing cancels. Dropping the `Worker` and its senders stops it; `receive`
+  says why one stopped (it could not start, trapped or panicked).
+- Share one worker between the app's editors (a `thread_local` `Weak` to it,
+  and a requester in each message, so its answers reach the editor that asked)
+  rather than starting one each: a canvas can show more editors than the app
+  may run workers.
 - A worker has WASI and its libraries but no gpu and no host services: it
   computes and sends back bytes, which the app uploads or shows. It may block
   its own thread as long as a job needs.
 - An app may spawn only its own workers, named, never by a path, at most 16 at
-  once with at most 1 GiB of memory each, and compiles no module from bytes
-  (guides/apps/runtime.md, Backends). Its workers stop when it stops or fails.
-  The web serves no workers yet: there `receive` fails at once with "this host
-  runs no workers".
+  once with at most 1 GiB of memory each (natively: the browser cannot cap a
+  worker's memory), and compiles no module from bytes (guides/apps/runtime.md,
+  Backends). Its workers stop when it stops or fails.
+- The app's tests run its workers in their own instance: the app
+  dev-depends on the worker crate and the test calls
+  `BeuiTest::serve_worker::<Tiles>("tiles.wasm")`, after which each job the
+  editor sends is done before it next steps. A worker crate tests its `Work`
+  through `be_sdk_worker::Hosted`.
 
 ## 6. Build and verify
 

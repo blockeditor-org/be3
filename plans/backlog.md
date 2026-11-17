@@ -566,3 +566,15 @@ Depends on #686 (session catch-ups replaced by server ordering).
   feature cannot split it, since buck builds one be-host-runtime per platform
   for every crate. Done when `be` runs on a machine with no ALSA: audio behind
   a crate edge `be` does not take, or loaded at run time on first play.
+
+## 23. Sandbox
+
+- **A stopped wire keeps saying why.** An app's sandbox is dropped with it (`Wire::stop_sandbox`),
+  and a sandbox call that comes later finds no server and is refused as unsupported, which reads
+  as "this host runs no workers". Done when the wire keeps a `stopped` reason once it stops its
+  sandbox and answers every later sandbox call with it, with a be-host-runtime test that calls
+  after a stop.
+- **Server::stop answers pending compiles.** `be_wasm_sandbox_host::Server::stop` answers each
+  instance's waiting `next` but drops the compiles still under way, so their callers are never
+  answered. Done when it answers each with the stop's reason too, with a test that stops a
+  server mid-compile.
