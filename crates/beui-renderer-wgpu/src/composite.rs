@@ -257,8 +257,11 @@ impl Composition {
             segments[segment.min(last)].push(layer);
         }
         debug_assert!(
-            segments.iter().flatten().all(|layer| (0..segments.len() as u32)
-                .all(|index| layer.id != LayerId::root(index))),
+            segments
+                .iter()
+                .flatten()
+                .all(|layer| (0..segments.len() as u32)
+                    .all(|index| layer.id != LayerId::root(index))),
             "no placed layer has a root's id"
         );
         let mut layers = Vec::new();
