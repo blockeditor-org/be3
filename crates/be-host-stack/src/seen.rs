@@ -336,7 +336,9 @@ pub struct Seen, delta SeenDelta {
     /// How many commands the worker has finished: those the page sent and it has not finished
     /// are pending (`Shared::pending`).
     pub done: usize,
-    pub typing: bool,
+    /// Why the block type modules have yet to settle (`Modules::unsettled`): empty once they
+    /// have.
+    pub typing: Vec<String>,
     /// While the host holds the modules' clock and nothing else is in flight, when their
     /// soonest timer that keeps a block in step comes due on it (`Modules::held_due`): what a
     /// stopped clock must reach for that work to happen. `None` while anything else could still
@@ -495,7 +497,6 @@ impl Seen {
     ) -> Vec<String> {
         let mut reasons: Vec<String> = [
             (pending > 0, "the block store has commands to carry out"),
-            (self.typing, "a block type module has yet to settle"),
             (self.uploading > 0, "the block store uploads files"),
             (
                 self.graph.fetching(),
@@ -505,6 +506,12 @@ impl Seen {
         .into_iter()
         .filter_map(|(busy, reason)| busy.then_some(reason.to_owned()))
         .collect();
+        if !self.typing.is_empty() {
+            reasons.push(format!(
+                "a block type module has yet to settle: {}",
+                self.typing.join("; ")
+            ));
+        }
         if self.undurable > 0 {
             let blocks: Vec<String> = self
                 .undurable_blocks

@@ -539,11 +539,34 @@ impl Modules {
     }
 
     pub fn settled(&self) -> bool {
-        self.backlog.is_empty()
-            && self
-                .modules
-                .iter()
-                .all(|module| module.worker.as_ref().is_none_or(Worker::settled))
+        self.unsettled().is_empty()
+    }
+
+    /// Why the modules are not settled, one reason each: empty once they are.
+    pub fn unsettled(&self) -> Vec<String> {
+        let mut reasons: Vec<String> = self
+            .modules
+            .iter()
+            .filter_map(|module| {
+                let why = module.worker.as_ref()?.unsettled()?;
+                Some(format!("{}: {why}", module.source.name))
+            })
+            .collect();
+        if !self.backlog.is_empty() {
+            reasons.push(format!(
+                "{} thing(s) the modules said wait to be taken",
+                self.backlog.len()
+            ));
+        }
+        reasons
+    }
+
+    /// Whether a wait on one module (`until`, `ask_all`, `ask_reading`) kept what the modules
+    /// said meanwhile for later (`backlog`), or restarted one: the wake that told of it went to
+    /// that wait, so whoever pumps the modules must take it without waiting for another
+    /// (`Replicas::woken`), or it sits there, unsettled, until a module next speaks.
+    pub fn kept(&self) -> bool {
+        !self.backlog.is_empty() || !self.restarted.is_empty()
     }
 
     pub fn tag(&self, module: usize) -> SessionTag {

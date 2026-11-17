@@ -242,7 +242,21 @@ impl<C: Channel> Worker<C> {
     }
 
     pub fn settled(&self) -> bool {
-        !self.ready || (self.pending.is_empty() && !(self.stepping && self.carrying))
+        self.unsettled().is_none()
+    }
+
+    /// Why the worker is not settled (`settled`), if it is not.
+    pub fn unsettled(&self) -> Option<&'static str> {
+        if !self.ready {
+            return None;
+        }
+        if !self.pending.is_empty() {
+            return Some(match self.stepping {
+                true => "frames wait for the step in flight to end",
+                false => "frames wait for a step",
+            });
+        }
+        (self.stepping && self.carrying).then_some("a step on the host's frames is in flight")
     }
 
     pub fn take_received(&mut self) -> Vec<Vec<u8>> {

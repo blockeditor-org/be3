@@ -1043,6 +1043,9 @@ impl<H: Host> Replicas<H> {
     }
 
     pub async fn woken(&mut self) {
+        if self.modules.kept() {
+            return;
+        }
         let notified = std::pin::pin!(self.modules.notified());
         let answered = std::pin::pin!(self.answers.recv());
         if let futures_util::future::Either::Right((Some(io), _)) =
