@@ -920,26 +920,38 @@ impl KeyBook {
         }
         roots.logs.insert(block, checked.clone());
         roots.entries.insert(block, entries.to_vec());
-        let mut current: Vec<(usize, EntryHash)> = checked
-            .positions
+        // Kept up to the last entry served whole: on a proof path, reduced entries after it
+        // may be a tail the server made up, which no honest log reaches, and keeping its head
+        // would leave every later log withheld here. A whole entry's place the server cannot
+        // fake, as the next whole entry's signer names the one before it.
+        let upto = match checked.partial {
+            true => entries
+                .iter()
+                .rposition(|step| step.entry().is_some())
+                .unwrap_or(0),
+            false => entries.len().saturating_sub(1),
+        };
+        let lowers = |step: &be_block_keys::Step| match step {
+            be_block_keys::Step::Entry(entry) => entry.lowers,
+            be_block_keys::Step::Reduced(reduced) => reduced.lowers,
+        };
+        let lowering = entries[..=upto]
             .iter()
-            .filter(|(_, at)| **at >= checked.last_lowering)
-            .map(|(head, at)| (*at, *head))
-            .collect();
-        current.sort();
+            .rposition(lowers)
+            .unwrap_or(0);
         let kept = crate::refs::KeptLog {
-            head: checked.head,
-            place: checked
-                .positions
-                .get(&checked.head)
-                .map_or(0, |at| *at as u64),
-            lowering_place: checked.last_lowering as u64,
-            current: current.into_iter().map(|(_, head)| head).collect(),
+            head: entries[upto].hash(),
+            place: upto as u64,
+            lowering_place: lowering as u64,
+            current: entries[lowering..=upto].iter().map(be_block_keys::Step::hash).collect(),
             levels: {
                 let mut levels: Vec<([u8; 16], Level)> = checked
                     .levels
                     .iter()
-                    .filter_map(|(account, changes)| Some((*account, changes.last()?.1)))
+                    .filter_map(|(account, changes)| {
+                        let (_, level) = changes.iter().rev().find(|(at, _)| *at <= upto)?;
+                        Some((*account, *level))
+                    })
                     .collect();
                 levels.sort();
                 levels

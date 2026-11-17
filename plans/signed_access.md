@@ -126,8 +126,18 @@ block below gets the whole log, as an ancestor's sealer. Of the
 organization's log, a member below Edit everywhere is served its own and its
 sealers' records whole, and every administrator record and every record
 about anyone who ever administered, so no demotion is hidden: an honest path
-of it reduces nothing that lowered anyone. Hosted blocks add the host's grant
-and bans (plans/hosted_blocks.md). A proof path can hide a later revocation
+of it reduces nothing that lowered anyone; one that does names no
+administrator to the reader. Hosted blocks add the host's grant
+and bans (plans/hosted_blocks.md).
+
+What a path still reveals: the log's length and where each lowering sits; the
+whole level history of each sealer and of the chain of signers behind them;
+who signed each opening; and in the organization's log the whole
+administrator roster and its history. A member with Edit on a child is
+served the parent's whole log, so its full membership. And since a block's
+creator holds Manage on it, "Edit on any block" takes in every member who has
+made one: the organization's member list is visible to every member who has
+made a block. Whether to narrow that is open. A proof path can hide a later revocation
 behind a reduced entry; for a reader who never seals, that only matters for a
 hosted block's host (plans/hosted_blocks.md, "Accepted limits").
 
@@ -318,14 +328,25 @@ did not sign.
   is caught, not only one that alters them; a participant that applied a
   different order through that sequence reports the fork. A participant who
   leaves before the next seal is not checked against it.
-- A reader below Edit checks a sealer on a proof path, which can hide a later
-  revocation of the sealer: it shows the reader that someone was lowered, not
-  whom. That lets a revoked editor, with the server, hand a reader a key they
-  made up, naming the head now, which the reader then reads and relays under
-  (peer messages: presence, cursors), but never seals, wraps or writes content
-  under: nothing is sealed to anyone, nor any record but the reader's own
-  signed, by a partial log. Refusing such a seal instead would refuse every
-  honest epoch made by an editor granted before any revocation. Each check of
+- **A reader below Edit checks a sealer only as a contact.** The server picks
+  whom a path proves (the sealers it lists): leaving the real sender out
+  reduces every entry naming them, and a sender the log then never names is
+  taken as one with Edit from a block above (the server's tree until step 4).
+  It can as well reduce a named sealer's revocation, which shows the reader
+  that someone was lowered, not whom. The same holds offline for the levels
+  kept from a path (`KeptLog::levels`), which name only whom it proved. So for
+  a reader below Edit, a seal's sender is checked only as a verified contact:
+  a revoked editor, with the server, can hand a reader a key they made up,
+  naming the head now. Reading under it shows the reader nothing the revoked
+  editor could not already show it under an old epoch. But the reader relays
+  under it (peer messages: presence, cursors; `sealing_key` judges a key
+  sealed to it directly, naming the current head, current), so the revoked
+  editor sees the reader's position and selection. It seals, wraps and writes
+  content under nothing: nothing is sealed to anyone, nor any record but the
+  reader's own signed, by a partial log. Refusing such a seal instead would
+  refuse every honest epoch made by an editor granted before any revocation,
+  and a guard on relays alone would not cover a named sealer's hidden
+  revocation. Each check of
   3d otherwise reads a path as a whole log: `holds`, `current_at` and
   `outdates`, kept state and withheld or stale answers are exact; a kind's
   opening counts as closed by any reduced lowering after it; and no escrow
@@ -338,6 +359,12 @@ did not sign.
 - **An ancestor's whole log** goes to a member with Edit below it only if they
   may view the ancestor (`get-access-log` needs View, as before); otherwise
   they read none of it, as before 3e.
+- **A made-up tail.** A server can append reduced entries of its own after a
+  path's real head; a device keeps a path only up to its last whole entry,
+  whose place the next whole entry's signer fixes, so the honest log served
+  later is taken, and only a log cut short of that entry counts as withheld.
+  Until a reader is shown a whole entry past it, the kept head lags the log's:
+  offline, an epoch named after it counts as outdated.
 - **A leaked phrase** lets whoever holds it act as the account until it
   retires the key: read and write what it may, sign records, host a hosted
   block it has Edit on, or join one as a player.
@@ -556,9 +583,19 @@ instead.
      partial log seals, signs and escrows nothing but a reader's own records
      (guides/blocks/keys.md, "Proof paths"). Done: a test where a member with
      View is served no other member's grant, and a revocation it is served
-     reduced still outdates the epochs before it.
+     reduced still outdates the epochs before it; one where an organization
+     path hiding a demotion names no administrator, so the demoted one's seal
+     is not taken; one where a made-up tail after a path is not kept; one
+     where a reader granted by an administrator on Organization authority
+     checks its path.
 4. **Signed parents.** Done: a test where the server claims a block moved under
    a scope a contact manages and the next rotation wraps nothing under it.
+   A reader whose grant rests on `Authority::Inherited` checks it against the
+   ancestor's path, which proves the signer's Manage there only if the signer
+   sealed the reader a key of the ancestor; otherwise the block's path does not
+   check for it. Moot until this step: 3c seals on no grant resting on
+   Inherited authority. Signed parents should serve a reader the ancestor
+   path for the grant's signer.
 5. **Owner transfer.** Owner records, and transferring ownership in the shell.
    Done: a test where ownership moves and the old owner can no longer grant.
 6. **Guides.** guides/blocks/keys.md's server section, and its rule that keys
