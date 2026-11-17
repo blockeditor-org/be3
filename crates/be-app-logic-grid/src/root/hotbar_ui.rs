@@ -116,7 +116,8 @@ pub(super) fn Hotbar(session: Session) -> NodeId {
     let up = NodeRef::new();
     let header_over = create_signal(None::<HotbarDropTarget>);
     let up_border = landing(create_memo(move || {
-        header_over.with(|over| matches!(over, Some(HotbarDropTarget::Folder(at)) if *at == parent.get()))
+        header_over
+            .with(|over| matches!(over, Some(HotbarDropTarget::Folder(at)) if *at == parent.get()))
     }));
     view! {
         <List spacing=SPACING>
@@ -180,7 +181,9 @@ fn use_hotbar_site(
     use_drop_site(
         Func::new(|_: Vec<usize>| true),
         Func::new(move |source: Vec<usize>| {
-            let slots = slots.map(|slots| slots.value().borrow().clone()).unwrap_or_default();
+            let slots = slots
+                .map(|slots| slots.value().borrow().clone())
+                .unwrap_or_default();
             let slots = slots
                 .into_iter()
                 .filter(|(path, _)| takes(&source, path))
@@ -205,8 +208,11 @@ fn use_hotbar_site(
 /// A ring around whatever a carried slot would land on.
 fn landing(over: Memo<bool>) -> Memo<Option<Border>> {
     create_memo(move || {
-        over.get()
-            .then_some(Border::new(ColorRole::Accent).width(Stroke::Focus).offset(Stroke::Focus))
+        over.get().then_some(
+            Border::new(ColorRole::Accent)
+                .width(Stroke::Focus)
+                .offset(Stroke::Focus),
+        )
     })
 }
 
@@ -225,7 +231,8 @@ fn HotbarHeader(
     let site = use_hotbar_site(session, None, vec![(up, parent), (area, folder)]);
     create_effect(move || over.set(site.over.get()));
     let border = landing(create_memo(move || {
-        site.over.with(|over| matches!(over, Some(HotbarDropTarget::Folder(at)) if *at == folder.get()))
+        site.over
+            .with(|over| matches!(over, Some(HotbarDropTarget::Folder(at)) if *at == folder.get()))
     }));
     view! {
         <Frame @node_ref=&area border={border} radius=Radius::Sm>{children}</Frame>
@@ -286,11 +293,13 @@ fn HotbarSlotButton(
 ) -> NodeId {
     let path = store(path);
     let face = NodeRef::new();
-    slots.value().borrow_mut().push((path.value().to_vec(), face));
+    slots
+        .value()
+        .borrow_mut()
+        .push((path.value().to_vec(), face));
     on_cleanup(move || {
         let gone = path.value().to_vec();
-        slots
-            .try_with(|slots| slots.borrow_mut().retain(|(path, _)| *path != gone));
+        slots.try_with(|slots| slots.borrow_mut().retain(|(path, _)| *path != gone));
     });
     let shown = create_memo(move || session.read(|model| model.slot_view(&path.value())));
     let label = create_memo(move || shown.get().map(|slot| slot.label).unwrap_or_default());
@@ -336,7 +345,9 @@ fn HotbarSlotButton(
         }
     };
     let border = landing(create_memo(move || {
-        over.with(|over| matches!(over, Some(HotbarDropTarget::Slot(target)) if *target == *path.value()))
+        over.with(
+            |over| matches!(over, Some(HotbarDropTarget::Slot(target)) if *target == *path.value()),
+        )
     }));
     let drag = Func::new(move |_: PointerPress| {
         let carried = payload.get_untracked()?;

@@ -109,7 +109,9 @@ pub fn is_carried<K: Clone + PartialEq + 'static>(key: K) -> Memo<bool> {
 /// listed in a `closest` wins whatever was chosen before, so list a nested one before the
 /// one around it.
 pub fn place_on<D>(node: NodeRef, drop: D) -> Option<Candidate<D>> {
-    let (rect, scale) = node.try_get().and_then(|id| beui_view::drag::space().placed(id))?;
+    let (rect, scale) = node
+        .try_get()
+        .and_then(|id| beui_view::drag::space().placed(id))?;
     let whole = Rect::from_min_size(Pos2::ZERO, rect.size() / scale);
     Some(Candidate::new(drop, whole, node).zoned(whole))
 }

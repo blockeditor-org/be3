@@ -770,9 +770,8 @@ where
     let floating = create_memo(move || {
         carried.with(Option::is_some) && drag_board().frame().is_some_and(|frame| frame.floating)
     });
-    let visiting = create_memo(move || {
-        (visited.get() || floating.get()) && carrying::<P>().is_some()
-    });
+    let visiting =
+        create_memo(move || (visited.get() || floating.get()) && carrying::<P>().is_some());
     let anchor = create_memo(move || {
         OverlayAnchor::Point(
             drag_board()
@@ -1022,7 +1021,8 @@ where
         on_click.call(());
     };
     let drag = Func::new(move |_: PointerPress| lift(state, key.get_untracked()));
-    let (spring, lifts_on_long_press) = state.with(|state| (state.spring, state.lifts_on_long_press));
+    let (spring, lifts_on_long_press) =
+        state.with(|state| (state.spring, state.lifts_on_long_press));
     let inner = view! {
         <Glide spring on={arm} within={Some(api)}>
             <Interactive

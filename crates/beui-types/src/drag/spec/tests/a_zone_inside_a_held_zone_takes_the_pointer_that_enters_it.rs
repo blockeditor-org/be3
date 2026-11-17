@@ -11,7 +11,11 @@ fn a_zone_inside_a_held_zone_takes_the_pointer_that_enters_it() {
     let spec = closest([zoned(1, slot), zoned(2, column)]);
 
     let empty = frame(&spec, at(pos2(50.0, 150.0)), &DragFrame::default());
-    assert_eq!(empty.drop, Some(2), "in the column's empty area, the column");
+    assert_eq!(
+        empty.drop,
+        Some(2),
+        "in the column's empty area, the column"
+    );
     let onto = frame(&spec, at(pos2(50.0, 50.0)), &empty.frame);
     assert_eq!(
         onto.drop,
