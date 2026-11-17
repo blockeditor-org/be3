@@ -1518,6 +1518,13 @@ impl KeyBook {
                 break;
             }
         }
+        let marked: Vec<Uuid> = self.under_owner_only.lock().unwrap().iter().copied().collect();
+        self.moved_out(
+            marked
+                .iter()
+                .filter_map(|key| rows.wraps.get(key))
+                .flatten(),
+        );
         drop(rows);
         self.settle_escrow();
         if changed > 0 {
@@ -1867,6 +1874,38 @@ impl KeyBook {
         for wrap in &set.wrapped {
             rows.add_wrap(wrap.clone());
         }
+        drop(rows);
+        self.moved_out(&set.wrapped);
+    }
+
+    /// Clears the owner-only mark (`owner_only_covers`) of each key one of `wraps` shows moved
+    /// out of the owner-only block it was minted or opened in (`wrapped_outside`), whichever wrap
+    /// opened it first: it is a shared key now, sealed and escrowed as any other.
+    fn moved_out<'a>(&self, wraps: impl IntoIterator<Item = &'a WrappedKey>) {
+        for wrap in wraps {
+            let marked = self.under_owner_only.lock().unwrap().contains(&wrap.key);
+            if marked && self.wrapped_outside(wrap) {
+                self.under_owner_only.lock().unwrap().remove(&wrap.key);
+            }
+        }
+    }
+
+    /// Whether `wrap` holds the very key this device holds as `wrap.key` under a content key no
+    /// owner-only scope covers: made only by one who holds the key, and only its author holds a
+    /// key an owner-only scope covers, so only by its own move out of the owner-only block
+    /// (`Peer::rescope`), which the server takes only once the block lies outside it.
+    fn wrapped_outside(&self, wrap: &WrappedKey) -> bool {
+        let WrappedBy::Key(by) = wrap.wrapped_by else {
+            return false;
+        };
+        if self.owner_only_covers(by) || be_block_store::sealed_key(&wrap.sealed).ok() != Some(by) {
+            return false;
+        }
+        let (Ok(plain), Some(held)) = (self.ring.open(&wrap.sealed), self.ring.get(wrap.key))
+        else {
+            return false;
+        };
+        CarriedKey::decode(&plain).is_ok_and(|carried| carried.key == *held.as_bytes())
     }
 
     pub fn missing(&self, keys: impl IntoIterator<Item = Uuid>) -> HashSet<Uuid> {

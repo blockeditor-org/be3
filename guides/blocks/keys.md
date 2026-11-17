@@ -73,7 +73,10 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   administrator it is not sealed to, and a device that trusts it seals it to
   them as itself. Whatever key work lists, a device never seals a key an
   owner-only scope covers (`KeyBook::owner_only_covers`: the scope key, or a
-  key this device minted or opened under one).
+  key this device minted or opened under one, until a wrap of it under a key
+  no owner-only scope covers shows it moved out, `KeyBook::moved_out`; it is
+  then sealed and escrowed as any shared key). Nothing moves into an
+  owner-only block, so no shared key ever becomes owner-only.
 - **Keys are bound to blocks where the server points.** Every key a device
   holds has a block (`KeyBook::block_of`, filled by `mint` and `opened` alone).
   What the server chooses for a block is opened only under one of that block's
