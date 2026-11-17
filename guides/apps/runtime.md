@@ -209,7 +209,8 @@ An editor that answers late is shown in a later frame without holding the host
 up. Until then its last painting is drawn at the size it was painted, from the
 view's top-left, cropped where the view is smaller and never stretched; where
 the view is larger, the rest shows the view's backdrop (the app's clear colour,
-`Backdrop` in `app_view.rs`). A
+`Backdrop` in `app_view.rs`) within the view's last placement, and beyond it what is behind
+the view (its placer's backdrop or the host's surface), until the app reports the new size. A
 present says the placement each surface was painted at
 (`presented-frame.painted`), which the host keeps per surface, pruned against each layout it publishes
 (`presenter::Shared::holds`): every path that draws a painting into its view

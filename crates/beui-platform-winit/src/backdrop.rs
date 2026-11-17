@@ -16,7 +16,8 @@ thread_local! {
     // A connection of its own: winit's is an Xlib or XCB pointer, which x11rb could only wrap
     // through its unsafe XCB bindings. Any client may change another's window attributes.
     static CONNECTION: RefCell<Option<Option<RustConnection>>> = const { RefCell::new(None) };
-    /// The clear colour last set, for a window made after it (`fresh`).
+    /// The clear colour last set, for a window made after it (`fresh`). One for the thread,
+    /// shared by every window: each gets the colour set last, whichever window set it.
     static COLOR: Cell<Option<Color32>> = const { Cell::new(None) };
 }
 

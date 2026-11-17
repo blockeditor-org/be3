@@ -328,7 +328,7 @@ impl Blit {
 
     /// Where a painting of `painted` pixels, at `placement`'s raster, shows for this blit, and
     /// which part of it: always at its own size, from the view's top left, cropped where the view
-    /// is smaller and leaving the rest of the view to its backdrop where it is larger
+    /// is smaller and leaving the rest of the view where it is larger to what is under it
     /// (`unscaled`). Every path that draws an app's painting into its view, native, web or a
     /// paint snapshot, goes through here. `painted` is the size of what is drawn (the texture,
     /// the painting), never the size the layout asked for, since a layout commit can land
@@ -396,9 +396,6 @@ impl Blit {
     }
 }
 
-/// How close, in points, a painting's size and its view's must be to count as the same.
-const SAME: f32 = 0.05;
-
 /// Places a painting of `painted` pixels, at `density` pixels per point, for a piece of a view
 /// laid out at `quad` that shows `source` of the view's textured part: the painting keeps its own
 /// size, anchored at the textured part's top left. Returns the part of `quad` it covers and the
@@ -406,8 +403,9 @@ const SAME: f32 = 0.05;
 ///
 /// One point of the result's quad always shows `density` pixels of the painting along both axes,
 /// so an app's frame is never stretched or squished into a view of another size, however late
-/// its app answers: a view that grew shows the painting at its size with the rest left to the
-/// backdrop under it, and one that shrank shows its top left.
+/// its app answers: a view that grew shows the painting at its size with the rest left to what
+/// is under it (the view's backdrop within its last placement, and beyond it what is behind the
+/// view, until the app reports the new size), and one that shrank shows its top left.
 pub(super) fn unscaled(
     quad: Quad,
     source: Rect,
@@ -430,11 +428,12 @@ pub(super) fn unscaled(
     );
     let origin = rect.min - vec2(source.min.x * laid.x, source.min.y * laid.y);
     let extent = painted / density;
-    if (extent.x - laid.x).abs() < SAME && (extent.y - laid.y).abs() < SAME {
-        // The painting is the size the view is laid out at, as it is whenever its app has drawn
-        // that size: the piece shows as it was cut, with no float error. `laid` comes from a
-        // piece's fraction, so a thin piece knows it only to a few hundredths of a point; a
-        // painting of another size differs by a whole pixel, a third of a point even at raster 3.
+    let pixels = laid * density;
+    if (pixels.x - painted.x).abs() < 1.0 && (pixels.y - painted.y).abs() < 1.0 {
+        // The painting is the size the view is laid out at, in whole pixels, as it is whenever
+        // its app has drawn that size: a view laid out at a fraction of a pixel is painted at
+        // that size rounded (a 100.3-point view at 100 or 101 pixels). The piece then shows as it
+        // was cut, with no float error.
         return Some((quad, source));
     }
     let covers = Rect::from_min_size(origin, extent);
@@ -816,7 +815,8 @@ impl Paints for ViewDrawing {
                 continue;
             };
             // The view has a painting, so it is drawn even where the painting does not reach a
-            // piece (a view grown before its app drew the new size): the backdrop shows there.
+            // piece (a view grown before its app drew the new size): what is under the view shows
+            // there, its backdrop within its last placement and beyond it what is behind it.
             found = true;
             let size = (screen.frame.size[0], screen.frame.size[1]);
             let Some((quad, source)) = shared
