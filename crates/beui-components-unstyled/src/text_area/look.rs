@@ -73,7 +73,6 @@ pub struct BlockGeometry {
     pub quote_space: f32,
     pub code_space: f32,
     pub table_space: f32,
-    pub rule_gap: f32,
     pub cell_padding: f32,
     pub delimiter_size: f32,
 }

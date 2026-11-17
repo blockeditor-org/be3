@@ -76,7 +76,6 @@ pub fn text_area_geometry() -> TextAreaGeometry {
             quote_space: QUOTE_SPACE,
             code_space: CODE_SPACE,
             table_space: TABLE_SPACE,
-            rule_gap: RULE_GAP,
             cell_padding: CELL_PADDING,
             delimiter_size: DELIMITER_SIZE,
         },
@@ -236,7 +235,6 @@ const HEADING_SPACE: [f32; 3] = [Space::Xl.px(), Space::Lg.px(), Space::Sm.px()]
 const QUOTE_SPACE: f32 = 7.0;
 const CODE_SPACE: f32 = 5.0;
 const TABLE_SPACE: f32 = Space::Xs.px();
-const RULE_GAP: f32 = Space::Md.px();
 const CELL_PADDING: f32 = Space::Lg.px();
 const DELIMITER_SIZE: f32 = 11.0;
 const REMOTE_SELECTION_ALPHA: u8 = 70;

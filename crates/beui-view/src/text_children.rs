@@ -5,7 +5,7 @@ use crate::reactive::{
 use crate::reactive::{DynamicSegment, ForEach, create_memo};
 use crate::types::icons::Glyph;
 use crate::types::text::{FontPatch, IconSpan, Phrase, PhraseRun};
-use crate::types::{Color, FontFamily, FontId, SpanBackground};
+use crate::types::{Color, FontFamily, FontId, GapWidth, SpanBackground};
 use beui_macros::view;
 
 pub enum TextChild {
@@ -275,7 +275,7 @@ impl IntoSegment<TextChild> for Span {
 }
 
 pub struct Gap {
-    pub(crate) width: f32,
+    pub(crate) width: GapWidth,
 }
 
 impl ChildValue for Gap {}

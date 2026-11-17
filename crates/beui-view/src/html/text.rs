@@ -194,7 +194,15 @@ impl TextChild {
                     "span",
                     &[("display", "inline-block"), ("user-select", "none")],
                 );
-                set_style(node, "width", Some(css::px(gap.width)));
+                let width = match gap.width.share == 0.0 {
+                    true => css::px(gap.width.px),
+                    false => format!(
+                        "max(0px, calc({} + {}%))",
+                        css::px(gap.width.px),
+                        css::number(gap.width.share * 100.0)
+                    ),
+                };
+                set_style(node, "width", Some(width));
                 (node, Piece::Skip { newline: false })
             }
             TextChild::Break(_) => {

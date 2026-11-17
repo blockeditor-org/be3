@@ -35,7 +35,7 @@ enum Tier {
     LastResort,
 }
 
-use beui_types::{Piece, RichOptions, SpanStyle};
+use beui_types::{GapWidth, Piece, RichOptions, SpanStyle};
 
 pub const OBJECT: &str = "\u{fffc}";
 
@@ -43,7 +43,7 @@ pub const OBJECT: &str = "\u{fffc}";
 pub enum SpanKind {
     Text,
     Inline(usize, Vec2),
-    Gap(f32),
+    Gap(GapWidth),
     Break,
     Icon(f32),
     Tab,
@@ -313,6 +313,8 @@ struct Builder<'a> {
     paragraph: Range<usize>,
     segment: Range<usize>,
     anywhere: bool,
+    /// What a gap's share of the width is a share of.
+    wrap_width: f32,
     whole: Vec<Option<(Range<usize>, Galley)>>,
 }
 
@@ -473,7 +475,7 @@ impl Builder<'_> {
                 kind,
                 x,
                 width: match kind {
-                    SpanKind::Gap(width) => width,
+                    SpanKind::Gap(width) => width.of(self.wrap_width),
                     _ => 0.0,
                 },
                 height: 0.0,
@@ -821,6 +823,7 @@ impl RichLayout {
             paragraph: 0..0,
             segment: 0..0,
             anywhere: options.anywhere,
+            wrap_width: options.wrap_width,
             whole: vec![None; spans.len()],
         };
         let segments = segments(text, &spans);
@@ -922,6 +925,15 @@ impl RichLayout {
             .iter()
             .map(|line| line.limit)
             .fold(f32::INFINITY, f32::min);
+        // A gap with a share of the width is as wide as the width it was laid out at, so the
+        // layout holds at that width alone.
+        let shared = spans
+            .iter()
+            .any(|span| matches!(span.kind, SpanKind::Gap(gap) if gap.share != 0.0));
+        let (reach, limit) = match shared {
+            true => (options.wrap_width, options.wrap_width + WRAP_SLACK),
+            false => (reach, limit),
+        };
         Self {
             lines,
             size: vec2(width, top),
