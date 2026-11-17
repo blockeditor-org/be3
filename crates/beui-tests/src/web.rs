@@ -1,4 +1,5 @@
 use beui::reactive::view;
+use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::wasm_bindgen;
 
@@ -33,6 +34,8 @@ pub fn checks() -> String {
 
 /// Whether the blank `BlankFixture` shows is as tall as its line, `width` wide and has its glyph
 /// on the line: the box a mark over it fills, which a blank with no font size would leave empty.
+/// It reads the DOM's rects, so it relies on running after the browser has laid the text out:
+/// the fixture calls it as the text's measurement lands.
 pub(crate) fn blank_box(width: f32) -> String {
     let Some(document) = web_sys::window().and_then(|window| window.document()) else {
         return "Blank box unseen".to_owned();
@@ -64,5 +67,24 @@ pub(crate) fn blank_box(width: f32) -> String {
             text.top(),
             text.bottom()
         ),
+    }
+}
+
+/// The width of the blank in `BlankFixture`'s text whose font changes, which must stay `width`
+/// whatever the font: its `letter-spacing` is measured again in the text's new font. Like
+/// `blank_box`, it reads the DOM after the text's measurement lands.
+pub(crate) fn grown_blank_width(width: f32) -> String {
+    let blank = web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| document.query_selector_all(".beui-blank").ok())
+        .and_then(|blanks| blanks.item(blanks.length().checked_sub(1)?))
+        .and_then(|node| node.dyn_into::<web_sys::Element>().ok());
+    let Some(blank) = blank else {
+        return "Grown blank unseen".to_owned();
+    };
+    let drawn = blank.get_bounding_client_rect().width();
+    match (drawn - f64::from(width)).abs() <= 0.75 {
+        true => format!("Grown blank {width} wide"),
+        false => format!("Grown blank {drawn:.1} wide, not {width}"),
     }
 }

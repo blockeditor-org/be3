@@ -448,6 +448,21 @@ fn BlankFixture() -> NodeId {
         let _laid_out = fitted_rect.get();
         blank_box()
     });
+    // A blank with no font of its own is the text's width whatever font the text changes to.
+    let large = create_signal(false);
+    let grown_size = move || if large.get() { 24.0 } else { 14.0 };
+    let grown_font = move || FontId::proportional(grown_size());
+    let grown = view! {
+        <Text color={INK} font={grown_font} @test_id="blank.grown">
+            "Grows"
+            <Blank width=BLANK_WIDTH />
+        </Text>
+    };
+    let grown_rect = measured_rect(grown);
+    let grown_box = create_memo(move || {
+        let _laid_out = grown_rect.get();
+        format!("{} in {} pixel text", grown_blank_width(), grown_size())
+    });
     view! {
         <List spacing=12.0>
             <List direction={Direction::Horizontal} spacing=0.0>{free}</List>
@@ -455,6 +470,9 @@ fn BlankFixture() -> NodeId {
             <Frame width={width(4.0)}>{narrower}</Frame>
             <Text color={INK}>{report}</Text>
             <Text color={INK}>{boxed}</Text>
+            {grown}
+            <Button id="blank.grow" label="Grow" on_click={move || large.set(true)} />
+            <Text color={INK}>{grown_box}</Text>
         </List>
     }
 }
@@ -470,6 +488,17 @@ fn blank_box() -> String {
 #[cfg(not(target_arch = "wasm32"))]
 fn blank_box() -> String {
     "Blank box drawn natively".to_owned()
+}
+
+/// What the browser drew for the blank in the text whose font `BlankFixture` changes.
+#[cfg(target_arch = "wasm32")]
+fn grown_blank_width() -> String {
+    web::grown_blank_width(BLANK_WIDTH)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn grown_blank_width() -> String {
+    "Grown blank drawn natively".to_owned()
 }
 
 #[component]
