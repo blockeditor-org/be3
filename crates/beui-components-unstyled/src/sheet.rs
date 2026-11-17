@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use std::cell::Cell;
 use std::rc::Rc;
 use std::time::Duration;
@@ -171,6 +174,37 @@ struct Motion {
     on_presence: Callback<f32>,
     on_gone: Callback<()>,
     on_close: Callback<()>,
+}
+
+/// Which of `places` (heights) a release at `height`, rising at `velocity`, lands on:
+/// `closest(places).thrown()`, thrown at any speed, so a release lands where its path leads
+/// in `THROWN_SECONDS`. The sheet is a continuous drag, its height and its content's scroll
+/// one travel under the finger, so only its release is a spec, evaluated here rather than
+/// carried; `node` is any laid-out node, as the places are read in its points unplaced.
+fn snap_to<D: Clone + 'static>(
+    node: NodeRef,
+    height: f32,
+    velocity: f32,
+    places: impl IntoIterator<Item = (f32, D)>,
+) -> Option<D> {
+    // Heights rise up the y axis, as the sheet's top does.
+    let at = |height: f32| Rect::from_min_size(pos2(0.0, -height), Vec2::ZERO);
+    let spec = drag::closest(
+        places
+            .into_iter()
+            .map(|(place, drop)| drag::Candidate::new(drop, at(place), node)),
+    )
+    .thrown()
+    .thrown_for(THROWN_SECONDS)
+    .with_distance(0.0);
+    let placed = |_: NodeId| Some((Rect::ZERO, 1.0));
+    let evaluation = drag::Evaluation {
+        point: drag::DragPoint::at(pos2(0.0, -height), Modifiers::default()),
+        velocity: vec2(0.0, -velocity),
+        released: true,
+        placed: &placed,
+    };
+    drag::evaluate(&spec, &evaluation, &drag::DragFrame::default()).drop
 }
 
 fn own_units(measured: Measured) -> Rect {
@@ -764,7 +798,8 @@ impl Motion {
             .iter()
             .map(|(stop, rest)| (*stop, Some(*rest)))
             .chain([(close, None)]);
-        match self.snap_to(height, velocity, places) {
+        match snap_to(
+            self.slot,height, velocity, places) {
             Some(None) => Phase::Snap {
                 target: Rest::Free(height),
                 velocity: (-velocity).max(0.0),
@@ -776,35 +811,6 @@ impl Motion {
                 closes: false,
             },
         }
-    }
-
-    /// Which of `places` (heights) a release at `height`, rising at `velocity`, lands on:
-    /// `closest(places).thrown()`, the nearest, or the one a fast release is thrown toward.
-    /// The sheet is a continuous drag, its height and its content's scroll one travel under
-    /// the finger, so only its release is a spec, evaluated here rather than carried.
-    fn snap_to<D: Clone + 'static>(
-        &self,
-        height: f32,
-        velocity: f32,
-        places: impl IntoIterator<Item = (f32, D)>,
-    ) -> Option<D> {
-        // Heights rise up the y axis, as the sheet's top does.
-        let at = |height: f32| Rect::from_min_size(pos2(0.0, -height), Vec2::ZERO);
-        let spec = drag::closest(
-            places
-                .into_iter()
-                .map(|(place, drop)| drag::Candidate::new(drop, at(place), self.slot)),
-        )
-        .thrown()
-        .thrown_for(THROWN_SECONDS);
-        let placed = |_: NodeId| Some((Rect::ZERO, 1.0));
-        let evaluation = drag::Evaluation {
-            point: drag::DragPoint::at(pos2(0.0, -height), Modifiers::default()),
-            velocity: vec2(0.0, -velocity),
-            released: true,
-            placed: &placed,
-        };
-        drag::evaluate(&spec, &evaluation, &drag::DragFrame::default()).drop
     }
 
     fn start(&self, phase: Phase) {
@@ -944,7 +950,8 @@ impl Motion {
         if std::mem::take(&mut self.held.borrow_mut().dismiss_drag) {
             // Shown, or closed: a place twice the close share down, so a release past the
             // share closes.
-            let closes = self.snap_to(
+            let closes = snap_to(
+            self.slot,
                 -self.shifted.get(),
                 velocity,
                 [(0.0, false), (-2.0 * CLOSE_SHARE * self.height(), true)],

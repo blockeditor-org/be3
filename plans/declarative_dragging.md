@@ -332,7 +332,7 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
    - **game editor (done):** each `Gesture::Drag { from, to }` is a place at `to`'s spot,
      zoned to it, with the item drawn there the size it was lifted at; `drag` answers
      `None` off a piece, so the same press pans. The site draws the lifted piece from the
-     board's frame (`drawn_by_site`). Its presses are caught by an `Interactive` laid over
+     board's frame (`drawn_by_site`); Space lifts the selected piece from the keyboard. Its presses are caught by an `Interactive` laid over
      the table rather than around it: a drag source's face takes its child's own size, so
      a child that fills whatever it is given collapses inside one (plans/backlog.md).
    - **between blocks (a step of its own, after the canvas):** an item dragged into another block of a type that takes it (canvas to

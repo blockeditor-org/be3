@@ -200,7 +200,10 @@ pub(crate) fn Stage(
             play.dropped(from, to);
         }),
     );
-    create_effect(move || play.over.set(site.over.get()));
+    let play = Play {
+        over: site.over,
+        ..play
+    };
     let board = beui::unstyled::drag_board();
     let lifted = create_memo(move || {
         let Carried(from) = carrying::<Carried>()?;
@@ -239,17 +242,24 @@ pub(crate) fn Stage(
             panning: false,
         });
     };
-    // A press on a piece that can move lifts it; any other press goes on as a pan.
+    // A press on a piece that can move lifts it; any other press goes on as a pan. The
+    // keyboard lifts the piece selected.
     let drag = Func::new(move |pointer: PointerPress| {
-        if pointer.pointer == PointerId::Keyboard {
+        let from = match pointer.pointer {
+            PointerId::Keyboard => play.selected.get_untracked()?,
+            _ => {
+                let pressed = press.value();
+                let mut held = pressed.borrow_mut();
+                let state = held.as_mut()?;
+                let from = state.spot.filter(|spot| play.can_drag(*spot))?;
+                state.carried = true;
+                from
+            }
+        };
+        if !play.can_drag(from) {
             return None;
         }
-        let pressed = press.value();
-        let mut held = pressed.borrow_mut();
-        let state = held.as_mut()?;
-        let from = state.spot.filter(|spot| play.can_drag(*spot))?;
         let size = lifted_size(from)?;
-        state.carried = true;
         play.choices.set(Vec::new());
         play.selected.set(Some(from));
         Some(

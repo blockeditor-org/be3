@@ -4,7 +4,7 @@ use be_sdk_beui::be_block::display_settings::{Arrangement, ScreenPlace};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::drag::{self, DragSpec};
-use be_sdk_beui::beui::{NodeId, PointerPress, Pos2, Rect, Vec2, pos2, vec2};
+use be_sdk_beui::beui::{CanvasView, NodeId, PointerPress, Pos2, Rect, Vec2, pos2, vec2};
 use beui::geometry::Side;
 use beui::geometry::touching;
 use beui::{Align, Align2, TextAlign};
@@ -113,8 +113,9 @@ pub(super) fn dropped(tiles: &[Tile], id: &str, rect: Rect, main: Option<String>
 #[derive(Clone, Debug, PartialEq)]
 struct Carried(String);
 
-/// How far, in points, a carried display is pulled onto a place where it lines up with
-/// another; beyond it, it moves freely and settles against the nearest edge when let go.
+/// How far a carried display is pulled onto a place where it lines up with another, in
+/// points on screen (not desktop pixels); beyond it, it moves freely and settles against
+/// the nearest edge when let go.
 const SNAP: f32 = 12.0;
 
 /// The places a carried display can be let go: every place it lines up touching another
@@ -214,13 +215,19 @@ pub(super) fn ArrangementRow(
                 border={Border::DEFAULT}
                 radius=Radius::Sm
             >
-                <Layers>
-                    <ForEach value={keys}>|id: String|
-                        <Frame align=Align2::START>
-                            <ArrangedTile id shown={laid} view main read_only />
-                        </Frame>
-                    </ForEach>
-                </Layers>
+                // Clipped, so a display carried past the area never draws over the rows
+                // around it.
+                <Canvas view={Some(CanvasView::new(Pos2::ZERO, 1.0))}>
+                    <CanvasItem x=0.0 y=0.0 width=AREA.x height=AREA.y>
+                        <Layers>
+                            <ForEach value={keys}>|id: String|
+                                <Frame align=Align2::START>
+                                    <ArrangedTile id shown={laid} view main read_only />
+                                </Frame>
+                            </ForEach>
+                        </Layers>
+                    </CanvasItem>
+                </Canvas>
             </Frame>
         </SettingsRow>
     }

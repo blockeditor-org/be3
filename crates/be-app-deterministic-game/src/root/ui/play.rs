@@ -21,7 +21,8 @@ pub(crate) struct Play {
     pub(crate) editable: Memo<bool>,
     pub(crate) selected: Signal<Option<Spot>>,
     pub(crate) choices: Signal<Vec<Action>>,
-    pub(crate) over: Signal<Option<Spot>>,
+    /// The spot a carried piece would land on: the stage's drop site's `over`.
+    pub(crate) over: ReadSignal<Option<Spot>>,
 }
 
 impl Play {
