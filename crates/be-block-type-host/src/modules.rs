@@ -208,6 +208,9 @@ struct Module {
     failure: Option<String>,
     generation: u64,
     restarts: usize,
+    /// How often the module said each thing since it started, by call or kind of answer: what
+    /// a module that never settles keeps saying (`Modules::unsettled`).
+    said: BTreeMap<&'static str, u64>,
 }
 
 #[derive(Debug)]
@@ -428,6 +431,7 @@ impl Modules {
                     failure: None,
                     generation: 0,
                     restarts: 0,
+                    said: BTreeMap::new(),
                 })
                 .collect(),
             notify: Arc::new(Notify::new()),
@@ -549,7 +553,19 @@ impl Modules {
             .iter()
             .filter_map(|module| {
                 let why = module.worker.as_ref()?.unsettled()?;
-                Some(format!("{}: {why}", module.source.name))
+                let mut said: Vec<(&str, u64)> =
+                    module.said.iter().map(|(what, times)| (*what, *times)).collect();
+                said.sort_by_key(|(_, times)| std::cmp::Reverse(*times));
+                let said: Vec<String> = said
+                    .iter()
+                    .take(4)
+                    .map(|(what, times)| format!("{what} {times} times"))
+                    .collect();
+                Some(format!(
+                    "{}: {why}; it said most {}",
+                    module.source.name,
+                    said.join(", ")
+                ))
             })
             .collect();
         if !self.backlog.is_empty() {
@@ -823,6 +839,9 @@ impl Modules {
             while let Some(event) = held.connection.next_event() {
                 match event {
                     Incoming::Started(started) => {
+                        let said = be_sdk_type_api::embed::method_name(started.method)
+                            .unwrap_or("an unknown call");
+                        *held.said.entry(said).or_default() += 1;
                         let (op, parent) = (started.op, started.parent);
                         match Call::accept(&mut held.connection, started) {
                             Some(Call::Clock { stream }) => {
@@ -852,6 +871,7 @@ impl Modules {
                         }
                     }
                     Incoming::Completed { op, outcome } => {
+                        *held.said.entry("an answer").or_default() += 1;
                         match held.started.filter(|started| started.op() == op) {
                             Some(started) => {
                                 held.started = None;
@@ -862,6 +882,7 @@ impl Modules {
                         }
                     }
                     Incoming::Canceled { op } => {
+                        *held.said.entry("a cancel").or_default() += 1;
                         if held
                             .sleeping
                             .as_ref()
@@ -878,9 +899,12 @@ impl Modules {
                         }
                     }
                     Incoming::Credited { op } => {
+                        *held.said.entry("a credit").or_default() += 1;
                         held.clock.credited(&mut held.connection, op);
                     }
-                    Incoming::Yielded { .. } => {}
+                    Incoming::Yielded { .. } => {
+                        *held.said.entry("a yield").or_default() += 1;
+                    }
                 }
             }
             self.flush(module);
