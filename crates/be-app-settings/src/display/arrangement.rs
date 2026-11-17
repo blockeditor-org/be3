@@ -4,7 +4,8 @@ use be_sdk_beui::be_block::display_settings::{Arrangement, ScreenPlace};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::drag::{self, DragSpec};
-use be_sdk_beui::beui::{NodeId, PointerPress, Pos2, Rect, Side, Vec2, pos2, vec2};
+use be_sdk_beui::beui::{NodeId, PointerPress, Pos2, Rect, Vec2, pos2, vec2};
+use beui::geometry::Side;
 use beui::geometry::touching;
 use beui::{Align, Align2, TextAlign};
 
