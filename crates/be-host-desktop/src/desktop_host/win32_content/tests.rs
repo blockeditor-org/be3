@@ -54,14 +54,20 @@ impl Shown {
                 <Root>
                     <List direction=beui::Direction::Vertical spacing=Space::Xs>
                         <Interactive @test_id={"grip"}>
-                            <Frame height={Length::Size(Size::Custom(40.0))} fill=ColorRole::Control />
+                            <Frame
+                                height={Length::Size(Size::Custom(40.0))}
+                                fill=ColorRole::Control
+                            />
                         </Interactive>
                         <CapturedContent
                             input={input as Rc<dyn ContentInput>}
                             focus={Some(focus)}
                             tag={"content".to_owned()}
                         >
-                            <Frame height={Length::Size(Size::Custom(300.0))} fill=ColorRole::Accent />
+                            <Frame
+                                height={Length::Size(Size::Custom(300.0))}
+                                fill=ColorRole::Accent
+                            />
                         </CapturedContent>
                     </List>
                 </Root>
