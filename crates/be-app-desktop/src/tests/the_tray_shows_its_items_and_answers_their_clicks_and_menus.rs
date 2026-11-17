@@ -155,6 +155,7 @@ fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
         "a right click opens the menu"
     );
     fixture.test.hover(format!("{}.3", item(CHAT)));
+    fixture.test.pause(be_sdk_beui::beui::unstyled::SUBMENU_DELAY * 2);
     fixture.settle();
     fixture.test.settle();
     assert!(

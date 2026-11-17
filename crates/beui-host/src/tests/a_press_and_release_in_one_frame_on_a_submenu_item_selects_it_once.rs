@@ -41,7 +41,7 @@ fn a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once() {
     };
     let profiles = find(&harness, "Profiles");
     harness.frame(vec![Input::PointerMoved(harness.center(profiles))]);
-    harness.frame(Vec::new());
+    harness.pause(unstyled::SUBMENU_DELAY * 2);
     let second = harness.center(find(&harness, "Profile 2"));
     harness.frame(vec![Input::PointerMoved(second)]);
     harness.frame(vec![
