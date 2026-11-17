@@ -18,9 +18,13 @@ use tokio::sync::Mutex;
 use crate::watch::{Place, Push, WatchHub};
 
 pub struct SessionRegistry {
-    sessions: Mutex<Sessions>,
+    sessions: Arc<Mutex<Sessions>>,
     hub: Arc<WatchHub>,
 }
+
+/// The registry held while a trim with no new commit is written by the lease holder, so no
+/// membership entry moves the lease meanwhile (`SessionRegistry::holding`).
+pub struct Holding(#[allow(dead_code)] tokio::sync::OwnedMutexGuard<Sessions>);
 
 #[derive(Default)]
 struct Session {
@@ -31,7 +35,7 @@ struct Session {
 }
 
 #[derive(Default)]
-struct Sessions {
+pub struct Sessions {
     sessions: HashMap<Place, Session>,
     /// The blocks each client is a participant of, so leaving them all costs what the client
     /// joined rather than every session on the server.
@@ -89,7 +93,7 @@ async fn send(hub: &WatchHub, block: Place, told: &[ClientId], entry: Membership
 impl SessionRegistry {
     pub fn new(hub: Arc<WatchHub>) -> Self {
         Self {
-            sessions: Mutex::new(Sessions::default()),
+            sessions: Arc::new(Mutex::new(Sessions::default())),
             hub,
         }
     }
@@ -177,14 +181,35 @@ impl SessionRegistry {
             .await;
     }
 
+    /// Holds the registry while `client` holds the lease of `block`'s session, from a job on the
+    /// store's blocking pool; none when it does not hold it.
+    pub fn holding(&self, block: Place, client: ClientId) -> Option<Holding> {
+        let sessions = Arc::clone(&self.sessions).blocking_lock_owned();
+        sessions
+            .sessions
+            .get(&block)
+            .is_some_and(|session| session.state.is_holder(client))
+            .then_some(Holding(sessions))
+    }
+
     /// A seal moved `block`'s head to `commit`, holding the order through `through`, and the
-    /// journal's order goes on from `sequence`: every participant hears it.
-    pub async fn sealed(&self, block: Place, commit: CommitId, through: u64, sequence: u64) {
+    /// journal's order goes on from `trimmed.sequence`: every participant hears it.
+    pub async fn sealed(
+        &self,
+        block: Place,
+        commit: CommitId,
+        through: u64,
+        trimmed: &crate::journal::Trimmed,
+    ) {
         let mut sessions = self.sessions.lock().await;
         let Some(session) = sessions.sessions.get_mut(&block) else {
             return;
         };
-        session.tip = sequence;
+        // The tip goes back only when the order started afresh below it.
+        session.tip = match trimmed.restarted {
+            true => trimmed.sequence,
+            false => session.tip.max(trimmed.sequence),
+        };
         let participants = session.state.clients();
         self.hub
             .send_every(&participants, &Push::Sealed {
@@ -234,10 +259,5 @@ impl SessionRegistry {
             .filter(|(place, _)| place.organization == organization)
             .map(|(place, session)| (*place, session.state.clients()))
             .collect()
-    }
-
-    /// Whether `client` holds the lease of `block`'s session at the order's tip.
-    pub async fn holds(&self, block: Place, client: ClientId) -> bool {
-        self.state(block).await.is_holder(client)
     }
 }

@@ -611,11 +611,12 @@ fn sealing<C: BlockContent>(
     through: u64,
 ) -> Write<'_> {
     Write::encoded(C::CONTENT_TYPE, content.parts(), Some(expected))
-    .seals_journal(Some((
-        BUILD,
+    .seals_journal(Some(SealsJournal {
+        tag: BUILD,
+        run: 0,
         through,
-        format!("state through {through}").into_bytes(),
-    )))
+        state: format!("state through {through}").into_bytes(),
+    }))
 }
 
 /// The server's journal of `block` as `peer` reads it: its base's commit and sequence, and the

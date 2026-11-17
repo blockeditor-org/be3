@@ -164,7 +164,18 @@ pub struct Write<'a> {
     merging: Option<(Option<CommitId>, CommitId)>,
     bookmark: Option<String>,
     sealed_through: Option<be_block_commit::SealedThrough>,
-    journal: Option<(Hash, u64, Vec<u8>)>,
+    journal: Option<SealsJournal>,
+}
+
+/// A seal of a block's live session, as a write carries it (`Write::seals_journal`): the build
+/// that sealed it, the run of the order (`journal-seal.run`), the last sequence number it holds
+/// and the session state as of it.
+#[derive(Clone, Debug)]
+pub struct SealsJournal {
+    pub tag: Hash,
+    pub run: u64,
+    pub through: u64,
+    pub state: Vec<u8>,
 }
 
 impl<'a> Write<'a> {
@@ -223,11 +234,10 @@ impl<'a> Write<'a> {
         self
     }
 
-    /// The commit seals its block's live session, as the build `tag`: the server's journal
-    /// starts from it, holding the order through `sequence` with the session state `state`, only
-    /// if it wins the head (`publish`'s `journal`). None for a seal made outside the server's
+    /// The commit seals its block's live session: the server's journal starts from it only if
+    /// it wins the head (`publish`'s `journal`). None for a seal made outside the server's
     /// session.
-    pub fn seals_journal(mut self, journal: Option<(Hash, u64, Vec<u8>)>) -> Self {
+    pub fn seals_journal(mut self, journal: Option<SealsJournal>) -> Self {
         self.journal = journal;
         self
     }
@@ -2583,13 +2593,14 @@ impl<S: ObjectStore> Peer<S> {
         let id = self.commits.put(key, &commit)?;
         let sealed = self.commits.vault().seal(key, &metadata.encode())?;
         let journal = journal
-            .map(|(tag, sequence, state)| {
+            .map(|seal| {
                 Ok::<_, ClientError>(JournalSeal {
-                    tag,
+                    tag: seal.tag,
+                    run: seal.run,
                     base: JournalBase {
                         commit: Some(id),
-                        sequence,
-                        state: self.commits.vault().seal(key, &state)?,
+                        sequence: seal.through,
+                        state: self.commits.vault().seal(key, &seal.state)?,
                     },
                 })
             })

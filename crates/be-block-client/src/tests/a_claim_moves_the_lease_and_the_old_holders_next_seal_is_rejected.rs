@@ -53,6 +53,7 @@ async fn a_claim_moves_the_lease_and_the_old_holders_next_seal_is_rejected() {
         .rebase_journal(
             note,
             BUILD,
+            0,
             be_block_protocol::JournalBase {
                 commit: Some(sealed),
                 sequence: 2,

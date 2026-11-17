@@ -1439,7 +1439,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     reply.send(host, &be_sdk_type_api::host::Submitted::Held)
                 });
             }
-            Call::RebaseJournal { reply, base } => {
+            Call::RebaseJournal { reply, base, .. } => {
                 self.to(device, |host| reply.send(host, &()));
                 // As the server: a trim with no new commit is the holder's, on the head.
                 if self.lease.is_holder(client) && base.commit == self.head {

@@ -1747,24 +1747,20 @@ impl Client {
                         organization: identity.organization,
                         block,
                     };
-                    let trim = match journal {
-                        Some(seal) => {
-                            // A trim with no new commit is the holder's alone. A seal with one
-                            // trims as it wins the head, from whichever connection sends it (an
-                            // outbox drains before its replica joins again).
-                            if expected == Some(commit)
-                                && !connection.registry.holds(place, connection.client).await
-                            {
-                                return Err(ServerError::Refused(
-                                    ErrorCode::InvalidRequest,
-                                    "only the session's lease holder trims its journal".into(),
-                                ));
-                            }
-                            Some((seal.tag, seal.base))
+                    // A seal trims as it wins the head, from whichever connection sends it (an
+                    // outbox drains before its replica joins again); a trim with no new commit
+                    // only while the caller holds the lease, which the store checks with the
+                    // registry held.
+                    let through = journal.as_ref().map(|seal| seal.base.sequence);
+                    let trim = journal.map(|seal| {
+                        let (registry, client) = (Arc::clone(&connection.registry), connection.client);
+                        crate::journal::Asked {
+                            tag: seal.tag,
+                            run: seal.run,
+                            base: seal.base,
+                            holding: Box::new(move || registry.holding(place, client)),
                         }
-                        None => None,
-                    };
-                    let through = trim.as_ref().map(|(_, base)| base.sequence);
+                    });
                     connection.store.put_objects(identity, objects).await?;
                     let outcome = connection
                         .store
@@ -1773,12 +1769,12 @@ impl Client {
                             references, metadata, trim,
                         )
                         .await?;
-                    if let (PublishOutcome::Published(head, _, Some(sequence)), Some(through)) =
+                    if let (PublishOutcome::Published(head, _, Some(trimmed)), Some(through)) =
                         (&outcome, through)
                     {
                         connection
                             .registry
-                            .sealed(place, *head, through, *sequence)
+                            .sealed(place, *head, through, trimmed)
                             .await;
                     }
                     match &outcome {

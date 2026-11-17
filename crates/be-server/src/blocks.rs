@@ -4,7 +4,7 @@ use be_block_graph::{
     SETTINGS_TYPE,
 };
 use be_block_protocol::{
-    AccessEntry, AccessList, BlockSummary, ChangeCursor, ChangedPage, ErrorCode, HistoryEntry, JournalBase,
+    AccessEntry, AccessList, BlockSummary, ChangeCursor, ChangedPage, ErrorCode, HistoryEntry,
     Hold, KeyKind, KeySet, Listed, Listing, ObjectChange, OrganizationRole, ReferenceChange,
 };
 use be_block_store::Hash;
@@ -60,9 +60,13 @@ use crate::{
 };
 
 pub enum PublishOutcome {
-    /// The head moved, or was the commit already; with the order's last number when the
-    /// publish trimmed its block's journal.
-    Published(CommitId, Option<Redescribed>, Option<u64>),
+    /// The head moved, or was the commit already; with what the publish's seal did to its
+    /// block's journal, when it trimmed it.
+    Published(
+        CommitId,
+        Option<Redescribed>,
+        Option<crate::journal::Trimmed>,
+    ),
     Rejected(Option<CommitId>),
 }
 
@@ -897,10 +901,10 @@ impl ServerStore {
         pinned: bool,
         references: ReferenceChange,
         metadata: Vec<u8>,
-        trim: Option<(Hash, JournalBase)>,
+        trim: Option<crate::journal::Asked>,
     ) -> Result<PublishOutcome, ServerError> {
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
-        if let Some((_, base)) = &trim {
+        if let Some(crate::journal::Asked { base, .. }) = &trim {
             if base.commit != Some(commit) {
                 return Err(ServerError::Refused(
                     ErrorCode::InvalidRequest,
@@ -942,21 +946,31 @@ impl ServerStore {
                 if current != expected {
                     return Ok(PublishOutcome::Rejected(current));
                 }
-                // A trim with no new commit: the head is the base's commit already.
+                // A trim with no new commit: the head is the base's commit already. Only the
+                // lease holder trims so, held as the holder while the trim is written; anyone
+                // else's publish goes through and trims nothing.
                 if current == Some(commit) {
-                    let trimmed = match &trim {
-                        Some((tag, base)) => {
-                            let transaction = be_block_sqlite_schema::write_transaction(database)?;
-                            let order = crate::journal::rebase(
-                                &transaction,
-                                identity.organization,
-                                block,
-                                *tag,
-                                base,
-                            )?;
-                            transaction.commit()?;
-                            Some(order)
-                        }
+                    let trimmed = match trim {
+                        Some(asked) => match (asked.holding)() {
+                            Some(_holding) => {
+                                let transaction =
+                                    be_block_sqlite_schema::write_transaction(database)?;
+                                let trimmed = crate::journal::rebase(
+                                    &transaction,
+                                    identity.organization,
+                                    block,
+                                    &crate::journal::Seal {
+                                        tag: asked.tag,
+                                        run: asked.run,
+                                        base: asked.base,
+                                        new_commit: false,
+                                    },
+                                )?;
+                                transaction.commit()?;
+                                trimmed
+                            }
+                            None => None,
+                        },
                         None => None,
                     };
                     return Ok(PublishOutcome::Published(commit, None, trimmed));
@@ -1132,14 +1146,18 @@ impl ServerStore {
                     &policy,
                 )?;
                 // A seal trims the journal only as its commit wins the head, in one transaction.
-                let trimmed = match &trim {
-                    Some((tag, base)) => Some(crate::journal::rebase(
+                let trimmed = match trim {
+                    Some(asked) => crate::journal::rebase(
                         &transaction,
                         identity.organization,
                         block,
-                        *tag,
-                        base,
-                    )?),
+                        &crate::journal::Seal {
+                            tag: asked.tag,
+                            run: asked.run,
+                            base: asked.base,
+                            new_commit: true,
+                        },
+                    )?,
                     None => None,
                 };
                 transaction.commit()?;

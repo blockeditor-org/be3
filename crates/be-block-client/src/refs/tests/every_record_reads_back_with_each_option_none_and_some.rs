@@ -55,6 +55,7 @@ fn every_record_reads_back_with_each_option_none_and_some() {
             metadata: vec![6],
             journal: some.then_some(be_block_protocol::JournalSeal {
                 tag: Hash::of(b"build"),
+                run: 3,
                 base: be_block_protocol::JournalBase {
                     commit: Some(commit(b"commit")),
                     sequence: 9,

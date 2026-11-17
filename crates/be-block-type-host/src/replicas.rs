@@ -4190,7 +4190,11 @@ impl<H: Host> Replicas<H> {
                 .await;
                 false
             }
-            Call::RebaseJournal { reply, base } => {
+            Call::RebaseJournal {
+                reply,
+                base,
+                restarts,
+            } => {
                 self.acknowledge(module, reply);
                 let tag = be_block_store::Hash::from_bytes(self.modules.tag(module).0);
                 let base = be_block_protocol::JournalBase {
@@ -4211,7 +4215,7 @@ impl<H: Host> Replicas<H> {
                         || peer.pending_commits(block).contains(&commit)
                 });
                 let rebased = peer
-                    .rebase_journal(block, tag, base, trim, own)
+                    .rebase_journal(block, tag, restarts, base, trim, own)
                     .await;
                 self.journaled(shared, rebased);
                 let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
@@ -4359,7 +4363,12 @@ impl<H: Host> Replicas<H> {
                         sealed_through
                             .zip(journal_state.clone())
                             .filter(|_| !made_up)
-                            .map(|(sequence, state)| (tag, sequence, state)),
+                            .map(|(through, state)| be_block_client::SealsJournal {
+                                tag,
+                                run: restarts,
+                                through,
+                                state,
+                            }),
                     );
                     if let Some(merging) = merging {
                         write = write.merging(merging.base, merging.ours);
@@ -4391,7 +4400,10 @@ impl<H: Host> Replicas<H> {
                         let trim = matches!(saved, Some(Ok(Saved::Unchanged(_))))
                             && !made_up
                             && peer.is_attached();
-                        match peer.rebase_journal(block, tag, base, trim, true).await {
+                        match peer
+                            .rebase_journal(block, tag, restarts, base, trim, true)
+                            .await
+                        {
                             Ok(Some(trimmed)) => {
                                 if let Err(error) = trimmed.await
                                     && !unreachable(&error)
@@ -4873,7 +4885,9 @@ async fn started_from_mirror<S: be_block_store::ObjectStore>(
         return None;
     }
     let answer = peer
-        .rebase_journal(block, tag, mirror.base, true, false)
+        // The server holds no journal, so the run it starts at is no stale seal's: any of this
+        // or a later run trims after it.
+        .rebase_journal(block, tag, 0, mirror.base, true, false)
         .await
         .ok()??;
     answer.await.ok()?;

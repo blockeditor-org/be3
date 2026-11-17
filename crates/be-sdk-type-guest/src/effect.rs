@@ -66,6 +66,8 @@ pub(crate) enum Effect {
     Rebase {
         replica: ReplicaId,
         base: JournalBase,
+        /// The run of the order it is in (`status.restarts`).
+        restarts: u64,
     },
     Release {
         replica: ReplicaId,

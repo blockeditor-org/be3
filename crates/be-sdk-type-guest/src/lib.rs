@@ -793,9 +793,11 @@ impl Module {
                     },
                 });
             }
-            Effect::Rebase { replica, base } => {
-                ops::with_parent(replica, || host::rebase_journal(base)).detach()
-            }
+            Effect::Rebase {
+                replica,
+                base,
+                restarts,
+            } => ops::with_parent(replica, || host::rebase_journal(base, restarts)).detach(),
             Effect::Release { replica } => {
                 let closing = self.shared.state.borrow_mut().closing.remove(&replica);
                 ops::end(replica);

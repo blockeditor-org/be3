@@ -90,10 +90,12 @@ impl<S: ObjectStore> Peer<S> {
     /// `Write::seals_journal`). What the journal's entries up to the base announce goes with
     /// `base`'s commit when this device sealed it (`own`), sent once the server holds it; the
     /// rest is dropped.
+    #[allow(clippy::too_many_arguments)]
     pub async fn rebase_journal(
         &self,
         block: Uuid,
         tag: Hash,
+        run: u64,
         base: JournalBase,
         trim: bool,
         own: bool,
@@ -124,7 +126,11 @@ impl<S: ObjectStore> Peer<S> {
             Default::default(),
             Vec::new(),
             Vec::new(),
-            Some(be_block_protocol::JournalSeal { tag, base: sealed }),
+            Some(be_block_protocol::JournalSeal {
+                tag,
+                run,
+                base: sealed,
+            }),
         );
         // Best effort: a trim the server refuses (from a replica that no longer holds the lease
         // by the server's derivation) leaves the journal to the next seal.

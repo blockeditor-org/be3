@@ -284,9 +284,13 @@ interface types {
     }
 
     /// A seal of a block's live session, which a publish carries: the base the
-    /// journal starts from, and the build of the block's type that sealed it.
+    /// journal starts from, the build of the block's type that sealed it, and
+    /// the run of the order it seals (how many times the session had started
+    /// over, which reuses sequence numbers). The server trims only with a seal
+    /// of the journal's build and run or a later run, at or past its base.
     record journal-seal {
         tag: hash,
+        run: u64,
         base: journal-base,
     }
 

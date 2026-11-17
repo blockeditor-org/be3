@@ -1252,6 +1252,7 @@ where
     fn rebase_journal(&mut self) {
         self.out.push(Effect::Rebase {
             replica: self.id,
+            restarts: self.restarts,
             base: JournalBase {
                 commit: self.base,
                 sequence: self.sealed,
@@ -1401,6 +1402,7 @@ where
             let state = self.base_state(Vec::new(), self.sealed);
             self.out.push(Effect::Rebase {
                 replica: self.id,
+                restarts: self.restarts,
                 base: JournalBase {
                     commit: self.base,
                     sequence: 0,

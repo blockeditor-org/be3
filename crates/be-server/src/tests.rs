@@ -1144,6 +1144,7 @@ impl TestClient {
                 Vec::new(),
                 base.clone().map(|base| be_block_protocol::JournalSeal {
                     tag: TYPE_BUILD,
+                    run: 0,
                     base,
                 }),
             )

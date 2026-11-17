@@ -176,11 +176,15 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
                 &transaction,
                 organization,
                 other,
-                tag,
-                &JournalBase {
-                    commit: None,
-                    sequence: 1,
-                    state: Vec::new(),
+                &crate::journal::Seal {
+                    tag,
+                    run: 0,
+                    base: JournalBase {
+                        commit: None,
+                        sequence: 1,
+                        state: Vec::new(),
+                    },
+                    new_commit: false,
                 },
             )?;
             transaction.commit()?;

@@ -21,7 +21,7 @@ pub use keys::{EscrowWarning, KeyBook};
 pub use peer::{
     BlockRead, Credentials, Drained, MAX_NOTIFICATION_AGE_MILLISECONDS, MAX_NOTIFICATION_TEXT,
     Notification, OpenedNotification, Peer, PeerConfig, Reconciled, Resolver, Saved, Sealed,
-    Signer, Write,
+    SealsJournal, Signer, Write,
 };
 pub use refs::{
     KeptChange, KeptEdit, KeptSubmission, ListedBlock, OpenEdits, PendingCounts, RefsDb, SetAside,

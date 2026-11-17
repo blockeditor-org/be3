@@ -25,6 +25,9 @@ struct Head {
     base: JournalBase,
     order: Sequencer,
     lost: bool,
+    /// The run of the order its base is in: how many times the session had started over, as
+    /// the seal that wrote the base said (`journal-seal.run`).
+    run: u64,
 }
 
 fn head(
@@ -34,7 +37,7 @@ fn head(
 ) -> Result<Option<Head>, ServerError> {
     database
         .query_row(
-            "SELECT tag, base_commit, base_sequence, base_state, sequence, barrier, lost
+            "SELECT tag, base_commit, base_sequence, base_state, sequence, barrier, lost, run
              FROM block_journals WHERE organization_id = ?1 AND block_id = ?2",
             params![organization.to_string(), block.to_string()],
             |row| {
@@ -46,12 +49,13 @@ fn head(
                     row.get::<_, i64>(4)?,
                     row.get::<_, i64>(5)?,
                     row.get::<_, bool>(6)?,
+                    row.get::<_, i64>(7)?,
                 ))
             },
         )
         .optional()?
         .map(
-            |(tag, commit, base_sequence, state, sequence, barrier, lost)| {
+            |(tag, commit, base_sequence, state, sequence, barrier, lost, run)| {
                 Ok(Head {
                     tag: Hash::from_bytes(tag.try_into().map_err(|_| ServerError::Corrupt)?),
                     base: JournalBase {
@@ -64,6 +68,7 @@ fn head(
                         barrier: barrier as u64,
                     },
                     lost,
+                    run: run as u64,
                 })
             },
         )
@@ -230,30 +235,72 @@ pub fn submit(
     }))
 }
 
-/// The lease holder sealed the order through `base`, as the build `tag`, inside the publish's
-/// `transaction`: the journal starts from it, keeping the entries after it, and the order goes
-/// on from the number answered. A base that goes back while nothing after the journal's own
-/// base was numbered (the last one out) starts the order afresh from it. Entries of another
-/// build are dropped, since the holder could not have applied them, and every device opening
-/// the block is told so until the journal moves to another commit.
+/// What a seal trims the journal with: the build that sealed it, the run of the order it
+/// sealed (`journal-seal.run`), and the base. A trim with no new commit is the holder's
+/// (`commit == expected`); a seal publishes one.
+pub struct Seal {
+    pub tag: Hash,
+    pub run: u64,
+    pub base: JournalBase,
+    pub new_commit: bool,
+}
+
+/// A seal a publish carries (`journal-seal`), and for a trim with no new commit how to hold the
+/// session registry while the trim is written, which answers only while the caller holds the
+/// lease (`SessionRegistry::holding`).
+pub struct Asked {
+    pub tag: Hash,
+    pub run: u64,
+    pub base: JournalBase,
+    pub holding: Box<dyn FnOnce() -> Option<crate::sessions::Holding> + Send>,
+}
+
+/// What a trim did: the order's last number after it, and whether the order started afresh
+/// below where it was.
+pub struct Trimmed {
+    pub sequence: u64,
+    pub restarted: bool,
+}
+
+/// The seal's base starts the journal, inside the publish's `transaction`, keeping the entries
+/// after it, and the order goes on from the number answered; none when the seal is stale and
+/// the journal stays as it was (the publish itself goes through on its compare-and-swap).
+///
+/// A seal is stale when it is of an earlier run than the journal's base (sequence numbers are
+/// reused once the order starts over, so its numbers name other entries), below the journal's
+/// base, past the order's last number, or, for a seal with a new commit, of another build than
+/// the journal's. Only a base of a later run, while nothing after the journal's own base was
+/// numbered (the last one out restarting), goes back: it starts the order afresh from it. A
+/// trim with no new commit by another build (a new build starting the journal over) drops the
+/// entries of the build before, since the holder could not have applied them, and every device
+/// opening the block is told so until the journal moves to another commit.
 pub fn rebase(
-    database: &Connection,
+    transaction: &Connection,
     organization: Uuid,
     block: Uuid,
-    tag: Hash,
-    base: &JournalBase,
-) -> Result<u64, ServerError> {
-    let transaction = database;
+    seal: &Seal,
+) -> Result<Option<Trimmed>, ServerError> {
+    let Seal {
+        tag,
+        run,
+        ref base,
+        new_commit,
+    } = *seal;
     let (org, id) = (organization.to_string(), block.to_string());
-    let before = head(&transaction, organization, block)?;
+    let before = head(transaction, organization, block)?;
     let other = before.as_ref().is_some_and(|head| head.tag != tag);
-    // A seal holds only what was numbered: a base past the order's last number would leave
-    // the order numbering below what is sealed.
-    if let Some(head) = &before
-        && !other
-        && base.sequence > head.order.sequence
-    {
-        return Err(refuse("the journal's base is past the order's last entry"));
+    if let Some(head) = &before {
+        // Only a later run's restart, with nothing numbered past the journal's base, takes
+        // the base back.
+        let afresh = run > head.run && head.order.sequence <= head.base.sequence;
+        let stale = (other && new_commit)
+            || run < head.run
+            || (!other
+                && (base.sequence > head.order.sequence
+                    || (base.sequence < head.base.sequence && !afresh)));
+        if stale {
+            return Ok(None);
+        }
     }
     let order = match &before {
         Some(head) if !other && head.order.sequence > base.sequence.max(head.base.sequence) => {
@@ -263,6 +310,9 @@ pub fn rebase(
         Some(head) if !other && base.sequence >= head.base.sequence => head.order,
         _ => Sequencer::starting(base.sequence),
     };
+    let restarted = before
+        .as_ref()
+        .is_some_and(|head| order.sequence < head.order.sequence);
     let cut = match other {
         true => i64::MAX,
         false => base.sequence as i64,
@@ -290,8 +340,8 @@ pub fn rebase(
     transaction.execute(
         "INSERT OR REPLACE INTO block_journals
              (organization_id, block_id, tag, base_commit, base_sequence, base_state, sequence,
-              barrier, lost)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+              barrier, lost, run)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![
             org,
             id,
@@ -301,10 +351,14 @@ pub fn rebase(
             base.state,
             order.sequence as i64,
             order.barrier as i64,
-            lost
+            lost,
+            run as i64
         ],
     )?;
-    Ok(order.sequence)
+    Ok(Some(Trimmed {
+        sequence: order.sequence,
+        restarted,
+    }))
 }
 
 /// Forgets a deleted block's journal.
