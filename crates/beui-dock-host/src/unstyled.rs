@@ -126,6 +126,15 @@ pub enum DockDragged {
     Bar(TabId),
 }
 
+/// What a dock's carry holds: the tab or pane dragged, named with the dock it is from (its
+/// `State::id`), so another dock whose tab ids coincide neither takes it nor hides a tab of its
+/// own for it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct DockCarry {
+    dock: u64,
+    dragged: DockDragged,
+}
+
 pub struct DockPreviewHandle {
     pub dragged: DockDragged,
     pub title: Memo<String>,
@@ -214,6 +223,7 @@ type DockNotices = HashMap<TabId, (u64, Memo<Option<String>>)>;
 
 thread_local! {
     static NEXT_NOTICE: Cell<u64> = const { Cell::new(1) };
+    static NEXT_DOCK: Cell<u64> = const { Cell::new(1) };
 }
 
 #[derive(Clone, Copy)]
@@ -240,8 +250,11 @@ struct State {
     state: Binding<DockState>,
     on_close: Callback<TabId>,
     drag: Signal<Option<Drag>>,
-    /// Where a carried tab or pane would land, as the dock's drop site chose it.
-    dropping: Signal<Option<DockDrop>>,
+    /// This dock among the others in the document, for its carries (`DockCarry`).
+    id: u64,
+    /// The dock's drop site's `over`, where a carried tab or pane would land, once
+    /// `DockTiles` has made the site (`State::dropping`).
+    over: Signal<Option<ReadSignal<Option<DockDrop>>>>,
     title: Func<TabId, String>,
     group_title: Func<GroupId, Option<String>>,
     group_host: Func<GroupId, Option<TabId>>,
@@ -1283,42 +1296,47 @@ impl State {
     }
 
     /// Where a carried tab or pane can land: the drop the dock's layout gives for the point
-    /// (`resolve`), where the state admits it, in the home window and in each window the host
-    /// opens; with Alt held, floating in a window of its own at the pointer. A tab bar under
-    /// the pointer is left to the bar, a `Reorder` that parts for it.
+    /// (`resolve`), where the state admits it, over the home window's tiles and in each window
+    /// the host opens; with Alt held, floating in a window of its own at the pointer. A tab bar
+    /// under the pointer is left to the bar, a `Reorder` that parts for it.
     fn spec(&self, dragged: DockDragged, tiles: NodeRef) -> DragSpec<DockDrop> {
         let dock = *self;
-        let origin = |node: NodeRef| {
-            node.try_get()
-                .and_then(|node| measure(node).get_untracked())
-                .map_or(Pos2::ZERO, |measured| measured.rect.min)
-        };
-        let mut places = vec![custom(tiles, move |local: Pos2| {
-            let pos = origin(tiles) + local.to_vec2();
-            dock.place_at(dragged, dock.resolve(dock.home(), pos, false))
-        })];
-        if self.opens.get_untracked() {
-            let windows: Vec<(SurfaceId, NodeRef)> = self
-                .windows
-                .value()
-                .borrow()
-                .iter()
-                .map(|(surface, node)| (*surface, *node))
+        // A place answers only a point over its node that no layer but the dock's own
+        // windows covers: a custom place is asked about every point, wherever the pointer is.
+        let open_at = move |node: NodeRef, local: Pos2| -> Option<(WindowId, Pos2)> {
+            let node = node.try_get()?;
+            let rect = measure(node).get_untracked()?.rect;
+            let pos = rect.min + local.to_vec2();
+            let window = window_of(node);
+            let ours: Vec<NodeId> = std::iter::once(node)
+                .chain(
+                    dock.windows
+                        .value()
+                        .borrow()
+                        .values()
+                        .filter_map(NodeRef::try_get),
+                )
                 .collect();
-            for (surface, node) in windows {
+            (rect.contains(pos) && !stacked_at(&ours, window, pos).is_empty())
+                .then_some((window, pos))
+        };
+        let home = move |floats: bool| {
+            custom(tiles, move |local: Pos2| {
+                let (window, pos) = open_at(tiles, local)?;
+                dock.place_at(dragged, dock.resolve(window, pos, floats))
+            })
+        };
+        let mut places = vec![home(false)];
+        if self.opens.get_untracked() {
+            let windows: Vec<NodeRef> = self.windows.value().borrow().values().copied().collect();
+            for node in windows {
                 places.push(custom(node, move |local: Pos2| {
-                    let pos = origin(node) + local.to_vec2();
-                    let state = dock.state.get_untracked();
-                    let aim = dock.resolve_in(&state, Tree::Surface(surface), pos, false);
-                    dock.place_at(dragged, aim)
+                    let (window, pos) = open_at(node, local)?;
+                    dock.place_at(dragged, dock.resolve(window, pos, false))
                 }));
             }
         }
-        let floated = custom(tiles, move |local: Pos2| {
-            let pos = origin(tiles) + local.to_vec2();
-            dock.place_at(dragged, dock.resolve(dock.home(), pos, true))
-        });
-        closest(places).when_held(Modifiers::ALT, floated)
+        closest(places).when_held(Modifiers::ALT, home(true))
     }
 
     /// The drop `aim` names, if the state admits `dragged` there.
@@ -1383,10 +1401,29 @@ impl State {
         })
     }
 
-    fn move_into_bar(&self, leaf: LeafId, moved: ReorderMove<Entry, DockDragged>) {
+    /// Where a carried tab or pane of this dock would land, as its drop site chose it.
+    fn dropping(&self) -> Option<DockDrop> {
+        self.over.get()?.get()
+    }
+
+    /// What this dock carries, if the board carries anything of it.
+    fn carried(&self) -> Option<DockDragged> {
+        carrying::<DockCarry>()
+            .filter(|carry| carry.dock == self.id)
+            .map(|carry| carry.dragged)
+    }
+
+    fn carry(&self, dragged: DockDragged) -> DockCarry {
+        DockCarry {
+            dock: self.id,
+            dragged,
+        }
+    }
+
+    fn move_into_bar(&self, leaf: LeafId, moved: ReorderMove<Entry, DockCarry>) {
         self.edit(|state| {
             let entries = state.entries(leaf);
-            match moved.payload {
+            match moved.payload.dragged {
                 DockDragged::Entry(entry) => {
                     let index = bar_index(&entries, entry, moved.after).unwrap_or(moved.index);
                     state.drop_entry(entry, DockDrop::Tab { leaf, index });
@@ -1503,8 +1540,8 @@ impl State {
     fn highlight_handle(&self) -> DockHighlightHandle {
         let dock = *self;
         let group_with = create_memo(move || {
-            let dragged = carrying::<DockDragged>()?;
-            let onto = dock.groups_with(dragged, dock.dropping.get()?)?;
+            let dragged = dock.carried()?;
+            let onto = dock.groups_with(dragged, dock.dropping()?)?;
             Some(dock.entry_title(onto))
         });
         DockHighlightHandle { group_with }
@@ -1894,7 +1931,8 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         owner: store(owner_scope()),
         on_close,
         drag,
-        dropping: create_signal(None),
+        id: NEXT_DOCK.with(|next| next.replace(next.get() + 1)),
+        over: create_signal(None),
         title,
         group_title,
         group_host,
@@ -2523,19 +2561,15 @@ fn DockTiles(dock: State) -> NodeId {
     // drag board's target below carries only tool bars.
     let tiles = NodeRef::new();
     let site = use_drop_site(
-        Func::new(|dragged: DockDragged| !matches!(dragged, DockDragged::Bar(_))),
-        Func::new(move |dragged: DockDragged| dock.spec(dragged, tiles)),
-        Callback::new(move |(dragged, target): (DockDragged, DockDrop)| {
-            dock.commit_drop(dragged, target)
+        Func::new(move |carry: DockCarry| {
+            carry.dock == dock.id && !matches!(carry.dragged, DockDragged::Bar(_))
+        }),
+        Func::new(move |carry: DockCarry| dock.spec(carry.dragged, tiles)),
+        Callback::new(move |(carry, target): (DockCarry, DockDrop)| {
+            dock.commit_drop(carry.dragged, target)
         }),
     );
-    let over = site.over;
-    create_effect(move || {
-        let target = over.get();
-        if dock.dropping.get_untracked() != target {
-            dock.dropping.set(target);
-        }
-    });
+    dock.over.set(Some(site.over));
     view! {
         <DropTarget
             on_over={move |point: Option<(DockDragged, DragPoint)>| dock.drag_over(point.map(|(_, point)| point))}
@@ -2820,7 +2854,7 @@ fn DockDropMarker(
     origin: Memo<Pos2>,
 ) -> DynamicSegment<CanvasItem> {
     let marker = create_memo(move || {
-        let target = dock.dropping.get()?;
+        let target = dock.dropping()?;
         let leaf = target.leaf()?;
         if dock.state.with_untracked(|state| state.surface_of(leaf)) != Some(surface) {
             return None;
@@ -2977,7 +3011,7 @@ fn DockPaneGrip(
     let dragged = DockDragged::Pane(leaf);
     let drag = Func::new(move |_: PointerPress| {
         Some(
-            Carry::new(dragged)
+            Carry::new(dock.carry(dragged))
                 .preview(move || preview.call(DockPreviewHandle {
                     dragged,
                     title,
@@ -3188,17 +3222,22 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
             value={entries}
             spring={dock.curves.settle}
             direction
-            payload={Func::new(|entry: Entry| Some(DockDragged::Entry(entry)))}
-            accepts={Func::new(move |dragged: DockDragged| dock.bar_admits(leaf, dragged))}
-            text={move |entry: Entry| dock.entry_title(entry)}
-            on_move={move |moved: ReorderMove<Entry, DockDragged>| dock.move_into_bar(leaf, moved)}
-            on_outside={move |(dragged, _): (DockDragged, DragPoint)| dock.drop_outside(dragged)}
-            preview={move |dragged: DockDragged| preview.call(DockPreviewHandle {
-                dragged,
-                title: create_memo(move || dock.dragged_title(dragged)),
-                icon: create_memo(move || dock.dragged_icon(dragged)),
+            payload={Func::new(move |entry: Entry| Some(dock.carry(DockDragged::Entry(entry))))}
+            accepts={Func::new(move |carry: DockCarry| {
+                carry.dock == dock.id && dock.bar_admits(leaf, carry.dragged)
             })}
-        >|reorder: ReorderHandle<Entry, DockDragged>| {
+            text={move |entry: Entry| dock.entry_title(entry)}
+            on_move={move |moved: ReorderMove<Entry, DockCarry>| dock.move_into_bar(leaf, moved)}
+            on_outside={move |(carry, _): (DockCarry, DragPoint)| dock.drop_outside(carry.dragged)}
+            preview={move |carry: DockCarry| {
+                let dragged = carry.dragged;
+                preview.call(DockPreviewHandle {
+                    dragged,
+                    title: create_memo(move || dock.dragged_title(dragged)),
+                    icon: create_memo(move || dock.dragged_icon(dragged)),
+                })
+            }}
+        >|reorder: ReorderHandle<Entry, DockCarry>| {
             dock.bars.value().borrow_mut().insert(leaf, TabBar {
                 strip,
                 tabs: tab_list,
@@ -3295,7 +3334,7 @@ fn DockTabView(
                 .is_some_and(|index| index + 1 < entries.len())
         })
     });
-    let dragged = create_memo(move || carrying::<DockDragged>() == Some(DockDragged::Entry(entry)));
+    let dragged = create_memo(move || dock.carried() == Some(DockDragged::Entry(entry)));
     let close = Callback::new(move |()| dock.close_entry(entry));
     let float = Callback::new(move |()| dock.float_entry(entry));
     let group = Callback::new(move |()| {
@@ -4273,7 +4312,7 @@ fn grip_reach(frame: &NodeRef, grip: &NodeRef) -> f32 {
 
 #[component]
 fn DockDragLayer(dock: State) -> NodeId {
-    let marked = create_memo(move || match dock.dropping.get()? {
+    let marked = create_memo(move || match dock.dropping()? {
         target @ DockDrop::Window { .. } => dock.highlight_of(target),
         _ => None,
     });

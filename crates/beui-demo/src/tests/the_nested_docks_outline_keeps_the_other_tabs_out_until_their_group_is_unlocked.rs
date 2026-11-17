@@ -26,8 +26,8 @@ fn the_nested_docks_outline_keeps_the_other_tabs_out_until_their_group_is_unlock
     test.hover(into_outline.clone());
     test.frame(Vec::new());
     assert!(
-        !test.shown("dock.drop"),
-        "dragged over the locked area, the tab is offered no drop there"
+        test.shown("dock.preview") && !test.shown("dock.drop"),
+        "dragged over the locked area, the tab is still carried but offered no drop there"
     );
     test.snapshot("the_nested_docks_outline_offers_no_drop_to_a_tab_dragged_over_it");
     test.up(into_outline.clone(), PointerButton::Primary);
