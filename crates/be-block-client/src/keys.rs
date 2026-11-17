@@ -81,6 +81,10 @@ struct Roots {
     /// through, every one: an epoch opened through an outdated one is outdated too
     /// (`KeyBook::outdated`).
     through: HashMap<Uuid, Vec<Uuid>>,
+    /// How far this device last checked each scope's log, kept across restarts with the refs
+    /// (`crate::refs::KeptLog`): a log served later that does not reach it is withheld, and
+    /// with no log read, an epoch is judged by it.
+    kept: HashMap<Uuid, crate::refs::KeptLog>,
 }
 
 /// What a device holds of a block's access log root.
@@ -100,22 +104,27 @@ pub enum RootPin {
 impl Roots {
     /// `key`, a key of `block`'s scope, and every key it was opened through, each with the
     /// scope it is a key of, up every path (`through`).
-    fn path(&self, key: Uuid, block: Uuid) -> Vec<(Uuid, Uuid)> {
+    /// None when the path is longer than any honest one (`MAX_PATH`), or passes through a key
+    /// this device cannot place: either way it is judged outdated.
+    fn path(&self, key: Uuid, block: Uuid) -> Option<Vec<(Uuid, Uuid)>> {
         let mut found = vec![(key, block)];
         let mut at = 0;
-        // As deep as the scopes above; a cycle would be a forged one, cut by `found`.
-        while at < found.len() && found.len() < 256 {
+        // A cycle would be a forged one, cut by `found`.
+        while at < found.len() {
             let (key, _) = found[at];
             for by in self.through.get(&key).into_iter().flatten() {
-                if let Some(scope) = self.blocks.get(by)
-                    && !found.iter().any(|(seen, _)| seen == by)
-                {
-                    found.push((*by, *scope));
+                if found.iter().any(|(seen, _)| seen == by) {
+                    continue;
                 }
+                let scope = self.blocks.get(by)?;
+                if found.len() >= MAX_PATH {
+                    return None;
+                }
+                found.push((*by, *scope));
             }
             at += 1;
         }
-        found
+        Some(found)
     }
 
     fn conflict(&mut self, block: Uuid) {
@@ -157,6 +166,10 @@ impl Roots {
         }
     }
 }
+
+/// The most keys a key is judged through (`Roots::path`): one per scope above it, and more
+/// than any honest tree holds. A longer path is judged outdated.
+pub const MAX_PATH: usize = 256;
 
 #[derive(Default)]
 struct Rows {
@@ -854,17 +867,83 @@ impl KeyBook {
 
     /// Keeps `block`'s log as this device just checked it: the heads a key minted here for it
     /// names, and what a contact's seal of its keys is checked against.
-    pub fn note_log(&self, block: Uuid, checked: &Checked) {
+    ///
+    /// A log that does not reach the head this device kept from an earlier check is withheld
+    /// (the server serves a prefix of what it served before, as after a restart): it is not
+    /// taken, and epochs stay judged by what was kept. Answers what to keep anew, when it moved.
+    pub fn note_log(&self, block: Uuid, checked: &Checked) -> Option<crate::refs::KeptLog> {
+        let mut roots = self.roots.lock().unwrap();
+        if let Some(kept) = roots.kept.get(&block)
+            && !checked.holds(&kept.head)
+        {
+            return None;
+        }
+        roots.logs.insert(block, checked.clone());
+        let place = |head: &EntryHash| checked.positions.get(head).map_or(0, |at| *at as u64);
+        let lowering = checked
+            .positions
+            .iter()
+            .find(|(_, at)| **at == checked.last_lowering)
+            .map(|(head, _)| *head)
+            .unwrap_or(checked.head);
+        let kept = crate::refs::KeptLog {
+            head: checked.head,
+            place: place(&checked.head),
+            lowering,
+            lowering_place: checked.last_lowering as u64,
+        };
+        match roots.kept.insert(block, kept) == Some(kept) {
+            true => None,
+            false => Some(kept),
+        }
+    }
+
+    /// The scopes whose keys this device holds trusted, with their roots pinned, whose logs it
+    /// has kept nothing of: `Peer::refresh_keys` reads each once, so a device later offline
+    /// judges their epochs by what it kept rather than refusing to write.
+    pub fn unkept_scopes(&self) -> Vec<Uuid> {
+        let scopes: Vec<Uuid> = self
+            .keys_of_kind(KeyKind::Scope)
+            .into_iter()
+            .filter(|row| self.trusted(row.id))
+            .map(|row| row.block)
+            .collect();
+        let roots = self.roots.lock().unwrap();
+        let mut found: Vec<Uuid> = scopes
+            .into_iter()
+            .filter(|block| roots.pinned.contains_key(block) && !roots.kept.contains_key(block))
+            .collect();
+        found.sort();
+        found.dedup();
+        found
+    }
+
+    /// How far this device checked logs in an earlier run (`note_log`), from the refs.
+    pub fn set_kept_logs(&self, kept: impl IntoIterator<Item = (Uuid, crate::refs::KeptLog)>) {
+        self.roots.lock().unwrap().kept.extend(kept);
+    }
+
+    /// Keeps `block`, made here, as checked at its root: its log can be read from the server
+    /// only once the server holds it, and nothing in it lowered anyone.
+    pub fn keep_made(&self, block: Uuid, root: EntryHash) -> crate::refs::KeptLog {
+        let kept = crate::refs::KeptLog {
+            head: root,
+            place: 0,
+            lowering: root,
+            lowering_place: 0,
+        };
         self.roots
             .lock()
             .unwrap()
-            .logs
-            .insert(block, checked.clone());
+            .kept
+            .entry(block)
+            .or_insert(kept);
+        kept
     }
 
     /// The heads a key of `block` minted now is made under: the newest of `block`'s log and of
-    /// the organization's this device checked, or the root it pinned for a block it has not
-    /// checked the log of (as on making it).
+    /// the organization's this device checked, else the head an earlier run kept, or the root it
+    /// pinned for a block it has not checked the log of (as on making it).
     fn current_heads(&self, block: Uuid) -> Heads {
         let block_head = {
             let roots = self.roots.lock().unwrap();
@@ -872,6 +951,7 @@ impl KeyBook {
                 .logs
                 .get(&block)
                 .map(|checked| checked.head)
+                .or_else(|| roots.kept.get(&block).map(|kept| kept.head))
                 .or_else(|| roots.pinned.get(&block).copied())
         };
         let organization = self
@@ -947,15 +1027,29 @@ impl KeyBook {
     /// whoever's head it names (`Roots::through`).
     pub fn outdated(&self, key: Uuid, block: Uuid) -> bool {
         let roots = self.roots.lock().unwrap();
-        roots.path(key, block).into_iter().any(|(key, block)| {
-            let Some(log) = roots.logs.get(&block) else {
-                return false;
-            };
+        let Some(path) = roots.path(key, block) else {
+            return true;
+        };
+        // A key opened through no other (made here, or sealed to this account, whose sender
+        // was checked as it was taken) is judged only by logs this device holds or kept.
+        let opened_through = path.len() > 1;
+        path.into_iter().any(|(key, block)| {
             let head = roots.heads.get(&key).and_then(|heads| heads.block);
-            match head.filter(|head| log.holds(head)) {
-                Some(head) => log.outdates(&head),
-                None => log.last_lowering > 0,
+            if let Some(log) = roots.logs.get(&block) {
+                return match head.filter(|head| log.holds(head)) {
+                    Some(head) => log.outdates(&head),
+                    None => log.last_lowering > 0,
+                };
             }
+            // No log read in this run (offline, refused, or withheld): judged by how far an
+            // earlier run checked it, where only its head or its last lowering is known to be
+            // after that lowering.
+            if let Some(kept) = roots.kept.get(&block) {
+                return kept.lowering_place > 0
+                    && head != Some(kept.head)
+                    && head != Some(kept.lowering);
+            }
+            opened_through
         })
     }
 
@@ -966,6 +1060,7 @@ impl KeyBook {
         let roots = self.roots.lock().unwrap();
         let mut found: Vec<Uuid> = roots
             .path(key, block)
+            .unwrap_or_default()
             .into_iter()
             .filter(|(key, block)| match roots.logs.get(block) {
                 None => true,
