@@ -154,7 +154,9 @@ pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
 
 /// Describes the first node at or within `node` that has accessibility of its own to
 /// assistive technology with `description` (none while it is empty), where that gives no
-/// description and another label: a tooltip describes the control it wraps so.
+/// description and another label: a tooltip describes the control it wraps so. The described
+/// node is found each time the description changes, so one that appears within `node` later
+/// is not described until then.
 pub fn bind_description<M1>(node: NodeId, description: impl IntoPropValue<Prop<String>, M1>) {
     core::bind_description(node, description.into_prop_value());
 }
