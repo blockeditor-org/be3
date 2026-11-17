@@ -3414,6 +3414,10 @@ where
         if !self.holding.remove(&editor) || !self.editors.contains_key(&editor) {
             return;
         }
+        if let Some(reason) = &self.unreadable {
+            let failed = ToEditor::Failed(format!("The content could not be read: {reason}"));
+            return self.tell_editor(editor, &failed);
+        }
         // Opened again in place of a replica that told the editor this snapshot (its block's
         // session joined once its creation was sent), it shows it already.
         let snapshot = ToEditor::Snapshot(self.snapshot_for(editor));
