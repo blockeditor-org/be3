@@ -91,7 +91,12 @@ impl State {
         let Some((leaf, _)) = self.state.with_untracked(|state| state.locate(entry)) else {
             return false;
         };
-        let bar = self.bars.value().borrow().get(&leaf).and_then(|bar| bar.tabs.try_get());
+        let bar = self
+            .bars
+            .value()
+            .borrow()
+            .get(&leaf)
+            .and_then(|bar| bar.tabs.try_get());
         bar.is_some_and(|bar| bar.focus_is_within())
     }
 

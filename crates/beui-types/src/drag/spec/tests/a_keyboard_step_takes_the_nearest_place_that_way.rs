@@ -31,9 +31,15 @@ fn a_keyboard_step_takes_the_nearest_place_that_way() {
         "a place a little off the line still counts"
     );
     let edge = |x: f32, y: f32, side: Side| {
-        (Rect::from_min_size(pos2(x, y), vec2(20.0, 20.0)), Some(side))
+        (
+            Rect::from_min_size(pos2(x, y), vec2(20.0, 20.0)),
+            Some(side),
+        )
     };
-    let panes = [edge(60.0, 10.0, Side::Above), edge(300.0, 200.0, Side::Right)];
+    let panes = [
+        edge(60.0, 10.0, Side::Above),
+        edge(300.0, 200.0, Side::Right),
+    ];
     assert_eq!(
         step_toward(&panes, pos2(10.0, 10.0), vec2(1.0, 0.0)),
         Some(1),

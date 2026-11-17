@@ -23,8 +23,8 @@ use beui_view::primitives::*;
 use beui_view::reactive::*;
 use beui_view::reactive::{KeyAt, NodeId, OverlayAnchor};
 use beui_view::types::{
-    CursorIcon, Direction, Extent, Key, KeyPhase, LayerLevel, LayerPolicy, Placement, PointerPress, Pos2,
-    Rect, Sides, TouchDrags, input::PointerId,
+    CursorIcon, Direction, Extent, Key, KeyPhase, LayerLevel, LayerPolicy, Placement, PointerPress,
+    Pos2, Rect, Sides, TouchDrags, input::PointerId,
 };
 
 use crate::glide::{Glide, GlideApi, GlideHold};

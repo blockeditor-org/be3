@@ -19,7 +19,9 @@ fn focusable_around(document: &Document, node: NodeId) -> NodeId {
         if let Some(first) = document.focusables_within(at).first() {
             return *first;
         }
-        at = document.node_parent(at).expect("a focusable is around the tab");
+        at = document
+            .node_parent(at)
+            .expect("a focusable is around the tab");
     }
 }
 

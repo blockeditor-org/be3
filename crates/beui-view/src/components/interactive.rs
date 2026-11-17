@@ -531,10 +531,7 @@ fn step_keys(
 /// focused node): the arrows step it between the places it
 /// can land, Space or Enter drops it there, and Escape or Tab puts it down where it was (Tab
 /// does not move focus away from a carry in hand). Whether the key was taken.
-fn held_keys(
-    press: KeyPress,
-    mine: crate::reactive::Signal<Option<crate::drag::CarryId>>,
-) -> bool {
+fn held_keys(press: KeyPress, mine: crate::reactive::Signal<Option<crate::drag::CarryId>>) -> bool {
     use crate::reactive::Get;
     use crate::types::{Key, WindowId, input::PointerId};
     let modifiers = press.modifiers;
