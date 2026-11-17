@@ -45,6 +45,7 @@ const TERMINAL_KEYS: [u16; 12] = [59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 87, 88
 
 pub struct Remapper {
     module: Module,
+    wake: Wake,
     limits: Limits,
     running: Option<Running>,
     config: Option<Vec<u8>>,
@@ -64,6 +65,11 @@ pub struct Remapper {
 /// request with one frame.
 struct Running {
     instance: Instance,
+    /// While `Start` is unanswered, when it must be answered by. Input passes through unchanged
+    /// meanwhile, so it never waits for a start.
+    starting: Option<Deadline>,
+    /// The window `Start` named.
+    window: Option<Window>,
 }
 
 impl Remapper {
@@ -73,9 +79,12 @@ impl Remapper {
         sandbox::compile(module, wake)
     }
 
-    pub fn new(module: Module) -> Self {
+    /// Remaps running `module`, whose instance calls `wake` when it answers, after which the
+    /// host calls `poll`.
+    pub fn new(module: Module, wake: Wake) -> Self {
         Self {
             module,
+            wake,
             limits: Limits::default(),
             running: None,
             config: None,
@@ -113,7 +122,8 @@ impl Remapper {
             return Vec::new();
         }
         self.window = window.clone();
-        if self.running.is_none() {
+        // Remaps still starting are told once `Start` is answered (`poll`).
+        if !self.ready() {
             return Vec::new();
         }
         match self.call(&Request::Focus(window), now) {
@@ -183,28 +193,100 @@ impl Remapper {
         {
             return self.deliver(vec![input]);
         }
-        if let Err(error) = self.start(now) {
-            let mut out = self.fail(&error, now);
+        let mut out = self.poll(now);
+        // Until the remaps answer `Start` (or after it failed), input passes through as it is,
+        // and so does the release of a key pressed meanwhile.
+        if !self.ready() {
+            if let Input::Press(source) = input
+                && self.active()
+            {
+                self.bypassed.insert(source);
+            }
             out.extend(self.deliver(vec![input]));
             return out;
         }
-        if !self.active() {
-            return self.deliver(vec![input]);
-        }
         match self.call(&Request::Input { input, now }, now) {
-            Ok(outputs) => outputs,
+            Ok(outputs) => out.extend(outputs),
             Err(error) => {
-                let mut out = self.fail(&error, now);
+                out.extend(self.fail(&error, now));
                 out.extend(self.deliver(vec![input]));
-                out
             }
         }
+        out
+    }
+
+    /// Starts the remaps when they should run and are not running, and takes their answer to
+    /// `Start` once it came, without waiting: the host calls this whenever their instance wakes
+    /// it, and input calls it too. A start not answered within `Limits::start` fails.
+    pub fn poll(&mut self, now: u64) -> Vec<Output> {
+        if !self.active() {
+            return Vec::new();
+        }
+        let Some(running) = self.running.as_mut() else {
+            return match self.start() {
+                Ok(()) => Vec::new(),
+                Err(error) => self.fail(&error, now),
+            };
+        };
+        let Some(by) = running.starting else {
+            return Vec::new();
+        };
+        let answers = match running.instance.receive() {
+            Ok(answers) => answers,
+            Err(error) => return self.fail(&format!("they stopped: {error}"), now),
+        };
+        let reply = match answers.as_slice() {
+            [] if by.remaining().is_none() => {
+                return self.fail("they did not answer in time", now);
+            }
+            [] => return Vec::new(),
+            [reply] if reply.len() > MOST_REPLY_BYTES => {
+                return self.fail("the remaps answered at too great a length", now);
+            }
+            [reply] => decode::<Reply>(reply),
+            _ => return self.fail("they answered more than once", now),
+        };
+        let reply = match reply {
+            Ok(reply) => reply,
+            Err(error) => {
+                return self.fail(
+                    &format!("the remaps answered with nothing readable: {error}"),
+                    now,
+                );
+            }
+        };
+        if let Some(problem) = reply.problem {
+            self.running = None;
+            self.stopped = true;
+            self.problems.push(format!(
+                "The input remaps could not be read, so they stay off until they change: {problem}"
+            ));
+            return Vec::new();
+        }
+        if !reply.outputs.is_empty() {
+            return self.fail("the remaps pressed keys while starting", now);
+        }
+        running.starting = None;
+        let started_in = running.window.clone();
+        let mut out = self.settle(reply, now);
+        if started_in != self.window {
+            match self.call(&Request::Focus(self.window.clone()), now) {
+                Ok(outputs) => out.extend(outputs),
+                Err(error) => out.extend(self.fail(&error, now)),
+            }
+        }
+        out
+    }
+
+    /// Whether the remaps should run and are still starting (or about to).
+    pub fn starting(&self) -> bool {
+        self.active() && !self.ready()
     }
 
     pub fn timer(&mut self, now: u64) -> Vec<Output> {
-        if !self.active() || self.running.is_none() {
+        if !self.ready() {
             self.deadline = None;
-            return Vec::new();
+            return self.poll(now);
         }
         match self.call(&Request::Timer { now }, now) {
             Ok(outputs) => outputs,
@@ -241,8 +323,15 @@ impl Remapper {
         self.config.is_some() && !self.locked && !self.stopped
     }
 
+    fn ready(&self) -> bool {
+        self.active()
+            && self
+                .running
+                .as_ref()
+                .is_some_and(|running| running.starting.is_none())
+    }
+
     fn call(&mut self, request: &Request, now: u64) -> Result<Vec<Output>, String> {
-        self.start(now)?;
         let Some(running) = self.running.as_mut() else {
             return Err("the remaps did not start".to_owned());
         };
@@ -250,32 +339,23 @@ impl Remapper {
         Ok(self.settle(reply, now))
     }
 
-    fn start(&mut self, now: u64) -> Result<(), String> {
-        if self.running.is_some() {
-            return Ok(());
-        }
-        let config = self.config.clone().unwrap_or_default();
-        let mut running = Running::new(&self.module)?;
+    /// Spawns the remaps' instance and sends it `Start`, which `poll` takes the answer to.
+    fn start(&mut self) -> Result<(), String> {
+        let mut running = Running::new(&self.module, Arc::clone(&self.wake))?;
         let request = Request::Start {
-            config,
+            config: self.config.clone().unwrap_or_default(),
             window: self.window.clone(),
             held: self.physical.iter().copied().collect(),
             pressed: self.pressed.iter().copied().collect(),
         };
-        let reply = running.call(&encode(&request), self.limits.start)?;
-        if let Some(problem) = reply.problem {
-            self.stopped = true;
-            self.problems.push(format!(
-                "The input remaps could not be read, so they stay off until they change: {problem}"
-            ));
-            return Ok(());
-        }
+        running
+            .instance
+            .send(vec![encode(&request)])
+            .map_err(|error| format!("they stopped: {error}"))?;
+        running.starting = Some(Deadline::after(self.limits.start));
+        running.window = self.window.clone();
         self.running = Some(running);
-        let outputs = self.settle(reply, now);
-        if outputs.is_empty() {
-            return Ok(());
-        }
-        Err("the remaps pressed keys while starting".to_owned())
+        Ok(())
     }
 
     fn settle(&mut self, reply: Reply, now: u64) -> Vec<Output> {
@@ -361,14 +441,18 @@ fn valid(source: Source) -> bool {
 }
 
 impl Running {
-    fn new(module: &Module) -> Result<Self, String> {
+    fn new(module: &Module, wake: Wake) -> Result<Self, String> {
         let config = sandbox::Config {
             name: "input remaps".to_owned(),
             memory_limit: MEMORY_BYTES,
         };
-        let instance = sandbox::spawn(module, config, Arc::new(|| {}))
+        let instance = sandbox::spawn(module, config, wake)
             .map_err(|error| format!("the remaps would not start: {error}"))?;
-        Ok(Self { instance })
+        Ok(Self {
+            instance,
+            starting: None,
+            window: None,
+        })
     }
 
     /// Sends `request` and waits up to `within` for the one frame that answers it. A module that
