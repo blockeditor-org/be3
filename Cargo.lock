@@ -1644,7 +1644,9 @@ name = "be-host-remap-host"
 version = "0.1.0"
 dependencies = [
  "be-lib-remap",
- "wasmi",
+ "be-wasm-guest-host",
+ "be-wasm-host",
+ "wat",
 ]
 
 [[package]]
@@ -1945,6 +1947,7 @@ name = "be-lib-remap-module"
 version = "0.1.0"
 dependencies = [
  "be-lib-remap",
+ "be-wasm-guest-abi",
 ]
 
 [[package]]
@@ -3080,6 +3083,26 @@ dependencies = [
  "quote",
  "syn 2.0.117",
  "wit-parser 0.254.0",
+]
+
+[[package]]
+name = "be-wasm-sandbox-api"
+version = "0.1.0"
+dependencies = [
+ "be-wasm-ops",
+ "be-wasm-ops-bindgen",
+ "serde",
+]
+
+[[package]]
+name = "be-wasm-sandbox-host"
+version = "0.1.0"
+dependencies = [
+ "be-wasm-guest-echo",
+ "be-wasm-guest-host",
+ "be-wasm-host",
+ "be-wasm-ops",
+ "be-wasm-sandbox-api",
 ]
 
 [[package]]

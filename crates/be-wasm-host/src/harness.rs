@@ -164,7 +164,13 @@ impl Host {
             wasi,
             initialize: false,
         };
-        let mut running = Running::new(self, tests.module.clone(), &library, &wake, setup)
+        let mut running = Running::new(
+            self,
+            crate::Code::Bytes(tests.module.clone()),
+            &library,
+            &wake,
+            setup,
+        )
             .map_err(|error| format!("the tests could not be instantiated: {error}"))?;
         let entry = match identities.is_empty() {
             true => START,

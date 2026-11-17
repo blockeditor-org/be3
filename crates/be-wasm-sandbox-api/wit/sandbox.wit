@@ -1,0 +1,46 @@
+package be3:sandbox@0.1.0;
+
+/// Modules compiled from bytes, and instances of them, which the host runs
+/// for a guest (plans/host_as_platform_adapter.md, The sandbox API). An
+/// instance is a pure guest (guides/app_libraries.md, Pure guests): its only
+/// imports are its transport, and whatever else it may do, its spawner serves
+/// it over its frames. Natively each instance has a thread and an isolate of
+/// its own.
+interface sandbox {
+    use be3:shared/ids@0.1.0.{hash};
+
+    /// A module, by the SHA-256 of the bytes it was compiled from.
+    type module-id = hash;
+
+    /// Compiles a pure guest's module from `bytes` off the caller's thread,
+    /// once per host for the same bytes. Answers the module's id, or why the
+    /// bytes are not a pure guest's module. The module stays compiled while
+    /// the guest that compiled it runs.
+    compile: async func(bytes: list<u8>) -> result<module-id, string>;
+
+    /// How an instance runs.
+    record config {
+        /// Its thread's name, which logs and the host's reports show.
+        name: string,
+        /// The most bytes its memory may hold.
+        memory-limit: u64,
+    }
+
+    /// An instance of a module this guest compiled. Dropping it stops it, even
+    /// in the middle of a step, by terminating its isolate.
+    resource instance {
+        constructor(module: module-id, config: config);
+        /// Queues frames for it; it is stepped with them as soon as it is
+        /// free.
+        send: async func(frames: list<list<u8>>);
+        /// The frames it sent since the last answer, answered once there is
+        /// at least one, or why it stopped: it could not start, trapped or
+        /// panicked. Once it stopped, every later call fails the same way.
+        next: async func() -> result<list<list<u8>>, string>;
+    }
+}
+
+/// A guest that runs modules from bytes.
+world spawner {
+    import sandbox;
+}

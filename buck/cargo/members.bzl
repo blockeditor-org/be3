@@ -171,6 +171,8 @@ members = [
     "crates/be-wasm-link",
     "crates/be-wasm-ops",
     "crates/be-wasm-ops-bindgen",
+    "crates/be-wasm-sandbox-api",
+    "crates/be-wasm-sandbox-host",
     "crates/be-wasm-threads",
     "crates/beui",
     "crates/beui-components-styled",

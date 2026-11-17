@@ -3,7 +3,7 @@ use super::*;
 mod a_failure_releases_what_the_remaps_held_down;
 mod a_key_held_before_the_remaps_saw_it_is_released_as_it_is;
 mod a_modifier_a_session_chord_pressed_is_let_go_with_its_release;
-mod a_module_that_never_answers_runs_out_of_fuel_and_input_passes_through;
+mod a_module_that_never_answers_is_stopped_and_input_passes_through;
 mod new_rules_apply_from_the_next_key;
 mod remaps_that_do_not_read_stay_off_until_they_change;
 mod remaps_that_keep_failing_stop_until_they_change;
@@ -31,21 +31,38 @@ fn remapper(rules: &str) -> Remapper {
     remapper
 }
 
+/// Remaps written by hand: `handle` answers each request, counted in `$calls` (`Start` is the
+/// first), with an `i64` holding where its reply is in memory and how long it is: an empty reply at
+/// 64, ten bytes long, and one pressing X at 128, twenty.
 fn hostile(handle: &str) -> Remapper {
     let module = format!(
         r#"
         (module
+            (import "be3_host" "host_send" (func $send (param i32 i32)))
+            (import "be3_host" "host_receive" (func $receive (param i32 i32) (result i64)))
             (memory (export "memory") 1)
             (global $calls (mut i32) (i32.const 0))
             (data (i32.const 64) "\00\00\00\00\00\00\00\00\00\00")
             (data (i32.const 128) "\01\00\00\00\00\00\00\00\00\00\00\00\00\00\00\00\2d\00\00\00")
-            (func (export "be_remap_buffer") (param i32) (result i32) (i32.const 1024))
-            (func (export "be_remap_handle") (param i32) (result i64)
-                (global.set $calls (i32.add (global.get $calls) (i32.const 1)))
-                {handle}))
+            (func (export "app_start"))
+            (func (export "app_shutdown"))
+            (func (export "app_step") (local $answer i64)
+                (block $read
+                    (loop $requests
+                        (br_if $read
+                            (i64.eq
+                                (call $receive (i32.const 1024) (i32.const 4096))
+                                (i64.const -1)))
+                        (global.set $calls (i32.add (global.get $calls) (i32.const 1)))
+                        (local.set $answer {handle})
+                        (call $send
+                            (i32.wrap_i64 (i64.shr_u (local.get $answer) (i64.const 32)))
+                            (i32.wrap_i64 (local.get $answer)))
+                        (br $requests)))))
         "#
     );
-    let mut remapper = Remapper::new(module.as_bytes()).expect("the module is shaped like remaps");
+    let module = wat::parse_str(&module).expect("the module is written well");
+    let mut remapper = Remapper::new(&module).expect("the module is shaped like remaps");
     remapper.configure(Some(Vec::new()));
     remapper
 }

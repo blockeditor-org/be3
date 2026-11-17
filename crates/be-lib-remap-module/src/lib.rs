@@ -1,35 +1,25 @@
-#[cfg(target_arch = "wasm32")]
-mod exports {
-    use std::cell::RefCell;
+//! The remaps as a pure guest (guides/app_libraries.md, Pure guests), which be-host runs in its
+//! sandbox: each frame it is sent is a request, answered with one frame.
 
-    use be_lib_remap::Module;
+use be_lib_remap::Module;
+use be_wasm_guest_abi::{Flow, Guest, Waker};
 
-    thread_local! {
-        static MODULE: RefCell<Module> = RefCell::new(Module::default());
-        static REQUEST: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
-        static REPLY: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
+pub struct Remaps(Module);
+
+impl Guest for Remaps {
+    fn start(_waker: Waker, _outbound: &mut Vec<Vec<u8>>) -> Result<Self, String> {
+        Ok(Self(Module::default()))
     }
 
-    // unsafe(ffi)
-    #[unsafe(export_name = "be_remap_buffer")]
-    pub extern "C" fn buffer(length: u32) -> u32 {
-        REQUEST.with_borrow_mut(|request| {
-            request.clear();
-            request.resize(length as usize, 0);
-            request.as_mut_ptr() as u32
-        })
-    }
-
-    // unsafe(ffi)
-    #[unsafe(export_name = "be_remap_handle")]
-    pub extern "C" fn handle(length: u32) -> u64 {
-        let reply = REQUEST.with_borrow(|request| {
-            let length = (length as usize).min(request.len());
-            MODULE.with_borrow_mut(|module| module.handle(&request[..length]))
-        });
-        REPLY.with_borrow_mut(|stored| {
-            *stored = reply;
-            (u64::from(stored.as_ptr() as u32) << 32) | stored.len() as u64
-        })
+    fn step(
+        &mut self,
+        inbound: Vec<Vec<u8>>,
+        _woken: bool,
+        outbound: &mut Vec<Vec<u8>>,
+    ) -> Result<Flow, String> {
+        outbound.extend(inbound.iter().map(|request| self.0.handle(request)));
+        Ok(Flow::Running)
     }
 }
+
+be_wasm_guest_abi::guest!(Remaps);

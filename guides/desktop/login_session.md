@@ -146,9 +146,11 @@ by a *remapper*: a WebAssembly module an app ships as data, given a config the a
   what is pressed (`Action::NOTHING`). Its module is `crates/be-lib-remap-module` (staged as `remapper.wasm`), which
   runs `be-lib-remap`'s engine and text reader (`be_lib_remap::text`, key names in
   `be_lib_remap::names`). Rules can be scoped to a window by executable, program id or title.
-- **The protocol.** A module exports `memory`, `be_remap_buffer` and `be_remap_handle` and trades
-  bincode `be_lib_remap::protocol` messages. `be-host-remap-host` runs it on wasmi with fuel and a
-  memory cap.
+- **The protocol.** A module is a pure guest (guides/app_libraries.md, Pure guests): each frame it
+  is sent is a bincode `be_lib_remap::protocol` request, answered with one frame.
+  `be-host-remap-host` runs it in the sandbox (`be_wasm_host::sandbox`), on a thread and isolate
+  of its own with a memory cap, and waits for each answer: one not given within `START_TIME`
+  (for `Start`) or `CALL_TIME` is a failure, and dropping the instance terminates it.
 - **Failing open.** On any failure the host releases everything the module held, passes the input
   through, toasts, and restarts the module on the next input; after three failures in a minute, or
   an unreadable config, it stays off until the remapper changes. Ctrl+Alt+Backspace, Ctrl+Alt+F<n>,

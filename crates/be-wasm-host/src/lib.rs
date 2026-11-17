@@ -13,6 +13,7 @@ mod harness;
 mod instance;
 mod interrupt;
 mod panic;
+pub mod sandbox;
 mod state;
 mod threads;
 mod wake;
@@ -187,7 +188,7 @@ impl Host {
         entry: &str,
         read: impl Fn(&str) -> Result<Stored, String>,
     ) -> Result<App, String> {
-        App::new(self, read(entry)?.into_bytes()?, &|identity| {
+        App::new(self, Code::Bytes(read(entry)?.into_bytes()?), &|identity| {
             read(&library_file_name(identity))?.into_bytes()
         })
     }
@@ -205,7 +206,7 @@ impl Host {
         bytes: &[u8],
         library: impl Fn(&str) -> Result<Vec<u8>, String>,
     ) -> Result<App, String> {
-        App::new(self, bytes.to_vec(), &library)
+        App::new(self, Code::Bytes(bytes.to_vec()), &library)
     }
 
     /// The program `app` is, with each library it is linked against compiled once for every
@@ -390,10 +391,16 @@ pub(crate) struct Setup {
     pub(crate) initialize: bool,
 }
 
+/// What a guest runs: a module's bytes, or a module the sandbox compiled (sandbox.rs).
+pub(crate) enum Code {
+    Bytes(Vec<u8>),
+    Compiled(Module),
+}
+
 impl Running {
     pub(crate) fn new(
         host: &Host,
-        bytes: Vec<u8>,
+        code: Code,
         library: &dyn Fn(&str) -> Result<Vec<u8>, String>,
         wake: &Arc<Wake>,
         setup: Setup,
@@ -412,7 +419,7 @@ impl Running {
             let local = v8::Local::new(scope, &context);
             let scope = &mut v8::ContextScope::new(scope, local);
             v8::tc_scope!(let caught, scope);
-            let made = Self::make(caught, host, &isolate, bytes, library, wake, setup);
+            let made = Self::make(caught, host, &isolate, code, library, wake, setup);
             made.map_err(|error| match caught.has_caught() {
                 true => format!("{error}: {}", crate::engine::thrown!(caught)),
                 false => error,
@@ -438,18 +445,22 @@ impl Running {
         scope: &mut v8::PinScope<'_, '_>,
         host: &Host,
         isolate: &v8::SharedIsolate,
-        bytes: Vec<u8>,
+        code: Code,
         library: &dyn Fn(&str) -> Result<Vec<u8>, String>,
         wake: &Arc<Wake>,
         setup: Setup,
     ) -> Result<(NonNull<State>, v8::Global<v8::Object>), String> {
-        let pure = host.flavor == Flavor::Pure;
-        let bytes = source(bytes)?;
-        let bytes = match pure {
-            true => engine::pure(&bytes, host.memory_limit)?,
-            false => bytes,
+        let app = match code {
+            Code::Bytes(bytes) => {
+                let bytes = source(bytes)?;
+                let bytes = match host.flavor == Flavor::Pure {
+                    true => engine::pure(&bytes, host.memory_limit)?,
+                    false => bytes,
+                };
+                engine::compile(scope, &bytes)?
+            }
+            Code::Compiled(module) => module,
         };
-        let app = engine::compile(scope, &bytes)?;
         let (program, identities) = host.program(scope, app, library)?;
         let cap = host.memory_limit.map(engine::pages);
         let declared = match program.first().shape.memory_import() {
@@ -696,7 +707,7 @@ pub struct App {
 impl App {
     fn new(
         host: &Host,
-        bytes: Vec<u8>,
+        code: Code,
         library: &dyn Fn(&str) -> Result<Vec<u8>, String>,
     ) -> Result<Self, String> {
         let wake: Arc<Wake> = Arc::default();
@@ -704,7 +715,7 @@ impl App {
             wasi: Wasi::app(),
             initialize: true,
         };
-        let running = Running::new(host, bytes, library, &wake, setup)?;
+        let running = Running::new(host, code, library, &wake, setup)?;
         for name in [Call::Start, Call::Step, Call::Shutdown].map(Call::export) {
             if !running.exports(name) {
                 return Err(format!("the app has no usable {name} export"));
