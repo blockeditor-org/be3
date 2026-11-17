@@ -2008,8 +2008,13 @@ impl<S: ObjectStore> Peer<S> {
         .await;
         let response = match response {
             Err(error) if error.is_unreachable() => return self.create_locally(creation),
-            response => response?,
+            Err(error) => {
+                self.keys.forget_made(block);
+                return Err(error);
+            }
+            Ok(response) => response,
         };
+        self.keep_made_log(block)?;
         self.recorded(&creation.keys);
         self.note(&response);
         self.escrow_created(&creation.keys).await;
@@ -2048,9 +2053,20 @@ impl<S: ObjectStore> Peer<S> {
         owner_only: bool,
     ) -> Result<Creation, ClientError> {
         let (root, placement) = self.new_log(block, parent).await?;
-        let (key, keys, unchecked) = self.new_keys(block, parent, owner_only).await?;
-        let references = bounded(deduplicated(self.resolve(block, metadata.references())))?;
-        let metadata = self.commits.vault().seal(key, &metadata.encode())?;
+        let made = async {
+            let (key, keys, unchecked) = self.new_keys(block, parent, owner_only).await?;
+            let references = bounded(deduplicated(self.resolve(block, metadata.references())))?;
+            let metadata = self.commits.vault().seal(key, &metadata.encode())?;
+            Ok::<_, ClientError>((key, keys, unchecked, references, metadata))
+        }
+        .await;
+        let (key, keys, unchecked, references, metadata) = match made {
+            Ok(made) => made,
+            Err(error) => {
+                self.keys.forget_made(block);
+                return Err(error);
+            }
+        };
         Ok(Creation {
             block,
             content_type,
@@ -2068,7 +2084,9 @@ impl<S: ObjectStore> Peer<S> {
 
     /// The first two entries of a new block's access log, signed by this account: its root,
     /// pinned here before the block's keys are made, which carry it; and the parent record
-    /// placing it at `parent` (`placement`).
+    /// placing it at `parent` (`placement`). The root and the log kept at it stay in memory
+    /// until a server takes the creation or the outbox keeps it (`keep_made_log`); a creation
+    /// that fails lets them go (`KeyBook::forget_made`).
     pub(crate) async fn new_log(
         &self,
         block: Uuid,
@@ -2100,9 +2118,18 @@ impl<S: ObjectStore> Peer<S> {
             }),
         );
         self.keys.pin_root(block, root.hash());
-        let kept = self.keys.keep_made(block, root.hash());
-        let _ = self.refs.keep_log(block, kept);
+        self.keys.keep_made(block, root.hash());
         Ok((root.encode(), placed.encode()))
+    }
+
+    /// Keeps on the device the log of a block made here (`new_log`), once a server took its
+    /// creation or the outbox keeps it: kept before, a creation the server refuses (the block is
+    /// there already, made by someone else) would leave a log at a root that is not the block's.
+    pub(crate) fn keep_made_log(&self, block: Uuid) -> Result<(), ClientError> {
+        if let Some(kept) = self.keys.kept_log(block) {
+            self.refs.keep_log(block, kept)?;
+        }
+        Ok(())
     }
 
     /// Where `parent` is, as a parent record placing a block there names it: under a block,
@@ -2765,6 +2792,16 @@ impl<S: ObjectStore> Peer<S> {
         if known.is_some_and(|summary| summary.content_type == content_type || !self.is_attached())
         {
             return Ok(());
+        }
+        // A block this device holds no summary of may still be there (shared with this account,
+        // or its summary forgotten): the server says so before anything is made for it.
+        if self.is_attached() && !self.local && !self.uncreated(block) {
+            match self.server_summary(block).await {
+                Ok(_) => return Ok(()),
+                Err(ClientError::Refused(ErrorCode::BlockNotFound, _)) => {}
+                Err(error) if error.is_unreachable() => {}
+                Err(error) => return Err(error),
+            }
         }
         match self
             .create_block(
