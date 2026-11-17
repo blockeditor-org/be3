@@ -1094,7 +1094,11 @@ impl<S: ObjectStore> Peer<S> {
         // An epoch its scope's log outdates (named before a revocation, a downgrade or a
         // closing, whose subject may hold it) is written under no more: the scope gets a new
         // epoch first (signed access 3d).
-        if let Some(scope) = self.refs.summary(block).and_then(|kept| scope_of(&kept).ok())
+        let kept = match self.refs.summary(block) {
+            Some(kept) => Some(kept),
+            None => self.summary(block).await.ok(),
+        };
+        if let Some(scope) = kept.and_then(|kept| scope_of(&kept).ok())
             && self.outdated(chosen, scope).await
         {
             Box::pin(self.rotate(scope)).await?;
@@ -1107,11 +1111,13 @@ impl<S: ObjectStore> Peer<S> {
         Ok(chosen)
     }
 
-    /// Whether `scope`'s log, as this device checked it, outdates `key` (`KeyBook::outdated`):
-    /// read again first when the key names a head it does not reach, which may be newer.
+    /// Whether the logs of `scope` and of the scopes above whose keys `key` was opened through
+    /// outdate it (`KeyBook::outdated`): each read first when this device holds none of it (as
+    /// on a new device, or after a restart: logs are kept in memory alone), or when the key
+    /// names a head it does not reach, which may be newer.
     async fn outdated(&self, key: Uuid, scope: Uuid) -> bool {
-        if self.keys.names_unheld(key, scope) {
-            let _ = self.checked_access(scope).await;
+        for log in self.keys.logs_to_read(key, scope) {
+            let _ = self.checked_access(log).await;
         }
         self.keys.outdated(key, scope)
     }
