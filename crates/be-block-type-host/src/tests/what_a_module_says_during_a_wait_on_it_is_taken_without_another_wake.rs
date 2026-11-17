@@ -74,7 +74,10 @@ fn what_a_module_says_during_a_wait_on_it_is_taken_without_another_wake() {
         be_block_client::Clock::real(),
     );
     futures_util::FutureExt::now_or_never(modules.load(0)).expect("the module said hello");
-    assert!(modules.kept(), "the wait for the hello kept the error for later");
+    assert!(
+        modules.kept(),
+        "the wait for the hello kept the error for later"
+    );
     // Whatever wake the module gave went to that wait.
     while futures_util::FutureExt::now_or_never(modules.notified()).is_some() {}
 
