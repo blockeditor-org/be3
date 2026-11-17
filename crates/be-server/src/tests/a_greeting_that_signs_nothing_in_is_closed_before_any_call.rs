@@ -2,7 +2,10 @@ use super::*;
 
 /// What the server's greeting says to a socket that greeted it with `token`, and the client over
 /// the socket once it was read.
-async fn welcome(harness: &Harness, token: Option<&str>) -> (be_block_protocol::Welcome, TestClient) {
+async fn welcome(
+    harness: &Harness,
+    token: Option<&str>,
+) -> (be_block_protocol::Welcome, TestClient) {
     let mut socket = greet(&harness.socket(), BUILD, token).await;
     let frame = next_binary(&mut socket).await.expect("the server greets");
     let hello = read_hello(&frame).expect("the server greets");

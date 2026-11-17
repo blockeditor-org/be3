@@ -206,7 +206,8 @@ impl Connection {
             let signed_in = greet(&mut writer, &mut reader, &greeting).await?;
             Ok::<_, ClientError>((writer, reader, signed_in))
         });
-        let (writer, reader, signed_in) = match select(opening, clock.sleep(CONNECT_TIMEOUT)).await {
+        let (writer, reader, signed_in) = match select(opening, clock.sleep(CONNECT_TIMEOUT)).await
+        {
             Either::Left((opened, _)) => opened?,
             Either::Right(_) => return Err(ClientError::TimedOut("connecting to the server")),
         };

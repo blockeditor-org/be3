@@ -757,7 +757,9 @@ pub(crate) async fn next_heard<M>(
 /// Our build, and what a client's greeting (`theirs`) says once its build is ours; none for
 /// another build's client, which is answered with our build and closed. A greeting of our
 /// build that says nothing readable says no token.
-pub(crate) fn greeting(theirs: Option<&Hello>) -> Result<(&'static str, Option<Greeting>), ServerError> {
+pub(crate) fn greeting(
+    theirs: Option<&Hello>,
+) -> Result<(&'static str, Option<Greeting>), ServerError> {
     let ours = be_lib_build_id::current().map_err(ServerError::Socket)?;
     let Some(theirs) = theirs.filter(|theirs| be_lib_build_id::compatible(ours, &theirs.build))
     else {

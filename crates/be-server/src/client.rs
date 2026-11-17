@@ -18,8 +18,7 @@ use uuid::Uuid;
 
 use crate::{
     Identity, PublishOutcome, SUMMARY_BYTES, ServerConfig, ServerError, ServerStore, Services,
-    SessionRegistry, WatchHub,
-    browser_auth, contacts, contents_room,
+    SessionRegistry, WatchHub, browser_auth, contacts, contents_room,
     limits::{
         MAX_PAIRING_BYTES, MAX_RELAY_BYTES, MAX_SESSIONS_PER_CONNECTION, MAX_STREAMS_PER_CONNECTION,
     },

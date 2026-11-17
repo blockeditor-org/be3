@@ -4,7 +4,10 @@ use super::*;
 
 /// A socket as if from `address`, through the trusted proxy every test connects from, that has
 /// not greeted the server yet.
-async fn from(harness: &Harness, address: &str) -> Result<Socket, tokio_tungstenite::tungstenite::Error> {
+async fn from(
+    harness: &Harness,
+    address: &str,
+) -> Result<Socket, tokio_tungstenite::tungstenite::Error> {
     let mut request = harness.socket().into_client_request().unwrap();
     request
         .headers_mut()

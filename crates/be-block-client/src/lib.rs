@@ -19,9 +19,9 @@ pub use connection::{Answer, Connection, Credentials, Event, ask};
 pub use contacts::{Contact, GrantOffer};
 pub use keys::{EscrowWarning, KeyBook};
 pub use peer::{
-    BlockRead, Drained, Listed, MAX_NOTIFICATION_AGE_MILLISECONDS,
-    MAX_NOTIFICATION_TEXT, Notification, OpenedNotification, Peer, PeerConfig, PendingRotation,
-    Reconciled, Resolver, Saved, Sealed, SealsJournal, Signer, Write,
+    BlockRead, Drained, Listed, MAX_NOTIFICATION_AGE_MILLISECONDS, MAX_NOTIFICATION_TEXT,
+    Notification, OpenedNotification, Peer, PeerConfig, PendingRotation, Reconciled, Resolver,
+    Saved, Sealed, SealsJournal, Signer, Write,
 };
 pub use refs::{
     Aside, KeptChange, KeptEdit, KeptSubmission, ListedBlock, OpenEdits, PendingCounts, RefsDb,

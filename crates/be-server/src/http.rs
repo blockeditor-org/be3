@@ -122,11 +122,7 @@ impl Sessions {
     }
 
     fn get(&self, id: &str) -> Option<Arc<Mutex<Session>>> {
-        self.open
-            .lock()
-            .unwrap()
-            .get(id)
-            .map(Arc::clone)
+        self.open.lock().unwrap().get(id).map(Arc::clone)
     }
 
     pub(crate) async fn sweep(&self) {
@@ -150,13 +146,7 @@ impl Sessions {
         }
     }
     pub(crate) async fn revoke_invalid(&self) {
-        let sessions: Vec<_> = self
-            .open
-            .lock()
-            .unwrap()
-            .values()
-            .map(Arc::clone)
-            .collect();
+        let sessions: Vec<_> = self.open.lock().unwrap().values().map(Arc::clone).collect();
         for session in sessions {
             let mut session = session.lock().await;
             let Some(client) = &mut session.client else {

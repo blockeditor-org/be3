@@ -58,6 +58,7 @@ mod a_follower_of_a_shared_subtree_hears_a_block_leave_it_within_one_tree;
 mod a_grant_or_a_key_for_someone_not_a_contact_is_refused;
 mod a_grant_that_changes_nothing_writes_nothing;
 mod a_graph_change_reaches_only_the_members_who_may_see_it;
+mod a_greeting_that_signs_nothing_in_is_closed_before_any_call;
 mod a_head_moves_only_to_a_commit_that_descends_from_it;
 mod a_holder_that_loses_edit_access_hands_the_lease_on;
 mod a_kind_open_inside_passes_from_one_viewer_inside_to_another;
@@ -120,6 +121,7 @@ mod a_stale_proof_and_another_sessions_revocation_without_one_are_refused;
 mod a_stale_publish_is_rejected_with_the_current_head;
 mod a_stale_seal_from_an_earlier_run_publishes_and_trims_nothing;
 mod a_stored_key_is_told_only_to_who_may_open_it;
+mod a_stranger_cannot_read_a_block_in_an_organization_it_is_not_in;
 mod a_submission_from_a_build_the_session_does_not_speak_is_refused;
 mod a_trashed_block_reaches_its_reader_as_detached;
 mod a_trim_by_another_build_marks_the_journal_lost_until_the_next_commit;
@@ -161,8 +163,6 @@ mod an_object_uploads_and_downloads_with_presigned_s3_urls;
 mod an_old_nonce_a_reused_state_or_another_browser_is_refused;
 mod an_older_backup_renamed_as_the_newest_does_not_restore;
 mod an_s3_upload_that_is_not_its_key_stores_nothing;
-mod a_stranger_cannot_read_a_block_in_an_organization_it_is_not_in;
-mod a_greeting_that_signs_nothing_in_is_closed_before_any_call;
 mod an_unknown_emails_budget_runs_out_as_a_known_ones_does;
 mod an_unverified_provider_email_links_nothing;
 mod an_upload_is_used_once_and_what_a_block_holds_is_not_asked_for_again;
@@ -1718,7 +1718,9 @@ fn token_hello(token: &str) -> Vec<u8> {
 fn welcome_of(frame: &[u8]) -> be_block_protocol::Welcome {
     let hello = read_hello(frame).expect("the server greets");
     assert_eq!(hello.build, BUILD, "the server is of another build");
-    hello.said().expect("the server's greeting says who signed in")
+    hello
+        .said()
+        .expect("the server's greeting says who signed in")
 }
 
 /// The build a server's greeting names.

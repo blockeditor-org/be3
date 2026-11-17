@@ -123,7 +123,10 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
         matches!(&refused, Err(Error { code, .. }) if *code == ErrorCode::NotAuthenticated),
         "{refused:?}"
     );
-    assert_eq!(session, None, "a greeting that signs nothing in opened a session");
+    assert_eq!(
+        session, None,
+        "a greeting that signs nothing in opened a session"
+    );
 
     let (_, token) = ServerStore::open(&harness.directory)
         .unwrap()
@@ -177,7 +180,10 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
     let (status, session, frames) = post(
         &mut stranger,
         None,
-        &[&hello("another build", &be_block_protocol::Greeting::default())],
+        &[&hello(
+            "another build",
+            &be_block_protocol::Greeting::default(),
+        )],
     )
     .await;
     assert_eq!(status, 200);
