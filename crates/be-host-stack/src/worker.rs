@@ -1615,13 +1615,9 @@ impl Session<'_> {
                                 self.uploads.add(blocks);
                                 ran.done(false);
                             }
-                            command @ (Command::Version { .. }
-                            | Command::Revision {
-                                request: super::revisions::Asked::Restore(_),
-                                ..
-                            }) if !after_order.is_empty()
-                                || ran.replicas.ordering()
-                                || !ran.replicas.modules.settled() =>
+                            command
+                                if seals_first(&command)
+                                    && (!after_order.is_empty() || order_pending(ran.replicas)) =>
                             {
                                 after_order.push(command);
                             }
@@ -1652,12 +1648,17 @@ impl Session<'_> {
                         calls: &self.calls.0,
                     };
                     let mut applied = false;
+                    let mut held = Vec::new();
                     for command in self.uploads.runnable() {
-                        if let Some(command) = ran.served.defer(command) {
+                        if seals_first(&command) && order_pending(ran.replicas) {
+                            held.push(command);
+                        } else if let Some(command) = ran.served.defer(command) {
                             step(shared, Some(command.name()));
                             applied |= ran.carry_out(command).await;
                         }
                     }
+                    // Sent before anything still waiting there.
+                    after_order.splice(0..0, held);
                     crate::changes::wake();
                     applied
                 }
@@ -1717,10 +1718,16 @@ impl Session<'_> {
                         served: &mut self.served,
                         calls: &self.calls.0,
                     };
+                    let mut held = Vec::new();
                     for command in runnable {
+                        if seals_first(&command) && order_pending(ran.replicas) {
+                            held.push(command);
+                            continue;
+                        }
                         step(shared, Some(command.name()));
                         ran.carry_out(command).await;
                     }
+                    after_order.splice(0..0, held);
                     true
                 }
             };
@@ -1788,10 +1795,7 @@ impl Session<'_> {
             )
             .await;
             spawn_listings(peer, shared, &self.tasks.0);
-            if !after_order.is_empty()
-                && !self.replicas.ordering()
-                && self.replicas.modules.settled()
-            {
+            if !after_order.is_empty() && !order_pending(self.replicas) {
                 let mut ran = Ran {
                     peer,
                     replicas: &mut *self.replicas,
@@ -2785,6 +2789,25 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
     }
     crate::changes::wake();
     None
+}
+
+/// Whether the command seals the open blocks first (a version snapshot, the bookmark a restore
+/// keeps), so it waits (`after_order`) until `order_pending` is over, however late it is released.
+fn seals_first(command: &Command) -> bool {
+    matches!(
+        command,
+        Command::Version { .. }
+            | Command::Revision {
+                request: super::revisions::Asked::Restore(_),
+                ..
+            }
+    )
+}
+
+/// Whether the server has yet to order an edit the open replicas submitted, or a module has yet
+/// to take an edit sent to it: a seal now would leave those out.
+fn order_pending(replicas: &Replicas) -> bool {
+    replicas.ordering() || !replicas.modules.settled()
 }
 
 /// The command back when the loop may carry it out now: it waits (`Uploads::defer`) for the

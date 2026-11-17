@@ -213,7 +213,8 @@ drains. Commands that seal the open blocks first (a version snapshot, the
 bookmark a restore keeps) wait the same way in the worker (`after_order`), and
 until the modules took every edit sent before them; then they pass the same
 waits as every other command (`admit`: for their uploads, then their turn
-behind the server lane).
+behind the server lane). One released from those waits while edits are again
+unordered goes back to `after_order`, since its seal must come after them.
 
 A dropped connection (`Connection::closed`, not the broadcast, which outlives
 the socket) leaves content on screen; the worker backs off (`reconnect_delay`,
