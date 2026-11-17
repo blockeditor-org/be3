@@ -60,6 +60,7 @@ mod dates;
 mod described;
 mod dialogs;
 mod docking;
+mod docking_keys;
 mod drag;
 mod editing;
 mod fields;
