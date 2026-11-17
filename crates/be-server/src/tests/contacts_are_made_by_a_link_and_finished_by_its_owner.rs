@@ -28,26 +28,20 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     let link = Uuid::from_bytes(code.lookup());
     let response = owner
         .call(|peer| {
-            client::contacts::create_link(
-                peer,
-                link,
-                owner_card.seal(&code, CardRole::Owner),
-                owner_secret.seal_own(&code.to_bytes()),
-                be_block_protocol::LinkKind::Contact(None),
-            )
+            peer.write::<()>(be_block_protocol::Op::CreateLink { link: link, card: owner_card.seal(&code, CardRole::Owner), code: owner_secret.seal_own(&code.to_bytes()), kind: be_block_protocol::LinkKind::Contact(None) })
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
 
     let own = owner
-        .call(|peer| client::contacts::get_link(peer, link))
+        .call(|peer| peer.read::<be_block_protocol::Link>(be_block_protocol::Query::Link(link)))
         .await;
     assert!(
         matches!(own, Err(_)),
         "the owner opened its own link: {own:?}"
     );
     let Ok(found) = other
-        .call(|peer| client::contacts::get_link(peer, link))
+        .call(|peer| peer.read::<be_block_protocol::Link>(be_block_protocol::Query::Link(link)))
         .await
     else {
         panic!("the other account could not read the link");
@@ -58,13 +52,7 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
 
     let response = other
         .call(|peer| {
-            client::contacts::accept_link(
-                peer,
-                link,
-                other_card.seal(&code, CardRole::Accepter),
-                other_secret.seal_own(&opened.encode()),
-                Vec::new(),
-            )
+            peer.write::<()>(be_block_protocol::Op::AcceptLink { link: link, card: other_card.seal(&code, CardRole::Accepter), contact: other_secret.seal_own(&opened.encode()), key: Vec::new() })
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
@@ -97,7 +85,7 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     );
 
     let Ok(links) = owners_device
-        .call(|peer| client::contacts::list_links(peer))
+        .call(|peer| peer.read::<Vec<be_block_protocol::OwnLink>>(be_block_protocol::Query::Links))
         .await
     else {
         panic!("listing links failed");
@@ -109,14 +97,14 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     assert_eq!(accepted, other_card);
     let response = owners_device
         .call(|peer| {
-            client::contacts::put_contact(peer, other_id, owner_secret.seal_own(&accepted.encode()))
+            peer.write::<()>(be_block_protocol::Op::PutContact { contact: other_id, sealed: owner_secret.seal_own(&accepted.encode()) })
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let _ = owners_device
-        .call(|peer| client::contacts::delete_link(peer, link))
+        .call(|peer| peer.write::<()>(be_block_protocol::Op::DeleteLink(link)))
         .await;
-    let Ok(links) = owner.call(|peer| client::contacts::list_links(peer)).await else {
+    let Ok(links) = owner.call(|peer| peer.read::<Vec<be_block_protocol::OwnLink>>(be_block_protocol::Query::Links)).await else {
         panic!("listing links failed");
     };
     assert!(links.is_empty());

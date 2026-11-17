@@ -21,11 +21,7 @@ async fn a_long_listing_is_read_page_by_page() {
                 .unwrap(),
         );
     }
-    let first = crate::ask(be_block_protocol::client::blocks::list_blocks(
-        &author.connection(),
-        Listing::Children(BlockParent::Block(workspace)),
-        None,
-    ))
+    let first = crate::ask(be_block_protocol::read::<be_block_protocol::Listed, _>(&author.connection(), Some(author.organization()), be_block_protocol::Query::List { listing: Listing::Children(BlockParent::Block(workspace)), after: None }))
     .await
     .unwrap();
     assert!(first.next.is_some(), "the listing fit one page");
@@ -52,19 +48,10 @@ async fn a_long_listing_is_read_page_by_page() {
     order.sort();
     order.reverse();
     order.swap(3, 30);
-    let referred = crate::ask(be_block_protocol::client::blocks::set_metadata(
-        &author.connection(),
-        referrer,
-        Vec::new(),
-        order.clone(),
-    ))
+    let referred = crate::ask(be_block_protocol::write::<be_block_protocol::BlockSummary, _>(&author.connection(), Some(author.organization()), be_block_protocol::Op::SetMetadata { block: referrer, metadata: Vec::new(), references: order.clone() }))
     .await;
     assert!(referred.is_ok(), "{referred:?}");
-    let first = crate::ask(be_block_protocol::client::blocks::list_blocks(
-        &author.connection(),
-        Listing::References(referrer),
-        None,
-    ))
+    let first = crate::ask(be_block_protocol::read::<be_block_protocol::Listed, _>(&author.connection(), Some(author.organization()), be_block_protocol::Query::List { listing: Listing::References(referrer), after: None }))
     .await
     .unwrap();
     assert!(first.next.is_some(), "the references fit one page");

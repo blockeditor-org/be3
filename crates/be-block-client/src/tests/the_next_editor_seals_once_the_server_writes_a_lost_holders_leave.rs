@@ -39,8 +39,8 @@ async fn the_next_editor_seals_once_the_server_writes_a_lost_holders_leave() {
         .unwrap();
     let laptop = harness.second(&phone).await;
     let mut on_laptop = laptop.connection().subscribe();
-    let (holder, ..) = phone.connection().join_session(note, BUILD).await.unwrap();
-    let (next, mut seen, ..) = laptop.connection().join_session(note, BUILD).await.unwrap();
+    let (holder, ..) = phone.connection().join_session(phone.organization(), note, BUILD).await.unwrap();
+    let (next, mut seen, ..) = laptop.connection().join_session(laptop.organization(), note, BUILD).await.unwrap();
     submitted(&phone, note, 1).await;
     assert!(seen.is_holder(holder));
 

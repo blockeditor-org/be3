@@ -17,13 +17,13 @@ async fn an_expired_or_revoked_invitation_is_refused() {
         )
         .unwrap();
     let revoking = admin
-        .call(|peer| client::contacts::delete_link(peer, revoked))
+        .call(|peer| peer.write::<()>(be_block_protocol::Op::DeleteLink(revoked)))
         .await;
     assert!(matches!(revoking, Ok(())), "{revoking:?}");
     let mut invited = harness.member("invited@example.com").await;
     for (link, why) in [(expiring, "expired"), (revoked, "revoked")] {
         let found = invited
-            .call(|peer| client::contacts::get_link(peer, link))
+            .call(|peer| peer.read::<be_block_protocol::Link>(be_block_protocol::Query::Link(link)))
             .await;
         assert!(
             matches!(&found, Err(error) if error.message.contains(why)),
@@ -31,7 +31,7 @@ async fn an_expired_or_revoked_invitation_is_refused() {
         );
         let accepted = invited
             .call(|peer| {
-                client::contacts::accept_link(peer, link, Vec::new(), Vec::new(), Vec::new())
+                peer.write::<()>(be_block_protocol::Op::AcceptLink { link: link, card: Vec::new(), contact: Vec::new(), key: Vec::new() })
             })
             .await;
         assert!(
@@ -41,7 +41,7 @@ async fn an_expired_or_revoked_invitation_is_refused() {
     }
     // Both stay in the list, saying so, and no longer count as outstanding links.
     let listed = admin
-        .call(|peer| client::contacts::list_invitations(peer, organization))
+        .call(|peer| peer.read_in::<Vec<be_block_protocol::InvitationRow>>(Some(organization), be_block_protocol::Query::Invitations))
         .await
         .unwrap();
     let state = |link: Uuid| {
@@ -77,7 +77,7 @@ async fn an_expired_or_revoked_invitation_is_refused() {
         )
         .unwrap();
     let listed = admin
-        .call(|peer| client::contacts::list_invitations(peer, organization))
+        .call(|peer| peer.read_in::<Vec<be_block_protocol::InvitationRow>>(Some(organization), be_block_protocol::Query::Invitations))
         .await
         .unwrap();
     assert_eq!(

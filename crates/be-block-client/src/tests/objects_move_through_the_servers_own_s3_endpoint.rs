@@ -20,10 +20,7 @@ async fn objects_move_through_the_servers_own_s3_endpoint() {
             length: Some(1),
         })
         .collect();
-    let urls = crate::ask(be_block_protocol::client::objects::upload_urls(
-        &phone.connection(),
-        lengths,
-    ))
+    let urls = crate::ask(be_block_protocol::write::<Vec<Option<be_block_protocol::UploadUrl>>, _>(&phone.connection(), Some(phone.organization()), be_block_protocol::Op::ReserveUploads(lengths)))
     .await
     .unwrap();
     assert!(

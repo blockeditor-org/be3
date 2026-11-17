@@ -21,20 +21,7 @@ async fn a_blocks_references_are_listed_and_announced_together() {
         .await;
     let response = client
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                view,
-                commit,
-                None,
-                Vec::new(),
-                objects_change(&[], chunks),
-                1_000,
-                false,
-                listing(&[], issues.clone()),
-                Vec::new(),
-                Vec::new(),
-                None,
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: view, commit: commit, expected: None, parents: Vec::new(), held: objects_change(&[], chunks), time: 1_000, pinned: false, references: listing(&[], issues.clone()), metadata: Vec::new(), objects: Vec::new(), journal: None })
         })
         .await;
     assert!(
@@ -50,7 +37,7 @@ async fn a_blocks_references_are_listed_and_announced_together() {
         .await;
     other.read_block(view).await;
     let response = other
-        .call(|peer| client::blocks::list_blocks(peer, Listing::References(view), None))
+        .call(|peer| peer.read::<be_block_protocol::Listed>(be_block_protocol::Query::List { listing: Listing::References(view), after: None }))
         .await;
     let Ok(be_block_protocol::Listed { blocks, .. }) = response else {
         panic!("{response:?}");
@@ -72,20 +59,7 @@ async fn a_blocks_references_are_listed_and_announced_together() {
         .await;
     let response = client
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                view,
-                next,
-                Some(commit),
-                vec![commit],
-                objects_change(&author.held_by(Some(commit)), chunks),
-                2_000,
-                false,
-                listing(&issues, kept),
-                Vec::new(),
-                Vec::new(),
-                None,
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: view, commit: next, expected: Some(commit), parents: vec![commit], held: objects_change(&author.held_by(Some(commit)), chunks), time: 2_000, pinned: false, references: listing(&issues, kept), metadata: Vec::new(), objects: Vec::new(), journal: None })
         })
         .await;
     assert!(response.is_ok(), "{response:?}");

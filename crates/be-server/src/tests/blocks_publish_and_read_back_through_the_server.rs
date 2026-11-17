@@ -17,20 +17,7 @@ async fn blocks_publish_and_read_back_through_the_server() {
         .await;
     let response = client
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                block,
-                first,
-                None,
-                Vec::new(),
-                objects_change(&[], chunks.clone()),
-                minutes_ago(2),
-                false,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                Vec::new(),
-                None,
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: block, commit: first, expected: None, parents: Vec::new(), held: objects_change(&[], chunks.clone()), time: minutes_ago(2), pinned: false, references: listing(&[], Vec::new()), metadata: Vec::new(), objects: Vec::new(), journal: None })
         })
         .await;
     assert!(
@@ -52,20 +39,7 @@ async fn blocks_publish_and_read_back_through_the_server() {
         .collect();
     let response = client
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                block,
-                second,
-                Some(first),
-                Some(first).into_iter().collect(),
-                objects_change(&chunks, next_chunks),
-                minutes_ago(1),
-                false,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                carried,
-                None,
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: block, commit: second, expected: Some(first), parents: Some(first).into_iter().collect(), held: objects_change(&chunks, next_chunks), time: minutes_ago(1), pinned: false, references: listing(&[], Vec::new()), metadata: Vec::new(), objects: carried, journal: None })
         })
         .await;
     assert!(

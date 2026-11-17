@@ -26,20 +26,14 @@ fn an_escrow_key_on_the_wire_encodes_as_the_one_clients_seal() {
     .concat();
     assert_eq!(frozen.encode(), sealed);
     assert_eq!(EscrowKey::decode(&sealed), Some(frozen.clone()));
-    let opened = OrganizationOpened {
-        organization: Uuid::nil(),
-        client: 0,
-        role: OrganizationRole::Editor,
+    let listed = Page::Organizations(vec![Organization {
+        id: Uuid::nil(),
+        name: String::new(),
         kind: OrganizationKind::Company,
+        role: OrganizationRole::Editor,
         escrows: vec![frozen],
-        pinned: Vec::new(),
-        server: ServerAccount {
-            account: Uuid::nil(),
-            public: [0; 32],
-        },
-        time: 0,
-    };
-    let wire = postcard::to_stdvec(&opened).unwrap();
+    }]);
+    let wire = postcard::to_stdvec(&listed).unwrap();
     assert!(
         wire.windows(sealed.len()).any(|window| window == sealed),
         "the escrow chain travels in the bytes clients seal"

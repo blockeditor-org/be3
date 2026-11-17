@@ -39,7 +39,7 @@ async fn every_member_connection_hears_how_the_graph_changes() {
 
     let response = author
         .call(|peer| {
-            client::blocks::set_metadata(peer, folder, b"sealed name".to_vec(), Vec::new())
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata { block: folder, metadata: b"sealed name".to_vec(), references: Vec::new() })
         })
         .await;
     assert!(matches!(response, Ok(_)), "{response:?}");
@@ -69,16 +69,6 @@ async fn every_member_connection_hears_how_the_graph_changes() {
         blocks.iter().map(|block| block.id).collect::<Vec<_>>(),
         [child]
     );
-
-    let response = author
-        .call(|peer| client::blocks::collect_detached(peer))
-        .await;
-    assert!(
-        matches!(response, Ok(be_block_protocol::Collected { .. })),
-        "{response:?}"
-    );
-    roots(&mut other).await;
-    assert!(other.list(BlockParent::Detached).await.is_empty());
 
     harness.stop().await;
 }

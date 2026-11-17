@@ -1,6 +1,5 @@
 use super::*;
 
-use be_block_protocol::client;
 
 /// A contact connects again by a new link, as one who lost their phrase must, and one device
 /// accepts it; a device of the same account that pinned a record dated by a clock running
@@ -26,11 +25,7 @@ async fn a_contact_connected_again_by_a_new_link_outranks_every_devices_pin() {
         verified: pinned.verified + 10_000_000,
         ..pinned
     };
-    crate::ask(client::contacts::put_contact(
-        &ahead.connection(),
-        rosa.account(),
-        dated_ahead.seal(ahead.keys().identity()),
-    ))
+    crate::ask(be_block_protocol::write::<(), _>(&ahead.connection(), None, be_block_protocol::Op::PutContact { contact: rosa.account(), sealed: dated_ahead.seal(ahead.keys().identity()) }))
     .await
     .unwrap();
     ahead.refresh_contacts().await.unwrap();

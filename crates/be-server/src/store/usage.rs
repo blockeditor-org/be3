@@ -36,9 +36,9 @@ pub struct StorageLimits {
     pub upload_grace: Duration,
     /// The bytes one commit of a search index may hold (`ServerConfig::max_index_bytes`).
     pub max_index_bytes: u64,
-    /// The bytes of keys one `get-keys` page holds (`ServerConfig::key_page_bytes`).
+    /// The bytes of keys one `query.keys` page holds (`ServerConfig::key_page_bytes`).
     pub key_page_bytes: usize,
-    /// The bytes of summaries one `list-blocks` page holds (`ServerConfig::listing_page_bytes`).
+    /// The bytes of summaries one `query.list` page holds (`ServerConfig::listing_page_bytes`).
     pub listing_page_bytes: usize,
 }
 
@@ -236,7 +236,7 @@ impl ServerStore {
             .ok_or(ServerError::Corrupt)
     }
 
-    /// Reserves room for objects a client is about to upload (`upload-urls`), charging the ones
+    /// Reserves room for objects a client is about to upload (`reserve-uploads`), charging the ones
     /// no block holds to the uploader until a block does. Refuses before reserving anything when
     /// an object is too large, its length is not the one the server already has for it, or the
     /// upload takes the uploader past its quota or the organization past its policy's. A
@@ -678,9 +678,9 @@ impl ServerStore {
             .await
     }
 
-    pub async fn storage_usage(&self, identity: Identity) -> Result<AccountStorage, ServerError> {
+    pub async fn storage_usage(&self, account: Uuid) -> Result<AccountStorage, ServerError> {
         self.with_database(move |store, database| {
-            let usage = usage_of(&database, payer_of(&database, identity.account)?)?;
+            let usage = usage_of(&database, payer_of(&database, account)?)?;
             Ok(AccountStorage {
                 held: usage.held,
                 pending: usage.pending,

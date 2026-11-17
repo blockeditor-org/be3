@@ -14,7 +14,7 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
 
     let response = author_connection
         .call(|peer| {
-            client::blocks::set_metadata(peer, block, b"sealed before content".to_vec(), Vec::new())
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata { block: block, metadata: b"sealed before content".to_vec(), references: Vec::new() })
         })
         .await;
     assert!(matches!(response, Ok(_)), "{response:?}");
@@ -26,20 +26,7 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
         .await;
     let response = author_connection
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                block,
-                head,
-                None,
-                Vec::new(),
-                objects_change(&[], chunks),
-                1_000,
-                false,
-                listing(&[], Vec::new()),
-                b"sealed with content".to_vec(),
-                Vec::new(),
-                None,
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: block, commit: head, expected: None, parents: Vec::new(), held: objects_change(&[], chunks), time: 1_000, pinned: false, references: listing(&[], Vec::new()), metadata: b"sealed with content".to_vec(), objects: Vec::new(), journal: None })
         })
         .await;
     assert!(
@@ -60,7 +47,7 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
 
     let response = author_connection
         .call(|peer| {
-            client::blocks::set_metadata(peer, block, b"sealed beside content".to_vec(), Vec::new())
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata { block: block, metadata: b"sealed beside content".to_vec(), references: Vec::new() })
         })
         .await;
     assert!(

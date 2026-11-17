@@ -908,7 +908,7 @@ pub(crate) fn append_member(
 }
 
 /// Of `pairs` (block, grantee) a removal revokes, those whose block's log names the grant: the
-/// revocations the remover signs (`removal-revocations`).
+/// revocations the remover signs (`query.revocations`).
 pub(crate) fn named_pairs(
     connection: &Connection,
     organization: Uuid,

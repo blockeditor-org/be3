@@ -31,20 +31,7 @@ async fn requests_sent_before_a_close_are_still_carried_out() {
         .iter()
         .cloned()
         .map(|(block, head, chunks)| {
-            client::blocks::publish(
-                &publisher.peer,
-                block,
-                head,
-                None,
-                Vec::new(),
-                objects_change(&[], chunks),
-                1_000,
-                false,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                Vec::new(),
-                None,
-            )
+            publisher.peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: block, commit: head, expected: None, parents: Vec::new(), held: objects_change(&[], chunks), time: 1_000, pinned: false, references: listing(&[], Vec::new()), metadata: Vec::new(), objects: Vec::new(), journal: None })
         })
         .collect();
     publisher.close().await;

@@ -26,10 +26,7 @@ async fn upload(peer: &Peer<MemoryStore>, objects: Vec<Vec<u8>>) -> Result<(), C
             length: Some(bytes.len() as u64),
         })
         .collect();
-    let urls = crate::ask(be_block_protocol::client::objects::upload_urls(
-        &peer.connection(),
-        lengths,
-    ))
+    let urls = crate::ask(be_block_protocol::write::<Vec<Option<be_block_protocol::UploadUrl>>, _>(&peer.connection(), Some(peer.organization()), be_block_protocol::Op::ReserveUploads(lengths)))
     .await?;
     for (url, bytes) in urls.into_iter().zip(objects) {
         let Some(url) = url else {
@@ -182,7 +179,6 @@ mod an_owner_only_block_is_read_by_its_author_alone;
 mod an_owner_only_blocks_keys_are_sealed_to_nobody_key_work_lists;
 mod another_blocks_commit_served_as_a_head_is_refused;
 mod another_blocks_key_named_as_current_is_refused;
-mod collecting_a_removed_members_settings_takes_what_only_they_read;
 mod contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase;
 mod contents_read_together_match_what_each_block_saved;
 mod edits_sealed_offline_are_published_when_the_device_reconnects;
@@ -352,10 +348,7 @@ impl Harness {
         let connection = Connection::connect(&self.url, &Clock::real())
             .await
             .unwrap();
-        let token = crate::ask(be_block_protocol::client::account::authenticate(
-            &connection,
-            Some(token),
-        ))
+        let token = crate::ask(be_block_protocol::client::server::authenticate(&connection, Some(token)))
         .await
         .expect("the server signs the device in")
         .token;

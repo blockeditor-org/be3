@@ -2876,7 +2876,7 @@ impl<H: Host> Replicas<H> {
         self.told(ctx, Told::Event(event.clone()));
     }
 
-    /// Takes the head the server holds of `block`, read from its tree (`changed-since`): one
+    /// Takes the head the server holds of `block`, read from its tree (`query.tree`): one
     /// another connection published, unless it is the head the replica has, published or was
     /// told already, which is no news.
     pub fn heard_head(&mut self, ctx: Ctx<'_, H>, block: Uuid, head: CommitId) {

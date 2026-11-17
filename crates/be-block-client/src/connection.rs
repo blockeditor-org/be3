@@ -8,8 +8,8 @@ use std::{
 
 use be_block_commit::CommitId;
 use be_block_protocol::{
-    ClientId, Journal, JournalEntry, MembershipEntry, PairingMessage, SessionEvent, SessionState,
-    client, hello, read_hello,
+    ClientId, Journal, JournalEntry, JoinedSession, MembershipEntry, PairingMessage, Query,
+    SessionEvent, SessionSend, SessionState, Target, Topic, client, hello, read_hello,
 };
 use be_block_store::Hash;
 use be_wasm_ops::{
@@ -54,8 +54,8 @@ pub const ANSWER_WAIT: Duration = Duration::from_secs(5);
 
 pub type Answer<T> = Pin<Box<dyn Future<Output = Result<T, ClientError>> + Send>>;
 
-pub async fn ask<T, E: be_wasm_ops::wire::Decode<Result<T, be_block_protocol::Error>>>(
-    pending: be_wasm_ops::net::Pending<Result<T, be_block_protocol::Error>, E>,
+pub async fn ask<T>(
+    pending: impl Future<Output = Result<Result<T, be_block_protocol::Error>, be_wasm_ops::OpError>>,
 ) -> Result<T, ClientError> {
     Ok(pending.await??)
 }
@@ -65,7 +65,7 @@ type Pump = Pin<Box<dyn Future<Output = ()> + Send>>;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Event {
     /// The tree of an entry point the connection follows changed, up to `sequence`: read it with
-    /// `changed-since` (`Peer::changed_page`). The server tells nothing more of the entry until
+    /// `query.tree` (`Peer::changed_page`). The server tells nothing more of the entry until
     /// it is read to its end.
     TreeAdvanced {
         entry: Uuid,
@@ -101,24 +101,32 @@ pub enum Event {
         entry: JournalEntry,
     },
     Paired(PairingMessage),
+    /// The account's contacts changed through another connection (`topic.contacts`).
     ContactsChanged,
-    /// Keys this account may open were stored through another connection (`keys-changed`), or
+    /// Keys this account may open were stored through another connection (`topic.keys`), or
     /// opened here by any path (`KeyBook::on_opened`: a fetch, a contact verified since, escrow):
     /// `Peer::keys_changed`, then reading again what was locked, opens what they unlock.
     KeysChanged,
-    /// The account's notification modes changed on another of its devices.
+    /// The account's notification modes changed on another of its devices
+    /// (`topic.notify-modes`).
     NotifyModesChanged,
-    /// The account's notices changed (`account-notices-changed`).
+    /// The account's notices changed (`topic.notices`).
     AccountNoticesChanged,
-    /// The organization's key work for this account, as it opens and as it changes
-    /// (`key-work-changed`).
-    KeyWork(be_block_protocol::KeyWork),
+    /// The organization's key work for this account may have changed (`topic.key-work`): read it
+    /// again.
+    KeyWorkChanged,
+    /// What the account's storage holds changed (`topic.storage`).
+    StorageChanged,
 }
 
 #[derive(Default)]
 struct Registry {
     subscribed: bool,
-    sessions: HashMap<Uuid, Arc<client::sessions::Session>>,
+    /// The sessions this connection is in, by block, with the organization each block is in.
+    sessions: HashMap<Uuid, Uuid>,
+    /// The session events of each block being joined, held until the join is answered, so a
+    /// subscriber hears none before it.
+    joining: HashMap<Uuid, Vec<Event>>,
 }
 
 pub struct Connection {
@@ -252,157 +260,132 @@ impl Connection {
         let _ = self.events.send(Event::KeysChanged);
     }
 
+    /// Hears what the server tells this connection (`server.events`) from now on: the trees,
+    /// sessions and topics it follows (`Peer::follow_topics`), and its account's other
+    /// connections' messages.
     pub fn subscribe(self: &Arc<Self>) -> broadcast::Receiver<Event> {
         let receiver = self.events.subscribe();
         if std::mem::replace(&mut self.registry().subscribed, true) {
             return receiver;
         }
-        let events = self.events.clone();
-        let mut changes = client::blocks::changes(&self.peer);
+        let mut told = client::server::events(&self.peer);
+        let connection = Arc::clone(self);
         self.pump(async move {
-            while let Some(change) = changes.recv().await {
-                let _ = events.send(match change {
-                    be_block_protocol::TreeChange::Advanced(be_block_protocol::TreeAdvanced {
-                        entry,
-                        sequence,
-                    }) => Event::TreeAdvanced { entry, sequence },
-                    be_block_protocol::TreeChange::Roots => Event::Roots,
-                });
-            }
-        });
-        let events = self.events.clone();
-        let mut paired = client::account::paired(&self.peer);
-        self.pump(async move {
-            while let Some(message) = paired.recv().await {
-                let _ = events.send(Event::Paired(message));
-            }
-        });
-        let events = self.events.clone();
-        let mut contacts = client::contacts::contacts_changed(&self.peer);
-        self.pump(async move {
-            while contacts.recv().await.is_some() {
-                let _ = events.send(Event::ContactsChanged);
-            }
-        });
-        let events = self.events.clone();
-        let mut keys = client::keys::keys_changed(&self.peer);
-        self.pump(async move {
-            while keys.recv().await.is_some() {
-                let _ = events.send(Event::KeysChanged);
-            }
-        });
-        let events = self.events.clone();
-        let mut modes = client::notifications::notify_modes_changed(&self.peer);
-        self.pump(async move {
-            while modes.recv().await.is_some() {
-                let _ = events.send(Event::NotifyModesChanged);
-            }
-        });
-        let events = self.events.clone();
-        let mut notices = client::account::account_notices_changed(&self.peer);
-        self.pump(async move {
-            while notices.recv().await.is_some() {
-                let _ = events.send(Event::AccountNoticesChanged);
-            }
-        });
-        let events = self.events.clone();
-        let mut key_work = client::keys::key_work_changed(&self.peer);
-        self.pump(async move {
-            while let Some(work) = key_work.recv().await {
-                let _ = events.send(Event::KeyWork(work));
+            while let Some(event) = told.recv().await {
+                if let Some(event) = connection.heard(event) {
+                    let _ = connection.events.send(event);
+                }
             }
         });
         receiver
     }
 
-    /// Joins a block's session, running the build `tag` of its type: this connection's id, the
-    /// session's state, the block's journal as of joining, sealed, and whether this account may
-    /// edit it as the server answered. What the order numbers after it arrives as
-    /// `Event::Sequenced`.
-    pub fn join_session(
-        self: &Arc<Self>,
-        block: Uuid,
-        tag: Hash,
-    ) -> Answer<(ClientId, SessionState, Option<Journal>, bool)> {
-        let session = Arc::new(client::sessions::Session::new(&self.peer, block, tag));
-        let mut joining = session.join();
-        let left = self.registry().sessions.insert(block, Arc::clone(&session));
-        drop(left);
-        let connection = Arc::clone(self);
-        Box::pin(async move {
-            let joined = match joining.recv().await {
-                Some(SessionEvent::Joined {
-                    client,
-                    state,
-                    journal,
-                    may_edit,
-                }) => Ok((client, state, journal, may_edit)),
-                Some(SessionEvent::Refused(error)) => Err(ClientError::from(error)),
-                Some(
-                    SessionEvent::Membership(_)
-                    | SessionEvent::Relayed { .. }
-                    | SessionEvent::Sequenced(_)
-                    | SessionEvent::Sealed { .. },
-                ) => Err(ClientError::Unexpected),
-                None => Err(joining
-                    .ended()
-                    .and_then(Result::err)
-                    .map_or(ClientError::Unexpected, ClientError::from)),
-            };
-            if joined.is_err() {
-                connection.forget_session(block, &session);
-                return joined;
-            }
-            let events = connection.events.clone();
-            connection.pump(async move {
-                while let Some(event) = joining.recv().await {
-                    let _ = events.send(match event {
-                        SessionEvent::Membership(entry) => Event::Membership { block, entry },
-                        SessionEvent::Sealed {
-                            commit,
-                            through,
-                            run,
-                        } => Event::Sealed {
-                            block,
-                            commit,
-                            through,
-                            run,
-                        },
-                        SessionEvent::Relayed {
-                            from,
-                            payload,
-                            received,
-                        } => Event::Relayed {
-                            block,
-                            from,
-                            payload,
-                            received,
-                        },
-                        SessionEvent::Sequenced(entry) => Event::Sequenced { block, entry },
-                        SessionEvent::Joined { .. } | SessionEvent::Refused(_) => continue,
-                    });
+    /// What `event` tells this connection's subscribers; none for a session's while it is being
+    /// joined, which waits for the join's answer (`join_session`).
+    fn heard(&self, event: be_block_protocol::Event) -> Option<Event> {
+        use be_block_protocol::Event as Told;
+        Some(match event {
+            Told::TreeAdvanced {
+                entry, sequence, ..
+            } => Event::TreeAdvanced { entry, sequence },
+            Told::TopicChanged { topic, .. } => match topic {
+                Topic::Roots => Event::Roots,
+                Topic::Keys => Event::KeysChanged,
+                Topic::KeyWork => Event::KeyWorkChanged,
+                Topic::Contacts => Event::ContactsChanged,
+                Topic::NotifyModes => Event::NotifyModesChanged,
+                Topic::Notices => Event::AccountNoticesChanged,
+                Topic::Storage => Event::StorageChanged,
+                Topic::Tree(_) | Topic::Session(_) => return None,
+            },
+            Told::Paired(message) => Event::Paired(message),
+            Told::Session { block, event, .. } => {
+                let event = match event {
+                    SessionEvent::Membership(entry) => Event::Membership { block, entry },
+                    SessionEvent::Sealed {
+                        commit,
+                        through,
+                        run,
+                    } => Event::Sealed {
+                        block,
+                        commit,
+                        through,
+                        run,
+                    },
+                    SessionEvent::Relayed {
+                        from,
+                        payload,
+                        received,
+                    } => Event::Relayed {
+                        block,
+                        from,
+                        payload,
+                        received,
+                    },
+                    SessionEvent::Sequenced(entry) => Event::Sequenced { block, entry },
+                };
+                let mut registry = self.registry();
+                if let Some(held) = registry.joining.get_mut(&block) {
+                    held.push(event);
+                    return None;
                 }
-            });
-            joined
+                event
+            }
         })
     }
 
-    fn forget_session(&self, block: Uuid, session: &Arc<client::sessions::Session>) {
-        let mut registry = self.registry();
-        if registry
-            .sessions
-            .get(&block)
-            .is_some_and(|held| Arc::ptr_eq(held, session))
-        {
-            registry.sessions.remove(&block);
-        }
+    /// Joins a block's session in `organization`, running the build `tag` of its type: this
+    /// connection's id, the session's state, the block's journal as of joining, sealed, and
+    /// whether this account may edit it as the server answered. What the order numbers after it
+    /// arrives as `Event::Sequenced`, after the join is answered.
+    pub fn join_session(
+        self: &Arc<Self>,
+        organization: Uuid,
+        block: Uuid,
+        tag: Hash,
+    ) -> Answer<(ClientId, SessionState, Option<Journal>, bool)> {
+        self.registry().joining.insert(block, Vec::new());
+        let joining = be_block_protocol::ask::<JoinedSession, _>(
+            &self.peer,
+            Some(organization),
+            Query::Session { block, tag },
+            true,
+        );
+        let connection = Arc::clone(self);
+        Box::pin(async move {
+            let joined = joining.await;
+            let held = {
+                let mut registry = connection.registry();
+                let held = registry.joining.remove(&block).unwrap_or_default();
+                match &joined {
+                    Ok(Ok(_)) => {
+                        registry.sessions.insert(block, organization);
+                    }
+                    _ => {
+                        registry.sessions.remove(&block);
+                    }
+                }
+                held
+            };
+            let JoinedSession {
+                client,
+                state,
+                journal,
+                may_edit,
+            } = joined??;
+            for event in held {
+                let _ = connection.events.send(event);
+            }
+            Ok((client, state, journal, may_edit))
+        })
     }
 
-    fn session(&self, block: Uuid) -> Result<Arc<client::sessions::Session>, ClientError> {
+    /// The organization of a block's session this connection is in.
+    fn session(&self, block: Uuid) -> Result<Uuid, ClientError> {
         self.registry()
             .sessions
             .get(&block)
-            .cloned()
+            .copied()
             .ok_or_else(|| {
                 ClientError::Refused(
                     be_block_protocol::ErrorCode::InvalidRequest,
@@ -412,42 +395,50 @@ impl Connection {
     }
 
     pub fn leave_session(&self, block: Uuid) -> Answer<()> {
-        let session = self.registry().sessions.remove(&block);
+        let organization = self.registry().sessions.remove(&block);
+        let left = organization.map(|organization| {
+            client::server::unfollow(&self.peer, Some(organization), Topic::Session(block))
+        });
         Box::pin(async move {
-            if let Some(session) = session.and_then(Arc::into_inner) {
-                let _ = session.close().await;
+            if let Some(left) = left {
+                let _ = left.await;
             }
             Ok(())
         })
     }
 
+    fn send_session(&self, block: Uuid, kind: SessionSend, payload: Vec<u8>) -> Answer<()> {
+        let sent = self.session(block).map(|organization| {
+            client::server::send(
+                &self.peer,
+                Some(organization),
+                Target::Session { block, kind },
+                payload,
+            )
+        });
+        Box::pin(async move { Ok(sent?.await??) })
+    }
+
     /// Claims the lease of `block`'s session: the server writes the claim into its order.
     pub fn claim(&self, block: Uuid) -> Answer<()> {
-        let claimed = self.session(block).map(|session| session.claim());
-        Box::pin(async move { Ok(claimed?.await??) })
+        self.send_session(block, SessionSend::Claim, Vec::new())
     }
 
     pub fn relay(&self, block: Uuid, to: Option<ClientId>, payload: Vec<u8>) -> Answer<()> {
-        let relayed = self
-            .session(block)
-            .map(|session| session.relay(to, payload));
-        Box::pin(async move { Ok(relayed?.await??) })
+        self.send_session(block, SessionSend::Ephemeral(to), payload)
     }
 
     /// Hands the session's order a submission, its payload sealed: answered once the server
     /// numbered it and kept it in the journal, which every participant hears as
     /// `Event::Sequenced`.
     pub fn submit(&self, block: Uuid, submission: be_block_session::Submission) -> Answer<()> {
-        let submitted = self.session(block).map(|session| {
-            session.submit(
-                submission.id.origin,
-                submission.id.counter,
-                submission.base,
-                submission.barrier,
-                submission.payload,
-            )
+        let kind = SessionSend::Ordered(be_block_protocol::Submission {
+            origin: submission.id.origin,
+            counter: submission.id.counter,
+            base: submission.base,
+            barrier: submission.barrier,
         });
-        Box::pin(async move { Ok(submitted?.await??) })
+        self.send_session(block, kind, submission.payload)
     }
 
     pub fn closed(&self) -> watch::Receiver<bool> {
@@ -531,7 +522,7 @@ fn is_ping(frame: &[u8]) -> bool {
     frame.len() <= PING_FRAME_BYTES
         && matches!(
             be_wasm_ops::decode_frame::<be_wasm_ops::Frame>(frame),
-            Ok(be_wasm_ops::Frame::Start { method, .. }) if method == be_block_protocol::__args::CONNECTION_PING
+            Ok(be_wasm_ops::Frame::Start { method, .. }) if method == be_block_protocol::__args::SERVER_PING
         )
 }
 
@@ -621,7 +612,7 @@ async fn carry(
         let now = clock.now();
         let early = asked.is_some_and(|at| now >= at + ANSWER_WAIT);
         if !owed && pinged.is_none() && (now >= heard + PING_INTERVAL || early) {
-            ping = Some(client::connection::ping(&peer));
+            ping = Some(client::server::ping(&peer));
             owed = true;
         }
         while let Ok(frame) = frames.try_recv() {

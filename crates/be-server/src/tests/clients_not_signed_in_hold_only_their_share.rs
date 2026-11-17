@@ -51,7 +51,7 @@ async fn clients_not_signed_in_hold_only_their_share() {
         .await
         .expect("another address was refused");
     let response = signed
-        .call(|peer| client::account::authenticate(peer, Some(token)))
+        .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(token)))
         .await;
     assert!(response.is_ok(), "{response:?}");
     for mut waiting in crowd {

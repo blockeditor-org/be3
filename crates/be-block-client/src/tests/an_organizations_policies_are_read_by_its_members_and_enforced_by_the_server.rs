@@ -2,7 +2,7 @@ use be_block::{
     OrganizationPolicies, OrganizationPoliciesContent, Settings, SettingsContent, WhoMay,
 };
 use be_block_content::Root;
-use be_block_protocol::{ErrorCode, client};
+use be_block_protocol::{ErrorCode};
 
 use super::*;
 
@@ -158,20 +158,7 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
         let backdated = pseudorandom(64, seed);
         let commit = be_block_commit::CommitId::from_hash(be_block_store::Hash::of(&backdated));
         let expected = backdated_commit.or(current);
-        crate::ask(client::blocks::publish(
-            &admin.connection(),
-            image_block,
-            commit,
-            expected,
-            expected.into_iter().collect(),
-            be_block_protocol::ObjectChange::default(),
-            time,
-            false,
-            be_block_protocol::ReferenceChange::default(),
-            Vec::new(),
-            vec![backdated],
-            None,
-        ))
+        crate::ask(be_block_protocol::write::<be_block_protocol::PublishOutcome, _>(&admin.connection(), Some(admin.organization()), be_block_protocol::Op::Publish { block: image_block, commit: commit, expected: expected, parents: expected.into_iter().collect(), held: be_block_protocol::ObjectChange::default(), time: time, pinned: false, references: be_block_protocol::ReferenceChange::default(), metadata: Vec::new(), objects: vec![backdated], journal: None }))
         .await
         .unwrap();
         backdated_commit.get_or_insert(commit);
@@ -199,12 +186,7 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
         .await
         .unwrap_err();
     assert_eq!(refused(over), ErrorCode::OverQuota);
-    let held = crate::ask(client::objects::hold_objects(
-        &admin.connection(),
-        image_block,
-        vec![early_hash],
-        be_block_protocol::Hold::Lasting,
-    ))
+    let held = crate::ask(be_block_protocol::write::<(), _>(&admin.connection(), Some(admin.organization()), be_block_protocol::Op::HoldObjects { block: image_block, objects: vec![early_hash], hold: be_block_protocol::Hold::Lasting }))
     .await
     .unwrap_err();
     assert_eq!(
@@ -213,39 +195,13 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
         "an object uploaded before the quota was held past it"
     );
     let current = admin.summary(image_block).await.unwrap().head;
-    let published = crate::ask(client::blocks::publish(
-        &admin.connection(),
-        image_block,
-        be_block_commit::CommitId::from_hash(early_hash),
-        current,
-        current.into_iter().collect(),
-        be_block_protocol::ObjectChange::default(),
-        0,
-        false,
-        be_block_protocol::ReferenceChange::default(),
-        Vec::new(),
-        Vec::new(),
-        None,
-    ))
+    let published = crate::ask(be_block_protocol::write::<be_block_protocol::PublishOutcome, _>(&admin.connection(), Some(admin.organization()), be_block_protocol::Op::Publish { block: image_block, commit: be_block_commit::CommitId::from_hash(early_hash), expected: current, parents: current.into_iter().collect(), held: be_block_protocol::ObjectChange::default(), time: 0, pinned: false, references: be_block_protocol::ReferenceChange::default(), metadata: Vec::new(), objects: Vec::new(), journal: None }))
     .await
     .unwrap_err();
     assert_eq!(
         refused(published),
         ErrorCode::OverQuota,
         "an object uploaded before the quota was published past it"
-    );
-
-    admin
-        .set_parent(image_block, BlockParent::Detached)
-        .await
-        .unwrap();
-    assert!(
-        !admin
-            .collect_detached()
-            .await
-            .unwrap()
-            .contains(&image_block),
-        "a deleted block was collected with versions the organization keeps"
     );
 
     harness.stop().await;

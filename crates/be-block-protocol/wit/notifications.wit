@@ -35,53 +35,10 @@ interface notifications {
         off,
     }
 
-    /// The server's VAPID public key (RFC 8292), uncompressed P-256: what a
-    /// browser subscribes with, so only this server can push to it.
-    push-key: async func() -> result<list<u8>, error>;
-
-    /// Whether this server sends through FCM (it was started with
-    /// credentials); without, a device registers only a Web Push endpoint.
-    offers-fcm: async func() -> result<bool, error>;
-
-    /// Registers this device's endpoint for the signed-in account in the open
-    /// organization, replacing one with the same address. An account keeps at
-    /// most `limits::MAX_PUSH_ENDPOINTS` per organization, the oldest going
-    /// first.
-    register-endpoint: async func(endpoint: push-endpoint) -> result<_, error>;
-
-    /// Forgets the endpoint at `address`, as the device stops taking pushes.
-    unregister-endpoint: async func(address: string) -> result<_, error>;
-
     /// A block whose notifications the account set to other than `all`.
     record block-notify-mode {
         block: block-id,
         mode: notify-mode,
     }
 
-    /// Every block in the open organization whose mode the signed-in account
-    /// set to other than `all`, which every other block is: one call when a
-    /// device starts, rather than one per block shown.
-    notify-modes: async func() -> result<list<block-notify-mode>, error>;
-
-    set-notify-mode: async func(block: block-id, mode: notify-mode) -> result<_, error>;
-
-    /// An item whenever the account's modes changed through another
-    /// connection, so the client reads them again; a latest-value stream.
-    notify-modes-changed: func() -> stream;
-
-    /// Pushes `sealed` (at most `be_block_protocol::MAX_NOTIFICATION_BYTES`)
-    /// to every member who may view `block` and has no connection to the
-    /// organization open, but the caller, skipping those whose mode is `off`,
-    /// and those whose mode is `mentions` unless `mentions` names them. Each
-    /// push names the caller's account (`PushMessage::sender`), which the
-    /// server vouches for. At most `limits::MAX_NOTIFICATIONS_PER_MINUTE` a
-    /// minute from one account and `limits::MAX_NOTIFICATIONS_PER_BLOCK` about
-    /// one block. Answered once the pushes are queued; a push service's
-    /// refusal is never the caller's. `keys` name what it tells (an edit's
-    /// announcements as `be_block_protocol::told_key` digests, at most
-    /// `be_block_protocol::MAX_TOLD_KEYS`): one whose keys were all told about this
-    /// block from this account before is answered without a push, so a device
-    /// that never heard the answer may send it again. Without keys, every call
-    /// pushes.
-    notify: async func(block: block-id, sealed: list<u8>, mentions: list<account-id>, keys: list<hash>) -> result<_, error>;
 }

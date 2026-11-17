@@ -77,8 +77,9 @@ async fn fcm_sends_a_data_message_with_the_service_accounts_token() {
     let block = owner.create_block(BlockParent::Root).await;
     let (mut member, _) = viewer_of(&harness, &mut owner, block, "member@example.com").await;
     let offers = member
-        .call(|peer| client::notifications::offers_fcm(peer))
-        .await;
+        .call(|peer| peer.read::<be_block_protocol::ServerInfo>(Query::ServerInfo))
+        .await
+        .map(|info| info.offers_fcm);
     assert!(matches!(offers, Ok(true)), "{offers:?}");
     let device = TestDevice::new();
     member

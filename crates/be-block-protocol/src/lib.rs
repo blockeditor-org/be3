@@ -28,7 +28,40 @@ be_wasm_ops_bindgen::generate!({
         "object-change",
         "reference-change",
     ],
-    inline: ["block-changed", "block-removed", "joined", "relayed", "sealed"],
+    inline: [
+        "relayed",
+        "sealed",
+        "device-poll",
+        "blocks-query",
+        "list-query",
+        "tree-query",
+        "keys-query",
+        "revocations-query",
+        "session-query",
+        "create-block",
+        "publish",
+        "set-metadata",
+        "move",
+        "grant-record",
+        "role-record",
+        "remove-member",
+        "rotation",
+        "new-escrow",
+        "hold-objects",
+        "create-organization",
+        "create-agent",
+        "create-link",
+        "accept-link",
+        "put-contact",
+        "remove-contact",
+        "set-recovery-key",
+        "set-notify-mode",
+        "session-target",
+        "push-target",
+        "tree-advanced",
+        "session-happened",
+        "followed",
+    ],
 });
 
 pub use account::*;
@@ -39,11 +72,12 @@ pub use members::*;
 pub use notifications::*;
 pub use objects::*;
 pub use organizations::*;
+pub use server::*;
 pub use sessions::*;
 pub use types::*;
 
 pub const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
-/// The most blocks one `read-summaries` names.
+/// The most blocks one `query.blocks` names.
 pub const MAX_SUMMARIES_ASKED: usize = 4096;
 /// What a frame spends on more than its answer's items: the op's envelope and the lengths and
 /// fixed fields around them. An answer sized to fit leaves this much of a frame spare.
@@ -61,7 +95,7 @@ pub fn encoded_len<T: Serialize + ?Sized>(value: &T) -> usize {
 }
 /// The largest object the server stores.
 pub const MAX_OBJECT_BYTES: usize = 8 * 1024 * 1024;
-/// The most objects one `upload-urls` or `download-urls` call names, which keeps its answer
+/// The most objects one `reserve-uploads` or `download-urls` call names, which keeps its answer
 /// well inside a frame.
 pub const MAX_OBJECT_URLS: usize = 1024;
 /// The largest sealed notification `notify` takes: what an app writes is about 1 KiB, and
@@ -400,6 +434,134 @@ pub fn read_hello(frame: &[u8]) -> Option<String> {
     let build = frame.strip_prefix(HELLO)?;
     String::from_utf8(build.to_vec()).ok()
 }
+
+/// The case of `Page` a query is answered with, so a read names what it expects.
+pub trait FromPage: Sized {
+    fn from_page(page: Page) -> Option<Self>;
+}
+
+/// The case of `Done` an op is answered with.
+pub trait FromDone: Sized {
+    fn from_done(done: Done) -> Option<Self>;
+}
+
+macro_rules! answers {
+    ($trait:ident, $method:ident, $from:ident { $($case:ident => $ty:ty,)* }) => {
+        $(impl $trait for $ty {
+            fn $method(answer: $from) -> Option<Self> {
+                match answer {
+                    $from::$case(value) => Some(value),
+                    _ => None,
+                }
+            }
+        })*
+    };
+}
+
+answers!(FromPage, from_page, Page {
+    Summaries => Vec<Option<BlockSummary>>,
+    Contents => Contents,
+    Listed => Listed,
+    Tree => ChangedPage,
+    History => Vec<HistoryEntry>,
+    Log => Vec<Vec<u8>>,
+    Access => AccessList,
+    Keys => KeyPage,
+    KeyWork => KeyWork,
+    Revocations => Vec<Revocation>,
+    RecoveryKey => RecoveryKey,
+    SigningKeys => Vec<SigningKey>,
+    Members => Vec<Member>,
+    Organizations => Vec<Organization>,
+    Invitations => Vec<InvitationRow>,
+    Storage => AccountStorage,
+    Notices => Vec<AccountNotice>,
+    Contacts => Vec<ContactRow>,
+    Links => Vec<OwnLink>,
+    Link => Link,
+    Invitation => InvitationPreview,
+    DownloadUrls => Vec<Option<String>>,
+    ServerInfo => ServerInfo,
+    NotifyModes => Vec<BlockNotifyMode>,
+    Session => JoinedSession,
+});
+
+answers!(FromDone, from_done, Done {
+    Block => BlockSummary,
+    Published => PublishOutcome,
+    Uploads => Vec<Option<UploadUrl>>,
+    Organization => Organization,
+    Agent => CreatedAgent,
+    Token => String,
+});
+
+impl FromDone for () {
+    fn from_done(done: Done) -> Option<Self> {
+        matches!(done, Done::Nothing).then_some(())
+    }
+}
+
+fn unexpected() -> Error {
+    Error::new(
+        ErrorCode::InvalidRequest,
+        "the server answered with another case than the call asked for",
+    )
+}
+
+/// Reads `query` in `organization` (`server.read`), as the page case `T` it is answered with.
+/// The call starts now, so calls made one after another reach the server in that order.
+pub fn read<T: FromPage + Send, C: be_wasm_ops::net::Caller + Clone>(
+    caller: &C,
+    organization: Option<Uuid>,
+    query: Query,
+) -> impl Future<Output = Result<Result<T, Error>, be_wasm_ops::OpError>> + Send + 'static + use<T, C>
+{
+    answered(client::server::read(caller, organization, query, false))
+}
+
+/// Reads `query` as `read` does, and with `follow` follows its topic first (`server.read`): what
+/// changes after it arrives as `server.events`.
+pub fn ask<T: FromPage + Send, C: be_wasm_ops::net::Caller + Clone>(
+    caller: &C,
+    organization: Option<Uuid>,
+    query: Query,
+    follow: bool,
+) -> impl Future<Output = Result<Result<T, Error>, be_wasm_ops::OpError>> + Send + 'static + use<T, C>
+{
+    answered(client::server::read(caller, organization, query, follow))
+}
+
+fn answered<T: FromPage + Send>(
+    pending: impl Future<Output = Result<Result<Page, Error>, be_wasm_ops::OpError>> + Send + 'static,
+) -> impl Future<Output = Result<Result<T, Error>, be_wasm_ops::OpError>> + Send + 'static {
+    async move { Ok(pending.await?.and_then(|page| T::from_page(page).ok_or_else(unexpected))) }
+}
+
+/// Writes one op in `organization` (`server.write`), answered as the case `T` it makes.
+pub fn write<T: FromDone + Send, C: be_wasm_ops::net::Caller + Clone>(
+    caller: &C,
+    organization: Option<Uuid>,
+    op: Op,
+) -> impl Future<Output = Result<Result<T, Error>, be_wasm_ops::OpError>> + Send + 'static + use<T, C>
+{
+    let pending = client::server::write(caller, organization, vec![op]);
+    async move {
+        Ok(pending.await?.map_err(|refused| refused.error).and_then(|mut done| {
+            match (done.pop(), done.is_empty()) {
+                (Some(done), true) => T::from_done(done).ok_or_else(unexpected),
+                _ => Err(unexpected()),
+            }
+        }))
+    }
+}
+
+impl fmt::Display for WriteError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "op {} of the write: {}", self.index, self.error)
+    }
+}
+
+impl std::error::Error for WriteError {}
 
 #[cfg(test)]
 mod tests;

@@ -17,7 +17,7 @@ async fn an_unauthenticated_connection_cannot_touch_blocks() {
 
     let mut stranger = harness.client().await;
     let response = stranger
-        .call(|peer| client::account::authenticate(peer, Some("not a token".into())))
+        .call(|peer| be_block_protocol::client::server::authenticate(peer, Some("not a token".into())))
         .await;
     assert!(
         matches!(response, Err(Error { code, .. }) if code == ErrorCode::InvalidCredentials),
@@ -25,17 +25,15 @@ async fn an_unauthenticated_connection_cannot_touch_blocks() {
     );
 
     stranger.register("stranger@example.com").await;
-    let response = stranger
-        .call(|peer| client::organizations::open_organization(peer, organization))
-        .await;
-    assert!(
-        matches!(response, Err(Error { code, .. }) if code == ErrorCode::PermissionDenied),
-        "{response:?}"
-    );
-
     let response = stranger.try_read_block(block).await;
     assert!(
-        matches!(response, Err(Error { code, .. }) if code == ErrorCode::NotAuthenticated),
+        matches!(response, Err(Error { code, .. }) if code == ErrorCode::InvalidRequest),
+        "a read of a block naming no organization was answered: {response:?}"
+    );
+    stranger.peer.organization = Some(organization);
+    let response = stranger.try_read_block(block).await;
+    assert!(
+        matches!(response, Err(Error { code, .. }) if code == ErrorCode::PermissionDenied),
         "{response:?}"
     );
 

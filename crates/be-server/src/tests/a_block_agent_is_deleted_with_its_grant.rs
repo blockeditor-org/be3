@@ -2,30 +2,10 @@ use super::*;
 use be_block_graph::Access;
 
 #[tokio::test]
-async fn a_block_agent_is_deleted_with_its_block_or_its_grant() {
+async fn a_block_agent_is_deleted_with_its_grant() {
     let harness = Harness::start().await;
     let mut owner = harness.member("owner@example.com").await;
     let organization = owner.organization("team").await;
-
-    let collected = owner.create_block(BlockParent::Root).await;
-    let (_, token) = owner.block_agent(organization, collected).await.unwrap();
-    let mut agent = harness.second_connection(&token, organization).await;
-    let response = owner
-        .move_keyed(collected, BlockParent::Detached, KeySet::default())
-        .await;
-    assert!(response.is_ok(), "{response:?}");
-    let response = owner
-        .call(|peer| client::blocks::collect_detached(peer))
-        .await;
-    assert!(
-        matches!(&response, Ok(done) if done.blocks.contains(&collected)),
-        "{response:?}"
-    );
-    agent.ended().await;
-    assert!(
-        !TestClient::signs_in(&harness, &token).await,
-        "an agent outlived its collected block"
-    );
 
     let ungranted = owner.create_block(BlockParent::Root).await;
     let (account, token) = owner.block_agent(organization, ungranted).await.unwrap();

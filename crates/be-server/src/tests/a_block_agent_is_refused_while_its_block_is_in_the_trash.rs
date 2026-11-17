@@ -16,20 +16,7 @@ async fn a_block_agent_is_refused_while_its_block_is_in_the_trash() {
         .await;
     let published = owner
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                folder,
-                head,
-                None,
-                Vec::new(),
-                objects_change(&[], chunks.clone()),
-                1_000,
-                false,
-                listing(&[], vec![terminal]),
-                Vec::new(),
-                Vec::new(),
-                None,
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: folder, commit: head, expected: None, parents: Vec::new(), held: objects_change(&[], chunks.clone()), time: 1_000, pinned: false, references: listing(&[], vec![terminal]), metadata: Vec::new(), objects: Vec::new(), journal: None })
         })
         .await;
     assert!(published.is_ok(), "{published:?}");
@@ -48,19 +35,28 @@ async fn a_block_agent_is_refused_while_its_block_is_in_the_trash() {
 
         let mut again = harness.client().await;
         let signing = token.clone();
-        let response = again
-            .call(|peer| client::account::authenticate(peer, Some(signing)))
-            .await;
+        // Signed in without listening: following its contacts would be refused too.
+        let response = client::server::authenticate(&again.peer, Some(signing))
+            .await
+            .expect("the connection stayed open");
         assert!(
             response.is_ok(),
             "the trash deleted the block's agent: {response:?}"
         );
         let response = again
-            .call(|peer| client::organizations::open_organization(peer, organization))
+            .call(|peer| {
+                peer.read_in::<be_block_protocol::Listed>(
+                    Some(organization),
+                    Query::List {
+                        listing: Listing::Children(BlockParent::Root),
+                        after: None,
+                    },
+                )
+            })
             .await;
         assert!(
             refused_as(&response, ErrorCode::PermissionDenied),
-            "an agent opened its organization while its block is in the trash: {response:?}"
+            "an agent read its organization while its block is in the trash: {response:?}"
         );
 
         owner

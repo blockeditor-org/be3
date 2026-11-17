@@ -106,7 +106,7 @@ rows.
   `Edit`s the editor does, publishing through `Tracker::edit`. Every other block type goes
   through its type module as bytes (`ToFile`, `Apply` of `FromFile`, `Change::Child`).
 - **Agents.** Any member adds one from the host's Agents menu; only its creator (or an
-  administrator, through the members list) lists or removes it, as a member (`list-members`,
+  administrator, through the members list) lists or removes it, as a member (`query.members`,
   `remove-member`). The server makes a passwordless editor account and token (`CreateAgent`); the host makes
   its recovery phrase and writes its public key into the creator's contacts, so the creator's
   devices can share with it. An agent sees only what is shared with it: share a workspace with

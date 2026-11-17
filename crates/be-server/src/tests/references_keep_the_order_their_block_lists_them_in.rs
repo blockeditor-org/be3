@@ -27,20 +27,7 @@ async fn references_keep_the_order_their_block_lists_them_in() {
             .await;
         let response = client
             .call(|peer| {
-                client::blocks::publish(
-                    peer,
-                    deck,
-                    commit,
-                    head,
-                    head.into_iter().collect(),
-                    objects_change(&held_before, chunks.clone()),
-                    time,
-                    false,
-                    listing(&listed, references.clone()),
-                    Vec::new(),
-                    Vec::new(),
-                    None,
-                )
+                peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: deck, commit: commit, expected: head, parents: head.into_iter().collect(), held: objects_change(&held_before, chunks.clone()), time: time, pinned: false, references: listing(&listed, references.clone()), metadata: Vec::new(), objects: Vec::new(), journal: None })
             })
             .await;
         assert!(

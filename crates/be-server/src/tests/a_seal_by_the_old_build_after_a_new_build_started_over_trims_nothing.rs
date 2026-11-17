@@ -28,7 +28,7 @@ async fn a_seal_by_the_old_build_after_a_new_build_started_over_trims_nothing() 
         .await
         .unwrap();
     let token = phone.token.clone();
-    phone.sessions.remove(&block);
+    phone.leave(block).await;
 
     let mut laptop = harness.second_connection(&token, organization).await;
     laptop.join_session(block).await;
