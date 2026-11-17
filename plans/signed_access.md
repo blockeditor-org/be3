@@ -260,7 +260,10 @@ did not sign.
   log readable (offline, a failed read), an epoch is judged by what was kept:
   current only if it names one of the kept entries from the last lowering
   through the head, so an honest epoch naming a head newer than those costs a
-  rotation, and offline, where none can be made, a refused save (`Locked`).
+  rotation. Offline, where none can be made, the edit is kept, sealed under
+  the epoch at hand, and judged again before it is sent: set aside if the
+  logs then show that epoch outdated, sent if they do not. One judged only by
+  a scope this device can neither read nor kept is sent as before.
   A contact's seal is then judged by the levels kept at the head, where a
   signer who manages from outside (a granter on a block above) is never
   named, as before step 4. The organization's log is kept and judged the same

@@ -162,11 +162,12 @@ async fn a_restarted_device_served_a_log_before_a_revocation_it_held_writes_unde
 }
 
 /// A device offline, whose read of the team's log fails, judges the epoch by what it kept of
-/// the log when it was last online, which holds the revocation. It cannot give the team a new
-/// epoch offline, so the save fails as locked rather than write under the key Bob made up
+/// the log when it was last online, which holds the revocation, and cannot give the team a new
+/// epoch. A person's edit made offline is never refused: it is sealed and kept here. But it is
+/// judged again before it is sent, and set aside rather than sent under the key Bob made up
 /// (signed access 3d).
 #[tokio::test]
-async fn an_offline_device_fails_a_save_rather_than_write_under_a_made_up_key() {
+async fn an_edit_made_offline_under_a_made_up_key_is_kept_and_never_sent() {
     let harness = Harness::start().await;
     let revoked = revoked(&harness).await;
     let made_up = plant(&harness, &revoked, None);
@@ -186,10 +187,25 @@ async fn an_offline_device_fails_a_save_rather_than_write_under_a_made_up_key() 
         .save(revoked.note, &TextBlock::of("offline"), revoked.head)
         .await;
     assert!(
-        matches!(saved, Err(ClientError::Locked(_))),
-        "an offline save was not refused: {saved:?}"
+        matches!(saved, Ok(Saved::Kept(_))),
+        "an edit made offline was refused: {saved:?}"
     );
-    assert_eq!(offline.pending().operations, 0);
+    assert_eq!(offline.pending().operations, 1);
+    drop(offline);
+
+    let back = harness.device(&revoked.carol, &refs, &store).await;
+    let drained = back.drain(|_| false).await.unwrap();
+    assert!(
+        drained
+            .iter()
+            .any(|outcome| matches!(outcome, Drained::SetAside { block, .. } if *block == revoked.note)),
+        "the edit sealed under the made-up key was not set aside: {drained:?}"
+    );
+    assert_eq!(
+        revoked.admin.summary(revoked.note).await.unwrap().head,
+        revoked.head,
+        "the edit sealed under the made-up key was sent"
+    );
 
     harness.stop().await;
 }
