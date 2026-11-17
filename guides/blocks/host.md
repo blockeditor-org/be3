@@ -211,7 +211,9 @@ so organization changes do too, because closing the connection would lose an
 edit on its way; `crash` does not. What a flush kept is sent as the outbox
 drains. Commands that seal the open blocks first (a version snapshot, the
 bookmark a restore keeps) wait the same way in the worker (`after_order`), and
-until the modules took every edit sent before them.
+until the modules took every edit sent before them; then they pass the same
+waits as every other command (`admit`: for their uploads, then their turn
+behind the server lane).
 
 A dropped connection (`Connection::closed`, not the broadcast, which outlives
 the socket) leaves content on screen; the worker backs off (`reconnect_delay`,
