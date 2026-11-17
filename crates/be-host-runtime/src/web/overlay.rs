@@ -25,10 +25,10 @@ pub fn overlays(
     viewport: Vec2,
     pixels_per_point: f32,
     scale: f32,
-) -> HashMap<u32, Overlay> {
-    let mut last = HashMap::<u32, usize>::default();
-    let mut pieces = HashMap::<u32, Vec<f32>>::default();
-    let mut bounds = HashMap::<u32, Rect>::default();
+) -> HashMap<u64, Overlay> {
+    let mut last = HashMap::<u64, usize>::default();
+    let mut pieces = HashMap::<u64, Vec<f32>>::default();
+    let mut bounds = HashMap::<u64, Rect>::default();
     for (order, layer) in layers.layers.iter().enumerate() {
         let Surface::Anchored { instance, surface } = layer.surface else {
             continue;

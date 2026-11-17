@@ -23,7 +23,7 @@ pub struct Placement {
 /// Where each runtime's screens show, by its slot: a canvas for each of the frame's screen
 /// layers, in `#apps` below the host's canvas (`Surface::Root`) or in `#layers` above it, stacked
 /// by their place in the list.
-pub fn placements(layers: &WindowLayers, scale: f32) -> HashMap<u32, Vec<Placement>> {
+pub fn placements(layers: &WindowLayers, scale: f32) -> HashMap<u64, Vec<Placement>> {
     let mut placed = HashMap::<u32, Vec<Placement>>::default();
     let mut above = false;
     for (order, layer) in layers.layers.iter().enumerate() {

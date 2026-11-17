@@ -3,6 +3,10 @@
 //! the echo guest as a staged app (`CHILD`); each frame it asks the child to echo the frame's
 //! time, and races that whole exchange against the frame's deadline. Its layer list shows its own
 //! surface, and over it the child's screen only when the child echoed in time.
+//!
+//! A frame at `PAINTS` instead spawns a child that paints (`PAINTER`), asks it for a frame, and
+//! shows the surface it presented, named only by the instance's handle (its `instance` resource's
+//! op) and the surface's id: the root never sees the pixels, which stay on the host's device.
 
 use std::{
     cell::{Cell, RefCell},
@@ -41,6 +45,23 @@ pub const SPINS: u64 = u64::MAX - 1;
 
 const HANG: &[u8] = b"hang";
 
+/// A frame at this time spawns `PAINTER` rather than settling the echo guest, and shows the
+/// surface it presents (`PAINTED_SURFACE`) as `PAINTER_LAYER`.
+pub const PAINTS: u64 = u64::MAX - 2;
+
+/// The staged app a `PAINTS` frame spawns, which paints a surface the first time it is stepped
+/// and presents it: the tests' loader stages one under this id.
+pub const PAINTER: &str = "be3.painter";
+
+/// The painter's entry point, as its loader names it.
+pub const PAINTER_ENTRY: &str = "painter.wasm";
+
+/// The painter's surface, which it presents.
+pub const PAINTED_SURFACE: u32 = 7;
+
+/// The painter's surface, as a `PAINTS` frame shows it.
+pub const PAINTER_LAYER: LayerId = LayerId(2);
+
 /// The root's own surface, which every frame shows.
 pub const ROOT_LAYER: LayerId = LayerId(0);
 
@@ -53,6 +74,7 @@ const SIZE: (u32, u32) = (200, 100);
 #[derive(Clone, Default)]
 struct Frames {
     child: Rc<RefCell<Option<Rc<Instance>>>>,
+    painter: Rc<RefCell<Option<Rc<Instance>>>>,
     spinning: Rc<Cell<bool>>,
 }
 
@@ -84,6 +106,19 @@ impl frames::Guest for Frames {
             return Box::pin(std::future::pending());
         }
         let frames = self.clone();
+        if request.time == PAINTS {
+            return Box::pin(async move {
+                let deadline = pin!(host::deadline());
+                let painted = pin!(frames.paint());
+                let painter = match first(painted, deadline).await {
+                    First::Left(painter) => painter,
+                    First::Right(_) => None,
+                };
+                FrameDone {
+                    layers: painted_layers(painter).encode(),
+                }
+            });
+        }
         Box::pin(async move {
             let deadline = pin!(host::deadline());
             let exchange = pin!(frames.exchange(request.time));
@@ -117,6 +152,31 @@ impl Frames {
     }
 }
 
+impl Frames {
+    /// Spawns the painter, the first time, and asks it for a frame. Answers the handle of the
+    /// instance that presented, its `instance` resource's op, once it answered, or None if it
+    /// stopped.
+    async fn paint(&self) -> Option<u64> {
+        let painter = Rc::clone(self.painter.borrow_mut().get_or_insert_with(|| {
+            Rc::new(Instance::new(
+                Source::App(StagedModule {
+                    app: PAINTER.to_owned(),
+                    module: PAINTER_ENTRY.to_owned(),
+                }),
+                Config {
+                    name: "painter".to_owned(),
+                    memory_limit: 16 << 20,
+                },
+            ))
+        }));
+        painter.send(vec![vec![0]]).await.ok()?;
+        match painter.next().await {
+            Ok(Ok(_)) => Some(painter.op()),
+            _ => None,
+        }
+    }
+}
+
 enum First<A, B> {
     Left(A),
     Right(B),
@@ -139,8 +199,8 @@ async fn first<A: Future, B: Future>(
     .await
 }
 
-fn layers(echoed: bool) -> LayerList {
-    let layer = |id, surface, size: (u32, u32)| Layer {
+fn layer(id: LayerId, surface: Surface, size: (u32, u32)) -> Layer {
+    Layer {
         id,
         surface,
         size,
@@ -150,7 +210,10 @@ fn layers(echoed: bool) -> LayerList {
         opacity: 1.0,
         shown: true,
         input: LayerInput::default(),
-    };
+    }
+}
+
+fn layers(echoed: bool) -> LayerList {
     let mut layers = vec![layer(ROOT_LAYER, Surface::Root(0), SIZE)];
     if echoed {
         layers.push(layer(
@@ -168,6 +231,23 @@ fn layers(echoed: bool) -> LayerList {
             layers,
         }],
     }
+}
+
+/// The root's own surface, and over it the painter's surface, by the painter's handle, once it
+/// painted.
+fn painted_layers(painter: Option<u64>) -> LayerList {
+    let mut list = layers(false);
+    if let Some(instance) = painter {
+        list.windows[0].layers.push(layer(
+            PAINTER_LAYER,
+            Surface::Screen {
+                instance,
+                surface: PAINTED_SURFACE,
+            },
+            (4, 4),
+        ));
+    }
+    list
 }
 
 pub struct Settling {

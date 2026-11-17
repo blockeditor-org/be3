@@ -40,7 +40,10 @@ interface sandbox {
         /// its frames.
         module(module-id),
         /// A staged app's module, linked against the libraries it names and
-        /// given WASI, as the host runs that app, with no display: it has no
+        /// given WASI, as the host runs that app. One the root guest spawns
+        /// draws on the host's device, and the root names a surface it
+        /// presented by handle, as this instance's resource's op and the
+        /// surface's id, never seeing its pixels; an app's workers have no
         /// gpu. Its frames are whatever the module speaks: the app protocol
         /// for the entry point, which the spawner answers as the app's host,
         /// or a worker's own messages.

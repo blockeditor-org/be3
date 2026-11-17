@@ -12,6 +12,7 @@ fn a_module_from_bytes_is_capped_at_the_memory_each_instance_is_given() {
     let config = sandbox::Config {
         name: "capped".to_owned(),
         memory_limit: 64 << 20,
+        display: None,
     };
     let mut instance =
         sandbox::spawn(sandbox::Source::Module(module.clone()), config, wake).unwrap();

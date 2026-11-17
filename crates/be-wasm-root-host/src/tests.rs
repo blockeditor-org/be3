@@ -1,13 +1,17 @@
 use std::{sync::Arc, time::Duration};
 
-use be_lib_layers::{LayerId, LayerList};
+use be_lib_layers::{LayerId, LayerList, Surface};
 use be_wasm_host::{Host, Stored, library_file_name, sandbox::Staged};
-use be_wasm_root_testing::{CHILD_LAYER, HANGS_CHILD, ROOT_LAYER, SPINS};
+use be_wasm_root_testing::{
+    CHILD_LAYER, HANGS_CHILD, PAINTED_SURFACE, PAINTER, PAINTER_ENTRY, PAINTER_LAYER, PAINTS,
+    ROOT_LAYER, SPINS,
+};
 
 use super::*;
 
 mod a_frame_past_its_deadline_draws_without_the_child_it_waits_for;
 mod a_frame_waits_for_its_child_and_shows_it;
+mod a_root_names_what_its_child_presented_only_by_handle;
 mod a_root_that_keeps_waking_itself_without_answering_stops_at_its_patience;
 
 const ROOT: &[u8] = include_bytes!(env!("ROOT_GUEST_WASM"));
@@ -19,9 +23,23 @@ const BASE_LIBRARY: &[u8] = include_bytes!(env!("BASE_LIBRARY_WASM"));
 
 const ECHO_ENTRY: &str = be_wasm_root_testing::CHILD_ENTRY;
 
-/// Finds the one staged module, the echo app's entry point, with the base library staged as
-/// be-tool-buck stages them: the library named by its identity.
+/// The app a `PAINTS` frame spawns, as text.
+const PAINTER_APP: &str = include_str!("tests/painter.wat");
+
+/// Finds the two staged modules: the echo app's entry point, with the base library staged as
+/// be-tool-buck stages them (the library named by its identity), and the painter's, a standalone
+/// app that links no library.
 fn staged(app_id: &str, module: &str) -> Result<Staged, String> {
+    if app_id == PAINTER && module == PAINTER_ENTRY {
+        let painter = wat::parse_str(PAINTER_APP).map_err(|error| error.to_string())?;
+        return Ok(Staged::new(
+            PAINTER_ENTRY.to_owned(),
+            Arc::new(move |name| match name {
+                PAINTER_ENTRY => Ok(Stored::Bytes(painter.clone())),
+                _ => Err(format!("{name} is not staged")),
+            }),
+        ));
+    }
     if app_id != be_wasm_guest_echo::APP_ID || module != ECHO_ENTRY {
         return Err(format!("{app_id} stages no module named {module:?}"));
     }
@@ -36,7 +54,7 @@ fn staged(app_id: &str, module: &str) -> Result<Staged, String> {
     ))
 }
 
-/// The test root, started on this thread.
+/// The test root, started on this thread, its children drawing on a device of the host's.
 fn root() -> Root {
     assert_eq!(
         be_wasm_root_testing::CHILD,
@@ -46,7 +64,8 @@ fn root() -> Root {
     let app = Host::pure()
         .and_then(|host| host.load_bytes(ROOT))
         .expect("the root loads");
-    Root::start(app, Box::new(staged)).expect("the root starts")
+    let (device, queue) = wgpu::Device::noop(&wgpu::DeviceDescriptor::default());
+    Root::start(app, Box::new(staged), device, queue).expect("the root starts")
 }
 
 /// The ids of the layers a frame shows, bottom first.

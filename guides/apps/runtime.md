@@ -67,7 +67,10 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
     size; or
   - a staged app's module (`Staged`): the app's entry point or one of its
     workers, and an `Open` that reads it and its libraries, loaded as the host
-    loads that app, with WASI and no display (its gpu calls fail).
+    loads that app, with WASI and, unless its `Config::display` gives it the host's device, no
+    display (its gpu calls fail). An instance with a display keeps what each of its surfaces
+    presented last (`Instance::surface`): `App` reports what it presented each step it runs on a
+    thread of its own (`PresentedTexture`), for an instance as for be-host-runtime's apps.
     be-host-runtime's `staged_app(app id, module)` is the one place that maps a
     module's name to a file: the manifest's `entry_point`, or one of its
     `workers` under `workers/<app id>/`; any other name is refused. Its own app
@@ -83,12 +86,16 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   (`staged_worker`, which answers only workers, never the entry point) only for
   the app's own id, which an empty `app` names, refuses compiles, caps each
   worker's memory at `WORKER_MEMORY_LIMIT` and runs at most `WORKERS` at once,
-  so an app spawns only its own workers (guides/adding_an_app.md, Workers). A spawned module gets no gpu: a
+  so an app spawns only its own workers (guides/adding_an_app.md, Workers). A worker gets no gpu: a
   worker computes and sends its result back as bytes, which the app uploads
   itself, so no device is handed to it, and on the web, where each worker
   would need a device of its own, it needs none. `crates/be-wasm-root-host`
   serves the root guest one with `Server::new`, which may spawn any staged app
-  and compile modules. The input remapper runs on
+  and compile modules, and `with_display`, so the staged apps it spawns draw on
+  the host's device: the root names what one presented in its layer list as
+  `Surface::Screen { instance, surface }`, `instance` being the op of its
+  `instance` resource, and `Root::surface` answers the texture for it, which
+  never leaves the GPU. The input remapper runs on
   `be_wasm_host::sandbox` (guides/desktop/login_session.md, Input remaps). In
   the browser the same `Server` answers an app from be-wasm-sandbox-host's `web`
   half: each instance is a web worker of its own (`WebGuest`), started from the

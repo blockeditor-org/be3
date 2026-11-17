@@ -35,17 +35,19 @@ pub enum Surface {
     /// One of the root's own surfaces: the host's UI today, the root guest's from step 4. It
     /// may have several, such as one below its children and one above.
     Root(u32),
-    /// A screen of an instance: `instance` is the runtime's slot, `surface` the app's surface.
-    Screen { instance: u32, surface: u32 },
+    /// A screen of an instance, `surface` being the app's surface. `instance` is be-host's
+    /// runtime's slot, or for an instance a root guest spawned, its `instance` resource's op
+    /// (`be3:sandbox`), which both the root and its host know it by.
+    Screen { instance: u64, surface: u32 },
     /// An anchored view's part of an instance's anchored surface (popups, menus).
-    Anchored { instance: u32, surface: u32 },
+    Anchored { instance: u64, surface: u32 },
     /// A surface the host owns, such as a program window.
     Host(u64),
 }
 
 impl Surface {
     /// The instance whose surface this is.
-    pub fn instance(self) -> Option<u32> {
+    pub fn instance(self) -> Option<u64> {
         match self {
             Self::Screen { instance, .. } | Self::Anchored { instance, .. } => Some(instance),
             Self::Root(_) | Self::Host(_) => None,
