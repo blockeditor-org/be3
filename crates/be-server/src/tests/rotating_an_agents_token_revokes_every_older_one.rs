@@ -11,7 +11,7 @@ async fn rotating_an_agents_token_revokes_every_older_one() {
 
     let mut stranger = harness.member("stranger@example.com").await;
     let response = stranger
-        .call(|peer| client::members::rotate_agent_token(peer, organization, account))
+        .call(|peer| peer.write_in::<String>(Some(organization), be_block_protocol::Op::RotateAgentToken(account)))
         .await;
     assert!(
         response.is_err(),
@@ -19,7 +19,7 @@ async fn rotating_an_agents_token_revokes_every_older_one() {
     );
 
     let response = owner
-        .call(|peer| client::members::rotate_agent_token(peer, organization, account))
+        .call(|peer| peer.write_in::<String>(Some(organization), be_block_protocol::Op::RotateAgentToken(account)))
         .await;
     let Ok(rotated) = response else {
         panic!("rotating the token failed: {response:?}");

@@ -61,12 +61,13 @@ pub fn call_url(server_url: &str) -> String {
 /// Makes one call that needs no sign-in (beginning or polling a browser sign-in, or reading an
 /// invitation) as a one-shot post: a greeting and the call, answered and closed. Signing in
 /// holds no connection open while a person approves it in their browser.
-pub async fn call_once<T, E: be_wasm_ops::wire::Decode<Result<T, be_block_protocol::Error>>>(
+pub async fn call_once<T, F>(
     server_url: &str,
-    start: impl FnOnce(
-        &be_wasm_ops::net::Peer,
-    ) -> be_wasm_ops::net::Pending<Result<T, be_block_protocol::Error>, E>,
-) -> Result<T, ClientError> {
+    start: impl FnOnce(&be_wasm_ops::net::Peer) -> F,
+) -> Result<T, ClientError>
+where
+    F: Future<Output = Result<Result<T, be_block_protocol::Error>, be_wasm_ops::OpError>>,
+{
     let ours = be_lib_build_id::current().map_err(ClientError::NoBuild)?;
     let (sending, sent) = std::sync::mpsc::channel();
     let peer = be_wasm_ops::net::Peer::new(be_wasm_ops::Side::Guest, move |frame| {

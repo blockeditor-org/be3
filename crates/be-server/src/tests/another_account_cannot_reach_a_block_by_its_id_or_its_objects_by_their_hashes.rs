@@ -42,7 +42,7 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
     let read = attacker.try_read_block(block).await;
     assert!(refused_as(&read, ErrorCode::BlockNotFound), "{read:?}");
     let contents = attacker
-        .call(|peer| client::blocks::read_contents(peer, vec![block], Vec::new()))
+        .call(|peer| peer.read::<be_block_protocol::Contents>(be_block_protocol::Query::Blocks { blocks: vec![block], contents: true, held: Vec::new() }))
         .await;
     assert!(
         refused_as(&contents, ErrorCode::BlockNotFound),
@@ -65,25 +65,12 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
     assert_eq!(missing.as_ref().ok(), Some(&hashes), "{missing:?}");
     let decoy = attacker.create_block(BlockParent::Root).await;
     let held = attacker
-        .call(|peer| client::objects::hold_objects(peer, decoy, hashes.clone(), Hold::Lasting))
+        .call(|peer| peer.write::<()>(be_block_protocol::Op::HoldObjects { block: decoy, objects: hashes.clone(), hold: Hold::Lasting }))
         .await;
     assert!(refused_as(&held, ErrorCode::ObjectNotFound), "{held:?}");
     let stolen = attacker
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                decoy,
-                commit,
-                None,
-                Vec::new(),
-                objects_change(&[], chunks.clone()),
-                1_000,
-                false,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                Vec::new(),
-                None,
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: decoy, commit: commit, expected: None, parents: Vec::new(), held: objects_change(&[], chunks.clone()), time: 1_000, pinned: false, references: listing(&[], Vec::new()), metadata: Vec::new(), objects: Vec::new(), journal: None })
         })
         .await;
     assert!(refused_as(&stolen, ErrorCode::ObjectNotFound), "{stolen:?}");
@@ -95,7 +82,7 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
         );
     }
     let contents = attacker
-        .call(|peer| client::blocks::read_contents(peer, vec![decoy], Vec::new()))
+        .call(|peer| peer.read::<be_block_protocol::Contents>(be_block_protocol::Query::Blocks { blocks: vec![decoy], contents: true, held: Vec::new() }))
         .await;
     assert!(
         matches!(&contents, Ok(contents) if contents.objects.is_empty()),
@@ -161,7 +148,7 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
         "{claimed:?}"
     );
     let stolen = viewer
-        .call(|peer| client::objects::hold_objects(peer, block, vec![unheld.hash()], Hold::Lasting))
+        .call(|peer| peer.write::<()>(be_block_protocol::Op::HoldObjects { block: block, objects: vec![unheld.hash()], hold: Hold::Lasting }))
         .await;
     assert!(
         refused_as(&stolen, ErrorCode::PermissionDenied),

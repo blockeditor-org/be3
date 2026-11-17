@@ -19,7 +19,7 @@ async fn a_logout_naming_the_devices_endpoint_forgets_it_in_every_organization()
     device.register_endpoint(endpoint()).await;
 
     let logged_out = device
-        .call(|peer| client::account::logout(peer, Some(address.clone())))
+        .call(|peer| peer.write::<()>(be_block_protocol::Op::RevokeToken(Some(address.clone()))))
         .await;
     assert!(logged_out.is_ok(), "{logged_out:?}");
 

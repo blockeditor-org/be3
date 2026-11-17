@@ -12,7 +12,7 @@ async fn an_invitation_ends_when_its_inviter_stops_administering() {
     let joined = owner.invite(organization).await.unwrap();
     assert!(matches!(deputy.accept(joined, &[]).await, Ok(())));
     let account = owner
-        .call(|peer| client::members::list_members(peer))
+        .call(|peer| peer.read::<Vec<be_block_protocol::Member>>(be_block_protocol::Query::Members))
         .await
         .unwrap()
         .into_iter()
@@ -30,7 +30,7 @@ async fn an_invitation_ends_when_its_inviter_stops_administering() {
     assert!(matches!(demoted, Ok(())), "{demoted:?}");
     let mut invited = harness.member("invited@example.com").await;
     let found = invited
-        .call(|peer| client::contacts::get_link(peer, link))
+        .call(|peer| peer.read::<be_block_protocol::Link>(be_block_protocol::Query::Link(link)))
         .await;
     assert!(
         matches!(&found, Err(error) if error.message.contains("revoked")),
@@ -50,13 +50,13 @@ async fn an_invitation_ends_when_its_inviter_stops_administering() {
         "{accepted:?}"
     );
     let preview = harness
-        .once(move |peer| client::contacts::read_invitation(peer, link))
+        .once(move |peer| peer.read::<be_block_protocol::InvitationPreview>(be_block_protocol::Query::Invitation(link)))
         .await
         .unwrap();
     assert_eq!(preview.state, InvitationState::Revoked);
     assert!(preview.organization_name.is_empty() && preview.card.is_empty());
     let listed = owner
-        .call(|peer| client::contacts::list_invitations(peer, organization))
+        .call(|peer| peer.read_in::<Vec<be_block_protocol::InvitationRow>>(Some(organization), be_block_protocol::Query::Invitations))
         .await
         .unwrap();
     assert_eq!(

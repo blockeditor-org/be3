@@ -23,20 +23,7 @@ async fn publishing_prunes_the_commit_it_replaces_but_keeps_bookmarks_and_merge_
         .await;
     let _ = client
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                block,
-                bookmark,
-                None,
-                Vec::new(),
-                objects_change(&[], bookmark_chunks.clone()),
-                minute,
-                true,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                Vec::new(),
-                None,
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: block, commit: bookmark, expected: None, parents: Vec::new(), held: objects_change(&[], bookmark_chunks.clone()), time: minute, pinned: true, references: listing(&[], Vec::new()), metadata: Vec::new(), objects: Vec::new(), journal: None })
         })
         .await;
     let mut head = bookmark;
@@ -62,20 +49,7 @@ async fn publishing_prunes_the_commit_it_replaces_but_keeps_bookmarks_and_merge_
         .await;
     let response = client
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                block,
-                merge,
-                Some(theirs),
-                vec![theirs, ours],
-                objects_change(&author.held_by(Some(theirs)), merge_chunks.clone()),
-                minute + 3_000,
-                false,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                Vec::new(),
-                None,
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: block, commit: merge, expected: Some(theirs), parents: vec![theirs, ours], held: objects_change(&author.held_by(Some(theirs)), merge_chunks.clone()), time: minute + 3_000, pinned: false, references: listing(&[], Vec::new()), metadata: Vec::new(), objects: Vec::new(), journal: None })
         })
         .await;
     assert!(

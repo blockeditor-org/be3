@@ -152,10 +152,10 @@ pub struct ServerConfig {
     /// The bytes one commit of a search index may hold (`limits::MAX_INDEX_BYTES` unless a test
     /// sets a smaller one).
     pub max_index_bytes: u64,
-    /// The bytes of keys one `get-keys` page holds (`limits::KEY_PAGE_BYTES` unless a test pages
+    /// The bytes of keys one `query.keys` page holds (`limits::KEY_PAGE_BYTES` unless a test pages
     /// through a few keys).
     pub key_page_bytes: usize,
-    /// The bytes of summaries one `list-blocks` page holds, its ids taking half that more
+    /// The bytes of summaries one `query.list` page holds, its ids taking half that more
     /// (`limits::LISTING_PAGE_BYTES` unless a test lists in many pages; never more).
     pub listing_page_bytes: usize,
     /// Peers whose `X-Forwarded-For` names the client; anyone else's is ignored. By default
@@ -299,7 +299,7 @@ fn is_ping(frame: &[u8]) -> bool {
     frame.len() <= PING_FRAME_BYTES
         && matches!(
             be_wasm_ops::decode_frame::<be_wasm_ops::Frame>(frame),
-            Ok(be_wasm_ops::Frame::Start { method, .. }) if method == be_block_protocol::__args::CONNECTION_PING
+            Ok(be_wasm_ops::Frame::Start { method, .. }) if method == be_block_protocol::__args::SERVER_PING
         )
 }
 
@@ -315,9 +315,11 @@ fn pong(peer: &be_wasm_ops::net::Peer, frame: &[u8]) -> Vec<Incoming> {
     let mut others = Vec::new();
     for event in events {
         match event {
-            Incoming::Started(started) if embed::connection::Call::accepts(&started) => {
-                let call = embed::connection::Call::accept(&mut peer.lock(), started);
-                if let Some(embed::connection::Call::Ping { reply }) = call {
+            Incoming::Started(started)
+                if started.method == be_block_protocol::__args::SERVER_PING =>
+            {
+                let call = embed::Call::accept(&mut peer.lock(), started);
+                if let Some(embed::Call::Server(embed::server::Call::Ping { reply })) = call {
                     reply.send(&mut peer.lock(), &());
                 }
             }
@@ -328,14 +330,14 @@ fn pong(peer: &be_wasm_ops::net::Peer, frame: &[u8]) -> Vec<Incoming> {
 }
 
 const ACCEPT_RETRY: Duration = Duration::from_millis(100);
-/// The share of a `read-contents` answer its objects take at most; its journals take half that,
+/// The share of a `query.blocks` answer its objects take at most; its journals take half that,
 /// and its summaries `SUMMARY_BYTES` (`contents_room`).
 const CONTENTS_BYTES: usize = MAX_FRAME_BYTES / 2;
-/// The summaries of one `read-contents` or `read-summaries` answer: hundreds of blocks as they
+/// The summaries of one `query.blocks` or `query.blocks` answer: hundreds of blocks as they
 /// usually are, and a few with metadata near `limits::MAX_METADATA_BYTES`. The client asks again
 /// for those left out.
 const SUMMARY_BYTES: usize = MAX_FRAME_BYTES / 16;
-/// What room a `read-contents` answer whose summaries took `summaries` bytes leaves its objects
+/// What room a `query.blocks` answer whose summaries took `summaries` bytes leaves its objects
 /// and its journals: `CONTENTS_BYTES` and half that, or less beside one summary larger than
 /// `SUMMARY_BYTES`, sent alone.
 fn contents_room(summaries: usize) -> (usize, usize) {

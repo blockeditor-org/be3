@@ -94,20 +94,7 @@ async fn an_http_answer_leaves_what_would_overflow_it_for_the_next_post() {
     chunks.extend_from_slice(&large);
     let response = owner
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                block,
-                commit,
-                None,
-                Vec::new(),
-                objects_change(&[], chunks),
-                1_000,
-                false,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                Vec::new(),
-                None,
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: block, commit: commit, expected: None, parents: Vec::new(), held: objects_change(&[], chunks), time: 1_000, pinned: false, references: listing(&[], Vec::new()), metadata: Vec::new(), objects: Vec::new(), journal: None })
         })
         .await;
     assert!(response.is_ok(), "{response:?}");
@@ -121,8 +108,7 @@ async fn an_http_answer_leaves_what_would_overflow_it_for_the_next_post() {
     let session = session.unwrap();
     let mut posted = a_client_speaks_the_protocol_over_http_posts::Posted::new();
     let token = owner.token.clone();
-    let _signed_in = client::account::authenticate(&posted.peer, Some(token));
-    let _opened = client::organizations::open_organization(&posted.peer, organization);
+    let _signed_in = be_block_protocol::client::server::authenticate(&posted.peer, Some(token));
     let sent = posted.frames();
     let (frames, _) = post(&mut stream, &session, &sent).await;
     posted.heard(&frames);
@@ -130,7 +116,18 @@ async fn an_http_answer_leaves_what_would_overflow_it_for_the_next_post() {
     // Each read answers the head's objects that fit in half a frame, a large one among them.
     let mut reads: Vec<_> = large
         .iter()
-        .map(|_| client::blocks::read_contents(&posted.peer, vec![block], Vec::new()))
+        .map(|_| {
+            client::server::read(
+                &posted.peer,
+                Some(organization),
+                Query::Blocks {
+                    blocks: vec![block],
+                    contents: true,
+                    held: Vec::new(),
+                },
+                false,
+            )
+        })
         .collect();
     let sent = posted.frames();
     let (mut frames, more) = post(&mut stream, &session, &sent).await;
@@ -150,7 +147,8 @@ async fn an_http_answer_leaves_what_would_overflow_it_for_the_next_post() {
     assert_eq!(answered(&frames), large.len());
     posted.heard(&frames);
     for read in &mut reads {
-        let std::task::Poll::Ready(Ok(Ok(contents))) = poll(read) else {
+        let std::task::Poll::Ready(Ok(Ok(be_block_protocol::Page::Contents(contents)))) = poll(read)
+        else {
             panic!("a read was not answered");
         };
         assert!(

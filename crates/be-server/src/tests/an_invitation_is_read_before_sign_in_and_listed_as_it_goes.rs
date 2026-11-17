@@ -10,16 +10,10 @@ async fn an_invitation_is_read_before_sign_in_and_listed_as_it_goes() {
     let link = Uuid::new_v4();
     let made = admin
         .call(|peer| {
-            client::contacts::create_link(
-                peer,
-                link,
-                b"the inviter's sealed card".to_vec(),
-                b"the code sealed to the inviter".to_vec(),
-                be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
+            peer.write::<()>(be_block_protocol::Op::CreateLink { link: link, card: b"the inviter's sealed card".to_vec(), code: b"the code sealed to the inviter".to_vec(), kind: be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                     organization,
                     escrow: b"the sealed escrow key".to_vec(),
-                }),
-            )
+                }) })
         })
         .await;
     assert!(matches!(made, Ok(())), "{made:?}");
@@ -28,7 +22,7 @@ async fn an_invitation_is_read_before_sign_in_and_listed_as_it_goes() {
     };
     let row = listed(
         &admin
-            .call(|peer| client::contacts::list_invitations(peer, organization))
+            .call(|peer| peer.read_in::<Vec<be_block_protocol::InvitationRow>>(Some(organization), be_block_protocol::Query::Invitations))
             .await
             .unwrap(),
     );
@@ -41,7 +35,7 @@ async fn an_invitation_is_read_before_sign_in_and_listed_as_it_goes() {
     // Read before signing in, a one-shot call: the organization's name and the sealed card,
     // and nothing else, and the inviter then sees it opened.
     let preview = harness
-        .once(move |peer| client::contacts::read_invitation(peer, link))
+        .once(move |peer| peer.read::<be_block_protocol::InvitationPreview>(be_block_protocol::Query::Invitation(link)))
         .await
         .expect("an invitation is read before sign-in");
     assert_eq!(preview.organization_name, "team");
@@ -49,7 +43,7 @@ async fn an_invitation_is_read_before_sign_in_and_listed_as_it_goes() {
     assert_eq!(preview.state, InvitationState::Opened);
     let row = listed(
         &admin
-            .call(|peer| client::contacts::list_invitations(peer, organization))
+            .call(|peer| peer.read_in::<Vec<be_block_protocol::InvitationRow>>(Some(organization), be_block_protocol::Query::Invitations))
             .await
             .unwrap(),
     );
@@ -59,7 +53,7 @@ async fn an_invitation_is_read_before_sign_in_and_listed_as_it_goes() {
     let contact = admin.link(None).await;
     for id in [contact, Uuid::new_v4()] {
         let read = harness
-            .once(move |peer| client::contacts::read_invitation(peer, id))
+            .once(move |peer| peer.read::<be_block_protocol::InvitationPreview>(be_block_protocol::Query::Invitation(id)))
             .await;
         assert!(refused_as(&read, ErrorCode::LinkNotFound), "{read:?}");
     }
@@ -67,12 +61,12 @@ async fn an_invitation_is_read_before_sign_in_and_listed_as_it_goes() {
     // an editor not at all.
     let mut joiner = harness.member("joiner@example.com").await;
     let accepted = joiner
-        .call(|peer| client::contacts::accept_link(peer, link, Vec::new(), Vec::new(), Vec::new()))
+        .call(|peer| peer.write::<()>(be_block_protocol::Op::AcceptLink { link: link, card: Vec::new(), contact: Vec::new(), key: Vec::new() }))
         .await;
     assert!(matches!(accepted, Ok(())), "{accepted:?}");
     let row = listed(
         &admin
-            .call(|peer| client::contacts::list_invitations(peer, organization))
+            .call(|peer| peer.read_in::<Vec<be_block_protocol::InvitationRow>>(Some(organization), be_block_protocol::Query::Invitations))
             .await
             .unwrap(),
     );
@@ -80,13 +74,13 @@ async fn an_invitation_is_read_before_sign_in_and_listed_as_it_goes() {
     assert_eq!(row.accepter_name, "joiner@example.com");
     assert!(row.ended > 0);
     let preview = harness
-        .once(move |peer| client::contacts::read_invitation(peer, link))
+        .once(move |peer| peer.read::<be_block_protocol::InvitationPreview>(be_block_protocol::Query::Invitation(link)))
         .await
         .unwrap();
     assert_eq!(preview.state, InvitationState::Accepted);
     joiner.open(organization).await;
     let listing = joiner
-        .call(|peer| client::contacts::list_invitations(peer, organization))
+        .call(|peer| peer.read_in::<Vec<be_block_protocol::InvitationRow>>(Some(organization), be_block_protocol::Query::Invitations))
         .await;
     assert!(
         refused_as(&listing, ErrorCode::PermissionDenied),

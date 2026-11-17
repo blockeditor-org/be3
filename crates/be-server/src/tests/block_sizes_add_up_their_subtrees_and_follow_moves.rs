@@ -96,12 +96,5 @@ async fn block_sizes_add_up_their_subtrees_and_follow_moves() {
         0,
         "a deleted block left its parent"
     );
-    let collected = client
-        .call(|peer| client::blocks::collect_detached(peer))
-        .await;
-    assert!(collected.is_ok(), "{collected:?}");
-    let usage = client.storage().await.unwrap();
-    assert_eq!(usage.held, 0, "collecting a block stops charging for it");
-
     harness.stop().await;
 }

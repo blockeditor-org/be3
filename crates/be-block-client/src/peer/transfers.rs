@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use be_block_protocol::{ErrorCode, MAX_OBJECT_BYTES, MAX_OBJECT_URLS, ObjectLength, client};
+use be_block_protocol::{ErrorCode, MAX_OBJECT_BYTES, MAX_OBJECT_URLS, ObjectLength};
 use be_block_store::{Hash, ObjectStore};
 use futures_util::StreamExt;
 
@@ -72,7 +72,7 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// Uploads `hashes` from this device's store, those the server answers it holds already
-    /// left out (`upload-urls`). An object this device does not hold (a part it reuses by its
+    /// left out (`reserve-uploads`). An object this device does not hold (a part it reuses by its
     /// ref alone) is asked for with no length: the server must hold it for this account, and
     /// refuses it as not found otherwise, which is `MissingObject`.
     pub(super) async fn upload(&self, hashes: &[Hash]) -> Result<(), ClientError> {
@@ -91,7 +91,7 @@ impl<S: ObjectStore> Peer<S> {
                 .iter()
                 .find(|object| object.length.is_none())
                 .map(|object| object.hash);
-            let asked = crate::ask(client::objects::upload_urls(&self.connection(), lengths)).await;
+            let asked = crate::ask(be_block_protocol::write::<Vec<Option<be_block_protocol::UploadUrl>>, _>(&self.connection(), Some(self.organization), be_block_protocol::Op::ReserveUploads(lengths))).await;
             let urls = match (asked, absent) {
                 (Err(ClientError::Refused(ErrorCode::ObjectNotFound, _)), Some(hash)) => {
                     return Err(ClientError::MissingObject(hash));
@@ -135,10 +135,7 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     async fn download_urls(&self, hashes: &[Hash]) -> Result<Vec<Option<String>>, ClientError> {
-        let urls = crate::ask(client::objects::download_urls(
-            &self.connection(),
-            hashes.to_vec(),
-        ))
+        let urls = crate::ask(be_block_protocol::read::<Vec<Option<String>>, _>(&self.connection(), Some(self.organization), be_block_protocol::Query::DownloadUrls(hashes.to_vec())))
         .await?;
         match urls.len() == hashes.len() {
             true => Ok(urls),

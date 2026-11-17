@@ -15,20 +15,7 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
         .await;
     let _ = client
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                block,
-                base,
-                None,
-                Vec::new(),
-                objects_change(&[], base_chunks.clone()),
-                1_000,
-                false,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                Vec::new(),
-                None,
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: block, commit: base, expected: None, parents: Vec::new(), held: objects_change(&[], base_chunks.clone()), time: 1_000, pinned: false, references: listing(&[], Vec::new()), metadata: Vec::new(), objects: Vec::new(), journal: None })
         })
         .await;
 
@@ -38,20 +25,7 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
         .await;
     let response = client
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                block,
-                ours,
-                None,
-                Vec::new(),
-                objects_change(&[], ours_chunks.clone()),
-                2_000,
-                false,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                Vec::new(),
-                None,
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: block, commit: ours, expected: None, parents: Vec::new(), held: objects_change(&[], ours_chunks.clone()), time: 2_000, pinned: false, references: listing(&[], Vec::new()), metadata: Vec::new(), objects: Vec::new(), journal: None })
         })
         .await;
     assert!(
@@ -62,20 +36,7 @@ async fn a_stale_publish_is_rejected_with_the_current_head() {
 
     let response = client
         .call(|peer| {
-            client::blocks::publish(
-                peer,
-                block,
-                ours,
-                Some(base),
-                Some(base).into_iter().collect(),
-                objects_change(&base_chunks, ours_chunks),
-                2_000,
-                false,
-                listing(&[], Vec::new()),
-                Vec::new(),
-                Vec::new(),
-                None,
-            )
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: block, commit: ours, expected: Some(base), parents: Some(base).into_iter().collect(), held: objects_change(&base_chunks, ours_chunks), time: 2_000, pinned: false, references: listing(&[], Vec::new()), metadata: Vec::new(), objects: Vec::new(), journal: None })
         })
         .await;
     assert!(

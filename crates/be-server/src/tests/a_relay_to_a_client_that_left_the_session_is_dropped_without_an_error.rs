@@ -27,7 +27,7 @@ async fn body() {
 
     // The peer leaves (dropping its session), and the owner, which cannot know yet, answers
     // it: the answer goes nowhere and is not an error.
-    peer.sessions.remove(&block);
+    peer.leave(block).await;
     let index = state.index + 1;
     owner.membership_until(block, &mut state, index).await;
     assert!(!state.has(peer_id), "the peer never left the session");

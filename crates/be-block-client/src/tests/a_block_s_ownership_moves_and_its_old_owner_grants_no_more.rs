@@ -83,13 +83,7 @@ async fn a_block_s_ownership_moves_and_its_old_owner_grants_no_more() {
         grant_to_carol,
     );
     for (what, entry) in [("at the head now", forced), ("from before", stale)] {
-        let sent = crate::ask(be_block_protocol::client::blocks::set_access(
-            &alice.connection(),
-            plans,
-            carol.account(),
-            Access::View,
-            Some(entry.encode()),
-        ))
+        let sent = crate::ask(be_block_protocol::write::<(), _>(&alice.connection(), Some(alice.organization()), be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Grant { block: plans, account: carol.account(), access: Access::View, signed: Some(entry.encode()) })))
         .await;
         assert!(
             matches!(
@@ -110,13 +104,7 @@ async fn a_block_s_ownership_moves_and_its_old_owner_grants_no_more() {
             identity: carols,
         }),
     );
-    let sent = crate::ask(be_block_protocol::client::blocks::set_access(
-        &alice.connection(),
-        plans,
-        carol.account(),
-        Access::Manage,
-        Some(given_back.encode()),
-    ))
+    let sent = crate::ask(be_block_protocol::write::<(), _>(&alice.connection(), Some(alice.organization()), be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Grant { block: plans, account: carol.account(), access: Access::Manage, signed: Some(given_back.encode()) })))
     .await;
     assert!(
         matches!(

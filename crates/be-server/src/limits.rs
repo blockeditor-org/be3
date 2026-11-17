@@ -43,7 +43,7 @@ pub const MAX_MENTIONS: usize = 1_024;
 
 /// Live sessions one connection may be joined to at once.
 pub const MAX_SESSIONS_PER_CONNECTION: usize = 1_024;
-/// Entry points one connection may follow at once (`changed-since`'s `follow`): the top-level
+/// Entry points one connection may follow at once (`query.tree`'s `follow`): the top-level
 /// blocks and shared blocks whose trees hold what it shows.
 pub const MAX_FOLLOWS_PER_CONNECTION: usize = 4_096;
 /// Streams (watches, session events, change feeds) one connection may have open at once.
@@ -58,15 +58,17 @@ pub const MAX_NAME_BYTES: usize = 200;
 /// large one alone.
 pub const MAX_METADATA_BYTES: usize = 64 * 1024;
 pub use be_block_protocol::MAX_REFERENCES;
-/// The bytes of keys, with their wraps, one `get-keys` page holds.
+/// The bytes of keys, with their wraps, one `query.keys` page holds.
 pub const KEY_PAGE_BYTES: usize = MAX_FRAME_BYTES / 2;
-/// The bytes of summaries one `list-blocks` page holds; its ids take half that more.
+/// The bytes of summaries one `query.list` page holds; its ids take half that more.
 pub const LISTING_PAGE_BYTES: usize = MAX_FRAME_BYTES / 8;
 /// A sealed blob the server keeps for a client: contact cards and their sealed copies, invitation
 /// payloads, pinned escrows, pending grants.
 pub const MAX_SEALED_BYTES: usize = 64 * 1024;
-/// Accounts named in one `get-signing-keys`: more than a chat shows at once.
+/// Accounts named in one `query.signing-keys`: more than a chat shows at once.
 pub const MAX_SIGNING_KEYS_ASKED: usize = 1_024;
+/// Ops one `write` applies in one transaction, which holds the database meanwhile.
+pub const MAX_OPS_PER_WRITE: usize = 256;
 /// A pairing message between an account's connections.
 pub const MAX_PAIRING_BYTES: usize = 64 * 1024;
 /// A message relayed in a live session. Replicas relay operations of at most 1 MiB and send a

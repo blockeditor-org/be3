@@ -9,7 +9,7 @@ async fn a_browser_sign_in_waits_on_polls_and_holds_no_connection() {
     let harness = Harness::start().await;
     harness.member("offline@example.com").await;
     let begun = harness
-        .once(|peer| client::account::begin_browser_login(peer))
+        .once(|peer| begin_login(peer))
         .await
         .expect("a sign-in begins");
     assert_eq!(
@@ -47,7 +47,7 @@ async fn a_browser_sign_in_waits_on_polls_and_holds_no_connection() {
     );
 
     let mut app = harness.client().await;
-    let response = client::account::begin_browser_login(&app.peer).await;
+    let response = begin_login(&app.peer).await;
     assert!(
         !matches!(response, Ok(Ok(_))),
         "a connection began a sign-in rather than authenticating: {response:?}"
