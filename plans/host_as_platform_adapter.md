@@ -555,14 +555,12 @@ Each step lands on its own.
          be-host's runtime does (`Wire`), so its own host-side connection goes: what the wire
          serves itself (published, child-status, dock, block-type and web-view watches, the
          block watches' `next`s, replica streams and sends) it no longer duplicates, and it
-         answers the rest from what the wire hears (`Heard`). `Wire` takes any `Sandbox`
-         (be-host-runtime's `AppSandbox` over `Server`, an editor test's in-process workers),
-         holds any answer the app does not wait on for the next thing sent
-         (`Wire::acknowledge`, which `send_acknowledged` sends at once for a host that steps the
-         app itself), tells one published watch its value (`set_published`), and lends its
-         connection for the replies and streams it hands over (`Wire::connection`). The
-         generated calls name their op (`Call::op`). `link.rs` stays be-sdk-test's store, now
-         answering through the wire.
+         answers the rest from what the wire hears (`Heard`), through the wire's own calls
+         (`answer`, `answer_watch`, `relay`, `accepted`, `stream_item`) and at once, as
+         be-host's runtime answers them. `Wire` takes any `Sandbox` (be-host-runtime's
+         `AppSandbox` over `Server`, an editor test's in-process workers) and tells one published
+         watch its value (`set_published`). The generated calls name their op (`Call::op`).
+         `link.rs` stays be-sdk-test's store, now answering through the wire.
        - 4e3b. The store trait: be-sdk-app-host gains `blocks`, the host side of `be3:blocks`
          (`Subject`, a watch's dedup, a dispatcher over a `BlockStore` trait and the answers to
          watches that wait). be-host-runtime's `Instances` implements it over be-host-stack,
