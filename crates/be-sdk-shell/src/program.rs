@@ -726,6 +726,22 @@ impl Workspace {
         });
     }
 
+    /// Whether a new tab's window opens hidden, for the person to show from the window chips
+    /// (`HostWindow::opens_hidden`); a restored tab opens as it was.
+    pub(crate) fn opens_hidden(&self, tab: TabId) -> bool {
+        if !self.needs_size(tab) {
+            return false;
+        }
+        let Some(window) = self.program_window(tab) else {
+            return false;
+        };
+        self.windows.with(|windows| {
+            windows
+                .iter()
+                .any(|listed| listed.id == window && listed.opens_hidden)
+        })
+    }
+
     /// The listing of a new tab's window, whose size it opens at; none for a tab that was
     /// restored or already sized.
     pub(crate) fn opening_window(&self, tab: TabId) -> Option<HostWindow> {
@@ -824,24 +840,11 @@ pub fn ProgramWindow(workspace: Workspace, tab: TabId) -> DockNode<TabId> {
             }
         });
     }
-    if !untrack(|| workspace.is_display(tab)) {
-        create_effect(move || untrack(|| workspace.sized(tab)));
-    } else if workspace.needs_size(tab) {
-        let heard = workspace.heard_of(tab);
-        let named = create_memo(move || heard.with(|heard| heard.title.is_some()));
-        create_effect(move || {
-            let placed = workspace.on_dock_host(tab, |host, tab| host.window_rect(tab));
-            if named.get() && placed.flatten().is_some() {
-                untrack(|| {
-                    workspace.sized(tab);
-                    workspace.hide(tab);
-                });
-            }
-        });
-    }
+    let hidden = untrack(|| workspace.opens_hidden(tab));
+    create_effect(move || untrack(|| workspace.sized(tab)));
     let pane = format!("window.{}", tab.value());
     view! {
-        <DockWindow id={pane.clone()} rect>
+        <DockWindow id={pane.clone()} rect hidden>
             <DockPane id={pane}>
                 <ProgramTab workspace tab floating=true />
             </DockPane>

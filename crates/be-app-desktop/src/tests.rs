@@ -95,6 +95,7 @@ mod a_volume_louder_than_full_shows_how_much_louder;
 mod a_window_dragged_over_the_bars_passes_beneath_them;
 mod a_window_holding_one_tab_closes_from_its_tab_and_its_bar;
 mod a_window_its_program_minimizes_is_hidden;
+mod a_window_the_host_opens_hidden_waits_in_its_chip_until_picked;
 mod a_window_its_program_raises_comes_in_front_with_the_keyboard;
 mod a_window_launched_from_a_placeholder_takes_its_place;
 mod a_window_moved_to_a_display_at_another_scale_keeps_its_size_in_points_above_its_bars;
@@ -221,6 +222,7 @@ struct TestWindow {
     modal: bool,
     size: Vec2,
     maximized: bool,
+    opens_hidden: bool,
     fullscreen: Option<Rect>,
     focused: bool,
     icon: Option<HostImage>,
@@ -263,6 +265,7 @@ impl TestWindow {
             origin: self.origin.clone(),
             size: (self.size.x >= 1.0 && self.size.y >= 1.0).then_some(self.size),
             maximized: self.maximized,
+            opens_hidden: self.opens_hidden,
         }
     }
 }
@@ -991,6 +994,7 @@ fn host_window(id: u64, focused: bool) -> TestWindow {
         modal: false,
         size: Vec2::new(320.0, 200.0),
         maximized: false,
+        opens_hidden: false,
         fullscreen: None,
         focused,
         icon: None,

@@ -14,6 +14,8 @@ pub struct KnownWindow {
     pub size: Vec2,
     pub min_size: Vec2,
     pub maximized: bool,
+    /// The shell opens it hidden (`host-window.opens-hidden`): set for every Windows entry.
+    pub opens_hidden: bool,
     pub fullscreen: Option<Rect>,
     pub responding: bool,
     pub icon: Option<Picture>,
@@ -38,6 +40,7 @@ impl Default for KnownWindow {
             size: Vec2::ZERO,
             min_size: Vec2::ZERO,
             maximized: false,
+            opens_hidden: false,
             fullscreen: None,
             responding: true,
             icon: None,
@@ -64,6 +67,7 @@ impl KnownWindow {
                 && self.size.y >= self.min_size.y.max(1.0))
             .then_some(self.size),
             maximized: self.maximized,
+            opens_hidden: self.opens_hidden,
         }
     }
 }

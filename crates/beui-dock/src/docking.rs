@@ -751,11 +751,13 @@ impl<K: DockKey> DockingLayout<K> {
                 NodeKind::Window {
                     key,
                     rect,
+                    hidden,
                     children,
                 } => spec.windows.push(DockSpecWindow {
                     key: key.clone(),
                     rect: *rect,
                     placed: None,
+                    hidden: *hidden,
                     root: self.root(children, found),
                 }),
                 NodeKind::Dialog { .. } | NodeKind::Bar { .. } => {}
@@ -960,6 +962,7 @@ impl<K: DockKey> DockingLayout<K> {
                 key: format!("{}{}", joined_prefix(host), window.key),
                 rect: window.rect,
                 placed: window.placed.clone(),
+                hidden: window.hidden,
                 root,
             });
         }
