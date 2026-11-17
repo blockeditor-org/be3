@@ -1993,13 +1993,14 @@ impl<S: ObjectStore> Peer<S> {
         {
             return self.create_locally(creation);
         }
-        let response = crate::ask(
-            be_block_protocol::write_all::<be_block_protocol::BlockSummary, _>(
-                &self.connection(),
-                Some(self.organization),
-                creation.ops(),
-            ),
-        )
+        let response = crate::ask(be_block_protocol::write_all::<
+            be_block_protocol::BlockSummary,
+            _,
+        >(
+            &self.connection(),
+            Some(self.organization),
+            creation.ops(),
+        ))
         .await;
         let response = match response {
             Err(error) if error.is_unreachable() => return self.create_locally(creation),
@@ -2617,10 +2618,7 @@ impl<S: ObjectStore> Peer<S> {
                         block: block,
                         expected: None,
                         commit: None,
-                        references: be_block_protocol::ReferenceChange::between(
-                            &[],
-                            &references,
-                        ),
+                        references: be_block_protocol::ReferenceChange::between(&[], &references),
                         metadata: sealed.clone(),
                         journal: None,
                     },

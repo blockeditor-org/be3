@@ -776,13 +776,14 @@ impl<S: ObjectStore> Peer<S> {
             self.move_to_unsent(block, Some(why))?;
             return Ok(Drained::SetAside { block, why });
         }
-        let response = crate::ask(
-            be_block_protocol::write_all::<be_block_protocol::BlockSummary, _>(
-                &self.connection(),
-                Some(self.organization),
-                creation.ops(),
-            ),
-        )
+        let response = crate::ask(be_block_protocol::write_all::<
+            be_block_protocol::BlockSummary,
+            _,
+        >(
+            &self.connection(),
+            Some(self.organization),
+            creation.ops(),
+        ))
         .await;
         match response {
             Ok(summary) => {
@@ -875,23 +876,18 @@ impl<S: ObjectStore> Peer<S> {
         defining: Defining,
     ) -> Result<Drained, ClientError> {
         let block = defining.block;
-        let response = crate::ask(
-            be_block_protocol::write::<be_block_protocol::Described, _>(
-                &self.connection(),
-                Some(self.organization),
-                be_block_protocol::Op::Publish {
-                    block: block,
-                    expected: None,
-                    commit: None,
-                    references: be_block_protocol::ReferenceChange::between(
-                        &[],
-                        &defining.references,
-                    ),
-                    metadata: defining.metadata.clone(),
-                    journal: None,
-                },
-            ),
-        )
+        let response = crate::ask(be_block_protocol::write::<be_block_protocol::Described, _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Op::Publish {
+                block: block,
+                expected: None,
+                commit: None,
+                references: be_block_protocol::ReferenceChange::between(&[], &defining.references),
+                metadata: defining.metadata.clone(),
+                journal: None,
+            },
+        ))
         .await;
         match response {
             Ok(be_block_protocol::Described::Block(summary)) => {

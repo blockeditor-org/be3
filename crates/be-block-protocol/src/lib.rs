@@ -620,10 +620,12 @@ pub fn write_all<T: FromDone + Send, C: be_wasm_ops::net::Caller + Clone>(
         Ok(pending
             .await?
             .map_err(|refused| refused.error)
-            .and_then(|done| match (done.len() == count, done.into_iter().next()) {
-                (true, Some(done)) => T::from_done(done).ok_or_else(unexpected),
-                _ => Err(unexpected()),
-            }))
+            .and_then(
+                |done| match (done.len() == count, done.into_iter().next()) {
+                    (true, Some(done)) => T::from_done(done).ok_or_else(unexpected),
+                    _ => Err(unexpected()),
+                },
+            ))
     }
 }
 

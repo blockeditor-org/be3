@@ -105,7 +105,9 @@ fn op_case(op: &Op) -> &'static str {
     match op {
         Op::CreateBlock { .. } => "create-block",
         Op::Publish { commit: None, .. } => "publish (no commit)",
-        Op::Publish { commit: Some(_), .. } => "publish",
+        Op::Publish {
+            commit: Some(_), ..
+        } => "publish",
         Op::Move { .. } => "move",
         Op::AppendLog(LogRecord::Grant { .. }) => "append-log (grant)",
         Op::AppendLog(LogRecord::Role { .. }) => "append-log (role)",
