@@ -1811,12 +1811,15 @@ impl<S: ObjectStore> Peer<S> {
             crate::keys::RootPin::Unknown => return Err(ClientError::Locked(block)),
         };
         let entries = self.served_log(block).await?;
-        let cites = entries.iter().filter_map(be_block_keys::Step::entry).any(|entry| {
-            entry
-                .record
-                .authority()
-                .is_some_and(|authority| authority != be_block_keys::Authority::Log)
-        });
+        let cites = entries
+            .iter()
+            .filter_map(be_block_keys::Step::entry)
+            .any(|entry| {
+                entry
+                    .record
+                    .authority()
+                    .is_some_and(|authority| authority != be_block_keys::Authority::Log)
+            });
         let around = match cites {
             true => self.logs_around(block).await?,
             false => Around::default(),

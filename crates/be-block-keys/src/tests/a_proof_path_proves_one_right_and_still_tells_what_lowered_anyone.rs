@@ -85,9 +85,9 @@ fn a_proof_path_proves_one_right_and_still_tells_what_lowered_anyone() {
         "no other member's grant reaches the reader"
     );
     assert!(
-        path.iter()
-            .filter_map(Step::entry)
-            .all(|entry| !matches!(&entry.record, Record::Grant(grant) if grant.grantee == editor_id)),
+        path.iter().filter_map(Step::entry).all(
+            |entry| !matches!(&entry.record, Record::Grant(grant) if grant.grantee == editor_id)
+        ),
     );
     assert!(
         checked.outdates(&opened) && whole.outdates(&opened),
@@ -102,13 +102,23 @@ fn a_proof_path_proves_one_right_and_still_tells_what_lowered_anyone() {
     );
     assert!(
         checked
-            .next(&manager, manager_id, block, grant(editor_id, editor.identity(), Level::View))
+            .next(
+                &manager,
+                manager_id,
+                block,
+                grant(editor_id, editor.identity(), Level::View)
+            )
             .is_none(),
         "nothing but the reader's own grant is signed on a path"
     );
     assert!(
         checked
-            .next(&reader, reader_id, block, grant(reader_id, reader.identity(), Level::None))
+            .next(
+                &reader,
+                reader_id,
+                block,
+                grant(reader_id, reader.identity(), Level::None)
+            )
             .is_some_and(|leaving| leaving.lowers),
         "a reader leaves, and says so"
     );

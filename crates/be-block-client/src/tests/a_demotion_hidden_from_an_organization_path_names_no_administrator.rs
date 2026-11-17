@@ -1,7 +1,7 @@
 use super::*;
 
 use be_block_keys::{
-    Administrator, CarriedKey, Entry, Heads, LogKind, Party, RecoveryPhrase, Record, Step,
+    Administrator, CarriedKey, Entry, Heads, LogKind, Party, Record, RecoveryPhrase, Step,
 };
 use be_block_protocol::{KeyKind, KeyRow, KeySet, WrappedBy, WrappedKey};
 use be_block_store::Keyring;

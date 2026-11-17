@@ -1626,10 +1626,7 @@ impl TestClient {
         let checked = self.organization_log().await;
         let signed = match (checked, self.account) {
             (Some((log, checked)), Some(me))
-                if checked
-                    .administrators
-                    .contains_key(&account.into_bytes())
-                    != administrator =>
+                if checked.administrators.contains_key(&account.into_bytes()) != administrator =>
             {
                 checked
                     .next(
@@ -1821,11 +1818,17 @@ impl TestClient {
             be_block_keys::check_log(kind, of, pinned, entries, &|_, _| None).ok()
         };
         // The last grant the log names for them; the server checks the whole log.
-        let named = log.iter().rev().filter_map(Step::entry).find_map(|entry| match &entry.record {
-            Record::Grant(grant) if grant.grantee == account.into_bytes() => Some(grant.level),
-            Record::Opening(opened) if opening => Some(opened.level),
-            _ => None,
-        });
+        let named =
+            log.iter()
+                .rev()
+                .filter_map(Step::entry)
+                .find_map(|entry| match &entry.record {
+                    Record::Grant(grant) if grant.grantee == account.into_bytes() => {
+                        Some(grant.level)
+                    }
+                    Record::Opening(opened) if opening => Some(opened.level),
+                    _ => None,
+                });
         if level == be_block_keys::Level::None
             && named.is_none_or(|named| named == be_block_keys::Level::None)
         {

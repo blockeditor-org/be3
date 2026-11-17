@@ -41,14 +41,21 @@ async fn a_reader_granted_by_an_administrator_checks_its_path_through_the_organi
             _ => None,
         })
         .collect();
-    assert_eq!(grants.len(), 1, "the reader is served another member's grant");
+    assert_eq!(
+        grants.len(),
+        1,
+        "the reader is served another member's grant"
+    );
     assert_eq!(grants[0].0, vera.account().into_bytes());
     assert!(
         matches!(grants[0].1, Authority::Organization(_)),
         "the administrator granted from the log itself"
     );
     assert_eq!(
-        checked.grants.get(&vera.account().into_bytes()).map(|(level, _)| *level),
+        checked
+            .grants
+            .get(&vera.account().into_bytes())
+            .map(|(level, _)| *level),
         Some(be_block_keys::Level::View)
     );
 }

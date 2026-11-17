@@ -419,7 +419,6 @@ impl Step {
             Step::Reduced(_) => None,
         }
     }
-
 }
 
 impl From<Entry> for Step {
@@ -714,7 +713,8 @@ impl Checked {
             Record::Grant(grant) => last(&grant.grantee).is_some_and(|before| grant.level < before),
             Record::Opening(opening) => opening.level < self.open_inside,
             Record::Administrator(made) => {
-                !made.administrator && last(&made.account).is_some_and(|before| before > Level::None)
+                !made.administrator
+                    && last(&made.account).is_some_and(|before| before > Level::None)
             }
             Record::Member(member) => {
                 !member.member
