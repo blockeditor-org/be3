@@ -74,6 +74,7 @@ async fn a_contact_the_log_never_names_hands_over_a_key_only_with_edit_from_abov
         )
     };
     let mut planted = Vec::new();
+    let mut seals = Vec::new();
     for sender in [&editor, &stranger] {
         let key = Uuid::new_v4();
         let carried = CarriedKey {
@@ -101,13 +102,16 @@ async fn a_contact_the_log_never_names_hands_over_a_key_only_with_edit_from_abov
             note,
             owner.account(),
             sender.account(),
-            sealed,
+            sealed.clone(),
         );
         planted.push(key);
+        seals.push(sealed);
     }
 
     // A device of the owner new to the note, which pins its root from the owner's own key.
-    let device = another(&harness, &owner).await;
+    let refs = refs::RefsDb::memory();
+    let store = MemoryStore::new();
+    let device = harness.device(&owner, &refs, &store).await;
     device.refresh_keys(None).await.unwrap();
     assert!(
         device.keys().has(planted[0]),
@@ -142,6 +146,55 @@ async fn a_contact_the_log_never_names_hands_over_a_key_only_with_edit_from_abov
     assert!(
         device.keys().has(planted[0]),
         "the key vouched for as it arrived is kept"
+    );
+    drop(device);
+
+    // A device that vouched for the editor's wrap of a key, and is then served another unnamed
+    // contact's wrap of the same key, made up: the vouch names the wrap it was found for, so
+    // this one is judged afresh, and refused.
+    let fresh = harness.device(&owner, &refs::RefsDb::memory(), &MemoryStore::new()).await;
+    fresh.checked_access(note).await.unwrap();
+    assert!(
+        fresh
+            .keys()
+            .vouch(note, planted[0], editor.account(), &seals[0])
+            .is_some()
+    );
+    let swapped = {
+        let carried = CarriedKey {
+            key: [9; 32],
+            block: note.into_bytes(),
+            root: None,
+            heads: Heads {
+                block: Some(checked.head),
+                organization: None,
+            },
+        };
+        stranger.keys().identity().seal_for(
+            stranger.account().into_bytes(),
+            &Party {
+                account: owner.account().into_bytes(),
+                public: owner.keys().identity().public(),
+            },
+            planted[0].as_bytes(),
+            &carried.encode(),
+        )
+    };
+    harness
+        .database()
+        .execute(
+            "UPDATE wrapped_keys SET sender = ?1, sealed = ?2 WHERE key_id = ?3",
+            rusqlite::params![
+                stranger.account().to_string(),
+                swapped,
+                planted[0].to_string()
+            ],
+        )
+        .unwrap();
+    fresh.refresh_keys(None).await.unwrap();
+    assert!(
+        !fresh.keys().has(planted[0]),
+        "another contact's wrap of a vouched key was taken"
     );
 
     harness.stop().await;

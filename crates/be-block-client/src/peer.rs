@@ -990,7 +990,7 @@ impl<S: ObjectStore> Peer<S> {
             });
             keys.wrapped = held_back;
         }
-        let mut sealed_by_contacts: Vec<(Uuid, Uuid, Uuid)> = keys
+        let mut sealed_by_contacts: Vec<(Uuid, Uuid, Uuid, Vec<u8>)> = keys
             .wrapped
             .iter()
             .filter(|wrap| {
@@ -1006,18 +1006,18 @@ impl<S: ObjectStore> Peer<S> {
                     .find(|row| row.id == wrap.key)
                     .copied()
                     .or_else(|| self.keys.row(wrap.key))?;
-                Some((row, wrap.sender))
+                Some((row, wrap.sender, wrap.sealed.clone()))
             })
-            .filter(|(row, _)| row.kind == KeyKind::Scope)
-            .map(|(row, sender)| (row.block, sender, row.id))
-            .filter(|(block, _, _)| {
+            .filter(|(row, _, _)| row.kind == KeyKind::Scope)
+            .map(|(row, sender, sealed)| (row.block, sender, row.id, sealed))
+            .filter(|(block, _, _, _)| {
                 matches!(self.keys.root_pin(*block), crate::keys::RootPin::Pinned(_))
             })
             .collect();
         sealed_by_contacts.sort();
         sealed_by_contacts.dedup();
         let mut checked_logs: HashMap<Uuid, Option<be_block_keys::Checked>> = HashMap::new();
-        for (block, sender, key) in sealed_by_contacts {
+        for (block, sender, key, sealed) in sealed_by_contacts {
             if !checked_logs.contains_key(&block) {
                 let checked = self.checked_access(block).await.ok().map(|(_, checked)| checked);
                 checked_logs.insert(block, checked);
@@ -1032,7 +1032,7 @@ impl<S: ObjectStore> Peer<S> {
                 .held_above(checked, sender.into_bytes(), be_block_keys::Level::Edit)
                 .await;
             if let Ok(Some(_)) = above
-                && let Some(kept) = self.keys.vouch(block, key)
+                && let Some(kept) = self.keys.vouch(block, key, sender, &sealed)
             {
                 let _ = self.refs.keep_log(block, kept);
             }

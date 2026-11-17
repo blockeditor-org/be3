@@ -1097,18 +1097,26 @@ impl KeyBook {
     /// A data key is taken from a contact only as an administrator (the settings' data keys,
     /// which key work has them seal to each other): no one else seals one to an account, and
     /// its epoch names its scope's log, which its own block's is not.
-    /// Notes that `key`, a key of `block` sealed by an account its log never names, may be
-    /// taken: its sender held Edit or above on a block the signed parent records place the
-    /// block under as it arrived, as `Peer::held_above` found (`sender_may`), across restarts
-    /// too. That key alone: the sender's later seals are judged as they arrive. Answers what to
-    /// keep when this changed what was kept.
-    pub fn vouch(&self, block: Uuid, key: Uuid) -> Option<crate::refs::KeptLog> {
+    /// Notes that the wrap of `key`, a key of `block`, that `sender` sealed as `sealed` may be
+    /// taken though the block's log never names `sender`: it held Edit or above on a block the
+    /// signed parent records place the block under as the wrap arrived, as `Peer::held_above`
+    /// found (`sender_may`), across restarts too. That wrap alone: any other wrap of the key,
+    /// from that sender or another, is judged as it arrives. Answers what to keep when this
+    /// changed what was kept.
+    pub fn vouch(
+        &self,
+        block: Uuid,
+        key: Uuid,
+        sender: Uuid,
+        sealed: &[u8],
+    ) -> Option<crate::refs::KeptLog> {
+        let vouched = (key.into_bytes(), sender.into_bytes(), sealed_digest(sealed));
         let mut roots = self.roots.lock().unwrap();
         let kept = roots.kept.get_mut(&block)?;
-        if kept.vouched.contains(&key.into_bytes()) {
+        if kept.vouched.contains(&vouched) {
             return None;
         }
-        kept.vouched.push(key.into_bytes());
+        kept.vouched.push(vouched);
         Some(kept.clone())
     }
 
@@ -1125,7 +1133,14 @@ impl KeyBook {
         }
     }
 
-    fn sender_may(&self, sender: Uuid, key: Uuid, carried: &CarriedKey, kind: KeyKind) -> bool {
+    fn sender_may(
+        &self,
+        sender: Uuid,
+        key: Uuid,
+        sealed: &[u8],
+        carried: &CarriedKey,
+        kind: KeyKind,
+    ) -> bool {
         if sender == self.account {
             return true;
         }
@@ -1162,10 +1177,11 @@ impl KeyBook {
         // A block checked in an earlier run but whose log this run has not read (a restart,
         // a refused or short read, offline): judged by the levels kept at the head then, so a
         // sender revoked by then is refused whatever head the key names.
+        let wrap = (key.into_bytes(), account, sealed_digest(sealed));
         let vouched = roots
             .kept
             .get(&block)
-            .is_some_and(|kept| kept.vouched.contains(&key.into_bytes()));
+            .is_some_and(|kept| kept.vouched.contains(&wrap));
         let Some(log) = roots.logs.get(&block) else {
             return roots.kept.get(&block).is_none_or(|kept| {
                 match kept.levels.iter().find(|(named, _)| *named == account) {
@@ -1429,6 +1445,7 @@ impl KeyBook {
                     && !self.sender_may(
                         wrap.sender,
                         wrap.key,
+                        &wrap.sealed,
                         &CarriedKey::decode(&plain).ok()?,
                         row.map_or(KeyKind::Data, |row| row.kind),
                     )
@@ -1674,4 +1691,14 @@ impl KeyBook {
     pub fn missing(&self, keys: impl IntoIterator<Item = Uuid>) -> HashSet<Uuid> {
         keys.into_iter().filter(|key| !self.has(*key)).collect()
     }
+}
+
+/// What a vouch names a wrap's sealed bytes by (`KeyBook::vouch`).
+fn sealed_digest(sealed: &[u8]) -> [u8; 32] {
+    use sha2::Digest;
+    sha2::Sha256::new()
+        .chain_update(b"be3.vouched.v1")
+        .chain_update(sealed)
+        .finalize()
+        .into()
 }
