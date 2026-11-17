@@ -38,6 +38,7 @@ async fn shared_chunks_survive_until_the_last_commit_releases_them() {
                 listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await;
@@ -58,6 +59,7 @@ async fn shared_chunks_survive_until_the_last_commit_releases_them() {
                 listing(&[], Vec::new()),
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await;

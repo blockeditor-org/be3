@@ -1,8 +1,9 @@
 use super::*;
 use be_block_graph::Access;
+use be_block_session::Membership;
 
-/// An editor that holds the lease and is made a viewer hands it to an editor at its next
-/// heartbeat, rather than keeping a session whose edits it may no longer make.
+/// An editor that holds the lease and is made a viewer loses it at once: the server writes the
+/// change of access into the session's order, and the next editor holds the lease from it.
 #[tokio::test]
 async fn a_holder_that_loses_edit_access_hands_the_lease_on() {
     let harness = Harness::start().await;
@@ -19,24 +20,18 @@ async fn a_holder_that_loses_edit_access_hands_the_lease_on() {
     assert!(matches!(granted, Ok(())), "{granted:?}");
 
     let (holder, state) = guest.join_session(block).await;
-    assert_eq!(
-        state.owner,
-        Some(holder),
-        "an editor joining first takes the lease"
+    assert!(
+        state.is_holder(holder),
+        "an editor joining first holds the lease"
     );
-    let (author, _) = owner.join_session(block).await;
+    let (author, mut seen) = owner.join_session(block).await;
+    assert!(seen.is_holder(holder));
 
     let demoted = owner.grant(block, guest_account, Access::View).await;
     assert!(matches!(demoted, Ok(())), "{demoted:?}");
-    let beat = guest.heartbeat(block, state.generation, None).await;
-    let Ok(after) = beat else {
-        panic!("the heartbeat failed: {beat:?}");
-    };
-    assert_eq!(after.owner, Some(author), "the lease went to the editor");
-    assert!(after.generation > state.generation);
-    assert!(
-        after.participants.contains(&holder),
-        "the viewer stays in the session"
-    );
+    let index = seen.index + 1;
+    owner.membership_until(block, &mut seen, index).await;
+    assert!(seen.is_holder(author), "the lease went to the editor");
+    assert!(seen.has(holder), "the viewer stays in the session");
     harness.stop().await;
 }

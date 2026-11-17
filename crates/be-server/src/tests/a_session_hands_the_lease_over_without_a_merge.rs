@@ -1,5 +1,8 @@
 use super::*;
+use be_block_session::Membership;
 
+/// A holder that disconnects leaves its session, which the server writes into the order: the
+/// next editor holds the lease from there and continues from the head without a merge.
 #[tokio::test]
 async fn a_session_hands_the_lease_over_without_a_merge() {
     let harness = Harness::start().await;
@@ -9,51 +12,27 @@ async fn a_session_hands_the_lease_over_without_a_merge() {
     let block = phone.create_block(BlockParent::Root).await;
     let author = Author::new(account);
 
-    let (_, state) = phone.join_session(block).await;
-    let owner = state.owner.expect("the first participant owns the session");
+    let (owner, state) = phone.join_session(block).await;
     assert!(state.is_holder(owner));
 
     let first = author.compose(b"typed on the phone\n", 1_000, None);
     let _ = phone
         .publish(&author, block, first.0, first.1, None, 1_000)
         .await;
-    let response = phone
-        .heartbeat(block, state.generation, Some(first.0))
-        .await;
-    let Ok(beating) = response else {
-        panic!("heartbeat failed: {response:?}");
-    };
-    assert_eq!(beating.clean_at, Some(first.0));
 
     let token = phone.token.clone();
     let mut laptop = harness.second_connection(&token, organization).await;
-    let (on_laptop, joined) = laptop.join_session(block).await;
-    assert_eq!(joined.owner, Some(owner));
+    let (on_laptop, mut joined) = laptop.join_session(block).await;
+    assert!(joined.is_holder(owner));
     drop(phone);
 
-    let taken = loop {
-        if let Notice::SessionChanged {
-            block: changed,
-            state,
-        } = laptop.notification().await
-            && changed == block
-            && state.owner != Some(owner)
-        {
-            break state;
-        }
-    };
-    assert_eq!(
-        taken.owner,
-        Some(on_laptop),
-        "the session kept a disconnected owner: {taken:?}"
+    let index = joined.index + 1;
+    laptop.membership_until(block, &mut joined, index).await;
+    assert!(
+        joined.is_holder(on_laptop),
+        "the session kept a disconnected owner: {joined:?}"
     );
-    assert_eq!(taken.clean_at, Some(first.0));
-
-    assert_eq!(
-        laptop.read_block(block).await.head,
-        taken.clean_at,
-        "the session was durable at the head"
-    );
+    assert!(!joined.has(owner));
 
     let second = author.compose(b"continued on the laptop\n", 2_000, Some(first.0));
     let response = laptop

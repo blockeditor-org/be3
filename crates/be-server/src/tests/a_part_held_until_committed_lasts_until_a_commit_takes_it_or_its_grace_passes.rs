@@ -170,16 +170,26 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
     );
 
     impatient
-        .rebase_journal(
-            organization,
-            other,
-            tag,
-            JournalBase {
-                commit: None,
-                sequence: 1,
-                state: Vec::new(),
-            },
-        )
+        .with_database(move |_, database| {
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
+            crate::journal::rebase(
+                &transaction,
+                organization,
+                other,
+                &crate::journal::Seal {
+                    tag,
+                    run: 0,
+                    base: JournalBase {
+                        commit: None,
+                        sequence: 1,
+                        state: Vec::new(),
+                    },
+                    new_commit: false,
+                },
+            )?;
+            transaction.commit()?;
+            Ok(())
+        })
         .await
         .unwrap();
     assert_eq!(

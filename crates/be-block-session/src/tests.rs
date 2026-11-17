@@ -4,9 +4,8 @@ use uuid::Uuid;
 
 use super::*;
 
-mod an_expired_lease_can_be_claimed_but_a_held_one_cannot;
-mod only_a_participant_that_may_edit_is_granted_the_lease;
-mod ownership_moves_on_when_the_owner_leaves;
+mod replicas_fed_one_order_agree_on_the_holder_at_every_number;
+mod the_holder_is_the_last_claimant_with_edit_access_else_the_first_editor;
 mod resuming_only_merges_when_history_actually_diverged;
 mod the_first_participant_names_the_build_the_session_speaks;
 mod the_order_numbers_each_submission_and_carries_its_floor;
@@ -62,4 +61,11 @@ fn merged(
             &Commit::new(manifest, AUTHOR, time).with_parents(parents),
         )
         .unwrap()
+}
+
+fn joined(may_edit: bool, tag: be_block_store::Hash) -> be_block_protocol::MembershipChange {
+    be_block_protocol::MembershipChange::Joined(be_block_protocol::JoinedParticipant {
+        tag,
+        may_edit,
+    })
 }

@@ -28,6 +28,7 @@ async fn a_block_agent_is_refused_while_its_block_is_in_the_trash() {
                 listing(&[], vec![terminal]),
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await;

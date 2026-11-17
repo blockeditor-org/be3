@@ -33,6 +33,7 @@ async fn a_blocks_references_are_listed_and_announced_together() {
                 listing(&[], issues.clone()),
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await;
@@ -83,6 +84,7 @@ async fn a_blocks_references_are_listed_and_announced_together() {
                 listing(&issues, kept),
                 Vec::new(),
                 Vec::new(),
+                None,
             )
         })
         .await;

@@ -14,11 +14,9 @@ there is HTTP: the sign-in portal, one-shot calls (`begin-browser-login`,
 `poll-browser-login`, `read-invitation`), the long-poll fallback and presigned
 S3 object URLs.
 
-Much of the server exists for concepts a client can own: the session lease
-(generations, expiry, heartbeats, `clean-at`, and a registry that remembers
-empty sessions only for a `clean-at` no client reads), contact rows the account
-seals for itself, account notices, pending key changes, and which organization a
-connection has open.
+Much of the server exists for concepts a client can own: contact rows the
+account seals for itself, account notices, pending key changes, and which
+organization a connection has open.
 
 What the server keeps, because security or storage charging needs it: accounts
 (tokens, agents); organizations (membership and roles, from the signed
@@ -59,7 +57,7 @@ offered, the server's account, its clock), `Session(block, tag)` (joining:
 with `follow`, the session's entries arrive as events until `unfollow`).
 
 **Write ops**: `CreateBlock`, `Publish` (an optional commit, metadata and a
-reference change, and an optional `journal-base`; covers `set-metadata` and
+reference change, and an optional `journal-seal`; covers `set-metadata` and
 `rebase-journal`), `Move` (`set-parent`, with its signed parent record),
 `AppendLog` (grant, revocation, administrator, member and, once
 plans/signed_access.md step 5 lands, owner records: covers `set-access`,
@@ -131,89 +129,25 @@ Each step lands on its own, removes the calls it replaces in the same change
 (decisions/server_protocol_is_unversioned.md), so nothing is migrated: old
 data is deleted. The riskiest cut is last.
 
-### 1. Leases derived from the session order
+### 1. Leases derived from the session order (done)
 
-The server writes membership into the session order, and every replica, and
-the server, derives the lease holder from it with one function. `claim-lease`,
-`heartbeat` and `rebase-journal` go; `Publish` takes an optional
-`journal-base`.
-
-- **Membership entries.** Joining, leaving, a change of the participant's
-  edit access (a grant or a move while joined: today's `Lease::demote`) and a
-  claim are membership entries. The server writes the first three; a claim is
-  an ordered send by a participant with Edit (the terminal host's
-  `Event::Claim`, a hosted block's host). Each is stamped with the order's last
-  number when written (it falls between that submission and the next) and is
-  kept in memory only, not in the journal, so numbering stays gapless and
-  churn never fills `MAX_JOURNAL_BYTES`. Joining answers the membership as of
-  the number it joins at, then follows it. After a server restart every
-  session is empty and rebuilds from joins, as today.
-- **The holder** at any point is the last claimant still present with edit
-  access, else the earliest-joined participant with edit access: what
-  `Lease::demote` already picks (`editors.first()`). The build the session
-  speaks stays its first participant's. One function in be-block-session
-  replaces `Lease`, and the server uses the same one for `submit`'s build
-  check and for plans/hosted_blocks.md's host relay kind (the server still
-  says who hosts: decisions/the_server_never_vouches_for_an_identity.md, "The
-  host lease", unchanged).
-- **Sealing.** A seal is `Publish { commit, expected, journal-base }`: the
-  journal is trimmed to the base only if that publish wins the head's
-  compare-and-swap, in the same transaction, and the base names the commit
-  published. The server tells participants in the session's events which head
-  holds which number, so `SessionMessage::Sealed` and `relay-kind::seal` go
-  too. A trim with no new commit (the last one out restarting for free, a new
-  build starting the journal over) needs the head to be the base's commit and
-  the sender to be the holder at the order's tip, by the server's derivation.
-
-**Why it is safe.**
-
-- *Two sealers.* Content correctness never rested on the lease: every replica
-  applies one order, so any replica's seal through number `n` is the same
-  content. Two replicas that both think they hold the lease (one has not yet
-  seen a claim or a leave) seal against the same head; the compare-and-swap
-  takes one, the other is `Rejected` and trims nothing, then sees the new head
-  and, no longer the holder, leaves the merge. A trim cannot outrun its commit,
-  and the window today's guide describes (the server took the seal but the
-  holder stopped before `rebase-journal`) closes. A base that goes back is
-  refused as today, but for the existing start-afresh rule. No generation is
-  needed for a sealing publish; the holder check covers only trims with no
-  commit.
-- *A holder that goes offline without a leave.* Only the server writes leaves,
-  and it is on every path: it writes one when the socket closes, and when the
-  connection goes silent past `IDLE_TIMEOUT` (90 s), as `leave_all` runs on a
-  disconnect today. Until then the holder stays the holder. That is no worse
-  than now: replicas claim only when the holder is no longer a participant
-  (`claim_if_abandoned`), so today's 30 s expiry already moves no lease while
-  a silent connection stays a participant; it matters only to an explicit
-  claim, which now takes the lease at once.
-- *A timeout without `clean-at`.* No client reads `SessionState::clean_at`;
-  the server keeps it only to decide whether to remember an empty session
-  (`Sessions::settle`), so the registry's empty-session memory goes with it.
-  The only timeout left is the connection's.
-- *A stuck replica on a live connection* keeps the lease, now and before: a
-  holder that stops heartbeating today keeps it too, since nobody claims from
-  a participant. Any editor can claim, and a claim is never wrong, only
-  repeated work.
-
-The argument holds. Accepted: an explicit claim no longer waits for the old
-holder to lapse, so two devices that claim in turn pass the lease back and
-forth.
-
-Removed: `claim-lease`, `heartbeat`, `rebase-journal`, `session-state`'s
-`generation` and `clean-at`, `relay-kind::seal`, `Lease`'s expiry and claims,
-`ServerConfig::lease`, `LEASE_MILLISECONDS`, the registry's empty-session
-memory (`EMPTY_SESSION_MEMORY_MILLISECONDS`, `MAX_EMPTY_SESSIONS`), and the
-replica's heartbeat (`beat_at`, `Effect::ReportClean`, `HEARTBEAT_INTERVAL`).
-
-Done: be-block-session unit tests where replicas fed the same order with
-membership entries interleaved agree on the holder at every number; a
-be-block-client test where two devices seal against one head and only the
-winner's trim is kept; one where the holder's socket goes silent and the next
-editor seals once the server writes its leave; one where a claim moves the
-lease and the old holder's next seal is rejected. The host tests that edit
-together still pass. Guides: guides/blocks/client.md ("Live sessions", "The
-journal"), guides/blocks/server.md ("Live sessions", "The order"),
-guides/type_modules.md (the replica's lease and heartbeat).
+The server writes membership entries (join, leave, a change of edit access, a
+claim) into each session's order, in memory, stamped `after` the order's last
+number and counted by `index`; the server and every replica derive the holder
+with `be_block_session::Membership::holder`. A seal is `publish` with a
+`journal-seal`, trimmed in the publish's transaction and told as
+`session-event.sealed`; a trim with no new commit is a publish of the head on
+itself, from the holder. `claim-lease`, `heartbeat`, `rebase-journal`,
+`relay-kind::seal`, `SessionMessage::Sealed`, the lease's generation, expiry and
+`clean-at`, `ServerConfig::lease` and the registry's empty-session memory are
+gone (guides/blocks/server.md, "Membership"). Where it differs from the plan:
+a claim is the session call `claim` until 3a makes it an ordered send; a seal
+names the build that made it and the run of the order it seals
+(`journal-seal`), so one kept in the outbox and drained before its replica
+rejoins still trims, and a stale one (an earlier run, another build) publishes
+untrimmed; the holder is the last claimant or earliest editor among those that
+run the session's build; and `relay-kind` and the replica's `delivery` are gone
+with `seal`, since only presence and channel messages are relayed.
 
 ### 2. Following whole trees, with one organization sequence
 

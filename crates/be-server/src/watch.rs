@@ -3,7 +3,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use be_block_protocol::{ClientId, OrganizationRole, PairingMessage, SessionState};
+use be_block_protocol::{ClientId, OrganizationRole, PairingMessage};
 use tokio::sync::{
     Mutex,
     mpsc::{Sender, error::TrySendError},
@@ -30,15 +30,20 @@ pub enum Push {
     },
     /// The account's roots may have changed (`tree-change.roots`).
     Roots,
-    SessionChanged {
+    /// The server wrote a membership entry into a session's order.
+    Membership {
         block: Place,
-        state: SessionState,
+        entry: std::sync::Arc<be_block_protocol::MembershipEntry>,
+    },
+    /// A seal moved a session's block's head to `commit`, holding its order through `through`.
+    Sealed {
+        block: Place,
+        commit: be_block_commit::CommitId,
+        through: u64,
     },
     Relayed {
         block: Place,
         from: ClientId,
-        /// What the server checked the sender may send.
-        kind: be_block_protocol::RelayKind,
         /// Shared by every participant's queue, so a relay to many costs one copy.
         payload: std::sync::Arc<[u8]>,
         received: i64,

@@ -1,5 +1,4 @@
 use be_block_client::Event;
-use be_block_protocol::RelayKind;
 
 use super::*;
 
@@ -40,7 +39,6 @@ fn a_stream_of_relays_under_keys_that_cannot_be_got_costs_one_search_per_key() {
         let relayed = |key: Uuid, text: &[u8]| Event::Relayed {
             block,
             from: 2,
-            kind: RelayKind::Peer,
             payload: phone
                 .commits()
                 .vault()

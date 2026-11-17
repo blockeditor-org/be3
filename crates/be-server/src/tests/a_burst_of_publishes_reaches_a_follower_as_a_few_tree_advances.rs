@@ -38,6 +38,7 @@ async fn a_burst_of_publishes_reaches_a_follower_as_a_few_tree_advances() {
             listing(&[], Vec::new()),
             Vec::new(),
             Vec::new(),
+            None,
         ));
         expected = Some(head);
     }

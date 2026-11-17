@@ -170,6 +170,7 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
             be_block_protocol::ReferenceChange::default(),
             Vec::new(),
             vec![backdated],
+            None,
         ))
         .await
         .unwrap();
@@ -224,6 +225,7 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
         be_block_protocol::ReferenceChange::default(),
         Vec::new(),
         Vec::new(),
+        None,
     ))
     .await
     .unwrap_err();

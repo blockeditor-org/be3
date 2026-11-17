@@ -22,7 +22,7 @@ async fn a_rotation_gives_every_block_below_it_a_new_key_or_nothing() {
     assert!(matches!(revoked, Ok(())), "{revoked:?}");
     assert_eq!(work(&mut owner).await.rotations, [shared.block]);
     let spoken = reader
-        .relay(inside, None, RelayKind::Peer, b"still here".to_vec())
+        .relay(inside, None, b"still here".to_vec())
         .await;
     assert!(
         matches!(spoken, Err(_)),

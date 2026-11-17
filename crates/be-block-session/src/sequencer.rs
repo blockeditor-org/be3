@@ -1,4 +1,3 @@
-use be_block_commit::CommitId;
 use be_block_store::PartRef;
 use serde::{Deserialize, Serialize};
 
@@ -67,8 +66,6 @@ pub struct SessionOp {
 /// What replicas relay to each other outside the order.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum SessionMessage {
-    /// The lease holder committed `head`, holding the order through `sequence`.
-    Sealed { head: CommitId, sequence: u64 },
     Presence {
         kind: uuid::Uuid,
         #[serde(with = "serde_bytes")]

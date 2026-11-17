@@ -22,14 +22,23 @@ interface types {
     /// Derived metadata, by key.
     type entries = list<entry>;
 
-    /// The server's state of a block's session: its lease, and the build of
-    /// the type it speaks.
+    /// One connection in a block's session (be-block-protocol's
+    /// `participant`).
+    record participant {
+        client: client-id,
+        tag: session-tag,
+        may-edit: bool,
+        claimed: option<u64>,
+    }
+
+    /// Who is in a block's session as of its `index`-th membership entry,
+    /// in the order they joined (be-block-protocol's `session-state`): the
+    /// lease holder and the build the session speaks follow from it
+    /// (`be_block_session::Membership`).
     record session-state {
-        generation: u64,
-        owner: option<client-id>,
-        participants: list<client-id>,
-        clean-at: option<commit-id>,
-        tag: option<session-tag>,
+        index: u64,
+        after: u64,
+        participants: list<participant>,
     }
 
     record resume-merge {
@@ -213,26 +222,6 @@ interface types {
         peer(client-id),
         editor(editor-id),
         host,
-    }
-
-    /// What a message to peers carries, which the server checks against its
-    /// sender: `peer` for presence and channel messages, which any participant
-    /// sends; `seal` for a seal's news, only from a participant with edit
-    /// access. The host passes it to the
-    /// server and ignores it for an editor or itself.
-    enum relay-kind {
-        peer,
-        seal,
-    }
-
-    /// What the server says of a peer's message it relayed.
-    record delivery {
-        /// What the server checked its sender may send: the replica drops a
-        /// message that asks for more (`Wire::kind`).
-        kind: relay-kind,
-        /// When the server took it, in milliseconds since the Unix epoch by
-        /// its clock, which the sender cannot claim.
-        received: s64,
     }
 
     variant recipients {

@@ -1,9 +1,8 @@
 use super::*;
 
 #[test]
-fn a_holder_whose_lease_lapsed_follows_whoever_claims_it() {
+fn a_holder_follows_whoever_claims_the_lease() {
     let mut sim = Sim::<CounterContent>::new(2, counter_module);
-    sim.lease = Lease::lasting(0);
     for device in 0..2 {
         sim.open(device);
         sim.attach(device, 1, true);
@@ -23,7 +22,7 @@ fn a_holder_whose_lease_lapsed_follows_whoever_claims_it() {
     );
     assert!(
         sim.devices[1].status.holder,
-        "the lapsed lease was not taken"
+        "the claim did not take the lease"
     );
     assert_eq!(sim.publishes, 0);
 

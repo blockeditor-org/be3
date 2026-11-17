@@ -143,7 +143,6 @@ pub struct ServerConfig {
     pub allow_registration: bool,
     pub allow_login: bool,
     pub auth_origin: Option<String>,
-    pub lease: Duration,
     pub portal: Option<be_server_portal::Portal>,
     /// The bytes each account may store (`--account-quota`): the distinct objects of the blocks
     /// it pays for, and its uploads no block holds yet. None for no limit.
@@ -187,7 +186,6 @@ impl ServerConfig {
         allow_registration: false,
         allow_login: false,
         auth_origin: None,
-        lease: Duration::from_millis(be_block_session::LEASE_MILLISECONDS.unsigned_abs()),
         portal: None,
         account_quota: Some(store::DEFAULT_ACCOUNT_QUOTA),
         upload_grace: store::DEFAULT_UPLOAD_GRACE,
@@ -435,6 +433,7 @@ pub async fn serve_with_mail(
             "accounts sign in only with providers this server no longer has, or with passkeys made for another --auth-origin: let one in with `be-server login-link --account ID`"
         );
     }
+    let hub = Arc::new(WatchHub::new());
     let services = Services {
         discovery: Arc::default(),
         pusher: push::Pusher::new(vapid, subject, &config.push),
@@ -461,8 +460,8 @@ pub async fn serve_with_mail(
             objects::Objects::Bucket(_) => None,
         },
         store,
-        hub: Arc::new(WatchHub::new()),
-        registry: Arc::new(SessionRegistry::new(config.lease)),
+        registry: Arc::new(SessionRegistry::new(Arc::clone(&hub))),
+        hub,
         config,
         mail,
         http: Arc::new(http::Sessions::default()),

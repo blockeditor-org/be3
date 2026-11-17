@@ -1,8 +1,8 @@
-pub mod lease;
+pub mod membership;
 pub mod resume;
 pub mod sequencer;
 
-pub use lease::{Claim, LEASE_MILLISECONDS, Lease};
+pub use membership::Membership;
 pub use resume::Resume;
 #[cfg(feature = "store")]
 pub use resume::resume;
