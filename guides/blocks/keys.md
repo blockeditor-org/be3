@@ -179,15 +179,19 @@ before its keys are made, which carry it) or a trusted key of the block
 (`KeyBook::opened`). Keys of one block that carry different roots leave it
 with none (`RootPin::Conflicting`). A root made with a block stays in memory
 until a server takes the creation or the outbox keeps it, and only then is its
-log kept (refs `Logs`, `Peer::keep_made_log`); a creation refused, or
-discarded unsent, lets them go (`KeyBook::forget_made`). A device that holds
-anything of a block's log (a root, or how far it checked the log) never makes a
-root for it: making it again is refused as `BlockAlreadyExists` before anything
-is pinned (`KeyBook::holds_log`), as a second root would conflict with the real
-one and overwrite the kept log its contacts' seals are judged by after a
-restart. `Peer::ensure_type` asks the server for a block it has no summary of
-before making it. `Peer::access_log` refuses a log whose
-root is not the pinned one, or a block whose root conflicts
+log kept (refs `Logs`, `MadeRoot`); a creation refused, failed or discarded
+unsent lets the root and log go (`KeyBook::forget_made`), and lifts a conflict
+it caused with the one root other keys of the block carried meanwhile. An
+outbox creation the server answers `BlockAlreadyExists` stands only when the
+served log starts at the root made with it; one made by someone else (a block
+opened offline with no summary of it) is set aside as refused. A device that
+holds anything of a block's log (a root, or how far it checked the log) never
+makes a root for it: making it again is refused as `BlockAlreadyExists` before
+anything is pinned (`KeyBook::holds_log`), as a second root would conflict with
+the real one and overwrite the kept log its contacts' seals are judged by after
+a restart. `Peer::ensure_type` asks the server for a block it has no summary of
+before making it. `Peer::access_log` refuses a log whose root is not the
+pinned one, or a block whose root conflicts
 (`ClientError::Forged`). A key the server seals pins nothing. An escrow wrap,
 and a key sealed by a member who is not a contact, open only from a sender the
 organization's log names, with the keys it names, and are taken only once the
