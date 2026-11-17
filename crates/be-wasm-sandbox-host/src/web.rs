@@ -2,9 +2,11 @@
 //! instance runs in a web worker of its own (be-wasm-guest-host's `WebGuest`). A staged app's
 //! module is started from the URL it is staged at, with be-host's `worker.js` linking it as an
 //! app is linked, and no display. A module from bytes is compiled on the page with
-//! `WebAssembly.compile`, which never blocks it, once per page for the same bytes, and each
-//! instance of it is a plain worker the page posts the compiled `WebAssembly.Module` to, which
-//! answers only its transport (plans/host_as_platform_adapter.md, The sandbox API).
+//! `WebAssembly.compile`, which never blocks it, once per page for the same bytes, with the
+//! memory it defines imported instead, as natively; each instance of it is a plain worker the
+//! page posts the compiled `WebAssembly.Module` to, which answers only its transport and makes
+//! its memory, capped at the instance's limit (plans/host_as_platform_adapter.md, The sandbox
+//! API).
 
 use std::{
     cell::RefCell,
@@ -14,8 +16,9 @@ use std::{
     sync::{Arc, atomic::AtomicBool},
 };
 
+use be_wasm_dylink::DefinedMemory;
 use be_wasm_guest_host::{Wake, Worker, web::WebGuest};
-use js_sys::{Uint8Array, WebAssembly};
+use js_sys::{Reflect, Uint8Array, WebAssembly};
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 
@@ -26,7 +29,14 @@ pub type ModuleId = [u8; 32];
 #[derive(Clone)]
 pub struct Module {
     id: ModuleId,
-    compiled: Rc<WebAssembly::Module>,
+    compiled: Rc<Compiled>,
+}
+
+/// A module as the page compiled it: with the memory it defines imported instead, so each
+/// instance is given one capped at its own limit.
+struct Compiled {
+    module: WebAssembly::Module,
+    memory: Option<DefinedMemory>,
 }
 
 impl Module {
@@ -38,12 +48,11 @@ impl Module {
 thread_local! {
     /// Every module compiled and still held, so the same bytes compile once. Only the page
     /// compiles, on its one thread.
-    static COMPILED: RefCell<HashMap<ModuleId, Weak<WebAssembly::Module>>> =
-        RefCell::new(HashMap::new());
+    static COMPILED: RefCell<HashMap<ModuleId, Weak<Compiled>>> = RefCell::new(HashMap::new());
 }
 
-/// The only imports a pure guest may have: its transport (be-wasm-guest-abi), which the worker
-/// answers itself.
+/// The only functions a pure guest may import: its transport (be-wasm-guest-abi), which the
+/// worker answers itself. Its memory, which compiling imports, is `env.memory`.
 const TRANSPORT: [&str; 4] = ["host_send", "host_receive", "host_wake", "host_panic"];
 
 /// A compile under way, which the browser finishes off the page's thread.
@@ -59,37 +68,33 @@ impl Compiling {
 }
 
 /// Compiles a pure guest's module (guides/app_libraries.md, Pure guests) from `bytes` with
-/// `WebAssembly.compile`, or finds it compiled already, and calls `wake` once it is done.
+/// `WebAssembly.compile`, or finds it compiled already by its SHA-256, which `crypto.subtle`
+/// takes, and calls `wake` once it is done.
 pub fn compile(bytes: Vec<u8>, wake: Wake) -> Compiling {
-    let id = be_wasm_dylink::sha256(&bytes);
     let done = Rc::new(RefCell::new(None));
-    if let Some(compiled) = compiled(id) {
-        *done.borrow_mut() = Some(Ok(Module { id, compiled }));
-        wake();
-        return Compiling { done };
-    }
     let finishing = Rc::clone(&done);
     wasm_bindgen_futures::spawn_local(async move {
-        let bytes = Uint8Array::from(bytes.as_slice());
-        let compiled = JsFuture::from(WebAssembly::compile(&bytes)).await;
-        *finishing.borrow_mut() = Some(finish(id, compiled));
+        let compiled = compiled(bytes).await;
+        *finishing.borrow_mut() = Some(compiled);
         wake();
     });
     Compiling { done }
 }
 
-fn compiled(id: ModuleId) -> Option<Rc<WebAssembly::Module>> {
-    COMPILED.with(|compiled| compiled.borrow().get(&id)?.upgrade())
-}
-
-fn finish(
-    id: ModuleId,
-    compiled: Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue>,
-) -> Result<Module, String> {
-    let compiled: WebAssembly::Module = compiled
-        .map_err(|error| format!("the module is not valid: {}", describe(&error)))?
-        .unchecked_into();
-    pure(&compiled)?;
+async fn compiled(bytes: Vec<u8>) -> Result<Module, String> {
+    let bytes = Uint8Array::from(bytes.as_slice());
+    let id = sha256(&bytes).await?;
+    let kept = COMPILED.with(|held| held.borrow().get(&id).and_then(Weak::upgrade));
+    if let Some(compiled) = kept {
+        return Ok(Module { id, compiled });
+    }
+    let (bytes, memory) = be_wasm_dylink::importing_memory(&bytes.to_vec())?;
+    let module: WebAssembly::Module =
+        JsFuture::from(WebAssembly::compile(&Uint8Array::from(bytes.as_slice())))
+            .await
+            .map_err(|error| format!("the module is not valid: {}", describe(&error)))?
+            .unchecked_into();
+    pure(&module)?;
     let compiled = COMPILED.with(|held| {
         let mut held = held.borrow_mut();
         held.retain(|_, module| module.strong_count() > 0);
@@ -97,7 +102,7 @@ fn finish(
         match held.get(&id).and_then(Weak::upgrade) {
             Some(kept) => kept,
             None => {
-                let compiled = Rc::new(compiled);
+                let compiled = Rc::new(Compiled { module, memory });
                 held.insert(id, Rc::downgrade(&compiled));
                 compiled
             }
@@ -106,17 +111,45 @@ fn finish(
     Ok(Module { id, compiled })
 }
 
-/// Checks that `module` imports nothing but its transport, as a pure guest's module does.
+/// The SHA-256 of `bytes`, from `crypto.subtle`, which hashes off the page's thread.
+async fn sha256(bytes: &Uint8Array) -> Result<ModuleId, String> {
+    let unavailable = |_| "this page cannot hash: it has no crypto.subtle".to_owned();
+    let subtle = Reflect::get(&js_sys::global(), &"crypto".into())
+        .and_then(|crypto| Reflect::get(&crypto, &"subtle".into()))
+        .map_err(unavailable)?;
+    let digest: js_sys::Function = Reflect::get(&subtle, &"digest".into())
+        .map_err(unavailable)?
+        .dyn_into()
+        .map_err(|_| "this page cannot hash: it has no crypto.subtle".to_owned())?;
+    let promise: js_sys::Promise = digest
+        .call2(&subtle, &"SHA-256".into(), bytes)
+        .map_err(|error| format!("the module could not be hashed: {}", describe(&error)))?
+        .unchecked_into();
+    let hashed = JsFuture::from(promise)
+        .await
+        .map_err(|error| format!("the module could not be hashed: {}", describe(&error)))?;
+    Uint8Array::new(&hashed)
+        .to_vec()
+        .try_into()
+        .map_err(|_| "the module's hash is not 32 bytes".to_owned())
+}
+
+/// Checks that `module` imports nothing but its transport and its memory, as a pure guest's
+/// module does once its memory is imported.
 fn pure(module: &WebAssembly::Module) -> Result<(), String> {
     for wanted in WebAssembly::Module::imports(module).iter() {
         let field = |key: &str| {
-            js_sys::Reflect::get(&wanted, &key.into())
+            Reflect::get(&wanted, &key.into())
                 .ok()
                 .and_then(|value| value.as_string())
                 .unwrap_or_default()
         };
-        let (from, name) = (field("module"), field("name"));
-        if from != "be3_host" || !TRANSPORT.contains(&name.as_str()) {
+        let (from, name, kind) = (field("module"), field("name"), field("kind"));
+        let transport = from == "be3_host" && TRANSPORT.contains(&name.as_str());
+        let memory = from == be_wasm_dylink::ENV
+            && name == be_wasm_dylink::MEMORY_NAME
+            && kind == "memory";
+        if !transport && !memory {
             return Err(format!(
                 "the guest imports {from}.{name}, which a pure guest may not"
             ));
@@ -133,13 +166,29 @@ fn describe(error: &wasm_bindgen::JsValue) -> String {
         .unwrap_or_else(|| "the browser refused it".to_owned())
 }
 
+/// The pages of the memory an instance of `memory` gets, initial and maximum, capped at
+/// `limit` bytes, or why the module needs more than that from the start.
+fn capped(memory: DefinedMemory, limit: usize) -> Result<(u64, u64), String> {
+    let cap = limit as u64 / u64::from(be_wasm_dylink::PAGE_SIZE);
+    if memory.initial > cap {
+        return Err(format!(
+            "the guest's memory starts at {} pages, past its limit of {cap}",
+            memory.initial
+        ));
+    }
+    Ok((
+        memory.initial,
+        memory.maximum.map_or(cap, |maximum| maximum.min(cap)),
+    ))
+}
+
 /// How an instance runs.
 pub struct Config {
     /// Its name, which says which instance could not start.
     pub name: String,
-    /// The most bytes its memory may hold, which the browser cannot hold a worker to: there it is
-    /// the most its own memory declares.
-    #[allow(dead_code)]
+    /// The most bytes its memory may hold. A module from bytes gets a memory that grows no
+    /// further; the browser cannot hold a staged app's worker to it, whose memory is the most its
+    /// own declares.
     pub memory_limit: usize,
 }
 
@@ -176,9 +225,19 @@ pub struct Instance {
 pub fn spawn(source: Source, config: Config, wake: Wake) -> Result<Instance, String> {
     let waiting = Arc::new(AtomicBool::new(false));
     let guest = match source {
-        Source::Module(module) => {
-            WebGuest::start_module(&module.compiled, wake, Arc::clone(&waiting))
-        }
+        Source::Module(module) => module
+            .compiled
+            .memory
+            .map(|memory| capped(memory, config.memory_limit))
+            .transpose()
+            .and_then(|memory| {
+                WebGuest::start_module(
+                    &module.compiled.module,
+                    memory,
+                    wake,
+                    Arc::clone(&waiting),
+                )
+            }),
         Source::App(staged) => {
             WebGuest::start(&staged.url, Some(EXTENSION), wake, Arc::clone(&waiting))
         }

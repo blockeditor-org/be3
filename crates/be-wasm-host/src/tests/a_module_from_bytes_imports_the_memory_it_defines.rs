@@ -9,7 +9,15 @@ fn a_module_from_bytes_imports_the_memory_it_defines() {
             (func (export "app_start")))"#,
     )
     .unwrap();
-    let importing = engine::importing_memory(&defining).unwrap();
+    let (importing, defined) = be_wasm_dylink::importing_memory(&defining).unwrap();
+    assert_eq!(
+        defined,
+        Some(be_wasm_dylink::DefinedMemory {
+            initial: 2,
+            maximum: Some(5)
+        }),
+        "it answers the memory the module defined"
+    );
     wasmparser::Validator::new()
         .validate_all(&importing)
         .expect("the module is still valid");
@@ -30,7 +38,7 @@ fn a_module_from_bytes_imports_the_memory_it_defines() {
         )
     );
     // Beside a function it imports, whose index (and so every call and export) stays as it was.
-    let merged = engine::importing_memory(
+    let (merged, _) = be_wasm_dylink::importing_memory(
         &wat::parse_str(
             r#"(module
                 (import "be3_host" "host_wake" (func $wake))
@@ -63,7 +71,8 @@ fn a_module_from_bytes_imports_the_memory_it_defines() {
         "app_start is still the function after the import"
     );
     // A memory and nothing else: the import section goes last.
-    let alone = engine::importing_memory(&wat::parse_str("(module (memory 1))").unwrap()).unwrap();
+    let (alone, _) =
+        be_wasm_dylink::importing_memory(&wat::parse_str("(module (memory 1))").unwrap()).unwrap();
     wasmparser::Validator::new().validate_all(&alone).unwrap();
     assert!(
         engine::Shape::read(&alone)
@@ -72,5 +81,8 @@ fn a_module_from_bytes_imports_the_memory_it_defines() {
             .is_some()
     );
     let unchanged = wat::parse_str(r#"(module (func (export "app_start")))"#).unwrap();
-    assert_eq!(engine::importing_memory(&unchanged).unwrap(), unchanged);
+    assert_eq!(
+        be_wasm_dylink::importing_memory(&unchanged).unwrap(),
+        (unchanged.clone(), None)
+    );
 }

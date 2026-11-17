@@ -2,10 +2,11 @@
 //! is instantiated on the page and stepped inline on its thread, where WebXR and
 //! `requestAnimationFrame` run and from which no worker can be called synchronously. The page
 //! never waits (decisions/the_web_page_never_waits.md), so a frame is not one call as natively:
-//! `Root::frame`, called from `requestAnimationFrame`, steps the root as far as it goes and
-//! returns, and whatever the root waits on resumes it from a task of its own: an instance's
-//! worker answering, a compile finishing, the root waking itself, or a timer at the frame's
-//! deadline and at its patience past it. The frame is handed over once the root answers.
+//! `Root::frame`, called from `requestAnimationFrame`, steps the root as far as it goes, for a
+//! slice of the thread at most (`SLICE`), and returns, and whatever the root waits on resumes it
+//! later: an instance's worker answering, a compile finishing, the root waking itself, a timer
+//! at the frame's deadline and at its patience past it, or, once its slice ran out, a task of its
+//! own after the page's others. The frame is handed over once the root answers.
 
 use std::{
     cell::{Cell, RefCell},
@@ -43,7 +44,18 @@ struct Shared {
     /// The timer that resumes the root at the moment it waits for: the frame's deadline, or its
     /// patience past it.
     timer: RefCell<Option<Timer>>,
+    /// Whether the root is being stepped, during which what rings is the step's to take.
+    stepping: Cell<bool>,
+    /// Resumes a root that used its slice of the page's thread, as a task of its own, after
+    /// whatever input and rendering the page has waiting.
+    after: web_sys::MessageChannel,
+    _resumed: Closure<dyn FnMut(web_sys::MessageEvent)>,
 }
+
+/// The most of the page's thread a root steps for at once: one step at least, and others while
+/// they fit. A root with more to do resumes after a task's turn, so a root busy for long, or one
+/// stuck waking itself, never holds up the page's input and rendering.
+const SLICE: Duration = Duration::from_millis(4);
 
 thread_local! {
     /// Every root on the page by its number, which its wakes name since they may not hold it:
@@ -52,12 +64,19 @@ thread_local! {
     static NEXT: Cell<u64> = const { Cell::new(0) };
 }
 
-/// Something the root `id` waits on may have arrived: queues a task that resumes its frame.
+fn root(id: u64) -> Option<Rc<Shared>> {
+    ROOTS.with(|roots| roots.borrow().get(&id).and_then(Weak::upgrade))
+}
+
+/// Something the root `id` waits on may have arrived: queues a microtask that resumes its frame.
+/// This is the first wake after the root waited, so the root takes it before anything else; a
+/// root that keeps stepping resumes as a task of its own instead (`SLICE`). What rings while the
+/// root is stepped is the step's to take, from its own state.
 fn ring(id: u64) {
-    let Some(shared) = ROOTS.with(|roots| roots.borrow().get(&id).and_then(Weak::upgrade)) else {
+    let Some(shared) = root(id) else {
         return;
     };
-    if shared.queued.replace(true) {
+    if shared.stepping.get() || shared.queued.replace(true) {
         return;
     }
     let held = Rc::downgrade(&shared);
@@ -67,7 +86,7 @@ fn ring(id: u64) {
             shared.resume();
         }
     });
-    // Queued as a microtask, never run inline: a wake may come from inside a step of the root.
+    // Queued, never run inline: a wake may come from inside a call into the root's host.
     let global = js_sys::global();
     if let Ok(queue) = Reflect::get(&global, &"queueMicrotask".into())
         && let Ok(queue) = queue.dyn_into::<Function>()
@@ -93,7 +112,7 @@ impl Root {
         }
         let bytes = response
             .array_buffer()
-            .map_err(|error| describe(&error))?;
+            .map_err(|error| format!("{url} could not be read: {}", describe(&error)))?;
         let bytes = JsFuture::from(bytes)
             .await
             .map_err(|error| format!("{url} could not be read: {}", describe(&error)))?;
@@ -109,12 +128,23 @@ impl Root {
         let wake: Wake = Arc::new(move || ring(id));
         let guest = PageGuest::start(module, Arc::clone(&wake)).await?;
         let core = Core::new(guest, Server::new(wake, apps))?;
+        let after = web_sys::MessageChannel::new()
+            .map_err(|error| format!("the root's page has no MessageChannel: {}", describe(&error)))?;
+        let resumed = Closure::<dyn FnMut(web_sys::MessageEvent)>::new(move |_| {
+            if let Some(shared) = root(id) {
+                shared.resume();
+            }
+        });
+        after.port1().set_onmessage(Some(resumed.as_ref().unchecked_ref()));
         let shared = Rc::new(Shared {
             id,
             core: RefCell::new(core),
             drawn: RefCell::new(None),
             queued: Cell::new(false),
             timer: RefCell::new(None),
+            stepping: Cell::new(false),
+            after,
+            _resumed: resumed,
         });
         ROOTS.with(|roots| roots.borrow_mut().insert(id, Rc::downgrade(&shared)));
         Ok(Self { shared })
@@ -147,7 +177,10 @@ impl Root {
             match core.begin(request, deadline) {
                 Ok(()) => {
                     *self.shared.drawn.borrow_mut() = Some(Box::new(drawn));
-                    core.advance()
+                    self.shared.stepping.set(true);
+                    let progress = core.advance(Some(SLICE));
+                    self.shared.stepping.set(false);
+                    progress
                 }
                 Err(failure) => {
                     drop(core);
@@ -174,7 +207,10 @@ impl Shared {
             if !core.drawing() {
                 return;
             }
-            core.advance()
+            self.stepping.set(true);
+            let progress = core.advance(Some(SLICE));
+            self.stepping.set(false);
+            progress
         };
         self.settle(progress);
     }
@@ -193,6 +229,9 @@ impl Shared {
                 let timer = Timer::at(until, self.id);
                 *self.timer.borrow_mut() = timer;
             }
+            Progress::Yielded => {
+                let _ = self.after.port2().post_message(&JsValue::UNDEFINED);
+            }
         }
     }
 }
@@ -200,6 +239,7 @@ impl Shared {
 impl Drop for Shared {
     fn drop(&mut self) {
         let _ = ROOTS.try_with(|roots| roots.borrow_mut().remove(&self.id));
+        self.after.port1().set_onmessage(None);
         self.timer.get_mut().take();
         self.core.get_mut().guest.stop();
     }
