@@ -286,13 +286,13 @@ impl<D: 'static> DragSpec<D> {
 
 /// What a drag lifts: its payload, erased (a board hands it back typed), and the item's rect
 /// relative to the pointer, which the item keeps while it floats. With no `item`, an
-/// `Interactive` lifting it gives its own node, held where it was pressed. Its `face` says
-/// what is drawn for the item.
+/// `Interactive` lifting it gives its own node, held where it was pressed. Its `face`, set by
+/// `preview` or `drawn_by_site`, says what is drawn for the item.
 #[derive(Clone)]
 pub struct Carry {
     pub payload: Rc<dyn std::any::Any>,
     pub item: Option<Rect>,
-    pub face: CarryFace,
+    face: CarryFace,
     pub outside: Option<Rc<dyn Fn(DragPoint)>>,
 }
 
@@ -335,6 +335,11 @@ impl Carry {
             face: CarryFace::Preview(Rc::new(preview)),
             ..self
         }
+    }
+
+    /// What is drawn for the item.
+    pub fn face(&self) -> &CarryFace {
+        &self.face
     }
 
     /// Draws nothing for the item from the source: a site draws it.
