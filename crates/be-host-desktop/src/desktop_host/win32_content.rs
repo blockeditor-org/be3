@@ -30,6 +30,9 @@ pub trait ContentInput {
     fn laser(&self, _at: Pos2, _laser: Laser, _panel: Vec2) {}
     /// The pointer came over the content or left it.
     fn hovered(&self, _over: bool) {}
+    /// The content's node took or lost beui's keyboard focus, as when the shell gives the window
+    /// the keyboard; it never starts focus mode.
+    fn keyboard(&self, _held: bool) {}
 }
 
 /// Takes the pointer on a captured entry's content and hands it to `input`. `focus` is the
@@ -81,8 +84,13 @@ fn route(
 ) {
     let panel = forwarded.rect.size();
     for event in &forwarded.events {
-        let Forwarded::Pointer { event, over } = event else {
-            continue;
+        let (event, over) = match event {
+            Forwarded::Pointer { event, over } => (event, over),
+            Forwarded::Focus(held) => {
+                input.keyboard(*held);
+                continue;
+            }
+            _ => continue,
         };
         let at = over.map_or(event.pos - forwarded.rect.min.to_vec2(), |over| over.local);
         if event.pointer.is_controller() {

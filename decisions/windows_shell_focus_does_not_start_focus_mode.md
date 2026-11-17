@@ -1,4 +1,4 @@
-# On Windows the shell's `focus` window action does not start focus mode
+# On Windows the shell's `focus` window action only gives the surface beui's keyboard focus, never focus mode
 
 On the Windows host, the shell's `focus` window action (a press on a panel's title bar, the
 picker, a tab given the keyboard: `WindowSurface`'s `focus`) does nothing but give the surface's node
