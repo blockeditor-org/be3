@@ -1,8 +1,12 @@
-//! The sandbox for modules from bytes (plans/host_as_platform_adapter.md, The sandbox API): a pure
-//! guest's module compiled once per process, named by the SHA-256 of its bytes, on a thread of its
-//! own, and instances of it, each on a thread and isolate of its own with only the transport,
-//! talking to their spawner by frames over a `be_wasm_guest_host::Channel`. What an instance may do
-//! beside computing, its spawner serves it over those frames.
+//! The sandbox (plans/host_as_platform_adapter.md, The sandbox API): instances, each on a thread
+//! and isolate of its own, talking to their spawner by frames over a `be_wasm_guest_host::Channel`.
+//! An instance runs either
+//!
+//! - a module from bytes: a pure guest's module compiled once per process, named by the SHA-256
+//!   of its bytes, on a thread of its own, given only the transport. What it may do beside
+//!   computing, its spawner serves it over its frames; or
+//! - a staged app (`Staged`), linked against the libraries it names and given WASI, as the host
+//!   runs that app, but with no display: it has no gpu.
 //!
 //! A module from bytes never reaches the code cache (cache.rs): it is compiled anew in each
 //! process and freed once nothing holds it. A stopped instance's thread is reaped lazily by the
@@ -18,7 +22,7 @@ use std::{
 
 use be_wasm_guest_host::{Deadline, Wake, Worker, thread::Threaded};
 
-use crate::{App, Code, Host, engine};
+use crate::{App, Code, Host, Stored, engine};
 
 /// A module, by the SHA-256 of the bytes it was compiled from.
 pub type ModuleId = [u8; 32];
@@ -161,7 +165,40 @@ pub struct Config {
     pub memory_limit: usize,
 }
 
-/// An instance of a module on a thread and isolate of its own. Dropping it stops it, even
+/// What an instance runs.
+pub enum Source {
+    /// A module compiled from bytes, given only the transport.
+    Module(Module),
+    /// A staged app.
+    App(Staged),
+}
+
+/// Reads a staged app's files by name: its module and the libraries it is linked against
+/// (`library_file_name`).
+pub type Open = Arc<dyn Fn(&str) -> Result<Stored, String> + Send + Sync>;
+
+/// A staged app's module, `entry`, and where it and its libraries are read from, as the host's
+/// staged-app loading finds them (be-host-runtime's `staged_app`).
+#[derive(Clone)]
+pub struct Staged {
+    entry: String,
+    open: Open,
+}
+
+impl Staged {
+    pub fn new(entry: String, open: Open) -> Self {
+        Self { entry, open }
+    }
+
+    /// Loads the app on `host`, linked against the libraries it names.
+    pub fn load(&self, host: &Host) -> Result<App, String> {
+        host.load_from(&self.entry, |name| (self.open)(name))
+    }
+}
+
+const NO_DISPLAY: &str = "an app spawned in the sandbox has no display";
+
+/// An instance of a source on a thread and isolate of its own. Dropping it stops it, even
 /// mid-step, by terminating its isolate.
 pub struct Instance {
     worker: Worker<Threaded<Infallible>>,
@@ -169,13 +206,20 @@ pub struct Instance {
     failure: Option<String>,
 }
 
-/// Starts an instance of `module`, which calls `wake` whenever it has sent frames or stopped.
-pub fn spawn(module: &Module, config: Config, wake: Wake) -> Result<Instance, String> {
+/// Starts an instance of `source`, which calls `wake` whenever it has sent frames or stopped. A
+/// staged app that cannot be read or linked starts, and stops at once saying why.
+pub fn spawn(source: Source, config: Config, wake: Wake) -> Result<Instance, String> {
     let waiting = Arc::new(AtomicBool::new(false));
-    let compiled = Arc::clone(&module.compiled);
-    let channel = Host::pure()?.with_memory_limit(config.memory_limit).spawn(
+    let host = match &source {
+        Source::Module(_) => Host::pure()?,
+        Source::App(_) => Host::on_demand(|| Err(NO_DISPLAY.to_owned()))?,
+    };
+    let channel = host.with_memory_limit(config.memory_limit).spawn(
         config.name,
-        move |host| App::new(host, Code::Compiled(compiled), &no_library),
+        move |host| match source {
+            Source::Module(module) => App::new(host, Code::Compiled(module.compiled), &no_library),
+            Source::App(staged) => staged.load(host),
+        },
         wake,
         Arc::clone(&waiting),
         be_wasm_guest_host::thread::catch,

@@ -8,7 +8,7 @@ fn an_instance_that_stopped_says_why() {
             .await
             .unwrap()
             .unwrap();
-        let instance = guest::sandbox::Instance::new(module, config());
+        let instance = guest::sandbox::Instance::new(Source::Module(module), config());
         instance
             .send(vec![be_wasm_guest_echo::PANIC.to_vec()])
             .await
@@ -19,7 +19,7 @@ fn an_instance_that_stopped_says_why() {
                 Err(failure) => break failure,
             }
         };
-        let never = guest::sandbox::Instance::new([0; 32], config());
+        let never = guest::sandbox::Instance::new(Source::Module([0; 32]), config());
         let unknown = never.next().await.unwrap();
         (panicked, unknown)
     });

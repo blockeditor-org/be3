@@ -11,6 +11,7 @@ be-wasm-ops = { path = "../be-wasm-ops" }
 be-wasm-sandbox-api = { path = "../be-wasm-sandbox-api" }
 
 [dev-dependencies]
+be-wasm-dylink = { path = "../be-wasm-dylink" }
 be-wasm-guest-echo = { path = "../be-wasm-guest-echo" }
 
 [lints]

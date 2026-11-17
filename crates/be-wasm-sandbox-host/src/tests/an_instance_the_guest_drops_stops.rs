@@ -8,7 +8,7 @@ fn an_instance_the_guest_drops_stops() {
             .await
             .unwrap()
             .unwrap();
-        let instance = guest::sandbox::Instance::new(module, config());
+        let instance = guest::sandbox::Instance::new(Source::Module(module), config());
         instance
             .send(vec![be_wasm_guest_echo::HANG.to_vec()])
             .await

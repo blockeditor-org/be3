@@ -12,7 +12,7 @@ use be_wasm_guest_host::{
     Presented, Produced,
     thread::{self, Runnable, Threaded},
 };
-use be_wasm_host::{App, Host};
+use be_wasm_host::{App, Host, sandbox::Staged};
 
 use super::{
     backend::StepTime,
@@ -155,20 +155,40 @@ fn keep_staged_exports() {
     });
 }
 
+/// The staged app with the id `app_id`, as the sandbox spawns it (`be_wasm_sandbox_host::Loader`):
+/// its manifest's module, read with the libraries it is linked against from the staged apps, as
+/// the host loads every app.
+pub fn staged_app(app_id: &str) -> Result<Staged, String> {
+    discovery::manifests()
+        .iter()
+        .find(|manifest| manifest.identity.id == app_id)
+        .map(|manifest| staged(manifest.entry_point.clone()))
+        .ok_or_else(|| format!("no staged app has the id {app_id}"))
+}
+
+/// A staged module, which tells be-wasm-host what every staged app imports before its first read,
+/// on the thread that loads it.
+fn staged(module: String) -> Staged {
+    Staged::new(
+        module,
+        Arc::new(|name| {
+            keep_staged_exports();
+            discovery::open(name)
+        }),
+    )
+}
+
 fn start(
     app: &AppManifest,
     module: &str,
     host: Host,
 ) -> Result<(Channel, Mailbox, Arc<AtomicBool>), String> {
-    let module = module.to_owned();
+    let staged = staged(module.to_owned());
     let waiting = Arc::<AtomicBool>::default();
     let mailbox = host.imports();
     let channel = host.spawn(
         format!("app {}", app.identity.id),
-        move |host| {
-            keep_staged_exports();
-            host.load_from(&module, discovery::open).map(Editor)
-        },
+        move |host| staged.load(host).map(Editor),
         Arc::new(be_host_base::host::wake),
         Arc::clone(&waiting),
         |run| be_host_base::panic_guard::contain(run),

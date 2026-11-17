@@ -1,11 +1,9 @@
 package be3:sandbox@0.1.0;
 
-/// Modules compiled from bytes, and instances of them, which the host runs
-/// for a guest (plans/host_as_platform_adapter.md, The sandbox API). An
-/// instance is a pure guest (guides/app_libraries.md, Pure guests): its only
-/// imports are its transport, and whatever else it may do, its spawner serves
-/// it over its frames. Natively each instance has a thread and an isolate of
-/// its own.
+/// Instances the host runs for a guest, of modules it compiled from bytes or
+/// of staged apps (plans/host_as_platform_adapter.md, The sandbox API).
+/// Natively each instance has a thread and an isolate of its own, and talks to
+/// its spawner by frames.
 interface sandbox {
     use be3:shared/ids@0.1.0.{hash};
 
@@ -18,6 +16,23 @@ interface sandbox {
     /// the guest that compiled it runs, and is never kept on the device.
     compile: async func(bytes: list<u8>) -> result<module-id, string>;
 
+    /// A staged app, by the id its manifest gives it, such as `be3.checklist`.
+    type app-id = string;
+
+    /// What an instance runs.
+    variant source {
+        /// A module this guest compiled. The instance is a pure guest
+        /// (guides/app_libraries.md, Pure guests): its only imports are its
+        /// transport, and whatever else it may do, its spawner serves it over
+        /// its frames.
+        module(module-id),
+        /// A staged app's module, linked against the libraries its manifest
+        /// names and given WASI, as the host runs that app, with no display:
+        /// it has no gpu. Its frames are the app protocol, which the spawner
+        /// answers as the app's host.
+        app(app-id),
+    }
+
     /// How an instance runs.
     record config {
         /// Its thread's name, which logs and the host's reports show.
@@ -26,10 +41,12 @@ interface sandbox {
         memory-limit: u64,
     }
 
-    /// An instance of a module this guest compiled. Dropping it stops it, even
-    /// in the middle of a step, by terminating its isolate.
+    /// An instance of a source. Dropping it stops it, even in the middle of a
+    /// step, by terminating its isolate. One that could not start, such as
+    /// one of a module this guest did not compile or of an app no staged app
+    /// has the id of, says why from `next`.
     resource instance {
-        constructor(module: module-id, config: config);
+        constructor(source: source, config: config);
         /// Queues frames for it; it is stepped with them as soon as it is
         /// free.
         send: async func(frames: list<list<u8>>);
@@ -40,7 +57,7 @@ interface sandbox {
     }
 }
 
-/// A guest that runs modules from bytes.
+/// A guest that runs instances.
 world spawner {
     import sandbox;
 }

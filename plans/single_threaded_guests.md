@@ -1,7 +1,7 @@
 # Single-threaded guests
 
-Depends on: plans/host_as_platform_adapter.md, steps 1 and 2 (the sandbox API and spawning staged
-apps, which an app needs to start its own worker).
+Depends on: none. It builds on the sandbox API and spawning staged apps by id
+(plans/host_as_platform_adapter.md, steps 1 and 2, both built natively).
 
 Every guest is built for `wasm32-wasip1-threads` today: one shared memory per app, threads made
 by `wasi-threads` (`thread-spawn`), and a thread-local block per module per thread. Drop that.
@@ -63,8 +63,12 @@ not write its own.
 ## Steps
 
 1. Serve the sandbox API to apps. An app may spawn only its own staged module, at another entry
-   point, with the imports the host serves that app; modules from bytes stay the root guest's
-   until a plan gives apps a reason for them (the Games app's game modules would be one).
+   point, with the imports the host serves that app. The `app(app-id)` source starts the
+   manifest's module at its usual `app_start`, so the source or `config` gains the entry point to
+   start, and the host serves the spawning app's `Server` a loader that answers only its own id.
+   A spawned app has no display today, so whether a worker gets the gpu is this step's choice.
+   Modules from bytes stay the root guest's until a plan gives apps a reason for them (the Games
+   app's game modules would be one).
    Then a worker API in be-sdk over that spawn: an entry point, a channel, and byte
    buffers carried as messages.
 2. Port the map and PDF workers to it.

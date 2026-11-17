@@ -242,13 +242,15 @@ A new WIT interface the host serves to the root guest, and later to apps
   resumable frame, which returns `Pending` until they complete. The root's frame entry is an
   export the host calls, not a guest call, so that decision does not cover it.
 
-Built natively for modules from bytes (step 1): the WIT is `be3:sandbox`
-(`crates/be-wasm-sandbox-api`), where `spawn` is the `instance` resource's constructor and the
-channel its `send` and `next`; `be_wasm_host::sandbox` does the work and
+Built natively (steps 1 and 2): the WIT is `be3:sandbox` (`crates/be-wasm-sandbox-api`), where
+`spawn` is the `instance` resource's constructor, taking a source, `module(module-id)` or
+`app(app-id)`, and the channel its `send` and `next`; `be_wasm_host::sandbox` does the work and
 `crates/be-wasm-sandbox-host` serves it to a guest (guides/apps/runtime.md, Backends). A compile
 turns the memory a module defines into an import, so one compile serves instances given different
-memory limits. The web's half is not built: it lands with the first guest on the web that spawns
-(step 2 or 4).
+memory limits. A staged app is found by a loader the host gives the `Server`
+(be-host-runtime's `staged_app`), and runs with its libraries and WASI but no display. The web's
+half is not built: it lands with the first guest on the web that spawns (step 4, or
+plans/single_threaded_guests.md).
 
 An app's platform calls (clipboard, drag and drop, file dialogs, opening URLs) are served by the
 host directly for that app, and the compositor can turn them off for it.
@@ -410,11 +412,8 @@ Each step lands on its own.
 
 1. Built: the sandbox API for modules from bytes, natively, and the remapper on it (its fuel
    became a time limit, past which its isolate is terminated).
-2. Spawning staged apps by app id: a staged module with its manifest's libraries and WASI, and
-   no display, which is all plans/single_threaded_guests.md needs. The `instance` constructor
-   takes a source, `module(module-id) | app(app-id)`, served by the one `Server` with a loader
-   the host plugs in (be-host-runtime's staged-app loading lives above be-wasm); `config` gains
-   no threads field.
+2. Built: spawning staged apps by app id, with their manifest's libraries and WASI and no
+   display.
 3. The layer list and the forwarding router, and how native and the web realize them, with the
    host's current UI as their only producer, so nothing changes visibly.
 4. The synchronous, resumable root entry. The compositor takes over `src/compositor`, `src/ui`,

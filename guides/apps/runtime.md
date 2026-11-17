@@ -53,18 +53,30 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   relaxed SIMD, garbage-collected types or a second memory, and its memory's
   maximum is capped (`MEMORY_LIMIT`). The app host has no fuel and no
   canonical NaNs.
-- **Modules from bytes.** `be_wasm_host::sandbox` is the native half of the
-  sandbox API (plans/host_as_platform_adapter.md): `compile` checks a pure
-  guest's module and compiles it on a thread of its own, once per process for
-  the same bytes (by SHA-256, held while anything holds the `Module`, never in
-  the code cache), with the
-  memory it defines turned into an import (`engine::importing_memory`), so
-  each instance `spawn` starts, on a thread and isolate of its own, gets a
-  memory capped at its own `Config::memory_limit`. An `Instance` is a
-  `Worker` over that thread's channel; dropping it terminates its isolate.
-  `crates/be-wasm-sandbox-host` will serve it to the root guest as
-  `be3:sandbox` (`crates/be-wasm-sandbox-api`; step 4), and only its tests use
-  it today. The input remapper runs on it
+- **The sandbox.** `be_wasm_host::sandbox` is the native half of the sandbox
+  API (plans/host_as_platform_adapter.md). `spawn` starts an `Instance` of a
+  `Source`, on a thread and isolate of its own, with a memory capped at its
+  `Config::memory_limit`; an `Instance` is a `Worker` over that thread's
+  channel, and dropping it terminates its isolate. A source is either
+  - a module from bytes: `compile` checks a pure guest's module and compiles
+    it on a thread of its own, once per process for the same bytes (by
+    SHA-256, held while anything holds the `Module`, never in the code cache),
+    with the memory it defines turned into an import
+    (`engine::importing_memory`), so each instance gets a memory of its own
+    size; or
+  - a staged app (`Staged`): its entry module and an `Open` that reads it and
+    its libraries, loaded as the host loads that app, with WASI and no
+    display (its gpu calls fail). be-host-runtime's `staged_app` finds one by
+    app id in the staged apps, and its own app starts load through `Staged`
+    too.
+
+  `crates/be-wasm-sandbox-host` serves it to a guest as `be3:sandbox`
+  (`crates/be-wasm-sandbox-api`), whose `instance` constructor takes a
+  `source`, `module(module-id)` or `app(app-id)`. Its `Server` is given a
+  `Loader` for apps by id, which the host plugs in (`staged_app`), since
+  finding staged apps lies above be-wasm. It will serve the root guest
+  (step 4) and apps (plans/single_threaded_guests.md); only its tests use it
+  today. The input remapper runs on `be_wasm_host::sandbox`
   (guides/desktop/login_session.md, Input remaps). The web has no half yet.
 - **V8's heap.** No guest may declare garbage-collected types (structs,
   arrays) or more than one table, and a table holds at most a million entries
