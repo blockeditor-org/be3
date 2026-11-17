@@ -216,6 +216,22 @@ a carry whose gesture ended, so the item glides home and the site stops previewi
      next own edit landing for that one.
    - The host's `GestureEnded` now reaches the projection through `EditorHost`'s content
      updates, like a snapshot.
+   - The mirror sends an edit in a gesture only while that gesture is open: one through a
+     handle kept after its gesture ended, or in a gesture begun before the content arrived or
+     while the block was not editable (its begin never sent), is dropped, never written as it
+     happens.
+   - Left as they are:
+     - A snapshot answers each edit the replica drops in a gesture it ended, which the editor
+       sent before hearing. Tagging the mirror's pending edits with their gesture would let it
+       drop them itself on `GestureEnded`; step 4 can do that if drags send enough frames in
+       flight for it to matter.
+     - `EditorHost::content_of` makes a new `LiveContent` per call, and two live at once for one
+       block in one instance share its queue of content updates (the first to adopt takes them
+       all, `GestureEnded` included). Routing it through the editor's projection cache, or
+       asserting one projection per block, is left for whoever finds a second one.
+     - An editor that detaches without the runtime's goodbye (cancels for its open gestures)
+       leaves its undo groups open in `History` until an undo or redo commits them (`close_groups`); its tentative
+       gestures are cancelled by the detach itself.
 4. Move today's choosing gestures off writing as they go, each judged by the decision's criterion:
    - the infinite canvas's move, rotate and resize gestures;
    - `NumberInput`'s scrub, which today writes `value` every frame between `on_scrub(true)` and

@@ -454,11 +454,12 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
     }
 
     /// Applies `operation`, made in the editor's gesture `gesture` or outside any, and returns
-    /// the message that sends it: none before the content arrives, or in a gesture the replica
-    /// ended, whose edits are dropped.
+    /// the message that sends it: none before the content arrives, or in a gesture that is not
+    /// open (never begun here, ended by the editor, or ended by the replica), whose edits are
+    /// dropped rather than written as they happen.
     pub fn operate(&mut self, gesture: Option<u64>, operation: C::Op) -> Option<FromEditor> {
         self.confirmed.as_ref()?;
-        if gesture.is_some_and(|gesture| self.voided.contains(&gesture)) {
+        if gesture.is_some_and(|gesture| !self.gesturing.contains(&gesture)) {
             return None;
         }
         self.visible.apply_touching(&operation, &mut self.touched);
