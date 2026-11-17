@@ -7,7 +7,10 @@ use super::*;
 #[test]
 fn two_drags_in_one_block_commit_as_one_step_when_the_second_ends() {
     let (mut sim, a, b) = dragging(2);
-    let (first, second) = (Checklist::set_text(a, "first"), Checklist::set_text(b, "second"));
+    let (first, second) = (
+        Checklist::set_text(a, "first"),
+        Checklist::set_text(b, "second"),
+    );
     let taken = sim.devices[0].status.taken;
     let ordered = sim.journal_operations().len();
     sim.gesture(0, 1, Gesture::BeginTentative);
@@ -18,7 +21,11 @@ fn two_drags_in_one_block_commit_as_one_step_when_the_second_ends() {
     for editor in [1, 2] {
         assert_eq!(texts(sim.mirror(0, editor)), ["first", "second"]);
     }
-    assert_eq!(texts(&sim.content(0)), ["a", "b"], "held edits are never written");
+    assert_eq!(
+        texts(&sim.content(0)),
+        ["a", "b"],
+        "held edits are never written"
+    );
     assert_eq!(texts(&sim.content(1)), ["a", "b"]);
 
     sim.gesture(0, 1, Gesture::Commit);

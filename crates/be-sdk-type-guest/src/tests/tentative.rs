@@ -28,7 +28,13 @@ pub(super) fn journaled(sim: &Sim<ChecklistContent>, operation: &Edit) -> bool {
 
 /// Whether `editor` on `device` was told the replica ended its gesture, cancelled.
 pub(super) fn told_ended(sim: &mut Sim<ChecklistContent>, device: usize, editor: EditorId) -> bool {
-    sim.take_received(device, editor)
-        .iter()
-        .any(|message| matches!(message, ToEditor::GestureEnded { cancelled: true, .. }))
+    sim.take_received(device, editor).iter().any(|message| {
+        matches!(
+            message,
+            ToEditor::GestureEnded {
+                cancelled: true,
+                ..
+            }
+        )
+    })
 }

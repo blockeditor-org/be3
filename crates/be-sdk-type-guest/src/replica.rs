@@ -1429,7 +1429,10 @@ where
         } in layer
         {
             let rank = counted.iter().position(|counted| *counted == serial);
-            debug_assert!(rank.is_some(), "a held edit its layer's commit does not count");
+            debug_assert!(
+                rank.is_some(),
+                "a held edit its layer's commit does not count"
+            );
             let Some(rank) = rank else {
                 rebuild = true;
                 continue;
