@@ -33,7 +33,14 @@ and no state kept where a second thread could not reach it.
 - An instance costs more memory than a thread: it shares the compiled code but has its own heap
   and its own copy of each library's data.
 - Natively, an app's gpu and transport imports are ordinary V8 calls rather than fast-API ones,
-  which read a memory that never moves: an unshared memory may move when it grows.
+  which read a memory that never moves: an unshared memory may move when it grows. Measured with
+  `./scripts/buck run -m release //crates/be-wasm-host:example-gpu-calls` (four render-pass calls
+  in a loop, on a noop device) in November 2026: 61.5 ns a call with a shared memory and 339 ns
+  with an unshared one, fastest of 20 steps, so about 280 ns more a call, or 0.55 ms more a frame
+  for an app that makes 2,000 gpu calls in it. That is not negligible, so winning the fast path
+  back for an unshared memory is a follow-up (plans/single_threaded_guests.md, step 4).
+  be-host-bench's `app-canvas-and-text` could not compare the two builds: it fails on the base
+  alone, its text editor not yet showing when it is clicked.
 
 ## Rejected
 

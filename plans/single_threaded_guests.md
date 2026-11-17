@@ -92,9 +92,13 @@ on its own OS thread and in the browser in its own web worker, so it may wait on
    - the thread-local diamond crates (`crates/be-tool-tls-diamond-*`) and their tests;
    - what is left of `be-wasm-threads` (`initialize_page`, `initialize_worker`, `may_wait`) and
      the page's refusal of a thread (`refuseThreads` in `be-host/web/threads.js`);
-   - be-wasm-host's shared app memory (`Memory::Shared`, `Share`) and the fast-API gpu and
-     transport calls that read it (gpu.rs), unless a memory that never moves comes back another
-     way, and the shared-memory checks in `web/app.js`;
+   - be-wasm-host's shared app memory (`Memory::Shared`, `Share`) and the shared-memory checks
+     in `web/app.js`. Not the fast-API gpu and transport calls (gpu.rs): without them a call
+     costs about 280 ns more (decisions/guests_are_single_threaded.md, What it costs), so first
+     give them a way to read an unshared memory. On 64-bit V8 with trap-handler bounds checks a
+     wasm32 memory is reserved in full and grows in place, so its base does not move: reading
+     the backing store's base once per step, or per call, may keep the fast path. Delete them
+     only if that cannot be made to hold;
    - be-wasm-link's `pthread_*` entries in `LIBC`, if nothing above the root needs them;
    - the wat tests in be-wasm-host that import a shared memory or `thread-spawn`.
 5. See whether the base library still has to be a fixed-address root
