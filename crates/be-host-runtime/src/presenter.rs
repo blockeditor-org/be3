@@ -426,7 +426,13 @@ pub(super) fn unscaled(
         rect.height() / source.height(),
     );
     let origin = rect.min - vec2(source.min.x * laid.x, source.min.y * laid.y);
-    let covers = Rect::from_min_size(origin, painted / density);
+    let extent = painted / density;
+    if (extent.x - laid.x).abs() < 1e-3 && (extent.y - laid.y).abs() < 1e-3 {
+        // The painting is the size the view is laid out at, as it is whenever its app has drawn
+        // that size: the piece shows as it was cut, with no float error.
+        return Some((quad, source));
+    }
+    let covers = Rect::from_min_size(origin, extent);
     // An edge within a thousandth of a point of the piece's is the piece's: float error in
     // the mapping must not move a painting that fills its view by a fraction of a pixel.
     let snap = |value: f32, to: f32| match (value - to).abs() < 1e-3 {
@@ -434,9 +440,16 @@ pub(super) fn unscaled(
         false => value,
     };
     let covers = Rect::from_min_max(
-        pos2(snap(covers.min.x, rect.min.x), snap(covers.min.y, rect.min.y)),
-        pos2(snap(covers.max.x, rect.max.x), snap(covers.max.y, rect.max.y)),
+        pos2(
+            snap(covers.min.x, rect.min.x),
+            snap(covers.min.y, rect.min.y),
+        ),
+        pos2(
+            snap(covers.max.x, rect.max.x),
+            snap(covers.max.y, rect.max.y),
+        ),
     );
+
     let shown = rect.intersect(covers);
     if !shown.is_positive() {
         return None;
