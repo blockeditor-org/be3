@@ -3,8 +3,8 @@
 
 use be_block_graph::{ANYONE_INSIDE, Access, BlockParent};
 use be_block_keys::{
-    Asked, Authority, Checked, Entry, Level, LogKind, Logs, Placement, PublicIdentity,
-    Record, RecoveryPublic, SigningPublic, Step,
+    Asked, Authority, Checked, Entry, Level, LogKind, Logs, Placement, PublicIdentity, Record,
+    RecoveryPublic, SigningPublic, Step,
 };
 use be_block_protocol::ErrorCode;
 use be_block_protocol::{Retirement, SignedLog};
@@ -78,14 +78,7 @@ pub(crate) fn store_root(
 ) -> Result<(), ServerError> {
     let entry = checked_root(connection, account, LogKind::Block, block, root)?;
     insert_entry(connection, LogKind::Block, organization, block, 0, &entry)?;
-    append_parent(
-        connection,
-        organization,
-        block,
-        account,
-        parent,
-        placement,
-    )
+    append_parent(connection, organization, block, account, parent, placement)
 }
 
 /// Where `parent` is, as a parent record names it: under a block, with the root of its log as
@@ -271,7 +264,13 @@ pub(crate) fn all_sealers(
     organization: Uuid,
     reader: Uuid,
 ) -> Result<Vec<Uuid>, ServerError> {
-    sealers(connection, LogKind::Organization, organization, organization, reader)
+    sealers(
+        connection,
+        LogKind::Organization,
+        organization,
+        organization,
+        reader,
+    )
 }
 
 /// The accounts that sealed `reader` a key: of `log`, a block, or of any block for the
@@ -581,7 +580,12 @@ pub(crate) fn level(access: Access) -> Level {
 }
 
 /// A log's entries, as the server stored them once each checked.
-fn held(connection: &Connection, kind: LogKind, organization: Uuid, log: Uuid) -> Option<Vec<Step>> {
+fn held(
+    connection: &Connection,
+    kind: LogKind,
+    organization: Uuid,
+    log: Uuid,
+) -> Option<Vec<Step>> {
     let entries = entries(connection, kind, organization, log).ok()?;
     match entries.is_empty() {
         true => None,
@@ -600,8 +604,13 @@ pub(crate) fn checked_block_log(
 ) -> Result<Checked, ServerError> {
     let log =
         |kind: LogKind, log: [u8; 16]| held(connection, kind, organization, Uuid::from_bytes(log));
-    let organization_root = held(connection, LogKind::Organization, organization, organization)
-        .and_then(|steps| steps.first().map(Step::hash));
+    let organization_root = held(
+        connection,
+        LogKind::Organization,
+        organization,
+        organization,
+    )
+    .and_then(|steps| steps.first().map(Step::hash));
     let logs = Logs::new(organization.into_bytes(), organization_root, &log);
     let pinned = entries
         .first()
@@ -647,10 +656,8 @@ pub(crate) fn names_grant(
     block: Uuid,
     account: Uuid,
 ) -> Result<bool, ServerError> {
-    Ok(
-        granted_level(connection, organization, block, account)?
-            .is_some_and(|level| level > Level::None),
-    )
+    Ok(granted_level(connection, organization, block, account)?
+        .is_some_and(|level| level > Level::None))
 }
 
 /// Appends `record`, signed by `signer`, to `block`'s log once it checks at its head: a grant of

@@ -13,12 +13,14 @@ async fn moving_a_block_drops_the_wraps_of_its_old_scope() {
     assert_eq!(owner.read_block(document).await.scope, Some(from.block));
 
     let stray = owner
-        .move_keyed(document,
-                BlockParent::Block(to.block),
-                KeySet {
-                    keys: vec![row(Uuid::new_v4(), elsewhere, KeyKind::Data)],
-                    wrapped: Vec::new(),
-                })
+        .move_keyed(
+            document,
+            BlockParent::Block(to.block),
+            KeySet {
+                keys: vec![row(Uuid::new_v4(), elsewhere, KeyKind::Data)],
+                wrapped: Vec::new(),
+            },
+        )
         .await;
     assert!(
         matches!(stray, Err(_)),
@@ -31,28 +33,30 @@ async fn moving_a_block_drops_the_wraps_of_its_old_scope() {
 
     let fresh = Uuid::new_v4();
     let response = owner
-        .move_keyed(document,
-                BlockParent::Block(to.block),
-                KeySet {
-                    keys: vec![KeyRow {
-                        id: fresh,
-                        block: document,
-                        kind: KeyKind::Data,
-                        epoch: 2,
-                    }],
-                    wrapped: vec![
-                        wrap(
-                            old_key,
-                            WrappedBy::Key(to.scope),
-                            b"old data under the new scope",
-                        ),
-                        wrap(
-                            fresh,
-                            WrappedBy::Key(to.scope),
-                            b"fresh data under the new scope",
-                        ),
-                    ],
-                })
+        .move_keyed(
+            document,
+            BlockParent::Block(to.block),
+            KeySet {
+                keys: vec![KeyRow {
+                    id: fresh,
+                    block: document,
+                    kind: KeyKind::Data,
+                    epoch: 2,
+                }],
+                wrapped: vec![
+                    wrap(
+                        old_key,
+                        WrappedBy::Key(to.scope),
+                        b"old data under the new scope",
+                    ),
+                    wrap(
+                        fresh,
+                        WrappedBy::Key(to.scope),
+                        b"fresh data under the new scope",
+                    ),
+                ],
+            },
+        )
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let moved = owner.read_block(document).await;

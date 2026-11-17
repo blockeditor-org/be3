@@ -1019,7 +1019,11 @@ impl<S: ObjectStore> Peer<S> {
         let mut checked_logs: HashMap<Uuid, Option<be_block_keys::Checked>> = HashMap::new();
         for (block, sender, key, sealed) in sealed_by_contacts {
             if !checked_logs.contains_key(&block) {
-                let checked = self.checked_access(block).await.ok().map(|(_, checked)| checked);
+                let checked = self
+                    .checked_access(block)
+                    .await
+                    .ok()
+                    .map(|(_, checked)| checked);
                 checked_logs.insert(block, checked);
             }
             let Some(Some(checked)) = checked_logs.get(&block) else {
@@ -1901,7 +1905,10 @@ impl<S: ObjectStore> Peer<S> {
     /// with the root of its log this device pinned in full (made here, or carried by a trusted
     /// key of it), never one the server serves, so the logs above a block are checked from roots
     /// its own records carry (plans/signed_access.md, step 4).
-    async fn placement(&self, parent: BlockParent) -> Result<be_block_keys::Placement, ClientError> {
+    async fn placement(
+        &self,
+        parent: BlockParent,
+    ) -> Result<be_block_keys::Placement, ClientError> {
         use be_block_keys::Placement;
         let above = match parent {
             BlockParent::Root => return Ok(Placement::Top),
@@ -2087,7 +2094,9 @@ impl<S: ObjectStore> Peer<S> {
                 pinned,
                 &entries,
                 &|_| None,
-            ) && organization.holding(LogKind::Organization, me, level).is_some()
+            ) && organization
+                .holding(LogKind::Organization, me, level)
+                .is_some()
             {
                 return Ok(Authority::Organization(organization.head));
             }
@@ -2199,10 +2208,9 @@ impl<S: ObjectStore> Peer<S> {
             .collect();
         while !level.is_empty() && around.held.len() < be_block_keys::MAX_ANCESTRY {
             level.truncate(be_block_keys::MAX_ANCESTRY - around.held.len());
-            let served = futures_util::future::join_all(
-                level.iter().map(|named| self.served_log(*named)),
-            )
-            .await;
+            let served =
+                futures_util::future::join_all(level.iter().map(|named| self.served_log(*named)))
+                    .await;
             let mut next = Vec::new();
             for (named, served) in level.into_iter().zip(served) {
                 let Ok(served) = served else {
@@ -3614,7 +3622,11 @@ impl<S: ObjectStore> Peer<S> {
     /// The parent record moving `block` to `parent`, the next entry of its log: signed on this
     /// account's Edit or above from the block's own log, else from administering the
     /// organization, else from the nearest block its signed parent records place it under.
-    async fn signed_parent(&self, block: Uuid, parent: BlockParent) -> Result<Vec<u8>, ClientError> {
+    async fn signed_parent(
+        &self,
+        block: Uuid,
+        parent: BlockParent,
+    ) -> Result<Vec<u8>, ClientError> {
         use be_block_keys::{Authority, Level, LogKind, Parent, Record};
         let placement = self.placement(parent).await?;
         // A record signed on a log this device never pinned the root of (an administrator's
@@ -4114,15 +4126,12 @@ fn named_blocks(entries: &[be_block_keys::Step]) -> impl Iterator<Item = Uuid> +
 }
 
 impl Around {
-    fn log(
-        &self,
-        kind: be_block_keys::LogKind,
-        log: [u8; 16],
-    ) -> Option<Vec<be_block_keys::Step>> {
+    fn log(&self, kind: be_block_keys::LogKind, log: [u8; 16]) -> Option<Vec<be_block_keys::Step>> {
         match kind {
-            be_block_keys::LogKind::Organization => {
-                self.organization.as_ref().map(|(_, entries)| entries.clone())
-            }
+            be_block_keys::LogKind::Organization => self
+                .organization
+                .as_ref()
+                .map(|(_, entries)| entries.clone()),
             be_block_keys::LogKind::Block => self.held.get(&Uuid::from_bytes(log)).cloned(),
         }
     }
@@ -4141,9 +4150,8 @@ impl Around {
             self.organization.as_ref().map(|(root, _)| *root),
             &log,
         );
-        let outside = |asked: &be_block_keys::Asked| {
-            be_block_keys::answer(&logs, block.into_bytes(), asked)
-        };
+        let outside =
+            |asked: &be_block_keys::Asked| be_block_keys::answer(&logs, block.into_bytes(), asked);
         be_block_keys::check_log(
             be_block_keys::LogKind::Block,
             block.into_bytes(),

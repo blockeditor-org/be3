@@ -135,9 +135,7 @@ async fn a_search_index_takes_exactly_the_access_of_the_block_it_indexes() {
     assert!(matches!(created, Ok(_)), "{created:?}");
     for target in [workspace, third, note] {
         let moved = editor
-            .move_keyed(loose,
-                    BlockParent::Block(target),
-                    KeySet::default())
+            .move_keyed(loose, BlockParent::Block(target), KeySet::default())
             .await;
         assert!(
             moved.is_err(),
@@ -148,9 +146,7 @@ async fn a_search_index_takes_exactly_the_access_of_the_block_it_indexes() {
     let child = owner.create_block(BlockParent::Block(second)).await;
     for target in [child, third, workspace] {
         let moved = owner
-            .move_keyed(loose,
-                    BlockParent::Block(target),
-                    KeySet::default())
+            .move_keyed(loose, BlockParent::Block(target), KeySet::default())
             .await;
         assert!(
             refused_with(&moved, "stays under the block it indexes"),

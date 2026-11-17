@@ -278,7 +278,9 @@ impl<S: ObjectStore> Peer<S> {
             }
         }))
         .await;
-        placed.into_iter().collect::<Result<Vec<()>, ClientError>>()?;
+        placed
+            .into_iter()
+            .collect::<Result<Vec<()>, ClientError>>()?;
         // Each new epoch names the heads of the logs it is made under (signed access 3d): read
         // now, so they are past the revocation that called for the rotation. A log that does
         // not check here leaves the head this device last held.

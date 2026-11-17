@@ -78,8 +78,14 @@ fn authority_from_far_above_is_checked_once_per_log() {
     let held = Logs::new([0; 16], None, &log);
     let (bottom, entries) = logs.last().unwrap();
     let outside = |asked: &Asked| answer(&held, *bottom, asked);
-    let checked = check_log(LogKind::Block, *bottom, entries[0].hash(), entries, &outside)
-        .expect("a grant resting on the top checks");
+    let checked = check_log(
+        LogKind::Block,
+        *bottom,
+        entries[0].hash(),
+        entries,
+        &outside,
+    )
+    .expect("a grant resting on the top checks");
     assert!(checked.grants.contains_key(&[100 + DEPTH as u8; 16]));
     assert!(
         held.checks() <= DEPTH,

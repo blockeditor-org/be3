@@ -27,7 +27,9 @@ async fn only_a_manager_lets_go_of_a_blocks_settings() {
     let settings = Uuid::new_v4();
     let key = Uuid::new_v4();
     let root = owner.root(settings);
-    let placement = owner.placement(settings, BlockParent::Block(workspace)).await;
+    let placement = owner
+        .placement(settings, BlockParent::Block(workspace))
+        .await;
     let created = owner
         .call(|peer| {
             client::blocks::create_block(
