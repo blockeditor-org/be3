@@ -16,8 +16,8 @@ use be_wasm_host::{App, Host, sandbox::Staged};
 
 use super::{
     backend::StepTime,
-    wire::Wire,
     surface::{PresentedTexture, SurfaceFrame, gpu},
+    wire::Wire,
 };
 
 const NO_GPU: &str = "The app host has no graphics device.";
@@ -188,7 +188,11 @@ pub fn staged_app(app_id: &str, module: &str) -> Result<Staged, String> {
 /// One of the workers of the staged app with the id `app_id`, as `staged_app` finds it: what the
 /// sandbox an app is served finds, since an app starts only its workers, never itself.
 pub fn staged_worker(app_id: &str, module: &str) -> Result<Staged, String> {
-    if manifest(app_id)?.workers.iter().any(|worker| worker == module) {
+    if manifest(app_id)?
+        .workers
+        .iter()
+        .any(|worker| worker == module)
+    {
         return Ok(staged(worker_path(app_id, module)));
     }
     Err(format!("{app_id} stages no worker named {module:?}"))
