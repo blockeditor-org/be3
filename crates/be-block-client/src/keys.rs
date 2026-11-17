@@ -958,10 +958,15 @@ impl KeyBook {
     /// Notes `root` as made here for `block`, whose creation the outbox keeps from an earlier
     /// run, before the keys it pinned are read again (`pin_root`).
     pub fn note_made(&self, block: Uuid, root: EntryHash) {
-        self.roots.lock().unwrap().made.entry(block).or_insert(Made {
-            root,
-            others: Vec::new(),
-        });
+        self.roots
+            .lock()
+            .unwrap()
+            .made
+            .entry(block)
+            .or_insert(Made {
+                root,
+                others: Vec::new(),
+            });
     }
 
     /// The server took the creation of `block`, made here: its root is the block's.

@@ -51,10 +51,7 @@ async fn making_a_block_whose_log_this_device_holds_keeps_its_root() {
         .ensure_type(block, FolderContent::CONTENT_TYPE, BlockParent::Detached)
         .await
         .expect("a block that is there already is not made again");
-    assert!(
-        !laptop.keys().holds_log(block),
-        "nothing was made for it"
-    );
+    assert!(!laptop.keys().holds_log(block), "nothing was made for it");
     assert!(matches!(
         laptop
             .create_block(

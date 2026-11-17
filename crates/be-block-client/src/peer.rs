@@ -2019,10 +2019,7 @@ impl<S: ObjectStore> Peer<S> {
                 if self.made_here(&creation).await? {
                     made.taken()?;
                 }
-                return Err(ClientError::Refused(
-                    ErrorCode::BlockAlreadyExists,
-                    message,
-                ));
+                return Err(ClientError::Refused(ErrorCode::BlockAlreadyExists, message));
             }
             response => response?,
         };
