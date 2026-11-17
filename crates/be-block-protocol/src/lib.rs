@@ -13,11 +13,12 @@ be_wasm_ops_bindgen::generate!({
         "hash": be_block_store::Hash,
         "commit-id": be_block_commit::CommitId,
         "public-key": [u8; 32],
+        "entry-hash": [u8; 32],
         "access-level": be_block_graph::Access,
         "block-parent": be_block_graph::BlockParent,
         "escrow-key": crate::EscrowKey,
     },
-    copy: ["uuid", "hash", "commit-id", "public-key", "access-level", "block-parent"],
+    copy: ["uuid", "hash", "commit-id", "public-key", "entry-hash", "access-level", "block-parent"],
     default: [
         "key-set",
         "key-work",
@@ -315,6 +316,9 @@ pub struct EscrowKey {
     pub epoch: u64,
     pub public: [u8; 32],
     pub signing: [u8; 32],
+    /// The head of the organization's access log it was made under (plans/signed_access.md,
+    /// 3d): a device takes it, and seals it, only once it holds the log that far.
+    pub head: [u8; 32],
     /// The administrator who made it, whose identity key signs `chained`.
     pub maker: Uuid,
     #[serde(with = "serde_bytes")]
@@ -330,11 +334,11 @@ impl EscrowKey {
         postcard::from_bytes(bytes).ok()
     }
 
-    /// What its maker signs: the key, chained to the epoch before (`previous`, nil for the
-    /// first).
+    /// What its maker signs: the key and the log head it was made under, chained to the epoch
+    /// before (`previous`, nil for the first).
     pub fn chained(&self, organization: Uuid, previous: Uuid) -> Vec<u8> {
         [
-            b"be3.escrow.chain.v2".as_slice(),
+            b"be3.escrow.chain.v3".as_slice(),
             organization.as_bytes(),
             self.maker.as_bytes(),
             previous.as_bytes(),
@@ -342,6 +346,7 @@ impl EscrowKey {
             &self.epoch.to_be_bytes(),
             &self.public,
             &self.signing,
+            &self.head,
         ]
         .concat()
     }

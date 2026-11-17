@@ -29,6 +29,7 @@ async fn a_member_who_roots_a_block_they_do_not_hold_is_taken_only_weakly() {
         key: [9; 32],
         block: secret.into_bytes(),
         root: Some(planted.hash()),
+        heads: be_block_keys::Heads::default(),
     };
     let to = Party {
         account: escrow.id.into_bytes(),

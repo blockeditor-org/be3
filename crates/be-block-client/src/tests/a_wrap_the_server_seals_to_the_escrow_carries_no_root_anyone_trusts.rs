@@ -69,6 +69,7 @@ async fn a_wrap_the_server_seals_to_the_escrow_carries_no_root_anyone_trusts() {
         key: [9; 32],
         block: team.into_bytes(),
         root: Some(forged.hash()),
+        heads: be_block_keys::Heads::default(),
     };
     let carrying_real = CarriedKey {
         root: Some(real),

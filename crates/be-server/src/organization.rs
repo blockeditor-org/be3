@@ -212,12 +212,13 @@ impl ServerKey {
                 continue;
             }
             let plain = ring.get(row.id).ok_or(ServerError::Corrupt)?;
-            // The server vouches for no root (decisions/the_server_never_vouches_for_an_identity.md),
-            // so it carries none.
+            // The server vouches for no root (decisions/the_server_never_vouches_for_an_identity.md)
+            // nor head, so it carries none: its seal is never sealed on by a log.
             let carried = be_block_keys::CarriedKey {
                 key: *plain.as_bytes(),
                 block: settings.into_bytes(),
                 root: None,
+                heads: be_block_keys::Heads::default(),
             };
             let sealed = self.secret.seal_for(
                 self.account.into_bytes(),
