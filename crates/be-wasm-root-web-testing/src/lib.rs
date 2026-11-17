@@ -21,9 +21,7 @@ use be_wasm_guest_host::Wake;
 use be_wasm_ops::{Connection, Incoming, Side};
 use be_wasm_root_api::{FrameDone, FrameRequest};
 use be_wasm_root_host::{Root, Staged};
-use be_wasm_root_testing::{
-    CHILD, CHILD_ENTRY, CHILD_LAYER, HANGS_CHILD, ROOT_LAYER, SPINS,
-};
+use be_wasm_root_testing::{CHILD, CHILD_ENTRY, CHILD_LAYER, HANGS_CHILD, ROOT_LAYER, SPINS};
 use be_wasm_sandbox_api::{
     embed, guest,
     sandbox::{Config, Source},
@@ -101,11 +99,7 @@ fn shown(done: &FrameDone) -> Result<Vec<LayerId>, String> {
 }
 
 fn check(holds: bool, why: impl FnOnce() -> String) -> Result<(), JsValue> {
-    if holds {
-        Ok(())
-    } else {
-        Err(why().into())
-    }
+    if holds { Ok(()) } else { Err(why().into()) }
 }
 
 async fn a_frame_waits_for_its_child_and_shows_it() -> Result<String, JsValue> {

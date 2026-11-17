@@ -105,10 +105,7 @@ impl Root {
             .map_err(|error| format!("{url} could not be fetched: {}", describe(&error)))?;
         let response: web_sys::Response = fetched.unchecked_into();
         if !response.ok() {
-            return Err(format!(
-                "{url} could not be fetched: {}",
-                response.status()
-            ));
+            return Err(format!("{url} could not be fetched: {}", response.status()));
         }
         let bytes = response
             .array_buffer()
@@ -128,14 +125,20 @@ impl Root {
         let wake: Wake = Arc::new(move || ring(id));
         let guest = PageGuest::start(module, Arc::clone(&wake)).await?;
         let core = Core::new(guest, Server::new(wake, apps))?;
-        let after = web_sys::MessageChannel::new()
-            .map_err(|error| format!("the root's page has no MessageChannel: {}", describe(&error)))?;
+        let after = web_sys::MessageChannel::new().map_err(|error| {
+            format!(
+                "the root's page has no MessageChannel: {}",
+                describe(&error)
+            )
+        })?;
         let resumed = Closure::<dyn FnMut(web_sys::MessageEvent)>::new(move |_| {
             if let Some(shared) = root(id) {
                 shared.resume();
             }
         });
-        after.port1().set_onmessage(Some(resumed.as_ref().unchecked_ref()));
+        after
+            .port1()
+            .set_onmessage(Some(resumed.as_ref().unchecked_ref()));
         let shared = Rc::new(Shared {
             id,
             core: RefCell::new(core),
@@ -423,14 +426,17 @@ impl PageGuest {
         let export = self
             .export(name)
             .ok_or_else(|| format!("the root exports no {name}"))?;
-        export.call0(&JsValue::UNDEFINED).map(drop).map_err(|error| {
-            self.stopped = true;
-            self.transport
-                .panicked
-                .borrow_mut()
-                .take()
-                .unwrap_or_else(|| format!("the root trapped: {}", describe(&error)))
-        })
+        export
+            .call0(&JsValue::UNDEFINED)
+            .map(drop)
+            .map_err(|error| {
+                self.stopped = true;
+                self.transport
+                    .panicked
+                    .borrow_mut()
+                    .take()
+                    .unwrap_or_else(|| format!("the root trapped: {}", describe(&error)))
+            })
     }
 
     fn stop(&mut self) {
