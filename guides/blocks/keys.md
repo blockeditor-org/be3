@@ -232,8 +232,15 @@ maker through every sender (`KeyBook::heads`).
   if it names one of the kept entries from the last lowering through the head
   (`KeptLog::current`), and a contact's seal is judged by the levels kept at
   that head (`KeptLog::levels`). A scope neither kept nor readable makes a key opened through
-  another outdated. A rotation that cannot go through fails the save as
-  `Locked`. A local account judges nothing (there is no server). An escrow epoch the organization's log outdates
+  another outdated. A read before a write is given up after `LOG_READ_LIMIT`,
+  leaving what was kept, and none is made for a scope whose creation still
+  waits in the outbox. A rotation that cannot go through online fails the save
+  as `Locked`; offline, a person's edit is never refused: it is sealed under
+  the epoch at hand and kept, and judged again before it is sent
+  (`Peer::send_pending`, `KeyBook::shown_outdated`), set aside like an edit
+  the server refuses when the logs show its key outdated. A log answer older
+  than one this run already took is stale, not withheld (`keys::Served`). A
+  local account judges nothing (there is no server). An escrow epoch the organization's log outdates
   is wrapped under no more, so keys wait unescrowed for the next, with no
   warning (the gap after a demotion is no fault). So an epoch a server got a
   withheld device to make, naming a head before a revocation, is not written
