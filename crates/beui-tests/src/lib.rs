@@ -120,6 +120,9 @@ pub fn Fixture(name: String) -> Root {
         "text_item" => view! {
             <TextItemFixture />
         },
+        "text_gap" => view! {
+            <TextGapFixture />
+        },
         "text_input" => view! {
             <TextInputFixture />
         },
@@ -1249,6 +1252,47 @@ fn TextItemFixture() -> NodeId {
                 label="Next"
                 on_click={move || step.set(step.get_untracked() + 1)}
             />
+        </List>
+    }
+}
+
+/// Where an item after a `Gap` sharing half the width lands: halfway across a wrapping `Text`,
+/// and at its start in one that wraps nowhere, where a share has no room.
+#[component]
+fn TextGapFixture() -> NodeId {
+    let placed = |overflow: beui::Overflow, id: &'static str| {
+        let marker = view! {
+            <Frame @test_id={id} width=2.0 height=10.0 fill={BLUE} />
+        };
+        let text = view! {
+            <Text color={INK} overflow={overflow}>
+                <Gap share=0.5 />
+                <TextItem>{marker}</TextItem>
+            </Text>
+        };
+        let text_rect = measured_rect(text);
+        let marker_rect = measured_rect(marker);
+        let offset = create_memo(move || {
+            let (text, marker) = (text_rect.get()?, marker_rect.get()?);
+            Some((marker.left() - text.left(), text.width()))
+        });
+        (text, offset)
+    };
+    let (wrapping, wrapped) = placed(beui::Overflow::default(), "text_gap.wrapping");
+    let (visible, unwrapped) = placed(beui::Overflow::Visible, "text_gap.visible");
+    let report = create_memo(move || match (wrapped.get(), unwrapped.get()) {
+        (Some((half, width)), Some((none, _)))
+            if (half - width / 2.0).abs() < 1.0 && none.abs() < 1.0 =>
+        {
+            "Gap shares half the width".to_owned()
+        }
+        (wrapped, unwrapped) => format!("Gap wrapped {wrapped:?} unwrapped {unwrapped:?}"),
+    });
+    view! {
+        <List spacing=12.0>
+            <Frame width=240.0 padding={Sides::all(8.0)} fill={PAPER}>{wrapping}</Frame>
+            <Frame width=240.0 padding={Sides::all(8.0)} fill={PAPER}>{visible}</Frame>
+            <Text color={INK}>{report}</Text>
         </List>
     }
 }
