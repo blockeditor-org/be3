@@ -169,7 +169,12 @@ creator and their keys, made by `Peer::creation` (and `import`) and sent with
 somewhere the server cannot write: making the block (`KeyBook::pin_root`,
 before its keys are made, which carry it) or a trusted key of the block
 (`KeyBook::opened`). Keys of one block that carry different roots leave it
-with none (`RootPin::Conflicting`). `Peer::access_log` refuses a log whose
+with none (`RootPin::Conflicting`). A device that holds anything of a block's
+log (a root, or how far it checked the log) never makes a root for it: making
+it again (`Peer::ensure_type` for a block whose summary is gone, say) is
+refused as `BlockAlreadyExists` before anything is pinned or kept
+(`KeyBook::holds_log`), as a second root would conflict with the real one and
+overwrite the kept log its contacts' seals are judged by. `Peer::access_log` refuses a log whose
 root is not the pinned one, or a block whose root conflicts
 (`ClientError::Forged`). A key the server seals pins nothing. An escrow wrap,
 and a key sealed by a member who is not a contact, open only from a sender the
