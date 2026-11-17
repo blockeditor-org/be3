@@ -28,7 +28,7 @@ fn looks(tree: &MarkdownTree, source: &[u8]) -> Vec<(usize, LineLook)> {
     let mut start = 0;
     loop {
         let end = memchr::memchr(b'\n', &source[start..]).map_or(source.len(), |at| start + at);
-        let (look, block) = line_look(tree, root, source, &blocks, start..end);
+        let (look, block) = line_look(root, source, &blocks, start..end);
         lines.push(start);
         held.push(look);
         code.push(block);
@@ -68,7 +68,6 @@ fn heading_level(node: tree_sitter::Node<'_>) -> u8 {
 }
 
 fn line_look(
-    tree: &MarkdownTree,
     root: tree_sitter::Node<'_>,
     source: &[u8],
     blocks: &[Range<usize>],
@@ -141,7 +140,7 @@ fn line_look(
     let mut content = at;
     let first = skip_spaces(source, at, end);
     let list = (node.start_byte() <= first && first < node.end_byte())
-        .then(|| list_marker(tree, node, source))
+        .then(|| list_marker(node, source))
         .flatten();
     let continues = list.is_none() && lists > 0 && !code_block;
     if let Some((_, marker_end)) = list {
@@ -187,11 +186,7 @@ fn line_look(
     (look, block)
 }
 
-fn list_marker(
-    tree: &MarkdownTree,
-    node: tree_sitter::Node<'_>,
-    source: &[u8],
-) -> Option<(ListMarker, usize)> {
+fn list_marker(node: tree_sitter::Node<'_>, source: &[u8]) -> Option<(ListMarker, usize)> {
     let kind = node.kind();
     let bullet = matches!(
         kind,
@@ -207,9 +202,6 @@ fn list_marker(
         let checked = checked == "task_list_marker_checked";
         return Some((ListMarker::Check(checked), task.end_byte()));
     }
-    if bullet && let Some(task) = empty_task(tree, node, source) {
-        return Some(task);
-    }
     let marker = match bullet {
         true => ListMarker::Bullet,
         false => {
@@ -223,37 +215,6 @@ fn list_marker(
         }
     };
     Some((marker, node.end_byte()))
-}
-
-/// A task item with nothing in it yet, `- [ ] ` and the end of its line, which is what Enter
-/// leaves after a task. GFM reads it as a bullet holding the text `[ ]`, since a task marker
-/// needs text after it, and tree-sitter-md parses it so: a paragraph of one shortcut link.
-/// The editor shows the checkbox it will have once it has text.
-fn empty_task(
-    tree: &MarkdownTree,
-    marker: tree_sitter::Node<'_>,
-    source: &[u8],
-) -> Option<(ListMarker, usize)> {
-    let paragraph = marker.next_sibling().filter(|it| it.kind() == "paragraph")?;
-    let mut children = paragraph.walk();
-    let inline = paragraph
-        .children(&mut children)
-        .find(|child| child.kind() == "inline")?;
-    let root = tree.inline_tree(&inline)?.root_node();
-    let link = root.child(0).filter(|it| it.kind() == "shortcut_link")?;
-    if root.child_count() != 1 || link.byte_range() != inline.byte_range() {
-        return None;
-    }
-    let checked = match &source[link.byte_range()] {
-        b"[ ]" => false,
-        b"[x]" | b"[X]" => true,
-        _ => return None,
-    };
-    let rest = &source[link.end_byte()..];
-    let line = &rest[..memchr::memchr(b'\n', rest).unwrap_or(rest.len())];
-    let spaced = matches!(line.first(), Some(b' ' | b'\t'));
-    (spaced && line.iter().all(|byte| matches!(byte, b' ' | b'\t' | b'\r')))
-        .then_some((ListMarker::Check(checked), link.end_byte()))
 }
 
 fn collect_code_blocks(cursor: &mut MarkdownCursor<'_>, blocks: &mut Vec<Range<usize>>) {
