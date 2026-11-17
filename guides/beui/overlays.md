@@ -79,8 +79,8 @@ caps menus and `Beside` overlays with a `max-width` and `max-height` from
 `layer::room`.
 
 An overlay `Beside` its anchor above or below it with a `pointer` frame stands
-that frame `gap` off the anchor and can point a beak at it (popovers are
-`BELOW_CENTER` with a gap and margin). The beak lies outside the content's
+that frame `gap` off the anchor and can point a beak at it (a `Popover`'s
+`beak`, an editor's child popovers `BELOW_CENTER` with a gap and margin). The beak lies outside the content's
 frame and takes no room, so give it room with padding: an app's host draws
 whatever lies outside an overlay's content under the editors it holds.
 
@@ -108,7 +108,8 @@ An `Overlay`'s content is built on open and removed on close, like `Show`: a
 closed menu or tooltip costs only its overlay node and nothing in it is
 focusable, hit, or described. To keep it, with its state, while closed
 (dialogs, popovers, dock windows), put a `Kept` in the content and a
-`KeepAlive` around the overlay: what the `Kept` builds on first open is kept,
+`KeepAlive` around the overlay, as a popup's `keep_alive` does in
+`unstyled::Anchored`: what the `Kept` builds on first open is kept,
 paused, while closed. A kept subtree reads the context around its `KeepAlive`,
 not the overlay's, so content that needs the overlay's presence reads it
 outside the `Kept` (`use_overlay_presence()`) and provides it again inside

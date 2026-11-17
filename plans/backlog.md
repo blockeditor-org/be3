@@ -90,11 +90,12 @@ Fixed items are removed as they land.
   set it to top left if so, as X11 keeps the last frame at the corner (beui-platform-winit's
   `backdrop.rs`). Done when a live resize on a Mac shows the last frame unstretched.
 
-- **One popover placement.** `unstyled::Popover` still takes its own
-  `PopoverPlacement { Below, Beside, Over }` and maps it onto `Placement`, a
-  second placement enum beside the one every other overlay takes. Done (popups
-  step B2): every popup takes `Placement` and one open state, and
-  `PopoverPlacement` is gone.
+- **A beak a frame late.** A popover with an arrow, opened `BELOW_CENTER` with a margin and
+  shifted into the window (beui-demo's `ShareButton`), paints without its beak on the frame it
+  opens; the next frame paints it, though the document reported itself settled and asked for
+  no frame. Without the margin the beak shows at once. Suspect: `OverlayNode::point_at` reads
+  the pointer frame's rect before the panel's last placement in that frame. Done when
+  `a_popover_with_an_arrow_points_it_at_its_button` snapshots straight after `settle`.
 
 ## 7. Sessions
 

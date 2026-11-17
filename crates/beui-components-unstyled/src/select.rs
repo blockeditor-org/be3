@@ -11,7 +11,7 @@ use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
-use beui_view::types::{Key, KeyPress, Placement};
+use beui_view::types::{Key, KeyPress, Placement, Pos2, Rect};
 
 use accesskit::{Node, Role};
 
@@ -41,7 +41,9 @@ struct State<T: 'static> {
     options: Stored<Run<ChoiceOption<T>>>,
     lists: [ComponentRef<SearchListApi<u64>>; 2],
     sheet: Signal<bool>,
-    open: Signal<bool>,
+    open: Binding<bool>,
+    /// Whether `open` has reset the search and highlight for this opening.
+    prepared: Signal<bool>,
     focus: Signal<Focus>,
     query: Signal<String>,
     selected: Binding<Option<T>>,
@@ -86,6 +88,11 @@ pub fn Select<T>(
     trigger: Render<SelectTriggerHandle, NodeId>,
     option: RenderFn<SelectOptionHandle<T>, NodeId>,
     surface: AnchoredStyle,
+    #[prop(default = false)] open: Binding<bool>,
+    #[prop(default = None)] at: Binding<Option<Pos2>>,
+    #[prop(default = Placement::Menu)] placement: Prop<Placement>,
+    #[prop(default = None)] bounds: Prop<Option<Rect>>,
+    #[prop(default = false)] keep_alive: bool,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId
 where
@@ -106,7 +113,6 @@ where
     let initial = chosen.get_untracked();
 
     let search_placeholder = create_memo(move || search_placeholder.get());
-    let is_open = create_signal(false);
     let focus = create_signal(Focus::Away);
     let focused = create_selector(move || focus.get());
     let disabled = create_memo(move || disabled.get());
@@ -116,7 +122,8 @@ where
         options: store(options.clone()),
         lists: [ComponentRef::new(), ComponentRef::new()],
         sheet: create_signal(false),
-        open: is_open,
+        open,
+        prepared: create_signal(false),
         focus,
         query: create_signal(String::new()),
         selected,
@@ -124,6 +131,19 @@ where
         highlighted: create_signal(initial),
     };
     api.fill(SelectApi(state));
+    let mut was_open = false;
+    create_effect(move || {
+        let now = open.get();
+        untrack(|| match (was_open, now) {
+            (false, true) if !state.prepared.get_untracked() => prepare(state),
+            (true, false) => {
+                state.prepared.set(false);
+                state.focus.set(Focus::Away);
+            }
+            _ => {}
+        });
+        was_open = now;
+    });
 
     let accessibility = crate::labelled_node(Role::ComboBox, accessibility, label);
     let labelled = options.clone();
@@ -195,10 +215,12 @@ where
             <Anchored
                 style={surface}
                 anchor={state.trigger}
-                placement=Placement::Menu
+                at
+                placement
+                bounds
+                keep_alive
                 trigger={state.trigger}
-                open={is_open}
-                on_dismiss={move || dismiss(state)}
+                open
             >|handle: AnchoredHandle| {
                 let AnchoredHandle { sheet, shown } = handle;
                 create_effect(move || {
@@ -283,15 +305,21 @@ fn toggle<T: Clone + PartialEq + 'static>(state: State<T>) {
 }
 
 fn open<T: Clone + PartialEq + 'static>(state: State<T>) {
+    prepare(state);
+    state.open.set(true);
+}
+
+/// Clears the search, highlights the chosen option and focuses the search box, once for
+/// each opening, however it opened.
+fn prepare<T: Clone + PartialEq + 'static>(state: State<T>) {
+    state.prepared.set(true);
     state.query.set(String::new());
     state.highlighted.set(state.chosen.get_untracked());
-    state.open.set(true);
     state.focus.set(Focus::Search);
 }
 
 fn dismiss<T>(state: State<T>) {
     state.open.set(false);
-    state.focus.set(Focus::Away);
 }
 
 /// Chooses the option the row was built for, wherever it now sits among the options.

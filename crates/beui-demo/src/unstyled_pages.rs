@@ -3,7 +3,7 @@ use beui::Align;
 use beui::Rect;
 use beui::drag;
 use beui::unstyled::{
-    AnchoredSheetHandle, AnchoredStyle, ButtonHandle, ChoiceKind, ChoiceOptionHandle,
+    AnchoredSheetHandle, AnchoredStyle, ButtonHandle, ChoiceKind, ChoiceOptionHandle, Dropdown,
     DisclosureHandle, DragHandle, DragPoint, DropHandle, MenuRowHandle, PopupTriggerHandle,
     ScrollHandle, ScrollStyle, ScrollbarHandle, SliderHandle, TextInputHandle, TextInputStyle,
     ToggleHandle, TooltipHandle,
@@ -620,9 +620,9 @@ pub(crate) fn PopupsPage() -> NodeId {
 
 fn popup_surface() -> AnchoredStyle {
     AnchoredStyle::new(
-        |content: NodeId| {
+        |dropdown: Dropdown| {
             view! {
-                <PopupPanel>{content}</PopupPanel>
+                <PopupPanel>{dropdown.content}</PopupPanel>
             }
         },
         |handle: AnchoredSheetHandle| {

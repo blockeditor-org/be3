@@ -2,6 +2,7 @@ use be_sdk_api::{ChildLayer, ChildMode};
 use beui::reactive::*;
 use beui::styled::theme::POINTER_REACH;
 use beui::styled::*;
+use beui::unstyled::{self, AnchoredSheetHandle, AnchoredStyle, Dropdown, SheetWhen};
 use beui::{Dismiss, LayerPolicy, NodeId, OverlayAnchor, Placement, Pos2, Rect, Vec2};
 
 use crate::{ChildState, Editor, PickAnchor, Subregion, SubregionContent};
@@ -177,30 +178,34 @@ fn AnchoredPopover(
         false => ColorRole::None,
     };
     let border = move || drawn.get().then_some(Border::DEFAULT);
-    let pointer = NodeRef::new();
-    let trigger = match anchor {
-        PickAnchor::Node(node) => Some(node),
-        PickAnchor::Centre | PickAnchor::Rect(_) => None,
-    };
+    let surface = AnchoredStyle::new(
+        move |dropdown: Dropdown| {
+            let pointer = dropdown.pointer;
+            view! {
+                <Frame @node_ref=&pointer fill border radius=Radius::Lg>{dropdown.content}</Frame>
+            }
+        },
+        |handle: AnchoredSheetHandle| handle.content.call(),
+    );
+    let open = Binding::new(true, move |open: bool| {
+        if !open {
+            on_dismiss.call(());
+        }
+    });
     view! {
-        <Overlay
+        <unstyled::Popover
             anchor={at}
             placement
-            policy=LayerPolicy::Pass
-            pointer={pointer}
-            trigger={trigger}
             beak
-            open=true
-            on_dismiss={move |why: Dismiss| {
-                if matches!(why, Dismiss::OutsidePress | Dismiss::Escape | Dismiss::Back) {
-                    on_dismiss.call(());
-                }
-            }}
-        >
-            <Frame @node_ref=&pointer fill border radius=Radius::Lg>
+            open
+            keep_alive=false
+            sheet=SheetWhen::Never
+            surface
+        >|_: PopoverHandle| {
+            view! {
                 <Frame width height>{child}</Frame>
-            </Frame>
-        </Overlay>
+            }
+        }</unstyled::Popover>
     }
 }
 

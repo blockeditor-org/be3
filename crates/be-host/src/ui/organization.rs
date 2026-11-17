@@ -249,13 +249,12 @@ fn HostMenu(
                 items
                 anchor={beui::OverlayAnchor::Point(beui::Pos2::ZERO)}
                 placement=beui::Placement::Fill
-                open=true
-                sheet=true
-                on_dismiss={move || {
-                    if let Some(report) = report {
+                open={Binding::new(true, move |open: bool| {
+                    if !open && let Some(report) = report {
                         report.done.set(true);
                     }
-                }}
+                })}
+                sheet=true
             />
         };
     }

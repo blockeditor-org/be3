@@ -1,13 +1,15 @@
 use beui_macros::{component, view};
 
-use crate::anchored::{Anchored, AnchoredHandle, AnchoredSheetHandle, AnchoredStyle, SheetWhen};
+use crate::anchored::{
+    Anchored, AnchoredHandle, AnchoredSheetHandle, AnchoredStyle, Dropdown, SheetWhen,
+};
 use crate::button::ButtonHandle;
 use crate::menu::{MenuItem, MenuList, MenuRowHandle, MenuThen};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
 use beui_view::types::Placement;
-use beui_view::types::Rect;
+use beui_view::types::{Pos2, Rect};
 
 #[derive(Clone, Copy)]
 pub struct MenuStyle {
@@ -87,24 +89,26 @@ pub fn MenuPopup(
     items: Run<MenuItem>,
     menu: MenuStyle,
     anchor: Prop<OverlayAnchor>,
+    #[prop(default = false)] open: Binding<bool>,
+    #[prop(default = None)] at: Binding<Option<Pos2>>,
     #[prop(default = Placement::Menu)] placement: Prop<Placement>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
-    open: Prop<bool>,
+    #[prop(default = false)] keep_alive: bool,
     #[prop(default = SheetWhen::Touched)] sheet: Prop<SheetWhen>,
     #[prop(default = true)] focusing: Prop<bool>,
     #[prop(default = NodeRef::new())] overlay: NodeRef,
     #[prop(default = NodeRef::new())] content: NodeRef,
     trigger: Option<NodeRef>,
-    on_dismiss: Callback<()>,
 ) -> NodeId {
     let (row, panel) = menu.parts();
     let spacing = menu.spacing();
     let bounds = create_memo(move || bounds.get());
+    let dropdown = RenderFn::new(move |dropdown: Dropdown| panel.call(dropdown.content));
     let (sheet_row, style, sheet) = match menu.sheet() {
         Some((sheet_row, sheet_panel)) => (
             sheet_row,
             AnchoredStyle {
-                dropdown: panel,
+                dropdown,
                 sheet: sheet_panel,
             },
             sheet,
@@ -112,7 +116,7 @@ pub fn MenuPopup(
         None => (
             row,
             AnchoredStyle {
-                dropdown: panel,
+                dropdown,
                 sheet: RenderFn::new(|handle: AnchoredSheetHandle| handle.content.call()),
             },
             Prop::Static(SheetWhen::Never),
@@ -120,21 +124,22 @@ pub fn MenuPopup(
     };
     let choose = Callback::new(move |then: MenuThen| {
         if then == MenuThen::Close {
-            on_dismiss.call(());
+            open.set(false);
         }
     });
     view! {
         <Anchored
             style
             anchor
+            at
             placement
             bounds
+            keep_alive
             open
             sheet
             traps_focus={focusing}
             trigger
             overlay
-            on_dismiss={on_dismiss}
         >|handle: AnchoredHandle| {
             let items = items.clone();
             let shown = handle.shown;
