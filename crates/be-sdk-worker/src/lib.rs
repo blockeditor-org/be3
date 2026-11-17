@@ -18,8 +18,8 @@
 use std::{collections::VecDeque, rc::Rc};
 
 use be_wasm_sandbox_api::{
-    ops::OpError,
     guest::sandbox::Instance,
+    ops::OpError,
     sandbox::{Config, Source, StagedModule},
 };
 
@@ -79,15 +79,10 @@ impl Worker {
             if let Some(message) = self.received.pop_front() {
                 return Ok(message);
             }
-            let messages = self
-                .sender
-                .0
-                .next()
-                .await
-                .map_err(|error| match error {
-                    OpError::Unsupported => NO_WORKERS.to_owned(),
-                    error => format!("the host did not answer: {error:?}"),
-                })??;
+            let messages = self.sender.0.next().await.map_err(|error| match error {
+                OpError::Unsupported => NO_WORKERS.to_owned(),
+                error => format!("the host did not answer: {error:?}"),
+            })??;
             self.received.extend(messages);
         }
     }

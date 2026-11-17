@@ -19,10 +19,20 @@ fn the_sandbox_finds_only_the_modules_an_app_stages() {
                     "display_name": "Notes", "icon": "x", "views": ["Main"]}}}"#,
         ),
     ]);
-    let entry = |module: &str| crate::staged_app("be3.map", module).map(|staged| staged.entry().to_owned());
+    let entry =
+        |module: &str| crate::staged_app("be3.map", module).map(|staged| staged.entry().to_owned());
     assert_eq!(entry("map.wasm"), Ok("map.wasm".to_owned()));
-    assert_eq!(entry("tiles.wasm"), Ok("workers/be3.map/tiles.wasm".to_owned()));
-    for refused in ["notes.wasm", "../notes.wasm", "workers/be3.map/tiles.wasm", "lib.wasm", ""] {
+    assert_eq!(
+        entry("tiles.wasm"),
+        Ok("workers/be3.map/tiles.wasm".to_owned())
+    );
+    for refused in [
+        "notes.wasm",
+        "../notes.wasm",
+        "workers/be3.map/tiles.wasm",
+        "lib.wasm",
+        "",
+    ] {
         assert_eq!(
             entry(refused),
             Err(format!("be3.map stages no worker named {refused:?}")),

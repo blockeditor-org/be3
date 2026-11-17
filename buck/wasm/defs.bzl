@@ -129,10 +129,6 @@ def _module_rule(cfg):
             "libraries": attrs.list(attrs.dep(providers = [WasmLibrariesInfo]), default = []),
             "library": attrs.transition_dep(cfg = cfg),
             "module": attrs.option(attrs.string(), default = None),
-            # An app's worker modules (worker), which the program stages
-            # under workers/<app id>/ beside it (AppWorkersInfo), with every
-            # library they need in its closure.
-            "workers": attrs.list(attrs.dep(providers = [WasmLibrariesInfo]), default = []),
             "optimize": attrs.default_only(
                 attrs.bool(
                     default = select({
@@ -141,6 +137,10 @@ def _module_rule(cfg):
                     })
                 )
             ),
+            # An app's worker modules (worker), which the program stages
+            # under workers/<app id>/ beside it (AppWorkersInfo), with every
+            # library they need in its closure.
+            "workers": attrs.list(attrs.dep(providers = [WasmLibrariesInfo]), default = []),
             "_wasm_opt": attrs.exec_dep(default = "root//buck/tools:wasm-opt"),
         },
         impl = _wasm_module_impl,
@@ -408,8 +408,8 @@ def app(module, visibility = None, test_env = {}, data = {}, extra_deps = [], ty
         extra_deps = extra_deps,
         libraries = libraries,
         module = module,
-        visibility = visibility,
         workers = workers,
+        visibility = visibility,
     )
     native.export_file(name = "manifest", src = "manifest.json", **kwargs)
     app_data(name = "data", files = data, **kwargs)

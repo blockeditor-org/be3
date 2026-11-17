@@ -17,7 +17,11 @@ fn an_app_spawns_its_own_worker_and_exchanges_messages_with_it() {
         let page = vec![7u8; 4 << 20];
         worker.send(page.clone());
         let echoed = worker.receive().await.expect("the worker runs");
-        assert_eq!(echoed, [ECHOED, &page].concat(), "a large buffer arrives whole");
+        assert_eq!(
+            echoed,
+            [ECHOED, &page].concat(),
+            "a large buffer arrives whole"
+        );
         received
     });
     assert_eq!(
