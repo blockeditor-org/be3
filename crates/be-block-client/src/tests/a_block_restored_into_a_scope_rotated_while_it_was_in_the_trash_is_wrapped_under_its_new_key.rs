@@ -28,10 +28,7 @@ async fn a_block_restored_into_a_scope_rotated_while_it_was_in_the_trash_is_wrap
         .save(note, &TextBlock::of("kept in the trash"), None)
         .await
         .unwrap();
-    owner
-        .set_parent(note, BlockParent::Detached)
-        .await
-        .unwrap();
+    owner.set_parent(note, BlockParent::Detached).await.unwrap();
 
     owner
         .grant(team, leaver.account(), Access::None)

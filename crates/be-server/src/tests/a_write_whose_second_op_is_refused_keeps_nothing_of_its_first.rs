@@ -20,8 +20,8 @@ async fn a_write_whose_second_op_is_refused_keeps_nothing_of_its_first() {
     let mut ops = create.clone();
     ops.push(refused);
     let written = client::server::write(&owner.peer, Some(organization), ops)
-    .await
-    .expect("the connection stayed open");
+        .await
+        .expect("the connection stayed open");
     let Err(WriteError { index, error }) = written else {
         panic!("a write with a refused op was taken: {written:?}");
     };
@@ -41,7 +41,9 @@ async fn a_write_whose_second_op_is_refused_keeps_nothing_of_its_first() {
         "the first op's block is listed"
     );
 
-    let made = owner.call(|peer| peer.write_all::<BlockSummary>(create)).await;
+    let made = owner
+        .call(|peer| peer.write_all::<BlockSummary>(create))
+        .await;
     assert!(
         made.is_ok(),
         "the same op alone was refused, as if a graph change were left behind: {made:?}"

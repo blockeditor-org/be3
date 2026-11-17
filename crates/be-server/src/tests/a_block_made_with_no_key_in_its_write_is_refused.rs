@@ -50,7 +50,9 @@ async fn a_block_made_with_no_key_in_its_write_is_refused() {
         "the key written beside a refused block was kept"
     );
 
-    let made = owner.call(|peer| peer.write_all::<BlockSummary>(made)).await;
+    let made = owner
+        .call(|peer| peer.write_all::<BlockSummary>(made))
+        .await;
     assert!(made.is_ok(), "{made:?}");
 
     harness.stop().await;

@@ -1513,9 +1513,12 @@ impl Client {
                             .await
                             .map_err(|error| Refused { index, error })?,
                     );
-                    whole.extend(self.connection.whole.drain(..).map(|(identity, check)| {
-                        (identity, index, check)
-                    }));
+                    whole.extend(
+                        self.connection
+                            .whole
+                            .drain(..)
+                            .map(|(identity, check)| (identity, index, check)),
+                    );
                 }
                 for (identity, index, check) in whole {
                     store

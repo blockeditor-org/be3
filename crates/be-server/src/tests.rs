@@ -5,8 +5,8 @@ use be_block_graph::BlockParent;
 use be_block_protocol::{
     Authenticated, BlockSummary, ChangeCursor, ClientId, DeviceLoginAnswer, DeviceLoginStep, Done,
     Error, ErrorCode, Event, FromDone, FromPage, HistoryEntry, Hold, KeyKind, KeyRow, KeySet,
-    Listing, ObjectLength, Op, OrganizationRole, PutKeys, PairingMessage, Query, SessionEvent, SessionSend,
-    SessionState, Target, Topic, UploadUrl, WrappedBy, WrappedKey, WriteError, client,
+    Listing, ObjectLength, Op, OrganizationRole, PairingMessage, PutKeys, Query, SessionEvent,
+    SessionSend, SessionState, Target, Topic, UploadUrl, WrappedBy, WrappedKey, WriteError, client,
 };
 use be_block_session::{Resume, resume};
 use be_block_store::{ChunkerConfig, ContentKey, Hash, Keyring, MemoryStore, ObjectStore, Vault};

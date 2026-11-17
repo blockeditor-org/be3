@@ -17,7 +17,10 @@ async fn a_publish_with_no_commit_changes_the_metadata_and_leaves_the_head() {
         .publish(&author, block, head, chunks, None, 1_000)
         .await;
     assert!(
-        matches!(published, Ok(be_block_protocol::PublishOutcome::Published(_))),
+        matches!(
+            published,
+            Ok(be_block_protocol::PublishOutcome::Published(_))
+        ),
         "{published:?}"
     );
 
