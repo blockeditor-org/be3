@@ -98,10 +98,12 @@ impl Root {
         self.core.begin(request, deadline)?;
         loop {
             let since = self.bell.rung();
-            match self.core.advance() {
+            match self.core.advance(None) {
                 Progress::Drawn(drawn) => return drawn,
                 // Pending: wait until what the root waits on has something for it.
                 Progress::Pending { until } => self.bell.wait(since, until),
+                // Natively the frame thread is the root's alone: it never yields.
+                Progress::Yielded => {}
             }
         }
     }

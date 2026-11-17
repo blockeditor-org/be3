@@ -92,7 +92,8 @@ export function runtime(post) {
 
     // A start names the module's URL, and the extension that links it if
     // any, or hands over a pure guest's module the page compiled already
-    // (be-wasm-sandbox-host's `compile`), which is instantiated as it is.
+    // (be-wasm-sandbox-host's `compile`), which is instantiated as it is,
+    // with the memory `data.memory` describes if it imports one.
     async function start(data) {
         const loading = data.extension ? import(new URL(data.extension, data.url).href) : null;
         let fetched = null;
@@ -107,9 +108,13 @@ export function runtime(post) {
         if (loading) {
             extension = await (await loading).boot({ url: data.url, bytes: fetched, module, guest, imports, initialize, wake });
         } else {
-            const instance = await WebAssembly.instantiate(module, imports(module));
+            // A pure guest from bytes imports its memory, which the page capped at
+            // its spawner's limit and names here by its pages.
+            const memory = data.memory ? new WebAssembly.Memory(data.memory) : undefined;
+            const answer = (wanted) => (wanted.kind === "memory" ? memory : undefined);
+            const instance = await WebAssembly.instantiate(module, imports(module, answer));
             guest.exports = instance.exports;
-            guest.memory = guest.exports.memory;
+            guest.memory = memory ?? guest.exports.memory;
             initialize(guest.exports);
         }
         guest.exports.app_start();

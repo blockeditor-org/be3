@@ -3013,6 +3013,8 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "sha2 0.10.9",
+ "wasm-encoder 0.257.1",
+ "wasmparser 0.257.1",
 ]
 
 [[package]]

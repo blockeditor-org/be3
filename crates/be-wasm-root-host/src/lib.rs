@@ -14,9 +14,10 @@
 //! - natively (`native`), `Root::frame` waits on a bell its instances, compiles and own wakes
 //!   ring, up to the deadline, so it returns the drawn frame;
 //! - in the browser (`web`), the page may never wait (decisions/the_web_page_never_waits.md), so
-//!   `Root::frame`, called from `requestAnimationFrame`, steps the root as far as it goes and
-//!   returns; a task resumes it whenever its workers answer, a compile finishes, it wakes itself
-//!   or the deadline passes, and the frame is handed over once the root answers.
+//!   `Root::frame`, called from `requestAnimationFrame`, steps the root for a slice of the page's
+//!   thread at most and returns; a task resumes it whenever its workers answer, a compile
+//!   finishes, it wakes itself, its slice ran out or the deadline passes, and the frame is handed
+//!   over once the root answers.
 
 use std::time::{Duration, Instant};
 
@@ -55,6 +56,9 @@ enum Progress {
     /// The root waits for what its host has not had yet: step it again once something it waits
     /// on rings, or at `until` at the latest.
     Pending { until: Instant },
+    /// The root used its slice of the thread while it still had work: step it again soon, after
+    /// whatever else the thread has to do.
+    Yielded,
 }
 
 /// The frame being drawn.
@@ -124,8 +128,9 @@ impl<G: Inline> Core<G> {
     }
 
     /// Steps the root as far as it goes without waiting: until it answers the frame, or waits
-    /// for something its host has not had yet.
-    fn advance(&mut self) -> Progress {
+    /// for something its host has not had yet, or, given a `slice`, until it stepped that long.
+    fn advance(&mut self, slice: Option<Duration>) -> Progress {
+        let yield_at = slice.map(|slice| Instant::now() + slice);
         loop {
             let Some(drawing) = &self.drawing else {
                 return Progress::Drawn(Err("no frame is being drawn".to_owned()));
@@ -160,6 +165,9 @@ impl<G: Inline> Core<G> {
                 return self.finish(drawn);
             }
             match self.step() {
+                Ok(true) if yield_at.is_some_and(|at| Instant::now() >= at) => {
+                    return Progress::Yielded;
+                }
                 Ok(true) => {}
                 Ok(false) => return Progress::Pending { until },
                 Err(failure) => return self.finish(Err(failure)),

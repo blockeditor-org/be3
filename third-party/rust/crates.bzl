@@ -22061,9 +22061,27 @@ third_party = {
                     "serde",
                 ],
             },
-            "wasi": {},
+            "wasi": {
+                "deps": [
+                    ":foldhash-0.2.0",
+                    ":serde_core-1.0.228",
+                ],
+                "features": [
+                    "default-hasher",
+                    "serde",
+                ],
+            },
             "wasi-guest": {},
-            "wasm32": {},
+            "wasm32": {
+                "deps": [
+                    ":foldhash-0.2.0",
+                    ":serde_core-1.0.228",
+                ],
+                "features": [
+                    "default-hasher",
+                    "serde",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":foldhash-0.2.0",
@@ -26449,6 +26467,11 @@ third_party = {
                 "deps": [
                     ":equivalent-1.0.2",
                     ":hashbrown-0.17.1",
+                    ":serde_core-1.0.228",
+                ],
+                "features": [
+                    "serde",
+                    "std",
                 ],
             },
             "wasi-guest": {
@@ -26465,9 +26488,11 @@ third_party = {
                 "deps": [
                     ":equivalent-1.0.2",
                     ":hashbrown-0.17.1",
+                    ":serde_core-1.0.228",
                 ],
                 "features": [
                     "default",
+                    "serde",
                     "std",
                 ],
             },
@@ -28867,6 +28892,8 @@ third_party = {
             "linux-x86_64": {},
             "macos-arm64": {},
             "macos-x86_64": {},
+            "wasi": {},
+            "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -48825,6 +48852,8 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi": {},
+            "wasm32": {},
             "windows-arm64": {
                 "features": [
                     "std",
@@ -62605,6 +62634,26 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi": {
+                "deps": [
+                    ":leb128fmt-0.1.0",
+                ],
+                "features": [
+                    "component-model",
+                    "default",
+                    "std",
+                ],
+            },
+            "wasm32": {
+                "deps": [
+                    ":leb128fmt-0.1.0",
+                ],
+                "features": [
+                    "component-model",
+                    "default",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":leb128fmt-0.1.0",
@@ -63185,6 +63234,44 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":semver-1.0.28",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "component-model",
+                    "default",
+                    "features",
+                    "hash-collections",
+                    "serde",
+                    "simd",
+                    "std",
+                    "validate",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":semver-1.0.28",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "component-model",
+                    "default",
+                    "features",
+                    "hash-collections",
+                    "serde",
+                    "simd",
+                    "std",
+                    "validate",
+                ],
+            },
+            "wasm32": {
                 "deps": [
                     ":bitflags-2.12.1",
                     ":hashbrown-0.17.1",
