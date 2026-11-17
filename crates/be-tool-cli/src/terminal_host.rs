@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use be_block_client::Peer;
+use be_block_protocol::ClientId;
 use be_block_content::ObjectId;
 use be_block_content::presence::{ChannelKind, PresenceKind};
 use be_block_store::ObjectStore;
@@ -26,10 +27,10 @@ use be_tool_terminal_emulator::Emulator;
 const DEFAULT_SIZE: TerminalSize = TerminalSize { cols: 80, rows: 24 };
 const READ_CHUNK: usize = 16 * 1024;
 const LONGEST_RETRY: Duration = Duration::from_secs(30);
-/// How often a host that isn't writing asks for the session's lease. Ownership
-/// of the live session is the lock between hosts: a host writes only while its
-/// replica owns it. A viewer that owns it seals nothing, so its lease lapses
-/// and the claim is granted.
+/// How often a host that isn't writing claims the session's lease, and how long
+/// it first waits on a new holder: holding the lease is the lock between hosts,
+/// and a claim takes it at once, so a host waits for the holder's presence to
+/// say whether it is another host before taking the lease from it.
 const CLAIM_INTERVAL: Duration = Duration::from_secs(3);
 
 type Hosted<S> = Session<S, TerminalContent>;
@@ -212,13 +213,16 @@ impl Host {
         session.settle().await;
         eprintln!("be: hosting a terminal for block {block}");
         self.writing = false;
-        let mut claim = Instant::now();
+        let mut claim = Claim {
+            holder: None,
+            at: Instant::now(),
+        };
         let outcome = loop {
             if let Err(error) = self.step(&mut session, &mut claim).await {
                 break Err(error);
             }
             let claiming = !session.is_holder() && !standing_by(&session);
-            let next = claim.max(Instant::now());
+            let next = claim.at.max(Instant::now());
             tokio::select! {
                 () = shutdown.as_mut() => break Ok(()),
                 woken = session.next() => {
@@ -255,7 +259,7 @@ impl Host {
     async fn step<S: ObjectStore + 'static>(
         &mut self,
         session: &mut Hosted<S>,
-        claim: &mut Instant,
+        claim: &mut Claim,
     ) -> Result<(), String> {
         if !session.is_holder() {
             if self.writing {
@@ -263,8 +267,13 @@ impl Host {
                 self.writing = false;
             }
             let now = Instant::now();
-            if !standing_by(session) && now >= *claim {
-                *claim = now + CLAIM_INTERVAL;
+            let holder = session.holder();
+            if holder != claim.holder {
+                claim.holder = holder;
+                claim.at = claim.at.max(now + CLAIM_INTERVAL);
+            }
+            if !standing_by(session) && now >= claim.at {
+                claim.at = now + CLAIM_INTERVAL;
                 session.claim();
                 session.settle().await;
             }
@@ -476,6 +485,13 @@ impl Host {
         self.dirty = true;
         Ok(())
     }
+}
+
+/// When a host that isn't writing next claims the lease, and the holder it
+/// last saw: a new holder's presence may not have reached it yet.
+struct Claim {
+    holder: Option<ClientId>,
+    at: Instant,
 }
 
 /// Another host holds the lease, so this one waits instead of claiming: a
