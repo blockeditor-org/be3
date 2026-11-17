@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use be_block_graph::{Access, BlockParent};
+use be_block_keys::RecoveryPublic;
 use be_block_protocol::{
     BlockSummary, ErrorCode, KeyKind, KeySet, KeyWork, Member, OrganizationRole, client,
 };
 use be_block_store::ObjectStore;
-use be_block_keys::RecoveryPublic;
 use uuid::Uuid;
 
 use super::Peer;
@@ -124,7 +124,11 @@ impl<S: ObjectStore> Peer<S> {
             return None;
         }
         let row = self.keys.row(key)?;
-        if self.keys.server().is_some_and(|(server, _)| server == account) {
+        if self
+            .keys
+            .server()
+            .is_some_and(|(server, _)| server == account)
+        {
             return self.keys.recipient(account, key);
         }
         // Administering the organization gives the escrow key, and with it every key but an
@@ -157,7 +161,8 @@ impl<S: ObjectStore> Peer<S> {
         // viewers to their contacts. That the contact views inside is the server's word
         // (plans/signed_access.md, "Grants the server changes first"); that the kind is open is
         // the log's, so a block no manager opened is offered to no one.
-        let open = checked.open_inside >= be_block_keys::Level::View && !checked.open_inside_tainted;
+        let open =
+            checked.open_inside >= be_block_keys::Level::View && !checked.open_inside_tainted;
         match open {
             true => self.keys.contact(account),
             false => None,

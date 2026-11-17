@@ -35,7 +35,14 @@ async fn a_revocation_the_server_makes_is_signed_into_the_log_by_a_manager() {
     // Removed from a device: revoked in the log by the call itself.
     admin.remove_member(leaver.account()).await.unwrap();
     assert!(revoked(&admin, team, leaver.account()).await);
-    assert!(admin.key_work().await.unwrap().unsigned_revocations.is_empty());
+    assert!(
+        admin
+            .key_work()
+            .await
+            .unwrap()
+            .unsigned_revocations
+            .is_empty()
+    );
 
     // The member makes a block's agent of the workspace, then stops managing it: the server
     // deletes the agent on its own, revoking its grant.
@@ -66,7 +73,10 @@ async fn a_revocation_the_server_makes_is_signed_into_the_log_by_a_manager() {
     ))
     .await
     .unwrap();
-    admin.grant(team, member.account(), Access::View).await.unwrap();
+    admin
+        .grant(team, member.account(), Access::View)
+        .await
+        .unwrap();
 
     let work = admin.key_work().await.unwrap();
     assert!(
@@ -77,18 +87,33 @@ async fn a_revocation_the_server_makes_is_signed_into_the_log_by_a_manager() {
         work.unsigned_revocations
     );
     assert!(
-        !work.unsealed.iter().any(|unsealed| unsealed.account == agent),
+        !work
+            .unsealed
+            .iter()
+            .any(|unsealed| unsealed.account == agent),
         "nothing is due to the agent while its revocation waits"
     );
     assert!(
-        member.key_work().await.unwrap().unsigned_revocations.is_empty(),
+        member
+            .key_work()
+            .await
+            .unwrap()
+            .unsigned_revocations
+            .is_empty(),
         "one who no longer manages the block is not asked to sign"
     );
     assert!(!revoked(&admin, team, agent).await);
 
     admin.tend().await.unwrap();
     assert!(revoked(&admin, team, agent).await, "the manager signed it");
-    assert!(admin.key_work().await.unwrap().unsigned_revocations.is_empty());
+    assert!(
+        admin
+            .key_work()
+            .await
+            .unwrap()
+            .unsigned_revocations
+            .is_empty()
+    );
 
     harness.stop().await;
 }

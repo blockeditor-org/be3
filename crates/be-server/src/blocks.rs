@@ -2320,7 +2320,11 @@ pub(crate) fn write_grant(
         database.execute(
             "INSERT OR IGNORE INTO unsigned_revocations (organization_id, block_id, account_id)
              VALUES (?1, ?2, ?3)",
-            params![organization.to_string(), block.to_string(), account.to_string()],
+            params![
+                organization.to_string(),
+                block.to_string(),
+                account.to_string()
+            ],
         )?;
     }
     let organization = organization.to_string();

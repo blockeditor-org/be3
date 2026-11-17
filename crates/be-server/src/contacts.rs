@@ -1110,7 +1110,9 @@ impl ServerStore {
     ) -> Result<Vec<Granted>, ServerError> {
         let signed = match current {
             Some(organization) => {
-                let named = self.contact_revocations(caller, other, organization).await?;
+                let named = self
+                    .contact_revocations(caller, other, organization)
+                    .await?;
                 crate::access::revocations_for(&named, &revocations)?
             }
             None => crate::access::revocations_for(&[], &revocations)?,

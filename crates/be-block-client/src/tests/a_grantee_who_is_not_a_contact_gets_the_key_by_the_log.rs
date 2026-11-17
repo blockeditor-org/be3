@@ -29,12 +29,16 @@ async fn a_grantee_who_is_not_a_contact_gets_the_key_by_the_log() {
         .share(team, manager.account(), Access::Manage, &identity)
         .await
         .unwrap();
-    admin.grant(team, reader.account(), Access::View).await.unwrap();
+    admin
+        .grant(team, reader.account(), Access::View)
+        .await
+        .unwrap();
 
     manager.refresh_keys(None).await.unwrap();
     let scope = manager.keys().scope_key(team).unwrap();
     let mut work = manager.key_work().await.unwrap();
-    work.unsealed.retain(|unsealed| unsealed.account != reader.account());
+    work.unsealed
+        .retain(|unsealed| unsealed.account != reader.account());
     work.unsealed.push(Unsealed {
         key: scope,
         account: reader.account(),
