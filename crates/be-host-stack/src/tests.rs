@@ -344,15 +344,13 @@ impl Harness {
     }
 
     fn open_until_it_joins(&self, block: Uuid, content_type: Uuid) {
-        let mut joins = self
-            .relay()
-            .count(|method, args| {
-                method == be_block_protocol::__args::SERVER_READ
-                    && be_wasm_ops::decode::<be_block_protocol::__args::ServerReadArgs>(args)
-                        .is_some_and(|asked| {
-                            matches!(asked.query, be_block_protocol::Query::Session { .. })
-                        })
-            });
+        let mut joins = self.relay().count(|method, args| {
+            method == be_block_protocol::__args::SERVER_READ
+                && be_wasm_ops::decode::<be_block_protocol::__args::ServerReadArgs>(args)
+                    .is_some_and(|asked| {
+                        matches!(asked.query, be_block_protocol::Query::Session { .. })
+                    })
+        });
         open(block, content_type);
         runtime()
             .block_on(joins.wait_for(|joins| *joins > 0))
@@ -1243,7 +1241,10 @@ impl Device {
                 be_block_client::Connection::connect(&self.url, &be_block_client::Clock::real())
                     .await
                     .expect("the other device reaches the server again");
-            let token = be_block_client::ask(be_block_protocol::client::server::authenticate(&connection, Some(token)))
+            let token = be_block_client::ask(be_block_protocol::client::server::authenticate(
+                &connection,
+                Some(token),
+            ))
             .await
             .expect("the other device signs in again")
             .token;
@@ -1571,7 +1572,13 @@ impl Member {
             ))
             .expect("the member opens the link");
         runtime
-            .block_on(be_block_client::contacts::accept_link(&peer.connection(), &someone.phrase.secret(), &someone.me().card(), &code, be_block_client::contacts::Expected::Contact))
+            .block_on(be_block_client::contacts::accept_link(
+                &peer.connection(),
+                &someone.phrase.secret(),
+                &someone.me().card(),
+                &code,
+                be_block_client::contacts::Expected::Contact,
+            ))
             .expect("the member accepts");
         let account = someone.session.account;
         wait_until("confirmed the member as a contact", |shared| {
@@ -1620,7 +1627,11 @@ impl Member {
     /// Signs out, which the server counts as not connected before it answers.
     fn signs_out(&self) {
         self.runtime
-            .block_on(be_block_protocol::write::<(), _>(&self.peer.connection(), None, be_block_protocol::Op::RevokeToken(None)))
+            .block_on(be_block_protocol::write::<(), _>(
+                &self.peer.connection(),
+                None,
+                be_block_protocol::Op::RevokeToken(None),
+            ))
             .expect("the logout is answered")
             .expect("the member signs out");
     }

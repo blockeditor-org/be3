@@ -12,16 +12,26 @@ pub(super) async fn join(
     let account = member.register(email).await;
     let response = owner
         .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::CreateLink { link: Uuid::from_u128(invitation), card: Vec::new(), code: Vec::new(), kind: be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
+            peer.write::<()>(be_block_protocol::Op::CreateLink {
+                link: Uuid::from_u128(invitation),
+                card: Vec::new(),
+                code: Vec::new(),
+                kind: be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                     organization,
                     escrow: Vec::new(),
-                }) })
+                }),
+            })
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let _ = member
         .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::AcceptLink { link: Uuid::from_u128(invitation), card: Vec::new(), contact: Vec::new(), key: Vec::new() })
+            peer.write::<()>(be_block_protocol::Op::AcceptLink {
+                link: Uuid::from_u128(invitation),
+                card: Vec::new(),
+                contact: Vec::new(),
+                key: Vec::new(),
+            })
         })
         .await;
     member.open(organization).await;
@@ -77,7 +87,11 @@ async fn a_graph_change_reaches_only_the_members_who_may_see_it() {
 
     let response = owner
         .call(|peer| {
-            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata { block: inside, metadata: b"sealed name".to_vec(), references: Vec::new() })
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::SetMetadata {
+                block: inside,
+                metadata: b"sealed name".to_vec(),
+                references: Vec::new(),
+            })
         })
         .await;
     assert!(matches!(response, Ok(_)), "{response:?}");
@@ -103,10 +117,17 @@ async fn a_graph_change_reaches_only_the_members_who_may_see_it() {
     assert_eq!(told(&mut viewer).await, Notice::Roots);
     let response = viewer
         .call(|peer| {
-            peer.ask::<be_block_protocol::ChangedPage>(be_block_protocol::Query::Tree { entry: folder, after: be_block_protocol::ChangeCursor {
-                    changed: 0,
-                    block: Uuid::max(),
-                }, limit: 10 }, false)
+            peer.ask::<be_block_protocol::ChangedPage>(
+                be_block_protocol::Query::Tree {
+                    entry: folder,
+                    after: be_block_protocol::ChangeCursor {
+                        changed: 0,
+                        block: Uuid::max(),
+                    },
+                    limit: 10,
+                },
+                false,
+            )
         })
         .await;
     assert!(

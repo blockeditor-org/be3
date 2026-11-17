@@ -28,7 +28,9 @@ async fn a_change_to_the_ways_to_sign_in_is_told_on_every_device_for_a_week() {
         1
     );
     let listed = first
-        .call(|peer| peer.read::<Vec<be_block_protocol::AccountNotice>>(be_block_protocol::Query::Notices))
+        .call(|peer| {
+            peer.read::<Vec<be_block_protocol::AccountNotice>>(be_block_protocol::Query::Notices)
+        })
         .await
         .unwrap();
     assert_eq!(listed.len(), 1, "{listed:?}");
@@ -41,7 +43,9 @@ async fn a_change_to_the_ways_to_sign_in_is_told_on_every_device_for_a_week() {
         .await;
     assert!(matches!(dismissed, Ok(())), "{dismissed:?}");
     let listed = first
-        .call(|peer| peer.read::<Vec<be_block_protocol::AccountNotice>>(be_block_protocol::Query::Notices))
+        .call(|peer| {
+            peer.read::<Vec<be_block_protocol::AccountNotice>>(be_block_protocol::Query::Notices)
+        })
         .await
         .unwrap();
     assert_eq!(listed.len(), 1, "{listed:?}");
@@ -65,7 +69,8 @@ async fn a_change_to_the_ways_to_sign_in_is_told_on_every_device_for_a_week() {
         .await;
     assert_eq!(
         first
-            .call(|peer| peer.read::<Vec<be_block_protocol::AccountNotice>>(be_block_protocol::Query::Notices))
+            .call(|peer| peer
+                .read::<Vec<be_block_protocol::AccountNotice>>(be_block_protocol::Query::Notices))
             .await
             .unwrap()
             .len(),
@@ -76,7 +81,9 @@ async fn a_change_to_the_ways_to_sign_in_is_told_on_every_device_for_a_week() {
         .await;
     assert!(matches!(dismissed, Ok(())), "{dismissed:?}");
     let listed = first
-        .call(|peer| peer.read::<Vec<be_block_protocol::AccountNotice>>(be_block_protocol::Query::Notices))
+        .call(|peer| {
+            peer.read::<Vec<be_block_protocol::AccountNotice>>(be_block_protocol::Query::Notices)
+        })
         .await
         .unwrap();
     assert!(listed.is_empty(), "{listed:?}");

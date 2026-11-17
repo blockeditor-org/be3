@@ -20,7 +20,16 @@ async fn a_change_made_while_a_follow_is_read_is_read_or_told() {
         block: Uuid::max(),
     };
     let page = reader
-        .call(|peer| peer.ask::<be_block_protocol::ChangedPage>(be_block_protocol::Query::Tree { entry: folder, after: start, limit: 1 }, true))
+        .call(|peer| {
+            peer.ask::<be_block_protocol::ChangedPage>(
+                be_block_protocol::Query::Tree {
+                    entry: folder,
+                    after: start,
+                    limit: 1,
+                },
+                true,
+            )
+        })
         .await
         .expect("the first page");
     let mut after = page.next.expect("the tree takes more than a page");
@@ -28,7 +37,16 @@ async fn a_change_made_while_a_follow_is_read_is_read_or_told() {
     let mut read = Vec::new();
     loop {
         let page = reader
-            .call(|peer| peer.ask::<be_block_protocol::ChangedPage>(be_block_protocol::Query::Tree { entry: folder, after: after, limit: 1 }, false))
+            .call(|peer| {
+                peer.ask::<be_block_protocol::ChangedPage>(
+                    be_block_protocol::Query::Tree {
+                        entry: folder,
+                        after: after,
+                        limit: 1,
+                    },
+                    false,
+                )
+            })
             .await
             .expect("a later page");
         read.extend(page.summaries.iter().map(|summary| summary.id));

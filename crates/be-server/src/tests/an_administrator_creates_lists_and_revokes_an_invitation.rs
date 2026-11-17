@@ -38,14 +38,25 @@ async fn an_administrator_creates_lists_and_revokes_an_invitation() {
         .await;
     assert!(refused_as(&found, ErrorCode::LinkNotFound), "{found:?}");
     let accepted = invited
-        .call(|peer| peer.write::<()>(be_block_protocol::Op::AcceptLink { link: link, card: Vec::new(), contact: Vec::new(), key: Vec::new() }))
+        .call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::AcceptLink {
+                link: link,
+                card: Vec::new(),
+                contact: Vec::new(),
+                key: Vec::new(),
+            })
+        })
         .await;
     assert!(
         refused_as(&accepted, ErrorCode::LinkNotFound),
         "a revoked invitation is not accepted: {accepted:?}"
     );
     let joined = invited
-        .call(|peer| peer.read::<Vec<be_block_protocol::Organization>>(be_block_protocol::Query::Organizations))
+        .call(|peer| {
+            peer.read::<Vec<be_block_protocol::Organization>>(
+                be_block_protocol::Query::Organizations,
+            )
+        })
         .await
         .expect("listing organizations failed");
     assert!(joined.iter().all(|joined| joined.id != organization));

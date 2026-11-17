@@ -75,7 +75,13 @@ async fn a_trim_by_another_build_marks_the_journal_lost_until_the_next_commit() 
 /// What a reader of `block` is told of its journal.
 async fn journal_of(client: &mut TestClient, block: Uuid) -> Option<be_block_protocol::Journal> {
     let response = client
-        .call(|peer| peer.read::<be_block_protocol::Contents>(be_block_protocol::Query::Blocks { blocks: vec![block], contents: true, held: Vec::new() }))
+        .call(|peer| {
+            peer.read::<be_block_protocol::Contents>(be_block_protocol::Query::Blocks {
+                blocks: vec![block],
+                contents: true,
+                held: Vec::new(),
+            })
+        })
         .await;
     let Ok(contents) = response else {
         panic!("reading failed: {response:?}");

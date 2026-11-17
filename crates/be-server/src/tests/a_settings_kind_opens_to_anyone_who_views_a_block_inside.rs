@@ -8,10 +8,21 @@ async fn create_under(client: &mut TestClient, content_type: Uuid, parent: Uuid)
     let placement = client.placement(block, BlockParent::Block(parent)).await;
     let response = client
         .call(|peer| {
-            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::CreateBlock { block: block, content_type: content_type, parent: BlockParent::Block(parent), metadata: Vec::new(), references: Vec::new(), key: key, keys: KeySet {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::CreateBlock {
+                block: block,
+                content_type: content_type,
+                parent: BlockParent::Block(parent),
+                metadata: Vec::new(),
+                references: Vec::new(),
+                key: key,
+                keys: KeySet {
                     keys: vec![row(key, block, KeyKind::Data)],
                     wrapped: Vec::new(),
-                }, owner_only: false, root: root.clone(), placement: placement })
+                },
+                owner_only: false,
+                root: root.clone(),
+                placement: placement,
+            })
         })
         .await;
     assert!(matches!(response, Ok(_)), "{response:?}");
@@ -53,7 +64,12 @@ async fn a_settings_kind_opens_to_anyone_who_views_a_block_inside() {
     assert_eq!(access_of(&mut guest, kind).await, Access::View);
     assert!(!access_of(&mut guest, settings).await.can_view());
     let listed = guest
-        .call(|peer| peer.read::<be_block_protocol::Listed>(be_block_protocol::Query::List { listing: Listing::OpenSettings(note), after: None }))
+        .call(|peer| {
+            peer.read::<be_block_protocol::Listed>(be_block_protocol::Query::List {
+                listing: Listing::OpenSettings(note),
+                after: None,
+            })
+        })
         .await;
     let Ok(be_block_protocol::Listed { blocks, .. }) = listed else {
         panic!("listing the open settings failed: {listed:?}");
@@ -69,10 +85,12 @@ async fn a_settings_kind_opens_to_anyone_who_views_a_block_inside() {
     let key = Uuid::new_v4();
     let stored = owner
         .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(KeySet {
+            peer.write::<()>(be_block_protocol::Op::PutKeys(
+                be_block_protocol::PutKeys::Rows(KeySet {
                     keys: vec![row(key, kind, KeyKind::Scope)],
                     wrapped: Vec::new(),
-                })))
+                }),
+            ))
         })
         .await;
     assert!(matches!(stored, Ok(())), "{stored:?}");

@@ -26,7 +26,21 @@ async fn a_burst_of_publishes_reaches_a_follower_as_a_few_tree_advances() {
             .upload(&author.store, &author.objects_of(head, &chunks))
             .await;
         let before = author.held_by(expected);
-        sent.push(writer.peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: block, commit: head, expected: expected, parents: expected.into_iter().collect(), held: objects_change(&before, chunks), time: 1_000 + index, pinned: false, references: listing(&[], Vec::new()), metadata: Vec::new(), objects: Vec::new(), journal: None }));
+        sent.push(writer.peer.write::<be_block_protocol::PublishOutcome>(
+            be_block_protocol::Op::Publish {
+                block: block,
+                commit: head,
+                expected: expected,
+                parents: expected.into_iter().collect(),
+                held: objects_change(&before, chunks),
+                time: 1_000 + index,
+                pinned: false,
+                references: listing(&[], Vec::new()),
+                metadata: Vec::new(),
+                objects: Vec::new(),
+                journal: None,
+            },
+        ));
         expected = Some(head);
     }
     for published in sent {

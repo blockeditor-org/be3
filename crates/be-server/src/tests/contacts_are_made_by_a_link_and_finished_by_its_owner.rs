@@ -28,7 +28,12 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     let link = Uuid::from_bytes(code.lookup());
     let response = owner
         .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::CreateLink { link: link, card: owner_card.seal(&code, CardRole::Owner), code: owner_secret.seal_own(&code.to_bytes()), kind: be_block_protocol::LinkKind::Contact(None) })
+            peer.write::<()>(be_block_protocol::Op::CreateLink {
+                link: link,
+                card: owner_card.seal(&code, CardRole::Owner),
+                code: owner_secret.seal_own(&code.to_bytes()),
+                kind: be_block_protocol::LinkKind::Contact(None),
+            })
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
@@ -52,7 +57,12 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
 
     let response = other
         .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::AcceptLink { link: link, card: other_card.seal(&code, CardRole::Accepter), contact: other_secret.seal_own(&opened.encode()), key: Vec::new() })
+            peer.write::<()>(be_block_protocol::Op::AcceptLink {
+                link: link,
+                card: other_card.seal(&code, CardRole::Accepter),
+                contact: other_secret.seal_own(&opened.encode()),
+                key: Vec::new(),
+            })
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
@@ -97,14 +107,20 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     assert_eq!(accepted, other_card);
     let response = owners_device
         .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::PutContact { contact: other_id, sealed: owner_secret.seal_own(&accepted.encode()) })
+            peer.write::<()>(be_block_protocol::Op::PutContact {
+                contact: other_id,
+                sealed: owner_secret.seal_own(&accepted.encode()),
+            })
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let _ = owners_device
         .call(|peer| peer.write::<()>(be_block_protocol::Op::DeleteLink(link)))
         .await;
-    let Ok(links) = owner.call(|peer| peer.read::<Vec<be_block_protocol::OwnLink>>(be_block_protocol::Query::Links)).await else {
+    let Ok(links) = owner
+        .call(|peer| peer.read::<Vec<be_block_protocol::OwnLink>>(be_block_protocol::Query::Links))
+        .await
+    else {
         panic!("listing links failed");
     };
     assert!(links.is_empty());

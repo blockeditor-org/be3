@@ -22,14 +22,20 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
     };
     assert_eq!(account, agent.account);
     bot.open(organization).await;
-    let response = bot.call(|peer| peer.read::<be_block_protocol::RecoveryKey>(be_block_protocol::Query::RecoveryKey)).await;
+    let response = bot
+        .call(|peer| {
+            peer.read::<be_block_protocol::RecoveryKey>(be_block_protocol::Query::RecoveryKey)
+        })
+        .await;
     let Ok(be_block_protocol::RecoveryKey { public, sealed, .. }) = response else {
         panic!("reading the recovery key failed: {response:?}");
     };
     assert_eq!(public, Some(test_secret(agent.account).public().0));
     assert!(sealed.is_empty());
 
-    let response = owner.call(|peer| peer.read::<Vec<be_block_protocol::Member>>(be_block_protocol::Query::Members)).await;
+    let response = owner
+        .call(|peer| peer.read::<Vec<be_block_protocol::Member>>(be_block_protocol::Query::Members))
+        .await;
     let Ok(members) = response else {
         panic!("listing members failed: {response:?}");
     };

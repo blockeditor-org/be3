@@ -16,7 +16,19 @@ async fn a_block_agent_is_refused_while_its_block_is_in_the_trash() {
         .await;
     let published = owner
         .call(|peer| {
-            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: folder, commit: head, expected: None, parents: Vec::new(), held: objects_change(&[], chunks.clone()), time: 1_000, pinned: false, references: listing(&[], vec![terminal]), metadata: Vec::new(), objects: Vec::new(), journal: None })
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
+                block: folder,
+                commit: head,
+                expected: None,
+                parents: Vec::new(),
+                held: objects_change(&[], chunks.clone()),
+                time: 1_000,
+                pinned: false,
+                references: listing(&[], vec![terminal]),
+                metadata: Vec::new(),
+                objects: Vec::new(),
+                journal: None,
+            })
         })
         .await;
     assert!(published.is_ok(), "{published:?}");

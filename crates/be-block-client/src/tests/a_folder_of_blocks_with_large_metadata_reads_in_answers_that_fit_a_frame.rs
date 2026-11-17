@@ -30,7 +30,14 @@ async fn a_folder_of_blocks_with_large_metadata_reads_in_answers_that_fit_a_fram
     }
 
     // Listing the folder answers the first of them and the rest as ids, which the peer reads.
-    let listed = crate::ask(be_block_protocol::read::<be_block_protocol::Listed, _>(&author.connection(), Some(author.organization()), be_block_protocol::Query::List { listing: Listing::Children(BlockParent::Block(workspace)), after: None }))
+    let listed = crate::ask(be_block_protocol::read::<be_block_protocol::Listed, _>(
+        &author.connection(),
+        Some(author.organization()),
+        be_block_protocol::Query::List {
+            listing: Listing::Children(BlockParent::Block(workspace)),
+            after: None,
+        },
+    ))
     .await
     .unwrap();
     assert!(!listed.blocks.is_empty() && !listed.rest.is_empty());
@@ -52,7 +59,15 @@ async fn a_folder_of_blocks_with_large_metadata_reads_in_answers_that_fit_a_fram
     );
 
     // One call asking for every block is answered with the first of them, as many as fit.
-    let answer = crate::ask(be_block_protocol::read::<be_block_protocol::Contents, _>(&author.connection(), Some(author.organization()), be_block_protocol::Query::Blocks { blocks: wanted.clone(), contents: true, held: Vec::new() }))
+    let answer = crate::ask(be_block_protocol::read::<be_block_protocol::Contents, _>(
+        &author.connection(),
+        Some(author.organization()),
+        be_block_protocol::Query::Blocks {
+            blocks: wanted.clone(),
+            contents: true,
+            held: Vec::new(),
+        },
+    ))
     .await
     .unwrap();
     assert!(!answer.blocks.is_empty() && answer.blocks.len() < count);

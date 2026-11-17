@@ -32,7 +32,9 @@ async fn only_a_manager_shares_and_a_lower_grant_reduces_nothing() {
         "an editor shared a block: {shared:?}"
     );
     let listed = editor
-        .call(|peer| peer.read::<be_block_protocol::AccessList>(be_block_protocol::Query::Access(folder)))
+        .call(|peer| {
+            peer.read::<be_block_protocol::AccessList>(be_block_protocol::Query::Access(folder))
+        })
         .await;
     assert!(
         refused_as(&listed, ErrorCode::PermissionDenied),

@@ -776,7 +776,24 @@ impl<S: ObjectStore> Peer<S> {
             self.move_to_unsent(block, Some(why))?;
             return Ok(Drained::SetAside { block, why });
         }
-        let response = crate::ask(be_block_protocol::write::<be_block_protocol::BlockSummary, _>(&self.connection(), Some(self.organization), be_block_protocol::Op::CreateBlock { block: block, content_type: creation.content_type, parent: creation.parent, metadata: creation.metadata.clone(), references: creation.references.clone(), key: creation.key, keys: creation.keys.clone(), owner_only: creation.owner_only, root: creation.root.clone(), placement: creation.placement.clone() }))
+        let response = crate::ask(
+            be_block_protocol::write::<be_block_protocol::BlockSummary, _>(
+                &self.connection(),
+                Some(self.organization),
+                be_block_protocol::Op::CreateBlock {
+                    block: block,
+                    content_type: creation.content_type,
+                    parent: creation.parent,
+                    metadata: creation.metadata.clone(),
+                    references: creation.references.clone(),
+                    key: creation.key,
+                    keys: creation.keys.clone(),
+                    owner_only: creation.owner_only,
+                    root: creation.root.clone(),
+                    placement: creation.placement.clone(),
+                },
+            ),
+        )
         .await;
         match response {
             Ok(summary) => {
@@ -869,7 +886,17 @@ impl<S: ObjectStore> Peer<S> {
         defining: Defining,
     ) -> Result<Drained, ClientError> {
         let block = defining.block;
-        let response = crate::ask(be_block_protocol::write::<be_block_protocol::BlockSummary, _>(&self.connection(), Some(self.organization), be_block_protocol::Op::SetMetadata { block: block, metadata: defining.metadata.clone(), references: defining.references.clone() }))
+        let response = crate::ask(
+            be_block_protocol::write::<be_block_protocol::BlockSummary, _>(
+                &self.connection(),
+                Some(self.organization),
+                be_block_protocol::Op::SetMetadata {
+                    block: block,
+                    metadata: defining.metadata.clone(),
+                    references: defining.references.clone(),
+                },
+            ),
+        )
         .await;
         match response {
             Ok(summary) => {

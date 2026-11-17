@@ -6,7 +6,12 @@ async fn listed(client: &mut TestClient) -> Vec<(Uuid, Access)> {
     let mut parents = vec![BlockParent::Root];
     while let Some(parent) = parents.pop() {
         let response = client
-            .call(|peer| peer.read::<be_block_protocol::Listed>(be_block_protocol::Query::List { listing: Listing::Children(parent), after: None }))
+            .call(|peer| {
+                peer.read::<be_block_protocol::Listed>(be_block_protocol::Query::List {
+                    listing: Listing::Children(parent),
+                    after: None,
+                })
+            })
             .await;
         let Ok(be_block_protocol::Listed { blocks, .. }) = response else {
             panic!("listing failed: {response:?}");
@@ -32,16 +37,26 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
     let mut guest = harness.member("guest@example.com").await;
     let response = owner
         .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::CreateLink { link: Uuid::from_u128(1), card: Vec::new(), code: Vec::new(), kind: be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
+            peer.write::<()>(be_block_protocol::Op::CreateLink {
+                link: Uuid::from_u128(1),
+                card: Vec::new(),
+                code: Vec::new(),
+                kind: be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                     organization,
                     escrow: Vec::new(),
-                }) })
+                }),
+            })
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let _ = guest
         .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::AcceptLink { link: Uuid::from_u128(1), card: Vec::new(), contact: Vec::new(), key: Vec::new() })
+            peer.write::<()>(be_block_protocol::Op::AcceptLink {
+                link: Uuid::from_u128(1),
+                card: Vec::new(),
+                contact: Vec::new(),
+                key: Vec::new(),
+            })
         })
         .await;
     guest.open(organization).await;

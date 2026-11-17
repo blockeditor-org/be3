@@ -11,7 +11,16 @@ async fn left(client: &mut TestClient, root: Uuid) -> Vec<Uuid> {
     };
     for _ in 0..50 {
         let page = client
-            .call(|peer| peer.ask::<be_block_protocol::ChangedPage>(be_block_protocol::Query::Tree { entry: root, after: after.clone(), limit: 100 }, false))
+            .call(|peer| {
+                peer.ask::<be_block_protocol::ChangedPage>(
+                    be_block_protocol::Query::Tree {
+                        entry: root,
+                        after: after.clone(),
+                        limit: 100,
+                    },
+                    false,
+                )
+            })
             .await
             .expect("changed-since failed");
         removed.extend(page.removed);
@@ -69,10 +78,21 @@ async fn changed_since_does_not_name_what_only_its_author_may_read() {
     let placement = owner.placement(secret, BlockParent::Block(settings)).await;
     let made = owner
         .call(|peer| {
-            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::CreateBlock { block: secret, content_type: CONTENT, parent: BlockParent::Block(settings), metadata: Vec::new(), references: Vec::new(), key: key, keys: KeySet {
+            peer.write::<be_block_protocol::BlockSummary>(be_block_protocol::Op::CreateBlock {
+                block: secret,
+                content_type: CONTENT,
+                parent: BlockParent::Block(settings),
+                metadata: Vec::new(),
+                references: Vec::new(),
+                key: key,
+                keys: KeySet {
                     keys: vec![row(key, secret, KeyKind::Data)],
                     wrapped: Vec::new(),
-                }, owner_only: true, root: root.clone(), placement: placement })
+                },
+                owner_only: true,
+                root: root.clone(),
+                placement: placement,
+            })
         })
         .await;
     assert!(made.is_ok(), "{made:?}");

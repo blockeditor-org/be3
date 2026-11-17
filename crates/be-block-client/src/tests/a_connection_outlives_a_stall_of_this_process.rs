@@ -15,7 +15,10 @@ async fn a_connection_outlives_a_stall_of_this_process() {
     let mut pings = relay.count(|method, _| method == be_block_protocol::__args::SERVER_PING);
 
     clock.advance(PING_INTERVAL + PONG_WAIT + PONG_WAIT);
-    let answered = crate::ask(be_block_protocol::client::server::authenticate(&connection, Some("no token".into())))
+    let answered = crate::ask(be_block_protocol::client::server::authenticate(
+        &connection,
+        Some("no token".into()),
+    ))
     .await;
     assert!(
         !answered.is_err_and(|error| error.is_unreachable()),
@@ -24,7 +27,10 @@ async fn a_connection_outlives_a_stall_of_this_process() {
     pings.wait_for(|pings| *pings > 0).await.unwrap();
 
     clock.advance(PONG_WAIT);
-    let answered = crate::ask(be_block_protocol::client::server::authenticate(&connection, Some("no token".into())))
+    let answered = crate::ask(be_block_protocol::client::server::authenticate(
+        &connection,
+        Some("no token".into()),
+    ))
     .await;
     assert!(
         !answered.is_err_and(|error| error.is_unreachable()),

@@ -17,7 +17,9 @@ async fn an_unauthenticated_connection_cannot_touch_blocks() {
 
     let mut stranger = harness.client().await;
     let response = stranger
-        .call(|peer| be_block_protocol::client::server::authenticate(peer, Some("not a token".into())))
+        .call(|peer| {
+            be_block_protocol::client::server::authenticate(peer, Some("not a token".into()))
+        })
         .await;
     assert!(
         matches!(response, Err(Error { code, .. }) if code == ErrorCode::InvalidCredentials),

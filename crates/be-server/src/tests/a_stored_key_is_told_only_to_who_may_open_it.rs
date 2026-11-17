@@ -67,7 +67,11 @@ async fn a_stored_key_is_told_only_to_who_may_open_it() {
         ],
     };
     let put = owner
-        .call(|peer| peer.write::<()>(be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(seals.clone()))))
+        .call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::PutKeys(
+                be_block_protocol::PutKeys::Rows(seals.clone()),
+            ))
+        })
         .await;
     assert!(put.is_ok(), "{put:?}");
     grantee.heard_changed(Topic::Keys).await;
@@ -84,7 +88,13 @@ async fn a_stored_key_is_told_only_to_who_may_open_it() {
         "the connection that stored the keys was told"
     );
 
-    let again = owner.call(|peer| peer.write::<()>(be_block_protocol::Op::PutKeys(be_block_protocol::PutKeys::Rows(seals)))).await;
+    let again = owner
+        .call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::PutKeys(
+                be_block_protocol::PutKeys::Rows(seals),
+            ))
+        })
+        .await;
     assert!(again.is_ok(), "{again:?}");
     assert!(
         !grantee.told(Topic::Keys).await,

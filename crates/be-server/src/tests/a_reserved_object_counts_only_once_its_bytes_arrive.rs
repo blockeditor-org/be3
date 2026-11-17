@@ -37,12 +37,30 @@ async fn a_reserved_object_counts_only_once_its_bytes_arrive() {
     let missing = client.missing(&objects).await;
     assert_eq!(missing.as_ref().ok(), Some(&hashes), "{missing:?}");
     let held = client
-        .call(|peer| peer.write::<()>(be_block_protocol::Op::HoldObjects { block: block, objects: hashes.clone(), hold: Hold::Lasting }))
+        .call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::HoldObjects {
+                block: block,
+                objects: hashes.clone(),
+                hold: Hold::Lasting,
+            })
+        })
         .await;
     assert!(refused_as(&held, ErrorCode::ObjectNotFound), "{held:?}");
     let published = client
         .call(|peer| {
-            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: block, commit: commit, expected: None, parents: Vec::new(), held: objects_change(&[], chunks.clone()), time: 1_000, pinned: false, references: listing(&[], Vec::new()), metadata: Vec::new(), objects: Vec::new(), journal: None })
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
+                block: block,
+                commit: commit,
+                expected: None,
+                parents: Vec::new(),
+                held: objects_change(&[], chunks.clone()),
+                time: 1_000,
+                pinned: false,
+                references: listing(&[], Vec::new()),
+                metadata: Vec::new(),
+                objects: Vec::new(),
+                journal: None,
+            })
         })
         .await;
     assert!(
@@ -59,7 +77,19 @@ async fn a_reserved_object_counts_only_once_its_bytes_arrive() {
     assert_eq!(missing, Ok(Vec::new()));
     let published = client
         .call(|peer| {
-            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish { block: block, commit: commit, expected: None, parents: Vec::new(), held: objects_change(&[], chunks.clone()), time: 1_000, pinned: false, references: listing(&[], Vec::new()), metadata: Vec::new(), objects: Vec::new(), journal: None })
+            peer.write::<be_block_protocol::PublishOutcome>(be_block_protocol::Op::Publish {
+                block: block,
+                commit: commit,
+                expected: None,
+                parents: Vec::new(),
+                held: objects_change(&[], chunks.clone()),
+                time: 1_000,
+                pinned: false,
+                references: listing(&[], Vec::new()),
+                metadata: Vec::new(),
+                objects: Vec::new(),
+                journal: None,
+            })
         })
         .await;
     assert!(

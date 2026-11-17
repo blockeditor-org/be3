@@ -124,7 +124,8 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
         .await
         .unwrap();
     let mut posted = Posted::new();
-    let mut registering = be_block_protocol::client::server::authenticate(&posted.peer, Some(token));
+    let mut registering =
+        be_block_protocol::client::server::authenticate(&posted.peer, Some(token));
     let sent = posted.frames();
     let (_, _, frames) = post(&mut stream, Some(&session), &refs(&sent)).await;
     posted.heard(&frames);
@@ -159,7 +160,9 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
     );
 
     let listing = Posted::new();
-    let _listed = listing.peer.read::<Vec<be_block_protocol::Organization>>(be_block_protocol::Query::Organizations);
+    let _listed = listing
+        .peer
+        .read::<Vec<be_block_protocol::Organization>>(be_block_protocol::Query::Organizations);
     let mut listing = listing;
     let list = listing.frames();
     let (status, _, _) = post(&mut stream, Some("not-a-session"), &refs(&list)).await;
@@ -198,7 +201,9 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
         poll(&mut authenticating),
         std::task::Poll::Ready(Ok(Ok(Authenticated { token, .. }))) if token.is_empty()
     ));
-    let _listed = proxied.peer.read::<Vec<be_block_protocol::Organization>>(be_block_protocol::Query::Organizations);
+    let _listed = proxied
+        .peer
+        .read::<Vec<be_block_protocol::Organization>>(be_block_protocol::Query::Organizations);
     let list = proxied.frames();
     let (status, _, _) = post_authorized(
         &mut proxy,

@@ -329,8 +329,7 @@ impl TestClient {
         calls
             .answers
             .push(("device-login (poll)", answered(polled)));
-        let authenticated =
-            client::server::authenticate(&at, Some("not a token".into())).await;
+        let authenticated = client::server::authenticate(&at, Some("not a token".into())).await;
         calls
             .answers
             .push(("authenticate", answered(authenticated)));
@@ -378,7 +377,9 @@ impl TestClient {
                 contact: false,
             })
             .await;
-        calls.write(Op::AppendLog(LogRecord::Member(sealed()))).await;
+        calls
+            .write(Op::AppendLog(LogRecord::Member(sealed())))
+            .await;
         calls
             .write(Op::CreateAgent {
                 account: Uuid::new_v4(),
@@ -665,10 +666,7 @@ impl TestClient {
             _ => Answered::Allowed,
         };
         answers.push(("events", opened));
-        let mut calls = Everything {
-            peer: &at,
-            answers,
-        };
+        let mut calls = Everything { peer: &at, answers };
         calls.write(Op::RevokeToken(None)).await;
         calls.answers
     }

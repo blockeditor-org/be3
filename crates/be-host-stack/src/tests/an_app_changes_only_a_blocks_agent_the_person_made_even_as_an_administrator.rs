@@ -48,9 +48,23 @@ fn an_app_changes_only_a_blocks_agent_the_person_made_even_as_an_administrator()
         .block_on(peer.agent_record(account, identity))
         .expect("the member signs its agent in");
     let theirs = runtime
-        .block_on(be_block_client::ask(
-            be_block_protocol::write::<be_block_protocol::CreatedAgent, _>(&peer.connection(), Some(harness.organization), be_block_protocol::Op::CreateAgent { account: account, name: "Theirs".into(), recovery: identity.public.0, signing: identity.signing.0, contact: Vec::new(), escrow: Vec::new(), bound_to: None, member: signed }),
-        ))
+        .block_on(be_block_client::ask(be_block_protocol::write::<
+            be_block_protocol::CreatedAgent,
+            _,
+        >(
+            &peer.connection(),
+            Some(harness.organization),
+            be_block_protocol::Op::CreateAgent {
+                account: account,
+                name: "Theirs".into(),
+                recovery: identity.public.0,
+                signing: identity.signing.0,
+                contact: Vec::new(),
+                escrow: Vec::new(),
+                bound_to: None,
+                member: signed,
+            },
+        )))
         .expect("the member makes an agent")
         .agent
         .account;

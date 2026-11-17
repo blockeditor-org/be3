@@ -73,7 +73,11 @@ async fn a_device_registers_only_an_endpoint_the_server_would_push_to() {
         ),
     ] {
         let registered = member
-            .call(|peer| peer.write::<()>(be_block_protocol::Op::SetPushEndpoint(be_block_protocol::PushEndpointChange::Register(endpoint))))
+            .call(|peer| {
+                peer.write::<()>(be_block_protocol::Op::SetPushEndpoint(
+                    be_block_protocol::PushEndpointChange::Register(endpoint),
+                ))
+            })
             .await;
         if !refused_as(&registered, ErrorCode::InvalidRequest) {
             wrong.push((why, registered));

@@ -182,7 +182,11 @@ async fn connect_to(settings: &Settings, url: String) -> Result<Peer<FileStore>,
         .await
         .map_err(explain)?;
     let token = (!settings.token.is_empty()).then(|| settings.token.clone());
-    let signed_in = be_block_client::ask(be_block_protocol::client::server::authenticate(&connection, token)).await;
+    let signed_in = be_block_client::ask(be_block_protocol::client::server::authenticate(
+        &connection,
+        token,
+    ))
+    .await;
     let be_block_protocol::Authenticated { account, token, .. } = signed_in.map_err(|error| {
         format!(
             "the server refused account authentication: {}",
@@ -213,7 +217,13 @@ async fn connect_to(settings: &Settings, url: String) -> Result<Peer<FileStore>,
 }
 
 async fn only_organization(connection: &Arc<Connection>) -> Result<Uuid, String> {
-    let organizations = be_block_client::ask(be_block_protocol::read::<Vec<be_block_protocol::Organization>, _>(connection, None, be_block_protocol::Query::Organizations))
+    let organizations =
+        be_block_client::ask(be_block_protocol::read::<
+            Vec<be_block_protocol::Organization>,
+            _,
+        >(
+            connection, None, be_block_protocol::Query::Organizations
+        ))
         .await
         .map_err(explain)?;
     match organizations.as_slice() {
@@ -238,10 +248,16 @@ async fn identity(
     let secret = be_block_keys::RecoveryPhrase::parse(phrase)
         .map_err(|error| format!("BE3_RECOVERY_PHRASE: {error}"))?
         .secret();
-    let public = be_block_client::ask(be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(connection, None, be_block_protocol::Query::RecoveryKey))
-        .await
-        .map_err(explain)?
-        .public;
+    let public = be_block_client::ask(
+        be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
+            connection,
+            None,
+            be_block_protocol::Query::RecoveryKey,
+        ),
+    )
+    .await
+    .map_err(explain)?
+    .public;
     match public {
         Some(public) if public == secret.public().0 => Ok(secret),
         Some(_) => Err("BE3_RECOVERY_PHRASE is not this account's recovery phrase".to_owned()),

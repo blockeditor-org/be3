@@ -1580,7 +1580,10 @@ impl ServerStore {
                 .expect("the graph cache is never poisoned"),
         );
         for cached in graphs.into_values() {
-            cached.write().expect("a cached graph is never poisoned").valid = false;
+            cached
+                .write()
+                .expect("a cached graph is never poisoned")
+                .valid = false;
         }
         self.policies
             .lock()

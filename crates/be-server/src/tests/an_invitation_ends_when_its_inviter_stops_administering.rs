@@ -50,13 +50,22 @@ async fn an_invitation_ends_when_its_inviter_stops_administering() {
         "{accepted:?}"
     );
     let preview = harness
-        .once(move |peer| peer.read::<be_block_protocol::InvitationPreview>(be_block_protocol::Query::Invitation(link)))
+        .once(move |peer| {
+            peer.read::<be_block_protocol::InvitationPreview>(be_block_protocol::Query::Invitation(
+                link,
+            ))
+        })
         .await
         .unwrap();
     assert_eq!(preview.state, InvitationState::Revoked);
     assert!(preview.organization_name.is_empty() && preview.card.is_empty());
     let listed = owner
-        .call(|peer| peer.read_in::<Vec<be_block_protocol::InvitationRow>>(Some(organization), be_block_protocol::Query::Invitations))
+        .call(|peer| {
+            peer.read_in::<Vec<be_block_protocol::InvitationRow>>(
+                Some(organization),
+                be_block_protocol::Query::Invitations,
+            )
+        })
         .await
         .unwrap();
     assert_eq!(
