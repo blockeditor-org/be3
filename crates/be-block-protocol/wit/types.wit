@@ -40,6 +40,9 @@ interface types {
         /// A commit's time is more than `MAX_COMMIT_AHEAD` past the server's
         /// clock: its device stamped it by a clock running fast.
         commit-ahead,
+        /// A record changed since the caller read it (`put-contact`): read it
+        /// again.
+        record-changed,
     }
 
     /// A connection, as the server numbers them; a session's participants and

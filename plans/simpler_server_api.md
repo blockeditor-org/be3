@@ -293,7 +293,9 @@ describe.
   `dismiss-notice` changed nothing. Pending key changes are
   `letter.key-change` (`contact-row.changes` and the `key_changes` table are
   gone): a device follows them from its record and deletes them with the
-  record written. Accepted links' cards are `letter.accepted`
+  record written, which `put-contact` now writes only over the record it
+  read (`replaces`, refused `record-changed`), so a device that read fewer
+  changes than another never rolls the record back. Accepted links' cards are `letter.accepted`
   (`own-link.card` and `links.accepter_card` are gone): `finish_links` takes
   the card from the mailbox and deletes the link and the message in one
   write. Where it differs: there is no `Mailbox(account)` send target yet.
@@ -304,12 +306,13 @@ describe.
   own-block work may want one). Pairing stays `target.devices` and
   `event.paired`, as only live connections pair. A block's agent reads and
   deletes from its mailbox, where its contacts' key changes arrive. Removing a
-  contact deletes what each left the other. No per-sender bound was added: a
-  key change comes only with a new phrase and an accepted card only with a
-  link, as before. Tests: be-server's
+  contact deletes what each left the other. Letters from accounts are bounded
+  per sender (`MAX_LETTERS_FROM_ONE`) and in all (`MAX_LETTERS`), refusing the
+  write past either. Tests: be-server's
   `a_notice_under_a_week_old_refuses_deletion_and_one_older_deletes`,
   be-block-client's
-  `a_key_change_reaches_a_contact_offline_and_is_read_from_its_mailbox`, and
+  `a_key_change_reaches_a_contact_offline_and_is_read_from_its_mailbox` and
+  `a_device_that_read_fewer_key_changes_never_rolls_a_contact_back`, and
   `every_call_states_who_may_make_it`'s `mailbox` and `delete-message`.
 - **An owner-only block** in the personal organization holds what the account
   seals for itself: contact records, its cards and link codes, the escrow keys

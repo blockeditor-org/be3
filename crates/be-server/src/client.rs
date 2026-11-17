@@ -2075,11 +2075,15 @@ impl Client {
                     .await?;
                 Ok(Done::Nothing)
             }
-            Op::PutContact { contact, sealed } => {
+            Op::PutContact {
+                contact,
+                sealed,
+                replaces,
+            } => {
                 let account = admitted.account()?;
                 connection
                     .store
-                    .put_contact(account, contact, sealed)
+                    .put_contact(account, contact, sealed, replaces)
                     .await?;
                 connection
                     .after(After::ContactsChanged(vec![account]))

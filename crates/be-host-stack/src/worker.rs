@@ -3304,6 +3304,8 @@ async fn create_agent(
             be_block_protocol::Op::PutContact {
                 contact: agent.account,
                 sealed: be_block_client::contacts::OwnContact::new(card.clone(), 0).seal(identity),
+                // Made with the agent, the record is still empty.
+                replaces: Vec::new(),
             },
         ))
         .await?;

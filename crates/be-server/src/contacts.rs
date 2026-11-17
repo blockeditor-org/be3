@@ -1007,11 +1007,13 @@ impl ServerStore {
         .await
     }
 
+    /// Replaces the caller's record of `contact` while it is `replaces`.
     pub async fn put_contact(
         &self,
         caller: Uuid,
         contact: Uuid,
         sealed: Vec<u8>,
+        replaces: Vec<u8>,
     ) -> Result<(), ServerError> {
         crate::limits::at_most(
             "a contact card",
@@ -1019,17 +1021,30 @@ impl ServerStore {
             crate::limits::MAX_SEALED_BYTES,
         )?;
         self.with_database(move |_, database| {
-            let updated = database.execute(
-                "UPDATE contacts SET sealed = ?3 WHERE account_id = ?1 AND contact_id = ?2",
-                params![caller.to_string(), contact.to_string(), sealed],
-            )?;
-            if updated == 0 {
-                return Err(ServerError::Refused(
+            let held: Option<Vec<u8>> = database
+                .query_row(
+                    "SELECT sealed FROM contacts WHERE account_id = ?1 AND contact_id = ?2",
+                    params![caller.to_string(), contact.to_string()],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            match held {
+                None => Err(ServerError::Refused(
                     ErrorCode::NotAContact,
                     "that account is not one of your contacts".into(),
-                ));
+                )),
+                Some(held) if held != replaces => Err(ServerError::Refused(
+                    ErrorCode::RecordChanged,
+                    "that contact's record changed since it was read".into(),
+                )),
+                Some(_) => {
+                    database.execute(
+                        "UPDATE contacts SET sealed = ?3 WHERE account_id = ?1 AND contact_id = ?2",
+                        params![caller.to_string(), contact.to_string(), sealed],
+                    )?;
+                    Ok(())
+                }
             }
-            Ok(())
         })
         .await
     }

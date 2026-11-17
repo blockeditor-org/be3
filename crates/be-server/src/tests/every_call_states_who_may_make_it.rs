@@ -415,6 +415,7 @@ impl TestClient {
             .write(Op::PutContact {
                 contact: other,
                 sealed: sealed(),
+                replaces: Vec::new(),
             })
             .await;
         calls.read(Query::Contacts).await;

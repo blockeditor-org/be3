@@ -58,7 +58,7 @@ async fn a_notice_under_a_week_old_refuses_deletion_and_one_older_deletes() {
     );
     // A week on, a deletion ends it everywhere; another account's deletes nothing.
     metadata_database(&harness.directory)
-        .execute("UPDATE mailbox SET created = created - 8 * 86400", [])
+        .execute("UPDATE mailbox SET created = created - 8 * 86_400_000", [])
         .unwrap();
     let mut other = harness.member("other@example.com").await;
     let _ = other

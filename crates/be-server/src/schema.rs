@@ -99,7 +99,7 @@ const SCHEMA: &str = "
     -- An account's mailbox (`store/mailbox.rs`): each message kept until a device of the
     -- account deletes it. `sender_id` is '' for the server's own notices; `letter` is the
     -- encoded `be_block_protocol::Letter`, and `kind` its case (`notice`, `accepted`,
-    -- `key-change`), which the hold and the bounds read.
+    -- `key-change`), which the hold and the bounds read; `created` is in milliseconds.
     CREATE TABLE mailbox (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
         account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,

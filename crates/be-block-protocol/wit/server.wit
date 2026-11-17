@@ -352,7 +352,11 @@ interface server {
         /// list. The caller's own, or with an organization, an invitation into
         /// it, which the caller administers.
         delete-link(link-id),
-        /// The account's own.
+        /// Replaces the account's record of a contact, sealed to itself, only
+        /// while the record it holds is `replaces` (empty for none), so a device
+        /// that read an older record, or fewer of the contact's key changes,
+        /// never writes over a newer one: refused `record-changed`, it reads
+        /// again. The account's own.
         put-contact(put-contact),
         /// Removes a contact, revoking each one's grants on blocks the other
         /// manages. `revocations` are the signed revocations of those grants
@@ -542,6 +546,7 @@ interface server {
     record put-contact {
         contact: account-id,
         sealed: list<u8>,
+        replaces: list<u8>,
     }
 
     record remove-contact {

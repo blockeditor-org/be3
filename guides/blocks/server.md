@@ -837,7 +837,10 @@ needs code of its own for any method.
   `set-recovery-key`). The server leaves each in the transaction of the change
   it tells, so none is lost between the two, and tells the account's
   connections that follow the topic. Removing a contact deletes what each left
-  the other. A block's agent reads its mailbox and deletes from it, since its
+  the other, with the links between them. An account holds at most
+  `MAX_LETTERS_FROM_ONE` letters from one sender and `MAX_LETTERS` in all; past
+  either the write that would leave one is refused rather than an old one let
+  go, which would break the chain of key changes a device follows. A block's agent reads its mailbox and deletes from it, since its
   contacts' key changes arrive there.
 - **Holding notices.** Whoever a notice warns about may hold a session too, so
   in its first `NOTICE_HOLD` (a week) `delete-message` refuses it and a
