@@ -78,11 +78,7 @@ pub struct Layer {
     web: RefCell<web::Held>,
 }
 
-pub fn layer(
-    parts: Parts,
-    pointer: Option<NodeRef>,
-    on_dismiss: Callback<Dismiss>,
-) -> Rc<Layer> {
+pub fn layer(parts: Parts, pointer: Option<NodeRef>, on_dismiss: Callback<Dismiss>) -> Rc<Layer> {
     let index = NEXT.with(|next| next.replace(next.get() + 1));
     set_attribute(parts.dialog, "class", Some("beui-overlay".to_owned()));
     set_attribute(parts.dialog, "role", Some("generic".to_owned()));

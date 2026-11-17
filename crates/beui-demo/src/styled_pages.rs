@@ -1,6 +1,5 @@
 use super::*;
 use beui::KeyAt;
-use beui::styled::theme::POINTER_REACH;
 use beui::Pos2;
 use beui::TextAlign;
 use beui::icons::Glyph;
@@ -11,6 +10,7 @@ use beui::icons::{
     ICON_TRIANGLE_ALERT, ICON_UNDO_2, ICON_WIFI, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use beui::keyboard::styled::SoftwareKeyboard;
+use beui::styled::theme::POINTER_REACH;
 use beui::text::Phrase;
 use beui::{Align, CanvasView, Extent};
 
@@ -2769,8 +2769,8 @@ fn ShareButton() -> NodeId {
                 label="Share"
                 arrow=true
                 placement={beui::Placement::BELOW_CENTER
-                    .gap(POINTER_REACH as u16)
-                    .margin(Space::Md.px() as u16)}
+                .gap(POINTER_REACH as u16)
+                .margin(Space::Md.px() as u16)}
                 @test_id="demo.share"
             >|_: PopoverHandle|
                 <List spacing=Space::Sm>

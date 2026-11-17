@@ -121,17 +121,15 @@ pub fn Popover(
                 policy=LayerPolicy::Pass
                 trigger={pressed}
                 open
-            >|handle: AnchoredHandle| {
-                view! {
-                    <PopoverSurface label>
-                        {content.call(PopoverHandle {
-                            open,
-                            shown: handle.shown,
-                            close,
-                        })}
-                    </PopoverSurface>
-                }
-            }</Anchored>
+            >|handle: AnchoredHandle|
+                <PopoverSurface label>
+                    {content.call(PopoverHandle {
+                        open,
+                        shown: handle.shown,
+                        close,
+                    })}
+                </PopoverSurface>
+            </Anchored>
         </List>
     }
 }

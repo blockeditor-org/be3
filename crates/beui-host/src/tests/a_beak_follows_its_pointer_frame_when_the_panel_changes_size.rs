@@ -24,7 +24,11 @@ fn a_beak_follows_its_pointer_frame_when_the_panel_changes_size() {
                     open=true
                     on_dismiss={|_: Dismiss| {}}
                 >
-                    <Frame @node_ref=&pointer width={move || beui::Extent::px(width.get())} height=30.0 />
+                    <Frame
+                        @node_ref=&pointer
+                        width={move || beui::Extent::px(width.get())}
+                        height=30.0
+                    />
                 </Overlay>
             </List>
         }

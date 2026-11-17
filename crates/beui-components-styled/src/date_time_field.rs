@@ -18,8 +18,7 @@ use beui_components_unstyled::datetime::{Date, DateTime, HourCycle, Time, Weekda
 use beui_components_unstyled::{
     ButtonHandle, ChoiceOption, DateSegmentHandle, DateTimeBoxHandle, DateTimeCalendarHandle,
     DateTimePage, DateTimePanelHandle, DateTimePanelLayout, DateTimeParts, DateTimeTimesHandle,
-    DateTimeTriggerHandle, PopupTriggerHandle, TimeOptionHandle, grid_columns,
-    narrower_than,
+    DateTimeTriggerHandle, PopupTriggerHandle, TimeOptionHandle, grid_columns, narrower_than,
 };
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;

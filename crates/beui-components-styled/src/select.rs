@@ -11,8 +11,7 @@ use crate::theme::field_border;
 use crate::tokens::{Length, Padding, Size, Space, Stroke};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    AnchoredStyle, ChoiceOption, Dropdown, SelectOptionHandle, SelectTriggerHandle,
-    TextInputHandle,
+    AnchoredStyle, ChoiceOption, Dropdown, SelectOptionHandle, SelectTriggerHandle, TextInputHandle,
 };
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;

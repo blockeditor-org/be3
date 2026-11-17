@@ -12,7 +12,11 @@ fn a_kept_popover_gives_the_focus_back_to_its_trigger_through_its_layer() {
     let document = build_node(move || {
         view! {
             <Popover @node_ref=&popover label="Filters">|handle: PopoverHandle|
-                <unstyled::Button @node_ref=&inside label="Apply" focused={handle.shown}>|_: unstyled::ButtonHandle|
+                <unstyled::Button
+                    @node_ref=&inside
+                    label="Apply"
+                    focused={handle.shown}
+                >|_: unstyled::ButtonHandle|
                     <Text>"Apply"</Text>
                 </unstyled::Button>
             </Popover>

@@ -203,11 +203,9 @@ fn AnchoredPopover(
             keep_alive=false
             sheet=SheetWhen::Never
             surface
-        >|_: PopoverHandle| {
-            view! {
-                <Frame width height>{child}</Frame>
-            }
-        }</unstyled::Popover>
+        >|_: PopoverHandle|
+            <Frame width height>{child}</Frame>
+        </unstyled::Popover>
     }
 }
 
