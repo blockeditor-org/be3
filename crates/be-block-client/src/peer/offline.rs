@@ -305,11 +305,40 @@ impl<S: ObjectStore> Peer<S> {
         Ok(reached)
     }
 
-    pub(super) fn create_locally(&self, creation: Creation) -> Result<BlockSummary, ClientError> {
+    pub(super) fn create_locally(
+        &self,
+        creation: Creation,
+        made: crate::peer::MadeRoot<'_>,
+    ) -> Result<BlockSummary, ClientError> {
         let summary = self.record_creation(&creation)?;
         self.refs.push(Op::Create(creation))?;
+        made.kept()?;
         self.settle_locally()?;
         Ok(summary)
+    }
+
+    /// Keeps on the device the log made with `creation` (`new_log`), once the outbox keeps it.
+    pub(super) fn keep_made_log(&self, creation: &Creation) -> Result<(), ClientError> {
+        let Some(root) = crate::peer::made_root(creation) else {
+            return Ok(());
+        };
+        if let Some(kept) = self.keys.kept_log(creation.block)
+            && kept.head == root
+        {
+            self.refs.keep_log(creation.block, kept)?;
+        }
+        Ok(())
+    }
+
+    /// Lets go of the root and log made with `creation` (`new_log`), on the device and in
+    /// memory, as no server took it (`KeyBook::forget_made`).
+    pub(super) fn forget_made(&self, creation: &Creation) -> Result<(), ClientError> {
+        let Some(root) = crate::peer::made_root(creation) else {
+            return Ok(());
+        };
+        self.keys.forget_made(creation.block, root);
+        self.refs.forget_made_log(creation.block, root)?;
+        Ok(())
     }
 
     /// A local account's outbox settled as a server would answer it (`Peer::local`): every
@@ -475,8 +504,6 @@ impl<S: ObjectStore> Peer<S> {
         };
         self.refs.add_keys(&creation.keys)?;
         self.recorded(&creation.keys);
-        // The outbox keeps the creation: so does the device the log made with it (`new_log`).
-        self.keep_made_log(creation.block)?;
         self.refs
             .add_to_listing(Listing::Children(creation.parent), &summary)?;
         self.note(&summary);
@@ -800,13 +827,26 @@ impl<S: ObjectStore> Peer<S> {
         match response {
             Ok(summary) => {
                 self.refs.remove(&[sequence])?;
+                self.keys.made_taken(block);
                 self.note(&summary);
                 self.escrow_created(&creation.keys).await;
                 Ok(Drained::Created { block })
             }
+            // Made by this device already, its answer lost; or by someone else, as one this
+            // device opened offline with no summary of it (`ensure_type`): what was made here of
+            // it is not the block, and is set aside, its root and log let go.
             Err(ClientError::Refused(ErrorCode::BlockAlreadyExists, _)) => {
-                self.refs.remove(&[sequence])?;
-                Ok(Drained::Created { block })
+                if self.made_here(&creation).await? {
+                    self.refs.remove(&[sequence])?;
+                    self.keys.made_taken(block);
+                    return Ok(Drained::Created { block });
+                }
+                let why = crate::refs::Aside::Refused(ErrorCode::BlockAlreadyExists);
+                self.forget_made(&creation)?;
+                self.move_to_unsent(block, Some(why))?;
+                // The block as the server has it, in place of what this device made of it.
+                let _ = self.server_summary(block).await;
+                Ok(Drained::SetAside { block, why })
             }
             Err(ClientError::Refused(code, _)) if lost_access(code) => {
                 self.refused(sequence, block, code).await
@@ -821,6 +861,20 @@ impl<S: ObjectStore> Peer<S> {
                     why: crate::refs::Aside::Refused(code),
                 })
             }
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Whether the block the server has under `creation`'s id is the one it made: its log
+    /// starts at the root made with it. A block this account may not read the log of is
+    /// someone else's.
+    async fn made_here(&self, creation: &Creation) -> Result<bool, ClientError> {
+        let Some(root) = crate::peer::made_root(creation) else {
+            return Ok(false);
+        };
+        match self.served_log(creation.block).await {
+            Ok(steps) => Ok(steps.first().is_some_and(|first| first.hash() == root)),
+            Err(ClientError::Refused(code, _)) if lost_access(code) => Ok(false),
             Err(error) => Err(error),
         }
     }
@@ -1170,13 +1224,12 @@ impl<S: ObjectStore> Peer<S> {
         };
         // A creation discarded unsent never reached a server: the root and log made with it
         // (`new_log`) are no block's, and kept they would refuse making it again.
-        if unsent
-            .ops
-            .iter()
-            .any(|op| matches!(op, Op::Create(creation) if creation.block == block))
-        {
-            self.keys.forget_made(block);
-            self.refs.forget_log(block)?;
+        for op in &unsent.ops {
+            if let Op::Create(creation) = op
+                && creation.block == block
+            {
+                self.forget_made(creation)?;
+            }
         }
         Ok(true)
     }

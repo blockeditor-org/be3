@@ -1384,10 +1384,19 @@ impl Refs {
             .collect()
     }
 
-    /// Drops what was kept of `block`'s log (`keep_log`): a block made here that no server took.
-    pub fn forget_log(&self, block: Uuid) -> Result<(), StoreError> {
-        if self.state.lock().unwrap().logs.remove(&block).is_none() {
-            return Ok(());
+    /// Drops the log kept of `block` at `root`, made here (`Peer::new_log`), as no server took
+    /// the creation: only while it is still that root's, not one read since.
+    pub fn forget_made_log(&self, block: Uuid, root: [u8; 32]) -> Result<(), StoreError> {
+        {
+            let mut state = self.state.lock().unwrap();
+            if !state
+                .logs
+                .get(&block)
+                .is_some_and(|kept| kept.head == root && kept.place == 0)
+            {
+                return Ok(());
+            }
+            state.logs.remove(&block);
         }
         self.write(vec![Row {
             table: Table::Logs,
