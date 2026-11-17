@@ -55,10 +55,12 @@ pub(crate) enum Table {
     OpenEdits,
     SetAside,
     Dropped,
+    /// How far this device last checked each scope's access log (`KeptLog`).
+    Logs,
 }
 
 impl Table {
-    pub const ALL: [Self; 22] = [
+    pub const ALL: [Self; 23] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -81,6 +83,7 @@ impl Table {
         Self::OpenEdits,
         Self::SetAside,
         Self::Dropped,
+        Self::Logs,
     ];
 
     pub fn code(self) -> u8 {
@@ -107,6 +110,7 @@ impl Table {
             Self::OpenEdits => 20,
             Self::SetAside => 21,
             Self::Dropped => 22,
+            Self::Logs => 23,
         }
     }
 
@@ -397,7 +401,20 @@ struct State {
     /// (`may_edit_again`). Forgetting a block keeps its mark: its replica may still be open,
     /// and a block forgotten comes back marked.
     dropped: HashSet<Uuid>,
+    logs: HashMap<Uuid, KeptLog>,
     next: u64,
+}
+
+/// How far this device last checked a scope's access log, kept across restarts: a log the
+/// server serves later must reach `head` or counts as withheld, and an epoch is judged by the
+/// last entry lowering anyone's access (`lowering`, at `lowering_place`) when no log can be
+/// read (signed access 3d, `KeyBook::outdated`).
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct KeptLog {
+    pub head: [u8; 32],
+    pub place: u64,
+    pub lowering: [u8; 32],
+    pub lowering_place: u64,
 }
 
 /// A block's journal on this device, sealed as on the server: what this device's replica
@@ -606,6 +623,9 @@ impl State {
             }
             Table::Dropped => {
                 self.dropped.insert(uuid_key(&row.key)?);
+            }
+            Table::Logs => {
+                self.logs.insert(uuid_key(&row.key)?, decode(value)?);
             }
             Table::LetGo => {
                 self.let_go.insert(uuid_key(&row.key)?, decode(value)?);
@@ -1314,6 +1334,24 @@ impl Refs {
             }
         }
         self.write(rows)
+    }
+
+    /// How far this device last checked each scope's access log (`KeptLog`).
+    pub fn kept_logs(&self) -> Vec<(Uuid, KeptLog)> {
+        self.state
+            .lock()
+            .unwrap()
+            .logs
+            .iter()
+            .map(|(block, kept)| (*block, *kept))
+            .collect()
+    }
+
+    pub fn keep_log(&self, block: Uuid, kept: KeptLog) -> Result<(), StoreError> {
+        if self.state.lock().unwrap().logs.insert(block, kept) == Some(kept) {
+            return Ok(());
+        }
+        self.write(vec![row(Table::Logs, block.as_bytes().to_vec(), &kept)])
     }
 
     /// The newest record of each verified contact this device has seen, which a record the
