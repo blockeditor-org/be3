@@ -11,7 +11,7 @@ fn a_chat_message_unsent_across_a_restart_notifies_once_after_reconnecting() {
     let mut editor = room.editor();
     room.send(&mut editor, "Running late", None);
     editor.until("took the message", |editor| {
-        editor.content().messages().len() == 2
+        editor.mirror.pending() == 0 && editor.content().messages().len() == 2
     });
     drop(editor);
     stop();
