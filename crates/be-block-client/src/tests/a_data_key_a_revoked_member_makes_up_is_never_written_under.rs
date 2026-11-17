@@ -7,9 +7,10 @@ use be_type_text::{TextBlock, TextContent};
 
 /// A revoked reader still holds the scope epoch from before their revocation. With the server,
 /// they make up a data key, wrap it under that epoch (so no seal names them) and have it listed
-/// as the block's newest. Naming no head, a head no log holds, or one from before the
-/// revocation, an editor's device opens it but never writes under it: it was opened through an
-/// epoch the log outdates, so the save gives the scope a new epoch first (signed access 3d).
+/// as the block's newest. Naming no head, a head no log holds, one from before the revocation
+/// or the newest, an editor's device opens it but never writes under it: it was opened through
+/// an epoch the log outdates, so the save gives the scope a new epoch first, also on a device
+/// that has read no log yet (signed access 3d).
 #[tokio::test]
 async fn a_data_key_a_revoked_member_makes_up_is_never_written_under() {
     let harness = Harness::start().await;
@@ -47,12 +48,23 @@ async fn a_data_key_a_revoked_member_makes_up_is_never_written_under() {
         .unwrap();
     admin.tend().await.unwrap();
     carol.refresh_keys(None).await.unwrap();
-    carol.checked_access(team).await.unwrap();
+    let (entries, _) = carol.checked_access(team).await.unwrap();
+    let after_revocation = entries.last().unwrap().hash();
 
     let organization = admin.organization();
-    for (round, named) in [None, Some([9; 32]), Some(before_revocation)]
-        .into_iter()
-        .enumerate()
+    // Each head the made-up key names, and whether a device made after it is planted saves:
+    // one that has read no log yet. Naming the head after the revocation, only that it was
+    // opened through the outdated epoch gives it away.
+    for (round, (named, fresh)) in [
+        (None, false),
+        (Some([9; 32]), false),
+        (Some(before_revocation), false),
+        (Some(after_revocation), false),
+        (Some(after_revocation), true),
+        (None, true),
+    ]
+    .into_iter()
+    .enumerate()
     {
         let newest = carol
             .keys()
@@ -98,25 +110,36 @@ async fn a_data_key_a_revoked_member_makes_up_is_never_written_under() {
             )
             .unwrap();
         drop(database);
-        carol.refresh_keys(None).await.unwrap();
+        let second;
+        let device = match fresh {
+            true => {
+                second = harness.second(&carol).await;
+                &second
+            }
+            false => {
+                carol.refresh_keys(None).await.unwrap();
+                &carol
+            }
+        };
         assert!(
-            carol.keys().trusted(made_up),
+            device.keys().trusted(made_up),
             "the made-up key did not open, so the test shows nothing"
         );
 
-        let epochs = carol.keys().keys_of(team, KeyKind::Scope).len();
+        let epochs = device.keys().keys_of(team, KeyKind::Scope).len();
         let text_now = format!("after {round}");
-        head = carol
+        head = device
             .save(note, &TextBlock::of(&text_now), head)
             .await
             .unwrap()
             .published();
         assert_eq!(
-            carol.keys().keys_of(team, KeyKind::Scope).len(),
+            device.keys().keys_of(team, KeyKind::Scope).len(),
             epochs + 1,
             "the save wrote under a key opened through an outdated epoch (round {round})"
         );
-        let written = carol.keys().keys_of(note, KeyKind::Data).last().unwrap().id;
+        let written = device.keys().keys_of(note, KeyKind::Data).last().unwrap().id;
+        carol.refresh_keys(None).await.unwrap();
         assert_ne!(written, made_up);
         bob.refresh_keys(None).await.unwrap();
         assert!(!bob.keys().has(written));
