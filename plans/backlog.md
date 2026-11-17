@@ -164,6 +164,16 @@ Fixed items are removed as they land.
   keeps every live client. Done: the server's limit derived from the client's
   ping constants, with a be-server test that a silent connection's leave is
   written within it.
+- **A terminal host stands by on a timer.** Since a claim takes the lease at
+  once, a second terminal host waits `CLAIM_INTERVAL` (3 s) after it first sees
+  a new holder before claiming, so the holder's presence can reach it first
+  (crates/be-tool-cli terminal_host.rs). Under real load that presence can take
+  longer, and the second host then steals the lease and the viewer's keys are
+  lost. Replicas already send their presence to each joiner, so stand by until
+  the holder's presence arrives or `CLAIM_INTERVAL` passes: at once in the
+  common case, the timer only for a holder that sends no presence. Done: a
+  test where the holder's presence is held back past the join, and the second
+  host still stands by once it arrives.
 
 ## 9. Version control's caches
 
