@@ -5197,7 +5197,7 @@ fn BarsStage(layout: DockingLayout<u64>) -> NodeId {
                             "This page is a Docking of its own with a bare stage with two tool bars, a side \
                      pane, three status bars of the whole dock and a history bar floating over the \
                      whole dock's right edge. A bar follows its grip as it is dragged: near an edge \
-                     it grows into the band along it, which opens to make room, and let go there it \
+                     the band along it opens, and the bars there move aside for it; let go there it \
                      springs into place; thrown, it floats over the edge it was thrown towards. Drag a bar to float \
                      it over an edge of the stage, to dock it along an edge beside the stage, or \
                      away from the stage to pop it out into a window. Bars \

@@ -121,6 +121,11 @@ moves keeps both, so a click lands where it was made. An `Interactive` with
 `WindowRequests::every_sample`, and then every move is kept and `on_drag` runs
 per sample.
 
+Each pointer is named by a `PointerId`: `Mouse`, each `Touch` finger (an XR controller's
+laser is a touch, `is_controller`), `Pen`, and two the platforms never report: `Keyboard`, a
+keyboard carrying a dragged item, and `Relayed`, a carry whose points another program or
+window relays (a dock bar an app's grip moves across the app protocol).
+
 Per-device behaviour that spans platforms:
 
 - **Timestamps** (`Incoming::Time`): the web, Android and DRM use the device's;

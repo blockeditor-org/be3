@@ -301,18 +301,22 @@ impl Board {
             .borrow()
             .as_ref()
             .and_then(|placing| placing.carry.window);
-        let point = match kept {
+        // One it cannot read there is over no place of it.
+        let (point, unread) = match kept {
             Some(window) if window != point.window => {
                 match beui_view::reactive::window_point(point.pos, point.window, window) {
-                    Some(pos) => DragPoint {
-                        pos,
-                        window,
-                        ..point
-                    },
-                    None => point,
+                    Some(pos) => (
+                        DragPoint {
+                            pos,
+                            window,
+                            ..point
+                        },
+                        false,
+                    ),
+                    None => (point, true),
                 }
             }
-            _ => point,
+            _ => (point, false),
         };
         let space = Rc::clone(&self.space);
         // A place in another window than the pointer's is not there for it: its rect is in
@@ -344,7 +348,7 @@ impl Board {
             // Outside every window no place is under the pointer: a release there is the
             // source's to hear (`Carry::outside`).
             let nowhere = DragSpec::Floating;
-            let spec = match self.outside.get() {
+            let spec = match self.outside.get() || unread {
                 true => &nowhere,
                 false => &placing.spec,
             };
