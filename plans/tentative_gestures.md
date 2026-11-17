@@ -176,7 +176,8 @@ a carry whose gesture ended, so the item glides home and the site stops previewi
    - A committed gesture waiting for the rest is lost with the layer by a crash, as one gesture.
    - An undo while the layer is held voids the open gestures in `Holds` as well, since the host
      sees it: they stay open, what their editors send before hearing is held, and none of it
-     counts however they end.
+     counts however they end. Left as is: a second undo while a voided gesture is still open
+     is swallowed, and redo is refused, until its editor ends it, alike on host and replica.
    - Left for step 3: a gesture the replica voids itself (a replacement, an edit that does not
      carry) is voided only in the replica, since the host cannot see it. Its editor ending it
      with a commit counts its operations though they were dropped, and a replica opened again
