@@ -286,14 +286,27 @@ impl<D: 'static> DragSpec<D> {
 
 /// What a drag lifts: its payload, erased (a board hands it back typed), and the item's rect
 /// relative to the pointer, which the item keeps while it floats. With no `item`, an
-/// `Interactive` lifting it gives its own node, held where it was pressed. With no
-/// `preview`, the source itself is drawn where the item floats.
+/// `Interactive` lifting it gives its own node, held where it was pressed. Its `face` says
+/// what is drawn for the item.
 #[derive(Clone)]
 pub struct Carry {
     pub payload: Rc<dyn std::any::Any>,
     pub item: Option<Rect>,
-    pub preview: Option<Rc<dyn Fn() -> NodeId>>,
+    pub face: CarryFace,
     pub outside: Option<Rc<dyn Fn(DragPoint)>>,
+}
+
+/// What is drawn for a carried item.
+#[derive(Clone, Default)]
+pub enum CarryFace {
+    /// The source itself, displaced to where the item is and raised above its siblings.
+    #[default]
+    Source,
+    /// What the function builds, floating under the pointer in a layer above the window.
+    Preview(Rc<dyn Fn() -> NodeId>),
+    /// Nothing from the source: a site draws the item (a `Reorder` draws its own carried
+    /// row, which collapses as it leaves).
+    Site,
 }
 
 impl Carry {
@@ -301,7 +314,7 @@ impl Carry {
         Self {
             payload: Rc::new(payload),
             item: None,
-            preview: None,
+            face: CarryFace::Source,
             outside: None,
         }
     }
@@ -319,7 +332,15 @@ impl Carry {
     /// a layer above the window, so no scroll clips it.
     pub fn preview(self, preview: impl Fn() -> NodeId + 'static) -> Self {
         Self {
-            preview: Some(Rc::new(preview)),
+            face: CarryFace::Preview(Rc::new(preview)),
+            ..self
+        }
+    }
+
+    /// Draws nothing for the item from the source: a site draws it.
+    pub fn drawn_by_site(self) -> Self {
+        Self {
+            face: CarryFace::Site,
             ..self
         }
     }
