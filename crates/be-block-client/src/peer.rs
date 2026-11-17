@@ -1299,10 +1299,7 @@ impl<S: ObjectStore> Peer<S> {
     /// when it does not: what `sealing_key` finds, read only, never rotating. A server that
     /// cannot be reached for the block's summary or keys fails as that, not as false.
     pub async fn holds_key(&self, block: Uuid) -> Result<bool, ClientError> {
-        Ok(self
-            .key_now(block)
-            .await?
-            .is_some_and(|(_, usable)| usable))
+        Ok(self.key_now(block).await?.is_some_and(|(_, usable)| usable))
     }
 
     /// The key `block` is sealed with now (`current`, else the one its summary names, offline
