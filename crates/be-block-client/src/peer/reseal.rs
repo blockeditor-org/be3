@@ -115,7 +115,10 @@ impl<S: ObjectStore> Peer<S> {
         let mut chunks = self.objects_of(&manifest).await?;
         for parent in parents.iter().skip(usize::from(expected.is_some())) {
             chunks.push(parent.hash());
-            chunks.extend(self.objects_of(&self.commits.get(*parent)?.manifest).await?);
+            chunks.extend(
+                self.objects_of(&self.commits.get(*parent)?.manifest)
+                    .await?,
+            );
         }
         let commit = Commit {
             manifest,

@@ -61,7 +61,9 @@ async fn an_edit_made_offline_under_a_made_up_key_is_sealed_again_under_a_key_bo
     );
     let Some(Drained::Published { head, .. }) = drained
         .iter()
-        .find(|outcome| matches!(outcome, Drained::Published { block, .. } if *block == revoked.note))
+        .find(
+            |outcome| matches!(outcome, Drained::Published { block, .. } if *block == revoked.note),
+        )
         .copied()
     else {
         panic!("the edit sealed again was not sent: {drained:?}");
@@ -87,7 +89,13 @@ async fn an_edit_made_offline_under_a_made_up_key_is_sealed_again_under_a_key_bo
     let first = back.commits().get(head).unwrap().parents;
     assert_eq!(first.len(), 1);
     assert_ne!(first[0], kept);
-    assert_eq!(back.commits().vault().sealed_under(first[0].hash()).unwrap(), written);
+    assert_eq!(
+        back.commits()
+            .vault()
+            .sealed_under(first[0].hash())
+            .unwrap(),
+        written
+    );
     revoked.bob.refresh_keys(None).await.unwrap();
     assert!(!revoked.bob.keys().has(written));
     revoked.admin.refresh_keys(None).await.unwrap();

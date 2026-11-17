@@ -31,12 +31,8 @@ async fn a_merge_on_a_local_commit_under_a_made_up_key_is_set_aside_not_uploaded
     offline.withdraw(revoked.note, ours, revoked.head).unwrap();
     assert_eq!(offline.pending().operations, 0);
     let content = TextBlock::of("merged");
-    let write = Write::encoded(
-        TextContent::CONTENT_TYPE,
-        content.parts(),
-        revoked.head,
-    )
-    .merging(revoked.head, ours);
+    let write = Write::encoded(TextContent::CONTENT_TYPE, content.parts(), revoked.head)
+        .merging(revoked.head, ours);
     let merged = offline.write(revoked.note, write).await;
     let Ok(Saved::Kept(merge)) = merged else {
         panic!("a merge made offline was refused: {merged:?}");
