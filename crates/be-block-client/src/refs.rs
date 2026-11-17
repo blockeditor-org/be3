@@ -411,6 +411,10 @@ pub struct KnownSigner {
     /// could not tell. A record this key signed that the server took later than this is not
     /// the account's (`Peer::verify_authored`).
     pub replaced: Option<i64>,
+    /// Replaced by a key this device could not follow to: the contact's chain of key changes
+    /// broke (`contacts::contacts`), so even the newest verified key is no longer current
+    /// (`supersede_signers`), until a link verifies one again.
+    pub superseded: bool,
 }
 
 #[derive(Default)]
@@ -1544,12 +1548,17 @@ impl Refs {
             // An existing key never moves: a stale card a server replays must not make an
             // old key the newest, which is the account's current one.
             match known.iter_mut().find(|known| known.key == key) {
+                // A key a card or change names again is current again, past a broken chain.
+                Some(found) if found.verified && verified && found.superseded => {
+                    found.superseded = false;
+                }
                 Some(found) if found.verified || !verified => return Ok(()),
                 Some(found) => found.verified = true,
                 None => known.push(KnownSigner {
                     key,
                     verified,
                     replaced: None,
+                    superseded: false,
                 }),
             }
             let current = known.iter().rposition(|known| known.verified);
@@ -1557,6 +1566,35 @@ impl Refs {
                 if older.verified && Some(index) != current && older.replaced.is_none() {
                     older.replaced = now;
                 }
+            }
+            known.clone()
+        };
+        self.write(vec![row(
+            Table::Signers,
+            account.as_bytes().to_vec(),
+            &known,
+        )])
+    }
+
+    /// Takes every verified key of `account` as replaced, its newest too, as of `now`: its
+    /// chain of key changes broke, so it signs with a key this device could not verify
+    /// (`KnownSigner::superseded`).
+    pub fn supersede_signers(&self, account: Uuid, now: Option<i64>) -> Result<(), StoreError> {
+        let known = {
+            let mut state = self.state.lock().unwrap();
+            let Some(known) = state.signers.get_mut(&account) else {
+                return Ok(());
+            };
+            let mut changed = false;
+            for signer in known.iter_mut().filter(|signer| signer.verified) {
+                if !signer.superseded {
+                    signer.superseded = true;
+                    signer.replaced = signer.replaced.or(now);
+                    changed = true;
+                }
+            }
+            if !changed {
+                return Ok(());
             }
             known.clone()
         };

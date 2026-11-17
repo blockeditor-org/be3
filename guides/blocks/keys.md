@@ -728,6 +728,9 @@ Edit can write as someone else.
   contacts and the members of the organization it names, which in the personal
   organization is every account) and is pinned the first time, unverified; a
   different key the server names later answers `Changed` for what it signed.
+  A contact whose chain of key changes broke ("Contacts") has every verified key
+  marked superseded (`RefsDb::supersede_signers`), its newest too, so what they
+  sign answers `Changed` or `Replaced` until a link verifies a key again.
   Nothing known that made the signature answers `Bad`; a record found `Bad`
   after asking the server is remembered for that connection (`Forged`), so a
   forged row shown again asks nothing until the device reconnects.
@@ -928,6 +931,14 @@ are sealed with codes it never sees; a device wraps only under keys it trusts;
 escrow keys are used only when pinned or signed down from a pinned one. It
 cannot sign as a contact: a contact's signing key comes from its card or a key
 change.
+
+A contact's key changes reach a device only through the mailbox the server
+keeps, so it can also withhold or drop them, or put one there that does not
+open: the device then finds the contact's chain broken and lists them as not
+confirmed, sealing nothing to them and taking what their verified keys sign as
+a replaced key's, until a new link. That is a downgrade to unverified, which
+the server could already cause by withholding; it cannot forge a change, nor
+hide one beyond withholding it.
 
 It still decides, and devices trust it for: which held key is a block's current
 data key and which epoch is newest (so a server colluding with someone who lost

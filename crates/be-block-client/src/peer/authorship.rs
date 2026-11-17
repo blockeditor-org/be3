@@ -61,7 +61,10 @@ fn by_verified(
     made: impl Fn([u8; 32]) -> bool,
     arrived: Option<i64>,
 ) -> Option<Signer> {
-    if verified.last().is_some_and(|current| made(current.key)) {
+    if verified
+        .last()
+        .is_some_and(|current| !current.superseded && made(current.key))
+    {
         return Some(Signer::Verified);
     }
     let old = verified.iter().find(|old| made(old.key))?;

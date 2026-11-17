@@ -462,13 +462,54 @@ pub async fn keys(server_url: String, token: String) -> Result<Keys, AccountErro
     })
 }
 
+/// Moves the account to `fresh`, resealing with `old` everything sealed to it or for itself
+/// (`contacts::new_identity`); with no `old`, only an account with nothing sealed yet. The
+/// contacts' waiting key changes are followed first, so the changes this sends seal to each
+/// contact's newest key, which the contact's devices can open.
 pub async fn set_recovery_key(
     server_url: String,
     token: String,
-    public: be_block_keys::PublicIdentity,
-    resealed: be_block_client::contacts::NewIdentity,
+    account: Uuid,
+    old: Option<be_block_keys::RecoverySecret>,
+    fresh: be_block_keys::RecoverySecret,
 ) -> Result<(), AccountError> {
     let connection = authenticated(&server_url, token).await?;
+    if let Some(old) = &old {
+        be_block_client::contacts::contacts(
+            &connection,
+            account,
+            old,
+            &std::collections::HashMap::new(),
+        )
+        .await?;
+    }
+    let be_block_protocol::RecoveryKey {
+        sealed, own, logs, ..
+    } = ask(
+        be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
+            &connection,
+            None,
+            be_block_protocol::Query::RecoveryKey,
+        ),
+    )
+    .await?;
+    let resealed = match (sealed.is_empty() && own.is_empty() && logs.is_empty(), &old) {
+        (true, _) => Some(be_block_client::contacts::NewIdentity {
+            sealed: Vec::new(),
+            own: Vec::new(),
+            changes: Vec::new(),
+            retirements: Vec::new(),
+        }),
+        (false, None) => None,
+        (false, Some(old)) => {
+            be_block_client::contacts::new_identity(account, old, &fresh, sealed, own, logs)
+        }
+    };
+    let resealed = resealed.ok_or_else(|| AccountError {
+        message: CANNOT_RESEAL.to_owned(),
+        invalid_token: false,
+    })?;
+    let public = fresh.identity();
     ask(be_block_protocol::write::<(), _>(
         &connection,
         None,
@@ -484,6 +525,10 @@ pub async fn set_recovery_key(
     .await?;
     Ok(())
 }
+
+/// Why a new phrase can't be taken on a device without the old one.
+pub const CANNOT_RESEAL: &str = "This device cannot open what the old phrase sealed. Unlock this \
+     account with the old phrase first, so the new one can seal it.";
 
 pub async fn pair(
     server_url: String,

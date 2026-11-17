@@ -310,8 +310,11 @@ describe.
   Letters are bounded per kind and sender (`MAX_LETTERS_FROM_ONE`): past it an
   accepted card is refused, but a key change lets the sender's oldest go, so
   a contact that never reads cannot hold up a new phrase; the reader's device
-  then finds the chain broken and lists the contact as not confirmed until a
-  new link. Tests: be-server's
+  then finds the chain broken and lists the contact as not confirmed, with
+  its verified signing keys superseded, until a new link. The host follows
+  its contacts' waiting changes just before it takes a new phrase
+  (`accounts::set_recovery_key`), so its own changes seal to their newest
+  keys (plans/backlog.md, 18, has the race left). Tests: be-server's
   `a_notice_under_a_week_old_refuses_deletion_and_one_older_deletes`,
   be-block-client's
   `a_key_change_reaches_a_contact_offline_and_is_read_from_its_mailbox` and

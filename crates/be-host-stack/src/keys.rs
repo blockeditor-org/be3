@@ -165,49 +165,30 @@ impl KeyState {
             return;
         }
         let fresh = setup.phrase.secret();
-        let public = fresh.identity();
-        let (account, held, own, logs) = self
+        let (account, holds) = self
             .keys
             .as_ref()
             .map(|keys| {
                 (
                     keys.account,
-                    keys.sealed.clone(),
-                    keys.own.clone(),
-                    keys.logs.clone(),
+                    !(keys.sealed.is_empty() && keys.own.is_empty() && keys.logs.is_empty()),
                 )
             })
             .unwrap_or_default();
-        let resealed = match (
-            held.is_empty() && own.is_empty() && logs.is_empty(),
-            identity,
-        ) {
-            (true, _) => Some(be_block_client::contacts::NewIdentity {
-                sealed: Vec::new(),
-                own: Vec::new(),
-                changes: Vec::new(),
-                retirements: Vec::new(),
-            }),
-            (false, None) => None,
-            (false, Some(identity)) => be_block_client::contacts::new_identity(
-                account,
-                &RecoverySecret::from_bytes(identity),
-                &fresh,
-                held,
-                own,
-                logs,
-            ),
-        };
-        let Some(resealed) = resealed else {
-            self.error = Some(
-                "This device cannot open what the old phrase sealed. Unlock this account with \
-                 the old phrase first, so the new one can seal it."
-                    .into(),
-            );
+        // Told at once when it shows: the reseal itself runs where it is saved, after the
+        // contacts' waiting key changes are followed (`accounts::set_recovery_key`).
+        if holds && identity.is_none() {
+            self.error = Some(accounts::CANNOT_RESEAL.into());
             return;
-        };
+        }
         self.error = None;
-        let saving = accounts::set_recovery_key(server_url, token, public, resealed);
+        let saving = accounts::set_recovery_key(
+            server_url,
+            token,
+            account,
+            identity.map(RecoverySecret::from_bytes),
+            fresh,
+        );
         platform::spawn_request(async move { post.send(saving.await) });
         self.saving = Some(mailbox);
     }

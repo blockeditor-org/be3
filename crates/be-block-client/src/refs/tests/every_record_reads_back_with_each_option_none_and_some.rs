@@ -125,6 +125,7 @@ fn every_record_reads_back_with_each_option_none_and_some() {
             key: [5; 32],
             verified: some,
             replaced: some.then_some(7),
+            superseded: some,
         }]);
         reads_back(&JournalHead {
             tag: Hash::of(b"tag"),
