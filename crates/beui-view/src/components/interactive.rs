@@ -208,7 +208,7 @@ struct Carrying {
 /// press hears no more drags. While the carry is held, the children are drawn where its frame
 /// puts the item, raised above their siblings (a scroll around them still clips them), unless
 /// the carry gives a `preview`, which floats in a layer of its own instead, pinned by its top left
-/// corner and in this node's window (a carry crossing windows waits for the frame to name
+/// corner, or is drawn by a site (`Carry::drawn_by_site`), when nothing is drawn here for it and in this node's window (a carry crossing windows waits for the frame to name
 /// one, plans/declarative_dragging.md step 6). Only a focusable source hears the carry keys
 /// (`carry_keys`). If this node goes while its carry is held, the carry is put down,
 /// dropping nothing.
@@ -233,7 +233,10 @@ fn carrying(
     let origin = Rc::new(Cell::new(None::<PointerPress>));
     let mine = create_signal(None::<crate::drag::CarryId>);
     let preview = Rc::new(RefCell::new(None::<Preview>));
+    // Whether the carry's face is not the source's: then the children are not displaced.
     let previewed = create_signal(false);
+    // Whether this node floats the carry's own preview.
+    let floats_here = create_signal(false);
     let pressed = {
         let (asked, lifted, origin) = (Rc::clone(&asked), Rc::clone(&lifted), Rc::clone(&origin));
         Callback::new(move |press: PointerPress| {
@@ -243,10 +246,25 @@ fn carrying(
             on_press.call(press);
         })
     };
+    // Takes up what a lifted carry draws: its preview floats here, and the children are not
+    // displaced unless the source is its face.
+    let show_face = {
+        let preview = Rc::clone(&preview);
+        Rc::new(move |face: crate::drag::CarryFace| {
+            use crate::drag::CarryFace;
+            previewed.set(!matches!(face, CarryFace::Source));
+            let floats = match face {
+                CarryFace::Preview(preview) => Some(preview),
+                CarryFace::Source | CarryFace::Site => None,
+            };
+            floats_here.set(floats.is_some());
+            *preview.borrow_mut() = floats;
+        })
+    };
     // Asks `drag` for a carry at `press` and lifts it; whether `drag` gave one.
     let lift_at = {
-        let (origin, preview, lifted) =
-            (Rc::clone(&origin), Rc::clone(&preview), Rc::clone(&lifted));
+        let (origin, show_face, lifted) =
+            (Rc::clone(&origin), Rc::clone(&show_face), Rc::clone(&lifted));
         Rc::new(move |press: PointerPress| -> bool {
             let Some(driver) = crate::drag::driver().filter(|driver| !driver.carrying()) else {
                 return false;
@@ -263,11 +281,10 @@ fn carrying(
                     at.size,
                 ));
             }
-            let floats = carry.preview.clone();
+            let face = carry.face.clone();
             if let Some(id) = driver.lift(carry, crate::drag::DragPoint::of(press)) {
                 lifted.set(true);
-                previewed.set(floats.is_some());
-                *preview.borrow_mut() = floats;
+                show_face(face);
                 mine.set(Some(id));
             }
             true
@@ -346,7 +363,7 @@ fn carrying(
             frame.get().map_or(Pos2::ZERO, |frame| frame.item.min),
         )
     });
-    let open = create_memo(move || floating.get() && previewed.get());
+    let open = create_memo(move || floating.get() && floats_here.get());
     // What this node's carry last said, for a screen reader.
     let said = create_memo(move || {
         let id = mine.get()?;
@@ -354,12 +371,11 @@ fn carrying(
         (said_by == id).then_some(said)
     });
     let keyboard_lift = {
-        let preview = Rc::clone(&preview);
-        Rc::new(move |id: crate::drag::CarryId, floats: Option<Preview>| {
-            previewed.set(floats.is_some());
-            *preview.borrow_mut() = floats;
+        let show_face = Rc::clone(&show_face);
+        Rc::new(move |id: crate::drag::CarryId, face: crate::drag::CarryFace| {
+            show_face(face);
             mine.set(Some(id));
-        }) as Rc<dyn Fn(crate::drag::CarryId, Option<Preview>)>
+        }) as Rc<dyn Fn(crate::drag::CarryId, crate::drag::CarryFace)>
     };
     let face = Face {
         raised,
@@ -422,7 +438,7 @@ fn carry_keys(
         NodeId,
         crate::reactive::ReadSignal<Option<crate::measure::Measured>>,
     ),
-    lifted: &std::rc::Rc<dyn Fn(crate::drag::CarryId, Option<Preview>)>,
+    lifted: &std::rc::Rc<dyn Fn(crate::drag::CarryId, crate::drag::CarryFace)>,
 ) -> bool {
     use crate::reactive::Get;
     use crate::types::{Key, WindowId, input::PointerId};
@@ -488,7 +504,7 @@ fn lift_by_keys(
         NodeId,
         crate::reactive::ReadSignal<Option<crate::measure::Measured>>,
     ),
-    lifted: &std::rc::Rc<dyn Fn(crate::drag::CarryId, Option<Preview>)>,
+    lifted: &std::rc::Rc<dyn Fn(crate::drag::CarryId, crate::drag::CarryFace)>,
 ) -> bool {
     use crate::reactive::Get;
     use crate::types::{Rect, input::PointerId};
@@ -521,10 +537,10 @@ fn lift_by_keys(
             rect.size(),
         ));
     }
-    let floats = carry.preview.clone();
+    let face = carry.face.clone();
     match driver.lift(carry, crate::drag::DragPoint::of(at)) {
         Some(id) => {
-            lifted(id, floats);
+            lifted(id, face);
             true
         }
         None => false,

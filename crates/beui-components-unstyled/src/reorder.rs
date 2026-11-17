@@ -616,14 +616,9 @@ where
         state.carried.set(Some(key.clone()));
         state.raised.set(Some(key.clone()));
         state.on_drag_change.call(Some(key.clone()));
-        // The list draws the row's preview itself, at its root, while it floats (the
-        // row is collapsed by then); the row only says it is previewed, so it is not drawn
-        // displaced where it is.
-        Some(Carry::new(payload).preview(|| {
-            view! {
-                <Frame />
-            }
-        }))
+        // The list draws the row's preview itself, at its root, while it floats: the row is
+        // collapsed by then.
+        Some(Carry::new(payload).drawn_by_site())
     })
 }
 

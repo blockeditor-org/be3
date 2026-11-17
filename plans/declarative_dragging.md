@@ -287,8 +287,8 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
    thresholds.
 5. **Apps.**
    - **video timeline (done):** a `custom` site whose `place` is `drop_target_at`, so a clip
-     lands at the frame under the pointer; `DropMarker` draws from the site's `over`, and a
-     keyboard carry steps along a frame grid the site offers.
+     lands at the frame under the pointer; `DropMarker` draws from the site's `over`. A keyboard
+     carry cannot step into it yet (plans/backlog.md, Keyboard steps into a custom site).
    - **logic-grid's hotbar (done):** slots carry onto other slots and folders, each a place from
      `place_on`, which offers a node's whole area.
    - **infinite canvas:** item moves become `free`.
