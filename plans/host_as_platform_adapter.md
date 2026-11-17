@@ -201,6 +201,10 @@ that shows, and a pass over the damaged area drawing one quad per root and ancho
 frame also walks the displays that hold drawings and their ancestors (on the CPU), and prepares
 the drawings that were damaged or moved. Keeping the list across frames and patching it from the
 tree's changes would remove the walk.
+Known limit: an anchored view nested in a group or filter only avoids the worst case. The roots
+split after the group, so the view ignores the group's opacity and filter, and what the group
+paints after it lands below it; the renderer says so once on stderr. The compositor in the root
+(4f) should place anchored views outside groups, or the list grow a group of its own.
 Compositing a screen apart from the UI, rather than in place, waits for the root guest (4f),
 which decides what lies under its screens (a hole, as on the web, or a root split around them).
 

@@ -1989,6 +1989,16 @@ impl Renderer {
                     // An anchored view inside a group or filter cannot be lifted out of it: the
                     // roots split after the step that holds it.
                     let count = nested(inner, lifted);
+                    if count > 0 && !composition.warned_nested {
+                        // Known limit (plans/host_as_platform_adapter.md, The layer list): the
+                        // view ignores the group's opacity and filter, and what the group paints
+                        // after it lands below it.
+                        composition.warned_nested = true;
+                        eprintln!(
+                            "beui: an anchored view inside a group or filter is composited above \
+                             the whole group, unfaded and unfiltered"
+                        );
+                    }
                     split.push(step);
                     splits.extend(std::iter::repeat_n(split.len(), count));
                     continue;
@@ -2012,6 +2022,17 @@ impl Renderer {
         // An anchored view not in the steps is not damaged, and nothing damaged lies under or
         // over it, so the damaged steps stay on the roots below it; the roots above it are
         // cleared where damaged.
+        match whole {
+            true => debug_assert_eq!(
+                splits.len(),
+                composition.splits_at.len(),
+                "a frame painted whole holds every anchored view's drawing"
+            ),
+            false => debug_assert!(
+                splits.len() <= composition.splits_at.len(),
+                "a damaged frame holds at most the anchored views the window shows"
+            ),
+        }
         splits.resize(composition.splits_at.len(), steps.len());
         if !whole {
             for (inserted, at) in splits.iter_mut().enumerate() {
