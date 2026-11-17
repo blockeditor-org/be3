@@ -462,6 +462,13 @@ Depends on #686 (session catch-ups replaced by server ordering).
 
 ## 18. Keys
 
+- **Retire plans/signed_access.md.** Every step is built, so the plan goes,
+  but guides, decisions, code comments and tests cite its "Accepted limits"
+  and "Who is served what", and plans/hosted_blocks.md and
+  plans/share_links.md depend on it. Done: those sections live in
+  guides/blocks/keys.md (or a decisions/ record), every reference names the
+  new place, the Depends-on lines name what remains, and the plan is deleted.
+
 - **A test server that lies in its answers.** Fixes for what "the server
   alone" can do (a block's parent, its current key, its history, a rollback)
   want tests that fail before the fix, but the server answers summaries and
