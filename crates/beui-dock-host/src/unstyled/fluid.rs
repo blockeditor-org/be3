@@ -467,6 +467,9 @@ impl State {
                 to,
             }));
         }
+        if let DockDragged::Entry(entry) = dragged {
+            self.keyboard_follows_move(entry);
+        }
         self.edit(|state| match dragged {
             DockDragged::Entry(entry) => state.drop_entry(entry, place.drop),
             DockDragged::Pane(leaf) => state.drop_leaf(leaf, place.drop),

@@ -224,10 +224,13 @@ may coincide, neither takes it nor hides a tab for it. Tool bars still ride the 
 
 **From the keyboard.** A tab's row is a drag source whose tab button holds the focus, so a
 focused tab moves with the carry keys (guides/beui_keyboard.md): Ctrl+Shift and an arrow move it
-one place at once, along its bar or past its end into the nearest of the dock's places that
-way, and Move in the palette lifts it for the arrows to step between every place, each said by
-its label ("right of Files", "with Files"), until Enter drops it. Carried off its bar, its row
-keeps the focus (hidden and shrunk, not collapsed). Pane grips are not focusable, so a pane
+one place at once, along its bar, into the next bar or into the nearest of the dock's places
+that way, and Move in the palette lifts it for the arrows to step between every place, each
+said by its label ("right of Files", "with Files"), until Enter drops it. A split answers only
+the arrow its edge faces (`step_toward`), so Right reaches "right of" a pane, never its top
+band. Carried off its bar, its row keeps the focus (hidden and shrunk, not collapsed); dropped
+in another bar or pane, where its row is built again, the pane that shows it gives its panel
+the keyboard (`keyboard_after_move`). Pane grips are not focusable, so a pane
 moves only by the pointer.
 
 **The preview.** Nothing is written until the release. While a place is chosen (or a tab bar parts

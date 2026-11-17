@@ -891,6 +891,8 @@ fn walk<'s, D: Clone>(
 pub struct Rest {
     pub rest: Rect,
     pub zone: Option<Rect>,
+    /// The side its zone is chosen nearest (`Candidate::nearest_edge`), if any.
+    pub edge: Option<Side>,
     pub label: Option<String>,
     pub id: CandidateId,
 }
@@ -928,6 +930,7 @@ pub fn rests<D>(spec: &DragSpec<D>, placed: &dyn Fn(NodeId) -> Option<(Rect, f32
                     into.push(Rest {
                         rest,
                         zone: candidate.zone.and_then(place),
+                        edge: candidate.nearest.map(|(side, _)| side),
                         label: candidate.label.clone(),
                         id,
                     });
@@ -998,17 +1001,31 @@ pub fn nodes<D>(spec: &DragSpec<D>) -> Vec<NodeRef> {
     into
 }
 
-/// Of `rests`, the nearest whose centre lies towards `toward` from `from` (within 60 degrees
-/// of it), as a keyboard step chooses: its index.
-pub fn step_toward(rests: &[Rect], from: Pos2, toward: Vec2) -> Option<usize> {
+/// The place a keyboard step `toward` takes from `from`: of the places that lie that way, the
+/// one nearest along the arrow, a step across counting twice as far. A place chosen nearest an
+/// edge (a pane's split, `Candidate::nearest_edge`) answers only the arrow that edge faces, so
+/// Right reaches "right of" a pane and never its band along the top.
+pub fn step_toward(rests: &[(Rect, Option<Side>)], from: Pos2, toward: Vec2) -> Option<usize> {
     let toward = toward / toward.length().max(f32::EPSILON);
+    let facing = |side: Side| {
+        let out = match side {
+            Side::Left => Vec2::new(-1.0, 0.0),
+            Side::Right => Vec2::new(1.0, 0.0),
+            Side::Above => Vec2::new(0.0, -1.0),
+            Side::Below => Vec2::new(0.0, 1.0),
+        };
+        out.dot(toward) > 0.5
+    };
     rests
         .iter()
         .enumerate()
-        .filter_map(|(at, rest)| {
+        .filter(|(_, (_, edge))| edge.is_none_or(facing))
+        .filter_map(|(at, (rest, _))| {
             let away = rest.center() - from;
             let length = away.length();
-            (length > 0.5 && away.dot(toward) >= 0.5 * length).then_some((at, length))
+            let along = away.dot(toward);
+            let across = (away - toward * along).length();
+            (length > 0.5 && along >= 0.5 * length).then_some((at, along + 2.0 * across))
         })
         .min_by(|left, right| left.1.total_cmp(&right.1))
         .map(|(at, _)| at)
