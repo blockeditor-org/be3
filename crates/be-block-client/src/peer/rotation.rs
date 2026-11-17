@@ -582,6 +582,14 @@ impl<S: ObjectStore> Peer<S> {
             &|_, _| None,
         )
         .map_err(|_| ClientError::Forged(self.organization))?;
+        // Kept as a block's is (`KeyBook::note_log`): one short of what was kept is withheld,
+        // and changes nothing here.
+        if self.keys.withheld(self.organization, &checked) {
+            return Err(ClientError::Withheld(self.organization));
+        }
+        if let Some(kept) = self.keys.note_log(self.organization, &checked) {
+            let _ = self.refs.keep_log(self.organization, kept);
+        }
         self.keys.set_organization(Some(&checked));
         Ok(Some(checked))
     }

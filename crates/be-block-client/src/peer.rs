@@ -735,8 +735,12 @@ impl<S: ObjectStore> Peer<S> {
     /// escrow wraps are opened. None are known when the log does not check, so no newer escrow
     /// key is taken and no escrow wrap opened.
     pub(crate) async fn learn_administrators(&self) {
-        let checked = self.checked_organization().await.ok().flatten();
-        self.keys.set_organization(checked.as_ref());
+        match self.checked_organization().await {
+            // A log short of what was kept leaves the organization as this device last held
+            // it, or judged by what was kept (`KeyBook::kept`).
+            Err(ClientError::Withheld(_)) => {}
+            checked => self.keys.set_organization(checked.ok().flatten().as_ref()),
+        }
         self.keys.absorb(KeySet::default());
     }
 
@@ -1654,7 +1658,7 @@ impl<S: ObjectStore> Peer<S> {
         // A log short of what an earlier check kept is withheld: nothing acts on it, and what
         // waits on it (a seal to judge, an escrowed key to take) waits for a whole one.
         if self.keys.withheld(block, &checked) {
-            return Err(ClientError::Locked(block));
+            return Err(ClientError::Withheld(block));
         }
         if let Some(kept) = self.keys.note_log(block, &checked) {
             let _ = self.refs.keep_log(block, kept);

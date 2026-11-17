@@ -261,7 +261,10 @@ did not sign.
   current only if it names one of the kept entries from the last lowering
   through the head, so an honest epoch naming a head newer than those costs a
   rotation, and offline, where none can be made, a refused save (`Locked`).
-  A contact's seal is then judged by the levels kept at the head. A scope this
+  A contact's seal is then judged by the levels kept at the head, where a
+  signer who manages from outside (a granter on a block above) is never
+  named, as before step 4. The organization's log is kept and judged the same
+  way. A scope this
   device neither kept nor can read judges a key opened through another as
   outdated, and one made here, or sealed to this account directly, as not.
   What it cannot catch: a revocation it never held in any run.
