@@ -180,6 +180,54 @@ impl ServerKey {
         C::decode(&content).map(Some).map_err(|_| unreadable(block))
     }
 
+    /// Seals again, from the server itself, what `account` sealed to it by its `old` public key
+    /// (the organization settings' keys, `Peer::share_with_server`), before a new phrase replaces
+    /// that key: a wrap opens by its sender's current key (`open_key`), so the server would
+    /// otherwise stop reading the policies. A wrap that does not open by `old` is left as it is.
+    pub(crate) fn reseal_from(
+        &self,
+        connection: &Connection,
+        account: Uuid,
+        old: [u8; 32],
+    ) -> Result<(), ServerError> {
+        let sender = Party {
+            account: account.into_bytes(),
+            public: RecoveryPublic(old),
+        };
+        let me = Party {
+            account: self.account.into_bytes(),
+            public: self.secret.public(),
+        };
+        let by = encode_wrapped_by(WrappedBy::Account(self.account));
+        let held: Vec<(String, String, Vec<u8>)> = connection
+            .prepare_cached(
+                "SELECT organization_id, key_id, sealed FROM wrapped_keys
+                 WHERE wrapped_by = ?1 AND sender = ?2",
+            )?
+            .query_map(params![by, account.to_string()], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            })?
+            .collect::<Result<_, _>>()?;
+        for (organization, key, sealed) in held {
+            let id = crate::store::parse_uuid(&key)?;
+            let Ok(plain) =
+                self.secret
+                    .open_from(&sender, self.account.into_bytes(), id.as_bytes(), &sealed)
+            else {
+                continue;
+            };
+            let sealed = self
+                .secret
+                .seal_for(self.account.into_bytes(), &me, id.as_bytes(), &plain);
+            connection.execute(
+                "UPDATE wrapped_keys SET sender = ?4, sealed = ?5
+                 WHERE organization_id = ?1 AND key_id = ?2 AND wrapped_by = ?3",
+                params![organization, key, by, self.account.to_string(), sealed],
+            )?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn seal_settings_to(
         &self,
         connection: &Connection,

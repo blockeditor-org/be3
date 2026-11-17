@@ -3077,8 +3077,12 @@ async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
     }
     match peer.refresh_contacts().await {
         Ok(contacts) => {
+            let pins = peer.contact_pins();
             let changed = {
                 let mut shared = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                if *shared.contact_pins != pins {
+                    shared.contact_pins = crate::Part::new(pins);
+                }
                 let changed = *shared.contacts != contacts;
                 if changed {
                     shared.contacts = crate::Part::new(contacts);

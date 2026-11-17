@@ -1,44 +1,7 @@
 use super::*;
 
 use be_block_graph::Access;
-use be_block_keys::RecoverySecret;
-use be_block_protocol::{RecoveryKey, Unsealed};
-
-/// Moves `account` from `old` to a new phrase, leaving a key change in each contact's mailbox.
-async fn new_phrase(
-    connection: &std::sync::Arc<crate::Connection>,
-    account: Uuid,
-    old: &RecoverySecret,
-) -> RecoverySecret {
-    let fresh = be_block_keys::RecoveryPhrase::generate().secret();
-    let RecoveryKey {
-        sealed, own, logs, ..
-    } = crate::ask(
-        be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
-            connection,
-            None,
-            be_block_protocol::Query::RecoveryKey,
-        ),
-    )
-    .await
-    .unwrap();
-    let resealed = crate::contacts::new_identity(account, old, &fresh, sealed, own, logs).unwrap();
-    crate::ask(be_block_protocol::write::<(), _>(
-        connection,
-        None,
-        be_block_protocol::Op::SetRecoveryKey {
-            public: fresh.public().0,
-            signing: fresh.signing().0,
-            sealed: resealed.sealed,
-            own: resealed.own,
-            changes: resealed.changes,
-            retirements: resealed.retirements,
-        },
-    ))
-    .await
-    .expect("a new phrase never waits on a contact's mailbox");
-    fresh
-}
+use be_block_protocol::Unsealed;
 
 fn waiting(harness: &Harness, to: Uuid, from: Uuid) -> i64 {
     harness

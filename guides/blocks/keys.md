@@ -568,6 +568,9 @@ Where it acts first, a device signs after:
 - **The server's own account** holds the organization settings' scope key by a
   row with no record (decisions/server_enforced_settings_are_shared_with_the_server.md);
   no record can name the server, so it is never a sealing target by grant.
+  The server opens such a wrap by its sender's current key, so a new phrase has
+  it seal those wraps again from itself (`ServerKey::reseal_from`), and an
+  administrator's device sharing the settings again replaces its seal.
 
 ### Escrow (company organizations)
 
@@ -640,7 +643,14 @@ one signature at a time (`keys::verify_escrow`) and pins the newest verified
   contact's mailbox (`letter.key-change`) by the same write; a contact's device
   follows changes one at a time from the key it holds, reseals what that
   account sealed to it (`ResealKeys`), replaces its row (`PutContact`) and
-  deletes the changes it followed.
+  deletes the changes it followed. Before sending, the device follows its own
+  contacts' waiting changes, checked against its pins, so the changes seal to
+  each contact's newest key; that step is best-effort, so a contact's mailbox
+  never holds up a new phrase (`accounts::set_recovery_key`). The server, in
+  the same write, seals again from its own account each key the account sealed
+  to it (the settings' keys, `ServerKey::reseal_from`): it opens such a wrap by
+  its sender's current key, so it would otherwise stop reading the policies
+  and refuse what they govern (`PolicyUnreadable`).
 - **Inviting**: the only way into an organization, and it hands over no key.
   An invitation is a link of kind `invitation` (see Contacts below): the
   inviting device makes an `InviteCode` (200 bits) and names the link by
@@ -730,7 +740,9 @@ Edit can write as someone else.
   different key the server names later answers `Changed` for what it signed.
   A contact whose chain of key changes broke ("Contacts") has every verified key
   marked superseded (`RefsDb::supersede_signers`), its newest too, so what they
-  sign answers `Changed` or `Replaced` until a link verifies a key again.
+  sign answers `Changed` or `Replaced` until a link verifies a key again;
+  the key a link verifies is current again with no replacement time, so a later
+  break is timed by itself.
   Nothing known that made the signature answers `Bad`; a record found `Bad`
   after asking the server is remembered for that connection (`Forged`), so a
   forged row shown again asks nothing until the device reconnects.

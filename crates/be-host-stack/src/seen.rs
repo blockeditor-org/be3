@@ -226,6 +226,7 @@ crate::diff::whole!(
     Vec<be_block_client::UnsentBlock>,
     Vec<PairingRequest>,
     Vec<be_block_client::Contact>,
+    HashMap<Uuid, be_block_client::contacts::OwnContact>,
     Vec<OwnInvitation>,
     Vec<(String, Uuid)>,
     Vec<Frame>,
@@ -319,6 +320,9 @@ pub struct Seen, delta SeenDelta {
     pub conflicts: Part<imbl::OrdMap<Uuid, Vec<Conflict>>>,
     pub pairing: Vec<PairingRequest>,
     pub contacts: Part<Vec<be_block_client::Contact>>,
+    /// The contacts' records this device pinned (`Peer::contact_pins`), for a new phrase to
+    /// follow their key changes by (`accounts::set_recovery_key`).
+    pub contact_pins: Part<HashMap<Uuid, be_block_client::contacts::OwnContact>>,
     /// Invitation codes this stack's account made or listed (`crate::is_own_invitation`).
     pub own_invitations: Part<Vec<OwnInvitation>>,
     /// The account's storage, while an editor watches it (`watch_storage`).

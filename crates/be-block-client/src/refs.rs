@@ -1548,9 +1548,11 @@ impl Refs {
             // An existing key never moves: a stale card a server replays must not make an
             // old key the newest, which is the account's current one.
             match known.iter_mut().find(|known| known.key == key) {
-                // A key a card or change names again is current again, past a broken chain.
+                // A key a card or change names again is current again, past a broken chain: a
+                // later break is timed afresh, not by this one.
                 Some(found) if found.verified && verified && found.superseded => {
                     found.superseded = false;
+                    found.replaced = None;
                 }
                 Some(found) if found.verified || !verified => return Ok(()),
                 Some(found) => found.verified = true,

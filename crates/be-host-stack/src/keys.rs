@@ -188,6 +188,7 @@ impl KeyState {
             account,
             identity.map(RecoverySecret::from_bytes),
             fresh,
+            crate::contact_pins(),
         );
         platform::spawn_request(async move { post.send(saving.await) });
         self.saving = Some(mailbox);

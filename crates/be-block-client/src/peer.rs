@@ -683,7 +683,7 @@ impl<S: ObjectStore> Peer<S> {
         self.keys
             .set_server(server.account, RecoveryPublic(server.public));
         self.follow_topics().await;
-        let pins = self.refs.contacts().into_iter().collect();
+        let pins = self.contact_pins();
         let verified =
             crate::contacts::contacts(&connection, self.account, self.keys.identity(), &pins)
                 .await?;
@@ -1015,6 +1015,12 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// A contact's name as its verified card gives it, kept for when there is no connection.
+    /// The contacts' records this device pinned, which `contacts::contacts` checks the server's
+    /// against.
+    pub fn contact_pins(&self) -> HashMap<Uuid, crate::contacts::OwnContact> {
+        self.refs.contacts().into_iter().collect()
+    }
+
     pub fn contact_name(&self, account: Uuid) -> Option<String> {
         self.refs.contact_name(account)
     }
