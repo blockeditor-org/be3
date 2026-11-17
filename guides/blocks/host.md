@@ -307,6 +307,11 @@ the connection a stopping stack closed.
   the unsent list shows how many kept edits it holds,
   `UnsentBlock::kept_edits`). Its open replica closes
   (`Replicas::stop_keeping`), and one opened next starts under a fresh origin.
+  Until the discard no replica that joined shows the edits set aside, though the
+  local head stays on them: one that lost edit access follows the server's
+  order, and a session of viewers has no holder to merge them in, so they show
+  only among the unsent edits and as not sent to its editors
+  (guides/blocks/apps.md, "Sending").
   The discard marks the block (`refs::Dropped`), until a join's `may-edit`
   says this account may edit it again (`Peer::join_session`): a listing that
   says so may be older than the access that lost it, so it does not count,

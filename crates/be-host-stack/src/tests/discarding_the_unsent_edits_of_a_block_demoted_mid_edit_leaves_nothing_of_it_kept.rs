@@ -1,9 +1,10 @@
 use super::*;
 
 /// Edits made to an open block whose edit access was taken away meanwhile are set aside among
-/// the unsent edits. Discarded, they take the edits this device kept of the block with them,
-/// and its open replica closes: what it made after is sealed as it closes and set aside in its
-/// turn, and once that is discarded too nothing keeps the block from being forgotten.
+/// the unsent edits, and its replica, rejoined as a viewer's, shows what the server holds.
+/// Discarded, they take the edits this device kept of the block with them, and its open replica
+/// closes: what it made after is sealed as it closes and set aside in its turn, and once that is
+/// discarded too nothing keeps the block from being forgotten.
 #[test]
 fn discarding_the_unsent_edits_of_a_block_demoted_mid_edit_leaves_nothing_of_it_kept() {
     let harness = Harness::relayed();
@@ -68,6 +69,9 @@ fn discarding_the_unsent_edits_of_a_block_demoted_mid_edit_leaves_nothing_of_it_
         .block_on(peer.grant(block, harness.account, be_block_graph::Access::View))
         .expect("the sharer makes this account a viewer");
 
+    let told = crate::wait_until("read how often replicas were told", |held| {
+        Some(held.marks_told)
+    });
     harness.relay().offline(false);
     retry_now();
     wait_until("set the edits made meanwhile aside", |held| {
@@ -75,9 +79,10 @@ fn discarding_the_unsent_edits_of_a_block_demoted_mid_edit_leaves_nothing_of_it_
             .iter()
             .any(|unsent| unsent.block == block && unsent.refused.is_none())
     });
-    // Typed on, as the replica still takes edits it can no longer send.
-    add(block, 4);
-    wait_for_count(block, 7);
+    // Rejoined as a viewer, the replica follows the server's order, which holds none of what
+    // was set aside: that shows among the unsent edits instead, until it is discarded.
+    wait_until("rejoined its session", |held| held.marks_told > told);
+    wait_for_count(block, 1);
     crate::discard_unsent(block);
     wait_until("discarded the unsent edits", |held| {
         !held.unsent.iter().any(|unsent| unsent.block == block)
