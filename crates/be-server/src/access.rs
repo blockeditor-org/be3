@@ -4,7 +4,7 @@
 use be_block_graph::{ANYONE_INSIDE, Access, BlockGraph};
 use be_block_keys::{
     Authority, Checked, Entry, EntryHash, Level, LogKind, Logs, PublicIdentity, Record,
-    RecoveryPublic, SigningPublic,
+    RecoveryPublic, SigningPublic, Step,
 };
 use be_block_protocol::ErrorCode;
 use be_block_protocol::{Retirement, SignedLog};
@@ -93,6 +93,72 @@ pub(crate) fn log_of(
         )?
         .collect::<Result<_, _>>()?;
     Ok(entries)
+}
+
+/// The `kind` log of `log` as `reader` is served it: whole when none (a member with Edit or
+/// above, `Visibility::served_whole`), else a proof path (`be_block_keys::proof_path`) proving
+/// the reader's own right and that of each account that sealed it a key of the block (or, in the
+/// organization's log, any key), which it judges a seal by, and reducing every other entry.
+pub(crate) fn served_log(
+    connection: &Connection,
+    kind: LogKind,
+    organization: Uuid,
+    log: Uuid,
+    reader: Option<Uuid>,
+) -> Result<Vec<Vec<u8>>, ServerError> {
+    let entries = entries(connection, kind, organization, log)?;
+    let steps: Vec<Step> = match reader {
+        None => entries.into_iter().map(Step::from).collect(),
+        Some(reader) => be_block_keys::proof_path(
+            kind,
+            &entries,
+            reader.into_bytes(),
+            sealers(connection, kind, organization, log, reader)?
+                .into_iter()
+                .map(Uuid::into_bytes),
+        ),
+    };
+    Ok(steps.iter().map(Step::encode).collect())
+}
+
+/// The accounts that sealed `reader` a key: of `log`, a block, or of any block for the
+/// organization's log.
+fn sealers(
+    connection: &Connection,
+    kind: LogKind,
+    organization: Uuid,
+    log: Uuid,
+    reader: Uuid,
+) -> Result<Vec<Uuid>, ServerError> {
+    let wrapped_by = format!("account:{reader}");
+    let senders: Vec<String> = match kind {
+        LogKind::Block => connection
+            .prepare_cached(
+                "SELECT DISTINCT wrapped_keys.sender FROM wrapped_keys
+                 JOIN keys ON keys.organization_id = wrapped_keys.organization_id
+                    AND keys.id = wrapped_keys.key_id
+                 WHERE wrapped_keys.organization_id = ?1 AND wrapped_keys.wrapped_by = ?2
+                    AND keys.block_id = ?3",
+            )?
+            .query_map(
+                params![organization.to_string(), wrapped_by, log.to_string()],
+                |row| row.get(0),
+            )?
+            .collect::<Result<_, _>>()?,
+        LogKind::Organization => connection
+            .prepare_cached(
+                "SELECT DISTINCT sender FROM wrapped_keys
+                 WHERE organization_id = ?1 AND wrapped_by = ?2",
+            )?
+            .query_map(params![organization.to_string(), wrapped_by], |row| {
+                row.get(0)
+            })?
+            .collect::<Result<_, _>>()?,
+    };
+    senders
+        .iter()
+        .map(|sender| crate::store::parse_uuid(sender))
+        .collect()
 }
 
 /// Stores `root` as the first entry of a new company organization's log, once it checks
@@ -354,9 +420,12 @@ fn held(
     kind: LogKind,
     organization: Uuid,
     log: Uuid,
-) -> Option<(EntryHash, Vec<Entry>)> {
+) -> Option<(EntryHash, Vec<Step>)> {
     let entries = entries(connection, kind, organization, log).ok()?;
-    Some((entries.first()?.hash(), entries))
+    Some((
+        entries.first()?.hash(),
+        entries.into_iter().map(Step::from).collect(),
+    ))
 }
 
 /// The log of `block` checked to its head, as a device checks it, with the authority each grant

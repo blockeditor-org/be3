@@ -15,6 +15,7 @@ fn an_opening_checks_only_as_a_manager_signed_it() {
             signer,
             block,
             Some(previous),
+            level == Level::None,
             Record::Opening(Opening { level, authority }),
         )
     };
@@ -56,6 +57,7 @@ fn an_opening_checks_only_as_a_manager_signed_it() {
         creator_id,
         block,
         Some(root.hash()),
+        false,
         Record::Grant(Grant {
             grantee: member_id,
             identity: member.identity(),

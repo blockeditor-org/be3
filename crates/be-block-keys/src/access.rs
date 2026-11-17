@@ -17,8 +17,12 @@ use crate::{KeyError, PublicIdentity, RecoverySecret, SigningPublic, verify_sign
 /// What an access record's signature covers comes after this, so it never verifies as anything
 /// else the account's signing key signs (authorship has a domain of its own).
 const ACCESS_INFO: &[u8] = b"be3.access.v1";
-/// What an entry's hash covers comes after this.
+/// What an entry's hash covers comes after this: the hash of the entry before it, whether it
+/// lowered anyone's access, and its digest (`Entry::digest`), so an entry reduced to those three
+/// (`Reduced`) hashes as the whole entry does.
 const ACCESS_HASH_INFO: &[u8] = b"be3.access.hash.v1";
+/// What an entry's digest covers comes after this.
+const ACCESS_DIGEST_INFO: &[u8] = b"be3.access.digest.v1";
 /// What an old signing key signs to hand an account's records on to its new keys comes after
 /// this (`Retirement::endorsement`).
 const RETIREMENT_INFO: &[u8] = b"be3.access.retirement.v1";
@@ -177,10 +181,17 @@ pub struct Root {
 }
 
 /// One signed entry of the log of `log` (a block or organization id).
+///
+/// `lowers` says whether it lowered anyone's access (a revocation, a downgrade, a closing; a
+/// demotion, or an administrator signed out), as `check_log` finds it must: its signer sets it
+/// (`Checked::next`) and any other value makes the log refused. The entry's hash covers it
+/// outside the digest, so a reader served the entry reduced (`Reduced`, plans/signed_access.md,
+/// "Who is served what") still knows which epochs it outdates.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Entry {
     pub log: [u8; 16],
     pub previous: Option<EntryHash>,
+    pub lowers: bool,
     pub record: Record,
     pub signer: [u8; 16],
     #[serde(with = "serde_bytes")]
@@ -191,6 +202,7 @@ pub struct Entry {
 struct Signed<'a> {
     log: [u8; 16],
     previous: Option<EntryHash>,
+    lowers: bool,
     record: &'a Record,
     signer: [u8; 16],
 }
@@ -198,12 +210,14 @@ struct Signed<'a> {
 fn signed(
     log: [u8; 16],
     previous: Option<EntryHash>,
+    lowers: bool,
     record: &Record,
     signer: [u8; 16],
 ) -> Vec<u8> {
     let signed = Signed {
         log,
         previous,
+        lowers,
         record,
         signer,
     };
@@ -214,23 +228,26 @@ fn signed(
 
 impl Entry {
     /// `record`, signed by account `signer` with `secret`, at the place after `previous` in the
-    /// log of `log`.
+    /// log of `log`, saying whether it `lowers` anyone's access there (`Checked::lowers`). A
+    /// device appending to a log it checked signs with `Checked::next`, which says both.
     pub fn sign(
         secret: &RecoverySecret,
         signer: [u8; 16],
         log: [u8; 16],
         previous: Option<EntryHash>,
+        lowers: bool,
         record: Record,
     ) -> Self {
         use ed25519_dalek::Signer;
         let signature = secret
             .signing_key()
-            .sign(&signed(log, previous, &record, signer))
+            .sign(&signed(log, previous, lowers, &record, signer))
             .to_bytes()
             .to_vec();
         Self {
             log,
             previous,
+            lowers,
             record,
             signer,
             signature,
@@ -244,6 +261,7 @@ impl Entry {
             creator,
             log,
             None,
+            false,
             Record::Root(Root {
                 kind,
                 creator,
@@ -272,6 +290,7 @@ impl Entry {
             account,
             log,
             Some(previous),
+            false,
             Record::Retirement(Retirement {
                 account,
                 old: old.signing(),
@@ -285,7 +304,13 @@ impl Entry {
     pub fn signed_by(&self, signing: &crate::SigningPublic) -> bool {
         verify_signature(
             &signing.0,
-            &signed(self.log, self.previous, &self.record, self.signer),
+            &signed(
+                self.log,
+                self.previous,
+                self.lowers,
+                &self.record,
+                self.signer,
+            ),
             &self.signature,
         )
     }
@@ -298,12 +323,27 @@ impl Entry {
         postcard::from_bytes(bytes).map_err(|_| KeyError::Record)
     }
 
+    /// The hash the next entry, and a device's pin, name this one by.
     pub fn hash(&self) -> EntryHash {
+        self.reduced().hash()
+    }
+
+    /// What the entry's hash covers beside the hash before it and `lowers`: all of it.
+    pub fn digest(&self) -> EntryHash {
         Sha256::new()
-            .chain_update(ACCESS_HASH_INFO)
+            .chain_update(ACCESS_DIGEST_INFO)
             .chain_update(self.encode())
             .finalize()
             .into()
+    }
+
+    /// The entry as a proof path serves it to a reader who needs only the chain through it.
+    pub fn reduced(&self) -> Reduced {
+        Reduced {
+            previous: self.previous,
+            lowers: self.lowers,
+            digest: self.digest(),
+        }
     }
 
     /// The root this entry is, when it is the well-formed, self-signed first entry of the `kind`
@@ -321,6 +361,185 @@ impl Entry {
             false => Err(KeyError::Record),
         }
     }
+}
+
+/// An entry reduced to what chains it (plans/signed_access.md, "Who is served what"): the hash of
+/// the entry before it, whether it lowered anyone's access, and the digest of the rest, which
+/// hash as the whole entry does (`Entry::hash`). It says nothing of whom it is about.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Reduced {
+    pub previous: Option<EntryHash>,
+    pub lowers: bool,
+    pub digest: EntryHash,
+}
+
+impl Reduced {
+    pub fn hash(&self) -> EntryHash {
+        let mut hash = Sha256::new().chain_update(ACCESS_HASH_INFO);
+        match self.previous {
+            Some(previous) => hash = hash.chain_update([1]).chain_update(previous),
+            None => hash = hash.chain_update([0]),
+        }
+        hash.chain_update([u8::from(self.lowers)])
+            .chain_update(self.digest)
+            .finalize()
+            .into()
+    }
+}
+
+/// An entry of a log as the server serves it: whole, or reduced (`Reduced`) on a proof path.
+/// Members with Edit or above are served every entry whole; readers below Edit a proof path
+/// (`proof_path`), whole only where an entry proves their own right or a sealer's.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum Step {
+    Entry(Entry),
+    Reduced(Reduced),
+}
+
+impl Step {
+    pub fn encode(&self) -> Vec<u8> {
+        postcard::to_stdvec(self).expect("an access log step encodes")
+    }
+
+    pub fn decode(bytes: &[u8]) -> Result<Self, KeyError> {
+        postcard::from_bytes(bytes).map_err(|_| KeyError::Record)
+    }
+
+    pub fn hash(&self) -> EntryHash {
+        match self {
+            Step::Entry(entry) => entry.hash(),
+            Step::Reduced(reduced) => reduced.hash(),
+        }
+    }
+
+    /// The entry, when served whole.
+    pub fn entry(&self) -> Option<&Entry> {
+        match self {
+            Step::Entry(entry) => Some(entry),
+            Step::Reduced(_) => None,
+        }
+    }
+
+}
+
+impl From<Entry> for Step {
+    fn from(entry: Entry) -> Self {
+        Step::Entry(entry)
+    }
+}
+
+/// What `check_log` reads a log from: whole entries (`Entry`), or a proof path (`Step`).
+pub trait Logged {
+    fn step(&self) -> StepRef<'_>;
+}
+
+/// An entry of a log, whole or reduced, as `check_log` reads it.
+#[derive(Clone, Copy)]
+pub enum StepRef<'a> {
+    Entry(&'a Entry),
+    Reduced(&'a Reduced),
+}
+
+impl Logged for Entry {
+    fn step(&self) -> StepRef<'_> {
+        StepRef::Entry(self)
+    }
+}
+
+impl Logged for Step {
+    fn step(&self) -> StepRef<'_> {
+        match self {
+            Step::Entry(entry) => StepRef::Entry(entry),
+            Step::Reduced(reduced) => StepRef::Reduced(reduced),
+        }
+    }
+}
+
+impl StepRef<'_> {
+    fn hash(&self) -> EntryHash {
+        match self {
+            StepRef::Entry(entry) => entry.hash(),
+            StepRef::Reduced(reduced) => reduced.hash(),
+        }
+    }
+
+    fn previous(&self) -> Option<EntryHash> {
+        match self {
+            StepRef::Entry(entry) => entry.previous,
+            StepRef::Reduced(reduced) => reduced.previous,
+        }
+    }
+}
+
+/// `entries`, a whole log of `kind`, as a proof path for `reader`, a member below Edit
+/// (plans/signed_access.md, "Who is served what"): the entries that prove the access of the
+/// reader and of each of `sealers` (whoever sealed it a key, which it judges the seal by) whole,
+/// and every other reduced to what chains it (`Reduced`), so the reader learns nothing of other
+/// members.
+///
+/// Whole: the root; every entry naming an account the path proves (its grants, administrator
+/// and member records, retirements), starting from the reader and the sealers and taking in the
+/// signer of each entry whole, so each signer's own right at its place checks too; every entry
+/// the reader signed (an agent it made), and so the accounts those name; every opening of a
+/// kind to anyone inside, which names no one; and in an organization's log every administrator
+/// record and every record about someone who ever administered it, so no demotion is hidden
+/// there: an honest organization path reduces no entry that lowered anyone.
+pub fn proof_path(
+    kind: LogKind,
+    entries: &[Entry],
+    reader: [u8; 16],
+    sealers: impl IntoIterator<Item = [u8; 16]>,
+) -> Vec<Step> {
+    let administrators: HashSet<[u8; 16]> = entries
+        .iter()
+        .filter_map(|entry| match &entry.record {
+            Record::Administrator(made) => Some(made.account),
+            Record::Root(root) if kind == LogKind::Organization => Some(root.creator),
+            _ => None,
+        })
+        .collect();
+    let named = |entry: &Entry| match &entry.record {
+        Record::Root(root) => Some(root.creator),
+        Record::Grant(grant) => Some(grant.grantee),
+        Record::Administrator(made) => Some(made.account),
+        Record::Member(member) => Some(member.account),
+        Record::Retirement(retirement) => Some(retirement.account),
+        Record::Opening(_) => None,
+    };
+    let always = |entry: &Entry| match &entry.record {
+        Record::Root(_) | Record::Opening(_) | Record::Administrator(_) => true,
+        Record::Member(member) => administrators.contains(&member.account),
+        Record::Retirement(retirement) => administrators.contains(&retirement.account),
+        Record::Grant(_) => false,
+    };
+    let mut accounts: HashSet<[u8; 16]> = sealers.into_iter().collect();
+    accounts.insert(reader);
+    let mut whole = vec![false; entries.len()];
+    loop {
+        let mut grew = false;
+        for (at, entry) in entries.iter().enumerate() {
+            let proves = always(entry)
+                || entry.signer == reader
+                || named(entry).is_some_and(|named| accounts.contains(&named));
+            if whole[at] || !proves {
+                continue;
+            }
+            whole[at] = true;
+            grew |= accounts.insert(entry.signer);
+            grew |= named(entry).is_some_and(|named| accounts.insert(named));
+        }
+        if !grew {
+            break;
+        }
+    }
+    entries
+        .iter()
+        .zip(whole)
+        .map(|(entry, whole)| match whole {
+            true => Step::Entry(entry.clone()),
+            false => Step::Reduced(entry.reduced()),
+        })
+        .collect()
 }
 
 /// A key as it travels sealed or wrapped: the key, the block (or, for an escrow key, the
@@ -431,8 +650,20 @@ pub struct Checked {
     pub levels: HashMap<[u8; 16], Vec<(usize, Level)>>,
     /// The place of the newest entry that lowered anyone's access (a revocation, a downgrade,
     /// a closing; in an organization's log, a demotion or an administrator signed out), or the
-    /// root's: an epoch named under a head before it is outdated (`outdates`).
+    /// root's: an epoch named under a head before it is outdated (`outdates`). On a proof path,
+    /// a reduced entry that lowered anyone counts, whomever it lowered.
     pub last_lowering: usize,
+    /// Whether a reduced entry lowered anyone: on a block's path, someone else's revocation; on
+    /// an organization's, which reduces none that did when honest (`proof_path`), a demotion
+    /// hidden from the reader, who then trusts no escrow epoch by it.
+    pub hides_lowering: bool,
+    /// Whether the log was served as a proof path (`proof_path`): some entries reduced, so
+    /// `grants`, `levels`, `administrators` and `members` hold only those it proves, and a
+    /// later reduced entry may have lowered any of them. Only `positions`, `head`,
+    /// `last_lowering` (so `holds`, `current_at` and `outdates`), and `open_inside`, closed by
+    /// any reduced lowering after it, hold as for a whole log. Nothing is sealed to anyone, nor
+    /// signed, by a partial log (plans/signed_access.md, "Who is served what").
+    pub partial: bool,
 }
 
 impl Checked {
@@ -467,6 +698,62 @@ impl Checked {
         self.positions
             .get(head)
             .is_some_and(|at| *at < self.last_lowering)
+    }
+
+    /// Whether `record`, appended at the head of this log, lowers anyone's access, as
+    /// `check_log` will find it: what its entry must say (`Entry::lowers`).
+    pub fn lowers(&self, record: &Record) -> bool {
+        let last = |account: &[u8; 16]| {
+            self.levels
+                .get(account)
+                .and_then(|changes| changes.last())
+                .map(|(_, level)| *level)
+        };
+        match record {
+            Record::Grant(grant) => last(&grant.grantee).is_some_and(|before| grant.level < before),
+            Record::Opening(opening) => opening.level < self.open_inside,
+            Record::Administrator(made) => {
+                !made.administrator && last(&made.account).is_some_and(|before| before > Level::None)
+            }
+            Record::Member(member) => {
+                !member.member
+                    && self.administrators.contains_key(&member.account)
+                    && last(&member.account).is_some_and(|before| before > Level::None)
+            }
+            Record::Root(_) | Record::Retirement(_) => false,
+        }
+    }
+
+    /// `record`, signed by `signer` with `secret` as the next entry of the log of `log` after
+    /// this head, saying whether it lowers anyone (`lowers`). None on a partial log, which
+    /// hides what most records must follow, but for those a reader below Edit makes about
+    /// itself or what it made, whose `lowers` the path proves (`proof_path`): a grant to the
+    /// signer (a reader leaving), and signing an agent in or out (only an administrator, whose
+    /// records a path never reduces, lowers anyone so).
+    pub fn next(
+        &self,
+        secret: &RecoverySecret,
+        signer: [u8; 16],
+        log: [u8; 16],
+        record: Record,
+    ) -> Option<Entry> {
+        let own = match &record {
+            Record::Grant(grant) => grant.grantee == signer,
+            Record::Member(member) => member.agent,
+            _ => false,
+        };
+        if self.partial && !own {
+            return None;
+        }
+        let lowers = self.lowers(&record);
+        Some(Entry::sign(
+            secret,
+            signer,
+            log,
+            Some(self.head),
+            lowers,
+            record,
+        ))
     }
 
     fn set_level(&mut self, account: [u8; 16], level: Level) {
@@ -524,15 +811,25 @@ impl Checked {
 /// log it checked to its head. A grant names where its signer's Manage comes from
 /// (`Authority`); `outside` answers for another log, as of the entry the grant names, with the
 /// signer's key there if they held Manage then.
+///
+/// A proof path (`Step::Reduced` among the entries) checks the same where whole; a reduced entry
+/// is taken for what its hash commits to (the chain, and whether it lowered anyone), and the log
+/// is `partial`. The root is never reduced.
 pub fn check_log(
     kind: LogKind,
     log: [u8; 16],
     pinned: EntryHash,
-    entries: &[Entry],
+    entries: &[impl Logged],
     outside: &dyn Fn([u8; 16], &Authority) -> Option<SigningPublic>,
 ) -> Result<Checked, KeyError> {
     let (root, rest) = entries.split_first().ok_or(KeyError::Record)?;
+    let StepRef::Entry(root) = root.step() else {
+        return Err(KeyError::Record);
+    };
     let checked = root.checked_root(kind, log)?;
+    if root.lowers {
+        return Err(KeyError::Record);
+    }
     if root.hash() != pinned {
         return Err(KeyError::Record);
     }
@@ -555,13 +852,38 @@ pub fn check_log(
                 .insert(checked.creator, checked.identity);
         }
     }
-    for entry in rest {
-        if entry.log != log || entry.previous != Some(state.head) {
+    // The place of the last opening, and of the last reduced entry that lowered anyone: one after
+    // the opening may have closed it.
+    let mut opened_at = 0;
+    let mut hidden_lowering = 0;
+    for step in rest {
+        let step = step.step();
+        if step.previous() != Some(state.head) {
             return Err(KeyError::Record);
         }
-        let hash = entry.hash();
+        let hash = step.hash();
         let place = state.positions.len();
-        state.positions.insert(hash, place);
+        if state.positions.insert(hash, place).is_some() {
+            return Err(KeyError::Record);
+        }
+        let entry = match step {
+            StepRef::Entry(entry) => entry,
+            // Reduced on a proof path: whom it is about is hidden, so a lowering may have closed
+            // the kind or lowered anyone the path names.
+            StepRef::Reduced(reduced) => {
+                state.partial = true;
+                if reduced.lowers {
+                    state.last_lowering = place;
+                    state.hides_lowering = true;
+                    hidden_lowering = place;
+                }
+                state.head = hash;
+                continue;
+            }
+        };
+        if entry.log != log {
+            return Err(KeyError::Record);
+        }
         let own = state.signers.get(&entry.signer).copied();
         match &entry.record {
             Record::Root(_) => return Err(KeyError::Record),
@@ -624,6 +946,7 @@ pub fn check_log(
                     state.last_lowering = state.positions.len() - 1;
                 }
                 state.open_inside = opening.level;
+                opened_at = place;
                 state.open_inside_tainted = tainted && opening.level > Level::None;
             }
             Record::Administrator(administrator) => {
@@ -701,7 +1024,16 @@ pub fn check_log(
                 }
             }
         }
+        // The entry says whether it lowered anyone, as it did: its hash commits a reader of a
+        // proof path to that.
+        if entry.lowers != (state.last_lowering == place) {
+            return Err(KeyError::Record);
+        }
         state.head = hash;
+    }
+    if hidden_lowering > opened_at {
+        state.open_inside = Level::None;
+        state.open_inside_tainted = false;
     }
     Ok(state)
 }
@@ -712,13 +1044,13 @@ pub fn check_log_as_of(
     kind: LogKind,
     log: [u8; 16],
     pinned: EntryHash,
-    entries: &[Entry],
+    entries: &[impl Logged],
     as_of: EntryHash,
     outside: &dyn Fn([u8; 16], &Authority) -> Option<SigningPublic>,
 ) -> Result<Checked, KeyError> {
     let end = entries
         .iter()
-        .position(|entry| entry.hash() == as_of)
+        .position(|entry| entry.step().hash() == as_of)
         .ok_or(KeyError::Record)?;
     check_log(kind, log, pinned, &entries[..=end], outside)
 }
@@ -754,7 +1086,7 @@ impl Checked {
 pub struct Logs<'a> {
     pub organization: [u8; 16],
     /// A log's pinned root and its entries, root first, as far as the reader holds it.
-    pub log: &'a dyn Fn(LogKind, [u8; 16]) -> Option<(EntryHash, Vec<Entry>)>,
+    pub log: &'a dyn Fn(LogKind, [u8; 16]) -> Option<(EntryHash, Vec<Step>)>,
     /// Whether the first block is above the second.
     pub above: &'a dyn Fn([u8; 16], [u8; 16]) -> bool,
 }

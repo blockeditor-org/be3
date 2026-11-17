@@ -136,6 +136,25 @@ impl Visibility {
         self.administrator
     }
 
+    /// Whether this caller is served `block`'s whole access log rather than a proof path
+    /// (plans/signed_access.md, "Who is served what"): it has Edit or above there, or on a block
+    /// below it, whose sealing checks every ancestor's log too.
+    pub(crate) fn served_whole(&self, graph: &BlockGraph, block: Uuid) -> bool {
+        self.can_edit(graph, block)
+            || graph.entry_points(self.account).into_iter().any(|entry| {
+                graph.ancestors(entry).any(|above| above == block) && self.can_edit(graph, entry)
+            })
+    }
+
+    /// Whether this caller is served the organization's whole log rather than a proof path: it
+    /// administers the organization, or has Edit or above on any of its blocks.
+    pub(crate) fn served_whole_organization(&self, graph: &BlockGraph) -> bool {
+        match self.candidates(graph) {
+            None => true,
+            Some(blocks) => blocks.into_iter().any(|block| self.can_edit(graph, block)),
+        }
+    }
+
     /// The blocks a member who administers nothing may know of, and perhaps some more: what lies
     /// below the member's own entry points and in the organization's settings. A member's call
     /// walks these rather than the whole organization, as the personal one holds every
@@ -582,15 +601,24 @@ impl ServerStore {
         .await
     }
 
-    /// The block's access log, root first (`get-access-log`).
+    /// The block's access log, root first (`get-access-log`): whole to a caller with Edit or
+    /// above on it or below it, else a proof path of the caller's own right.
     pub async fn access_log(
         &self,
         identity: Identity,
         block: Uuid,
     ) -> Result<Vec<Vec<u8>>, ServerError> {
         self.with_graph(identity.organization, move |_, graph, database| {
-            require(graph, &visibility(identity), block, Access::View, "visible")?;
-            crate::access::log_of(database, identity.organization, block)
+            let seen = visibility(identity);
+            require(graph, &seen, block, Access::View, "visible")?;
+            let reader = (!seen.served_whole(graph, block)).then_some(identity.account);
+            crate::access::served_log(
+                database,
+                be_block_keys::LogKind::Block,
+                identity.organization,
+                block,
+                reader,
+            )
         })
         .await
     }

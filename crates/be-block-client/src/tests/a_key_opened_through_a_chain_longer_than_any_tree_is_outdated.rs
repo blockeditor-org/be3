@@ -29,7 +29,7 @@ fn a_key_opened_through_a_chain_longer_than_any_tree_is_outdated() {
         &|_, _| None,
     )
     .unwrap();
-    book.note_log(block, &checked, &[root.clone()]);
+    book.note_log(block, &checked, &[root.clone().into()]);
     let (scope, _) = book.mint_scope(block, None).unwrap();
 
     // Each key wrapped under the one before, the first under the scope key.

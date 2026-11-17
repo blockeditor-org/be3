@@ -55,8 +55,9 @@ interface organizations {
     ) -> result<organization, error>;
 
     /// The opened organization's access log, root first, each entry as
-    /// `be_block_keys::Entry::encode` wrote it. Empty for the personal
-    /// organization, which has none.
+    /// `be_block_keys::Step::encode` writes it: whole to an administrator
+    /// or a member with Edit or above on any block, else a proof path. Empty
+    /// for the personal organization, which has none.
     get-organization-log: async func() -> result<list<list<u8>>, error>;
 
     /// Makes `organization` the one every later block, key and member call
