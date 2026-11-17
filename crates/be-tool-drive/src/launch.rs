@@ -114,7 +114,9 @@ impl Launch {
     fn start(&self, dir: &Path, log: Option<&Path>) -> Result<Child, String> {
         let name = self.name();
         let program = match &self.archive {
-            Some(archive) => be_host_archive::unpacked(Path::new(archive), &self.beside)?.join(self.program()),
+            Some(archive) => {
+                be_host_archive::unpacked(Path::new(archive), &self.beside)?.join(self.program())
+            }
             None => PathBuf::from(self.program()),
         };
         let data = dir.join("data");

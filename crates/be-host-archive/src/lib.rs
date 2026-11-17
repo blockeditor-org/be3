@@ -168,7 +168,11 @@ pub fn unpacked(archive: &Path, beside: &[PathBuf]) -> Result<PathBuf, String> {
         if fs::read(&path).is_ok_and(|held| held == bytes) {
             continue;
         }
-        let fresh = dir.join(format!(".{}.{}", name.to_string_lossy(), std::process::id()));
+        let fresh = dir.join(format!(
+            ".{}.{}",
+            name.to_string_lossy(),
+            std::process::id()
+        ));
         fs::write(&fresh, &bytes).map_err(|error| failed("write", &fresh, error))?;
         fs::rename(&fresh, &path).map_err(|error| failed("move", &fresh, error))?;
     }
