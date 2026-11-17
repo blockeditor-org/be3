@@ -1960,7 +1960,10 @@ impl ServerStore {
         access: Access,
         record: Option<Vec<u8>>,
     ) -> Result<Option<BTreeSet<Uuid>>, ServerError> {
-        if let Some(record) = record.as_ref().filter(|record| crate::access::is_owner_record(record)) {
+        if let Some(record) = record
+            .as_ref()
+            .filter(|record| crate::access::is_owner_record(record))
+        {
             return self
                 .transfer_owner(identity, block, account, access, record.clone())
                 .await;

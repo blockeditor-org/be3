@@ -67,7 +67,10 @@ async fn a_block_s_ownership_moves_and_its_old_owner_grants_no_more() {
         .share(plans, carol.account(), Access::View, &carols)
         .await;
     assert!(
-        matches!(&refused, Err(ClientError::Refused(ErrorCode::PermissionDenied, _))),
+        matches!(
+            &refused,
+            Err(ClientError::Refused(ErrorCode::PermissionDenied, _))
+        ),
         "the old owner grants no more: {refused:?}"
     );
     let (_, now) = alice.checked_access(plans).await.unwrap();
@@ -89,7 +92,10 @@ async fn a_block_s_ownership_moves_and_its_old_owner_grants_no_more() {
         ))
         .await;
         assert!(
-            matches!(&sent, Err(ClientError::Refused(ErrorCode::PermissionDenied, _))),
+            matches!(
+                &sent,
+                Err(ClientError::Refused(ErrorCode::PermissionDenied, _))
+            ),
             "a grant the old owner signed {what} is taken: {sent:?}"
         );
     }
@@ -113,7 +119,10 @@ async fn a_block_s_ownership_moves_and_its_old_owner_grants_no_more() {
     ))
     .await;
     assert!(
-        matches!(&sent, Err(ClientError::Refused(ErrorCode::PermissionDenied, _))),
+        matches!(
+            &sent,
+            Err(ClientError::Refused(ErrorCode::PermissionDenied, _))
+        ),
         "the old owner gives the block away again: {sent:?}"
     );
     assert!(matches!(
@@ -126,11 +135,7 @@ async fn a_block_s_ownership_moves_and_its_old_owner_grants_no_more() {
         .await
         .unwrap();
     carol.refresh_keys(None).await.unwrap();
-    assert_eq!(
-        text(&carol, note).await,
-        "the plan",
-        "the new owner grants"
-    );
+    assert_eq!(text(&carol, note).await, "the plan", "the new owner grants");
 
     // A server that appends a grant the old owner signs at the head anyway, chained at its
     // right place, has every device that checks the log refuse it for the signer's authority.
@@ -162,10 +167,7 @@ async fn a_block_s_ownership_moves_and_its_old_owner_grants_no_more() {
         )
         .unwrap();
     assert!(
-        matches!(
-            bob.checked_access(plans).await,
-            Err(ClientError::Forged(_))
-        ),
+        matches!(bob.checked_access(plans).await, Err(ClientError::Forged(_))),
         "a log with the old owner's grant after the transfer checks"
     );
 

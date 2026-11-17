@@ -3526,14 +3526,12 @@ async fn serve_command(
             account,
             reply,
         } => {
-            let failed = peer
-                .transfer(block, account)
-                .await
-                .err()
-                .map(|error| match error.is_unreachable() {
+            let failed = peer.transfer(block, account).await.err().map(|error| {
+                match error.is_unreachable() {
                     true => OFFLINE_SHARING.to_owned(),
                     false => error.to_string(),
-                });
+                }
+            });
             tend(peer, shared).await;
             reply.send(failed.map_or(Ok(()), Err));
             crate::changes::wake();

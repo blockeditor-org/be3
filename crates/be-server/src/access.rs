@@ -739,7 +739,9 @@ pub(crate) fn append_owner(
         ));
     }
     if identity_of(connection, owner)? != Some(named.identity) {
-        return Err(refused("an owner record names the keys its owner holds now"));
+        return Err(refused(
+            "an owner record names the keys its owner holds now",
+        ));
     }
     append_checked(connection, organization, block, entry)
 }

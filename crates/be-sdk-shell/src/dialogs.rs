@@ -440,7 +440,11 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                 <Show value={transferring}>|question: ReadSignal<String>|
                     <Card>
                         <List spacing=Space::Md>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=Space::Xs
+                            >
                                 <Text align=TextAlign::Center>
                                     <Icon glyph=ICON_CROWN />
                                 </Text>
@@ -449,7 +453,11 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                             <Text style=TextStyle::CAPTION @test_id={"share.transfer.help"}>
                                 "They will manage this block and decide who has access. You will keep edit access, but you can't give anyone access or take ownership back. Only your contacts can be made owner."
                             </Text>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=Space::Md
+                            >
                                 <Spacer />
                                 <Button
                                     label="Cancel"

@@ -457,9 +457,9 @@ impl Reduced {
             u8::from(self.places),
             u8::from(self.owns),
         ])
-            .chain_update(self.digest)
-            .finalize()
-            .into()
+        .chain_update(self.digest)
+        .finalize()
+        .into()
     }
 }
 

@@ -64,7 +64,9 @@ fn the_owner_gives_a_block_away_from_the_share_dialog_once_confirmed() {
         "someone who is not yet a confirmed contact is not offered ownership"
     );
 
-    fixture.test.click(format!("share.owner.{colleague}").as_str());
+    fixture
+        .test
+        .click(format!("share.owner.{colleague}").as_str());
     fixture.settle();
     assert!(
         fixture.says("Make Ada the owner?"),

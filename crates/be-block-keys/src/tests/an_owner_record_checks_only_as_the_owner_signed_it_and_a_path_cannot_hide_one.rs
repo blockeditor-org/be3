@@ -11,7 +11,8 @@ fn an_owner_record_checks_only_as_the_owner_signed_it_and_a_path_cannot_hide_one
     let (creator_id, heir_id, other_id) = ([1; 16], [2; 16], [3; 16]);
     let block = [7; 16];
     let none = |_: &Asked| None;
-    let check = |entries: &[Entry]| check_log(LogKind::Block, block, entries[0].hash(), entries, &none);
+    let check =
+        |entries: &[Entry]| check_log(LogKind::Block, block, entries[0].hash(), entries, &none);
 
     let root = Entry::root(&creator, creator_id, LogKind::Block, block);
     let owner = |by: &RecoverySecret, signer, previous: &Entry, account, identity| {
@@ -41,12 +42,19 @@ fn an_owner_record_checks_only_as_the_owner_signed_it_and_a_path_cannot_hide_one
     };
 
     assert!(
-        check(&[root.clone(), owner(&heir, heir_id, &root, heir_id, heir.identity())]).is_err(),
+        check(&[
+            root.clone(),
+            owner(&heir, heir_id, &root, heir_id, heir.identity())
+        ])
+        .is_err(),
         "someone who does not own the block takes it"
     );
     assert!(
-        check(&[root.clone(), owner(&creator, creator_id, &root, creator_id, creator.identity())])
-            .is_err(),
+        check(&[
+            root.clone(),
+            owner(&creator, creator_id, &root, creator_id, creator.identity())
+        ])
+        .is_err(),
         "an owner gives the block to themselves"
     );
     let unlowered = Entry::sign(
@@ -69,21 +77,37 @@ fn an_owner_record_checks_only_as_the_owner_signed_it_and_a_path_cannot_hide_one
     let log = [root.clone(), transfer.clone()];
     let checked = check(&log).unwrap();
     assert_eq!(checked.owner, Some(heir_id));
-    assert_eq!(checked.manager(LogKind::Block, heir_id), Some(heir.signing()));
+    assert_eq!(
+        checked.manager(LogKind::Block, heir_id),
+        Some(heir.signing())
+    );
     assert_eq!(
         checked.grants.get(&creator_id),
         Some(&(Level::Edit, creator.identity())),
         "the old owner keeps Edit"
     );
-    assert!(checked.outdates(&root.hash()), "a transfer outdates the epochs before it");
+    assert!(
+        checked.outdates(&root.hash()),
+        "a transfer outdates the epochs before it"
+    );
 
-    let late = grant(&creator, creator_id, &transfer, other_id, other.identity(), false);
+    let late = grant(
+        &creator,
+        creator_id,
+        &transfer,
+        other_id,
+        other.identity(),
+        false,
+    );
     assert!(
         check(&[root.clone(), transfer.clone(), late.clone()]).is_err(),
         "the old owner grants after the transfer"
     );
     let onward = grant(&heir, heir_id, &transfer, other_id, other.identity(), false);
-    assert!(check(&[root.clone(), transfer.clone(), onward]).is_ok(), "the new owner grants");
+    assert!(
+        check(&[root.clone(), transfer.clone(), onward]).is_ok(),
+        "the new owner grants"
+    );
     let demoting = Entry::sign(
         &creator,
         creator_id,
