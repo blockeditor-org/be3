@@ -1,16 +1,15 @@
 load("@root//buck/cargo:defs.bzl", "app_packages", "cargo_binary", "cargo_library", "cargo_package", "cargo_test")
-load("@root//buck/program:defs.bzl", "program", "type_bundle")
+load("@root//buck/program:defs.bzl", "program")
 
 cargo_package()
 
 cargo_library()
 
-# The apps a `be` built here stages beside it, as be-host stages its own: those with a
-# host component (guides/apps/host_services.md, "Host components"). A deployed `be`
-# ships alone and reads its release's apps instead (`host_apps`, guides/apps/runtime.md,
-# "Headless"), so no app's wasm is compiled into it (its manifests and type modules
-# still are, :app-types below, until plans/headless_apps.md step 1d). The tests point it at :test-host-apps
-# (BE_BUNDLE), and :dev runs it with them beside it.
+# The apps whose host components `be` runs (guides/apps/host_services.md, "Host
+# components"). No app's manifest, type module or wasm is compiled into `be`: one built here
+# reads the apps staged beside it, as be-host does, and a deployed `be` ships alone and reads
+# its release's (src/release.rs, guides/apps/runtime.md, "Headless"), so an app changing never
+# relinks it. The tests point it at :test-host-apps (BE_BUNDLE).
 HOST_APPS = ["example-counter"]
 
 program(
@@ -22,8 +21,8 @@ program(
     modules = ["//crates/be-app-{}:module".format(app) for app in HOST_APPS],
 )
 
-# The tests name block types from the editors' manifests, as be does from the
-# bundle it carries.
+# The tests name block types from every editor's manifest, as a `be` with every app
+# beside it does, and read the counter's modules from :test-host-apps.
 cargo_test(
     env = {
         "BE_BUNDLE": "$(location :test-host-apps)",
@@ -33,22 +32,11 @@ cargo_test(
     },
 )
 
-# be carries every app's manifest and type module in its executable, so a
-# release is one file (guides/type_modules.md, "Hosts").
-type_bundle(
-    name = "app-types",
-    app_types = ["//{}:types".format(package) for package in app_packages()],
-    manifests = ["//{}:manifest".format(package) for package in app_packages()],
-)
+cargo_binary()
 
-cargo_binary(
-    env = {
-        "APP_TYPES": "$(location :app-types)",
-    },
-)
-
-# be with its build-info.json file beside it, which it greets the server with:
-# `./scripts/buck run //crates/be-tool-cli:native -- ARGS`.
+# be alone with its build-info.json, which it greets the server with: what a deploy ships, which
+# then reads its release's apps. Built here it finds no apps beside it, so it reads no block's
+# content; :dev runs one that does.
 program(
     name = "native",
     binary = ":bin",
@@ -59,10 +47,11 @@ program(
     visibility = ["//crates/be-tool-local:"],
 )
 
-# be with HOST_APPS beside it, which runs their host components as a deployed be runs its
-# release's: `./scripts/buck run //crates/be-tool-cli:dev -- ARGS`. `-c be3.apps=text,chat`
-# stages those apps too, each crates/be-app-NAME by its NAME, as be-host's :dev takes it;
-# the bundle is named after them, :dev-text-chat, so each selection has outputs of its own.
+# be with apps beside it, which it reads its block types from and runs the host components of,
+# as a deployed be reads its release's: `./scripts/buck run //crates/be-tool-cli:dev -- ARGS`
+# stages every app; `-c be3.apps=text,database` stages only those and HOST_APPS, each
+# crates/be-app-NAME by its NAME, as be-host's :dev takes it. The bundle is named after them,
+# :dev-database-text, so each selection has outputs of its own.
 dev_extra_apps = sorted({name.strip(): None for name in read_config("be3", "apps", "").split(",") if name.strip() and name.strip() not in HOST_APPS}.keys())
 
 dev_app_names = [package.removeprefix("crates/be-app-") for package in app_packages()]
@@ -73,7 +62,7 @@ dev_app_names = [package.removeprefix("crates/be-app-") for package in app_packa
     if name not in dev_app_names
 ]
 
-dev_apps = sorted(HOST_APPS + dev_extra_apps)
+dev_apps = sorted(HOST_APPS + dev_extra_apps) if dev_extra_apps else dev_app_names
 
 dev_bundle = "-".join(["dev"] + dev_extra_apps) if dev_extra_apps else "dev-bundle"
 

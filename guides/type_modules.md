@@ -577,9 +577,10 @@ and in process in tests:
 - `replicas`: `Replicas<H: Host>`, the replica IO of
   guides/blocks/host.md (The peer and its registry) for any host.
 
-be-host stages each app's type module beside the app. `be` carries every
-app's manifest and type module inside its executable (`APP_TYPES`), so its
-release stays one file (guides/bootstrap.md), and V8 compiles each as it
-loads. A module's session tag is its SHA-256, so a `be` and a
+be-host stages each app's type module beside the app, and `be` reads them as
+be-host does, through be-host-stack's discovery (`be_host_stack::types::app_sources`):
+from the apps staged beside it, or downloaded from its release by hash
+(guides/apps/runtime.md, "Headless"), so no type module is compiled into it. V8
+compiles each as it loads. A module's session tag is its SHA-256, so a `be` and a
 be-host built from one tree share sessions. Tests run every first-party types
 crate in process with `be_type_bundle::sources()`.

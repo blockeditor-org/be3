@@ -32,8 +32,8 @@ type Assets = Box<dyn Fn(&str) -> Result<Vec<u8>, String> + Send + Sync>;
 static ASSETS: std::sync::OnceLock<Assets> = std::sync::OnceLock::new();
 
 /// Reads the staged apps through `read_asset` rather than from the bundle beside the
-/// executable: Android's assets, or what an executable that is its whole release carries
-/// (`be`'s host apps). Called before anything discovers the apps.
+/// executable: Android's assets, or a deployed `be`'s release, downloaded as it is read
+/// (be-tool-cli's `release`). Called before anything discovers the apps.
 pub fn use_assets(read_asset: impl Fn(&str) -> Result<Vec<u8>, String> + Send + Sync + 'static) {
     let first = ASSETS.set(Box::new(read_asset)).is_ok();
     debug_assert!(

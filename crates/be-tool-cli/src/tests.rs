@@ -42,36 +42,39 @@ mod an_agent_reads_and_writes_the_rows_shared_with_it;
 mod an_edited_page_keeps_what_someone_else_changed_meanwhile;
 mod an_import_links_rows_to_each_other_by_their_old_ids;
 mod arguments_parse_into_commands;
+mod be_reads_a_block_type_from_the_type_module_staged_beside_it;
 mod be_runs_an_apps_host_component_with_no_display;
 mod blocks_are_listed_and_found_by_short_id_or_name;
 mod malformed_agent_credentials_do_not_disclose_secrets;
 mod proxy_credentials_do_not_need_an_account_token;
 mod rows_are_added_filtered_changed_and_given_pages;
 mod terminal;
-mod the_app_bundle_holds_each_manifest_and_its_type_module;
 mod two_terminal_hosts_take_turns_and_the_second_stands_by;
 
+/// Every editor's manifest in place of the apps discovery found, for the whole process, as a
+/// `be` with every app beside it would find them: the tests run the types in process
+/// (`be_type_bundle`), and a module discovery opens is still read from BE_BUNDLE.
 fn manifests() {
-    if !crate::apps::installed().is_empty() {
-        return;
-    }
-    let editors = std::env::var_os("EDITOR_MANIFESTS")
-        .map(PathBuf::from)
-        .expect("EDITOR_MANIFESTS names the editors' manifests");
-    let mut apps = Vec::new();
-    for entry in std::fs::read_dir(&editors).expect("EDITOR_MANIFESTS is a directory") {
-        let path = entry
-            .expect("the entry is readable")
-            .path()
-            .join("manifest.json");
-        let document = std::fs::read_to_string(&path).expect("the manifest is readable");
-        apps.push(crate::apps::App {
-            manifest: be_sdk_manifest::manifest_from_json(&document)
-                .unwrap_or_else(|error| panic!("{}: {error}", path.display())),
-            module: &[],
-        });
-    }
-    crate::apps::install(apps);
+    static INSTALLED: std::sync::Once = std::sync::Once::new();
+    INSTALLED.call_once(|| {
+        let editors = std::env::var_os("EDITOR_MANIFESTS")
+            .map(PathBuf::from)
+            .expect("EDITOR_MANIFESTS names the editors' manifests");
+        let mut documents = Vec::new();
+        for entry in std::fs::read_dir(&editors).expect("EDITOR_MANIFESTS is a directory") {
+            let path = entry
+                .expect("the entry is readable")
+                .path()
+                .join("manifest.json");
+            let document = std::fs::read_to_string(&path).expect("the manifest is readable");
+            documents.push((path.display().to_string(), document));
+        }
+        let documents: Vec<(&str, &str)> = documents
+            .iter()
+            .map(|(source, document)| (source.as_str(), document.as_str()))
+            .collect();
+        std::mem::forget(be_host_stack::discovery::install_for_testing(&documents));
+    });
 }
 
 fn sources() -> crate::tracker::Sources {

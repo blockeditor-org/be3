@@ -143,7 +143,7 @@ async fn open(url: &str) -> Result<(Writer, Reader), String> {
                 request,
                 stream,
                 Some(config),
-                Some(Connector::Rustls(Arc::new(proxied_tls()?))),
+                Some(Connector::Rustls(Arc::new(tls_config()?))),
             )
             .await
             .map_err(|error| error.to_string())?;
@@ -224,7 +224,10 @@ async fn tunnel(proxy: &str, host: &str, port: u16) -> Result<TcpStream, String>
     }
 }
 
-fn proxied_tls() -> Result<rustls::ClientConfig, String> {
+/// What a connection made outside a browser trusts: the web's roots, and the certificates
+/// `SSL_CERT_FILE` (or curl's or requests' variable) names, which a proxy that terminates TLS,
+/// as a cloud environment's does, signs with. `be` downloads its release's apps with it too.
+pub fn tls_config() -> Result<rustls::ClientConfig, String> {
     let mut roots = rustls::RootCertStore::empty();
     roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     for name in ["SSL_CERT_FILE", "CURL_CA_BUNDLE", "REQUESTS_CA_BUNDLE"] {

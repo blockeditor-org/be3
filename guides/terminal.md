@@ -83,6 +83,8 @@ sandbox (decisions/a_sandboxs_terminal_host_is_a_block_bound_agent.md):
    `~/.cache/be3/terminal-host/ARCH` (`./scripts/buck build //crates/be-tool-cli:native
    --target-platforms root//buck/platforms:linux_ARCH --out ~/.cache/be3/terminal-host/ARCH`; the
    failure names it), which goes up through an https upload URL unless the sandbox has it already.
+   That `be` goes up alone and names no release, so it finds no apps and no terminal type module
+   to open the block with (guides/apps/runtime.md, "Headless"; plans/headless_apps.md, 1d).
    Either way a command checks the SHA-256 before `be` can run, fetching nothing when a `be` with
    that hash is there and staging under a name of the terminal's own, so two installs in one sandbox
    never share a file. Each build's `be` and `build-info.json` go in
