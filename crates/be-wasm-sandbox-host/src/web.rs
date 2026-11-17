@@ -146,9 +146,8 @@ fn pure(module: &WebAssembly::Module) -> Result<(), String> {
         };
         let (from, name, kind) = (field("module"), field("name"), field("kind"));
         let transport = from == "be3_host" && TRANSPORT.contains(&name.as_str());
-        let memory = from == be_wasm_dylink::ENV
-            && name == be_wasm_dylink::MEMORY_NAME
-            && kind == "memory";
+        let memory =
+            from == be_wasm_dylink::ENV && name == be_wasm_dylink::MEMORY_NAME && kind == "memory";
         if !transport && !memory {
             return Err(format!(
                 "the guest imports {from}.{name}, which a pure guest may not"
@@ -231,12 +230,7 @@ pub fn spawn(source: Source, config: Config, wake: Wake) -> Result<Instance, Str
             .map(|memory| capped(memory, config.memory_limit))
             .transpose()
             .and_then(|memory| {
-                WebGuest::start_module(
-                    &module.compiled.module,
-                    memory,
-                    wake,
-                    Arc::clone(&waiting),
-                )
+                WebGuest::start_module(&module.compiled.module, memory, wake, Arc::clone(&waiting))
             }),
         Source::App(staged) => {
             WebGuest::start(&staged.url, Some(EXTENSION), wake, Arc::clone(&waiting))
