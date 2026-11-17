@@ -207,9 +207,10 @@ struct Carrying {
 /// lifts it onto the tree's drag driver; once lifted, the driver follows the pointer and the
 /// press hears no more drags. While the carry is held, the children are drawn where its frame
 /// puts the item, raised above their siblings (a scroll around them still clips them), unless
-/// the carry gives a `preview`, which floats in a layer of its own instead, pinned by its top left
-/// corner, or is drawn by a site (`Carry::drawn_by_site`), when nothing is drawn here for it and in this node's window (a carry crossing windows waits for the frame to name
-/// one, plans/declarative_dragging.md step 6). Only a focusable source hears the carry keys
+/// its `face` is a `preview`, which floats in a layer of its own, pinned by its top left corner
+/// and in this node's window (a carry crossing windows waits for the frame to name one,
+/// plans/declarative_dragging.md step 6), or `Site` (`Carry::drawn_by_site`), when nothing is
+/// drawn here for it. Only a focusable source hears the carry keys
 /// (`carry_keys`). If this node goes while its carry is held, the carry is put down,
 /// dropping nothing.
 fn carrying(
@@ -281,7 +282,7 @@ fn carrying(
                     at.size,
                 ));
             }
-            let face = carry.face.clone();
+            let face = carry.face().clone();
             if let Some(id) = driver.lift(carry, crate::drag::DragPoint::of(press)) {
                 lifted.set(true);
                 show_face(face);
@@ -537,7 +538,7 @@ fn lift_by_keys(
             rect.size(),
         ));
     }
-    let face = carry.face.clone();
+    let face = carry.face().clone();
     match driver.lift(carry, crate::drag::DragPoint::of(at)) {
         Some(id) => {
             lifted(id, face);
