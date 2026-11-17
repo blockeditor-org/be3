@@ -172,6 +172,8 @@ members = [
     "crates/be-type-bundle",
     "crates/be-tool-fix-rust-source",
     "crates/be-lib-geometry",
+    "crates/be-lib-input-router",
+    "crates/be-lib-layers",
     "crates/be-lib-graphemes",
     "crates/be-lib-ghostty-vt",
     "crates/be-sdk-type-host",

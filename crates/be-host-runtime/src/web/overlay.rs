@@ -1,10 +1,10 @@
 use be_lib_stable_hash::HashMap;
 
+use be_lib_layers::{Surface, WindowLayers};
 use beui::{Rect, Vec2};
 use wasm_bindgen::JsCast;
 
 use super::worker::WorkerChannel;
-use crate::presenter::Blit;
 
 const LAYER: &str = "layers";
 
@@ -15,55 +15,53 @@ pub struct Overlay {
     style: String,
 }
 
+/// Each runtime's overlay canvas, by its slot: one window-sized canvas in `#layers` that its
+/// worker draws the frame's anchored layers of that runtime into, clipped to their bounds and
+/// stacked by the last of them in the list, as a screen in `#layers` stacks by its own place
+/// (canvases::placements), so a child placed in an anchored view, lifted above it
+/// (`presenter::lifted`), shows above it.
 pub fn overlays(
-    blits: &[Blit],
+    layers: &WindowLayers,
     viewport: Vec2,
     pixels_per_point: f32,
     scale: f32,
 ) -> HashMap<u32, Overlay> {
-    let mut owners = Vec::<u32>::new();
     let mut last = HashMap::<u32, usize>::default();
     let mut pieces = HashMap::<u32, Vec<f32>>::default();
     let mut bounds = HashMap::<u32, Rect>::default();
-    for (order, blit) in blits.iter().enumerate() {
-        let Some(layer) = blit.layer else {
+    for (order, layer) in layers.layers.iter().enumerate() {
+        let Surface::Anchored { instance, surface } = layer.surface else {
             continue;
         };
-        owners.retain(|owner| *owner != blit.surface);
-        owners.push(blit.surface);
-        last.insert(blit.surface, order);
-        let target = blit.quad.rect;
-        pieces.entry(blit.surface).or_default().extend([
-            layer.surface as f32,
+        last.insert(instance, order);
+        let target = layer.bounds();
+        let pixels = layer.clip;
+        pieces.entry(instance).or_default().extend([
+            surface as f32,
             target.min.x * pixels_per_point,
             target.min.y * pixels_per_point,
             target.max.x * pixels_per_point,
             target.max.y * pixels_per_point,
-            layer.pixels.min.x,
-            layer.pixels.min.y,
-            layer.pixels.max.x,
-            layer.pixels.max.y,
+            pixels.min.x,
+            pixels.min.y,
+            pixels.max.x,
+            pixels.max.y,
         ]);
         bounds
-            .entry(blit.surface)
-            .and_modify(|bounds| *bounds = bounds.union(layer.bounds))
-            .or_insert(layer.bounds);
+            .entry(instance)
+            .and_modify(|bounds| *bounds = bounds.union(target))
+            .or_insert(target);
     }
     let size = (
         (viewport.x * pixels_per_point).ceil().max(1.0) as u32,
         (viewport.y * pixels_per_point).ceil().max(1.0) as u32,
     );
     let (width, height) = (viewport.x * scale, viewport.y * scale);
-    // An overlay stacks by its last blit, as a screen in #layers stacks by its own
-    // (canvases::placement), so a child placed in an anchored view, lifted into #layers
-    // (presenter::lifted), shows above it.
-    owners
-        .into_iter()
-        .map(|owner| {
+    last.into_iter()
+        .map(|(owner, order)| {
             let bounds = bounds[&owner];
             let style = format!(
-                "width:{width}px;height:{height}px;z-index:{};clip-path:inset({}px {}px {}px {}px)",
-                last[&owner],
+                "width:{width}px;height:{height}px;z-index:{order};clip-path:inset({}px {}px {}px {}px)",
                 (bounds.min.y * scale).max(0.0),
                 (width - bounds.max.x * scale).max(0.0),
                 (height - bounds.max.y * scale).max(0.0),

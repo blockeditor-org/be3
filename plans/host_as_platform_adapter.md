@@ -164,6 +164,20 @@ whether it is shown. The surfaces are:
 - **Offscreen windows:** the root guest may also open a window the host composites into a texture
   or a headset swapchain image instead of onto a screen. Only Space uses them.
 
+Built (step 3): the list is `be-lib-layers` (`LayerList`, `WindowLayers`, `Layer`), naming
+surfaces by handle (`Surface::Root`, `Screen`, `Anchored`, `Host`), with the transform from a
+surface's pixels to the window's points, the clip in the surface's pixels, the rounding of the
+surface's own corners, and `WindowLayers::damage`. The host's own UI is its only producer
+(`be-host-runtime/src/layers.rs`): natively each app surface the host's frame shows is drawn
+from its layer as a texture quad in the host's pass, in the host UI's paint order, so the root's
+surface is that pass rather than a texture; the web builds the frame's list (screens under
+`Surface::Root(0)`, anchored views and what lies over them above it) and applies it as CSS to
+its canvases. Not built yet, and part of step 4 since each needs the root guest's surfaces or
+declarations: drawing the list in a pass of its own over textures of the root's surfaces, a
+list for each OS window (the host's frame makes one, with no `window`), program windows as
+`Surface::Host`, and the damage the e-paper display reads coming from the list rather than
+from beui's retained tree.
+
 ## Input
 
 The host routes every event to the surface it is for, from areas the root guest declares, as
@@ -208,6 +222,16 @@ The **forwarding router** is these rules, given a hit test, as a crate below beu
 it a 2D test over the layer list, and Space a ray test (Space and headsets). An app that places
 children and wants to route to them itself can use it too. beui-core's routing inside a document
 stays its own.
+
+Built (step 3): the router is `be-lib-input-router` (`Router`, over a `HitTest`), and
+`WindowLayers` is its 2D test (each layer's `LayerInput`: hit and gesture areas, `captures`,
+`focuses`, `placer`). It routes pointer capture and hover, gestures outermost first, a finger
+landing for an outer claim, keys with the compositor's chords, focus on press, the pointer lock,
+handing over a press and drag and drop. It does not route the host's input yet: the host's UI is
+one beui document whose forwarding catchers route as before, and the layers it produces take
+the default `LayerInput`. The router takes over in step 4, with the compositor declaring each
+layer's input, and with the IME area, accessibility actions by node id and drive's presses
+going through it.
 
 On the web, a focused cross-origin iframe keeps its keys, so the compositor's chords reach it only
 once the user presses outside it, as in a browser. An iframe placed in a pan-and-zoom editor sits
@@ -414,10 +438,13 @@ Each step lands on its own.
    became a time limit, past which its isolate is terminated).
 2. Built: spawning staged apps by app id, with their manifest's libraries and WASI and no
    display.
-3. The layer list and the forwarding router, and how native and the web realize them, with the
-   host's current UI as their only producer, so nothing changes visibly.
+3. Built: the layer list and the forwarding router, and how native and the web realize them,
+   with the host's current UI as their only producer, so nothing changes visibly (The layer list
+   and Input say what is left for step 4).
 4. The synchronous, resumable root entry. The compositor takes over `src/compositor`, `src/ui`,
-   the camera and the orchestration. Embedding an editor without the host's compositor starts
+   the camera and the orchestration. It produces the layer list with its own surfaces as
+   textures, which the host draws in a pass of its own, one list per OS window, and declares
+   each layer's input, so the router routes the host's input. Embedding an editor without the host's compositor starts
    here, once the layer list can show a surface a guest names: it needs the host side of the
    app protocol in a guest (configuring screens, the editor's watches, a block's content;
    be-sdk-test's `ContentStore` and `link.rs` already run in wasm, in process), and a surface on

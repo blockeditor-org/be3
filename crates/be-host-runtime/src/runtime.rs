@@ -1842,18 +1842,9 @@ pub fn place_screens(
     background: beui::color::Color32,
 ) {
     super::web::set_background(background);
-    let mut layers = super::web::overlays(blits, viewport, pixels_per_point, scale);
-    let mut placed = HashMap::<u32, Vec<super::web::Placement>>::default();
-    let lifted = super::presenter::lifted(
-        blits
-            .iter()
-            .map(|blit| (blit.quad.rect, blit.layer.is_some())),
-    );
-    for (order, (blit, above)) in blits.iter().zip(lifted).enumerate() {
-        if let Some(placement) = super::web::placement(blit, order, above, scale) {
-            placed.entry(blit.surface).or_default().push(placement);
-        }
-    }
+    let frame = super::layers::frame(blits, viewport);
+    let mut layers = super::web::overlays(&frame, viewport, pixels_per_point, scale);
+    let mut placed = super::web::placements(&frame, scale);
     HOST.with(|host| {
         for runtime in host.borrow_mut().runtimes.values_mut() {
             let placements = placed.remove(&runtime.surface).unwrap_or_default();

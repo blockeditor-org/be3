@@ -76,6 +76,8 @@ members = [
     "crates/be-lib-geometry",
     "crates/be-lib-ghostty-vt",
     "crates/be-lib-graphemes",
+    "crates/be-lib-input-router",
+    "crates/be-lib-layers",
     "crates/be-lib-prompt",
     "crates/be-lib-quoted-name",
     "crates/be-lib-remap",

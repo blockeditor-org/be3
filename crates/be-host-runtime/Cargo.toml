@@ -19,6 +19,7 @@ beui-layer-drive = { path = "../beui-layer-drive" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 be-host-base = { path = "../be-host-base" }
 be-host-stack = { path = "../be-host-stack" }
+be-lib-layers = { path = "../be-lib-layers" }
 be-wasm-guest-host = { path = "../be-wasm-guest-host" }
 be-sdk-api = { path = "../be-sdk-api" }
 be-sdk-manifest = { path = "../be-sdk-manifest" }

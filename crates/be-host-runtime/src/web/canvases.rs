@@ -1,43 +1,51 @@
 use be_lib_stable_hash::HashMap;
 use std::cell::RefCell;
 
-use be_sdk_api::ScreenId;
+use be_lib_layers::{LayerId, Surface, WindowLayers};
 use beui::Color32;
 use wasm_bindgen::JsCast;
 
 use super::worker::WorkerChannel;
-use crate::presenter::Blit;
 
 const LAYER: &str = "apps";
-/// Where a screen goes that lies over an anchored view painted before it: above the host's
-/// canvas, in the anchored views' layer (overlay.rs), so a child placed in an anchored view
-/// shows over it (`presenter::lifted`).
+/// Where a screen goes that lies above the host's canvas in the frame's layers: a screen over an
+/// anchored view painted before it, in the anchored views' layer (overlay.rs), so a child placed
+/// in an anchored view shows over it (`presenter::lifted`).
 const ABOVE: &str = "layers";
 
 pub struct Placement {
-    screen: ScreenId,
+    layer: LayerId,
     surface: u32,
     style: String,
     above: bool,
 }
 
-/// Where a screen shows: `order` is its blit's place in the frame's paint order, and `above`
-/// whether it lies over an anchored view painted before it (`presenter::lifted`).
-pub fn placement(blit: &Blit, order: usize, above: bool, scale: f32) -> Option<Placement> {
-    if blit.layer.is_some() {
-        return None;
+/// Where each runtime's screens show, by its slot: a canvas for each of the frame's screen
+/// layers, in `#apps` below the host's canvas (`Surface::Root`) or in `#layers` above it, stacked
+/// by their place in the list.
+pub fn placements(layers: &WindowLayers, scale: f32) -> HashMap<u32, Vec<Placement>> {
+    let mut placed = HashMap::<u32, Vec<Placement>>::default();
+    let mut above = false;
+    for (order, layer) in layers.layers.iter().enumerate() {
+        let (instance, surface) = match layer.surface {
+            Surface::Root(_) => {
+                above = true;
+                continue;
+            }
+            Surface::Screen { instance, surface } => (instance, surface),
+            Surface::Anchored { .. } | Surface::Host(_) => continue,
+        };
+        let Some(style) = crate::layers::canvas_style(layer, scale, order) else {
+            continue;
+        };
+        placed.entry(instance).or_default().push(Placement {
+            layer: layer.id,
+            surface,
+            style,
+            above,
+        });
     }
-    let shared = blit.shared.borrow();
-    let placement = shared.placement(blit.screen)?;
-    let painted = shared.holds(placement, None)?;
-    let (quad, source) = blit.shown_at(painted)?;
-    let style = crate::presenter::canvas_style(quad, source, painted.size, scale, order)?;
-    Some(Placement {
-        screen: blit.screen,
-        surface: placement.surface,
-        style,
-        above,
-    })
+    placed
 }
 
 pub fn set_background(color: Color32) {
@@ -66,7 +74,7 @@ struct Shown {
 
 #[derive(Default)]
 pub(super) struct Canvases {
-    shown: HashMap<(ScreenId, usize), Shown>,
+    shown: HashMap<LayerId, Shown>,
 }
 
 impl Canvases {
@@ -75,13 +83,10 @@ impl Canvases {
         channel: &WorkerChannel,
         placements: Vec<Placement>,
     ) -> Result<(), String> {
-        let mut seen = HashMap::<ScreenId, usize>::default();
         let mut kept = HashMap::with_capacity_and_hasher(placements.len(), Default::default());
         let mut result = Ok(());
         for placement in placements {
-            let occurrence = seen.entry(placement.screen).or_default();
-            let key = (placement.screen, *occurrence);
-            *occurrence += 1;
+            let key = placement.layer;
             let mut shown = match self.shown.remove(&key) {
                 Some(mut shown) => {
                     if shown.surface != placement.surface {

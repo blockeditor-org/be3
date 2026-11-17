@@ -1,7 +1,8 @@
 # Declarative dragging: drags as the places they can lead to
 
 Depends on: plans/tentative_gestures.md, before a site previews by holding a tentative gesture;
-plans/host_as_platform_adapter.md, step 3, before step 6.
+plans/host_as_platform_adapter.md, step 4 (the forwarding router, built in step 3, routing the
+host's input), before step 6.
 
 Every drag in beui becomes a description of where the dragged thing can end up, adapted from
 *Declarative Dragging* (Horowitz, Blinn, Heer, UIST 2026; https://declarative-dragging.github.io/).
