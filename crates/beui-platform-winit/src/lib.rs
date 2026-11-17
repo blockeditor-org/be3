@@ -679,7 +679,12 @@ impl ApplicationHandler for Runner {
                         reports.fullscreen(fullscreen);
                     }
                     reports.resized(size.width, size.height);
-                    surface.window.request_redraw();
+                }
+                // Draw at the new size now, in answer to the resize, not at a redraw a frame
+                // later: until then the system shows the grown part of the window as it likes
+                // (black on X11 and Windows) or the last frame scaled.
+                if self.surface.is_some() {
+                    self.redraw(event_loop);
                 }
             }
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
