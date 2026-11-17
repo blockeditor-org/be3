@@ -2,7 +2,8 @@ use super::*;
 
 /// This device seals an edit offline onto the head the server's session journal is based on,
 /// and the drain publishes it while no replica is in the session to move that journal on.
-/// Opened again, the replica starts on the journal's base and must hear of the newer head.
+/// Opened again, the replica starts on the journal's base and must hear of the newer head, or it
+/// shows the base (a count of 4) for good.
 #[test]
 fn a_block_opened_on_a_session_journal_older_than_its_head_takes_the_head() {
     let harness = Harness::relayed().on_manual_clock();
