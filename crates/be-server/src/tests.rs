@@ -20,6 +20,7 @@ use uuid::Uuid;
 use super::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
+mod a_change_a_follower_read_before_it_was_told_leaves_the_next_one_told;
 mod a_block_agent_is_deleted_with_its_block_or_its_grant;
 mod a_block_agent_is_refused_while_its_block_is_in_the_trash;
 mod a_block_agent_never_becomes_an_administrator;

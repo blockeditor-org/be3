@@ -462,7 +462,11 @@ that may still view what it follows (`ServerStore::viewing`), calls
 entry until it reads the tree to its end (`changed-since` answering no `next`,
 `WatchHub::read`), and then once more if the tree advanced past what it read
 (`Told`): a burst of a hundred publishes reaches a follower as one or two
-events, and a follower of a sibling subtree hears nothing. Who changed a block
+events, and a follower of a sibling subtree hears nothing. A change is told only
+if it is newer than the connection's last read to the end: its connection calls
+`advance` after the write commits, so a read can take the change first, and
+telling it then would leave the entry outstanding for a read the client, whose
+cursor is already past it, never makes. Who changed a block
 is not told; a client tells its own publishes from others' by their heads. A
 follower that may no longer view what it follows (a grant revoked, a move out
 of view) is told once more (`WatchHub::left`) and unfollowed, so it reads the
