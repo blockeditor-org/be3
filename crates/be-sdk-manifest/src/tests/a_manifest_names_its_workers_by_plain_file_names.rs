@@ -32,6 +32,10 @@ fn a_manifest_names_its_workers_by_plain_file_names() {
         r#"["map.wasm"]"#,
         r#"["tiles.wasm", "tiles.wasm"]"#,
     ] {
-        assert_eq!(read(refused), Err(ManifestError::InvalidWorker), "{refused}");
+        assert_eq!(
+            read(refused),
+            Err(ManifestError::InvalidWorker),
+            "{refused}"
+        );
     }
 }

@@ -20,7 +20,9 @@ fn an_app_runs_a_bounded_number_of_workers() {
     });
     assert_eq!(
         refused,
-        Err(format!("be3.echo may run at most {WORKERS} workers at once"))
+        Err(format!(
+            "be3.echo may run at most {WORKERS} workers at once"
+        ))
     );
     assert_eq!(replaced, Ok(be_sdk_worker_echo::STARTED.to_vec()));
 }

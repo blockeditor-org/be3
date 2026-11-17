@@ -17,9 +17,9 @@ use super::*;
 
 mod a_guest_compiles_a_module_and_talks_to_an_instance_of_it;
 mod a_guest_spawns_a_staged_app_by_its_id_and_talks_to_it;
+mod an_app_runs_a_bounded_number_of_workers;
 mod an_app_spawns_its_own_worker_and_exchanges_messages_with_it;
 mod an_app_spawns_neither_another_apps_module_nor_a_module_from_bytes;
-mod an_app_runs_a_bounded_number_of_workers;
 mod an_instance_of_an_app_no_staged_app_has_the_id_of_says_so;
 mod an_instance_that_stopped_says_why;
 mod an_instance_the_guest_drops_stops;
@@ -104,7 +104,11 @@ impl Pump {
     /// A guest served as the echo app is: it may spawn only the echo app's modules.
     fn echo_app() -> Self {
         Self::serving(|wake| {
-            Server::for_app(wake, be_wasm_guest_echo::APP_ID.to_owned(), Box::new(staged))
+            Server::for_app(
+                wake,
+                be_wasm_guest_echo::APP_ID.to_owned(),
+                Box::new(staged),
+            )
         })
     }
 

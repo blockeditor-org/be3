@@ -31,8 +31,7 @@ fn stage() -> std::path::PathBuf {
     let workers = bundle.join("workers/be3.echo");
     std::fs::create_dir_all(&workers).unwrap();
     let library = module("BASE_LIBRARY_WASM");
-    let library_name =
-        be_wasm_host::library_file_name(&be_wasm_dylink::identity(&library));
+    let library_name = be_wasm_host::library_file_name(&be_wasm_dylink::identity(&library));
     std::fs::write(bundle.join(library_name), library).unwrap();
     std::fs::write(bundle.join("echo.wasm"), module("ECHO_APP_WASM")).unwrap();
     std::fs::write(workers.join(MODULE), module("ECHO_WORKER_WASM")).unwrap();
@@ -61,11 +60,17 @@ fn an_apps_worker_answers_through_the_hosts_wire_and_stops_when_the_app_fails() 
     let (wake, woken) = mpsc::channel();
     let wake = Mutex::new(wake);
     be_host_base::host::install_waker(move || {
-        let _ = wake.lock().unwrap_or_else(|held| held.into_inner()).send(());
+        let _ = wake
+            .lock()
+            .unwrap_or_else(|held| held.into_inner())
+            .send(());
     });
     let app = be_sdk_manifest::manifest_from_json(MANIFEST).unwrap();
     let mut backend = Backend::new(&app);
-    assert!(backend.wire_mut().serves_sandbox(), "the host serves every app a sandbox");
+    assert!(
+        backend.wire_mut().serves_sandbox(),
+        "the host serves every app a sandbox"
+    );
 
     let guest = guest();
     let received = Rc::new(RefCell::new(Vec::new()));
@@ -88,7 +93,8 @@ fn an_apps_worker_answers_through_the_hosts_wire_and_stops_when_the_app_fails() 
             .step(wire.take_outbound(), &mut from_guest)
             .expect("the host's frames decode");
         for frame in &from_guest {
-            wire.receive(frame, &mut heard).expect("the app's frames decode");
+            wire.receive(frame, &mut heard)
+                .expect("the app's frames decode");
         }
         wire.poll_sandbox();
         if from_guest.is_empty() && !wire.has_outbound() && received.borrow().len() < 2 {
