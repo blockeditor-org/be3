@@ -13,14 +13,15 @@ use beui_runner::environment;
 use crate::{Unanswered, request};
 
 const USAGE: &str =
-    "usage: be-drive launch --program=PATH [--archive=ARCHIVE] [--name=NAME] [--data]
+    "usage: be-drive launch --program=PATH [--archive=ARCHIVE [--beside=FILE]...] [--name=NAME] [--data]
        [--libraries=DIR] [--size=WIDTHxHEIGHT[@SCALE]] [--screen=WIDTHxHEIGHT] [--latency=MS]
        [--pin-clock] [--fresh] [--stop] [PROGRAM ARGUMENTS...]
 Starts a beui program headless with a drive socket, waits until it settles, and writes
 an env file that puts `drive` on PATH pointed at it. --latency adds MS milliseconds to every
 round trip between the program and its server. --pin-clock starts its wall clock at the fixed
 moment tests use (2026-03-02 09:41 UTC) in the UTC time zone, instead of the real time and zone.
-With --archive, PROGRAM is a path in that program archive (crates/be-host-archive), unpacked first.
+With --archive, PROGRAM is a path in that program archive (crates/be-host-archive), unpacked first,
+with each --beside=FILE copied in beside it.
 Arguments it does not know go to the program.";
 const STARTUP: Duration = Duration::from_secs(120);
 /// A Unix socket's path fits in 107 bytes, and the drive socket sits in `BE_DRIVE_DIR`, so keep
@@ -32,6 +33,7 @@ const SCREEN: &str = "1440x900";
 struct Launch {
     program: Option<String>,
     archive: Option<String>,
+    beside: Vec<PathBuf>,
     name: Option<String>,
     data: bool,
     libraries: Option<String>,
@@ -71,6 +73,8 @@ fn parse(arguments: &[String], usage: &str) -> Result<Launch, String> {
                     launch.program = Some(program);
                 } else if let Some(archive) = value("--archive=") {
                     launch.archive = Some(archive);
+                } else if let Some(file) = value("--beside=") {
+                    launch.beside.push(PathBuf::from(file));
                 } else if let Some(name) = value("--name=") {
                     launch.name = Some(name);
                 } else if let Some(libraries) = value("--libraries=") {
@@ -110,7 +114,7 @@ impl Launch {
     fn start(&self, dir: &Path, log: Option<&Path>) -> Result<Child, String> {
         let name = self.name();
         let program = match &self.archive {
-            Some(archive) => be_host_archive::unpacked(Path::new(archive))?.join(self.program()),
+            Some(archive) => be_host_archive::unpacked(Path::new(archive), &self.beside)?.join(self.program()),
             None => PathBuf::from(self.program()),
         };
         let data = dir.join("data");

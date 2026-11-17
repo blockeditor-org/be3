@@ -299,7 +299,9 @@ the execution platform, so it is always checked.
   their closures as `lib-<SHA-256>.wasm`; `apps.json` lists the manifests, which is how every
   platform finds its apps. Nothing is compiled ahead: V8 compiles each module as it loads.
 - Every `program()` also has `[archive]`, its directory as one zstd file (crates/be-host-archive);
-  `buck2 run` and `:dev` download only that and unpack it into `target/programs/<name>-<hash>/`.
+  `buck2 run` and `:dev` download only that and unpack it into `target/apps/<name>-<hash>/`.
+  The program's source files, such as `build-info.json`, are left out of it and copied in
+  beside it on each run (`--beside`), so a new build id repacks nothing.
 - `:web` is be-host for `wasi` and the gpu shim for `wasm32` through wasm-bindgen, with the page
   from crates/be-host/web; `buck2 run` serves it with Caddy and be-server
   (guides/running/web.md, guides/hosting.md).

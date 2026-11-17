@@ -76,19 +76,26 @@ _native_core_transition = transition(
 # source file, which can change under a link to it (buck/program/build-info.json
 # does with every command), copied; every other file a symlink to the artifact
 # an argument gave, or to the file within it for a --tree or --data directory.
-def _lay_out(ctx: AnalysisContext, layout: list, arguments: list, generated: Artifact, executable: [str, None], out: Artifact):
+# `packed` is what the archive packs: the same, every file a symlink, without the
+# arguments numbered in `beside`.
+def _lay_out(ctx: AnalysisContext, layout: list, arguments: list, beside: list, generated: Artifact, executable: [str, None], out: Artifact, packed: Artifact):
     contents = {}
+    packed_contents = {}
     for entry in layout:
         path = entry["path"]
         if "argument" not in entry:
             contents[path] = assembled_dir.copy(generated.project(path))
+            packed_contents[path] = assembled_dir.symlink(generated.project(path))
             continue
         artifact = arguments[entry["argument"]][entry["part"]]
         if entry["within"]:
             artifact = artifact.project(entry["within"])
         copied = path == executable or artifact.is_source
         contents[path] = assembled_dir.copy(artifact) if copied else assembled_dir.symlink(artifact)
+        if entry["argument"] not in beside:
+            packed_contents[path] = assembled_dir.symlink(artifact)
     ctx.actions.assembled_dir(out, contents = contents, has_content_based_path = False)
+    ctx.actions.assembled_dir(packed, contents = packed_contents)
 
 # The app as it runs (crates/be-tool-buck's stage): the executable under cargo's name, and
 # beside it every app's module, every library in their closures
@@ -99,10 +106,11 @@ def _lay_out(ctx: AnalysisContext, layout: list, arguments: list, generated: Art
 # and where everything goes; the directory is then laid out from that
 # (_lay_out), each file a symlink to the artifact it is, so programs that
 # share the apps' modules share their bytes too. `[archive]`
-# is the whole directory, links followed, as one
+# is the whole directory but its source files, links followed, as one
 # compressed file (crates/be-host-archive), a quarter of its size or less, made on a
-# worker. `buck2 run` runs the executable from it, unpacked into target/programs
-# once for each new archive, so a run downloads only the archive; or, for a
+# worker. `buck2 run` runs the executable from it, unpacked into target/apps
+# once for each new archive, with the source files copied in (--beside), so a run
+# downloads only the archive and those; or, for a
 # bundle without one, `run_with` followed by the bundle, which is how the web
 # bundle serves itself.
 def _program_impl(ctx: AnalysisContext) -> list[Provider]:
@@ -124,7 +132,14 @@ def _program_impl(ctx: AnalysisContext) -> list[Provider]:
         executable = ctx.attrs.binary[DefaultInfo].default_outputs[0]
         name = ctx.attrs.executable_name + executable.extension
         add("--executable={}={}".format(executable.basename, name), [executable])
+    # A source file among `files` is kept out of the archive and copied in beside
+    # it when it is unpacked: buck/program/build-info.json changes with every
+    # build id, which is every change to the working tree, and in the archive it
+    # would pack, download and unpack the whole program again for it.
+    beside = []
     for file in ctx.attrs.files:
+        if file.is_source:
+            beside.append(len(arguments))
         add("--file=" + file.basename, [file])
     libraries = []
     for module in ctx.attrs.modules + ctx.attrs.linked:
@@ -172,15 +187,16 @@ def _program_impl(ctx: AnalysisContext) -> list[Provider]:
     # Not content-based: buck2 would lay the directory out once and copy it to a path
     # named for its hash, so the executable, the one file copied, would take twice the space.
     out = ctx.actions.declare_output(ctx.label.name, dir = True, has_content_based_path = False)
+    packed = ctx.actions.declare_output(ctx.label.name + "-packed", dir = True)
     ctx.actions.dynamic_output(
         dynamic = [layout],
-        f = lambda ctx, artifacts, outputs: _lay_out(ctx, artifacts[layout].read_json(), arguments, generated, name, outputs[out]),
+        f = lambda ctx, artifacts, outputs: _lay_out(ctx, artifacts[layout].read_json(), arguments, beside, generated, name, outputs[out], outputs[packed]),
         inputs = [],
-        outputs = [out.as_output()],
+        outputs = [out.as_output(), packed.as_output()],
     )
     archive = ctx.actions.declare_output(ctx.label.name + ".programz")
     ctx.actions.run(
-        cmd_args(ctx.attrs._archiver[RunInfo], "pack", out, archive.as_output()),
+        cmd_args(ctx.attrs._archiver[RunInfo], "pack", packed, archive.as_output()),
         category = "program_archive",
     )
     providers = [
@@ -190,7 +206,8 @@ def _program_impl(ctx: AnalysisContext) -> list[Provider]:
         )
     ]
     if name:
-        providers.append(RunInfo(args = cmd_args(ctx.attrs._unpacker[RunInfo], "run", archive, name)))
+        besides = [cmd_args("--beside=", arguments[index][0], delimiter = "") for index in beside]
+        providers.append(RunInfo(args = cmd_args(ctx.attrs._unpacker[RunInfo], "run", besides, archive, name)))
     elif ctx.attrs.run_with:
         providers.append(RunInfo(args = cmd_args(ctx.attrs.run_with, out)))
     return providers

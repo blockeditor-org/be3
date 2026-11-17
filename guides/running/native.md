@@ -72,7 +72,7 @@ after each step to see every frame. `WINIT_X11_SCALE_FACTOR=1.5` gives the windo
 scale.
 
 To skip building every app, run the be-host that `:dev` unpacked
-(`target/programs/dev-app-*/be-host`) in place of `:native`, with the variables above and the
+(`target/apps/dev-app-*/be-host`) in place of `:native`, with the variables above and the
 `LD_LIBRARY_PATH` and `XDG_DATA_HOME` that `:dev` gives it (read them from `/proc/PID/environ`
 of the headless copy, then stop that copy).
 
