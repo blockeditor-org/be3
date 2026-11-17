@@ -2,7 +2,7 @@ use super::*;
 
 use be_block_graph::Access;
 use be_block_keys::Party;
-use be_block_protocol::{RecoveryKey, client};
+use be_block_protocol::{RecoveryKey};
 use be_type_text::{TextBlock, TextContent};
 
 async fn note_in(peer: &Peer<MemoryStore>, parent: Uuid, body: &str) -> Uuid {

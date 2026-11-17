@@ -756,6 +756,15 @@ impl Client {
         self.tell(event)
     }
 
+    /// Sends on what the hub queued for this connection so far.
+    async fn drain_pushes(&mut self) {
+        for push in self.pending_pushes() {
+            if let Err(error) = self.push(push).await {
+                tracing::debug!(%error, "a push could not be told");
+            }
+        }
+    }
+
     fn follows(&self, followed: Followed) -> bool {
         self.following.topics.contains(&followed)
     }
@@ -1124,6 +1133,11 @@ impl Client {
                 MAX_SESSIONS_PER_CONNECTION,
             ));
         }
+        // What the hub queued for this connection before it joins (its own leave of an earlier
+        // join, entries of that membership) is told or dropped now, as of before the join, so
+        // none of it reaches the connection as if of the session it joins.
+        self.drain_pushes().await;
+        let connection = &self.connection;
         let may_edit = connection
             .store
             .require_access(identity, vec![block], Access::Edit)
@@ -1342,6 +1356,8 @@ impl Client {
                 };
                 if self.following.sessions.remove(&place).is_some() {
                     connection.registry.leave(place, connection.client).await;
+                    // Its own leave is dropped now, before a later join of the same block.
+                    self.drain_pushes().await;
                 }
             }
             topic => {

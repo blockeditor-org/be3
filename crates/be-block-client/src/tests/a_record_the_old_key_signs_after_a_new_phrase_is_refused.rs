@@ -2,7 +2,7 @@ use super::*;
 
 use be_block_graph::Access;
 use be_block_keys::Entry;
-use be_block_protocol::{RecoveryKey, client};
+use be_block_protocol::{RecoveryKey};
 
 /// Taking a new recovery phrase retires the old keys in every access log the account signed in,
 /// endorsed by the old key and signed by the new: the server and every device take the logs

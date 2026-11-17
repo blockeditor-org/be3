@@ -1,6 +1,5 @@
 use super::*;
 use crate::connection::{PING_INTERVAL, PONG_WAIT};
-use be_block_protocol::client;
 
 #[tokio::test]
 async fn a_request_stuck_in_a_full_socket_fails_once_the_server_goes_silent() {

@@ -2,7 +2,6 @@ use super::*;
 
 use be_block_graph::Access;
 use be_block_keys::Level;
-use be_block_protocol::client;
 
 /// Whether `block`'s log, as `peer` checks it, revokes `account`, its last word on them.
 async fn revoked(peer: &Peer<MemoryStore>, block: Uuid, account: Uuid) -> bool {

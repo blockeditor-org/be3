@@ -1,7 +1,7 @@
 use super::*;
 
 use be_block_graph::{Access, SETTINGS_TYPE};
-use be_block_protocol::{KeyKind, RecoveryKey, client};
+use be_block_protocol::{KeyKind, RecoveryKey};
 use be_type_text::{TextBlock, TextContent};
 
 /// Key wraps of `block`'s scope keys by anything but an account: a scope above, or the escrow

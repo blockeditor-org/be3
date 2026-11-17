@@ -2,7 +2,7 @@ use super::*;
 
 use be_block_graph::Access;
 use be_block_keys::{Authority, Entry, Grant, Level, Record};
-use be_block_protocol::{RecoveryKey, client};
+use be_block_protocol::{RecoveryKey};
 
 /// A new recovery phrase retires the old keys in every log that names them: one the account is
 /// only granted in, never having signed there, too. Otherwise whoever holds the old phrase could
