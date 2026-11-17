@@ -8,7 +8,7 @@ use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{
     AccountStorage, Authenticated, BlockChange, BrowserLogin, BrowserLoginState, Collected,
     Contents, CreatedAgent, Error, ErrorCode, Header, LinkKind, Listing, OrganizationOpened,
-    PairingMessage, RecoveryKey, RelayKind, SessionEvent, UploadUrl, embed,
+    PairingMessage, RecoveryKey, SessionEvent, UploadUrl, embed,
 };
 use be_wasm_ops::{Backlog, Incoming, OpError, OpId, Outlets, Reply, Started, net::Peer};
 use tokio::sync::mpsc;
@@ -161,11 +161,9 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
         Call::Sessions(call) => match call {
             embed::sessions::Call::SessionNew { .. } => Rule::SignedIn,
             embed::sessions::Call::SessionJoin { this, .. }
-            | embed::sessions::Call::SessionRelay {
-                this,
-                kind: RelayKind::Peer,
-                ..
-            } => Rule::Session(this.op(), Access::View),
+            | embed::sessions::Call::SessionRelay { this, .. } => {
+                Rule::Session(this.op(), Access::View)
+            }
             embed::sessions::Call::SessionClaim { this, .. }
             | embed::sessions::Call::SessionSubmit { this, .. } => {
                 Rule::Session(this.op(), Access::Edit)
@@ -731,7 +729,6 @@ impl Client {
             Push::Relayed {
                 block,
                 from,
-                kind,
                 payload,
                 received,
             } => {
@@ -739,7 +736,6 @@ impl Client {
                     &mut lock,
                     SessionEvent::Relayed {
                         from,
-                        kind,
                         payload: payload.to_vec(),
                         received,
                     },
@@ -2151,7 +2147,6 @@ impl Client {
                 this,
                 reply,
                 to,
-                kind,
                 payload,
             } => {
                 let block = self.joined(this.op());
@@ -2167,7 +2162,6 @@ impl Client {
                     let message = Push::Relayed {
                         block,
                         from: connection.client,
-                        kind,
                         payload: payload.into(),
                         received: be_block_commit::now_milliseconds(),
                     };

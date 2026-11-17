@@ -10,7 +10,7 @@ use be_block_content::{
     BlockContent, LiveEdit, Loads, Merge, MergeParts, PartReader, Undo, history::History,
 };
 use be_sdk_type_api::{
-    Change, ChildChange, ClientId, CommitId, Delivery, Description, EditorId, Endpoint, FileChange,
+    Change, ChildChange, ClientId, CommitId, Description, EditorId, Endpoint, FileChange,
     Journal, JournalEntry, Loaded, Merged, MergedParts, Opening, PartRef, Plain, PlainFile,
     PublishOutcome, ReorderChild, ReplaceChild, ReplicaId, SearchDocument, SessionState, TypeInfo,
     Written,
@@ -654,13 +654,8 @@ impl Module {
 
     fn effect(&self, effect: Effect) {
         match effect {
-            Effect::Send {
-                replica,
-                to,
-                kind,
-                bytes,
-            } => {
-                ops::with_parent(replica, || host::send(to, kind, bytes)).detach();
+            Effect::Send { replica, to, bytes } => {
+                ops::with_parent(replica, || host::send(to, bytes)).detach();
             }
             Effect::Publish {
                 replica,
@@ -1045,8 +1040,6 @@ impl replicas::GuestReplica for OpenReplica {
         from: Endpoint,
         bytes: Vec<u8>,
         at: u64,
-        // Every relay is a peer's (`relay-kind::peer`): nothing in it changes what a replica does.
-        _delivery: Option<Delivery>,
     ) -> LocalFuture<()> {
         self.module.tick(at);
         self.module.input(self.id, Input::Message { from, bytes });

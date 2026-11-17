@@ -13,7 +13,7 @@ use be_block_keys::{RecoveryPublic, RecoverySecret};
 use be_block_protocol::{
     AccessList, BlockSummary, ChangeCursor, ChangedPage, ClientId, ErrorCode, EscrowKey,
     HistoryEntry, JournalBase, JournalSeal, KeyKind, KeySet, Listing, ObjectChange, OrganizationKind, OrganizationRole,
-    PublishOutcome, ReferenceChange, RelayKind, ServerAccount, WrappedBy, client,
+    PublishOutcome, ReferenceChange, ServerAccount, WrappedBy, client,
 };
 use be_block_store::{
     ChunkerConfig, Hash, Keyring, Manifest, ObjectStore, Part, StoreError, Stored, Vault,
@@ -3260,12 +3260,11 @@ impl<S: ObjectStore> Peer<S> {
         &self,
         block: Uuid,
         to: Option<ClientId>,
-        kind: RelayKind,
         payload: &[u8],
     ) -> Result<Answer<()>, ClientError> {
         let key = self.sealing_key(block).await?;
         let sealed = self.commits.vault().seal(key, payload)?;
-        Ok(self.connection().relay(block, to, kind, sealed))
+        Ok(self.connection().relay(block, to, sealed))
     }
 
     /// A relay of `block`'s session (`Peer::open_for`).

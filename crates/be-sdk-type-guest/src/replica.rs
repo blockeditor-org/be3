@@ -8,7 +8,7 @@ use be_block_session::{OpId, Payload, Resume, SessionMessage, SessionOp, Submiss
 use be_block_store::{Hash, PartRef};
 use be_sdk_type_api::{
     Change, EditorId, Endpoint, FileChange, Journal, JournalBase, KeptSubmission,
-    Merging, Recipients, RelayKind, ReplicaId, SessionTag, Status, UndoState, Unjournaled, Written,
+    Merging, Recipients, ReplicaId, SessionTag, Status, UndoState, Unjournaled, Written,
 };
 use uuid::Uuid;
 
@@ -121,7 +121,7 @@ pub(crate) trait AnyReplica {
     fn wake_at(&self) -> Option<u64>;
 
     /// The soonest of `wake_at`'s timers that keep the block in step with the server: not a
-    /// heartbeat or a read's retry.
+    /// read's retry.
     fn in_step_at(&self) -> Option<u64>;
 
     fn released(&self) -> bool;
@@ -3604,7 +3604,6 @@ where
         self.out.push(Effect::Send {
             replica: self.id,
             to: Recipients::One(Endpoint::Editor(editor)),
-            kind: RelayKind::Peer,
             bytes,
         });
     }
@@ -3822,7 +3821,6 @@ where
                 Some(client) => Recipients::One(Endpoint::Peer(client)),
                 None => Recipients::Peers,
             },
-            kind: RelayKind::Peer,
             bytes: wire::encode(message),
         });
     }

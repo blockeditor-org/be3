@@ -388,8 +388,6 @@ pub(crate) enum Replayed {
         from: Endpoint,
         bytes: Vec<u8>,
         at: u64,
-        /// What the server says of a peer's message.
-        delivery: Option<be_sdk_type_api::Delivery>,
     },
     Moved {
         head: CommitId,
@@ -438,9 +436,8 @@ impl Replayed {
                 from,
                 bytes,
                 at,
-                delivery,
             } => {
-                replica.message(connection, from, bytes, at, delivery);
+                replica.message(connection, from, bytes, at);
             }
             Replayed::Moved { head } => {
                 replica.head_moved(connection, head);
@@ -1516,7 +1513,6 @@ impl<H: Host> Replicas<H> {
                     from: Endpoint::Editor(editor),
                     bytes,
                     at: 0,
-                    delivery: None,
                 },
                 be_block_client::KeptEdit::Change(change) => Replayed::Change {
                     change: api_change(change),
@@ -2065,7 +2061,6 @@ impl<H: Host> Replicas<H> {
                 from: Endpoint::Editor(editor),
                 bytes,
                 at,
-                delivery: None,
             },
         );
     }
@@ -2925,9 +2920,8 @@ impl<H: Host> Replicas<H> {
             Event::Relayed {
                 block,
                 from,
-                kind,
                 payload,
-                received,
+                ..
             } => {
                 let Some(replica) = self.blocks.get(block).copied() else {
                     return;
@@ -2959,10 +2953,6 @@ impl<H: Host> Replicas<H> {
                     from: Endpoint::Peer(*from),
                     bytes,
                     at: self.modules.now(),
-                    delivery: Some(be_sdk_type_api::Delivery {
-                        kind: *kind,
-                        received: *received,
-                    }),
                 };
                 if let Some(open) = self.open.get_mut(&replica)
                     && open.joining
@@ -4147,12 +4137,7 @@ impl<H: Host> Replicas<H> {
         };
         match call {
             Call::Clock { .. } | Call::SleepUntil { .. } | Call::InStepAt { .. } => false,
-            Call::Send {
-                reply,
-                to,
-                kind,
-                bytes,
-            } => {
+            Call::Send { reply, to, bytes } => {
                 self.acknowledge(module, reply);
                 match to {
                     // Only to an editor attached now: one attached for its kept edits alone
@@ -4170,11 +4155,11 @@ impl<H: Host> Replicas<H> {
                     Recipients::One(Endpoint::Host) => false,
                     _ if made_up => false,
                     Recipients::One(Endpoint::Peer(client)) => {
-                        self.relay(shared, peer.relay(block, Some(client), kind, &bytes).await);
+                        self.relay(shared, peer.relay(block, Some(client), &bytes).await);
                         false
                     }
                     Recipients::Peers => {
-                        self.relay(shared, peer.relay(block, None, kind, &bytes).await);
+                        self.relay(shared, peer.relay(block, None, &bytes).await);
                         false
                     }
                 }

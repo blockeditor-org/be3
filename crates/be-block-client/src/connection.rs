@@ -8,7 +8,7 @@ use std::{
 
 use be_block_commit::CommitId;
 use be_block_protocol::{
-    ClientId, Journal, JournalEntry, MembershipEntry, PairingMessage, RelayKind, SessionEvent,
+    ClientId, Journal, JournalEntry, MembershipEntry, PairingMessage, SessionEvent,
     SessionState, client, hello, read_hello,
 };
 use be_block_store::Hash;
@@ -128,8 +128,6 @@ pub enum Event {
     Relayed {
         block: Uuid,
         from: ClientId,
-        /// What the server checked the sender may send (`relayed.kind`).
-        kind: RelayKind,
         payload: Vec<u8>,
         /// When the server took it, by its clock (`relayed.received`).
         received: i64,
@@ -475,13 +473,11 @@ impl Connection {
                         },
                         SessionEvent::Relayed {
                             from,
-                            kind,
                             payload,
                             received,
                         } => Event::Relayed {
                             block,
                             from,
-                            kind,
                             payload,
                             received,
                         },
@@ -534,16 +530,10 @@ impl Connection {
         Box::pin(async move { Ok(claimed?.await??) })
     }
 
-    pub fn relay(
-        &self,
-        block: Uuid,
-        to: Option<ClientId>,
-        kind: RelayKind,
-        payload: Vec<u8>,
-    ) -> Answer<()> {
+    pub fn relay(&self, block: Uuid, to: Option<ClientId>, payload: Vec<u8>) -> Answer<()> {
         let relayed = self
             .session(block)
-            .map(|session| session.relay(to, kind, payload));
+            .map(|session| session.relay(to, payload));
         Box::pin(async move { Ok(relayed?.await??) })
     }
 

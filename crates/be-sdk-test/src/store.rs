@@ -686,16 +686,7 @@ impl Inner {
         let bytes = be_sdk_type_guest::wire::encode(&message);
         let now = self.now;
         self.on_replica(replica, |replica, host| {
-            replica.message(
-                host,
-                Endpoint::Peer(client),
-                bytes,
-                now,
-                Some(be_sdk_type_guest::api::Delivery {
-                    kind: be_sdk_type_guest::api::RelayKind::Peer,
-                    received: now as i64,
-                }),
-            );
+            replica.message(host, Endpoint::Peer(client), bytes, now);
         });
     }
 
@@ -902,7 +893,7 @@ impl Inner {
         let send = move |inner: &mut Self| {
             let now = inner.now;
             inner.on_replica(replica, |replica, host| {
-                replica.message(host, Endpoint::Editor(editor), frame, now, None);
+                replica.message(host, Endpoint::Editor(editor), frame, now);
             });
         };
         match message {

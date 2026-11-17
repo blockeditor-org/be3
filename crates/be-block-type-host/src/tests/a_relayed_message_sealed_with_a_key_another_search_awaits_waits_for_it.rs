@@ -1,5 +1,4 @@
 use be_block_client::Event;
-use be_block_protocol::RelayKind;
 
 use super::*;
 
@@ -37,7 +36,6 @@ fn a_relayed_message_sealed_with_a_key_another_search_awaits_waits_for_it() {
             &Event::Relayed {
                 block,
                 from: 2,
-                kind: RelayKind::Peer,
                 payload,
                 received: 0,
             },

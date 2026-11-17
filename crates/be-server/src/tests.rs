@@ -4,7 +4,7 @@ use be_block_commit::{Commit, CommitId, CommitStore};
 use be_block_graph::BlockParent;
 use be_block_protocol::{
     Authenticated, BlockChange, BlockSummary, ClientId, Error, ErrorCode, HistoryEntry, Hold,
-    KeyKind, KeyRow, KeySet, Listing, ObjectLength, OrganizationRole, PairingMessage, RelayKind,
+    KeyKind, KeyRow, KeySet, Listing, ObjectLength, OrganizationRole, PairingMessage,
     SessionEvent, SessionState, UploadUrl, WrappedBy, WrappedKey, client,
 };
 use be_block_session::{Resume, resume};
@@ -124,7 +124,7 @@ mod a_stored_key_is_told_only_to_who_may_open_it;
 mod a_submission_from_a_build_the_session_does_not_speak_is_refused;
 mod a_trashed_block_reaches_its_reader_as_detached;
 mod a_type_with_a_short_retention_keeps_only_its_recent_states;
-mod a_viewer_neither_holds_nor_claims_the_lease_and_relays_as_a_peer;
+mod a_viewer_neither_holds_nor_claims_the_lease_and_its_presence_still_reaches_the_others;
 mod a_watched_folder_hears_each_entry_added_in_bytes_that_do_not_grow_with_it;
 mod accepting_either_kind_of_link_makes_two_contacts;
 mod accounts_stranded_by_a_removed_provider_are_counted;
@@ -355,7 +355,6 @@ enum Notice {
     Relayed {
         block: Uuid,
         from: ClientId,
-        kind: RelayKind,
         payload: Vec<u8>,
         received: i64,
     },
@@ -424,13 +423,11 @@ impl Heard {
                         }
                         Poll::Ready(Some(SessionEvent::Relayed {
                             from,
-                            kind,
                             payload,
                             received,
                         })) => Poll::Ready(Some(Notice::Relayed {
                             block,
                             from,
-                            kind,
                             payload,
                             received,
                         })),
@@ -783,10 +780,9 @@ impl TestClient {
         &mut self,
         block: Uuid,
         to: Option<ClientId>,
-        kind: RelayKind,
         payload: Vec<u8>,
     ) -> Result<(), Error> {
-        let relayed = self.sessions[&block].relay(to, kind, payload);
+        let relayed = self.sessions[&block].relay(to, payload);
         let answered = relayed.await.expect("the connection stayed open");
         self.collect();
         answered

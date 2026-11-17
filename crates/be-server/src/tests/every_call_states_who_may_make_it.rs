@@ -512,7 +512,7 @@ impl TestClient {
         answers.push(("session-claim", answered(session.claim().await)));
         answers.push((
             "session-relay",
-            answered(session.relay(None, RelayKind::Peer, sealed()).await),
+            answered(session.relay(None, sealed()).await),
         ));
         answers.push((
             "session-submit",

@@ -224,24 +224,6 @@ interface types {
         host,
     }
 
-    /// What a message to peers carries, which the server checks against its
-    /// sender: `peer` for presence and channel messages, which any participant
-    /// sends. The host passes it to the server and ignores it for an editor or
-    /// itself.
-    enum relay-kind {
-        peer,
-    }
-
-    /// What the server says of a peer's message it relayed.
-    record delivery {
-        /// What the server checked its sender may send: the replica drops a
-        /// message that asks for more (`Wire::kind`).
-        kind: relay-kind,
-        /// When the server took it, in milliseconds since the Unix epoch by
-        /// its clock, which the sender cannot claim.
-        received: s64,
-    }
-
     variant recipients {
         one(endpoint),
         /// Every other participant of the session.

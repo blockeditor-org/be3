@@ -58,8 +58,6 @@ pub enum Push {
     Relayed {
         block: Place,
         from: ClientId,
-        /// What the server checked the sender may send.
-        kind: be_block_protocol::RelayKind,
         /// Shared by every participant's queue, so a relay to many costs one copy.
         payload: std::sync::Arc<[u8]>,
         received: i64,

@@ -137,7 +137,7 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
         "{response:?}"
     );
     let relayed = attacker
-        .relay(block, None, RelayKind::Peer, b"forged edit".to_vec())
+        .relay(block, None, b"forged edit".to_vec())
         .await;
     assert!(matches!(relayed, Ok(())), "{relayed:?}");
     let deleted = attacker

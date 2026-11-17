@@ -11,8 +11,8 @@ use be_block_protocol::{JoinedParticipant, MembershipChange, SessionState};
 use be_block_session::{Membership, Resume, Sequencer};
 use be_block_store::Hash;
 use be_sdk_type_api::{
-    Change, Delivery, Description, EditorId, Endpoint, Journal, JournalBase, Opening,
-    PublishOutcome, Recipients, RelayKind, SessionTag, Status, UndoState,
+    Change, Description, EditorId, Endpoint, Journal, JournalBase, Opening,
+    PublishOutcome, Recipients, SessionTag, Status, UndoState,
     embed::{exports::replicas::Replica, host::Call},
     ops::{Backlog, Connection, Incoming, OpId, Outcome, Outlets, Reply, Side, guest::Executor},
 };
@@ -880,7 +880,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     fn send_from_editor(&mut self, device: usize, editor: EditorId, message: FromEditor) {
         let now = self.now;
         self.with_replica(device, |replica, host| {
-            replica.message(host, Endpoint::Editor(editor), message.encode(), now, None)
+            replica.message(host, Endpoint::Editor(editor), message.encode(), now)
         });
     }
 
@@ -1193,12 +1193,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.devices[device].wake = Some(at);
                 self.devices[device].sleeping.push((at, reply));
             }
-            Call::Send {
-                reply,
-                to,
-                kind,
-                bytes,
-            } => {
+            Call::Send { reply, to, bytes } => {
                 self.to(device, |host| reply.send(host, &()));
                 // As the server: what the sender may not send reaches no one.
                 if !matches!(to, Recipients::One(Endpoint::Editor(_) | Endpoint::Host)) {
@@ -1220,7 +1215,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     }
                     Recipients::One(Endpoint::Peer(peer)) => {
                         if let Some(to) = self.device_of(peer) {
-                            self.relay_as(to, client, kind, bytes);
+                            self.relay_as(to, client, bytes);
                         }
                     }
                     Recipients::One(Endpoint::Host) => {}
@@ -1231,7 +1226,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                                 continue;
                             }
                             if let Some(to) = self.device_of(peer) {
-                                self.relay_as(to, client, kind, bytes.clone());
+                                self.relay_as(to, client, bytes.clone());
                             }
                         }
                     }
@@ -1579,19 +1574,15 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         self.settle();
     }
 
-    /// Hands `to` a message as relayed from `from` by a server that checked it as `kind`.
-    fn relay_as(&mut self, to: usize, from: ClientId, kind: RelayKind, bytes: Vec<u8>) {
+    /// Hands `to` a message as relayed from `from`.
+    fn relay_as(&mut self, to: usize, from: ClientId, bytes: Vec<u8>) {
         self.largest_relay = self.largest_relay.max(bytes.len());
         if self.deaf.contains(&to) {
             return;
         }
         let now = self.now;
-        let delivery = Some(Delivery {
-            kind,
-            received: now as i64,
-        });
         self.with_replica(to, |replica, host| {
-            replica.message(host, Endpoint::Peer(from), bytes, now, delivery)
+            replica.message(host, Endpoint::Peer(from), bytes, now)
         });
     }
 }
