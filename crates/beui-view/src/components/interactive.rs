@@ -210,8 +210,8 @@ struct Carrying {
 /// its `face` is a `preview`, which floats in a layer of its own, pinned by its top left corner
 /// and in this node's window (a carry crossing windows waits for the frame to name one,
 /// plans/declarative_dragging.md step 6), or `Site` (`Carry::drawn_by_site`), when nothing is
-/// drawn here for it. Only a focusable source hears the carry keys
-/// (`carry_keys`). If this node goes while its carry is held, the carry is put down,
+/// drawn here for it. The source hears the carry keys while the focus is on it or within it
+/// (`carry_keys`, `step_keys`, `held_keys`). If this node goes while its carry is held, the carry is put down,
 /// dropping nothing.
 fn carrying(
     drag: Func<PointerPress, Option<crate::drag::Carry>>,
@@ -392,32 +392,51 @@ fn carrying(
         preview: Rc::clone(&preview),
     };
     let finish = Box::new(move |wrapped: NodeId, on_key: Callback<KeyPress, bool>| {
+        use crate::reactive::{KeyAt, KeyReveal};
+        use crate::types::KeyPhase;
         let laid_out = crate::measure::measure(wrapped);
         measured.set(Some(laid_out));
-        // Only a source that takes focus hears keys, and offers "Move" in the palette while
-        // it has the focus, in an action scope of its own.
-        match focusable {
-            true => {
-                let lift = Rc::clone(&keyboard_lift);
-                crate::reactive::child_scope(move || {
-                    crate::actions::action_scope(&source);
-                    crate::actions::Action::new("drag.move", "Move", move || {
-                        lift_by_keys(drag, (wrapped, laid_out), &lift);
-                    })
-                    .register();
-                });
-                Callback::new(move |press: KeyPress| {
-                    carry_keys(
-                        press,
-                        activates,
-                        drag,
-                        mine,
-                        (wrapped, laid_out),
-                        &keyboard_lift,
-                    ) || on_key.call(press)
+        let at = (wrapped, laid_out);
+        // The source hears the carry keys while it or a node within it has the focus (a tab
+        // bar's row, whose tab is the focusable button inside it), and offers "Move" in the
+        // palette then, in an action scope of its own.
+        {
+            let lift = Rc::clone(&keyboard_lift);
+            crate::reactive::child_scope(move || {
+                crate::actions::action_scope(&source);
+                crate::actions::Action::new("drag.move", "Move", move || {
+                    lift_by_keys(drag, at, &lift);
                 })
+                .register();
+            });
+        }
+        // While the keyboard holds this source's carry its keys come first, before the node
+        // within it that has the focus (a tab's own arrows).
+        crate::reactive::on_key(
+            KeyAt::Node(source),
+            KeyPhase::Capture,
+            KeyReveal::Focus,
+            move |event| event.press().is_some_and(|press| held_keys(press, mine)),
+        );
+        match focusable {
+            true => Callback::new(move |press: KeyPress| {
+                carry_keys(press, activates, drag, at, &keyboard_lift) || on_key.call(press)
+            }),
+            // Focused within, it moves one place with Ctrl+Shift and an arrow once the
+            // focused node has turned the key down.
+            false => {
+                crate::reactive::on_key(
+                    KeyAt::Node(source),
+                    KeyPhase::Bubble,
+                    KeyReveal::Focus,
+                    move |event| {
+                        event
+                            .press()
+                            .is_some_and(|press| step_keys(press, drag, at, &keyboard_lift))
+                    },
+                );
+                on_key
             }
-            false => on_key,
         }
     });
     Carrying {
@@ -429,77 +448,116 @@ fn carrying(
     }
 }
 
-/// Keys on a source given `drag`, while it has focus. Space lifts its carry with the
-/// keyboard, unless the source also activates, when Space and Enter stay its own; any source
-/// moves one place with Ctrl+Shift and an arrow (lifted, stepped and dropped at once). While
-/// the keyboard holds the carry the arrows step it between the places it can land, Space or
-/// Enter drops it there, and Escape or Tab puts it down where it was (Tab does not move focus
-/// away from a carry in hand). Whether the key was taken.
+/// Keys on a focusable source given `drag`, while it has the focus and the keyboard holds no
+/// carry of it (`held_keys` takes those). Space lifts its carry with the keyboard, unless the
+/// source also activates, when Space and Enter stay its own; Ctrl+Shift and an arrow move it one
+/// place (`step_keys`). Whether the key was taken.
 fn carry_keys(
     press: KeyPress,
     activates: bool,
     drag: Func<PointerPress, Option<crate::drag::Carry>>,
-    mine: crate::reactive::Signal<Option<crate::drag::CarryId>>,
     at: (
         NodeId,
         crate::reactive::ReadSignal<Option<crate::measure::Measured>>,
     ),
     lifted: &std::rc::Rc<dyn Fn(crate::drag::CarryId, crate::drag::CarryFace)>,
 ) -> bool {
-    use crate::reactive::Get;
-    use crate::types::{Key, WindowId, input::PointerId};
+    use crate::types::Key;
     let modifiers = press.modifiers;
     if !press.pressed || modifiers.alt || modifiers.logo {
         return false;
     }
-    let Some(driver) = crate::drag::driver() else {
-        return false;
-    };
-    let held = mine
-        .get_untracked()
-        .is_some_and(|id| driver.carry() == Some(id));
-    let flat = |_| (Vec::new(), WindowId::MAIN);
-    let toward = match press.key {
-        Key::ArrowUp => Some(Vec2::new(0.0, -1.0)),
-        Key::ArrowDown => Some(Vec2::new(0.0, 1.0)),
-        Key::ArrowLeft => Some(Vec2::new(-1.0, 0.0)),
-        Key::ArrowRight => Some(Vec2::new(1.0, 0.0)),
-        _ => None,
-    };
-    if held {
-        if modifiers.ctrl {
-            return false;
-        }
-        if let Some(toward) = toward {
-            driver.step(toward);
-            return true;
-        }
-        return match press.key {
-            Key::Space | Key::Enter => {
-                driver.release(PointerId::Keyboard, false, &flat);
-                true
-            }
-            Key::Escape | Key::Tab => {
-                driver.release(PointerId::Keyboard, true, &flat);
-                true
-            }
-            _ => false,
-        };
-    }
-    if let Some(toward) = toward.filter(|_| modifiers.ctrl && modifiers.shift) {
-        // A press that lifts nothing is the source's own; one with no place that way puts the
-        // carry down, dropping nothing.
-        if !lift_by_keys(drag, at, lifted) {
-            return false;
-        }
-        let stepped = driver.step(toward);
-        driver.release(PointerId::Keyboard, !stepped, &flat);
+    if step_keys(press, drag, at, lifted) {
         return true;
     }
     if press.key != Key::Space || activates || modifiers.ctrl || modifiers.shift {
         return false;
     }
     lift_by_keys(drag, at, lifted)
+}
+
+fn arrow(key: crate::types::Key) -> Option<Vec2> {
+    use crate::types::Key;
+    match key {
+        Key::ArrowUp => Some(Vec2::new(0.0, -1.0)),
+        Key::ArrowDown => Some(Vec2::new(0.0, 1.0)),
+        Key::ArrowLeft => Some(Vec2::new(-1.0, 0.0)),
+        Key::ArrowRight => Some(Vec2::new(1.0, 0.0)),
+        _ => None,
+    }
+}
+
+/// Ctrl+Shift and an arrow on a source: its carry lifted, stepped to the nearest place that
+/// way and dropped at once; one with no place that way is put down, dropping nothing. Whether
+/// the key was taken: a press that lifts nothing is the source's own.
+fn step_keys(
+    press: KeyPress,
+    drag: Func<PointerPress, Option<crate::drag::Carry>>,
+    at: (
+        NodeId,
+        crate::reactive::ReadSignal<Option<crate::measure::Measured>>,
+    ),
+    lifted: &std::rc::Rc<dyn Fn(crate::drag::CarryId, crate::drag::CarryFace)>,
+) -> bool {
+    use crate::types::{WindowId, input::PointerId};
+    let modifiers = press.modifiers;
+    if !press.pressed || !modifiers.ctrl || !modifiers.shift || modifiers.alt || modifiers.logo {
+        return false;
+    }
+    let Some(toward) = arrow(press.key) else {
+        return false;
+    };
+    let Some(driver) = crate::drag::driver() else {
+        return false;
+    };
+    if !lift_by_keys(drag, at, lifted) {
+        return false;
+    }
+    let flat = |_| (Vec::new(), WindowId::MAIN);
+    let stepped = driver.step(toward);
+    driver.release(PointerId::Keyboard, !stepped, &flat);
+    true
+}
+
+/// Keys while the keyboard holds this source's carry: the arrows step it between the places it
+/// can land, Space or Enter drops it there, and Escape or Tab puts it down where it was (Tab
+/// does not move focus away from a carry in hand). Whether the key was taken.
+fn held_keys(
+    press: KeyPress,
+    mine: crate::reactive::Signal<Option<crate::drag::CarryId>>,
+) -> bool {
+    use crate::reactive::Get;
+    use crate::types::{Key, WindowId, input::PointerId};
+    let modifiers = press.modifiers;
+    if !press.pressed || modifiers.alt || modifiers.logo || modifiers.ctrl {
+        return false;
+    }
+    let Some(driver) = crate::drag::driver() else {
+        return false;
+    };
+    let held = mine.is_alive()
+        && mine
+            .get_untracked()
+            .is_some_and(|id| driver.carry() == Some(id));
+    if !held {
+        return false;
+    }
+    let flat = |_| (Vec::new(), WindowId::MAIN);
+    if let Some(toward) = arrow(press.key) {
+        driver.step(toward);
+        return true;
+    }
+    match press.key {
+        Key::Space | Key::Enter => {
+            driver.release(PointerId::Keyboard, false, &flat);
+            true
+        }
+        Key::Escape | Key::Tab => {
+            driver.release(PointerId::Keyboard, true, &flat);
+            true
+        }
+        _ => false,
+    }
 }
 
 /// Lifts this source's carry with the keyboard: pressed at its middle, the item its own
