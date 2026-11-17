@@ -3,6 +3,7 @@ use std::ops::Range;
 use beui_text_editor_core::{SynHlColorScope, SynHlStyle, TableLine, TableRow};
 use beui_view::types::Color;
 use beui_view::types::FontId;
+use beui_view::types::GapWidth;
 use beui_view::types::SpanStyle;
 use beui_view::types::TextLayout;
 
@@ -105,7 +106,7 @@ fn trimmed(bytes: &[u8], range: &Range<usize>) -> Range<usize> {
     start..(range.end - trail).max(start)
 }
 
-fn text_width(text: &str, font: FontId) -> f32 {
+pub(super) fn text_width(text: &str, font: FontId) -> f32 {
     let probe = format!("{text}|");
     let with = lay_out_text(&probe, font, TextLayout::DEFAULT).map_or(0.0, |line| line.size().x);
     let bar = lay_out_text("|", font, TextLayout::DEFAULT).map_or(0.0, |line| line.size().x);
@@ -229,7 +230,7 @@ impl Builder<'_> {
 
     fn table_gap(&mut self, width: f32, style: SpanStyle) {
         if width > 0.0 {
-            self.gap(width, style);
+            self.gap(GapWidth::px(width), style);
         }
     }
 
@@ -284,14 +285,15 @@ impl Builder<'_> {
             .cells
             .last()
             .map_or(content.start, |cell| cell.range.end);
+        // A row that closes before the table's last column closes after its own last cell.
+        let closes = parsed.cells.len();
         if let Some(closing) = parsed.closing {
-            let at = edges[count] - pipe / 2.0;
+            let at = edges[closes] - pipe / 2.0;
             self.table_gap(at - x, body);
             self.table_text(closing..closing + 1, table.row, hidden);
             tail = closing + 1;
         }
         self.table_text(tail..content.end, table.row, None);
-        let leading = parsed.cells.first().is_some_and(|cell| cell.pipe.is_some());
         self.row.table = Some(RowTable {
             row: table.row,
             last: table.last,
@@ -299,14 +301,11 @@ impl Builder<'_> {
                 .into_iter()
                 .enumerate()
                 .map(|(index, edge)| {
-                    let drawn = match index {
-                        0 => leading,
-                        _ if index == count => parsed.closing.is_some(),
-                        _ => parsed
-                            .cells
-                            .get(index)
-                            .is_some_and(|cell| cell.pipe.is_some()),
-                    };
+                    let drawn = parsed
+                        .cells
+                        .get(index)
+                        .is_some_and(|cell| cell.pipe.is_some())
+                        || (index == closes && parsed.closing.is_some());
                     (edge, drawn)
                 })
                 .collect(),
