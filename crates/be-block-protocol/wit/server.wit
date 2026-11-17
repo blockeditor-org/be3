@@ -2,13 +2,14 @@ package be3:server@0.1.0;
 
 /// What a client asks of the server and what it hears back, over one
 /// websocket (guides/blocks/server.md, "Protocol"). A connection starts with
-/// the raw `be3 hello` frame (`be_block_protocol::hello`) each way; after that
-/// every frame is a be-wasm-ops frame, and each function below is an op whose
-/// id is the only correlation.
+/// the raw `be3 hello` frame (`be_block_protocol::hello`) each way, which
+/// signs it in: what the greeting says, `Greeting` from the client and
+/// `Welcome` from the server, is defined in crates/be-block-protocol/src/lib.rs,
+/// not here. After that every frame is a be-wasm-ops frame, and each function
+/// below is an op whose id is the only correlation.
 ///
 /// Five calls and one stream carry everything: `read`, `unfollow`, `write`,
-/// `send` and `events`, beside `ping`, signing in, and the one-shot browser
-/// sign-in. Each names its organization: none for what is the account's own
+/// `send` and `events`, beside `ping` and the one-shot browser sign-in. Each names its organization: none for what is the account's own
 /// (its contacts, links, notices, recovery key and storage), else one the
 /// account is a member of. No organization is open on a connection: one
 /// connection works in any of its account's organizations at once.
@@ -37,8 +38,8 @@ interface server {
     use organizations.{organization, server-info};
     use notifications.{block-notify-mode, notify-mode, push-endpoint};
 
-    /// A browser sign-in's step, made as a one-shot call (`POST .../call`):
-    /// a connection signs in with its greeting.
+    /// A browser sign-in's step, made as a one-shot call (`POST .../call`)
+    /// alone; a signed-in connection is refused it.
     variant device-login-step {
         /// Starts one.
         begin,
@@ -149,8 +150,9 @@ interface server {
         /// expired nor revoked, and not for an account already a member.
         /// Reading an invitation marks it opened. The account's own.
         link(link-id),
-        /// An invitation as anyone holding its link reads it, signed in or
-        /// not: the one query a one-shot call makes, rate-limited per address.
+        /// An invitation as anyone holding its link reads it before signing
+        /// in: the one query a one-shot call makes, rate-limited per address,
+        /// and refused a signed-in connection (which reads `link`).
         /// Marks it opened while it waits. Any other link reads as no link.
         invitation(link-id),
         /// A presigned S3 GET for each object the caller may read, in order,

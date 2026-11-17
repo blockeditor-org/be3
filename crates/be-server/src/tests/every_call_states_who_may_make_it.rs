@@ -753,6 +753,16 @@ async fn every_call_states_who_may_make_it() {
     for name in viewing {
         assert!(names.contains(name), "{name} is not a case");
     }
+    // A browser sign-in's steps and reading an invitation are one-shot calls alone, limited per
+    // address: a signed-in connection is refused them.
+    for (name, answer) in &answers {
+        if ["device-login (begin)", "device-login (poll)", "invitation"].contains(name) {
+            assert!(
+                matches!(answer, Answered::Refused(ErrorCode::PermissionDenied)),
+                "{name} answered a signed-in connection: {answer:?}"
+            );
+        }
+    }
     for (name, answer) in &answers {
         if viewing.contains(name) {
             assert!(

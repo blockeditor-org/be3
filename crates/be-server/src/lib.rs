@@ -768,7 +768,11 @@ pub(crate) fn greeting(theirs: Option<&Hello>) -> Result<(&'static str, Option<G
         );
         return Ok((ours, None));
     };
-    Ok((ours, Some(theirs.said().unwrap_or_default())))
+    let said = theirs.said().unwrap_or_else(|| {
+        tracing::debug!("a greeting of our build said nothing readable; taking it as no token");
+        Greeting::default()
+    });
+    Ok((ours, Some(said)))
 }
 
 /// Reads a client's greeting: our build, and what it says once its build is ours. Another

@@ -46,4 +46,12 @@ async fn a_browser_sign_in_waits_on_polls_and_holds_no_connection() {
         "a poll sooner than the interval was answered: {soon:?}"
     );
 
+    let token = harness.register("app@example.com", "App").await;
+    let mut app = harness.signed_in(&token).await;
+    let response = begin_login(&app.peer).await;
+    assert!(
+        matches!(&response, Ok(Err(Error { code, .. })) if *code == ErrorCode::PermissionDenied),
+        "a signed-in connection began a sign-in, which only a one-shot call does: {response:?}"
+    );
+    app.round_trip().await;
 }
