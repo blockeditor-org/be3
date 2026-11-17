@@ -2,7 +2,8 @@ use super::*;
 
 /// A block reopened while its rejoin is held (as keys arriving reopen it) lets go of the join
 /// as a close does, and the replica opened in its place, online, holds the journaled edits no
-/// seal held, once.
+/// seal held, once: the hold is one the closing seal can take (a seal backing off, a reload on
+/// its way), not a divergence.
 #[test]
 fn a_block_reopened_while_its_rejoin_is_held_opens_again_holding_its_journaled_edits() {
     let clock = be_block_client::Clock::manual();

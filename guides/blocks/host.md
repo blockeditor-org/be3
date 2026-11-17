@@ -233,7 +233,10 @@ no seal would take them (`rejoin_held`: it diverged, or its seal backs off or
 cannot merge), until a status says one would. A block closed or reopened
 meanwhile lets go of that join instead (`Replicas::let_go_if_held`): its
 replica ends in its made-up session, sealing there as it closes, and one
-reopened opens afresh. What the
+reopened opens afresh. A replica that diverged, or whose seal cannot merge,
+seals nothing as it closes: its journaled edits are then only in this device's
+journal, which a replica opened online passes over when the server has a
+journal of the block. What the
 order numbered while the join was on its way reaches the replica it opens
 before its edits are given again, so one the order took meanwhile is not
 submitted twice: the join's journal may predate it, and each opening numbers

@@ -676,7 +676,8 @@ async fn carry_an_edit_over_a_restart(
 }
 
 /// A text block typed in offline, "socks", whose replica, connected again, holds its rejoin for
-/// the journaled edit no seal holds, as one that diverged would (`Replicas::rejoined_after_a_seal`).
+/// the journaled edit no seal holds, as one whose seal backs off would
+/// (`Replicas::rejoined_after_a_seal`): its closing seal takes it.
 async fn text_whose_rejoin_is_held(
     peer: &Arc<Peer<MemoryStore>>,
     shared: &Arc<Mutex<Quiet>>,

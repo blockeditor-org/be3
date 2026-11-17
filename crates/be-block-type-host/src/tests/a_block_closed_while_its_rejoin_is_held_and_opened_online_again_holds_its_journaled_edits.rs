@@ -5,7 +5,8 @@ use super::*;
 
 /// A block closed while its rejoin is held lets go of the join rather than open again on the
 /// server's journal. Its replica seals in its made-up session as it closes, so opened online
-/// again, the text holds the journaled edits no seal held, once.
+/// again, the text holds the journaled edits no seal held, once: the hold is one the closing seal
+/// can take (a seal backing off, a reload on its way), not a divergence.
 #[test]
 fn a_block_closed_while_its_rejoin_is_held_and_opened_online_again_holds_its_journaled_edits() {
     let clock = be_block_client::Clock::manual();

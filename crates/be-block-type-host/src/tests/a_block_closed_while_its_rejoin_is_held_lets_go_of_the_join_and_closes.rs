@@ -1,8 +1,8 @@
 use super::*;
 
-/// A block closed while its replica's rejoin is held, for journaled edits no seal would take (it
-/// diverged, so the hold never ends on its own), lets go of the join rather than open again on
-/// the server's journal, which would lose those edits, and closes.
+/// A block closed while its replica's rejoin is held, for journaled edits no seal would take now,
+/// lets go of the join rather than open again on the server's journal, which would lose those
+/// edits, and closes, rather than wait for a status that may never come.
 #[test]
 fn a_block_closed_while_its_rejoin_is_held_lets_go_of_the_join_and_closes() {
     with_test_types(async |peer, shared, mut replicas| {

@@ -1109,7 +1109,8 @@ impl<H: Host> Replicas<H> {
 
     /// Puts `block`'s replica in a rejoin whose answer came back after its first seal, with
     /// the order holding `journaled` local edits of which a seal holds `sealed`, and whether a
-    /// seal would take the rest: the answer, an error, waits for the next `pump`.
+    /// seal would take the rest: the answer, an error, waits for the next `pump`. It sets
+    /// `Open::journaled_taken` too, as a status saying so would.
     #[cfg(test)]
     pub(crate) fn rejoined_after_a_seal(
         &mut self,
@@ -3699,8 +3700,10 @@ impl<H: Host> Replicas<H> {
         // Closed (or reopened) while its rejoin was held (`rejoin_held`): it lets go of the join
         // rather than open again on the server's journal, which would lose the journaled edits
         // no seal holds, and ends, leaving the session (`ended`): the replica seals as it closes,
-        // so the commit it leaves holds them where a seal can take them. What the session said
-        // meanwhile is not its own.
+        // so the commit it leaves holds them where that seal can take them (a hold for a seal
+        // backing off, or a reload on its way). One that diverged, or whose seal cannot merge,
+        // seals nothing, and they stay only in this device's journal (plans/backlog.md). What
+        // the session said meanwhile is not its own.
         if letting_go {
             return self.close_if_asked(replica);
         }
