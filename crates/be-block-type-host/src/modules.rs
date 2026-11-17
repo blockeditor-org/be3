@@ -667,11 +667,12 @@ impl Modules {
 
     fn advance(&mut self, module: usize, now: u64) {
         let held = &mut self.modules[module];
-        if held.ticked.is_some_and(|ticked| ticked >= now) {
-            return;
+        if held.ticked.is_none_or(|ticked| ticked < now) {
+            held.ticked = Some(now);
+            let _ = held.clock.send(&mut held.connection, &now, |_| true);
         }
-        held.ticked = Some(now);
-        let _ = held.clock.send(&mut held.connection, &now, |_| true);
+        // A sleep until a moment the clock has reached ends whether or not the clock moved
+        // since: under a held clock it may never move again.
         if held.sleeping.as_ref().is_some_and(|(at, _)| *at <= now)
             && let Some((_, reply)) = held.sleeping.take()
         {
@@ -832,8 +833,14 @@ impl Modules {
                                 let _ = held.clock.send(&mut held.connection, &now, |_| true);
                             }
                             Some(Call::SleepUntil { reply, at }) => {
-                                if let Some((_, before)) = held.sleeping.replace((at, reply)) {
+                                if let Some((_, before)) = held.sleeping.take() {
                                     before.fail(&mut held.connection, OpError::Canceled);
+                                }
+                                // A moment already reached ends the sleep now: nothing else
+                                // would, while the clock is held there.
+                                match at <= clock_now {
+                                    true => reply.send(&mut held.connection, &()),
+                                    false => held.sleeping = Some((at, reply)),
                                 }
                             }
                             Some(Call::InStepAt { reply, at }) => {
