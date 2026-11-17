@@ -147,7 +147,7 @@ pub(crate) fn wraps_of(
     Ok(wraps)
 }
 
-/// The key rows `get-keys` serves of `blocks`, by id: those of the blocks the caller may view,
+/// The key rows `query.keys` serves of `blocks`, by id: those of the blocks the caller may view,
 /// and to an administrator the organization's escrow keys.
 fn served_rows(
     graph: &BlockGraph,
@@ -861,9 +861,9 @@ fn rotated(connection: &Connection, organization: Uuid, block: Uuid) -> Result<(
 }
 
 impl ServerStore {
-    /// A page of the keys `get-keys` serves: those after `after` in the order of their ids, each
+    /// A page of the keys `query.keys` serves: those after `after` in the order of their ids, each
     /// with its wraps, while they fit in `ServerConfig::key_page_bytes` (at least one). A key made with a
-    /// smaller id while a client pages is not skipped for good: `keys-changed` tells it to
+    /// smaller id while a client pages is not skipped for good: `topic.keys` tells it to
     /// read again.
     pub async fn get_keys(
         &self,
@@ -908,7 +908,7 @@ impl ServerStore {
         .await
     }
 
-    /// Stores `set` and answers whom to tell (`keys-changed`), none when it stored nothing:
+    /// Stores `set` and answers whom to tell (`topic.keys`), none when it stored nothing:
     /// the viewers of each block it gave a key or wrapped one of under another, and each account
     /// it sealed a key to that views the key's block. Administrators are told anyway, which is
     /// all an escrow wrap tells.

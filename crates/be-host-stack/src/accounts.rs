@@ -58,6 +58,7 @@ fn session_of(
         email,
         display_name,
         token,
+        ..
     }: Authenticated,
 ) -> Session {
     Session {
@@ -84,10 +85,7 @@ pub enum LoginEvent {
 pub async fn token_login(server_url: String, token: String) -> Result<Session, AccountError> {
     let connection = crate::link::connect(&server_url).await?;
     let mut session = session_of(
-        ask(client::account::authenticate(
-            &connection,
-            Some(token.clone()),
-        ))
+        ask(be_block_protocol::client::server::authenticate(&connection, Some(token.clone())))
         .await?,
     );
     session.token = token;
@@ -115,10 +113,13 @@ pub async fn browser_login(
     use std::time::Duration;
     let login = async {
         let begun = be_block_client::call_once(&server_url, |peer| {
-            client::account::begin_browser_login(peer)
+            client::server::device_login(peer, be_block_protocol::DeviceLoginStep::Begin)
         })
         .await
         .map_err(|error| error.to_string())?;
+        let be_block_protocol::DeviceLoginAnswer::Begun(begun) = begun else {
+            return Err("The server answered a sign-in with something else.".into());
+        };
         notify(BrowserLogin {
             code: begun.code.clone(),
             url: format!("{auth_url}?code={}", begun.code),
@@ -151,9 +152,16 @@ pub async fn browser_login(
             polled = clock.now();
             let (code, secret) = (begun.code.clone(), begun.secret.clone());
             let answer = be_block_client::call_once(&server_url, move |peer| {
-                client::account::poll_browser_login(peer, code, secret)
+                client::server::device_login(
+                    peer,
+                    be_block_protocol::DeviceLoginStep::Poll { code, secret },
+                )
             })
-            .await;
+            .await
+            .and_then(|answer| match answer {
+                be_block_protocol::DeviceLoginAnswer::Polled(state) => Ok(state),
+                be_block_protocol::DeviceLoginAnswer::Begun(_) => Err(ClientError::Unexpected),
+            });
             match answer {
                 Ok(BrowserLoginState::Pending) => {}
                 Ok(BrowserLoginState::Approved(authenticated)) => {
@@ -194,14 +202,14 @@ async fn authenticated(
     )
 }
 
-/// The account's notices not dismissed for everyone (`account-notices`), whether or not an
+/// The account's notices not dismissed for everyone (`query.notices`), whether or not an
 /// organization is open.
 pub async fn account_notices(
     server_url: String,
     token: String,
 ) -> Result<Vec<be_block_protocol::AccountNotice>, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    Ok(ask(client::account::account_notices(&connection)).await?)
+    Ok(ask(be_block_protocol::read::<Vec<be_block_protocol::AccountNotice>, _>(&connection, None, be_block_protocol::Query::Notices)).await?)
 }
 
 /// Dismisses an account notice for the account's every device; in its first week the server
@@ -212,7 +220,7 @@ pub async fn dismiss_account_notice(
     id: u64,
 ) -> Result<(), AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    Ok(ask(client::account::dismiss_account_notice(&connection, id)).await?)
+    Ok(ask(be_block_protocol::write::<(), _>(&connection, None, be_block_protocol::Op::DismissNotice(id))).await?)
 }
 
 /// Ends the session `token` names; with `push_address`, this device's push endpoint, the
@@ -224,7 +232,7 @@ pub async fn logout(
 ) -> Result<(), AccountError> {
     let connection = authenticated(&server_url, token.clone()).await?;
     crate::link::forget(&server_url, &token).await;
-    ask(client::account::logout(&connection, push_address)).await?;
+    ask(be_block_protocol::write::<(), _>(&connection, None, be_block_protocol::Op::RevokeToken(push_address))).await?;
     Ok(())
 }
 
@@ -233,7 +241,7 @@ pub async fn organizations(
     token: String,
 ) -> Result<Vec<Organization>, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    Ok(ask(client::organizations::list_organizations(&connection)).await?)
+    Ok(ask(be_block_protocol::read::<Vec<be_block_protocol::Organization>, _>(&connection, None, be_block_protocol::Query::Organizations)).await?)
 }
 
 /// Makes a company organization as `me`, who signs the root of its access log.
@@ -343,13 +351,7 @@ pub async fn accept_invitation(
     code: be_block_keys::InviteCode,
 ) -> Result<Uuid, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    let (link, _) = be_block_client::contacts::accept_link(
-        &connection,
-        &me.secret(),
-        &me.card(),
-        &code,
-        be_block_client::contacts::Expected::Invitation,
-    )
+    let (link, _) = be_block_client::contacts::accept_link(&connection, &me.secret(), &me.card(), &code, be_block_client::contacts::Expected::Invitation)
     .await?;
     Ok(invitation_of(link)?.organization)
 }
@@ -412,7 +414,7 @@ pub async fn keys(server_url: String, token: String) -> Result<Keys, AccountErro
         sealed,
         own,
         logs,
-    } = ask(client::keys::get_recovery_key(&connection)).await?;
+    } = ask(be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(&connection, None, be_block_protocol::Query::RecoveryKey)).await?;
     Ok(Keys {
         account,
         recovery: public.map(be_block_keys::RecoveryPublic),
@@ -429,15 +431,7 @@ pub async fn set_recovery_key(
     resealed: be_block_client::contacts::NewIdentity,
 ) -> Result<(), AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    ask(client::keys::set_recovery_key(
-        &connection,
-        public.public.0,
-        public.signing.0,
-        resealed.sealed,
-        resealed.own,
-        resealed.changes,
-        resealed.retirements,
-    ))
+    ask(be_block_protocol::write::<(), _>(&connection, None, be_block_protocol::Op::SetRecoveryKey { public: public.public.0, signing: public.signing.0, sealed: resealed.sealed, own: resealed.own, changes: resealed.changes, retirements: resealed.retirements }))
     .await?;
     Ok(())
 }
@@ -451,12 +445,15 @@ pub async fn pair(
     cancelled: futures_util::future::BoxFuture<'static, ()>,
 ) -> Result<[u8; 32], AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    let mut paired = client::account::paired(&connection);
+    let mut paired = client::server::events(&connection);
     let (pairing, message) = be_block_keys::Pairing::start(&code, account.as_bytes());
     let payload = be_block_keys::PairingMessage::Request { message, device }.encode();
-    ask(client::account::pair(&connection, None, payload)).await?;
+    ask(be_block_protocol::client::server::send(&connection, None, be_block_protocol::Target::Devices(None), payload)).await?;
     let reply = async {
         while let Some(heard) = paired.recv().await {
+            let be_block_protocol::Event::Paired(heard) = heard else {
+                continue;
+            };
             if let Ok(be_block_keys::PairingMessage::Reply { message, sealed }) =
                 be_block_keys::PairingMessage::decode(&heard.payload)
             {

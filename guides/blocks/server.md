@@ -84,10 +84,10 @@ whatever makes a child under a parent also adds it to the parent's content.
 Until that edit is saved the child is in the trash for the parent's other
 viewers; the host hides that window on its own side (`Graph::placing`).
 
-`CollectDetached` (`Peer::collect_detached`) removes every deleted block the
-caller may edit with its objects, but nothing calls it yet. Once something
-does, content must cope with a linked block that is gone, and collection will
-race a new child its parent has not listed yet.
+Nothing deletes a block for good: a block in the trash stays with its history
+(decisions/garbage_collection_waits_for_trash_and_history.md). Collection, if
+it comes, is a server policy; then content must cope with a linked block that
+is gone, and collection will race a new child its parent has not listed yet.
 
 ## be-server
 
@@ -112,7 +112,7 @@ with no bytes moving either way, so a large post on a slow link goes through.
 ### Objects over S3
 
 Clients move object bytes only through presigned S3 URLs (decisions/objects_live_in_s3_compatible_storage.md):
-`objects.upload-urls` takes (hash, length) pairs and answers, per object, none
+`reserve-uploads` takes (hash, length) pairs and answers, per object, none
 for one the caller holds already (`held_objects`: it uploaded it, or may read
 it) and otherwise a presigned PUT (`upload-url`: the URL and the headers to
 send with it), reserving only those as an upload (below, "Storage"). An object
@@ -120,10 +120,10 @@ with no length (one the caller reuses by its ref and does not hold) asks only
 whether the caller holds it: it is answered none if so, and otherwise refuses the
 call as `object-not-found`, alike whether another organization stored it or no
 one did, with nothing reserved, so a real uploader is never held to a length no
-one gave and the answer leaks nothing. `objects.download-urls` answers a
+one gave and the answer leaks nothing. `query.download-urls` answers a
 presigned GET for each object the caller may read (`may_read_objects`) and none
 for the rest. Each names at most `be_block_protocol::MAX_OBJECT_URLS` objects.
-Only `publish`'s carried objects and `read-contents`' objects travel inside
+Only `publish`'s carried objects and a `blocks` read's objects travel inside
 frames. The URLs are signed by `Services::transfers`, an `objects::Bucket`:
 the configured bucket, so bytes go between clients and the bucket and never
 through the server, or with none the server's own endpoint below
@@ -150,7 +150,7 @@ that object; `rusty-s3` signs). Bodies are read whole within
 `Access-Control-Allow-Origin: *` and `Cross-Origin-Resource-Policy:
 cross-origin`, and preflights are answered, so a cross-origin isolated page
 can use the URLs; the signature is the only credential. The endpoint itself
-counts and records nothing: `upload-urls` did before it signed.
+counts and records nothing: `reserve-uploads` did before it signed.
 
 ### Protocol
 
@@ -161,54 +161,84 @@ counts and records nothing: `upload-urls` did before it signed.
   (`ClientError::NoBuild`; the server does not start); tests install one with
   `be_lib_build_id::install`. Server and clients ship from one commit, so the
   protocol is never versioned (`decisions/server_protocol_is_unversioned.md`).
-- **Calls and streams.** After the greeting every frame is a be-wasm-ops frame
+- **Calls.** After the greeting every frame is a be-wasm-ops frame
   (guides/type_modules.md, "Operations and WIT") of the WIT package
-  `be3:server` (`crates/be-block-protocol/wit`, generated with `network: true`):
-  each call is an op, with no request ids. A function answers `result<T,
-  error>`; client code is `client::blocks::list_blocks(&connection,
-  listing).await??` or `ask(...).await?`. What the server pushes is a stream:
-  `blocks.changes` (`tree-advanced` and `roots`), `account.paired`,
-  latest-value streams, and a
-  `sessions.session` resource whose `join` stream carries the session's
-  changes and relays; dropping it leaves the session. A latest-value stream
-  that carries a value starts with the current one and then sends each new one
-  (`account.storage-changed`, `keys.key-work-changed`), so there is no call that
-  reads the value apart from it. A connection may hold several of one, each
-  starting with its own first value (`Route::Storage` and `Route::KeyWork`
-  carry the stream's op for that), and one whose first value cannot be read
-  ends with the failure rather than wait; `key-work-changed` opened before an
-  organization waits for one to open. A latest-value stream with no value
-  (`contacts.contacts-changed`, `notifications.notify-modes-changed`,
-  `keys.keys-changed`) says only to read again.
-- **Who may call what.** Every call states its requirement once, in `rule`
-  (`client.rs`): anyone, signed in, signed in with an organization open, an
-  administrator (of the open organization, or of the one named), or at least
-  some access to the blocks it names (a session's calls: to its block). The
-  dispatcher (`Client::admit`) applies it before the handler runs, which then
-  checks only what a rule cannot say, under the graph lock. Only `ping` and the
-  sign-in calls (`begin-browser-login`, `poll-browser-login`,
-  `authenticate`) need no sign-in, and every stream
-  needs it, so a client opens its streams once signed in.
+  `be3:server` (`crates/be-block-protocol/wit`, generated with `network: true`),
+  whose one interface, `server`, has five calls and one stream beside `ping`,
+  `device-login` and `authenticate`: `read(organization, query, follow)`,
+  `unfollow(organization, topic)`, `write(organization, ops)`,
+  `send(organization, target, payload)` and `events()`. Each call is an op,
+  with no request ids. Every call names its organization: none for what is the
+  account's own (its recovery key, contacts, links, notices, storage, its
+  organizations), else one it is a member of, so one connection works in any of
+  its account's organizations at once; there is no open organization. A query
+  is answered by its case of `page`, an op by its case of `done`. Client code
+  is `be_block_protocol::read::<KeyPage, _>(&connection, Some(organization),
+  Query::Keys { .. }).await??` (`write` for one op, `ask` to follow, or the
+  generated `client::server::*` for the rest).
+- **Writes are batches.** A `write`'s ops apply in order. More than one is
+  applied in one SQLite transaction (`ServerStore::batch`): every store job its
+  ops make runs on the database the batch holds (a task-local lends it to
+  `with_database` and `with_reader`, and `write_transaction` nested in it is a
+  savepoint), so a refused op rolls back every op before it, with the cached
+  graphs and object counts read again (`forget_cached`). The refusal names the
+  op (`write-error.index`). Each op's rule is applied as it comes, inside the
+  batch, so an op sees what the ops before it did (a block made, then
+  published), and an op's own checks (a rotation leaves no block below on its
+  old key) refuse the whole write. A single op takes
+  no batch: each op's store work is a transaction of its own, and a publish's
+  objects upload outside the database lock. Hub pushes an op makes are sent as
+  it runs, even in a batch later refused; they say only "read again". At most
+  `MAX_OPS_PER_WRITE` ops a write, and signing out (`revoke-token`) is a write
+  of its own.
+- **Following.** What the server pushes goes on the connection's one `events`
+  stream (a second replaces the first): `tree-advanced` for the trees it
+  follows, `session` for the live sessions it is in, `topic-changed` for the
+  other topics it follows, and `paired` for its account's other connections'
+  messages. A read with `follow` follows its query's topic first, so nothing
+  changed during the read is missed: `tree` its entry (in `WatchHub`),
+  `session` joins the block's session (in `SessionRegistry`), and `keys`,
+  `key-work`, a listing of the roots (`children(root)`, `deleted`, `shared`),
+  `storage`, `notices`, `contacts` and `notify-modes` their topic (in the
+  connection's `Following`). A topic-changed carries no value: the client reads
+  the query again. `unfollow` stops one, and leaves a session. A query with
+  nothing to follow refuses `follow`.
+- **Who may call what.** Every query, op, target and topic states its
+  requirement once, in `query_rule`, `op_rule`, `target_rule` and `topic_rule`
+  (`client.rs`): anyone (reading an invitation), the account's own (signed in,
+  naming no organization), a member or an administrator of the organization
+  named, at least some access to the blocks it names, or a session the
+  connection is in. The dispatcher (`Client::admit`) applies it before the
+  handler runs, which then checks only what a rule cannot say, under the graph
+  lock. A call naming an organization the account is not a member of is
+  refused; the first one it may make there makes the connection one that works
+  there (`WatchHub::join_organization`), which hears what the account's
+  connections there hear (key work, keys, roots) and keeps a member from being
+  pushed to (`connected`). A block's agent is refused what reaches past its
+  block before the rule (`bound_may_read`, `bound_may_write`,
+  `bound_may_send`), and everything while its block is in the trash.
+  `every_call_states_who_may_make_it` makes every case of `query`, `op` and
+  `target` and fails until a new one is made there too. A block the caller may
+  not know exists is refused as `BlockNotFound`, like one that does not exist;
+  `PermissionDenied` means it may know it exists.
 - **Signing in.** A connection's first call (after a ping) must sign it in:
-  `authenticate` (`client::signs_in`); any other closes it, as does none within
-  `sign_in_timeout` (`ServerConfig`, `HANDSHAKE_TIMEOUT` by default), and so
-  does `logout` (`Connection::closing`). Signing in through the browser
-  follows RFC 8628's device flow over one-shot calls (`http::one_shot`):
-  `POST .../call` carries a greeting and one frame, `begin-browser-login`,
-  or `poll-browser-login`, and is answered
-  and closed with no session, so nothing is held while a person approves it.
-  `begin-browser-login` answers a code, a secret, the poll interval and the
-  lifetime; a poll sooner than the interval fails `SlowDown` and grows it by
-  `SLOW_DOWN`; an approval hands its token out to one poll. One-shot calls are
-  limited per address (`MAX_CALLS_PER_ADDRESS` each `CALLS_WINDOW`).
-  `every_call_states_who_may_make_it` makes every call of `be3:server`
-  (`embed::METHODS`) and fails until a new one is made there too. A block the
-  caller may not know exists is refused as `BlockNotFound`, like one that does
-  not exist; `PermissionDenied` means it may know it exists.
+  `authenticate`, answering the account and this connection's `client` id; any
+  other closes it, as does none within `sign_in_timeout` (`ServerConfig`,
+  `HANDSHAKE_TIMEOUT` by default), and so does `revoke-token`
+  (`Connection::closing`). Signing in through the browser follows RFC 8628's
+  device flow over one-shot calls (`http::one_shot`): `POST .../call` carries a
+  greeting and one frame, `device-login` (`begin` or `poll`) or the `read` of an
+  invitation, and is answered and closed with no session, so nothing is held
+  while a person approves it. `begin` answers a code, a secret, the poll
+  interval and the lifetime; a poll sooner than the interval fails `SlowDown`
+  and grows it by `SLOW_DOWN`; an approval hands its token out to one poll.
+  One-shot calls are limited per address (`MAX_CALLS_PER_ADDRESS` each
+  `CALLS_WINDOW`).
 - **The server's side** is a `be_wasm_ops::net::Peer` (`Side::Host`,
   `client.rs`). It answers calls in arrival order; work a task finishes later
-  (the storage stream's) comes back to the loop as a `Late`. `WatchHub` sends each connection `Push`es, written to its open
-  streams (one `be_wasm_ops::Outlets` keyed by `Route`). Slow consumers are
+  (following the payer's storage) comes back to the loop as a `Late`. `WatchHub`
+  sends each connection `Push`es, which `Client::push` writes to its events
+  stream when it follows what they tell. Slow consumers are
   slowed or disconnected: `STREAM_BUFFER`, `OUTBOUND_FRAMES`. A ping is
   answered by the socket's reader task (`serve_socket`) ahead of queued calls,
   so a slow call never makes a client think the server is gone.
@@ -248,9 +278,10 @@ counts and records nothing: `upload-urls` did before it signed.
   `X-Forwarded-For` hop nearest it when the peer is in `trusted_proxies`
   (loopback by default, `--trusted-proxy` for more). Per-address limits count
   an IPv6 /64 as one address (`address::address_key`, `address_key_text`).
-- **No batch request.** Calls on one connection are answered in order and both
+- **Round trips.** Calls on one connection are answered in order and both
   transports send whatever is queued together, so independent requests cost one
   round trip; only a chain where each needs the last one's answer costs more.
+  A batch is for what must apply together, not for speed.
 - **Publishing** is a compare-and-swap on the head: a stale publish comes back
   `Rejected` with the head to merge against. A head moves only to a commit that
   descends from it: a publish lists the expected head among its parents, or it
@@ -276,7 +307,7 @@ counts and records nothing: `upload-urls` did before it signed.
   account may store `ServerConfig::account_quota` bytes, and an organization
   its settings' `storage_quota` bytes; an upload, publish or hold that would
   pass either is refused with `OverQuota` before anything is written, and
-  nothing that frees space is ever refused. Each object `upload-urls` reserves
+  nothing that frees space is ever refused. Each object `reserve-uploads` reserves
   (`reserve_uploads`) or `publish` carries is a row in `object_uploads` (per
   organization, account and object, with its payer) charged to the payer as
   `pending`, once per payer and object, until one of the uploader's own
@@ -294,11 +325,12 @@ counts and records nothing: `upload-urls` did before it signed.
   blocks hold it), `account_usage`, `organization_usage`, and `block_sizes`,
   which the cached `BlockGraph` mirrors as `BlockNode::size` and `tree_size`
   (`add_size`, `set_parent` and `remove` carry a subtree's bytes up its
-  ancestors). `BlockSummary` reports both; `account.storage-changed` streams the
-  account's `held`, `pending` and `quota`: its value on opening, then again whenever the payer's `account_usage` row
-  changes (`ServerStore::usage_changes`, a broadcast of payers each connection
-  following its own filters; one that falls `USAGE_CHANGES_QUEUED` behind reads
-  again). It needs an organization open. An object no block holds any more stays while an
+  ancestors). `BlockSummary` reports both; `query.storage` answers the
+  account's `held`, `pending` and `quota`, and following it tells
+  `topic-changed(storage)` whenever the payer's `account_usage` row changes to
+  other than the connection last read (`ServerStore::usage_changes`, a
+  broadcast of payers each connection following its own filters; one that falls
+  `USAGE_CHANGES_QUEUED` behind reads again). An object no block holds any more stays while an
   upload row names it (`forget_objects`), so a free never races an upload that
   is about to write the same file.
 - **Objects** are served only to a member who can view a block that holds them
@@ -320,7 +352,12 @@ counts and records nothing: `upload-urls` did before it signed.
   (`reserve` first confirms any upload of it that arrived) is unproven.
 - **Live sessions** are keyed by organization and block (`watch::Place`): a
   block id is the client's choice, so another organization can hold a block
-  with the same one. Joining needs `View`, and claiming a session's lease needs
+  with the same one. A connection joins a session by reading `session(block,
+  tag)` with `follow`, which answers its client id, the membership, the journal
+  and whether it may edit; it is in one session per block (joining again leaves
+  and joins), hears the session as `events.session` until `unfollow` or its own
+  `left` entry, and sends to it with `send` (`ordered` submissions, `ephemeral`
+  relays, `claim`). Joining needs `View`, and claiming a session's lease needs
   `Edit` (a viewer's claim is refused, and the replica host ignores the
   refusal). After a grant, a revocation, a move or a role change,
   `recheck_sessions` checks each participant below the block again: one that
@@ -353,7 +390,7 @@ until `forget_objects`, with the reserved length, and answers usage's sizes.
 Bytes arrive after the reservation, so an object counts as stored
 (`store::stored`, its `confirmed` column) only once `confirm_uploads` saw it
 in the store with that length (`Objects::len_many`, a HEAD each on a bucket):
-`publish`, `hold-objects` and `upload-urls` confirm the caller's own
+`publish`, `hold-objects` and `reserve-uploads` confirm the caller's own
 unconfirmed reservations among the objects they name first, and a held
 object is confirmed already, so downloads ask nothing. Carried objects are
 confirmed when written (`put_objects`). Reads and writes of several objects go
@@ -403,7 +440,7 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   bound on blocks (`OverQuota`), checked after the rest, so an owner learns
   whether an account is at its bound only of a contact.
 - Each block has an access log (plans/signed_access.md; table `access_log`,
-  `be-server/src/access.rs`), served by `get-access-log` to its viewers and to
+  `be-server/src/access.rs`), served by `query.log(block)` to its viewers and to
   anyone viewing a block below it (`Visibility::reads_below`), who checks its
   ancestry and the records resting on it there. Its root comes with
   `CreateBlock`, and the server takes it only signed by the caller with the
@@ -413,7 +450,7 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   records (`access::checked_block_log`), never its own tree. A company
   organization's log (`organization_log`) is rooted the same way by
   `create-organization`, whose caller picks the organization's id, and served
-  to its members by `get-organization-log`. Each is served whole to a caller
+  to its members by `query.log(none)`. Each is served whole to a caller
   with Edit or above (on the block or one below it, `Visibility::served_whole`;
   on any block, or administering, for the organization's), and to anyone else
   as a proof path (`access::served_log`, `be_block_keys::proof_path`) whole
@@ -435,21 +472,21 @@ so nothing walks the subtree. The graph is cached per organization
 have left it apart from the database: any error but a refusal, and a refusal
 after the graph (`BlockGraph::changes`) or the database (`total_changes()`)
 changed. A refused call therefore costs no reload. A member's `Deleted` listing
-and `CollectDetached` walk what the member can see (`Visibility::candidates`),
+walks what the member can see (`Visibility::candidates`),
 not the organization, since the personal organization holds every account's
 blocks.
 
 ### Listings and following trees
 
 A connection reads what it shows with plain reads and follows trees, not
-listings; there is no stream per block. `list-blocks` (a `Listing`: children,
+listings; there is no stream per block. A `list` query (a `Listing`: children,
 `Shared`, backrefs, references, `Deleted`, `OpenSettings`) comes a page at a
 time, in the order of block ids (`ServerStore::list_page`, which works out the
 listing's ids and summarizes only the page's blocks): the summaries that fit in
 `ServerConfig::listing_page_bytes`, then the next ids in half that more
 (`listed.rest`), and `listed.next` when it goes on, which the client passes back
-as `after` for the ids past it. The client reads `rest`'s summaries with
-`read-summaries` (at most `MAX_SUMMARIES_ASKED` ids), which is also how it reads
+as `after` for the ids past it. The client reads `rest`'s summaries with a
+`blocks` query (at most `MAX_SUMMARIES_ASKED` ids), which is also how it reads
 one block's summary: a block the caller may not know of reads as none. A block
 that stays in a listing is on exactly one page; one that joins or leaves between
 pages has a `changed` past the first page's `listed.sequence`.
@@ -460,7 +497,7 @@ every block between, so the top of its tree (a top-level block, or the block at
 the top of what lies in the trash) or the block where the reader's view starts
 below a parent it may not view (Shared with me, an agent's block, a settings
 kind opened to whoever views a block inside its owner). A client follows the
-entries of what it shows: `changed-since` with `follow` follows the entry
+entries of what it shows: a `tree` read with `follow` follows the entry
 *before* reading, so nothing changed during the read is missed, and `unfollow`
 stops. `WatchHub` keeps, per connection, only the set of entries it follows (at
 most `MAX_FOLLOWS_PER_CONNECTION`) and who follows each (`watch::Place`, by
@@ -471,9 +508,9 @@ on its path (`ServerStore::advanced`: each changed block and every block above
 it; with a move, the blocks above it before too; with a grant or a move, every
 block below it), finds their followers (`WatchHub::followers`) and, for each
 that may still view what it follows (`ServerStore::viewing`), calls
-`WatchHub::advance`, which sends `tree-advanced(entry, sequence)` on the
-`changes` stream. The hub tells a connection once, then nothing more of that
-entry until it reads the tree to its end (`changed-since` answering no `next`,
+`WatchHub::advance`, which sends `tree-advanced(organization, entry, sequence)`
+on the events stream. The hub tells a connection once, then nothing more of that
+entry until it reads the tree to its end (`tree` answering no `next`,
 `WatchHub::read`), and then once more if the tree advanced past what it read
 (`Told`): a burst of a hundred publishes reaches a follower as one or two
 events, and a follower of a sibling subtree hears nothing. A change is told only
@@ -489,13 +526,13 @@ the follow, so the next change is told again (`WatchHub::unread`).
 
 **Roots.** What lies at the top, in the trash and is shared with an account
 changes with a grant, a creation at the top, or a move that leaves or reaches
-the top or the trash or changes who may know of the block: `tree-change.roots`
-goes to the accounts that could know of the block before and can now
-(`Connection::roots`, `WatchHub::roots`), and a collection tells every member,
-who list those again.
+the top or the trash or changes who may know of the block: `topic-changed(roots)`
+goes to the connections following the roots of the accounts that could know of
+the block before and can now (`Connection::roots`, `WatchHub::roots`), who list
+those again.
 
 Every summary carries `changed`, the organization's sequence at the block's last
-change (below), and `list-blocks` answers the sequence it read the listing at
+change (below), and a `list` query answers the sequence it read the listing at
 (`listed.sequence`). Replies and events can arrive out of order (a reply
 overtakes events queued before it), and `changed` is how a client puts them
 back in order: of two summaries of one block, the one with the larger `changed`
@@ -526,7 +563,7 @@ when it reads from a cursor that old; it learns only an id. A size change
 (`size`, `tree_size`) moves no `changed`, so an ancestor's tree size is as new
 as its last change, and `entry_of` makes O(depth) access checks of O(depth)
 each per summary.
-`blocks.changed-since(entry, after, limit, follow)` asks about the tree of any
+`query.tree(entry, after, limit)` asks about the tree of any
 block the caller may view (an entry point, for its departures to be whole) and
 pages through `blocks_changed` and that entry's departures in one order, oldest
 first: the summaries of blocks in the tree now that changed, and the ids of
@@ -553,7 +590,7 @@ hold at most `MAX_INDEX_BYTES` (refused as `OverQuota`), since any editor of its
 root writes what every viewer's search reads, and no commit's time may be more
 than `MAX_COMMIT_AHEAD` (an hour) past the server's clock (refused as
 `CommitAhead`), since a far-future time wins every comparison by commit time
-and escapes history's thinning by age. `open-organization` answers the server's
+and escapes history's thinning by age. `query.server-info` answers the server's
 clock, and a peer stamps its commits no later than that plus
 `COMMIT_CLOCK_SLACK` (`Peer::commit_time`), so a device whose clock runs fast is
 not refused: it keeps the measurement by its monotonic clock, and the offset in
@@ -599,8 +636,8 @@ replica as it hears it, so a replica lags the server's view by its stream, which
 only means two may seal at once (below). So a session of viewers alone has no
 holder, one of another build never holds it, a holder that loses edit access
 loses it at once, and a claim takes it at once (two devices that claim in turn
-pass it back and forth). After `set-access`, `set-parent`, a revocation or
-`set-role`, `recheck_sessions` writes the changes of edit access. Only the server
+pass it back and forth). After a grant, a move, a revocation or a role change
+(`append-log`, `move`), `recheck_sessions` writes the changes of edit access. Only the server
 writes leaves: when a socket closes, and when a connection goes silent past
 `IDLE_TIMEOUT` (90 s), as `leave_all` runs on any disconnect; until then a
 silent holder stays the holder. The registry indexes sessions by client, so
@@ -635,7 +672,7 @@ base, with nothing numbered past the journal's base, goes back, starting the
 order afresh (`journal::Trimmed::restarted`, which alone moves the registry's tip
 back). A submission is
 refused while the journal holds another build's entries, and bounded by
-`MAX_JOURNAL_BYTES`; `read-contents` answers journals while they fit in a
+`MAX_JOURNAL_BYTES`; a `blocks` read with `contents` answers journals while they fit in a
 quarter of a frame.
 
 **Answers that fit a frame.** A summary carries metadata of up to
@@ -649,16 +686,16 @@ frame on its own (`LARGEST_SUMMARY_BYTES`, held by a const assertion).
 Answers of many summaries bound them by encoded size
 (`be_block_protocol::encoded_len`), not by count, and always take at least one,
 so a summary larger than the budget goes alone: `list-blocks` and
-`read-summaries` as above; `read-contents` answers the first blocks whose
+a `blocks` read as above; with `contents`, it answers the first blocks whose
 summaries fit in `SUMMARY_BYTES` and the client asks again for the rest, with
 its objects and journals in what is left beside them (`contents_room`:
 `CONTENTS_BYTES` and half that, or less beside a large summary);
-`changed-since` ends a page at `MAX_PAGE_SUMMARY_BYTES`, and one that reads on
+`tree` ends a page at `MAX_PAGE_SUMMARY_BYTES`, and one that reads on
 through another tree's change sequence stops at the next block of its own;
-`get-keys` pages by key id (`ServerConfig::key_page_bytes`,
+`query.keys` pages by key id (`ServerConfig::key_page_bytes`,
 guides/blocks/keys.md). Each budget, with the largest summary and
 `FRAME_ENVELOPE_BYTES`, is held under `MAX_FRAME_BYTES` by a const assertion.
-`list-history` still answers every entry kept at once. Code that walks a block's references must stay linear at `MAX_REFERENCES`:
+`query.history` still answers every entry kept at once. Code that walks a block's references must stay linear at `MAX_REFERENCES`:
 `BlockGraph::set_references`, `relinked`, `ReferenceChange::apply`, the
 hub's `Links::hold` (`BlockGraph::refers`) and be-host-stack's `Graph::holds_in` use sets, not
 `Vec::contains`.
@@ -744,11 +781,11 @@ needs code of its own for any method.
   gains one from a provider it already has, since its owner may have removed
   it. While mail goes only to the server's log, every account is also told of
   an identity added or removed, or its email changing, on its devices
-  (`store/account_notices.rs`; `account-notices`, `dismiss-account-notice` and
-  `account-notices-changed`, which every connection of the account hears).
-  be-host reads them at sign-in, so they show with no organization open, and
-  one made while no device is signed in arrives at the next; while an
-  organization is open its stack follows them as they come. The portal's
+  (`store/account_notices.rs`; `query.notices`, `dismiss-notice` and
+  `topic.notices`, which every connection of the account following them
+  hears). be-host reads them at sign-in, so they show before any organization
+  is shown, and one made while no device is signed in arrives at the next;
+  while an organization is shown its stack follows them as they come. The portal's
   settings page lists the last thirty days of changes, which nothing hides.
 - **Holding notices.** Whoever a notice warns about may hold a session too, so
   in its first `NOTICE_HOLD` (a week) a dismissal hides it only on the device
@@ -840,32 +877,31 @@ identity is removed (`providers::signs_in`). Every failed passkey
 sign-in gives one answer, so it tells no one which credentials exist. Tests
 use a software authenticator (`fake_authenticator.rs`).
 
-The protocol has the browser sign-in's one-shot `begin-browser-login` and
-`poll-browser-login` ("Signing in" above), token `Authenticate`, header
-authentication and `Logout`; every sign-in method lives in the portal, which
+The protocol has the browser sign-in's one-shot `device-login` ("Signing in"
+above), token `authenticate`, header authentication and `revoke-token`; every sign-in method lives in the portal, which
 approves a device's code. `Be3-Gateway-Authorization` is left to a gateway in
 front.
 
 Contact links and invitations are one table, `links`, and one set of calls
-(`create-link`, `get-link`, `accept-link`, `list-links`, `delete-link`;
+(`create-link`, `query.link`, `accept-link`, `query.links`, `delete-link`;
 guides/blocks/keys.md, "Contacts"). An administrator invites with a link of
 kind `invitation` under an id the inviting client picks, bound to no email: any
 account that opens it may accept it, once, before `INVITATION_LIFETIME`, and
 joins as an editor; the id reaches the invitee only in the link
 (guides/blocks/keys.md, "Inviting"). An organization has at most
-`MAX_INVITATIONS_PER_ORGANIZATION` outstanding. `read-invitation`, the only
+`MAX_INVITATIONS_PER_ORGANIZATION` outstanding. `query.invitation`, the only
 one-shot call besides signing in, reads one by its id before sign-in (its
 organization's name, the inviter's sealed card and its state) and marks it
 opened. The row stays after it is accepted, expires or is revoked
 (`invite_ended`, `invite_revoked`, `invite_finished` once the inviter's
 device made the accepter a contact) for the organization's invite list
-(`list-invitations`, administrators only, which hands each inviter back only
+(`query.invitations`, administrators only, which hands each inviter back only
 their own sealed code), until `INVITATION_RETENTION` passes or
 `MAX_INVITATIONS_KEPT_PER_ORGANIZATION` pushes the oldest ended out. Any
 administrator revokes an open one with `delete-link`.
 `CreateAgent` makes a passwordless editor account with a token
 (guides/tracker.md), at most `MAX_AGENTS_PER_CREATOR` per creator. Agents are
-members: `list-members` names an agent's creator (`created-by`) and, for a
+members: `query.members` names an agent's creator (`created-by`) and, for a
 block's agent, its block (`bound-to`), and lists every member to an
 administrator but only the agents it made to anyone else; `remove-member`
 removes any member for an administrator and an agent for its creator, deleting
@@ -888,10 +924,10 @@ uses. Pushes are padded to one length (`push::PADDED_BYTES`), so not even the
 text's length reaches the push service.
 
 - **Endpoints.** A device registers one per account and organization
-  (`register-endpoint`): Web Push (RFC 8030) at an `https://` URL on port 443,
+  (`set-push-endpoint`): Web Push (RFC 8030) at an `https://` URL on port 443,
   or an FCM registration token, with the device's RFC 8291 keys. At most
   `MAX_PUSH_ENDPOINTS`, the oldest going first; a member's go when they leave
-  the organization, and `logout` with the device's address forgets it in every
+  the organization, and `revoke-token` with the device's address forgets it in every
   organization. A Web Push URL may only resolve to a public unicast address
   (`push::is_public`: no private, shared or reserved IPv4, and IPv6 only in
   `2000::/3` outside 6to4, Teredo and the IETF's `2001::/23`) and no redirect
@@ -909,15 +945,15 @@ text's length reaches the push service.
   neither.
 - **Modes.** Each account's mode per block (`notify_modes`: `all` keeps no row,
   `mentions`, `off`), deleted with the block, the member or the organization.
-  `notify-modes` lists an account's; a device reads them when it connects and
-  again on `notify-modes-changed`, which `set-notify-mode` announces to the
-  account's other connections (be-host-stack `Shared::notify_modes`, published
+  `query.notify-modes` lists an account's; a device reads them, following
+  them, when it connects and again on `topic.notify-modes`, which
+  `set-notify-mode` announces to the account's other connections (be-host-stack `Shared::notify_modes`, published
   to apps as `NotifyModesWatch`).
-- **`notify`** (Edit; at most `MAX_NOTIFICATION_BYTES` and `MAX_MENTIONS`,
+- **`target.push`** (a `send`; Edit; at most `MAX_NOTIFICATION_BYTES` and `MAX_MENTIONS`,
   `MAX_NOTIFICATIONS_PER_MINUTE` per account and `MAX_NOTIFICATIONS_PER_BLOCK`
   per account and block) goes to every viewer of the block
   (`BlockGraph::viewers`) but the sender whose mode lets it through and who has
-  no live connection to the organization (`WatchHub::connected`: one that has joined the organization's watch with `go_live`, not merely an open socket), with one
+  no connection working in the organization (`WatchHub::connected`: one that made a call naming it, not merely an open socket), with one
   query for the organization's endpoints. Each push carries a `PushMessage`
   (organization, block, the sender's account, which the server vouches for and
   the sealed bytes repeat, and the sealed bytes), encrypted to the device (be-lib-web-push, which
@@ -938,7 +974,7 @@ text's length reaches the push service.
   over the server, so services that never answer cannot take the pool the
   database shares. Past `MAX_QUEUED`, the longest queues lose their newest.
 - **VAPID** (RFC 8292): the server makes a P-256 key on first start and keeps
-  it in `push_key`; `push-key` answers its public half, which a browser
+  it in `push_key`; `query.server-info` answers its public half, which a browser
   subscribes with. Each Web Push request carries a token for the endpoint's
   origin, signed with it, whose subject is `--auth-origin` or the public URL
   (warned about at start unless `https://`).
@@ -946,7 +982,7 @@ text's length reaches the push service.
   key, `push::FcmConfig`), the server signs an RS256 assertion for an access
   token (kept until a minute before it expires) and sends a data message whose
   `data.push` is the same encrypted bytes, base64url, so a device decrypts
-  both alike; Google sees only ciphertext. `offers-fcm` tells a device whether
+  both alike; Google sees only ciphertext. `query.server-info` tells a device whether
   to register through it. Tests run fake push services and a fake FCM and
   token endpoint (`TestPushService`).
 

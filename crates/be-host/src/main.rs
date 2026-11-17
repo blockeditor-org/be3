@@ -1738,6 +1738,7 @@ impl HostCore {
                 name: "Personal".to_owned(),
                 kind: be_block_protocol::OrganizationKind::Personal,
                 role: OrganizationRole::Editor,
+                escrows: Vec::new(),
             };
             (organization, keys)
         });

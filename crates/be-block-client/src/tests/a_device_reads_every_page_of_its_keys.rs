@@ -22,11 +22,7 @@ async fn a_device_reads_every_page_of_its_keys() {
         author.save(note, &text, None).await.unwrap();
         written.push((note, text.encode()));
     }
-    let page = crate::ask(be_block_protocol::client::keys::get_keys(
-        &author.connection(),
-        None,
-        None,
-    ))
+    let page = crate::ask(be_block_protocol::read::<be_block_protocol::KeyPage, _>(&author.connection(), Some(author.organization()), be_block_protocol::Query::Keys { blocks: None, after: None }))
     .await
     .unwrap();
     assert!(page.next.is_some(), "the keys fit one page");

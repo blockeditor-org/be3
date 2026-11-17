@@ -65,7 +65,7 @@ type Pump = Pin<Box<dyn Future<Output = ()> + Send>>;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Event {
     /// The tree of an entry point the connection follows changed, up to `sequence`: read it with
-    /// `changed-since` (`Peer::changed_page`). The server tells nothing more of the entry until
+    /// `query.tree` (`Peer::changed_page`). The server tells nothing more of the entry until
     /// it is read to its end.
     TreeAdvanced {
         entry: Uuid,

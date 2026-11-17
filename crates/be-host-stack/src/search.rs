@@ -186,7 +186,7 @@ pub struct Searching {
     creating: HashMap<Uuid, Uuid>,
     /// Indexes made and not yet named in their root's metadata (`name_indexes`).
     made: Vec<(Uuid, Uuid)>,
-    /// Blocks that `changed-since` named, for the indexer to read where the mirror does not.
+    /// Blocks that `query.tree` named, for the indexer to read where the mirror does not.
     caught: HashMap<Uuid, ListedBlock>,
     /// Roots whose catch-up runs, and those that ran since this device last connected.
     catching: HashSet<Uuid>,
@@ -1852,7 +1852,7 @@ async fn name_indexes(
 /// Starts the catch-up of each root this device may edit whose index is named and has not
 /// been caught up since this device connected (guides/blocks/host.md, "Catching up"): commits
 /// from devices that never index, and blocks that left the tree, are found by what
-/// `changed-since` lists after the index's watermark.
+/// `query.tree` lists after the index's watermark.
 fn start_catch_ups(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     if held.search.off {
@@ -1928,7 +1928,7 @@ pub(crate) fn catch_ups_due(held: &Shared, attached: bool) -> Vec<(Uuid, Uuid)> 
         .collect()
 }
 
-/// Catches `root`'s index up, a page of `changed-since` at a time from its watermark: each
+/// Catches `root`'s index up, a page of `query.tree` at a time from its watermark: each
 /// page queues the blocks it lists and leaves a settle with the watermark it reaches (all
 /// before the page's last sequence, which the next page may share), so a catch-up that is
 /// interrupted resumes from the last page that was indexed. False while the index has no head

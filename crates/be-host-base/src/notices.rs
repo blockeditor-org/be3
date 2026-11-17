@@ -102,7 +102,7 @@ pub fn dismiss(id: u64) -> Option<u64> {
     account
 }
 
-/// Shows the account's notices from the server (`account-notices`), as plain notices, and lets
+/// Shows the account's notices from the server (`query.notices`), as plain notices, and lets
 /// go of those dismissed elsewhere.
 pub fn account_notices(listed: Vec<(u64, String)>) {
     {

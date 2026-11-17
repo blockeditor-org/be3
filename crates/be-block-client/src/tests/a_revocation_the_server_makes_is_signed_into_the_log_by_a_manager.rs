@@ -59,18 +59,7 @@ async fn a_revocation_the_server_makes_is_signed_into_the_log_by_a_manager() {
             .await
             .unwrap(),
     };
-    crate::ask(client::members::create_agent(
-        &member.connection(),
-        member.organization(),
-        agent,
-        "Helper".into(),
-        secret.public().0,
-        secret.signing().0,
-        Vec::new(),
-        Vec::new(),
-        Some(bound),
-        member.agent_record(agent, secret.identity()).await.unwrap(),
-    ))
+    crate::ask(be_block_protocol::write::<be_block_protocol::CreatedAgent, _>(&member.connection(), Some(member.organization()), be_block_protocol::Op::CreateAgent { account: agent, name: "Helper".into(), recovery: secret.public().0, signing: secret.signing().0, contact: Vec::new(), escrow: Vec::new(), bound_to: Some(bound), member: member.agent_record(agent, secret.identity()).await.unwrap() }))
     .await
     .unwrap();
     admin

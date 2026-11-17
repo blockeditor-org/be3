@@ -25,7 +25,7 @@ async fn a_record_the_old_key_signs_after_a_new_phrase_is_refused() {
     let fresh = be_block_keys::RecoveryPhrase::generate().secret();
     let RecoveryKey {
         sealed, own, logs, ..
-    } = crate::ask(client::keys::get_recovery_key(&owner.connection()))
+    } = crate::ask(be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(&owner.connection(), None, be_block_protocol::Query::RecoveryKey))
         .await
         .unwrap();
     assert!(
@@ -34,15 +34,7 @@ async fn a_record_the_old_key_signs_after_a_new_phrase_is_refused() {
     );
     let resealed =
         crate::contacts::new_identity(owner.account(), &old, &fresh, sealed, own, logs).unwrap();
-    crate::ask(client::keys::set_recovery_key(
-        &owner.connection(),
-        fresh.public().0,
-        fresh.signing().0,
-        resealed.sealed,
-        resealed.own,
-        resealed.changes,
-        resealed.retirements,
-    ))
+    crate::ask(be_block_protocol::write::<(), _>(&owner.connection(), None, be_block_protocol::Op::SetRecoveryKey { public: fresh.public().0, signing: fresh.signing().0, sealed: resealed.sealed, own: resealed.own, changes: resealed.changes, retirements: resealed.retirements }))
     .await
     .unwrap();
 

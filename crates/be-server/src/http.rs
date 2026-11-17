@@ -783,8 +783,8 @@ impl PortalCookies {
     }
 }
 
-/// Answers one call that needs no sign-in (`begin-browser-login`, `poll-browser-login`,
-/// and `read-invitation`) posted after a
+/// Answers one call that needs no sign-in (`device-login`,
+/// and `query.invitation`) posted after a
 /// greeting, then closes: signing in through the browser holds no connection while the person
 /// approves it, and an invitation is read before its holder has an account.
 async fn one_shot(
