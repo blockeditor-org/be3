@@ -6,7 +6,10 @@ use super::*;
 #[test]
 fn cancelling_one_of_two_drags_keeps_the_other() {
     let (mut sim, a, b) = dragging(1);
-    let (first, second) = (Checklist::set_text(a, "first"), Checklist::set_text(b, "second"));
+    let (first, second) = (
+        Checklist::set_text(a, "first"),
+        Checklist::set_text(b, "second"),
+    );
     sim.gesture(0, 1, Gesture::BeginTentative);
     sim.operate(0, 1, first.clone());
     sim.gesture(0, 2, Gesture::BeginTentative);
