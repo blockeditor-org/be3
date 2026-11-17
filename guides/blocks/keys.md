@@ -182,24 +182,46 @@ account's level as of any entry it reaches (`level_as_of`; for an
 organization's log, administering it is Manage).
 
 **Epochs name their heads** (plans/signed_access.md, 3d). A key minted here
-names the heads of its block's log and the organization's as this device last
-checked them (`KeyBook::note_log`, `set_organization`; a block it never
-checked the log of names its pinned root), and a rotation reads the logs of
-the scopes it rekeys first. The heads ride inside the key (`CarriedKey::heads`),
-so they come from its maker through every sender (`KeyBook::heads`). Key work
-seals a key to a grantee or a contact inside only once the block's log, as
-served now, reaches the key's block head, and to an administrator only once
-the organization's log reaches its organization head
-(`Peer::sealing_target`); each then counts as of its head now. So a server
-that withholds a revocation, a kind's closing or a demotion made before an
-epoch has that epoch sealed to no one by that log until it serves the log
-that far. A key a contact seals to this account is taken only if the block's
-log, as far as this device checked it, gives that contact Edit or above as of
-the key's block head, or the organization's log has them administer it as of
-its head (`KeyBook::sender_may`; a contact the block's log does not name,
-with Edit from a block above, is taken); `refresh_keys` reads the log first
-for each block whose root it pinned. `tend` signs key work's revocations
-before the rotations they call for, so the new epochs name heads after them.
+names the heads of its scope's log (a scope key's own block; for a data key,
+the scope it is wrapped under) and the organization's, as this device last
+checked them (`KeyBook::note_log`, `set_organization`; a scope whose log it
+never checked names its pinned root, so a device whose logs are stale names
+stale heads), and a rotation reads the logs of the scopes it rekeys first.
+The heads ride inside the key (`CarriedKey::heads`), so they come from its
+maker through every sender (`KeyBook::heads`).
+
+- **Sealing.** Key work seals a key to a grantee or a contact inside only once
+  the block's log, as served now, reaches the key's block head, and to an
+  administrator only once the organization's log reaches its organization
+  head (an escrow epoch's, its signed `EscrowKey::head`); each then counts as
+  of its head now (`Peer::sealing_target`). So a server that withholds a
+  revocation, a kind's closing or a demotion made before an epoch has that
+  epoch sealed to no one by that log until it serves the log that far.
+  Nothing tells the person meanwhile: the grantee sees the block as not
+  shared yet.
+- **Outdated epochs.** A log's `last_lowering` is its newest entry that
+  lowered anyone's access (a revocation, a downgrade, a closing; a demotion or
+  an administrator signed out). An epoch naming a head before it is outdated
+  (`Checked::outdates`): its subject may hold it. Key work seals it to no one,
+  and treats the scope as due a rotation when it is the scope's newest
+  (`Target::Outdated`); a device about to write or wrap under a data or scope
+  key its cached log outdates rotates the scope first (`Peer::sealing_key`,
+  `scope_key`, `KeyBook::outdated`); and an escrow epoch the organization's
+  log outdates is wrapped under no more, so keys wait unescrowed for the next.
+  So an epoch a server got a withheld device to make, naming a head before a
+  revocation, is not written under by a device that holds the revocation.
+- **Taking a contact's seal.** An escrow key only from a contact the
+  organization's log names an administrator at its head now. Any other key
+  only from a contact the block's log gives Edit or above, or the
+  organization's log has administer it, as of the head the key names, or as
+  of the log's head here when this device's log does not reach that head or
+  the key names none; one the block's log names but not by then held nothing
+  (`KeyBook::sender_may`). A contact the block's log never names (Edit from a
+  block above) is taken, as is a key of a block whose log this device never
+  checked; `refresh_keys` reads the log first for each block whose root it
+  pinned.
+- `tend` signs key work's revocations before the rotations they call for, so
+  the new epochs name heads after them.
 
 ### Rotation
 
@@ -237,10 +259,13 @@ first administrator device
 to open the organization makes it (`CreateEscrow`), and `mint_scope` seals
 every new scope key to it too, so administrators open everything. Demoting or
 removing an administrator records an escrow rotation: the next epoch is signed
-by the current one over `EscrowKey::chained`, which also covers the
+over `EscrowKey::chained` by its maker's identity key, an administrator the
+device's checked organization log names at its current head, and covers the
 organization log's head it was made under (`EscrowKey::head`): the server
 takes it only at its head now, and a device takes an epoch only once its
-checked organization log reaches that head (`verify_escrow`). `make_escrow`
+checked organization log reaches that head (`verify_escrow`). Only an epoch
+this account made itself is taken for holding its secret; any other only
+through the signed chain. `make_escrow`
 seals it to the other administrators the log names who are contacts. A minted escrow key becomes the
 device's escrow (`KeyBook::adopt_escrow`) only once the server holds it, since
 the server refuses a key wrapped under one it does not know. A block made under
@@ -468,9 +493,12 @@ access, or a demoted administrator, can keep a device writing under a key that
 person knows); which block is under which (a grant resting on Manage inherited
 from above is sealed by no one until parents are signed, and a block's own log
 alone decides who its key is sealed to); the log's head, up to the heads an
-epoch names (a server that withholds a signed revocation from the device key
-work hands the rotation to gets an epoch naming a head before it, sealed to
-the revoked member; plans/signed_access.md, "Accepted limits"); what an escrow-only administrator, or a grantee
+epoch names (a server that withholds a revocation from every device that holds
+an epoch made under a head before it keeps that epoch current for them; a
+made-up key from a contact is taken as their Edit, or administering, as of a
+head they choose among those the log holds, never for an escrow key; and a
+key minted on a device whose logs are stale names those stale heads;
+plans/signed_access.md, "Accepted limits"); what an escrow-only administrator, or a grantee
 who is no contact of the sender, sees of a block whose root only a member's
 wrap carried (a member and the server together can show it a made-up log and
 content, shown unverified: `RootPin::Weak`); which blocks an account knows exist;

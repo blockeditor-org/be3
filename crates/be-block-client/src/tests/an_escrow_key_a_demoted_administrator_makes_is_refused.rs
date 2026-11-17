@@ -35,7 +35,8 @@ fn made_by(
 /// A device takes a new escrow key only from an administrator the organization's log names as
 /// of its head. A demoted administrator still holds the identity key that signed their epochs,
 /// and the server will put whatever it likes in the chain; together they make an epoch the
-/// device refuses, so members never escrow to the demoted administrator (crypto audit 10).
+/// device refuses, so members never escrow to the demoted administrator (crypto audit 10); and
+/// a device that holds the demotion wraps under no epoch from before it (signed access 3d).
 #[tokio::test]
 async fn an_escrow_key_a_demoted_administrator_makes_is_refused() {
     let harness = Harness::start().await;
@@ -69,22 +70,23 @@ async fn an_escrow_key_a_demoted_administrator_makes_is_refused() {
     let head = admin.checked_organization().await.unwrap().unwrap().head;
     let forged = made_by(&harness, &deputy, made.epoch + 1, made.id, head);
     let device = harness.second(&member).await;
+    // Nor, holding the demotion, does it wrap under the epochs from before it, which the
+    // demoted administrator may hold: keys wait unescrowed for the next epoch.
     assert_eq!(
         device.keys().escrow(),
-        Some(made),
-        "a demoted administrator's escrow key was taken"
+        None,
+        "a demoted administrator's escrow key, or one made before their demotion, was taken"
     );
     assert_eq!(
         device.keys().escrow_warning(),
-        Some(EscrowWarning::Substituted)
+        Some(EscrowWarning::Unverified)
     );
     let mine = workspace(&device, "After").await;
     let scope = device.keys().scope_key(mine).unwrap();
+    let wrapped = device.keys().wrapped_by(scope);
     assert!(
-        !device
-            .keys()
-            .wrapped_by(scope)
-            .contains(&be_block_protocol::WrappedBy::Key(forged.id)),
+        !wrapped.contains(&be_block_protocol::WrappedBy::Key(forged.id))
+            && !wrapped.contains(&be_block_protocol::WrappedBy::Key(made.id)),
         "a key was escrowed to the demoted administrator"
     );
 

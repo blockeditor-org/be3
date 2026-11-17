@@ -7,7 +7,8 @@ use be_block_protocol::Unsealed;
 /// scope by a grant of its own): the server
 /// withholds the closing from another of the author's devices and lists a contact viewing
 /// inside as due the epoch. That device, shown the kind still open, offers the epoch to no
-/// contact until it holds the log up to the epoch's head, which closes it (signed access 3d).
+/// contact until it holds the log up to the epoch's head, which closes it (signed access 3d),
+/// while it offers a kind still open to the same contact.
 #[tokio::test]
 async fn a_device_shown_a_kind_still_open_seals_the_new_epoch_to_no_contact() {
     let harness = Harness::start().await;
@@ -44,6 +45,21 @@ async fn a_device_shown_a_kind_still_open_seals_the_new_epoch_to_no_contact() {
     let withheld = withhold_newest(&harness, admin.organization(), Some(kind));
     assert_eq!(admin.keys().heads(epoch).block, Some(withheld.hash()));
 
+    // A kind that stays open: what the device does seal while the other is withheld.
+    let open = admin
+        .create_block(
+            Uuid::now_v7(),
+            PREFIXES_TYPE,
+            BlockParent::Block(team),
+            &be_block_content::BlockMetadata::named("Open prefixes"),
+            false,
+        )
+        .await
+        .unwrap()
+        .id;
+    admin.open_inside(open, Access::View).await.unwrap();
+    let open_epoch = admin.keys().scope_key(open).unwrap();
+
     let device = harness.second(&admin).await;
     let (_, shown) = device.checked_access(kind).await.unwrap();
     assert_eq!(
@@ -54,11 +70,14 @@ async fn a_device_shown_a_kind_still_open_seals_the_new_epoch_to_no_contact() {
     let work = || async {
         let mut work = device.key_work().await.unwrap();
         work.rotations.clear();
-        work.unsealed.retain(|unsealed| unsealed.key != epoch);
-        work.unsealed.push(Unsealed {
-            key: epoch,
-            account: member.account(),
-        });
+        work.unsealed
+            .retain(|unsealed| unsealed.key != epoch && unsealed.key != open_epoch);
+        for key in [epoch, open_epoch] {
+            work.unsealed.push(Unsealed {
+                key,
+                account: member.account(),
+            });
+        }
         work
     };
     device.tend_with(work().await).await.unwrap();
@@ -66,6 +85,11 @@ async fn a_device_shown_a_kind_still_open_seals_the_new_epoch_to_no_contact() {
         sealed_to(&harness, epoch, member.account()),
         0,
         "an epoch made after the closing was offered by a log short of its head"
+    );
+    assert_eq!(
+        sealed_to(&harness, open_epoch, member.account()),
+        1,
+        "a kind its log keeps open was not offered"
     );
 
     withheld.serve(&harness);

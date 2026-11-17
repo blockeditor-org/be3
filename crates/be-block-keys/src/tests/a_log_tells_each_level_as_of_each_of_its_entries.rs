@@ -1,7 +1,8 @@
 use super::*;
 
 /// A checked log answers who held what as of any entry it reaches, and nothing for one it does
-/// not: what a device checks a key's epoch against (plans/signed_access.md, 3d).
+/// not, and which heads an entry lowering someone's access outdates: what a device checks a
+/// key's epoch against (plans/signed_access.md, 3d).
 #[test]
 fn a_log_tells_each_level_as_of_each_of_its_entries() {
     let creator = RecoveryPhrase::generate().secret();
@@ -34,6 +35,12 @@ fn a_log_tells_each_level_as_of_each_of_its_entries() {
     assert_eq!(checked.level_as_of(member_id, &edit.hash()), Some(Level::Edit));
     assert_eq!(checked.level_as_of(member_id, &revoked.hash()), Some(Level::None));
 
+    assert!(
+        checked.outdates(&edit.hash()) && !checked.current_at(&edit.hash()),
+        "an epoch named before a revocation is current"
+    );
+    assert!(checked.current_at(&revoked.hash()));
+
     let short =
         check_log(LogKind::Block, block, root.hash(), &entries[..2], &|_, _| None).unwrap();
     assert!(
@@ -41,4 +48,8 @@ fn a_log_tells_each_level_as_of_each_of_its_entries() {
         "a log withheld before an entry reaches it"
     );
     assert_eq!(short.level_as_of(member_id, &revoked.hash()), None);
+    assert!(
+        short.current_at(&edit.hash()),
+        "a log withheld before the revocation outdates nothing"
+    );
 }

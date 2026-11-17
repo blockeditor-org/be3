@@ -74,19 +74,22 @@ impl<S: ObjectStore> Peer<S> {
             true => None,
             false => self.checked_organization().await.ok().flatten(),
         };
+        let mut outdated = Vec::new();
         for unsealed in &work.unsealed {
             // An owner-only block's keys are its author's alone, whoever the server lists.
             if !self.keys.trusted(unsealed.key) || self.keys.owner_only_covers(unsealed.key) {
                 continue;
             }
-            let Some(public) = self
+            match self
                 .sealing_target(unsealed.key, unsealed.account, organization.as_ref())
                 .await
-            else {
-                continue;
-            };
-            keys.wrapped
-                .push(self.keys.seal_to(unsealed.key, unsealed.account, &public)?);
+            {
+                Target::Seal(public) => keys
+                    .wrapped
+                    .push(self.keys.seal_to(unsealed.key, unsealed.account, &public)?),
+                Target::Outdated(scope) if !outdated.contains(&scope) => outdated.push(scope),
+                Target::Outdated(_) | Target::Nobody => {}
+            }
         }
         for key in &work.unescrowed {
             if self.keys.trusted(*key)
@@ -97,6 +100,13 @@ impl<S: ObjectStore> Peer<S> {
         }
         if let Err(error) = self.put_keys(keys).await {
             failed.get_or_insert(error);
+        }
+        // A scope whose newest epoch the log outdates is due a rotation, whoever the server
+        // asked: the new epoch names this device's heads, and the key work it brings seals it.
+        for scope in outdated {
+            if let Err(error) = self.rotate(scope).await {
+                failed.get_or_insert(error);
+            }
         }
         if let Err(error) = self.save_pin().await {
             failed.get_or_insert(error);
@@ -119,54 +129,78 @@ impl<S: ObjectStore> Peer<S> {
     /// Each log counts only once it reaches the head the key's epoch names (`KeyBook::heads`,
     /// signed access 3d), and then as of its head now, at or after that one: a server that
     /// withholds a revocation, a closing or a demotion made before the epoch gets it sealed to
-    /// no one by that log until it serves the log that far.
+    /// no one by that log until it serves the log that far. And only while the epoch is current
+    /// by it (`Checked::current_at`): one named before an entry that lowered someone's access
+    /// is sealed to no one, and when it is its scope's newest, the scope is due a rotation
+    /// (`Target::Outdated`).
     async fn sealing_target(
         &self,
         key: Uuid,
         account: Uuid,
         organization: Option<&be_block_keys::Checked>,
-    ) -> Option<RecoveryPublic> {
+    ) -> Target {
         if self.keys.owner_only_covers(key) {
-            return None;
+            return Target::Nobody;
         }
-        let row = self.keys.row(key)?;
+        let Some(row) = self.keys.row(key) else {
+            return Target::Nobody;
+        };
         if self
             .keys
             .server()
             .is_some_and(|(server, _)| server == account)
         {
-            return self.keys.recipient(account, key);
+            return self.keys.recipient(account, key).into();
         }
         let heads = self.keys.heads(key);
+        // An escrow epoch's head is the one its maker signed in its record.
+        let organization_head = match row.kind {
+            KeyKind::Escrow => self
+                .keys
+                .escrows()
+                .into_iter()
+                .find(|escrow| escrow.id == key)
+                .map(|escrow| escrow.head),
+            _ => heads.organization,
+        };
         // Administering the organization gives the escrow key, and with it every key but an
         // owner-only block's: to an administrator its log names, any of them (the settings'
-        // scope key and its blocks' data keys, which key work lists for them).
+        // scope key and its blocks' data keys, which key work lists for them). A key naming no
+        // organization head (one minted before this device read the organization's log, which
+        // connecting does first) goes to no administrator this way.
         if let Some(administrator) = organization
-            .filter(|checked| heads.organization.is_some_and(|head| checked.holds(&head)))
+            .filter(|checked| organization_head.is_some_and(|head| checked.current_at(&head)))
             .and_then(|checked| checked.administrators.get(&account.into_bytes()))
         {
-            return Some(administrator.public);
-        }
-        if row.kind == KeyKind::Escrow {
-            return None;
+            return Target::Seal(administrator.public);
         }
         if row.kind != KeyKind::Scope {
-            return None;
+            return Target::Nobody;
         }
-        let block = self.keys.block_of(key)?;
-        let crate::keys::RootPin::Pinned(_) = self.keys.root_pin(block) else {
-            return None;
+        let Some(block) = self.keys.block_of(key) else {
+            return Target::Nobody;
         };
-        let (_, checked) = self.checked_access(block).await.ok()?;
-        if !heads.block.is_some_and(|head| checked.holds(&head)) {
-            return None;
+        let crate::keys::RootPin::Pinned(_) = self.keys.root_pin(block) else {
+            return Target::Nobody;
+        };
+        let Ok((_, checked)) = self.checked_access(block).await else {
+            return Target::Nobody;
+        };
+        let Some(head) = heads.block.filter(|head| checked.holds(head)) else {
+            return Target::Nobody;
+        };
+        if checked.outdates(&head) {
+            return match self.keys.scope_key(block) == Some(key) {
+                true => Target::Outdated(block),
+                false => Target::Nobody,
+            };
         }
         let grantee = account.into_bytes();
         if let Some((level, identity)) = checked.grants.get(&grantee)
             && *level >= be_block_keys::Level::View
             && !checked.tainted.contains(&grantee)
         {
-            return Some(identity.public);
+            return Target::Seal(identity.public);
         }
         // A kind of settings its log opens to whoever views a block inside is offered by its
         // viewers to their contacts. That the contact views inside is the server's word
@@ -175,8 +209,8 @@ impl<S: ObjectStore> Peer<S> {
         let open =
             checked.open_inside >= be_block_keys::Level::View && !checked.open_inside_tainted;
         match open {
-            true => self.keys.contact(account),
-            false => None,
+            true => self.keys.contact(account).into(),
+            false => Target::Nobody,
         }
     }
 
@@ -194,7 +228,7 @@ impl<S: ObjectStore> Peer<S> {
         Ok(())
     }
 
-    async fn rotate(&self, root: Uuid) -> Result<(), ClientError> {
+    pub(super) async fn rotate(&self, root: Uuid) -> Result<(), ClientError> {
         let top = self.summary(root).await?;
         let mut walked = vec![top.clone()];
         let mut level = vec![top.id];
@@ -653,5 +687,20 @@ impl<S: ObjectStore> Peer<S> {
             }
         }
         Ok(())
+    }
+}
+
+/// Whom key work seals a key to (`Peer::sealing_target`).
+enum Target {
+    Seal(RecoveryPublic),
+    Nobody,
+    /// The key is its scope's newest epoch and the scope's log outdates it: the scope is due a
+    /// rotation.
+    Outdated(Uuid),
+}
+
+impl From<Option<RecoveryPublic>> for Target {
+    fn from(public: Option<RecoveryPublic>) -> Self {
+        public.map_or(Target::Nobody, Target::Seal)
     }
 }
