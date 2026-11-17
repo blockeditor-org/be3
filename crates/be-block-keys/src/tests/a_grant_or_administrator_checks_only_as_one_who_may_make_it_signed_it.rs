@@ -143,10 +143,10 @@ fn a_grant_or_administrator_checks_only_as_one_who_may_make_it_signed_it() {
         .is_err(),
         "a signer the log does not name grants nothing"
     );
-    let above = Authority::Inherited {
+    let above = Authority::Inherited(vec![Link {
         block: [8; 16],
         head: pinned,
-    };
+    }]);
     let from_above = granted(
         &other,
         other_id,
@@ -154,7 +154,7 @@ fn a_grant_or_administrator_checks_only_as_one_who_may_make_it_signed_it() {
         other_id,
         other.identity(),
         Level::Manage,
-        above,
+        above.clone(),
     );
     let managing = |asked: &Asked| {
         (asked.signer == other_id && *asked.authority == above && asked.level == Level::Manage)

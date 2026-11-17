@@ -37,7 +37,7 @@ async fn a_reader_granted_by_an_administrator_checks_its_path_through_the_organi
         .iter()
         .filter_map(Step::entry)
         .filter_map(|entry| match &entry.record {
-            Record::Grant(grant) => Some((grant.grantee, grant.authority)),
+            Record::Grant(grant) => Some((grant.grantee, grant.authority.clone())),
             _ => None,
         })
         .collect();

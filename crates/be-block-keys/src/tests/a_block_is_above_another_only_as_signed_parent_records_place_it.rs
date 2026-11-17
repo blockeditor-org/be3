@@ -1,9 +1,11 @@
 use super::*;
 
 /// A parent record is made by a member with Edit or above, and `Authority::Inherited` counts
-/// only for a block its signed parent records place it under, its log checked from the root the
-/// placement names: so the server can neither put a block under an ancestor someone else
-/// manages nor serve a made-up log for a real one (plans/signed_access.md, step 4).
+/// only along the chain of blocks its signed parent records place the block under, each as of
+/// the head the record names, each log checked from the root the placement under it names: so
+/// the server can neither put a block under an ancestor someone else manages, nor serve a
+/// made-up log for a real one, nor count a block above that it lay under only at another time
+/// (plans/signed_access.md, step 4).
 #[test]
 fn a_block_is_above_another_only_as_signed_parent_records_place_it() {
     let alice = RecoveryPhrase::generate().secret();
@@ -57,7 +59,7 @@ fn a_block_is_above_another_only_as_signed_parent_records_place_it() {
         under(folder, &folder_root),
         Authority::Log,
     );
-    let middle_log = vec![middle_root.clone(), middle_placed];
+    let middle_log = vec![middle_root.clone(), middle_placed.clone()];
     let note_root = Entry::root(&alice, alice_id, LogKind::Block, note);
     let note_placed = place(
         &alice,
@@ -68,10 +70,16 @@ fn a_block_is_above_another_only_as_signed_parent_records_place_it() {
         Authority::Log,
     );
     // Bob grants Carol the note, as a manager of the folder two levels up.
-    let from_folder = Authority::Inherited {
-        block: folder,
-        head: bob_manages.hash(),
-    };
+    let from_folder = Authority::Inherited(vec![
+        Link {
+            block: middle,
+            head: middle_placed.hash(),
+        },
+        Link {
+            block: folder,
+            head: bob_manages.hash(),
+        },
+    ]);
     let to_carol = Entry::sign(
         &bob,
         bob_id,
@@ -82,7 +90,7 @@ fn a_block_is_above_another_only_as_signed_parent_records_place_it() {
             grantee: carol_id,
             identity: carol.identity(),
             level: Level::View,
-            authority: from_folder,
+            authority: from_folder.clone(),
         }),
     );
     let logs_of = |logs: Vec<([u8; 16], Vec<Entry>)>| {
@@ -93,11 +101,7 @@ fn a_block_is_above_another_only_as_signed_parent_records_place_it() {
         }
     };
     let check_note = |log: &dyn Fn(LogKind, [u8; 16]) -> Option<Vec<Step>>, entries: &[Entry]| {
-        let logs = Logs {
-            organization: [0; 16],
-            organization_root: None,
-            log,
-        };
+        let logs = Logs::new([0; 16], None, log);
         let outside = |asked: &Asked| answer(&logs, note, asked);
         check_log(LogKind::Block, note, note_root.hash(), entries, &outside)
     };
@@ -152,7 +156,7 @@ fn a_block_is_above_another_only_as_signed_parent_records_place_it() {
             grantee: carol_id,
             identity: carol.identity(),
             level: Level::View,
-            authority: from_folder,
+            authority: from_folder.clone(),
         }),
     );
     let around = logs_of(vec![
@@ -185,6 +189,53 @@ fn a_block_is_above_another_only_as_signed_parent_records_place_it() {
         )
         .is_ok(),
         "a grant is checked where the block lay at its place"
+    );
+
+    // The middle folder, later moved out of the folder: a chain naming its head from after
+    // the move does not reach the folder, though the middle once lay under it.
+    let middle_moved = place(
+        &alice,
+        alice_id,
+        middle,
+        middle_placed.hash(),
+        under(elsewhere, &elsewhere_root),
+        Authority::Log,
+    );
+    let stale_chain = Authority::Inherited(vec![
+        Link {
+            block: middle,
+            head: middle_moved.hash(),
+        },
+        Link {
+            block: folder,
+            head: bob_manages.hash(),
+        },
+    ]);
+    let granted_after = Entry::sign(
+        &bob,
+        bob_id,
+        note,
+        Some(note_placed.hash()),
+        false,
+        Record::Grant(Grant {
+            grantee: carol_id,
+            identity: carol.identity(),
+            level: Level::View,
+            authority: stale_chain,
+        }),
+    );
+    let moved_logs = logs_of(vec![
+        (folder, folder_log.clone()),
+        (middle, vec![middle_root.clone(), middle_placed.clone(), middle_moved]),
+        (elsewhere, vec![elsewhere_root.clone()]),
+    ]);
+    assert!(
+        check_note(
+            &moved_logs,
+            &[note_root.clone(), note_placed.clone(), granted_after]
+        )
+        .is_err(),
+        "a block lain under once, but not as of the head the chain names, is not above"
     );
 
     // A parent record needs Edit or above: Carol, who views it, moves nothing; Bob moves it
@@ -224,7 +275,7 @@ fn a_block_is_above_another_only_as_signed_parent_records_place_it() {
         note,
         note_placed.hash(),
         Placement::Detached,
-        from_folder,
+        from_folder.clone(),
     );
     assert_eq!(
         check_note(

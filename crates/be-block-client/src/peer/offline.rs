@@ -702,8 +702,9 @@ impl<S: ObjectStore> Peer<S> {
 
     /// Whether `creation`, made offline under the scope its kept summary named
     /// (`Creation::unchecked`), wraps a key under the key of a block its parent does not lie at
-    /// or under by the signed parent records (`Peer::signed_below`). A failed read is a failure
-    /// to send, tried again later.
+    /// or under by the signed parent records (`Peer::signed_below`), or one it cannot tell for a
+    /// root it never pinned. A read that does not get through is a failure to send, tried again
+    /// later.
     async fn misplaced(&self, creation: &Creation) -> Result<bool, ClientError> {
         let BlockParent::Block(parent) = creation.parent else {
             return Ok(false);
@@ -729,7 +730,8 @@ impl<S: ObjectStore> Peer<S> {
         for scope in scopes {
             match self.signed_below(parent, scope).await {
                 Ok(()) => {}
-                Err(ClientError::Forged(_)) => return Ok(true),
+                // A root this device never pinned stays so: waiting would hold the outbox.
+                Err(ClientError::Forged(_) | ClientError::Locked(_)) => return Ok(true),
                 Err(error) => return Err(error),
             }
         }

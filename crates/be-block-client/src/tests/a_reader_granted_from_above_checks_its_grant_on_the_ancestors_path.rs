@@ -1,7 +1,7 @@
 use super::*;
 
 use be_block_graph::Access;
-use be_block_keys::{Authority, Record, Step};
+use be_block_keys::{Record, Step};
 
 /// The accounts the whole grants among `steps` name.
 fn granted(steps: &[Step]) -> Vec<[u8; 16]> {
@@ -65,7 +65,7 @@ async fn a_reader_granted_from_above_checks_its_grant_on_the_ancestors_path() {
             _ => None,
         });
     assert!(
-        matches!(authority, Some(Authority::Inherited { block, .. }) if block == team.into_bytes()),
+        authority.as_ref().and_then(|authority| authority.above()) == Some(team.into_bytes()),
         "the deputy grants on its Manage of the workspace: {authority:?}"
     );
 

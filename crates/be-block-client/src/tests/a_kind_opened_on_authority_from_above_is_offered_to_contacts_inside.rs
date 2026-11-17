@@ -61,7 +61,7 @@ async fn a_kind_opened_on_authority_from_above_is_offered_to_contacts_inside() {
             _ => None,
         });
     assert!(
-        matches!(opening, Some(be_block_keys::Authority::Inherited { block, .. }) if block == team.into_bytes()),
+        opening.as_ref().and_then(|authority| authority.above()) == Some(team.into_bytes()),
         "the opening rests on the block above: {opening:?}"
     );
 
