@@ -54,7 +54,9 @@ pub struct Remapper {
     pressed: BTreeSet<Source>,
     bypassed: BTreeSet<Source>,
     /// The keys in `bypassed` that were pressed while the remaps started, rather than with a
-    /// session chord: once the remaps start knowing of them, their releases go to the remaps.
+    /// session chord: once the remaps answer `Start`, they are told of them and their releases go
+    /// to the remaps. Key repeats never reach the filter (libinput sends presses and releases
+    /// only), so a held key is pressed once.
     bypassed_starting: BTreeSet<Source>,
     forced: BTreeSet<Source>,
     locked: bool,
@@ -276,6 +278,11 @@ impl Remapper {
         if !self.take_start(&reply)? {
             return Ok(Vec::new());
         }
+        // The keys pressed while they started are theirs from now: told below as held, should they
+        // still be, and their releases going to them.
+        for source in std::mem::take(&mut self.bypassed_starting) {
+            self.bypassed.remove(&source);
+        }
         let told = self.told();
         let Some(running) = self.running.as_mut() else {
             return Err("the remaps did not start".to_owned());
@@ -287,10 +294,6 @@ impl Remapper {
                 if !self.take_start(&reply)? {
                     return Ok(Vec::new());
                 }
-                // The remaps know now of the keys pressed while they started.
-                for source in std::mem::take(&mut self.bypassed_starting) {
-                    self.bypassed.remove(&source);
-                }
                 reply
             }
         };
@@ -298,7 +301,6 @@ impl Remapper {
             running.starting = None;
             running.told = told;
         }
-        self.bypassed_starting.clear();
         Ok(self.settle(reply, now))
     }
 
@@ -319,11 +321,13 @@ impl Remapper {
         }
     }
 
+    /// What the remaps are told as they start: everything but the keys that bypass them, whose
+    /// releases pass as they are.
     fn told(&self) -> Told {
         Told {
             window: self.window.clone(),
-            held: self.physical.clone(),
-            pressed: self.pressed.clone(),
+            held: self.physical.difference(&self.bypassed).copied().collect(),
+            pressed: self.pressed.difference(&self.bypassed).copied().collect(),
         }
     }
 
