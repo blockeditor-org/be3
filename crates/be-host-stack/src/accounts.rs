@@ -466,24 +466,24 @@ pub async fn keys(server_url: String, token: String) -> Result<Keys, AccountErro
 
 /// Moves the account to `fresh`, resealing with `old` everything sealed to it or for itself
 /// (`contacts::new_identity`); with no `old`, only an account with nothing sealed yet. The
-/// contacts' waiting key changes are followed first, so the changes this sends seal to each
-/// contact's newest key, which the contact's devices can open.
+/// contacts' waiting key changes are followed first, checked against the device's `pins`, so
+/// the changes this sends seal to each contact's newest key, which the contact's devices can
+/// open. That is best-effort: a contact's mailbox that will not read never holds up a new
+/// phrase. The server seals again what the account sealed to it (`ServerKey::reseal_from`).
 pub async fn set_recovery_key(
     server_url: String,
     token: String,
     account: Uuid,
     old: Option<be_block_keys::RecoverySecret>,
     fresh: be_block_keys::RecoverySecret,
+    pins: std::collections::HashMap<Uuid, be_block_client::contacts::OwnContact>,
 ) -> Result<(), AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    if let Some(old) = &old {
-        be_block_client::contacts::contacts(
-            &connection,
-            account,
-            old,
-            &std::collections::HashMap::new(),
-        )
-        .await?;
+    if let Some(old) = &old
+        && let Err(error) =
+            be_block_client::contacts::contacts(&connection, account, old, &pins).await
+    {
+        eprintln!("be-host: a new phrase goes on without following the contacts' key changes: {error}");
     }
     let be_block_protocol::RecoveryKey {
         sealed, own, logs, ..

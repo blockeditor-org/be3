@@ -1348,6 +1348,11 @@ pub fn contacts() -> Vec<be_block_client::Contact> {
     with_seen(|shared| shared.contacts.to_vec()).unwrap_or_default()
 }
 
+/// The contacts' records this device pinned, as the stack last read them.
+pub fn contact_pins() -> std::collections::HashMap<Uuid, be_block_client::contacts::OwnContact> {
+    with_seen(|shared| (*shared.contact_pins).clone()).unwrap_or_default()
+}
+
 /// The account's storage as the server last said, while `watch_storage` is on.
 pub fn storage_usage() -> Option<be_block_protocol::AccountStorage> {
     with_seen(|shared| shared.storage.clone()).flatten()

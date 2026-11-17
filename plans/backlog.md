@@ -518,17 +518,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   device holding the old secret (or the reseal, which could carry an opened
   copy) follows it, with a test where both accounts take new phrases at once.
 
-- **An administrator's new phrase leaves the server unable to read the
-  policies.** After the administrator of a company organization takes a new
-  phrase, making a block there is refused `policy-unreadable`: the server opens
-  the organization settings block's key from the administrator's wrap by their
-  old key (decisions/server_enforced_settings_are_shared_with_the_server.md).
-  Seen while writing
-  `a_contact_whose_key_changes_outran_the_mailbox_is_not_confirmed_until_linked_again`,
-  which has a member take the phrases instead. Done: the new phrase reseals
-  what the account shared with the server too, with a test where an
-  administrator takes a new phrase and then makes a block.
-
 - **A test server that lies in its answers.** Fixes for what "the server
   alone" can do (a block's parent, its current key, its history, a rollback)
   want tests that fail before the fix, but the server answers summaries and

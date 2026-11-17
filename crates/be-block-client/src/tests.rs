@@ -176,6 +176,7 @@ mod an_administrator_edits_policies_another_administrator_made;
 mod an_administrator_made_after_a_demotion_opens_the_settings;
 mod an_administrator_reads_a_workspace_nobody_shared_with_them;
 mod an_administrators_device_shares_the_settings_with_the_server_again_when_it_connects;
+mod an_administrators_new_phrase_leaves_the_server_reading_the_policies;
 mod an_artifact_is_a_backref_of_the_block_it_describes;
 mod an_edit_made_offline_across_a_demotion_is_sealed_again_under_a_key_the_demoted_never_get;
 mod an_edit_made_offline_by_an_author_demoted_since_stays_set_aside;
@@ -512,6 +513,42 @@ async fn note(owner: &Peer<MemoryStore>) -> Uuid {
 /// A text too large to travel inside a publish, so its objects move through URLs.
 fn large_text() -> String {
     (0..400_000).map(|line| format!("line {line}\n")).collect()
+}
+
+/// Moves `account` from `old` to a new phrase, leaving a key change in each contact's mailbox.
+async fn new_phrase(
+    connection: &std::sync::Arc<crate::Connection>,
+    account: Uuid,
+    old: &be_block_keys::RecoverySecret,
+) -> be_block_keys::RecoverySecret {
+    let fresh = be_block_keys::RecoveryPhrase::generate().secret();
+    let be_block_protocol::RecoveryKey {
+        sealed, own, logs, ..
+    } = crate::ask(
+        be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
+            connection,
+            None,
+            be_block_protocol::Query::RecoveryKey,
+        ),
+    )
+    .await
+    .unwrap();
+    let resealed = crate::contacts::new_identity(account, old, &fresh, sealed, own, logs).unwrap();
+    crate::ask(be_block_protocol::write::<(), _>(
+        connection,
+        None,
+        be_block_protocol::Op::SetRecoveryKey {
+            public: fresh.public().0,
+            signing: fresh.signing().0,
+            sealed: resealed.sealed,
+            own: resealed.own,
+            changes: resealed.changes,
+            retirements: resealed.retirements,
+        },
+    ))
+    .await
+    .expect("a new phrase never waits on a contact's mailbox");
+    fresh
 }
 
 fn identity(email: &str) -> be_block_keys::RecoverySecret {

@@ -1552,7 +1552,7 @@ impl ServerStore {
             held_own.clear();
         }
         let by = encode_wrapped_by(WrappedBy::Account(account));
-        self.with_database(move |_, database| {
+        self.with_database(move |store, database| {
             let resealed: BTreeMap<(Uuid, Uuid), &SealedKey> = sealed
                 .iter()
                 .map(|key| ((key.organization, key.key), key))
@@ -1620,6 +1620,9 @@ impl ServerStore {
                 },
                 &retirements,
             )?;
+            if let Some(old) = recovery_key_of(&transaction, account)? {
+                store.server_key().reseal_from(&transaction, account, old)?;
+            }
             transaction.execute(
                 "INSERT OR REPLACE INTO recovery_keys (account_id, public, signing)
                  VALUES (?1, ?2, ?3)",
