@@ -91,5 +91,9 @@ fn a_terminal_hosts_be_is_the_deployments_or_one_built_here() {
         .find(|file| file.name == "terminal_types.wasm")
         .unwrap();
     assert_eq!(types.bytes, b"\0asm terminal");
+
+    std::fs::write(arm.join("-stray"), "").unwrap();
+    let stray = answer(&development, "arm64", Some(&built)).unwrap_err();
+    assert!(stray.contains("-stray"), "a stray file is named: {stray}");
     let _ = std::fs::remove_dir_all(&built);
 }
