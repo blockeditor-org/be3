@@ -391,6 +391,17 @@ Depends on #686 (session catch-ups replaced by server ordering).
   row carried off its list, collapsed, says nothing more until it lands, when
   only the receiving list's `ReorderStatus` speaks. Done: the places of a carry
   whose source is collapsed or gone are still announced, on both cores.
+- **A first measurement that is there at once.** On the HTML core a node's
+  `measure` signal is `None` until something has asked for it and a frame has
+  passed, so whatever a lift reads with `get_untracked` must be measured from
+  when it is built (the dock's tiles, tab strips and held panels, a `Reorder`'s root). Done:
+  beui-core-html's `watch()` seeds the signal synchronously the first time it
+  is made, and those eager `measure` calls at build go.
+- **A dock carry from the keyboard.** The dock's places are fixed and labelled
+  ("left of Files", "with Files"), so a keyboard carry could step between them,
+  but no dock source is focusable (tab rows, pane grips). Done with
+  plans/declarative_dragging.md step 3c: a focused tab lifts with the keys, and
+  a test steps it into a pane's edge and drops it there.
 
 ## 18. Keys
 

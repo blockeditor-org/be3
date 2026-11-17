@@ -222,7 +222,7 @@ as the place's state would (`State::previewed`) and springs every rect from wher
 (`Parting`, on `DockCurves::settle`): a pane that would close shrinks into its edge away from the
 neighbour taking its room, and a pane that only the drop makes is left open, empty. A pane's panel
 keeps the size it was laid out at while the dock carries anything (`DockHeldSize`), clipped by
-the pane as it moves, so no app or program in it lays out again until the drop commits; its
+the pane as it moves, so no app or program in it lays out again until the drop commits (a window resized mid-carry resizes its panels only then too); its
 docked tool bars are the pane's and move with it. The carried tab is drawn the size of where it
 would rest (`shaped`), under the pointer but inside its surface (`DockGhost`, the `preview` face with
 `opening`), and glides into that rest on release. A pane keeps showing the tab it shows until the

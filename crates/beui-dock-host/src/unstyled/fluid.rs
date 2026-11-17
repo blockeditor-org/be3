@@ -10,11 +10,13 @@ use be_lib_stable_hash::HashMap;
 use beui_components_unstyled::drag_board;
 use beui_components_unstyled::{DragPoint, ReorderGap};
 use beui_macros::{component, view};
-use beui_view::drag::{Candidate, DragSpec, Edge, closest, custom};
+use beui_view::drag::{Candidate, DragSpec, closest, custom};
 use beui_view::measure::measure;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
-use beui_view::types::{CanvasArrangement, Direction, Modifiers, Pos2, Rect, Spring, Vec2};
+use beui_view::types::{
+    CanvasArrangement, Direction, Measured, Modifiers, Pos2, Rect, Spring, Vec2,
+};
 use beui_view::types::window::WindowId;
 
 use beui_dock_state::*;
@@ -26,7 +28,9 @@ use super::{
 
 /// A place a carried tab or pane can land in the dock: the drop, the state it leaves, the
 /// surface whose layout offers it, and where the carried item rests there, in that surface's
-/// window's points. Two places are the same place when their drops are.
+/// window's points. Two places are the same place when their drops and surfaces are: `after`
+/// is the state at the lift, which the preview keeps, while the commit replays `drop` on the
+/// state as it is at the release.
 #[derive(Clone)]
 pub(super) struct DockPlace {
     pub(super) drop: DockDrop,
@@ -194,13 +198,7 @@ impl State {
             .zoned(zone.translate(local))
             .labelled(label);
         if let (DockDrop::Split { side, .. }, Some(pane)) = (drop, pane) {
-            let edge = match side {
-                Side::Left => Edge::Left,
-                Side::Right => Edge::Right,
-                Side::Above => Edge::Top,
-                Side::Below => Edge::Bottom,
-            };
-            candidate = candidate.nearest_edge(edge, pane.translate(local));
+            candidate = candidate.nearest_edge(side, pane.translate(local));
         }
         zones.out.push(candidate);
     }
@@ -409,6 +407,7 @@ impl State {
     /// Drops `dragged` on `place`, and glides it there from where it was drawn.
     pub(super) fn commit_drop(&self, dragged: DockDragged, place: DockPlace) {
         let drawn = self.ghost_at.get();
+        self.ghost_at.set(None);
         if let (Some(surface), Some(to), Some((at, from))) = (place.surface, place.rest, drawn)
             && at == surface
         {
@@ -701,15 +700,17 @@ fn collapsed(rect: Rect, direction: Direction, first: bool) -> Rect {
 #[component]
 pub(super) fn DockHeldSize(dock: State, children: Child) -> NodeId {
     let held = create_signal(None::<Vec2>);
-    let canvas = NodeRef::new();
+    // Measured from the start, so the lift reads the size at once, also where measurement
+    // comes a frame late.
+    let measured = create_signal(None::<ReadSignal<Option<Measured>>>);
     let carrying = create_memo(move || dock.carried().is_some());
     create_effect_on(
         move || carrying.get(),
         move |&carrying, _| {
             let size = carrying
-                .then(|| canvas.try_get())
+                .then(|| measured.get_untracked())
                 .flatten()
-                .and_then(|canvas| measure(canvas).get_untracked())
+                .and_then(|measured| measured.get_untracked())
                 .map(|measured| measured.rect.size());
             held.set(size);
         },
@@ -720,11 +721,13 @@ pub(super) fn DockHeldSize(dock: State, children: Child) -> NodeId {
             vec![(0, Rect::from_min_size(Pos2::ZERO, held.unwrap_or(size)))]
         }))
     });
-    view! {
-        <Canvas @node_ref=&canvas arrangement>
+    let canvas = view! {
+        <Canvas arrangement>
             <CanvasItem arranged=0u64 clip=false>{children}</CanvasItem>
         </Canvas>
-    }
+    };
+    measured.set(Some(measure(canvas)));
+    canvas
 }
 
 /// The carried tab or pane over one of `surface`'s places, drawn the size of where it
@@ -746,10 +749,19 @@ pub(super) fn DockGhost(
         let frame = board.frame().filter(|frame| !frame.floating)?;
         Some((dragged, frame.item, place))
     });
-    create_effect(move || {
-        if let Some((_, item, _)) = carried.get() {
-            dock.ghost_at.set(Some((surface, item)));
+    // Where it was drawn last, for the glide on release; forgotten once the carry ends, so
+    // a later drop that drew no ghost glides from nowhere stale.
+    create_effect(move || match carried.get() {
+        Some((_, item, _)) => dock.ghost_at.set(Some((surface, item))),
+        None if dock.carried().is_none()
+            && dock
+                .ghost_at
+                .get()
+                .is_some_and(|(drawn, _)| drawn == surface) =>
+        {
+            dock.ghost_at.set(None)
         }
+        None => {}
     });
     // A drop glides from where the ghost was drawn into its rest.
     let glide = create_signal(Moving::default());
