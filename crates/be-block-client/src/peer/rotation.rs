@@ -416,7 +416,9 @@ impl<S: ObjectStore> Peer<S> {
 
     /// Finishes the links this account made that were accepted (`contacts::finish_links`), and
     /// signs each who accepted an invitation into this organization into its log, with the
-    /// keys their card, opened with the invitation's code, names.
+    /// keys their card, opened with the invitation's code, names. Each link is deleted only
+    /// after that, so a device that stops halfway finishes it again on its next sync, rather
+    /// than leave its accepter waiting, unsigned, for an administrator.
     pub async fn finish_links(&self) -> Result<Vec<crate::contacts::Finished>, ClientError> {
         let finished = crate::contacts::finish_links(
             &self.connection(),
@@ -446,6 +448,7 @@ impl<S: ObjectStore> Peer<S> {
                 // One that fails waits in key work's unsigned members.
                 let _ = self.sign_in(account, identity, false).await;
             }
+            client::contacts::delete_link(&self.connection(), done.link).await??;
         }
         Ok(finished)
     }

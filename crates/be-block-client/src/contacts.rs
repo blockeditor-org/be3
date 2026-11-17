@@ -112,6 +112,9 @@ pub struct Finished {
     /// For an invitation, the organization its accepter joined, which an administrator's device
     /// signs them into (`Peer::finish_links`).
     pub invited: Option<Uuid>,
+    /// The link, which `Peer::finish_links` deletes once it signed the grant or the member in,
+    /// so a device that stops before then finishes it again.
+    pub(crate) link: Uuid,
 }
 
 pub fn card(
@@ -668,13 +671,14 @@ pub(crate) async fn finish_links(
         if kept && elsewhere {
             continue;
         }
-        client::contacts::delete_link(connection, link.id).await??;
-        if let Some(card) = opened.filter(|_| kept) {
-            finished.push(Finished {
+        match opened.filter(|_| kept) {
+            Some(card) => finished.push(Finished {
                 card,
                 grant,
                 invited,
-            });
+                link: link.id,
+            }),
+            None => client::contacts::delete_link(connection, link.id).await??,
         }
     }
     Ok(finished)
