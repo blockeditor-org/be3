@@ -60,7 +60,7 @@ async fn the_next_editor_seals_once_the_server_writes_a_silent_holders_leave() {
             Ok(Ok(_)) => {}
             Ok(Err(error)) => panic!("the laptop stopped hearing its connection: {error}"),
             Err(_) => {
-                crate::ask(be_block_protocol::client::connection::ping(&laptop.connection()))
+                be_block_protocol::client::connection::ping(&laptop.connection())
                     .await
                     .unwrap();
             }
