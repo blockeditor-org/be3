@@ -525,7 +525,8 @@ pub fn check_log(
                     .insert(grant.grantee, (grant.level, grant.identity));
             }
             Record::Opening(opening) => {
-                if kind != LogKind::Block || opening.level > Level::View {
+                // Open to view, or closed: no other level, so the record has one meaning.
+                if kind != LogKind::Block || !matches!(opening.level, Level::None | Level::View) {
                     return Err(KeyError::Record);
                 }
                 let tainted = state.granting(entry, own, opening.authority, false, outside)?;
