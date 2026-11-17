@@ -848,6 +848,9 @@ pub struct Replicas<H: Host> {
     /// Each opening of a replica, as `(block, kept_restart, through of each kept submission)`.
     #[cfg(test)]
     pub(crate) openings: Vec<(Uuid, u64, Vec<u64>)>,
+    /// Blocks `open` gives up on with this reason, as one whose join the server refused would.
+    #[cfg(test)]
+    pub(crate) refuse_opening: HashMap<Uuid, String>,
     /// What peers' relayed messages said, unsealed.
     #[cfg(test)]
     heard_from_peers: Vec<Vec<u8>>,
@@ -907,6 +910,8 @@ impl<H: Host> Replicas<H> {
             hold_kept_edits: false,
             #[cfg(test)]
             openings: Vec::new(),
+            #[cfg(test)]
+            refuse_opening: HashMap::new(),
             #[cfg(test)]
             heard_from_peers: Vec::new(),
             leaving: Vec::new(),
@@ -1191,6 +1196,10 @@ impl<H: Host> Replicas<H> {
             }
             return Ok(());
         }
+        #[cfg(test)]
+        if let Some(reason) = self.refuse_opening.get(&block) {
+            return Err(reason.clone());
+        }
         let Some(kind) = self.kind(content_type).await else {
             return Err(NO_MODULE.to_owned());
         };
@@ -1250,7 +1259,7 @@ impl<H: Host> Replicas<H> {
                 futures_util::future::Either::Right((_, joining)) => {
                     let head = known_head_of(peer, block);
                     let client = unjoined_client();
-                    if let Some(replica) = self.start(
+                    match self.start(
                         peer,
                         block,
                         content_type,
@@ -1263,10 +1272,13 @@ impl<H: Host> Replicas<H> {
                         None,
                         false,
                     ) {
-                        self.tell_marked(shared, replica);
-                        self.join_later(replica, block, joining, arrivals);
+                        Some(replica) => {
+                            self.tell_marked(shared, replica);
+                            self.join_later(replica, block, joining, arrivals);
+                            return Ok(());
+                        }
+                        None => return self.unstarted(shared, block, content_type),
                     }
-                    return Ok(());
                 }
             }
         } else {
@@ -1360,8 +1372,7 @@ impl<H: Host> Replicas<H> {
             sealed_head,
             offline,
         ) else {
-            // Its kept edits stopped opening since they were checked: it waits for their keys.
-            return Ok(());
+            return self.unstarted(shared, block, content_type);
         };
         self.tell_marked(shared, replica);
         if offline {
@@ -1374,6 +1385,25 @@ impl<H: Host> Replicas<H> {
                 self.moved(replica, moved, false);
             }
         }
+        Ok(())
+    }
+
+    /// Why `start` opened no replica of `block`: one is open already, no module here serves
+    /// the type, or its kept edits stopped opening since `open` checked them, so it waits for
+    /// their keys as a locked block does (`unlock` answers it, for the host to open again).
+    fn unstarted(
+        &mut self,
+        shared: &Arc<Mutex<H>>,
+        block: Uuid,
+        content_type: Uuid,
+    ) -> Result<(), String> {
+        if self.blocks.contains_key(&block) {
+            return Ok(());
+        }
+        if self.modules.module_of(content_type).is_none() {
+            return Err(NO_MODULE.to_owned());
+        }
+        self.lock(shared, block);
         Ok(())
     }
 
@@ -3782,6 +3812,12 @@ impl<H: Host> Replicas<H> {
                     }
                 }
             }
+            // What the ended replica held is gone unless one opened in its place (it may wait
+            // for keys or a connection, or have failed), and either way it is no longer counted.
+            if !self.blocks.contains_key(&block) {
+                H::released(shared, block);
+            }
+            self.counted(shared);
             return true;
         }
         H::released(shared, open.block);

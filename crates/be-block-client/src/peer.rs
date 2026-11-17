@@ -1286,6 +1286,11 @@ impl<S: ObjectStore> Peer<S> {
         self.refs.discarded(block)
     }
 
+    /// Every block `discarded` answers for, as the refs database keeps them across restarts.
+    pub fn all_discarded(&self) -> Vec<Uuid> {
+        self.refs.all_discarded()
+    }
+
     /// Joins `block`'s session (`Connection::join_session`). The server answers whether this
     /// account may edit it: once it may, edits of it are kept again where they were discarded
     /// (`refs::Dropped`), since a listing this device holds may be older than its access.
