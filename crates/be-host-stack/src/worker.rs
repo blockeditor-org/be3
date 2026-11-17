@@ -757,10 +757,6 @@ pub struct Shared {
     /// Set by a test (`hold_drains`): the outbox is not drained until it is cleared.
     #[cfg(test)]
     pub hold_drains: bool,
-    /// How many times a replica told whether its block is marked: once as each replica opens,
-    /// joins or rejoins its session, so a test waits on it to see a rejoin answered.
-    #[cfg(test)]
-    pub marks_told: u64,
     /// Set by a test: the next version command's write of a block waits on it
     /// (`version::HeldWrite`).
     #[cfg(test)]

@@ -92,6 +92,7 @@ mod an_abandoned_lease_is_claimed;
 mod an_edit_a_peers_replacement_dropped_unsent_stays_dropped_after_a_crash;
 mod an_edit_given_again_with_the_submission_that_held_it_lands_once_when_both_reach_the_server;
 mod an_edit_is_lacking_until_the_server_holds_it;
+mod an_edit_refused_as_this_account_may_not_edit_fails_and_stops_showing;
 mod an_edit_kept_across_a_stop_made_before_a_restart_since_is_told_not_sent;
 mod an_edit_numbered_while_its_replica_was_deaf_lands_once_after_another_seals_it;
 mod an_edit_numbered_while_its_replica_was_deaf_lands_once_after_it_reopens;
@@ -1359,8 +1360,13 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             Call::Submit {
                 reply, submission, ..
             } => {
-                // As the server: a viewer, or a build the session does not speak, is refused.
-                if !self.devices[device].may_edit || !self.lease.speaks(client) {
+                // As the server: a viewer is refused for good, and a build the session does not
+                // speak is refused.
+                if !self.devices[device].may_edit {
+                    let refused = be_sdk_type_api::host::Submitted::Refused("a viewer".into());
+                    return self.to(device, |host| reply.send(host, &refused));
+                }
+                if !self.lease.speaks(client) {
                     let refused = be_sdk_type_api::host::Submitted::Failed("refused".into());
                     return self.to(device, |host| reply.send(host, &refused));
                 }

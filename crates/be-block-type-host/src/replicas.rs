@@ -3981,6 +3981,20 @@ impl<H: Host> Replicas<H> {
                             }
                             be_sdk_type_api::host::Submitted::Held
                         }
+                        // This account may not edit the block: sent again it would be refused
+                        // again, so the replica gives the edit up, and what it announces is never
+                        // sent.
+                        Err(error @ ClientError::Refused(ErrorCode::PermissionDenied, _)) => {
+                            if !keys.is_empty()
+                                && let Err(error) = peer.submitted_refused(block, &keys)
+                            {
+                                H::record(&shared, error);
+                            }
+                            let refused =
+                                be_sdk_type_api::host::Submitted::Refused(error.to_string());
+                            H::record_sync(&shared, error);
+                            refused
+                        }
                         Err(error) => {
                             let failed =
                                 be_sdk_type_api::host::Submitted::Failed(error.to_string());

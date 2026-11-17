@@ -791,6 +791,9 @@ impl Module {
                         Ok(be_sdk_type_api::host::Submitted::Failed(error)) => {
                             replica::Outcome::Failed(error)
                         }
+                        Ok(be_sdk_type_api::host::Submitted::Refused(error)) => {
+                            replica::Outcome::Refused(error)
+                        }
                         Err(error) => replica::Outcome::Failed(error.to_string()),
                     },
                 });

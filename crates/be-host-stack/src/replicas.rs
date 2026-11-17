@@ -49,14 +49,6 @@ impl be_block_type_host::Host for Shared {
     }
 
     fn set_marked(shared: &Arc<Mutex<Self>>, block: Uuid, marked: bool) {
-        #[cfg(test)]
-        {
-            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-            held.marks_told += 1;
-            held.progressed += 1;
-            drop(held);
-            crate::changes::wake();
-        }
         super::worker::set_marked(shared, block, marked);
     }
 

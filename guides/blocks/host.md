@@ -311,7 +311,11 @@ the connection a stopping stack closed.
   local head stays on them: one that lost edit access follows the server's
   order, and a session of viewers has no holder to merge them in, so they show
   only among the unsent edits and as not sent to its editors
-  (guides/blocks/apps.md, "Sending").
+  (guides/blocks/apps.md, "Sending"). What it takes meanwhile (an editor
+  attached before the access changed, or the host's own edits) the server
+  refuses (`PermissionDenied`): the host answers the submission `refused`,
+  drops what it announces (`Peer::submitted_refused`), and the replica gives
+  the edit up, shown as not sent until its editor lets it go.
   The discard marks the block (`refs::Dropped`), until a join's `may-edit`
   says this account may edit it again (`Peer::join_session`): a listing that
   says so may be older than the access that lost it, so it does not count,
