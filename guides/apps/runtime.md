@@ -97,8 +97,10 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   `Root::frame` starts the root's `frames.frame` op (`be3:root`,
   `crates/be-wasm-root-api`) and steps the root until it answers; while the
   frame is unanswered (pending) it serves the root's calls (the sandbox, and
-  `host.deadline`, held until the frame's deadline passes) and waits on a bell
-  that the root's instances, compiles and own wakes ring. Only its tests run a
+  `host.deadline`, held until the frame's deadline passes and answered at once
+  outside a frame or after it) and waits on a bell
+  that the root's instances, compiles and own wakes ring, giving up on a root
+  still busy `with_patience` (`STEP_TIMEOUT`) past the deadline. Only its tests run a
   root today, and the web has no half yet.
 - **V8's heap.** No guest may declare garbage-collected types (structs,
   arrays) or more than one table, and a table holds at most a million entries

@@ -1,13 +1,14 @@
 use std::time::Duration;
 
 use be_lib_layers::{LayerId, LayerList};
-use be_wasm_root_testing::{CHILD_LAYER, HANGS_CHILD, ROOT_LAYER};
 use be_wasm_host::{Host, Stored, library_file_name, sandbox::Staged};
+use be_wasm_root_testing::{CHILD_LAYER, HANGS_CHILD, ROOT_LAYER, SPINS};
 
 use super::*;
 
 mod a_frame_past_its_deadline_draws_without_the_child_it_waits_for;
 mod a_frame_waits_for_its_child_and_shows_it;
+mod a_root_that_keeps_waking_itself_without_answering_stops_at_its_patience;
 
 const ROOT: &[u8] = include_bytes!(env!("ROOT_GUEST_WASM"));
 
@@ -16,13 +17,13 @@ const ECHO_APP: &[u8] = include_bytes!(env!("GUEST_ECHO_APP_WASM"));
 
 const BASE_LIBRARY: &[u8] = include_bytes!(env!("BASE_LIBRARY_WASM"));
 
-const ECHO_ENTRY: &str = "echo.wasm";
+const ECHO_ENTRY: &str = be_wasm_root_testing::CHILD_ENTRY;
 
-/// Finds the one staged app, the echo app, with its module and the base library staged as
+/// Finds the one staged module, the echo app's entry point, with the base library staged as
 /// be-tool-buck stages them: the library named by its identity.
-fn staged(app_id: &str) -> Result<Staged, String> {
-    if app_id != be_wasm_guest_echo::APP_ID {
-        return Err(format!("no staged app has the id {app_id}"));
+fn staged(app_id: &str, module: &str) -> Result<Staged, String> {
+    if app_id != be_wasm_guest_echo::APP_ID || module != ECHO_ENTRY {
+        return Err(format!("{app_id} stages no module named {module:?}"));
     }
     let library = library_file_name(&be_wasm_dylink::identity(BASE_LIBRARY));
     Ok(Staged::new(

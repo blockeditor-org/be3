@@ -13,7 +13,7 @@
 
 use std::{
     sync::{Arc, Condvar, Mutex},
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use be_wasm_guest_host::STEP_TIMEOUT;
@@ -37,6 +37,8 @@ pub struct Root {
     drawn: Option<Outcome>,
     /// Why the root stopped, once it did: it never runs again.
     failure: Option<String>,
+    /// How long past a frame's deadline the root itself may take before it counts as stopped.
+    patience: Duration,
 }
 
 /// Rung whenever something the root waits on may have arrived: an instance it spawned sent
@@ -89,13 +91,20 @@ impl Root {
             drawing: None,
             drawn: None,
             failure: None,
+            patience: STEP_TIMEOUT,
         };
         root.received()?;
         Ok(root)
     }
 
+    /// How long past a frame's deadline the root itself may take, `STEP_TIMEOUT` unless set.
+    pub fn with_patience(mut self, patience: Duration) -> Self {
+        self.patience = patience;
+        self
+    }
+
     /// Draws a frame for `request`, waiting for the root's children until `deadline` and for the
-    /// root itself as long as it takes, up to `STEP_TIMEOUT` past the deadline. A root that
+    /// root itself as long as it takes, up to its patience past the deadline. A root that
     /// trapped, panicked or took longer says why, and draws nothing again.
     pub fn frame(&mut self, request: FrameRequest, deadline: Instant) -> Result<FrameDone, String> {
         if let Some(failure) = &self.failure {
@@ -116,10 +125,18 @@ impl Root {
     fn draw(&mut self, request: FrameRequest, deadline: Instant) -> Result<FrameDone, String> {
         let ticket = embed::exports::frames::frame(&mut self.connection, request);
         self.drawing = Some((ticket.op(), false));
-        let give_up = deadline.max(Instant::now()) + STEP_TIMEOUT;
+        let give_up = deadline.max(Instant::now()) + self.patience;
         loop {
             let since = self.bell.rung();
             let now = Instant::now();
+            // Checked before stepping, so a root that keeps waking itself, or children that keep
+            // sending, cannot hold the frame past it.
+            if now >= give_up {
+                return Err(format!(
+                    "the root's frame took over {}ms past its deadline",
+                    self.patience.as_millis()
+                ));
+            }
             if now >= deadline {
                 self.pass_deadline();
             }
@@ -131,12 +148,6 @@ impl Root {
             }
             if self.step()? {
                 continue;
-            }
-            if now >= give_up {
-                return Err(format!(
-                    "the root's frame waited {}s past its deadline",
-                    STEP_TIMEOUT.as_secs()
-                ));
             }
             // Pending: wait until what the root waits on has something for it.
             self.bell.wait(since, if now >= deadline { give_up } else { deadline });
@@ -209,6 +220,7 @@ impl Root {
                 {
                     self.drawn = Some(outcome);
                 }
+                // Includes a frame answered after the host gave up on it: no one waits for it.
                 Incoming::Completed { .. }
                 | Incoming::Yielded { .. }
                 | Incoming::Credited { .. } => {}

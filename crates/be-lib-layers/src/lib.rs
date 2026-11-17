@@ -396,7 +396,7 @@ pub struct LayerList {
 impl LayerList {
     /// The list as the root guest's frame carries it (be-wasm-root-api's `frame-done`).
     pub fn encode(&self) -> Vec<u8> {
-        postcard::to_allocvec(self).unwrap_or_default()
+        postcard::to_allocvec(self).expect("a layer list always encodes")
     }
 
     /// A list `encode` made, or why the bytes are not one.

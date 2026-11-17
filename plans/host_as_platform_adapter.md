@@ -294,7 +294,7 @@ a loader the host gives the `Server` (be-host-runtime's `staged_app`), and runs 
 and WASI but no display. Every app is served one already, for its workers, which spawns only its
 own app's modules and compiles none (plans/single_threaded_guests.md, step 1).
 `crates/be-wasm-root-host` serves the root one that may spawn any staged app (step 4a). The web's
-half is not built: it lands with the first guest on the web that spawns (step 4c, or
+half is not built: it lands with the first guest on the web that spawns (step 4d, or
 plans/single_threaded_guests.md).
 
 An app's platform calls (clipboard, drag and drop, file dialogs, opening URLs) are served by the
@@ -475,10 +475,12 @@ Each step lands on its own.
    - 4c. The router routes the host's input: `AppView` declares each layer's `LayerInput` (hit
      and gesture areas, scrims and popups, placers), and be-host's input goes through `Router`
      over the last committed `WindowLayers` rather than through beui's forwarding catchers, with
-     the IME area, accessibility actions by node id and drive's presses on the same path. The
-     web's half of the sandbox and of the root entry (the page calling the root from
-     `requestAnimationFrame`) lands here too.
-   - 4d. A surface a guest names, and the app host in a guest: an app the root spawns gets the
+     the IME area, accessibility actions by node id and drive's presses on the same path.
+   - 4d. The web's half of the sandbox and of the root entry: the page compiles with
+     `WebAssembly.compile` and spawns a worker per instance, and calls the root inline from
+     `requestAnimationFrame`, resuming it as its workers answer; tested with 4a's root in
+     Chromium.
+   - 4e. A surface a guest names, and the app host in a guest: an app the root spawns gets the
      gpu on the host's device, its presented textures named to the root only by handle
      (`App::attach_surface`, a `Surface::Screen` of a sandbox instance). The host side of the
      app protocol (configuring screens, an editor's watches, a block's content; be-sdk-test's
@@ -486,7 +488,7 @@ Each step lands on its own.
      orchestration (pacing, settle, restarts, grafting accessibility trees) become a guest
      library, and a root built on it embeds an editor without the host's compositor, shown by
      a host test. The root gets its `input` export here.
-   - 4e. The compositor moves into the root: `src/compositor`, `src/ui`, the camera and
+   - 4f. The compositor moves into the root: `src/compositor`, `src/ui`, the camera and
      be-host-accounts-ui, talking to the native block stack by the messages it uses today
      (`ChangeWatch`) until step 5 moves the stack. drive's commands split as The root guest
      says. be-host runs the root through 4a's entry, draws its layer list (4b) and routes by
