@@ -1,10 +1,11 @@
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use be_block_content::{LiveEdit, Settling, Touched};
 use be_sdk_type_api::ClientId;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
+/// What a `FromEditor::Gesture` does to the gesture it names.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum Gesture {
     /// Opens an undo group: its edits are written as they happen and undo as one step.
@@ -14,15 +15,27 @@ pub enum Gesture {
     BeginTentative,
     Commit,
     Cancel,
-    /// Ends the current undo step without opening a gesture, so the next edit starts one of
-    /// its own however soon it comes: a text editor's paste, or typing after a caret jump.
-    Break,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum FromEditor {
-    Operate(#[serde(with = "serde_bytes")] Vec<u8>),
-    Gesture(Gesture),
+    /// An edit, made in the editor's open gesture `gesture`, or outside any.
+    Operate {
+        gesture: Option<u64>,
+        #[serde(with = "serde_bytes")]
+        operation: Vec<u8>,
+    },
+    /// Begins or ends the editor's gesture `id`. An editor picks its own ids and may hold
+    /// several gestures open at once (two fingers, two controllers), each ending on its own;
+    /// beginning one under the name of one still open commits that first.
+    Gesture {
+        id: u64,
+        gesture: Gesture,
+    },
+    /// Ends the editor's current undo step without opening a gesture, so its next edit starts
+    /// one of its own however soon it comes: a text editor's paste, or typing after a caret
+    /// jump.
+    Break,
     Replace(#[serde(with = "serde_bytes")] Vec<u8>),
     ShowPresence {
         kind: Uuid,
@@ -157,8 +170,9 @@ pub enum ToEditor {
     Failed(String),
     /// The replica ended the editor's gesture `id` itself: an undo cancelled its tentative
     /// layer, or the content its edits moved was replaced or did not carry over a restart. With
-    /// `cancelled`, none of its edits are kept: the editor stops previewing it, and its later
-    /// edits are dropped until it ends the gesture as it would have.
+    /// `cancelled`, none of its edits are kept: the editor stops previewing it, sends no more
+    /// edits in it, and answers with a `Gesture::Cancel` for it, which is what ends it for the
+    /// host and the replica alike (only a commit sent before this arrived can cross it).
     GestureEnded {
         id: u64,
         cancelled: bool,
@@ -264,6 +278,13 @@ pub struct EditorMirror<C: LiveEdit> {
     lacking: BTreeMap<u64, (Vec<u8>, bool)>,
     lacking_revision: u64,
     failed: Option<String>,
+    /// The gestures this editor holds open, by id.
+    gesturing: BTreeSet<u64>,
+    /// Those the replica ended (`ToEditor::GestureEnded`), which this cancelled for the
+    /// editor: what the editor sends in them is dropped until it ends them itself.
+    voided: BTreeSet<u64>,
+    /// Those the replica ended since `take_ended`.
+    ended: Vec<u64>,
 }
 
 impl<C: LiveEdit + Clone + Default> Default for EditorMirror<C> {
@@ -287,6 +308,9 @@ impl<C: LiveEdit + Clone + Default> Default for EditorMirror<C> {
             lacking: BTreeMap::new(),
             lacking_revision: 0,
             failed: None,
+            gesturing: BTreeSet::new(),
+            voided: BTreeSet::new(),
+            ended: Vec::new(),
         }
     }
 }
@@ -429,13 +453,52 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         std::mem::take(&mut self.touched)
     }
 
-    pub fn operate(&mut self, operation: C::Op) -> Option<FromEditor> {
+    /// Applies `operation`, made in the editor's gesture `gesture` or outside any, and returns
+    /// the message that sends it: none before the content arrives, or in a gesture the replica
+    /// ended, whose edits are dropped.
+    pub fn operate(&mut self, gesture: Option<u64>, operation: C::Op) -> Option<FromEditor> {
         self.confirmed.as_ref()?;
+        if gesture.is_some_and(|gesture| self.voided.contains(&gesture)) {
+            return None;
+        }
         self.visible.apply_touching(&operation, &mut self.touched);
         self.revision += 1;
-        let message = FromEditor::Operate(C::encode_operation(&operation));
+        let message = FromEditor::Operate {
+            gesture,
+            operation: C::encode_operation(&operation),
+        };
         self.pending.push_back(operation);
         Some(message)
+    }
+
+    /// Begins or ends the editor's gesture `id` (`FromEditor::Gesture`), returning the message
+    /// that does: none to end one the replica ended, which this already cancelled.
+    pub fn gesture(&mut self, id: u64, gesture: Gesture) -> Option<FromEditor> {
+        match gesture {
+            Gesture::Begin | Gesture::BeginTentative => {
+                self.voided.remove(&id);
+                self.gesturing.insert(id);
+            }
+            Gesture::Commit | Gesture::Cancel => {
+                self.gesturing.remove(&id);
+                if self.voided.remove(&id) {
+                    return None;
+                }
+            }
+        }
+        Some(FromEditor::Gesture { id, gesture })
+    }
+
+    /// Whether the editor's gesture `id` is open: begun, and ended neither by the editor nor
+    /// by the replica.
+    pub fn gesture_open(&self, id: u64) -> bool {
+        self.gesturing.contains(&id)
+    }
+
+    /// The editor's gestures the replica ended since this was last asked, in the order it did:
+    /// each is cancelled already, and its editor stops it (a drag lets go of what it carried).
+    pub fn take_ended(&mut self) -> Vec<u64> {
+        std::mem::take(&mut self.ended)
     }
 
     pub fn receive(&mut self, message: ToEditor) -> Option<FromEditor> {
@@ -494,9 +557,20 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
                 self.fail(reason);
                 None
             }
-            // What the replica shows already dropped the gesture's edits; an editor's own
-            // gestures are followed above it (plans/tentative_gestures.md, step 3).
-            ToEditor::GestureEnded { .. } => None,
+            // The replica dropped the gesture's edits, and drops what comes before it hears the
+            // gesture end: the cancel answering is what ends it for the host and the replica,
+            // so only a commit already on its way crosses it.
+            ToEditor::GestureEnded { id, cancelled } => {
+                if !cancelled || !self.gesturing.remove(&id) {
+                    return None;
+                }
+                self.voided.insert(id);
+                self.ended.push(id);
+                Some(FromEditor::Gesture {
+                    id,
+                    gesture: Gesture::Cancel,
+                })
+            }
         }
     }
 

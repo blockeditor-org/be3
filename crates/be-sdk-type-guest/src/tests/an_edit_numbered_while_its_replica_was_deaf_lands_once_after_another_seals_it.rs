@@ -35,7 +35,7 @@ fn an_edit_numbered_while_its_replica_was_deaf_lands_once_after_another_seals_it
     sim.send_from_editor(
         1,
         1,
-        FromEditor::Operate(CounterContent::encode_operation(&Counter::add(10))),
+        FromEditor::Operate { gesture: None, operation: CounterContent::encode_operation(&Counter::add(10)) },
     );
     sim.settle();
     for _ in 0..3 {

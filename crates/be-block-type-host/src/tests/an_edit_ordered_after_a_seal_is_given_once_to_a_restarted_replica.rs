@@ -11,7 +11,7 @@ fn add(replicas: &mut Replicas<Quiet>, block: Uuid, editor: EditorId, by: i64) {
     replicas.relay_from_editor(
         block,
         editor,
-        FromEditor::Operate(CounterContent::encode_operation(&Counter::add(by))).encode(),
+        FromEditor::Operate { gesture: None, operation: CounterContent::encode_operation(&Counter::add(by)) }.encode(),
         Instant::now(),
     );
 }

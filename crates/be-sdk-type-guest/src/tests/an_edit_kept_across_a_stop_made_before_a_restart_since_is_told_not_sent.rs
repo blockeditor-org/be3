@@ -20,9 +20,9 @@ fn an_edit_kept_across_a_stop_made_before_a_restart_since_is_told_not_sent() {
         .text(ObjectId::ROOT, Prose::BODY)
         .and_then(|body| body.insert(client, 0, b"kept ".to_vec()))
         .expect("there is somewhere to type");
-    let kept = FromEditor::Operate(ProseContent::encode_operation(
+    let kept = FromEditor::Operate { gesture: None, operation: ProseContent::encode_operation(
         &Prose::BODY.edit(ObjectId::ROOT, op).into(),
-    ));
+    ) };
     sim.send_from_editor(1, 1, kept.clone());
     sim.settle();
     let kept_restart = sim.devices[1].status.restarts;

@@ -6,7 +6,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::presence::{CanvasCaret, CanvasCursor};
-use be_sdk_beui::ContentProjection;
+use be_sdk_beui::{ContentGesture, ContentProjection};
 use be_sdk_beui::be_block_content::presence::{PresenceColor, pick_free_color};
 use be_sdk_beui::be_block_content::{Edit, ObjectId};
 use be_sdk_beui::be_sdk_ui::BlockLabel;
@@ -500,7 +500,8 @@ struct CanvasCells {
     placeholders: RefCell<HashMap<Uuid, Placeholder>>,
     confirmed_editor: Cell<Option<Uuid>>,
     shown: RefCell<Option<CanvasCursor>>,
-    writing: Cell<bool>,
+    /// The undo group the canvas's writes go in while one is open (`open_writes`).
+    writing: Cell<Option<ContentGesture>>,
     scrubbing: Cell<bool>,
     written_points: Cell<usize>,
     drafting: Cell<Option<Uuid>>,
@@ -639,7 +640,7 @@ impl CanvasState {
             placeholders: RefCell::new(HashMap::new()),
             confirmed_editor: Cell::new(None),
             shown: RefCell::new(None),
-            writing: Cell::new(false),
+            writing: Cell::new(None),
             scrubbing: Cell::new(false),
             written_points: Cell::new(0),
             drafting: Cell::new(None),
@@ -750,10 +751,7 @@ impl CanvasState {
     }
 
     pub(crate) fn set_grid(&self, grid: be_type_infinite_canvas::CanvasGrid) {
-        self.cells
-            .value()
-            .content
-            .operate(be_type_infinite_canvas::Canvas::set_grid(grid));
+        self.write(be_type_infinite_canvas::Canvas::set_grid(grid));
     }
 
     pub(crate) fn block_id(&self) -> Uuid {
@@ -962,7 +960,7 @@ impl CanvasState {
             if self.gesture.with_untracked(Option::is_some) {
                 self.open_writes();
             }
-            self.cells.value().content.operate(edit);
+            self.write(edit);
         }
     }
 
@@ -978,9 +976,19 @@ impl CanvasState {
         self.cells.value().drawing_tool.get()
     }
 
+    /// Makes `edit` in the open undo group (`open_writes`), or outside any.
+    fn write(&self, edit: Edit) {
+        let content = self.content();
+        match self.cells.value().writing.get() {
+            Some(gesture) => content.operate_in(gesture, edit),
+            None => content.operate(edit),
+        }
+    }
+
     pub(crate) fn open_writes(&self) {
-        if !self.cells.value().writing.replace(true) {
-            self.content().begin_gesture();
+        let writing = &self.cells.value().writing;
+        if writing.get().is_none() {
+            writing.set(Some(self.content().begin_gesture()));
         }
     }
 
@@ -997,8 +1005,8 @@ impl CanvasState {
         if cells.scrubbing.get() || cells.drafting.get().is_some() {
             return;
         }
-        if cells.writing.replace(false) {
-            self.content().commit_gesture();
+        if let Some(gesture) = cells.writing.take() {
+            self.content().commit_gesture(gesture);
         }
     }
 
@@ -1009,8 +1017,8 @@ impl CanvasState {
     }
 
     fn drop_writes(&self) {
-        if self.cells.value().writing.replace(false) {
-            self.content().cancel_gesture();
+        if let Some(gesture) = self.cells.value().writing.take() {
+            self.content().cancel_gesture(gesture);
         }
     }
 
@@ -1175,7 +1183,7 @@ impl CanvasState {
             .read(|canvas| canvas.root().set_profile(profile))
             && !edit.0.is_empty()
         {
-            self.cells.value().content.operate(edit);
+            self.write(edit);
         }
     }
 
@@ -1312,7 +1320,7 @@ impl CanvasState {
         let content = self.content();
         let client = self.cells.value().client;
         if let Ok(Some(edit)) = content.read(|canvas| Canvas::retext(canvas, client, id, text)) {
-            content.operate(edit);
+            self.write(edit);
         }
     }
 

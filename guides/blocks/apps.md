@@ -19,8 +19,10 @@ rest wait in `EditorHost`). A frame is an encoded
 `be_sdk_type_guest::editor::ToEditor` or `FromEditor`, relayed unread between
 the instance and the replica.
 
-- App to host: `Operate`, `Gesture`, `ShowPresence`, `SendToPeers`, `Resend`,
-  `Read` (below).
+- App to host: `Operate { gesture, operation }`, `Gesture { id, gesture }`,
+  `Break`, `ShowPresence`, `SendToPeers`, `Resend`, `Read` (below). Gestures
+  are named by ids the instance picks, and an edit names the gesture it was made
+  in, or none (guides/blocks/host.md, Undo).
   An instance asks for content by sending `Resend` when it first follows a
   block; the host attaches it then, with `editable` from `be_host_stack::access`
   (attached again when that changes, and the app is sent `SetEditable`): the
@@ -36,7 +38,8 @@ the instance and the replica.
   `Operations` (each marked `mine`, with `unsettled` and, for a peer's
   operation that goes beneath them, the rebased `beneath`); `Lacking` (below,
   "Sending"); `Presence`;
-  `PeerMessages`; `Range`.
+  `PeerMessages`; `Range`; `GestureEnded { id, cancelled }`, the replica ending
+  one of the instance's gestures, which `EditorMirror` answers with a cancel.
 - `write-content` writes content outright, since it may name a block nothing
   follows (guides/blocks/host.md, "Creating, seeding and replacing").
 

@@ -25,9 +25,9 @@ fn reached(block: Uuid, expected: &[&str], history: History) {
 
 /// An edit as an editor makes it: the host's own (`operate`) are not this peer's to undo.
 fn checklist(editor: &mut Editor<ChecklistContent>, edit: &Edit) {
-    editor.send(be_sdk_type_guest::editor::FromEditor::Operate(
+    editor.send(be_sdk_type_guest::editor::FromEditor::Operate { gesture: None, operation: 
         ChecklistContent::encode_operation(edit),
-    ));
+     });
 }
 
 #[test]

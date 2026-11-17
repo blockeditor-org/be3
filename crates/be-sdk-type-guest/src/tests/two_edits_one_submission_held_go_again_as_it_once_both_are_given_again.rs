@@ -59,7 +59,7 @@ fn two_edits_one_submission_held_go_again_as_it_once_both_are_given_again() {
             sim.send_from_editor(
                 1,
                 1,
-                FromEditor::Operate(CounterContent::encode_operation(&Counter::add(*by))),
+                FromEditor::Operate { gesture: None, operation: CounterContent::encode_operation(&Counter::add(*by)) },
             );
         }
         sim.settle();
@@ -70,7 +70,7 @@ fn two_edits_one_submission_held_go_again_as_it_once_both_are_given_again() {
         sim.send_from_editor(
             1,
             1,
-            FromEditor::Operate(CounterContent::encode_operation(&Counter::add(*last))),
+            FromEditor::Operate { gesture: None, operation: CounterContent::encode_operation(&Counter::add(*last)) },
         );
         sim.settle();
         if late {

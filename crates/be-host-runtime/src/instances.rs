@@ -200,11 +200,9 @@ struct ContentLink {
     /// lacks it again (an app that starts, an editor out of step), until the answer is relayed.
     deliveries: u64,
     awaiting_preview: bool,
-    /// Whether the editor holds a gesture open in the block, an undo group or a tentative one:
-    /// a link that goes cancels it, so a tentative gesture's held edits leave no trace. The
-    /// protocol names no gesture yet, so an editor holds one at a time
-    /// (plans/tentative_gestures.md, step 3).
-    gesturing: bool,
+    /// The gestures the editor holds open in the block, undo groups and tentative ones, by id:
+    /// a link that goes cancels each, so a tentative gesture's held edits leave no trace.
+    gestures: std::collections::BTreeSet<u64>,
     described: Option<be_block_content::Entries>,
 }
 
@@ -216,7 +214,7 @@ impl ContentLink {
             delivered: false,
             deliveries: 0,
             awaiting_preview: false,
-            gesturing: false,
+            gestures: std::collections::BTreeSet::new(),
             described: None,
         }
     }
@@ -240,8 +238,11 @@ impl ContentLink {
             return;
         }
         let mut goodbyes = Vec::new();
-        if self.gesturing {
-            goodbyes.push(FromEditor::Gesture(Gesture::Cancel));
+        for id in std::mem::take(&mut self.gestures) {
+            goodbyes.push(FromEditor::Gesture {
+                id,
+                gesture: Gesture::Cancel,
+            });
         }
         for kind in shown {
             goodbyes.push(FromEditor::ShowPresence {
@@ -1021,10 +1022,18 @@ impl Instances {
             return false;
         };
         match &message {
-            Some(FromEditor::Gesture(Gesture::Begin | Gesture::BeginTentative)) => {
-                link.gesturing = true;
+            Some(FromEditor::Gesture {
+                id,
+                gesture: Gesture::Begin | Gesture::BeginTentative,
+            }) => {
+                link.gestures.insert(*id);
             }
-            Some(FromEditor::Gesture(Gesture::Commit | Gesture::Cancel)) => link.gesturing = false,
+            Some(FromEditor::Gesture {
+                id,
+                gesture: Gesture::Commit | Gesture::Cancel,
+            }) => {
+                link.gestures.remove(id);
+            }
             _ => {}
         }
         let resend = matches!(message, Some(FromEditor::Resend));

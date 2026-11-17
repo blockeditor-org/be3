@@ -512,7 +512,7 @@ fn resend(
 
 /// Whether an editor's frame is an operation, which its replica counts as the editor's.
 fn operates(bytes: &[u8]) -> bool {
-    matches!(FromEditor::decode(bytes), Some(FromEditor::Operate(_)))
+    matches!(FromEditor::decode(bytes), Some(FromEditor::Operate { .. }))
 }
 
 /// Uncounts the editors' operations nothing opened after a replica that ended holds: the

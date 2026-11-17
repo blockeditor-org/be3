@@ -390,9 +390,12 @@ order: presence and channel messages. The rules an agent most needs:
   of it and does nothing else; its open gestures stay open, dropping what their
   editors send, until they end them. A redo is refused. A restart carries the layer
   after `unsent`; a gesture with an edit that does not carry, and every open one
-  at a replacement, ends here: the editor is told `ToEditor::GestureEnded`, and
-  its later edits are dropped until it ends the gesture as it would have. An
-  editor that detaches cancels its own.
+  at a replacement, ends here: the editor is told `ToEditor::GestureEnded`, its
+  later edits are dropped, and its `EditorMirror` answers with a cancel of the
+  gesture, which ends it for `Holds` on both sides. An editor that detaches
+  cancels its own. Gestures are named by the editor and an id of its own
+  (`FromEditor::Gesture { id, .. }`, `FromEditor::Operate { gesture, .. }`), so one
+  editor holds several.
   `be_sdk_type_guest::holds::Holds` decides, from the messages alone, which
   messages are held, so the host's replay and the replica's counts agree: a
   tentative gesture's begin, commit and cancel never count as local edits, and

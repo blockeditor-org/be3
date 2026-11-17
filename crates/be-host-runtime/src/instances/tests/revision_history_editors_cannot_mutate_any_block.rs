@@ -39,9 +39,9 @@ fn revision_history_editors_cannot_mutate_any_block() {
         assert!(!to_replica(
             &mut instances,
             target,
-            &FromEditor::Operate(CounterContent::encode_operation(
+            &FromEditor::Operate { gesture: None, operation: CounterContent::encode_operation(
                 &be_type_example_counter::Counter::add(99)
-            ))
+            ) }
         ));
         assert!(!call(
             &mut instances,
@@ -123,9 +123,9 @@ fn revision_history_editors_cannot_mutate_any_block() {
     assert!(!to_replica(
         &mut nested,
         child,
-        &FromEditor::Operate(CounterContent::encode_operation(
+        &FromEditor::Operate { gesture: None, operation: CounterContent::encode_operation(
             &be_type_example_counter::Counter::add(99)
-        ))
+        ) }
     ));
     be_host_stack::flush_and_send();
     assert_eq!(

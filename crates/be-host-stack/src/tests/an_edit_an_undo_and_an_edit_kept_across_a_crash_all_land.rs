@@ -16,9 +16,9 @@ fn an_edit_an_undo_and_an_edit_kept_across_a_crash_all_land() {
     // not this peer's to undo.
     let mut editor = Editor::<CounterContent>::attach(block);
     let mut edit = |by: i64| {
-        editor.send(be_sdk_type_guest::editor::FromEditor::Operate(
+        editor.send(be_sdk_type_guest::editor::FromEditor::Operate { gesture: None, operation: 
             CounterContent::encode_operation(&Counter::add(by)),
-        ));
+         });
     };
 
     harness.relay().hold_answers(true);

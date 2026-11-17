@@ -3939,7 +3939,14 @@ async fn apply(
             false
         }
         Command::Operate(block, operation, at) => {
-            replicas.send_as_host(block, &FromEditor::Operate(operation), at);
+            replicas.send_as_host(
+                block,
+                &FromEditor::Operate {
+                    gesture: None,
+                    operation,
+                },
+                at,
+            );
             false
         }
         #[cfg(test)]

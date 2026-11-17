@@ -15,6 +15,15 @@ type Run<C> = dyn Fn(&C, &[Touched]);
 
 pub use be_sdk_type_guest::editor::Projected;
 
+/// A gesture an editor holds open in a block's content: an undo group
+/// (`LiveContent::begin_gesture`), whose edits are written as they happen and undo as one step,
+/// or a tentative gesture (`LiveContent::begin_tentative`), whose edits are shown at once on
+/// this device but held from peers and the journal until it commits
+/// (decisions/tentative_edits_wait_for_release.md). An editor may hold several at once, each
+/// ending on its own.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct ContentGesture(u64);
+
 struct Projection<C: LiveEdit> {
     host: EditorHost,
     block: Option<uuid::Uuid>,
@@ -27,6 +36,7 @@ struct Projection<C: LiveEdit> {
     lacking_revision: Cell<u64>,
     lacking_followed: Cell<bool>,
     lacking_changes: Callbacks<(), dyn Fn()>,
+    ended: Callbacks<(), dyn Fn(ContentGesture)>,
     due: RefCell<Option<Rc<dyn Fn()>>>,
     reads: RefCell<HashMap<u64, Box<Read>>>,
 }
@@ -70,6 +80,7 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
             lacking_revision: Cell::new(0),
             lacking_followed: Cell::new(false),
             lacking_changes: Callbacks::default(),
+            ended: Callbacks::default(),
             due: RefCell::new(None),
             reads: RefCell::new(HashMap::default()),
         }))
@@ -218,43 +229,95 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
         })
     }
 
+    /// Makes an edit outside any gesture.
     pub fn operate(&self, operation: C::Op) {
         if !self.0.host.editable() || !self.loaded() {
             return;
         }
-        self.operate_anyway(operation);
+        self.send_operation(None, operation);
     }
 
-    fn gesture(&self, gesture: Gesture) {
-        if self.0.host.editable() && self.loaded() {
-            self.0
-                .host
-                .send_to_replica(self.0.block, FromEditor::Gesture(gesture));
+    /// Makes an edit in the open gesture `gesture`. One in a gesture the replica ended
+    /// (`on_gesture_ended`) is dropped.
+    pub fn operate_in(&self, gesture: ContentGesture, operation: C::Op) {
+        if !self.0.host.editable() || !self.loaded() {
+            return;
+        }
+        self.send_operation(Some(gesture.0), operation);
+    }
+
+    fn gesture(&self, id: u64, gesture: Gesture) {
+        if !self.0.host.editable() || !self.loaded() {
+            return;
+        }
+        let message = self.0.mirror.borrow_mut().gesture(id, gesture);
+        if let Some(message) = message {
+            self.0.host.send_to_replica(self.0.block, message);
         }
     }
 
-    pub fn begin_gesture(&self) {
-        self.gesture(Gesture::Begin);
+    fn begin(&self, gesture: Gesture) -> ContentGesture {
+        let id = self.0.host.next_gesture();
+        self.gesture(id, gesture);
+        ContentGesture(id)
     }
 
-    pub fn commit_gesture(&self) {
-        self.gesture(Gesture::Commit);
+    /// Opens an undo group: the edits made in it (`operate_in`) are written as they happen
+    /// and undo as one step.
+    pub fn begin_gesture(&self) -> ContentGesture {
+        self.begin(Gesture::Begin)
+    }
+
+    /// Opens a tentative gesture: the edits made in it (`operate_in`) show at once in every
+    /// view of the block on this device, but are sent and saved only when it commits.
+    /// Cancelling it, the editor closing or a crash leaves no trace of them. Its edits only
+    /// move or change what exists; anything it creates is created on commit.
+    pub fn begin_tentative(&self) -> ContentGesture {
+        self.begin(Gesture::BeginTentative)
+    }
+
+    /// Ends `gesture`, keeping its edits.
+    pub fn commit_gesture(&self, gesture: ContentGesture) {
+        self.gesture(gesture.0, Gesture::Commit);
+    }
+
+    /// Puts back what `gesture` wrote and leaves no history. The host cancels the gestures
+    /// still open when the instance closes.
+    pub fn cancel_gesture(&self, gesture: ContentGesture) {
+        self.gesture(gesture.0, Gesture::Cancel);
+    }
+
+    /// Whether `gesture` is open: begun, and ended neither here nor by the replica.
+    pub fn gesture_open(&self, gesture: ContentGesture) -> bool {
+        self.0.mirror.borrow().gesture_open(gesture.0)
+    }
+
+    /// Runs `run` for each of this editor's gestures the replica ended (`ToEditor::GestureEnded`):
+    /// an undo cancelled the tentative layer, or what its edits moved was replaced. The gesture
+    /// is cancelled already, and its later edits are dropped: the editor only stops it, as a
+    /// drag lets go of what it carried.
+    pub fn on_gesture_ended(&self, run: impl Fn(ContentGesture) + 'static) -> Subscription {
+        self.0.ended.add((), Rc::new(run))
     }
 
     /// Ends the current undo step, so the next edit starts one of its own however soon it
     /// comes, without opening a gesture.
     pub fn break_step(&self) {
-        self.gesture(Gesture::Break);
+        if self.0.host.editable() && self.loaded() {
+            self.0
+                .host
+                .send_to_replica(self.0.block, FromEditor::Break);
+        }
     }
 
-    /// Puts back what the open gesture wrote and leaves no history. The host cancels a
-    /// gesture still open when the instance closes.
-    pub fn cancel_gesture(&self) {
-        self.gesture(Gesture::Cancel);
-    }
-
+    /// Makes an edit outside any gesture even where the block is not editable here: a viewer's
+    /// own view state, which a read-only editor still keeps.
     pub fn operate_anyway(&self, operation: C::Op) {
-        let sent = self.0.mirror.borrow_mut().operate(operation);
+        self.send_operation(None, operation);
+    }
+
+    fn send_operation(&self, gesture: Option<u64>, operation: C::Op) {
+        let sent = self.0.mirror.borrow_mut().operate(gesture, operation);
         let Some(sent) = sent else {
             return;
         };
@@ -341,6 +404,12 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
             let answer = self.0.mirror.borrow_mut().receive(update);
             if let Some(answer) = answer {
                 self.0.host.send_to_replica(self.0.block, answer);
+            }
+        }
+        let ended = self.0.mirror.borrow_mut().take_ended();
+        for id in ended {
+            for run in self.0.ended.all() {
+                run(ContentGesture(id));
             }
         }
         // A replica that sends a snapshot may be new, or may not have heard the first ask.
