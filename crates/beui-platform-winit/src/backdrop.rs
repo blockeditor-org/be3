@@ -1,6 +1,7 @@
 //! The window's own background on X11. Between the server growing a window and the program
 //! drawing the new size, the server fills the new part with the window's background, which is
-//! black unless set: setting it to the program's clear colour shows that colour there instead.
+//! black unless set: setting it to the program's clear colour shows that colour there instead,
+//! beside the last frame, which stays at the window's corner.
 //! Other systems keep the last frame or a colour of their own meanwhile.
 
 use std::cell::RefCell;
@@ -8,7 +9,7 @@ use std::cell::RefCell;
 use beui_types::Color32;
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use x11rb::connection::Connection;
-use x11rb::protocol::xproto::{ChangeWindowAttributesAux, ConnectionExt as _};
+use x11rb::protocol::xproto::{ChangeWindowAttributesAux, ConnectionExt as _, Gravity};
 use x11rb::rust_connection::RustConnection;
 
 thread_local! {
@@ -34,7 +35,11 @@ pub(crate) fn set(window: &dyn winit::window::Window, color: Color32) {
         else {
             return;
         };
-        let attributes = ChangeWindowAttributesAux::new().background_pixel(pixel);
+        // North-west gravity keeps the last frame at the window's corner as it grows: with a
+        // background and the default gravity, the server would clear all of it to that colour.
+        let attributes = ChangeWindowAttributesAux::new()
+            .background_pixel(pixel)
+            .bit_gravity(Gravity::NORTH_WEST);
         if connection
             .change_window_attributes(id, &attributes)
             .is_ok()
