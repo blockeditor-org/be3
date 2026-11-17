@@ -316,6 +316,7 @@ pub(crate) fn compile_with<'s>(
 /// prebuilt's `operator delete[]`. Windows' ABI returns it through a pointer instead; it is not
 /// checked there yet, so Windows keeps no cache.
 #[repr(C)]
+#[cfg(not(windows))]
 struct OwnedBuffer {
     buffer: *mut u8,
     size: usize,
