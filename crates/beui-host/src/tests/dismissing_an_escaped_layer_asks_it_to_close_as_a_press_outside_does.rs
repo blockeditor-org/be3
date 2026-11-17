@@ -12,7 +12,7 @@ fn dismissing_an_escaped_layer_asks_it_to_close_as_a_press_outside_does() {
         view! {
             <Overlay
                 anchor=OverlayAnchor::Point(pos2(20.0, 20.0))
-                placement=Placement::BelowStart
+                placement=Placement::BELOW_START
                 open={open}
                 on_dismiss={move |why: Dismiss| {
                     heard.update(|heard| heard.push(why));

@@ -77,7 +77,7 @@ pub(crate) fn LayoutButton(layouts: Layouts) -> NodeId {
             arrow=false
             label
             bounds={bar_bounds()}
-            placement=Placement::BelowStart
+            placement=Placement::BELOW_START
             @test_id={"desktop.layout"}
             items={view! {
                 <LayoutItems layouts />

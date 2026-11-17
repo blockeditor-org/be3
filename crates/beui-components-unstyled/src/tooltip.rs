@@ -58,7 +58,7 @@ pub fn Tooltip(
                 {children}
                 <Overlay
                     anchor=anchor
-                    placement=Placement::BelowStart
+                    placement=Placement::BELOW_START
                     policy=LayerPolicy::Inert
                     traps_focus=false
                     open={open}

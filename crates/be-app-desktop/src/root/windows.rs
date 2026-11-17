@@ -422,7 +422,7 @@ fn WindowChip(
     view! {
         <ContextMenu
             bounds={bar_bounds()}
-            placement=Placement::BelowStart
+            placement=Placement::BELOW_START
             items={view! {
                 {match waiting {
                     true => view! {
