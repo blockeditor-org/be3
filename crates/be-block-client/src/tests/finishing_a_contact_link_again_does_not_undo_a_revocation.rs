@@ -61,7 +61,10 @@ async fn finishing_a_contact_link_again_does_not_undo_a_revocation() {
     admin.finish_link(&opened[0]).await.unwrap();
     assert_eq!(named().await, Some(be_block_keys::Level::Edit));
 
-    admin.grant(team, member.account(), Access::None).await.unwrap();
+    admin
+        .grant(team, member.account(), Access::None)
+        .await
+        .unwrap();
     admin.finish_links().await.unwrap();
     assert_eq!(
         named().await,

@@ -438,9 +438,10 @@ impl<S: ObjectStore> Peer<S> {
                 continue;
             }
             let deleted = client::contacts::delete_link(&self.connection(), done.link).await;
-            if let Err(error) = deleted.map_err(ClientError::from).and_then(|deleted| {
-                deleted.map_err(ClientError::from)
-            }) {
+            if let Err(error) = deleted
+                .map_err(ClientError::from)
+                .and_then(|deleted| deleted.map_err(ClientError::from))
+            {
                 failed.get_or_insert(error);
             }
         }
@@ -482,7 +483,9 @@ impl<S: ObjectStore> Peer<S> {
                         .await?
                         .entries
                         .iter()
-                        .any(|entry| entry.account == account && entry.granted == Some(grant.access));
+                        .any(|entry| {
+                            entry.account == account && entry.granted == Some(grant.access)
+                        });
                     if !held {
                         return Ok(());
                     }

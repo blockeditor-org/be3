@@ -42,7 +42,10 @@ async fn a_contact_link_revoked_before_it_is_finished_grants_nothing() {
     .await
     .unwrap();
 
-    admin.grant(team, member.account(), Access::None).await.unwrap();
+    admin
+        .grant(team, member.account(), Access::None)
+        .await
+        .unwrap();
     admin.finish_links().await.unwrap();
     let (_, checked) = admin.checked_access(team).await.unwrap();
     assert!(

@@ -70,10 +70,16 @@ async fn an_invitation_finished_halfway_signs_its_accepter_in_on_the_next_finish
     .unwrap();
     assert_eq!(opened.len(), 1, "{opened:?}");
     assert!(!signed_in().await, "the member was signed in halfway");
-    assert!(listed().await, "the link was deleted before it was finished");
+    assert!(
+        listed().await,
+        "the link was deleted before it was finished"
+    );
 
     admin.finish_links().await.unwrap();
-    assert!(signed_in().await, "the next finish did not sign the member in");
+    assert!(
+        signed_in().await,
+        "the next finish did not sign the member in"
+    );
     assert!(!listed().await, "the finished link is still listed");
 
     harness.stop().await;
