@@ -65,7 +65,7 @@ pub struct Layer {
     policy: Cell<LayerPolicy>,
     level: Cell<LayerLevel>,
     traps: Cell<bool>,
-    trigger: Option<NodeRef>,
+    trigger: Cell<Option<NodeRef>>,
     pointer: Option<NodeRef>,
     reach: Cell<f32>,
     wanted: Cell<bool>,
@@ -80,7 +80,6 @@ pub struct Layer {
 
 pub fn layer(
     parts: Parts,
-    trigger: Option<NodeRef>,
     pointer: Option<NodeRef>,
     on_dismiss: Callback<Dismiss>,
 ) -> Rc<Layer> {
@@ -105,7 +104,7 @@ pub fn layer(
         policy: Cell::new(LayerPolicy::BlocksAll),
         level: Cell::new(LayerLevel::Normal),
         traps: Cell::new(true),
-        trigger,
+        trigger: Cell::new(None),
         pointer,
         reach: Cell::new(0.0),
         wanted: Cell::new(false),
@@ -241,6 +240,11 @@ impl Layer {
 
     pub fn set_traps_focus(&self, traps: bool) {
         self.traps.set(traps);
+    }
+
+    /// The control that opens it: a press on it is left to it, so it toggles the layer.
+    pub fn set_trigger(&self, trigger: Option<NodeRef>) {
+        self.trigger.set(trigger);
     }
 
     pub fn set_dismissable(&self, dismissable: bool) {
@@ -416,7 +420,7 @@ impl Layer {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn lay_out(&self) -> bool {
-        let _ = (self.level.get(), self.traps.get(), &self.trigger);
+        let _ = (self.level.get(), self.traps.get(), self.trigger.get());
         false
     }
 
@@ -616,6 +620,7 @@ mod web {
             }
             let on_trigger = layer
                 .trigger
+                .get()
                 .as_ref()
                 .and_then(NodeRef::try_get)
                 .and_then(crate::dom::element)

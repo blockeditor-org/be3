@@ -43,7 +43,7 @@ pub(crate) fn overlay(
     level: Prop<LayerLevel>,
     traps_focus: Prop<bool>,
     shown_in: Prop<Option<WindowId>>,
-    trigger: Option<NodeRef>,
+    trigger: Prop<Option<NodeRef>>,
     pointer: Option<NodeRef>,
     beak: Prop<f32>,
     window: Prop<Option<WindowSpec>>,
@@ -70,7 +70,6 @@ pub(crate) fn overlay(
             proxy,
             beak: pointing,
         },
-        trigger,
         pointer,
         on_dismiss,
     );
@@ -92,6 +91,8 @@ pub(crate) fn overlay(
     });
     let held = layer.clone();
     bind(beak, move |reach| held.set_beak(reach));
+    let held = layer.clone();
+    bind(trigger, move |trigger| held.set_trigger(trigger));
     let shown = presence.shown();
     let owner = owner_scope().expect("an overlay is built inside a scope");
     let mounted = store(RefCell::new(None::<Mounted>));

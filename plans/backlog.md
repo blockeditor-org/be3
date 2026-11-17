@@ -90,13 +90,6 @@ Fixed items are removed as they land.
   set it to top left if so, as X11 keeps the last frame at the corner (beui-platform-winit's
   `backdrop.rs`). Done when a live resize on a Mac shows the last frame unstretched.
 
-- **A beak a frame late.** A popover with an arrow, opened `BELOW_CENTER` with a margin and
-  shifted into the window (beui-demo's `ShareButton`), paints without its beak on the frame it
-  opens; the next frame paints it, though the document reported itself settled and asked for
-  no frame. Without the margin the beak shows at once. Suspect: `OverlayNode::point_at` reads
-  the pointer frame's rect before the panel's last placement in that frame. Done when
-  `a_popover_with_an_arrow_points_it_at_its_button` snapshots straight after `settle`.
-
 ## 7. Sessions
 
 - **A seal of its own during a join that holds kept edits.** `rejoined` seals
