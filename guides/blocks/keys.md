@@ -399,8 +399,10 @@ device seals a key only to a contact's public key verified that way.
   (`open_link`), opens the card, and on "Connect with NAME (EMAIL)?" (or the
   invitation's join dialog) accepts with its own card (`accept_link`). The
   server records both `contacts` rows and sends `ContactsChanged`; the maker's
-  device then opens the accepter's card, writes its row and deletes the link
-  (`finish_links`, on connect and on `ContactsChanged`).
+  device then opens the accepter's card, writes its row, signs an invited
+  accepter into the organization's log, and only then deletes the link, so a
+  device that stops halfway finishes it again (`finish_links`, on connect and
+  on `ContactsChanged`).
 - **A pending grant**: a link may carry a block, an access level and the
   block's scope key sealed with the code (`Peer::offer`). Accepting applies the
   grant at once, so a share works while the maker is offline; finishing
