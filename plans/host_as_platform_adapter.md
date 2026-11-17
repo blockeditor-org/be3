@@ -116,10 +116,11 @@ settles one echo child.
 
 Built on the web (step 4d): the same crate's `web` half instantiates the root on the page from a
 module compiled with `WebAssembly.compile`, and steps it inline with the stepping natively shares
-(`Core`). `Root::frame`, called from `requestAnimationFrame`, steps the root as far as it goes and
-returns; the root's `Pending` is a task the page queues whenever an instance's worker answers, a
-compile finishes or the root wakes itself, and a timer at the deadline and at the patience past
-it, and the drawn frame is handed to a callback. `crates/be-wasm-root-web-testing` runs 4a's root
+(`Core`). `Root::frame`, called from `requestAnimationFrame`, steps the root as far as it goes, for
+4 ms of the page's thread at most, and returns; the root's `Pending` is a microtask the page queues
+whenever an instance's worker answers, a compile finishes or the root wakes itself, and a timer at
+the deadline and at the patience past it, and a root with more to do past its 4 ms resumes as a
+task of its own, after the page's input and rendering. The drawn frame is handed to a callback. `crates/be-wasm-root-web-testing` runs 4a's root
 so in Chromium. Nothing runs a root in be-host yet, and there is no `input` export.
 
 Its rules:
@@ -311,9 +312,10 @@ own app's modules and compiles none (plans/single_threaded_guests.md, step 1).
 `crates/be-wasm-root-host` serves the root one that may spawn any staged app (step 4a). On the web
 the same `Server` spawns an app's workers, each in a web worker of its own
 (plans/single_threaded_guests.md, step 2), and compiles a module from bytes on the page with
-`WebAssembly.compile`, once per page for the same bytes, refusing one that imports more than its
-transport; each instance of it is a plain worker the page posts the `WebAssembly.Module` to
-(step 4d). The browser holds no instance to a memory limit.
+`WebAssembly.compile`, once per page for the same bytes, with its memory imported as natively,
+refusing one that imports more than its transport; each instance of it is a plain worker the page
+posts the `WebAssembly.Module` to, with a memory capped at the instance's limit (step 4d). The
+browser cannot cap a staged app's worker's memory.
 
 An app's platform calls (clipboard, drag and drop, file dialogs, opening URLs) are served by the
 host directly for that app, and the compositor can turn them off for it.

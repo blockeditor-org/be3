@@ -420,3 +420,102 @@ pub fn spawned_thread_locals(start_argument: i32) -> Result<u32, String> {
 pub fn thread_local_slot(address: u32, own_base: u32) -> i32 {
     address.wrapping_sub(own_base) as i32
 }
+
+/// The memory a pure guest's module defines, in pages, which `importing_memory` imports instead.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DefinedMemory {
+    pub initial: u64,
+    pub maximum: Option<u64>,
+}
+
+/// A pure guest's module with the memory it defines imported instead, as `env.memory` of the same
+/// type, so that it compiles once and each instance of it is given a memory capped at its own
+/// limit (be-wasm-host's and be-wasm-sandbox-host's sandboxes). A module that defines no
+/// memory is unchanged. Answers the module and the memory it defined, in pages.
+pub fn importing_memory(bytes: &[u8]) -> Result<(Vec<u8>, Option<DefinedMemory>), String> {
+    use wasm_encoder::Encode;
+    use wasmparser::{Parser, Payload};
+    let invalid =
+        |error: wasmparser::BinaryReaderError| format!("the module is not valid: {error}");
+    let mut defined = None;
+    for payload in Parser::new(0).parse_all(bytes) {
+        if let Payload::MemorySection(reader) = payload.map_err(invalid)? {
+            for memory in reader {
+                defined = Some(memory.map_err(invalid)?);
+            }
+        }
+    }
+    let Some(memory) = defined else {
+        return Ok((bytes.to_vec(), None));
+    };
+    let mut import = Vec::new();
+    ENV.encode(&mut import);
+    MEMORY_NAME.encode(&mut import);
+    wasm_encoder::EntityType::Memory(wasm_encoder::MemoryType {
+        minimum: memory.initial,
+        maximum: memory.maximum,
+        memory64: memory.memory64,
+        shared: memory.shared,
+        page_size_log2: memory.page_size_log2,
+    })
+    .encode(&mut import);
+    let imports = |count: u32, entries: &[u8]| {
+        let mut data = Vec::new();
+        count.encode(&mut data);
+        data.extend_from_slice(entries);
+        data.extend_from_slice(&import);
+        data
+    };
+    let mut module = wasm_encoder::Module::new();
+    let mut placed = false;
+    for payload in Parser::new(0).parse_all(bytes) {
+        let payload = payload.map_err(invalid)?;
+        let Some((id, range)) = payload.as_section() else {
+            continue;
+        };
+        let section = &bytes[range.start as usize..range.end as usize];
+        match &payload {
+            Payload::MemorySection(_) => continue,
+            Payload::ImportSection(reader) => {
+                // The entries follow the count, a LEB128 whose last byte has no high bit.
+                let counted = section
+                    .iter()
+                    .position(|byte| byte & 0x80 == 0)
+                    .map_or(section.len(), |last| last + 1);
+                let data = imports(reader.count() + 1, &section[counted..]);
+                module.section(&wasm_encoder::RawSection { id, data: &data });
+                placed = true;
+                continue;
+            }
+            _ => {}
+        }
+        // A module without imports gets a section for its memory's, before the first known
+        // section that follows imports.
+        if !placed && id > IMPORT_SECTION {
+            let data = imports(1, &[]);
+            module.section(&wasm_encoder::RawSection {
+                id: IMPORT_SECTION,
+                data: &data,
+            });
+            placed = true;
+        }
+        module.section(&wasm_encoder::RawSection { id, data: section });
+    }
+    if !placed {
+        let data = imports(1, &[]);
+        module.section(&wasm_encoder::RawSection {
+            id: IMPORT_SECTION,
+            data: &data,
+        });
+    }
+    let defined = DefinedMemory {
+        initial: memory.initial,
+        maximum: memory.maximum,
+    };
+    Ok((module.finish(), Some(defined)))
+}
+
+const IMPORT_SECTION: u8 = 2;
+
+/// The name a pure guest's memory is imported under, from `ENV`.
+pub const MEMORY_NAME: &str = "memory";

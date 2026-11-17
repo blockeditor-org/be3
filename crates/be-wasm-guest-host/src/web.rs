@@ -63,14 +63,22 @@ impl<P: Pictures> WebGuest<P> {
 
     /// Starts a pure guest (guides/app_libraries.md, Pure guests) of `module`, which the page
     /// compiled, in a worker of its own: the worker instantiates it as it is, answering only its
-    /// transport, so it needs no extension and fetches nothing.
+    /// transport and, if it imports one, a memory it makes of `memory`'s pages, initial and
+    /// maximum, so it needs no extension and fetches nothing.
     pub fn start_module(
         module: &js_sys::WebAssembly::Module,
+        memory: Option<(u64, u64)>,
         wake: Wake,
         waiting: Arc<AtomicBool>,
     ) -> Result<Self, String> {
         let message = message("start");
         set(&message, "module", module);
+        if let Some((initial, maximum)) = memory {
+            let pages = js_sys::Object::new();
+            set(&pages, "initial", &(initial as f64).into());
+            set(&pages, "maximum", &(maximum as f64).into());
+            set(&message, "memory", &pages);
+        }
         Self::starting(&message, wake, waiting)
     }
 

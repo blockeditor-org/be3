@@ -50,8 +50,10 @@ pub async fn run() -> Result<String, JsValue> {
     passed.push(a_frame_waits_for_its_child_and_shows_it().await?);
     passed.push(a_frame_past_its_deadline_draws_without_the_child_it_waits_for().await?);
     passed.push(a_root_that_keeps_waking_itself_stops_at_its_patience().await?);
+    passed.push(a_root_that_keeps_waking_itself_lets_the_page_run_its_tasks().await?);
     passed.push(a_guest_compiles_a_module_and_talks_to_an_instance_of_it().await?);
     passed.push(a_module_that_imports_more_than_its_transport_does_not_compile().await?);
+    passed.push(an_instance_of_a_module_from_bytes_is_held_to_its_memory_limit().await?);
     Ok(passed.join("; "))
 }
 
@@ -148,6 +150,101 @@ async fn a_root_that_keeps_waking_itself_stops_at_its_patience() -> Result<Strin
         "a root that stopped drew another frame".to_owned()
     })?;
     Ok("a root that kept waking itself stopped at its patience".to_owned())
+}
+
+async fn a_root_that_keeps_waking_itself_lets_the_page_run_its_tasks() -> Result<String, JsValue> {
+    let patience = Duration::from_secs(2);
+    let root = Rc::new(root().await?.with_patience(patience));
+    let (drawn, answer) = promised::<(Instant, Result<FrameDone, String>)>();
+    let ran: Rc<RefCell<Option<Instant>>> = Rc::default();
+    let started: Rc<RefCell<Option<Instant>>> = Rc::default();
+    let draw = {
+        let (ran, started, root) = (Rc::clone(&ran), Rc::clone(&started), Rc::clone(&root));
+        Closure::once_into_js(move || {
+            // A task the page queued before the root starts its frame, which runs only if the
+            // root lets go of the page's thread.
+            let task = Closure::once_into_js(move || *ran.borrow_mut() = Some(Instant::now()));
+            let global = js_sys::global();
+            if let Ok(set) = js_sys::Reflect::get(&global, &"setTimeout".into())
+                && let Ok(set) = set.dyn_into::<Function>()
+            {
+                let _ = set.call2(&global, &task, &0.into());
+            }
+            *started.borrow_mut() = Some(Instant::now());
+            let begun = root.frame(FrameRequest { time: SPINS }, Instant::now(), move |done| {
+                answer((Instant::now(), done))
+            });
+            assert!(begun, "no earlier frame is still being drawn");
+        })
+    };
+    web_sys::window()
+        .ok_or("no window")?
+        .request_animation_frame(draw.unchecked_ref())?;
+    let (ended, done) = drawn.await;
+    check(done.is_err(), || {
+        "the frame of a root that never answers was drawn".to_owned()
+    })?;
+    let started = started.borrow().ok_or("the frame never started")?;
+    let ran = (*ran.borrow()).ok_or("the page's task never ran while the root spun")?;
+    check(ran < ended && ran - started < patience / 4, || {
+        format!(
+            "the page's task ran {}ms into the root's frame, which ended at {}ms",
+            (ran - started).as_millis(),
+            (ended - started).as_millis()
+        )
+    })?;
+    Ok("a root that kept waking itself let the page run its tasks".to_owned())
+}
+
+async fn an_instance_of_a_module_from_bytes_is_held_to_its_memory_limit() -> Result<String, JsValue>
+{
+    let bytes = fetch(ECHO).await?;
+    let mut pump = Pump::new();
+    let (small, grown) = pump
+        .run(async move {
+            let module = guest::sandbox::compile(bytes)
+                .await
+                .map_err(|error| error.to_string())??;
+            let echo = |memory_limit| {
+                guest::sandbox::Instance::new(
+                    Source::Module(module),
+                    Config {
+                        name: "echo".to_owned(),
+                        memory_limit,
+                    },
+                )
+            };
+            // One page: less than the echo guest's memory starts at.
+            let small = echo(1 << 16)
+                .next()
+                .await
+                .map_err(|error| error.to_string())?;
+            // Enough to start, but not for the gigabyte it is asked to grow by.
+            let growing = echo(16 << 20);
+            growing
+                .send(vec![b"grow".to_vec()])
+                .await
+                .map_err(|error| error.to_string())?;
+            let grown = loop {
+                match growing.next().await.map_err(|error| error.to_string())? {
+                    Ok(frames) if frames.iter().any(|frame| frame.len() == 1) => {
+                        break Ok(frames);
+                    }
+                    Ok(_) => {}
+                    Err(why) => break Err(why),
+                }
+            };
+            Ok::<_, String>((small, grown))
+        })
+        .await?;
+    match small {
+        Err(why) if why.contains("past its limit") => {}
+        other => return Err(format!("a one-page instance answered {other:?}").into()),
+    }
+    check(grown.is_err(), || {
+        "an instance grew past its memory limit".to_owned()
+    })?;
+    Ok("an instance of a module from bytes was held to its memory limit".to_owned())
 }
 
 async fn a_guest_compiles_a_module_and_talks_to_an_instance_of_it() -> Result<String, JsValue> {

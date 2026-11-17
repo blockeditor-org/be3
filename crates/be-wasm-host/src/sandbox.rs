@@ -129,7 +129,7 @@ fn compiled(id: ModuleId) -> Option<Module> {
 fn compile_now(id: ModuleId, bytes: Vec<u8>) -> Result<Module, String> {
     let bytes = crate::source(bytes)?;
     let bytes = engine::pure(&bytes, None)?;
-    let bytes = engine::importing_memory(&bytes)?;
+    let (bytes, _) = be_wasm_dylink::importing_memory(&bytes)?;
     let engine::Isolate {
         shared: isolate,
         context,
