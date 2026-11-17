@@ -833,3 +833,16 @@ fn blob(value: &[u8]) -> Result<(), DecodeError> {
 
 #[cfg(test)]
 mod tests;
+
+impl TerminalHostFile {
+    /// Whether `name` is one a development build's file may have beside `be`: a plain file
+    /// name, which no shell command reads as a path, an option or a quote. The host refuses to
+    /// answer any other, and an app to place one.
+    pub fn plain_name(name: &str) -> bool {
+        !name.is_empty()
+            && !name.starts_with(['.', '-'])
+            && name
+                .chars()
+                .all(|character| character.is_ascii_alphanumeric() || "._-".contains(character))
+    }
+}

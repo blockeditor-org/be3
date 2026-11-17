@@ -34,12 +34,12 @@ fn a_download_of_be_must_be_plain_https_with_a_sha256() {
     let mut beside = be(BE_SHA256);
     beside.push(("terminal_types.wasm".to_owned(), BE_SHA256.to_owned()));
     assert!(be_command("tree", Uuid::nil(), None, &beside).is_ok());
-    for name in ["", ".hidden", "../be", "a/b", "it's"] {
+    for name in ["", ".hidden", "-rf", "../be", "a/b", "it's", "be"] {
         let mut named = be(BE_SHA256);
         named.push((name.to_owned(), BE_SHA256.to_owned()));
         assert!(
             be_command("tree", Uuid::nil(), None, &named).is_err(),
-            "{name:?} is no plain file name"
+            "{name:?} is no plain file name, or names be twice"
         );
     }
     let no_be = vec![("terminal_types.wasm".to_owned(), BE_SHA256.to_owned())];

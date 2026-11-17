@@ -121,6 +121,12 @@ fn built_files(directory: &Path, build: &str) -> Result<Vec<TerminalHostFile>, S
         if name == be_lib_build_id::FILE || name == "program-files.txt" || !path.is_file() {
             continue;
         }
+        if !TerminalHostFile::plain_name(name) {
+            return Err(format!(
+                "{} is no plain file name to put beside be; delete it: {build}",
+                path.display()
+            ));
+        }
         let bytes = std::fs::read(&path)
             .map_err(|error| format!("could not read {}: {error}", path.display()))?;
         files.push(TerminalHostFile {

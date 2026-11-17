@@ -9,7 +9,9 @@ use std::rc::Rc;
 
 use be_sdk_beui::be_block_content::SettingsLayer;
 use be_sdk_beui::beui::reactive::*;
-use be_sdk_beui::{BlockParent, BlockQuery, Failure, KeptEdit, TerminalHostSource};
+use be_sdk_beui::{
+    BlockParent, BlockQuery, Failure, KeptEdit, TerminalHostFile, TerminalHostSource,
+};
 use be_type_boat::{Boat, BoatSettings, TerminalAgent};
 use be_type_terminal::TerminalContent;
 use uuid::Uuid;
@@ -311,14 +313,12 @@ fn listing(files: &[(String, String)]) -> Result<String, String> {
         return Err("the host named no be".to_owned());
     }
     let mut listed = String::new();
-    for (name, sha256) in files {
-        let plain = !name.is_empty()
-            && !name.starts_with('.')
-            && name
-                .chars()
-                .all(|character| character.is_ascii_alphanumeric() || "._-".contains(character));
-        if !plain {
+    for (index, (name, sha256)) in files.iter().enumerate() {
+        if !TerminalHostFile::plain_name(name) {
             return Err(format!("the host named {name:?}, which is no plain file name"));
+        }
+        if files[..index].iter().any(|(earlier, _)| earlier == name) {
+            return Err(format!("the host named {name} twice"));
         }
         if sha256.len() != 64 || !sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) {
             return Err(format!("the host named no SHA-256 for {name}"));
