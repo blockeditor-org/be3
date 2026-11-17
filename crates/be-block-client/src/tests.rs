@@ -51,7 +51,6 @@ async fn upload(peer: &Peer<MemoryStore>, objects: Vec<Vec<u8>>) -> Result<(), C
     Ok(())
 }
 
-mod a_block_moved_out_of_an_owner_only_block_is_escrowed_as_any_shared_one;
 mod a_block_a_shared_one_links_to_shows_only_that_it_exists;
 mod a_block_deleted_after_its_folder_was_listed_is_listed_only_as_deleted_offline;
 mod a_block_made_offline_keeps_its_edits_when_read_before_it_is_sent;
@@ -61,6 +60,7 @@ mod a_block_made_under_one_whose_keys_cannot_be_asked_for_is_not_locked;
 mod a_block_made_while_an_escrow_key_is_minted_wraps_under_the_one_the_server_holds;
 mod a_block_moved_back_into_a_scope_takes_what_was_made_below_it_meanwhile;
 mod a_block_moved_out_of_a_listed_folder_is_listed_where_it_went_offline;
+mod a_block_moved_out_of_an_owner_only_block_is_escrowed_as_any_shared_one;
 mod a_block_moved_to_another_workspace_is_rewrapped_and_given_a_fresh_key;
 mod a_block_named_then_written_offline_keeps_the_metadata_it_was_sealed_with;
 mod a_block_opened_offline_that_someone_else_made_keeps_their_root;

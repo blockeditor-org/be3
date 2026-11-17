@@ -1518,7 +1518,13 @@ impl KeyBook {
                 break;
             }
         }
-        let marked: Vec<Uuid> = self.under_owner_only.lock().unwrap().iter().copied().collect();
+        let marked: Vec<Uuid> = self
+            .under_owner_only
+            .lock()
+            .unwrap()
+            .iter()
+            .copied()
+            .collect();
         self.moved_out(
             marked
                 .iter()

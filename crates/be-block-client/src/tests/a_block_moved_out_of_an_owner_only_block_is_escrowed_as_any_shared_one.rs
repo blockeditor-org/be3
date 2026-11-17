@@ -47,10 +47,19 @@ async fn a_block_moved_out_of_an_owner_only_block_is_escrowed_as_any_shared_one(
         .set_parent(inside, BlockParent::Block(team))
         .await
         .unwrap();
-    let escrow = admin.keys().escrow().expect("the organization has an escrow");
-    for (device, peer) in [("moving", &admin), ("other", &another(&harness, &admin).await)] {
+    let escrow = admin
+        .keys()
+        .escrow()
+        .expect("the organization has an escrow");
+    for (device, peer) in [
+        ("moving", &admin),
+        ("other", &another(&harness, &admin).await),
+    ] {
         peer.refresh_keys(None).await.unwrap();
-        assert!(peer.keys().has(made), "the {device} device holds no moved key");
+        assert!(
+            peer.keys().has(made),
+            "the {device} device holds no moved key"
+        );
         assert!(
             !peer.keys().owner_only_covers(made),
             "the {device} device still holds a key moved into a shared scope as owner-only"
