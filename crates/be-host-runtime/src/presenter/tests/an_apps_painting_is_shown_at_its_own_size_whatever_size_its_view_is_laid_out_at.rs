@@ -2,19 +2,6 @@ use super::*;
 
 const WHOLE: Rect = Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0));
 
-fn placement(width: u32, height: u32, raster: f32) -> ScreenPlacement {
-    ScreenPlacement {
-        screen: ScreenId(1),
-        instance: EditorInstanceId(1),
-        view: ViewId::MAIN,
-        surface: 1,
-        width,
-        height,
-        scale_factor_millis: (raster * 1000.0) as u32,
-        raster_millis: (raster * 1000.0) as u32,
-    }
-}
-
 fn painted(width: u32, height: u32, raster: f32) -> Painted {
     Painted {
         size: (width, height),
