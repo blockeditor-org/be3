@@ -855,11 +855,13 @@ impl Refs {
     /// newest head is judged, from the latest summary and, between two of one sequence, the one
     /// the other is `behind`: an older one judged against the same known head could otherwise
     /// land after it.
+    /// Answers the heads that moved on from one this device knew: another connection's
+    /// publishes, as news to whatever holds the block open.
     pub fn observe(
         &self,
         summaries: &[BlockSummary],
         behind: impl Fn(CommitId, CommitId) -> bool,
-    ) -> Result<(), StoreError> {
+    ) -> Result<Vec<(Uuid, CommitId)>, StoreError> {
         let mut latest: HashMap<Uuid, (u64, CommitId)> = HashMap::new();
         for summary in summaries {
             let Some(head) = summary.head else { continue };
@@ -874,16 +876,24 @@ impl Refs {
             .into_iter()
             .map(|(block, (_, head))| (block, head))
             .collect();
-        let mut rows = Vec::new();
+        let (mut rows, mut moved) = (Vec::new(), Vec::new());
         {
             let (mut state, news) = self.judged(&heads, &behind);
             for (block, head) in heads {
-                if news.contains(&block) && state.remotes.insert(block, head) != Some(head) {
+                if !news.contains(&block) {
+                    continue;
+                }
+                let known = state.remotes.insert(block, head);
+                if known != Some(head) {
                     rows.push(row(Table::Remote, block.as_bytes().to_vec(), &head));
+                    if known.is_some() {
+                        moved.push((block, head));
+                    }
                 }
             }
         }
-        self.write(rows)
+        self.write(rows)?;
+        Ok(moved)
     }
 
     pub fn remote(&self, block: Uuid) -> Option<CommitId> {

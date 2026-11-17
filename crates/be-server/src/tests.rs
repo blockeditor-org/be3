@@ -21,6 +21,7 @@ use super::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 mod a_follower_of_a_shared_subtree_hears_a_block_leave_it_within_one_tree;
 mod a_burst_of_publishes_reaches_a_follower_as_a_few_tree_advances;
+mod a_change_made_while_a_follow_is_read_is_read_or_told;
 mod a_reply_before_a_change_and_the_change_after_it_keep_their_order_across_a_restart;
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
 mod a_block_agent_is_deleted_with_its_block_or_its_grant;

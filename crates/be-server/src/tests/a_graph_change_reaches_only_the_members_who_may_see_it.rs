@@ -104,6 +104,14 @@ async fn a_graph_change_reaches_only_the_members_who_may_see_it() {
     assert!(changed.iter().any(|block| block.id == inside));
 
     grant(&mut owner, folder, account, Access::None).await;
+    assert_eq!(
+        told(&mut viewer).await,
+        Notice::TreeAdvanced {
+            entry: folder,
+            sequence: 0
+        },
+        "a follower that lost view is told once, to read the tree and be refused"
+    );
     assert_eq!(told(&mut viewer).await, Notice::Roots);
     let response = viewer
         .call(|peer| {
@@ -122,6 +130,16 @@ async fn a_graph_change_reaches_only_the_members_who_may_see_it() {
     assert!(
         response.is_err(),
         "a tree is read only by who may view it: {response:?}"
+    );
+    owner.create_block(BlockParent::Block(folder)).await;
+    owner.round_trip().await;
+    viewer.round_trip().await;
+    assert!(
+        !viewer
+            .notifications
+            .iter()
+            .any(|notice| matches!(notice, Notice::TreeAdvanced { .. })),
+        "and it follows the tree no longer"
     );
 
     let own = outsider.create_block(BlockParent::Root).await;

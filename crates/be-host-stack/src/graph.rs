@@ -897,13 +897,16 @@ impl Graph {
         };
         match held {
             true => {
-                self.follows
-                    .entry(entry)
-                    .or_insert_with(|| Follow {
-                        cursor: at,
-                        ..Follow::default()
-                    })
-                    .nodes += 1;
+                let follow = self.follows.entry(entry).or_insert_with(|| Follow {
+                    cursor: at,
+                    ..Follow::default()
+                });
+                follow.nodes += 1;
+                // A tree read refused before (a grant given back since, room to follow made)
+                // is tried again for what joins it.
+                if matches!(follow.fetch, Fetch::Failed(_)) {
+                    follow.fetch = Fetch::Wanted;
+                }
             }
             false => {
                 let Some(follow) = self.follows.get_mut(&entry) else {
@@ -1038,8 +1041,10 @@ impl Graph {
         }
     }
 
-    /// What lies at the top, in the trash or is shared with this account may have changed
-    /// (`tree-change.roots`): those listings are read again.
+    /// What lies at the top, in the trash or is shared with this account may have changed, by a
+    /// move or a grant (`tree-change.roots`): those listings are read again, and the settings
+    /// opened to who views a block inside (a grant too), and every tree whose read was refused
+    /// is tried again.
     pub fn roots(&mut self) {
         for listing in [
             Listing::Children(BlockParent::Root),
@@ -1048,6 +1053,28 @@ impl Graph {
         ] {
             self.relist(listing);
         }
+        self.relist_open_settings();
+        let failed: Vec<Uuid> = self
+            .follows
+            .iter()
+            .filter(|(_, follow)| matches!(follow.fetch, Fetch::Failed(_)))
+            .map(|(entry, _)| *entry)
+            .collect();
+        for entry in failed {
+            if let Some(follow) = self.follows.get_mut(&entry) {
+                follow.fetch = Fetch::Wanted;
+            }
+        }
+    }
+
+    /// The blocks held that this account may only know exist: they name no entry point, so no
+    /// tree tells of them, and a move or a grant may have opened them (`roots`).
+    pub fn known_only(&self) -> Vec<Uuid> {
+        self.nodes
+            .values()
+            .filter(|node| !node.access.can_view())
+            .map(|node| node.id)
+            .collect()
     }
 
     /// The entry points followed, for a test.
