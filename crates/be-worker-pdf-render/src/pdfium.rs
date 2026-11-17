@@ -1,20 +1,15 @@
+//! PDFium, which renders the worker's pages, through its C interface.
+
 use std::{
     ffi::{c_int, c_ulong, c_void},
     ptr,
-    sync::{OnceLock, mpsc},
-    thread,
+    sync::Once,
     time::Instant,
 };
 
-use be_sdk_beui::{
-    PerformanceReporter, Waker,
-    beui::{Image, Pos2, Rect, vec2},
-};
+use be_lib_geometry::{Pos2, Rect, Vec2, vec2};
 
-use super::{
-    DETAIL_MAX_DIM, MIN_SCALE, RenderJob, RenderJobMessage, RenderJobResult, RenderTarget,
-    RenderedTile,
-};
+use be_worker_pdf::{DETAIL_MAX_DIM, MIN_SCALE, Measure, Rendered, Target};
 
 const MAX_PAGE_DIM: f32 = 100_000.0;
 const WHITE: c_ulong = 0xFFFF_FFFF;
@@ -57,71 +52,23 @@ unsafe extern "C" {
     fn FPDFBitmap_Destroy(bitmap: *mut c_void);
 }
 
-struct Job {
-    data: Vec<u8>,
-    page: usize,
-    target: RenderTarget,
-    requested_at: Instant,
-    sender: mpsc::Sender<RenderJobMessage>,
-    waker: Waker,
-    performance: PerformanceReporter,
-}
-
-pub(crate) fn spawn_render_job(
-    data: Vec<u8>,
-    page: usize,
-    target: RenderTarget,
-    waker: Waker,
-    performance: PerformanceReporter,
-) -> RenderJob {
-    let (sender, receiver) = mpsc::channel();
-    let job = Job {
-        data,
-        page,
-        target,
-        requested_at: Instant::now(),
-        sender,
-        waker,
-        performance,
-    };
-    if let Err(mpsc::SendError(job)) = worker().send(job) {
-        let _ = job.sender.send(RenderJobMessage {
-            completed_at: Instant::now(),
-            result: Err("The PDF renderer stopped.".to_owned()),
-        });
-    }
-    RenderJob { receiver }
-}
-
+/// Starts PDFium as the worker starts: once per instance, which is also once for every worker
+/// an app's tests serve in their own (be-sdk-test's `serve_worker`).
 // unsafe(ffi)
-fn worker() -> &'static mpsc::Sender<Job> {
-    static WORKER: OnceLock<mpsc::Sender<Job>> = OnceLock::new();
-    WORKER.get_or_init(|| {
-        let (sender, jobs) = mpsc::channel::<Job>();
-        let _ = thread::Builder::new()
-            .name("pdf-render".into())
-            .spawn(move || {
-                unsafe {
-                    FPDF_InitLibrary();
-                    FPDF_SetSystemFontInfo(ptr::null_mut());
-                }
-                for job in jobs {
-                    job.performance
-                        .record_duration("Queued", job.requested_at.elapsed());
-                    let started = Instant::now();
-                    let result = render_tile(&job.data, job.page, job.target, &job.performance);
-                    let completed_at = Instant::now();
-                    job.performance
-                        .record_duration("Worker total", completed_at.duration_since(started));
-                    let _ = job.sender.send(RenderJobMessage {
-                        completed_at,
-                        result,
-                    });
-                    job.waker.wake();
-                }
-            });
-        sender
-    })
+pub(crate) fn start() {
+    static STARTED: Once = Once::new();
+    STARTED.call_once(|| unsafe {
+        FPDF_InitLibrary();
+        FPDF_SetSystemFontInfo(ptr::null_mut());
+    });
+}
+
+fn record(measures: &mut Vec<Measure>, name: &str, since: Instant) {
+    measures.push(Measure::Duration(name.to_owned(), since.elapsed()));
+}
+
+fn count(measures: &mut Vec<Measure>, name: &str, value: u64) {
+    measures.push(Measure::Count(name.to_owned(), value));
 }
 
 struct Document(*mut c_void);
@@ -161,7 +108,7 @@ struct Page<'document>(*mut c_void, std::marker::PhantomData<&'document Document
 
 // unsafe(ffi)
 impl Page<'_> {
-    fn size(&self) -> be_sdk_beui::beui::Vec2 {
+    fn size(&self) -> Vec2 {
         unsafe { vec2(FPDF_GetPageWidthF(self.0), FPDF_GetPageHeightF(self.0)) }
     }
 }
@@ -216,16 +163,30 @@ fn load_error(code: c_ulong) -> String {
     }
 }
 
+/// Renders `target` of page `page` of the PDF `data`, adding what it measured to `measures`.
+// unsafe(ffi)
+pub(crate) fn render(
+    data: &[u8],
+    page: usize,
+    target: Target,
+    measures: &mut Vec<Measure>,
+) -> Result<Rendered, String> {
+    let started = Instant::now();
+    let rendered = render_tile(data, page, target, measures);
+    record(measures, "Worker total", started);
+    rendered
+}
+
 // unsafe(ffi)
 fn render_tile(
     data: &[u8],
     page: usize,
-    target: RenderTarget,
-    performance: &PerformanceReporter,
-) -> RenderJobResult {
+    target: Target,
+    measures: &mut Vec<Measure>,
+) -> Result<Rendered, String> {
     let phase = Instant::now();
     let document = Document::load(data)?;
-    performance.record_duration("Document load", phase.elapsed());
+    record(measures, "Document load", phase);
 
     let phase = Instant::now();
     let page_count = document.page_count();
@@ -235,21 +196,21 @@ fn render_tile(
     let index = page.min(page_count - 1);
     let pdf_page = document.page(index)?;
     let page_size_pts = pdf_page.size();
-    performance.record_duration("Page setup", phase.elapsed());
+    record(measures, "Page setup", phase);
 
     if page_size_pts.x <= 0.0 || page_size_pts.y <= 0.0 {
         return Err("This PDF page is empty".into());
     }
     let bounds = Rect::from_min_size(Pos2::ZERO, page_size_pts);
     let (requested_scale, region) = match target {
-        RenderTarget::FullPage {
+        Target::FullPage {
             max_width,
             max_height,
         } => (
             (max_width.max(1.0) / page_size_pts.x).min(max_height.max(1.0) / page_size_pts.y),
             bounds,
         ),
-        RenderTarget::ShownView {
+        Target::ShownView {
             scale,
             origin_pts,
             size_pts,
@@ -268,12 +229,12 @@ fn render_tile(
     );
     let width = ((region.width() * scale).round() as c_int).clamp(1, DETAIL_MAX_DIM as c_int);
     let height = ((region.height() * scale).round() as c_int).clamp(1, DETAIL_MAX_DIM as c_int);
-    performance.record_count("Output width", width as u64);
-    performance.record_count("Output height", height as u64);
+    count(measures, "Output width", width as u64);
+    count(measures, "Output height", height as u64);
 
     let phase = Instant::now();
     let bitmap = Bitmap::new(width, height)?;
-    performance.record_duration("Bitmap allocation", phase.elapsed());
+    record(measures, "Bitmap allocation", phase);
     let phase = Instant::now();
     unsafe {
         FPDF_RenderPageBitmap(
@@ -287,22 +248,20 @@ fn render_tile(
             FPDF_ANNOT | FPDF_REVERSE_BYTE_ORDER,
         );
     }
-    performance.record_duration("PDFium render", phase.elapsed());
+    record(measures, "PDFium render", phase);
     let phase = Instant::now();
-    let image = Image::from_rgba(
-        width as u32,
-        height as u32,
-        bitmap.rgba(width as usize, height as usize),
-    );
-    performance.record_duration("RGBA copy", phase.elapsed());
-    performance.record_count("Pixels", width as u64 * height as u64);
-    Ok(RenderedTile {
+    let rgba = bitmap.rgba(width as usize, height as usize);
+    record(measures, "RGBA copy", phase);
+    count(measures, "Pixels", width as u64 * height as u64);
+    Ok(Rendered {
         page_count,
         page_index: index,
         page_size_pts,
         scale,
         origin_pts: Pos2::new(origin_px.x / scale, origin_px.y / scale),
         size_pts: vec2(width as f32 / scale, height as f32 / scale),
-        image,
+        width: width as u32,
+        height: height as u32,
+        rgba,
     })
 }

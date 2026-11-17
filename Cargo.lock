@@ -1023,8 +1023,9 @@ dependencies = [
  "be-sdk-test",
  "be-type-image",
  "be-type-map",
+ "be-worker-map",
+ "be-worker-map-tiles",
  "beui",
- "flate2",
  "uuid",
 ]
 
@@ -1035,6 +1036,8 @@ dependencies = [
  "be-sdk-beui",
  "be-sdk-test",
  "be-type-pdf",
+ "be-worker-pdf",
+ "be-worker-pdf-render",
  "beui",
  "uuid",
 ]
@@ -2225,6 +2228,7 @@ dependencies = [
  "be-sdk-type-host",
  "be-sdk-window-stack",
  "be-type-text",
+ "be-wasm-sandbox-api",
  "beui",
  "beui-core",
  "beui-host",
@@ -3190,6 +3194,43 @@ dependencies = [
 [[package]]
 name = "be-wasm-threads"
 version = "0.1.0"
+
+[[package]]
+name = "be-worker-map"
+version = "0.1.0"
+dependencies = [
+ "postcard",
+ "serde",
+ "serde_bytes",
+]
+
+[[package]]
+name = "be-worker-map-tiles"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-worker",
+ "be-worker-map",
+ "flate2",
+]
+
+[[package]]
+name = "be-worker-pdf"
+version = "0.1.0"
+dependencies = [
+ "be-lib-geometry",
+ "postcard",
+ "serde",
+ "serde_bytes",
+]
+
+[[package]]
+name = "be-worker-pdf-render"
+version = "0.1.0"
+dependencies = [
+ "be-lib-geometry",
+ "be-sdk-worker",
+ "be-worker-pdf",
+]
 
 [[package]]
 name = "beui"

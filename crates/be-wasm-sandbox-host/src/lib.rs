@@ -1,5 +1,6 @@
-//! The host's half of the sandbox API (`be3:sandbox`, crates/be-wasm-sandbox-api), natively: one
-//! `Server` per guest that is granted it, answering its calls from `be_wasm_host::sandbox`
+//! The host's half of the sandbox API (`be3:sandbox`, crates/be-wasm-sandbox-api): one `Server`
+//! per guest that is granted it, answering its calls from `be_wasm_host::sandbox` natively and
+//! from `web` in the browser, where each instance is a web worker of its own
 //! (plans/host_as_platform_adapter.md, The sandbox API). Staged apps come from a loader the host
 //! plugs in (be-host-runtime's `staged_app`), since finding them is the host's and lies above
 //! be-wasm. be-host-runtime serves one to every app (`Server::for_app`), which may spawn only its
@@ -12,9 +13,21 @@ use std::{
 };
 
 use be_wasm_guest_host::Wake;
-use be_wasm_host::sandbox::{self, Compiling, Instance, Module, ModuleId, Source, Staged};
+#[cfg(not(target_arch = "wasm32"))]
+pub use be_wasm_host::sandbox::Staged;
+#[cfg(not(target_arch = "wasm32"))]
+use be_wasm_host::sandbox::{self, Compiling, Instance, Module, ModuleId, Source};
 use be_wasm_ops::{Connection, OpError, OpId, Outcome};
 use be_wasm_sandbox_api::{embed::sandbox::Call, sandbox as api};
+
+#[cfg(target_arch = "wasm32")]
+mod web;
+#[cfg(target_arch = "wasm32")]
+use web as sandbox;
+#[cfg(target_arch = "wasm32")]
+pub use web::Staged;
+#[cfg(target_arch = "wasm32")]
+use web::{Compiling, Instance, Module, ModuleId, Source};
 
 /// Answers a value once it is known: a reply held until then.
 type Answer<T> = Box<dyn FnOnce(&T) -> (OpId, Outcome)>;
@@ -117,10 +130,12 @@ impl Server {
                 config,
             } => {
                 let source = match source {
-                    api::Source::Module(module) => match self.modules.get(&module) {
-                        Some(module) => Ok(Source::Module(module.clone())),
-                        None => Err("this guest compiled no module with that id".to_owned()),
-                    },
+                    api::Source::Module(module) => self
+                        .modules
+                        .get(&module)
+                        .cloned()
+                        .map(Source::Module)
+                        .ok_or_else(|| "this guest compiled no module with that id".to_owned()),
                     api::Source::App(staged) => {
                         self.staged(&staged.app, &staged.module).map(Source::App)
                     }

@@ -282,6 +282,7 @@ write_package_value("be3.cargo", {
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//crates/be-wasm-guest-host:be-wasm-guest-host",
                 "//crates/be-wasm-sandbox-api:be-wasm-sandbox-api",
+                "//crates/be-wasm-sandbox-host:be-wasm-sandbox-host",
                 "//crates/beui-font-freetype:beui-font-freetype",
                 "//crates/beui-layer-drive:beui-layer-drive",
                 "//crates/beui-renderer-wgpu:beui-renderer-wgpu",

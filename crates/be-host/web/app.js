@@ -22,6 +22,14 @@
 //
 // The worker answers be3_host's frames, wake and panic itself, as it does for a
 // type module, and hands the rest to `answer`.
+//
+// An app's worker (be_sdk::worker, guides/adding_an_app.md, Workers) boots
+// through worker.js, which links it here the same way but starts no gpu: it has
+// no display, so the shim is loaded only for the linking it does and opens no
+// device, and the worker's gpu imports, which it never calls, are bound to a
+// shim that answers nothing. A worker is staged under workers/<app id>/, so
+// libraries are fetched from beside this file, the bundle root, rather than
+// beside the module.
 
 import * as dylink from "./dylink.js";
 import * as wasi from "./wasi.js";
@@ -108,13 +116,16 @@ function answer(wanted, memory, shim) {
     return typeof call === "function" ? call : stub(wanted.module, wanted.name);
 }
 
-export async function boot({ url, bytes, module: app, guest, imports, initialize, wake }) {
+// Instantiates `app`, linked against its libraries, with WASI, threads and the
+// gpu shim, which opens a device only for a module with a display. Answers the
+// shim's module.
+export async function link({ bytes, module: app, guest, imports, initialize, wake }, display) {
     const shimModule = await import(new URL("./block_gpu_shim.js", import.meta.url).href);
     const shim = await shimModule.default();
-    await shimModule.start();
+    if (display) await shimModule.start();
     const identities = dylink.libraries(shimModule, app);
     const libraries = await Promise.all(
-        identities.map((identity) => dylink.fetchLibrary(shimModule, identity, url)),
+        identities.map((identity) => dylink.fetchLibrary(shimModule, identity, import.meta.url)),
     );
     const modules = [...libraries.map(({ module }) => module), app];
     const first = modules[0];
@@ -154,6 +165,11 @@ export async function boot({ url, bytes, module: app, guest, imports, initialize
         initialize(exports);
     }
     guest.exports = exports;
+    return shimModule;
+}
+
+export async function boot(options) {
+    const shimModule = await link(options, true);
     return {
         receive(data) {
             if (data.kind === "show") {

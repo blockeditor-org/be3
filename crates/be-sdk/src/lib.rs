@@ -42,7 +42,7 @@ pub use app::{
 };
 #[cfg(target_arch = "wasm32")]
 pub use app::{PaintTarget, SurfaceGpu, surface_gpu};
-pub use asked::{Asked, Task};
+pub use asked::{Asked, Task, spawn};
 pub use be_lib_geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use be_sdk_api::SearchLocation;
 pub use be_sdk_api::accesskit;

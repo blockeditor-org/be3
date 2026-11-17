@@ -7,6 +7,8 @@ use std::{
 
 use be_host_stack::discovery;
 
+use super::backend::{worker_file, worker_path};
+
 use be_sdk_manifest::AppManifest;
 use be_wasm_guest_host::{
     Presented, Produced,
@@ -188,14 +190,7 @@ pub fn staged_app(app_id: &str, module: &str) -> Result<Staged, String> {
 /// One of the workers of the staged app with the id `app_id`, as `staged_app` finds it: what the
 /// sandbox an app is served finds, since an app starts only its workers, never itself.
 pub fn staged_worker(app_id: &str, module: &str) -> Result<Staged, String> {
-    if manifest(app_id)?
-        .workers
-        .iter()
-        .any(|worker| worker == module)
-    {
-        return Ok(staged(worker_path(app_id, module)));
-    }
-    Err(format!("{app_id} stages no worker named {module:?}"))
+    worker_file(app_id, module).map(staged)
 }
 
 fn manifest(app_id: &str) -> Result<Arc<AppManifest>, String> {
@@ -203,11 +198,6 @@ fn manifest(app_id: &str) -> Result<Arc<AppManifest>, String> {
         .into_iter()
         .find(|manifest| manifest.identity.id == app_id)
         .ok_or_else(|| format!("no staged app has the id {app_id}"))
-}
-
-/// Where a worker module of the app `app_id` is staged (crates/be-tool-buck's stage).
-fn worker_path(app_id: &str, worker: &str) -> String {
-    format!("workers/{app_id}/{worker}")
 }
 
 /// A staged module, which tells be-wasm-host what every staged app imports before its first read,

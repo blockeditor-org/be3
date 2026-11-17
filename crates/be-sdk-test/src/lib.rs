@@ -6,6 +6,7 @@ mod fetches;
 mod link;
 mod signatures;
 mod store;
+mod workers;
 #[cfg(test)]
 mod tests;
 

@@ -1,4 +1,4 @@
-use std::{sync::mpsc::TryRecvError, time::Instant};
+use std::time::Instant;
 
 use be_sdk_beui::{
     PerformanceReporter, Waker,
@@ -6,8 +6,7 @@ use be_sdk_beui::{
 };
 
 use crate::render::{
-    DETAIL_MAX_DIM, MIN_SCALE, RenderJob, RenderRequest, RenderTarget, RenderedTile,
-    spawn_render_job,
+    DETAIL_MAX_DIM, MIN_SCALE, RenderClient, RenderRequest, RenderTarget, RenderedTile,
 };
 
 const TILE_MIN_SCALE_FACTOR: f32 = 0.4;
@@ -43,46 +42,34 @@ impl Tile {
 pub(crate) struct Pane {
     base: Option<Tile>,
     detail: Option<Tile>,
-    job: Option<(RenderRequest, RenderJob)>,
+    /// The pane's way to the shared renderer, once it asked for a render.
+    client: Option<RenderClient>,
+    /// The render it asked for and has not had answered.
+    job: Option<RenderRequest>,
     failed: Option<(u64, usize)>,
     error: Option<String>,
 }
 
 impl Pane {
     pub(crate) fn poll(&mut self, performance: &PerformanceReporter) -> Option<PageFacts> {
-        let (request, job) = self.job.as_ref()?;
-        let request = *request;
-        let receive_started = Instant::now();
-        let received = job.try_recv();
-        let receive_elapsed = receive_started.elapsed();
-        match received {
-            Ok(message) => {
-                performance.record_duration("Result ready to poll", message.completed_at.elapsed());
-                performance.record_duration("Result receive", receive_elapsed);
-                match message.result {
-                    Ok(rendered) => {
-                        self.job = None;
-                        self.error = None;
-                        self.failed = None;
-                        let facts = PageFacts {
-                            page_count: rendered.page_count,
-                            page_index: rendered.page_index,
-                            page_size_pts: rendered.page_size_pts,
-                        };
-                        self.store(request, rendered, performance);
-                        Some(facts)
-                    }
-                    Err(error) => {
-                        self.job = None;
-                        self.error = Some(error);
-                        self.failed = Some((request.revision, request.page));
-                        None
-                    }
-                }
+        let request = self.job?;
+        let result = self.client.as_mut()?.receive(performance)?;
+        self.job = None;
+        match result {
+            Ok(rendered) => {
+                self.error = None;
+                self.failed = None;
+                let facts = PageFacts {
+                    page_count: rendered.page_count,
+                    page_index: rendered.page_index,
+                    page_size_pts: rendered.page_size_pts,
+                };
+                self.store(request, rendered, performance);
+                Some(facts)
             }
-            Err(TryRecvError::Empty) => None,
-            Err(TryRecvError::Disconnected) => {
-                self.job = None;
+            Err(error) => {
+                self.error = Some(error);
+                self.failed = Some((request.revision, request.page));
                 None
             }
         }
@@ -164,10 +151,15 @@ impl Pane {
             page,
             target,
         };
-        let spawn_started = Instant::now();
-        let job = spawn_render_job(data, page, target, waker, performance.clone());
-        performance.record_duration("Spawn render job", spawn_started.elapsed());
-        self.job = Some((request, job));
+        let sent = Instant::now();
+        let client = match self.client.take() {
+            Some(client) if !client.stopped() => client,
+            _ => RenderClient::new(&waker),
+        };
+        let client = self.client.insert(client);
+        client.send(data, page, target);
+        performance.record_duration("Send render job", sent.elapsed());
+        self.job = Some(request);
     }
 
     fn detail_target(
