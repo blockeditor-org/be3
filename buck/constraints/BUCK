@@ -1,10 +1,11 @@
 load("@root//buck/dev:verify.bzl", "package_fix")
 
-# What a wasm build is for. be-host's web bundle and an app are both
-# wasm32-wasip1-threads, but the app links a real wgpu backend and an app only
-# the custom one, whose handles are neither Send nor Sync. cargo plans the two
-# as separate builds, and a `guest` constraint makes wasi_guest a platform of
-# its own for the rules made from those plans to select by.
+# What a wasm build is for. be-host's web bundle is wasm32-wasip1-threads and
+# links a real wgpu backend; an app is single-threaded wasm32-wasip1
+# (decisions/guests_are_single_threaded.md) and links only the custom one, whose
+# handles are neither Send nor Sync. cargo plans the two as separate builds, and
+# a `guest` constraint makes wasi_guest a platform of its own for the toolchains
+# (its triple and C flags) and the rules made from those plans to select by.
 constraint_setting(
     name = "wasm_role",
 )

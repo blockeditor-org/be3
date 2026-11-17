@@ -3,7 +3,7 @@
 ## Discovery and staging
 
 The build stages every `be-app-*` crate beside be-host: its module built for
-`wasm32-wasip1-threads` with the app profile (apps link wgpu with real
+`wasm32-wasip1`, single-threaded (decisions/guests_are_single_threaded.md), with the app profile (apps link wgpu with real
 backends, pure guests only with the custom one), its manifest as
 `<app id>.app.json`, its type module, its worker modules under
 `workers/<app id>/` (guides/adding_an_app.md, Workers) and the shared libraries

@@ -315,7 +315,7 @@ the execution platform, so it is always checked.
 ## rust-analyzer
 
 `./scripts/buck run //:rust-project` writes `rust-project.json` (git-ignored), covering native
-builds and the apps as `wasm32-wasip1-threads`. Rerun it after adding a crate or dependency, and
+builds and the apps as `wasm32-wasip1`. Rerun it after adding a crate or dependency, and
 use an editor extension's rust-analyzer: the toolchain's panics on this workspace.
 
 ## Traps

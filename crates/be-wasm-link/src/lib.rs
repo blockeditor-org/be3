@@ -46,16 +46,13 @@ const DROPPED_FROM_APPS: [&str; 5] = [
 // module reaches its own symbols that others could define through GOT.func and
 // GOT.mem imports, which the loader answers from the lowest module that
 // exports the name: PDFium's FreeType took the address of its TT_RunIns and
-// was handed beui's.
-const APP_FLAGS: [&str; 8] = [
+// was handed beui's. A guest is single-threaded, so its memory is not shared
+// and lld makes no __wasm_init_tls or thread-local block to export.
+const APP_FLAGS: [&str; 4] = [
     "-shared",
     "--experimental-pic",
     "-Bsymbolic",
     "--unresolved-symbols=import-dynamic",
-    "--export=__wasm_init_tls",
-    "--export=__tls_size",
-    "--export=__tls_align",
-    "--export=__tls_base",
 ];
 const COMMAND_START: &str = "crt1-command.o";
 const ROOT_FLAGS: [&str; 3] = ["--export-all", "--export-table", "--growable-table"];

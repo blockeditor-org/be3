@@ -26,7 +26,7 @@ use std::{collections::VecDeque, rc::Rc};
 
 mod shared;
 
-pub use shared::Shared;
+pub use shared::{Answer, Generation, Shared};
 
 use be_wasm_sandbox_api::{
     guest::sandbox::Instance,
@@ -45,6 +45,22 @@ pub const MEMORY_LIMIT: u64 = 1 << 30;
 /// Why a worker could not start on a host that serves the app no sandbox, such as a wire a test
 /// made by itself.
 pub const NO_WORKERS: &str = "this host runs no workers";
+
+/// Why a worker's message was refused: it came without the client it answers, so the module is no
+/// worker of this crate's (`worker!`). A broken protocol, not a stop: the worker may still be
+/// running.
+pub const UNFRAMED: &str = "a worker broke the worker protocol: its message came with no client \
+                            (is the module exported with be_sdk_worker::worker!?)";
+
+/// What a worker said, as `Worker::receive_framed` hears it.
+enum Received {
+    /// A message, and the client it answers.
+    Message(u64, Vec<u8>),
+    /// Why it stopped.
+    Stopped(String),
+    /// A message that came without its client (`UNFRAMED`).
+    Unframed,
+}
 
 /// A worker the app started: an instance of one of its worker modules.
 pub struct Worker {
@@ -85,22 +101,34 @@ impl Worker {
     }
 
     /// The worker's next message, once it has sent one, or why it stopped: it could not start,
-    /// trapped or panicked. Once it stopped, every later call fails the same way.
+    /// trapped or panicked. Once it stopped, every later call fails the same way. A message that
+    /// broke the protocol fails with `UNFRAMED` instead, and the next call goes on to the one
+    /// after it.
     pub async fn receive(&mut self) -> Result<Vec<u8>, String> {
-        self.receive_framed().await.map(|(_, message)| message)
+        match self.receive_framed().await {
+            Received::Message(_, message) => Ok(message),
+            Received::Stopped(why) => Err(why),
+            Received::Unframed => Err(UNFRAMED.to_owned()),
+        }
     }
 
     /// The worker's next message and the client it answers (`Shared`).
-    async fn receive_framed(&mut self) -> Result<(u64, Vec<u8>), String> {
+    async fn receive_framed(&mut self) -> Received {
         loop {
             if let Some(frame) = self.received.pop_front() {
-                return unframe(&frame).map(|(client, message)| (client, message.to_vec()));
+                return match unframe(&frame) {
+                    Some((client, message)) => Received::Message(client, message.to_vec()),
+                    None => Received::Unframed,
+                };
             }
-            let frames = self.sender.0.next().await.map_err(|error| match error {
+            let next = self.sender.0.next().await.map_err(|error| match error {
                 OpError::Unsupported => NO_WORKERS.to_owned(),
                 error => format!("the host did not answer: {error:?}"),
-            })??;
-            self.received.extend(frames);
+            });
+            match next {
+                Ok(Ok(frames)) => self.received.extend(frames),
+                Ok(Err(why)) | Err(why) => return Received::Stopped(why),
+            }
         }
     }
 }
@@ -127,11 +155,9 @@ fn frame(client: u64, message: &[u8]) -> Vec<u8> {
     [&client.to_le_bytes()[..], message].concat()
 }
 
-fn unframe(frame: &[u8]) -> Result<(u64, &[u8]), String> {
-    let Some((client, message)) = frame.split_first_chunk::<8>() else {
-        return Err("a worker's message came with no client".to_owned());
-    };
-    Ok((u64::from_le_bytes(*client), message))
+fn unframe(frame: &[u8]) -> Option<(u64, &[u8])> {
+    let (client, message) = frame.split_first_chunk::<8>()?;
+    Some((u64::from_le_bytes(*client), message))
 }
 
 /// What a worker module does: its state, made when it starts, and how it takes each message from
@@ -140,8 +166,10 @@ pub trait Work: Sized + 'static {
     /// Starts the worker.
     fn start(app: &mut App) -> Result<Self, String>;
 
-    /// Takes one message from the app. An error stops the worker, and the app's `receive` says
-    /// why.
+    /// Takes one message from the app. Whatever answers it is sent through `app` before this
+    /// returns: `app` addresses it to the client that asked (`Shared`), and lasts only for this
+    /// call, so a worker has no way to answer later. An error stops the worker, and the app's
+    /// `receive` says why.
     fn receive(&mut self, message: Vec<u8>, app: &mut App) -> Result<(), String>;
 }
 
@@ -175,7 +203,10 @@ fn step<W: Work>(
     outbound: &mut Vec<Vec<u8>>,
 ) -> Result<(), String> {
     for frame in frames {
-        let (client, message) = unframe(&frame)?;
+        let (client, message) = unframe(&frame).ok_or(
+            "the app broke the worker protocol: its message came with no client (send through \
+             be_sdk_worker's Worker or Shared)",
+        )?;
         work.receive(message.to_vec(), &mut App { outbound, client })?;
     }
     Ok(())
@@ -213,7 +244,11 @@ impl Hosted {
         self.step(vec![frame(0, message)], &mut outbound)?;
         outbound
             .iter()
-            .map(|frame| unframe(frame).map(|(_, message)| message.to_vec()))
+            .map(|frame| {
+                unframe(frame)
+                    .map(|(_, message)| message.to_vec())
+                    .ok_or_else(|| UNFRAMED.to_owned())
+            })
             .collect()
     }
 }

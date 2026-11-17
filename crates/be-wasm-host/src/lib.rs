@@ -489,8 +489,8 @@ impl Running {
             (Some(memory), Some(declared)) if declared.shared => Some(Share::of(scope, memory)?),
             _ => None,
         };
-        if matches!(program, Program::Linked(_)) && share.is_none() {
-            return Err("the root library does not import a shared memory".to_owned());
+        if matches!(program, Program::Linked(_)) && memory.is_none() {
+            return Err("the root library does not import its memory".to_owned());
         }
         let handle = isolate.thread_safe_handle();
         let threads = Spawner::new(
@@ -589,17 +589,30 @@ impl Running {
                 Ok(first)
             }
             Program::Linked(modules) => {
-                let memory = memory.ok_or("the root library does not import a shared memory")?;
+                let memory = memory.ok_or("the root library does not import its memory")?;
                 initialize(scope, first)?;
                 let linked = dylink::plan(scope, modules, identities, first, memory)?;
                 // as above.
                 // unsafe(memory)
                 let threads = Arc::clone(&unsafe { state.as_ref() }.threads);
-                let store = &threads.share().ok_or("the app memory is not shared")?.store;
-                let mut grow = |pages| threads::grow(scope, memory, pages);
+                // A single-threaded guest's memory is its own and it has no thread-local blocks
+                // (decisions/guests_are_single_threaded.md); a threaded one's are in its shared
+                // memory.
+                let blocks = match threads.share() {
+                    Some(share) => {
+                        let mut grow = |pages| threads::grow(scope, memory, pages);
+                        linked.take(&share.store, &mut grow)?
+                    }
+                    None if linked.plan.blocks.size == 0 => 0,
+                    None => {
+                        return Err("the app has thread-local blocks and its memory is not \
+                                    shared"
+                            .to_owned());
+                    }
+                };
                 let thread = dylink::Thread {
-                    blocks: linked.take(store, &mut grow)?,
-                    root_block: dylink::main_thread_locals(scope, first)?,
+                    blocks,
+                    root_block: dylink::main_thread_locals(scope, first),
                     main: true,
                 };
                 threads.linked(Arc::clone(&linked));

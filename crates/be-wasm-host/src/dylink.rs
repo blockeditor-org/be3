@@ -306,13 +306,13 @@ pub(crate) fn link<'s>(
         .ok_or_else(|| "there is no module to link".to_owned())
 }
 
+/// The root's thread-local block on the main thread: none, 0, for a single-threaded root, whose
+/// thread-locals are plain data (decisions/guests_are_single_threaded.md).
 pub(crate) fn main_thread_locals(
     scope: &mut v8::PinScope<'_, '_>,
     root: v8::Local<v8::Object>,
-) -> Result<u32, String> {
-    exported_i32(scope, root, TLS_BASE)
-        .map(|base| base as u32)
-        .ok_or_else(|| format!("the root library does not export {TLS_BASE}"))
+) -> u32 {
+    exported_i32(scope, root, TLS_BASE).map_or(0, |base| base as u32)
 }
 
 pub(crate) fn spawned_thread_locals(

@@ -15,6 +15,7 @@ use be_wasm_sandbox_api::{
 
 use super::*;
 
+mod a_shared_worker_s_stop_fails_only_what_its_generation_was_sent;
 mod a_guest_compiles_a_module_and_talks_to_an_instance_of_it;
 mod a_guest_spawns_a_staged_app_by_its_id_and_talks_to_it;
 mod an_app_runs_a_bounded_number_of_workers;

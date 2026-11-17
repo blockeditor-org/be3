@@ -22,7 +22,7 @@ fn client() -> (Shared, Rc<RefCell<Option<Waker>>>) {
 
 async fn answer(shared: &Shared, waiting: &RefCell<Option<Waker>>) -> Result<Vec<u8>, String> {
     poll_fn(|context| match shared.try_receive() {
-        Some(answer) => Poll::Ready(answer),
+        Some(answer) => Poll::Ready(answer.result),
         None => {
             *waiting.borrow_mut() = Some(context.waker().clone());
             Poll::Pending
@@ -39,9 +39,15 @@ fn clients_of_a_shared_worker_hear_only_their_own_answers() {
     let answers = pump.run(async {
         let (mut first, first_waits) = client();
         let (mut second, second_waits) = client();
-        second.send(b"two");
-        first.send(b"one");
-        first.send(b"three");
+        let generations = [
+            second.send(b"two"),
+            first.send(b"one"),
+            first.send(b"three"),
+        ];
+        assert!(
+            generations.iter().all(|generation| *generation == generations[0]),
+            "every client talks to one instance"
+        );
         [
             answer(&first, &first_waits).await,
             answer(&second, &second_waits).await,
