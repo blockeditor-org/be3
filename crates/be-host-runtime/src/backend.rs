@@ -38,6 +38,25 @@ pub(super) trait ShownFrame {
     }
 }
 
+/// Where the worker `module` of the staged app with the id `app_id` is staged, relative to the
+/// staged apps, if its manifest names it under `workers`: the one place that maps a worker's name
+/// to a file on every platform, so any other name, a path or another app's module, is refused.
+pub(super) fn worker_file(app_id: &str, module: &str) -> Result<String, String> {
+    let manifest = discovery::manifests()
+        .into_iter()
+        .find(|manifest| manifest.identity.id == app_id)
+        .ok_or_else(|| format!("no staged app has the id {app_id}"))?;
+    if manifest.workers.iter().any(|worker| worker == module) {
+        return Ok(worker_path(app_id, module));
+    }
+    Err(format!("{app_id} stages no worker named {module:?}"))
+}
+
+/// Where a worker module of the app `app_id` is staged (crates/be-tool-buck's stage).
+pub(super) fn worker_path(app_id: &str, worker: &str) -> String {
+    format!("workers/{app_id}/{worker}")
+}
+
 pub(super) struct Backend {
     module: Option<String>,
     worker: Option<Worker<platform::Channel>>,

@@ -10,12 +10,13 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 beui = { path = "../beui" }
 be-sdk-beui = { path = "../be-sdk-beui" }
-flate2 = "1"
 be-type-image = { path = "../be-type-image" }
 be-type-map = { path = "../be-type-map" }
+be-worker-map = { path = "../be-worker-map" }
 uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
+be-worker-map-tiles = { path = "../be-worker-map-tiles" }
 be-sdk-test = { path = "../be-sdk-test" }
 
 [lints]

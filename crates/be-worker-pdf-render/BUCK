@@ -1,0 +1,16 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_package")
+load("@root//buck/wasm:defs.bzl", "worker")
+
+cargo_package()
+
+# The PDF app's renderer: the library, which links PDFium for whatever links it
+# (the PDF app's tests, which serve it in their own instance), and :module,
+# worker.rs linked against the base library alone, which holds the C++ runtime
+# PDFium needs, and which the PDF app stages as render.wasm. It is built only
+# for the apps' platform, as PDFium is.
+cargo_library(extra_deps = ["root//third-party/pdfium:pdfium"])
+
+worker(
+    libraries = ["//crates/be-sdk-library-base:module"],
+    module = "render",
+)

@@ -20,6 +20,7 @@ beui-paint-snapshot = { path = "../beui-paint-snapshot" }
 serde = "1"
 uuid = "1"
 be-sdk-window-stack = { path = "../be-sdk-window-stack" }
+be-wasm-sandbox-api = { path = "../be-wasm-sandbox-api" }
 
 [dev-dependencies]
 be-type-text = { path = "../be-type-text" }

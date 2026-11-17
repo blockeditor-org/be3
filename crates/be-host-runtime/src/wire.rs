@@ -30,7 +30,6 @@ use be_sdk_api::{
 /// What the host answers a worker's waiting `receive` with when it stops the app's workers. An
 /// app that stopped has lost its channel by then (`Backend::shutdown`), so only a wire that
 /// outlives its sandbox, as in a test, delivers it.
-#[cfg(not(target_arch = "wasm32"))]
 pub(super) const WORKERS_STOPPED: &str = "the app stopped, and its workers with it";
 
 #[derive(Default)]
@@ -75,8 +74,7 @@ pub(super) struct Wire {
     acks: Vec<Reply<()>>,
     hearing: Vec<(EditorInstanceId, EditorEvent)>,
     /// The sandbox API served to the app, which starts its workers (`Server::for_app`); none
-    /// where the host serves none to it: on the web, and to a wire made for a test.
-    #[cfg(not(target_arch = "wasm32"))]
+    /// where the host serves none to it: to a wire made for a test.
     sandbox: Option<be_wasm_sandbox_host::Server>,
 }
 
@@ -140,7 +138,6 @@ impl Default for Wire {
             held: Held::default(),
             acks: Vec::new(),
             hearing: Vec::new(),
-            #[cfg(not(target_arch = "wasm32"))]
             sandbox: None,
         }
     }
@@ -155,7 +152,6 @@ impl Wire {
     }
 
     /// Serves the app the sandbox API through `server`.
-    #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn with_sandbox(mut self, server: be_wasm_sandbox_host::Server) -> Self {
         self.sandbox = Some(server);
         self
@@ -163,21 +159,19 @@ impl Wire {
 
     /// Answers what the app's workers did since: they sent messages, started or stopped.
     pub(super) fn poll_sandbox(&mut self) {
-        #[cfg(not(target_arch = "wasm32"))]
         if let Some(server) = &mut self.sandbox {
             server.poll(&mut self.connection);
         }
     }
 
     /// Whether the wire serves the app a sandbox, and so runs the workers it started.
-    #[cfg(all(test, not(target_arch = "wasm32")))]
+    #[cfg(test)]
     pub(super) fn serves_sandbox(&self) -> bool {
         self.sandbox.is_some()
     }
 
     /// Stops every worker the app started.
     pub(super) fn stop_sandbox(&mut self) {
-        #[cfg(not(target_arch = "wasm32"))]
         if let Some(server) = self.sandbox.take() {
             server.stop(WORKERS_STOPPED, &mut self.connection);
         }
@@ -187,7 +181,6 @@ impl Wire {
         let Some(call) = sandbox::Call::accept(&mut self.connection, started) else {
             return;
         };
-        #[cfg(not(target_arch = "wasm32"))]
         if let Some(server) = &mut self.sandbox {
             server.call(call, &mut self.connection);
             return;
@@ -855,7 +848,6 @@ impl Wire {
                 return Ok(());
             }
             Incoming::Canceled { op } => {
-                #[cfg(not(target_arch = "wasm32"))]
                 if let Some(server) = &mut self.sandbox
                     && server.canceled(op, &mut self.connection)
                 {

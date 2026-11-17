@@ -35,6 +35,7 @@
     }
   },
   "entry_point": "map.wasm",
+  "workers": ["tiles.wasm"],
   "network": [
     "vector.openstreetmap.org"
   ]

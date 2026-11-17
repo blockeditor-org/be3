@@ -15,6 +15,7 @@ use be_sdk_api::{
     ops::{OpError, OpId, Outcome, Reply},
 };
 use be_sdk_beui::FromEditor;
+use be_wasm_sandbox_api::embed::sandbox;
 use be_sdk_beui::be_block_content::{LiveEdit, Merge};
 use be_sdk_beui::headless::{Adopted, HeadlessApp};
 use be_sdk_beui::{
@@ -157,6 +158,7 @@ pub struct BeuiTest<A: BeuiRoot> {
     closed_previews: Vec<[u8; 32]>,
     signatures: crate::signatures::Signatures,
     fetches: crate::fetches::Fetches,
+    workers: crate::workers::Workers,
     wakes: Arc<Wakes>,
     clock: std::time::Duration,
     desk: Option<desk::Desk>,
@@ -440,6 +442,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             closed_previews: Vec::new(),
             signatures,
             fetches: crate::fetches::Fetches::default(),
+            workers: crate::workers::Workers::default(),
             wakes,
             clock: std::time::Duration::ZERO,
             desk: None,
@@ -1108,6 +1111,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
         let mut inbox = std::mem::take(&mut self.inbox);
         self.link.answer(&self.store, &mut self.connection);
         self.fetches.answer(&mut self.connection);
+        self.workers.answer(&mut self.connection);
         let mut frames = std::mem::take(&mut self.answered);
         frames.extend(self.connection.take_outbound());
         if !frames.is_empty() {
@@ -1329,6 +1333,18 @@ impl<A: BeuiRoot> BeuiTest<A> {
                         .complete(op, Outcome::Err(OpError::Canceled));
                     continue;
                 }
+                Incoming::Started(started) if sandbox::Call::accepts(&started) => {
+                    let op = started.op;
+                    if let Some(call) = sandbox::Call::accept(&mut self.connection, started)
+                        && !self.workers.call(call, &mut self.connection)
+                    {
+                        self.acknowledged.insert(op);
+                    }
+                    continue;
+                }
+                Incoming::Canceled { op } if self.workers.canceled(op, &mut self.connection) => {
+                    continue;
+                }
                 Incoming::Canceled { op } if self.fetches.holds(op) => {
                     self.fetches.ended(op, &mut self.connection);
                     continue;
@@ -1509,6 +1525,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
         }
         self.link.answer(&self.store, &mut self.connection);
         self.fetches.answer(&mut self.connection);
+        self.workers.answer(&mut self.connection);
         let frames = self.connection.take_outbound();
         let acknowledged = &mut self.acknowledged;
         match frames.iter().all(|frame| acknowledges(frame, acknowledged)) {
@@ -1837,6 +1854,14 @@ impl<A: BeuiRoot> BeuiTest<A> {
         !self.requests.is_empty()
     }
 
+    /// Serves the worker module `module` (such as `"tiles.wasm"`) as `W` whenever the editor
+    /// spawns it (be_sdk::worker::Worker::spawn), in the test's own instance rather than one of
+    /// its own, so each job it is sent is done before the editor next steps. A worker the test
+    /// does not serve fails at once.
+    pub fn serve_worker<W: be_sdk_beui::worker::Work>(&mut self, module: &str) {
+        self.workers.serve::<W>(module);
+    }
+
     /// Whether the editor sent a fetch `take_fetches` has not taken yet.
     pub fn has_fetches(&self) -> bool {
         self.fetches.has_sent()
@@ -1858,6 +1883,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     ) {
         self.fetches.respond(fetch, head, chunks);
         self.fetches.answer(&mut self.connection);
+        self.workers.answer(&mut self.connection);
         let frames = self.connection.take_outbound();
         self.inbox.push(Inbound::Frames(frames));
     }
@@ -1866,6 +1892,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
     pub fn fail_fetch(&mut self, fetch: &crate::Fetch, failure: be_sdk_beui::Failure) {
         self.fetches.fail(fetch, failure);
         self.fetches.answer(&mut self.connection);
+        self.workers.answer(&mut self.connection);
         let frames = self.connection.take_outbound();
         self.inbox.push(Inbound::Frames(frames));
     }

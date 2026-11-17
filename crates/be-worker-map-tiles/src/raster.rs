@@ -1,6 +1,7 @@
+use be_worker_map::{TILE_PIXELS, TileLabel, TileRaster};
+
 use crate::mvt::{Feature, GeometryKind, Layer, TagValue, Tile};
 
-pub(crate) const TILE_PIXELS: usize = 512;
 const SUPERSAMPLE: usize = 2;
 const CANVAS: usize = TILE_PIXELS * SUPERSAMPLE;
 
@@ -13,15 +14,6 @@ const BOUNDARY: [u8; 4] = [140, 110, 150, 170];
 const PLACE_LABEL_COLOR: [u8; 3] = [60, 60, 60];
 const BOUNDARY_LABEL_COLOR: [u8; 3] = [110, 100, 125];
 const MAX_LABELS: usize = 80;
-
-#[derive(Clone, Debug)]
-pub(crate) struct TileLabel {
-    pub text: String,
-
-    pub position: [f32; 2],
-    pub font_size: f32,
-    pub color: [u8; 3],
-}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Window {
@@ -43,11 +35,6 @@ impl Window {
             point[1] * scale - self.offset[1] * size as f32,
         ]
     }
-}
-
-pub(crate) struct TileRaster {
-    pub pixels: Vec<u8>,
-    pub labels: Vec<TileLabel>,
 }
 
 pub(crate) fn rasterize(tile: &Tile, zoom: u8, window: Window) -> TileRaster {
