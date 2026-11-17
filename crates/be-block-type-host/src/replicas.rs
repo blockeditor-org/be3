@@ -1389,10 +1389,13 @@ impl<H: Host> Replicas<H> {
         if offline {
             return Ok(());
         }
+        // Told against what it loaded, not `head`: opened on the server's journal, it starts at
+        // that journal's base, which may predate the head (one the outbox published while the
+        // journal's holder was away), and only hearing of the head merges it in.
         let mut heads = vec![remote, H::known_head(shared, block)];
         heads.dedup();
         for moved in heads.into_iter().flatten() {
-            if Some(moved) != head {
+            if Some(moved) != load_at {
                 self.moved(replica, moved, false);
             }
         }
