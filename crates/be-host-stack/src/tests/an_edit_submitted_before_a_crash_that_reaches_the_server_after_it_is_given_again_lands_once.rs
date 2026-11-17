@@ -36,6 +36,9 @@ fn an_edit_submitted_before_a_crash_that_reaches_the_server_after_it_is_given_ag
     });
     wait_for_count(block, 111);
     flush_and_send();
+    // The crashed process's session may still hold the lease: the other device takes it and
+    // seals what the order holds.
+    outside.claim();
     outside.seal();
     let saved = runtime().block_on(async {
         harness
