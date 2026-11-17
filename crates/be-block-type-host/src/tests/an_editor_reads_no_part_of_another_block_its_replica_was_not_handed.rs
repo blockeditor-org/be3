@@ -43,7 +43,11 @@ fn an_editor_reads_no_part_of_another_block_its_replica_was_not_handed() {
             replicas.relay_from_editor(
                 mine,
                 editor,
-                FromEditor::Operate { gesture: None, operation: Sections::encode_operation(&named) }.encode(),
+                FromEditor::Operate {
+                    gesture: None,
+                    operation: Sections::encode_operation(&named),
+                }
+                .encode(),
                 Instant::now(),
             );
         }

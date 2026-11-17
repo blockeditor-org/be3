@@ -59,7 +59,10 @@ fn a_module_restart_mid_drag_keeps_the_drag() {
             &mut replicas,
             block,
             dragging,
-            FromEditor::Gesture { id: 0, gesture: Gesture::BeginTentative },
+            FromEditor::Gesture {
+                id: 0,
+                gesture: Gesture::BeginTentative,
+            },
         );
         send(&mut replicas, block, dragging, add(10, Some(0)));
         send(&mut replicas, block, typing, add(1, None));
@@ -97,7 +100,10 @@ fn a_module_restart_mid_drag_keeps_the_drag() {
             &mut replicas,
             block,
             dragging,
-            FromEditor::Gesture { id: 0, gesture: Gesture::Commit },
+            FromEditor::Gesture {
+                id: 0,
+                gesture: Gesture::Commit,
+            },
         );
         while replicas
             .status(block)

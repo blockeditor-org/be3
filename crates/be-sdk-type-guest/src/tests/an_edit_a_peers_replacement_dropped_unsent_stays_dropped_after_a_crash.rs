@@ -45,7 +45,10 @@ fn an_edit_a_peers_replacement_dropped_unsent_stays_dropped_after_a_crash() {
         sim.send_from_editor(
             1,
             1,
-            FromEditor::Operate { gesture: None, operation: CounterContent::encode_operation(&Counter::add(by)) },
+            FromEditor::Operate {
+                gesture: None,
+                operation: CounterContent::encode_operation(&Counter::add(by)),
+            },
         );
     }
     sim.settle();

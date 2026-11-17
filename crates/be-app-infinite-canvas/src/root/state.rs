@@ -6,7 +6,6 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::presence::{CanvasCaret, CanvasCursor};
-use be_sdk_beui::{ContentGesture, ContentProjection};
 use be_sdk_beui::be_block_content::presence::{PresenceColor, pick_free_color};
 use be_sdk_beui::be_block_content::{Edit, ObjectId};
 use be_sdk_beui::be_sdk_ui::BlockLabel;
@@ -19,6 +18,7 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::{Pos2, Rect, Thumbhash, Vec2, pos2};
 use be_sdk_beui::{BlockFilter, ChildState, Drag, Editor, FileDrop, InteractionMode, ResizeMode};
 use be_sdk_beui::{BlockParent, BlockQuery, DropAction, PickAnchor};
+use be_sdk_beui::{ContentGesture, ContentProjection};
 use be_sdk_database::DatabaseBlockPickRequest;
 use be_sdk_text::SharedCaret;
 use be_type_database::database::DatabaseValue;

@@ -64,7 +64,10 @@ fn a_host_crash_with_a_held_drag_saves_nothing() {
             &mut replicas,
             block,
             dragging,
-            FromEditor::Gesture { id: 0, gesture: Gesture::BeginTentative },
+            FromEditor::Gesture {
+                id: 0,
+                gesture: Gesture::BeginTentative,
+            },
         );
         send(&mut replicas, block, dragging, add(10, Some(0)));
         send(&mut replicas, block, typing, add(1, None));
@@ -86,7 +89,10 @@ fn a_host_crash_with_a_held_drag_saves_nothing() {
             &mut replicas,
             block,
             dragging,
-            FromEditor::Gesture { id: 0, gesture: Gesture::Commit },
+            FromEditor::Gesture {
+                id: 0,
+                gesture: Gesture::Commit,
+            },
         );
         replicas.pump((&peer, &shared)).await;
         assert_eq!(

@@ -63,7 +63,11 @@ fn what_a_replica_opened_offline_replayed_from_its_journal_survives_rejoining() 
         replicas.relay_from_editor(
             block,
             editor,
-            FromEditor::Operate { gesture: None, operation: TextContent::encode_operation(&typed) }.encode(),
+            FromEditor::Operate {
+                gesture: None,
+                operation: TextContent::encode_operation(&typed),
+            }
+            .encode(),
             Instant::now(),
         );
         replicas.pump((&peer, &shared)).await;

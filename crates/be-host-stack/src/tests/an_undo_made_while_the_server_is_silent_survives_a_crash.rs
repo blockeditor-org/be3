@@ -16,9 +16,10 @@ fn an_undo_made_while_the_server_is_silent_survives_a_crash() {
     // not this peer's to undo.
     let mut editor = Editor::<CounterContent>::attach(block);
     let mut edit = |by: i64| {
-        editor.send(be_sdk_type_guest::editor::FromEditor::Operate { gesture: None, operation: 
-            CounterContent::encode_operation(&Counter::add(by)),
-         });
+        editor.send(be_sdk_type_guest::editor::FromEditor::Operate {
+            gesture: None,
+            operation: CounterContent::encode_operation(&Counter::add(by)),
+        });
     };
 
     harness.relay().stall();

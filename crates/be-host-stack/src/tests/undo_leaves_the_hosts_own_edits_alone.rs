@@ -24,9 +24,10 @@ fn reached(block: Uuid, expected: &[&str], history: History) {
 }
 
 fn by_editor(editor: &mut Editor<ChecklistContent>, edit: &Edit) {
-    editor.send(be_sdk_type_guest::editor::FromEditor::Operate { gesture: None, operation: 
-        ChecklistContent::encode_operation(edit),
-     });
+    editor.send(be_sdk_type_guest::editor::FromEditor::Operate {
+        gesture: None,
+        operation: ChecklistContent::encode_operation(edit),
+    });
 }
 
 /// The host's own edits (`operate`, as `HOST_EDITOR`) are no one's to undo: a block they alone

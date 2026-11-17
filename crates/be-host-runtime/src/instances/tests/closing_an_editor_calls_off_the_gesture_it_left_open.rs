@@ -37,12 +37,18 @@ fn closing_an_editor_calls_off_the_gesture_it_left_open() {
     assert!(to_replica(
         &mut instances,
         watched,
-        &FromEditor::Operate { gesture: None, operation: add(2) }
+        &FromEditor::Operate {
+            gesture: None,
+            operation: add(2)
+        }
     ));
     assert!(to_replica(
         &mut instances,
         watched,
-        &FromEditor::Gesture { id: 0, gesture: Gesture::Begin }
+        &FromEditor::Gesture {
+            id: 0,
+            gesture: Gesture::Begin
+        }
     ));
     assert!(to_replica(
         &mut instances,

@@ -31,7 +31,10 @@ fn an_edit_numbered_while_its_replica_was_deaf_lands_once_after_it_reopens() {
     sim.send_from_editor(
         1,
         1,
-        FromEditor::Operate { gesture: None, operation: ChecklistContent::encode_operation(&mine) },
+        FromEditor::Operate {
+            gesture: None,
+            operation: ChecklistContent::encode_operation(&mine),
+        },
     );
     sim.settle();
     sim.advance(crate::QUIET_INTERVAL);

@@ -10,7 +10,10 @@ fn one_editors_two_gestures_end_on_their_own() {
     let first = serial(&operate_in(&mut holds, 1, 7));
     let other = gesture_in(&mut holds, 1, 8, Gesture::BeginTentative);
     assert_eq!(other.opened, Some(named(1, 8)));
-    assert!(other.ended.is_empty(), "a second gesture leaves the first open");
+    assert!(
+        other.ended.is_empty(),
+        "a second gesture leaves the first open"
+    );
     let second = serial(&operate_in(&mut holds, 1, 8));
     let third = serial(&operate_in(&mut holds, 1, 7));
     assert_eq!(

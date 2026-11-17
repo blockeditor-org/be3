@@ -34,7 +34,10 @@ fn an_edit_given_again_with_the_submission_that_held_it_lands_once_when_both_rea
     sim.send_from_editor(
         1,
         1,
-        FromEditor::Operate { gesture: None, operation: CounterContent::encode_operation(&Counter::add(10)) },
+        FromEditor::Operate {
+            gesture: None,
+            operation: CounterContent::encode_operation(&Counter::add(10)),
+        },
     );
     sim.settle();
     // The first copy reaches the server after the one given again.

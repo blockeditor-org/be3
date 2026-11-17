@@ -61,7 +61,10 @@ fn edits_given_again_with_the_submission_that_held_them_carry_their_announcement
         sim.send_from_editor(
             1,
             1,
-            FromEditor::Operate { gesture: None, operation: AnnouncedCounter::encode_operation(&Counter::add(by)) },
+            FromEditor::Operate {
+                gesture: None,
+                operation: AnnouncedCounter::encode_operation(&Counter::add(by)),
+            },
         );
         sim.settle();
     }

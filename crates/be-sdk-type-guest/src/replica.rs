@@ -1497,8 +1497,13 @@ where
             return false;
         }
         if record {
-            self.history
-                .record(&self.visible, &operation, origin, Some(gesture.id), self.now);
+            self.history.record(
+                &self.visible,
+                &operation,
+                origin,
+                Some(gesture.id),
+                self.now,
+            );
         }
         if self.tentative.is_empty() {
             self.beneath = Some(self.visible.clone());

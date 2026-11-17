@@ -35,8 +35,7 @@ fn an_editor_cancels_a_gesture_the_replica_ended_so_its_late_frames_never_count(
         "the editor answers with a cancel"
     );
     assert_eq!(
-        sim.devices[0].status.taken,
-        taken,
+        sim.devices[0].status.taken, taken,
         "the voided gesture's frames never count"
     );
     assert!(!sim.operate_in(0, 1, Some(0), Checklist::set_text(a, "after")));

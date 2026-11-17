@@ -304,9 +304,7 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
     /// comes, without opening a gesture.
     pub fn break_step(&self) {
         if self.0.host.editable() && self.loaded() {
-            self.0
-                .host
-                .send_to_replica(self.0.block, FromEditor::Break);
+            self.0.host.send_to_replica(self.0.block, FromEditor::Break);
         }
     }
 

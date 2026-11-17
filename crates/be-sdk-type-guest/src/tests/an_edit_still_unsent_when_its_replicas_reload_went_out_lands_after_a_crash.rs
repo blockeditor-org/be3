@@ -40,7 +40,10 @@ fn an_edit_still_unsent_when_its_replicas_reload_went_out_lands_after_a_crash() 
         sim.send_from_editor(
             0,
             1,
-            FromEditor::Operate { gesture: None, operation: CounterContent::encode_operation(&Counter::add(by)) },
+            FromEditor::Operate {
+                gesture: None,
+                operation: CounterContent::encode_operation(&Counter::add(by)),
+            },
         );
     }
     sim.settle();

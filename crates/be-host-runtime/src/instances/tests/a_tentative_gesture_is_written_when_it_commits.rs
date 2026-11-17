@@ -56,8 +56,16 @@ fn a_tentative_gesture_is_written_when_it_commits() {
     assert!(to_replica(&mut instances, watched, &add(1, None)));
     counted(watched, 1);
 
-    assert!(to_replica(&mut instances, watched, &gesture(2, Gesture::Cancel)));
-    assert!(to_replica(&mut instances, watched, &gesture(1, Gesture::Commit)));
+    assert!(to_replica(
+        &mut instances,
+        watched,
+        &gesture(2, Gesture::Cancel)
+    ));
+    assert!(to_replica(
+        &mut instances,
+        watched,
+        &gesture(1, Gesture::Commit)
+    ));
     counted(watched, 4);
     // Closing cancels no gesture the editor ended.
     assert!(instances.remove(INSTANCE));

@@ -30,7 +30,10 @@ fn edits_given_again_with_a_submission_that_holds_other_edits_go_anew() {
         sim.send_from_editor(
             1,
             1,
-            FromEditor::Operate { gesture: None, operation: CounterContent::encode_operation(&Counter::add(by)) },
+            FromEditor::Operate {
+                gesture: None,
+                operation: CounterContent::encode_operation(&Counter::add(by)),
+            },
         );
     }
     sim.settle();

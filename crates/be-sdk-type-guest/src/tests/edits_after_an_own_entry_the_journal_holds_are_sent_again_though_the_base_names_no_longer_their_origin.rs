@@ -45,7 +45,10 @@ fn edits_after_an_own_entry_the_journal_holds_are_sent_again_though_the_base_nam
         sim.send_from_editor(
             1,
             1,
-            FromEditor::Operate { gesture: None, operation: CounterContent::encode_operation(&Counter::add(by)) },
+            FromEditor::Operate {
+                gesture: None,
+                operation: CounterContent::encode_operation(&Counter::add(by)),
+            },
         );
     }
     sim.settle();
