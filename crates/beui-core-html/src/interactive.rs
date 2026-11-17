@@ -494,6 +494,8 @@ mod web {
         /// Follows an uncaptured press on the window, as its first moves can leave the node
         /// before it captures: one past the threshold outside the node captures the pointer
         /// and is the node's drag, as a move over it would be.
+        /// A move outside the node below the threshold is not passed on: `on_drag` hears
+        /// only moves over the node until the press crosses it.
         fn watch_uncaptured(self: &Rc<Self>, element: &web_sys::Element) {
             let Some(window) = crate::dom::window() else {
                 return;
