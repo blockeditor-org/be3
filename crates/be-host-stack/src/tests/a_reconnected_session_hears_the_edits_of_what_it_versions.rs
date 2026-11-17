@@ -25,9 +25,13 @@ fn a_reconnected_session_hears_the_edits_of_what_it_versions() {
         .and_then(|node| node.entry)
         .expect("the note lies in a tree");
     let mut listings = harness.relay().count(move |method, args| {
-        method == be_block_protocol::__args::BLOCKS_CHANGED_SINCE
-            && be_wasm_ops::decode::<be_block_protocol::__args::BlocksChangedSinceArgs>(args)
-                .is_some_and(|asked| asked.entry == entry && asked.follow)
+        method == be_block_protocol::__args::SERVER_READ
+            && be_wasm_ops::decode::<be_block_protocol::__args::ServerReadArgs>(args).is_some_and(
+                |asked| {
+                    asked.follow
+                        && matches!(asked.query, be_block_protocol::Query::Tree { entry: of, .. } if of == entry)
+                },
+            )
     });
     harness.relay().stall();
     harness.miss_a_ping();

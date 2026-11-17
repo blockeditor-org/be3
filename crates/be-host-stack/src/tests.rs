@@ -346,7 +346,13 @@ impl Harness {
     fn open_until_it_joins(&self, block: Uuid, content_type: Uuid) {
         let mut joins = self
             .relay()
-            .count(|method, _| method == be_block_protocol::__args::SESSIONS_SESSION_JOIN);
+            .count(|method, args| {
+                method == be_block_protocol::__args::SERVER_READ
+                    && be_wasm_ops::decode::<be_block_protocol::__args::ServerReadArgs>(args)
+                        .is_some_and(|asked| {
+                            matches!(asked.query, be_block_protocol::Query::Session { .. })
+                        })
+            });
         open(block, content_type);
         runtime()
             .block_on(joins.wait_for(|joins| *joins > 0))
