@@ -2,11 +2,8 @@
 # itself. buck2 connects directly over TLS, or through scripts/internal/re-relay behind an HTTPS proxy; this forwards
 # each call to NativeLink over cleartext HTTP/2. Requests with `Authorization: Bearer NL_TUNNEL_TOKEN` reach NativeLink,
 # the tunnel and the build records; a browser with the cookie `be3_dash=NL_DASH_TOKEN` reaches the dashboard (both
-# tokens are in /etc/nl-caddy.env, which nl-caddy.service reads). Without either, /gate, a page that sets the cookie,
-# is all there is.
-{
-	admin off
-}
+# tokens are in /var/lib/nl-secrets/caddy.env, default.nix). Without either, /gate, a page that sets the cookie, is all
+# there is.
 
 {$NL_HOST} {
 	@authorized header Authorization "Bearer {env.NL_TUNNEL_TOKEN}"
@@ -39,7 +36,7 @@
 		reverse_proxy 127.0.0.1:3000
 	}
 	handle /gate {
-		root * /etc/caddy
+		root * {$NL_SITE}
 		rewrite * /gate.html
 		file_server
 	}

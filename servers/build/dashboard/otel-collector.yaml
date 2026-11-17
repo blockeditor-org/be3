@@ -1,6 +1,6 @@
 # The OpenTelemetry Collector (nl-otel.service). NativeLink sends its logs, traces and metrics over OTLP to
 # 127.0.0.1:4317 whether or not anything listens; this keeps the metrics for Prometheus to scrape on 127.0.0.1:8889
-# and drops the rest, which nothing reads (its logs are in `docker logs nativelink`).
+# and drops the rest, which nothing reads (its logs are in `journalctl -u nativelink`).
 receivers:
   otlp:
     protocols:

@@ -2,12 +2,13 @@
 
 `servers/` is a Nix flake with a NixOS configuration for each server: everything on the machine (packages, systemd
 units, Caddy, the firewall, users and SSH keys) is built from it, and a deploy replaces whatever was there. The
-machine keeps only data, on its attached volume. Changing a server is changing its configuration here and deploying
-it; nothing is changed by hand on the machine, which the next deploy would undo.
+machine keeps only data: on its attached volume, or on its own disk where it has none. Changing a server is changing
+its configuration here and deploying it; nothing is changed by hand on the machine, which the next deploy would undo.
 
 | Configuration | Machine | What it runs |
 | --- | --- | --- |
 | `api` (`servers/api`) | `api.be3.pfg.pw`: Hetzner CX23, Helsinki, `65.21.242.138` and `2a01:4f9:c01d:9e6::1`, a 100 GB volume at `/mnt/data` | be-server behind Caddy's gateway (guides/hosting.md) |
+| `build` (`servers/build`) | `nl.be3.pfg.pw`: Hetzner CPX62, Helsinki, `95.216.205.46` and `2a01:4f9:c015:fbaf::1`, no volume: the cache, the dashboard's history and Caddy's tokens are under `/var/lib` | NativeLink, Caddy and the dashboard (guides/build_server.md) |
 
 `servers/common.nix` is what every server has: key-only SSH as root for the keys it lists, a firewall with only SSH
 open (each server opens what it serves) and a weekly Nix garbage collection.

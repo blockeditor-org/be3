@@ -52,7 +52,7 @@ pub fn configure(buck2: &Path) -> Result<()> {
             header = String::new();
             tls = false;
         } else {
-            // Caddy in front of NativeLink checks `Authorization: Bearer TOKEN` (scripts/internal/nativelink). With no
+            // Caddy in front of NativeLink checks `Authorization: Bearer TOKEN` (servers/build/Caddyfile). With no
             // key buck2 sends no header, for a cloud session's proxy, which adds it.
             engine = server.clone();
             address = format!("{engine}:443");

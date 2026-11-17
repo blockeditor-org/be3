@@ -13,5 +13,9 @@
       system = "x86_64-linux";
       modules = [ disko.nixosModules.disko ./common.nix ./api ];
     };
+    nixosConfigurations.build = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [ disko.nixosModules.disko ./common.nix ./build ];
+    };
   };
 }
