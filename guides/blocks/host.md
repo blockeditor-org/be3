@@ -315,8 +315,11 @@ the connection a stopping stack closed.
   each join answers), so nothing is typed that would be lost unseen. The
   replicas tell the worker as a replica opens and once the replica a join
   opens has its editors attached as the join says (`Host::set_marked`), and
-  the discard tells it too; the page reads it as `Seen::marked`, which caps
-  `be_host_stack::access` at `View`, so app editors are told they are
+  the discard tells it too, and the stack seeds it from the refs database's
+  marks as it attaches its peer, so a restart keeps it before any replica
+  opens; the page reads it as `Seen::marked`, which caps
+  `be_host_stack::access` at `View` and so caps graph commands
+  (`Instances::editable`) as well as editors, so app editors are told they are
   read-only and then editable again (a test of the stack waits for `access`
   rather than for a snapshot, which a reopened replica does not send again); keeping
   its edits fails (`ClientError::Discarded`), so a submission waits rather

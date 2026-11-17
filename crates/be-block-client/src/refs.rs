@@ -1425,6 +1425,12 @@ impl Refs {
         self.state.lock().unwrap().dropped.contains(&block)
     }
 
+    /// Every block whose local edits were discarded and the server has not said since that this
+    /// account may edit it (`discarded`).
+    pub fn all_discarded(&self) -> Vec<Uuid> {
+        self.state.lock().unwrap().dropped.iter().copied().collect()
+    }
+
     /// The server answered that this account may edit `block` (a join's `may-edit`): its edits
     /// are kept again where they were discarded (`discard_unsent`). A listing that says so is
     /// not enough, as it may be older than the access that lost it.

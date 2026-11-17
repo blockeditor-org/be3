@@ -38,6 +38,7 @@ mod an_edit_sealed_beside_a_commit_waiting_in_the_outbox_is_merged_with_it;
 mod an_edit_sent_after_its_replica_made_a_clean_status_is_given_again_on_joining;
 mod an_edit_submitted_before_its_edits_were_kept_by_an_idle_pass_is_known_after_a_crash;
 mod an_editor_attached_when_its_replica_reopens_is_sent_the_content_again;
+mod an_editor_of_a_replica_that_cannot_open_again_is_told_it_failed_and_the_block_released;
 mod an_editor_reads_no_part_of_another_block_its_replica_was_not_handed;
 mod an_editor_reattached_across_joining_is_sent_a_snapshot_holding_what_was_given_again;
 mod news_of_a_block_whose_head_stayed_moves_no_replica;
@@ -57,6 +58,10 @@ struct Quiet {
     frames: Vec<(EditorId, Vec<u8>)>,
     /// What was recorded as failing.
     errors: Vec<String>,
+    /// The blocks whose replicas were let go, in order.
+    released: Vec<Uuid>,
+    /// How many times the replicas were counted.
+    counted: usize,
 }
 
 impl Host for Quiet {
@@ -108,7 +113,9 @@ impl Host for Quiet {
 
     fn content(_: &Arc<Mutex<Self>>, _: Uuid, _: Uuid, _: Vec<u8>) {}
 
-    fn released(_: &Arc<Mutex<Self>>, _: Uuid) {}
+    fn released(shared: &Arc<Mutex<Self>>, block: Uuid) {
+        shared.lock().unwrap().released.push(block);
+    }
 
     fn status(_: &Arc<Mutex<Self>>, _: Uuid, _: &Status) {}
 
@@ -116,7 +123,9 @@ impl Host for Quiet {
 
     fn conflict(_: &Arc<Mutex<Self>>, _: Uuid, _: Conflict) {}
 
-    fn counted(_: &Arc<Mutex<Self>>, _: usize, _: Vec<crate::Owing>, _: Vec<crate::Owing>) {}
+    fn counted(shared: &Arc<Mutex<Self>>, _: usize, _: Vec<crate::Owing>, _: Vec<crate::Owing>) {
+        shared.lock().unwrap().counted += 1;
+    }
 
     fn leaving(_: &Arc<Mutex<Self>>, _: bool) {}
 }

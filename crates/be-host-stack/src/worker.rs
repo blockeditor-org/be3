@@ -1096,6 +1096,11 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
     };
     if let Some((peer, open)) = started {
         shared.lock().unwrap_or_else(PoisonError::into_inner).peer = Some(Arc::clone(&peer));
+        // The blocks discarded before a restart stay marked from the start, not only once a
+        // replica of each opens: graph commands are capped by the mark too (`crate::access`).
+        for block in peer.all_discarded() {
+            set_marked(&shared, block, true);
+        }
         forget_what_is_not_kept(&peer);
         resolve_through_graph(&peer, &shared);
         let tasks = Tasks::new();
