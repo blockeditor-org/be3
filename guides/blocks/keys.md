@@ -102,7 +102,11 @@ Design records: `decisions/deterministic_seal_nonce.md`,
 - **On the client**: `Peer::signed_in` loads every row (kept in the refs
   database, so `Peer::cached` unwraps offline) and unwraps what it can
   (`KeyBook::absorb`). A read meeting an unknown key refetches once, then fails
-  with `ClientError::Locked`; `Peer::learn` fetches rows for blocks that appear
+  with `ClientError::Locked`. `Locked` means the keys answered and none opens:
+  a refetch, rotation or root lookup that could not reach the server (offline,
+  or one that timed out) fails with that error instead (`is_unreachable`), which
+  callers wait out until the next connection rather than show the block as
+  locked. `Peer::learn` fetches rows for blocks that appear
   later. A key found missing is not asked for again until keys arrive, so a key
   stored later must be told: a `put-keys` that stores or changes a row tells
   `topic.keys` to every other connection, following it, of the viewers of each block it gave
@@ -216,7 +220,9 @@ a member like any other, whom the new owner may revoke.
 the top, Recently Deleted, or under a block with the hash of that block's log
 root, which the signer pinned in full: `Peer::placement`), signed by a member
 with Edit or above on it (from its log, administering the organization, or a
-block above), and never lower anyone. A log's last places the block now
+block above), and never lower anyone. A parent whose root this device has not
+pinned has its keys asked for first; with none that pins it, a block made under
+it fails as `Locked`, and with no connection to ask over, as unreachable. A log's last places the block now
 (`Checked::placement`). A record on `Authority::Inherited` names the chain of
 blocks up to the one it rests on, each with a head of its log (`Link`), and
 checks only if each is where the one before lay as of its head, starting from
@@ -402,9 +408,10 @@ names the organization's head in its signed record (`EscrowKey::head`).
   that head (`KeptLog::levels`). A scope neither kept nor readable makes a key opened through
   another outdated. A read before a write is given up after `LOG_READ_LIMIT`,
   leaving what was kept, and none is made for a scope whose creation still
-  waits in the outbox. A rotation that cannot go through online fails the save
-  as `Locked`, and so does any write that goes up at once (a part, a relay, a
-  journal entry, metadata: `Peer::sealing_key`); offline, a person's edit
+  waits in the outbox. A rotation the server refuses fails the save as
+  `Locked`, and so does any write that goes up at once (a part, a relay, a
+  journal entry, metadata: `Peer::sealing_key`); one that cannot reach the
+  server fails it as unreachable. Offline, a person's edit
   for the outbox is never refused (`sealing_key_kept`, for a commit and the
   content it holds): it is sealed under the epoch at hand and kept, and judged
   again before it is sent (`Peer::send_pending`, `KeyBook::shown_outdated`).

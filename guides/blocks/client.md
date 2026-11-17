@@ -50,7 +50,9 @@ the trees it follows and rejoins its sessions, as after a reconnect.
 (a laptop that slept, a proxy that stopped forwarding) and the transport never
 says so, so `Connection` decides: see `CONNECT_TIMEOUT`, `PING_INTERVAL` and
 `PONG_WAIT`. `ClientError::is_unreachable` covers a timed-out connect and a
-disconnect. The worker alternates reading frames and writing commands and keeps
+disconnect; a key lookup that could not reach the server passes that error on
+rather than `Locked`, which means the keys answered and none opens
+(guides/blocks/keys.md). The worker alternates reading frames and writing commands and keeps
 reading while a write is under way, so neither side's flood starves the other.
 
 Every deadline reads a `be_block_client::Clock` passed to
