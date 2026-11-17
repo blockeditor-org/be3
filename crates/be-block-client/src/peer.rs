@@ -514,6 +514,7 @@ impl<S: ObjectStore> Peer<S> {
             }
         }
         keys.set_kept_logs(refs.kept_logs());
+        keys.set_unmade(refs.unmade());
         for (_, op) in refs.outbox() {
             if let crate::refs::Op::Create(creation) = op
                 && let Some(root) = made_root(&creation)
@@ -4597,6 +4598,7 @@ impl MadeRoot<'_> {
     /// The outbox keeps the creation: so does the device the log made with it.
     pub(crate) fn kept(mut self) -> Result<(), ClientError> {
         self.armed = false;
+        self.refs.made_again(self.block)?;
         if let Some(kept) = self.keys.kept_log(self.block)
             && kept.head == self.root
         {
@@ -4621,9 +4623,24 @@ impl MadeRoot<'_> {
 impl Drop for MadeRoot<'_> {
     fn drop(&mut self) {
         if self.armed {
-            self.keys.forget_made(self.block, self.root);
+            // Dropped, it cannot answer: a write that fails leaves the root unmade in memory
+            // alone, until the device starts again.
+            let _ = forget_made(self.keys, self.refs, self.block, self.root);
         }
     }
+}
+
+/// Lets go of `root`, made here for `block`, as no server took its creation, in memory and on
+/// the device (`KeyBook::forget_made`, `Refs::unmade_root`).
+pub(crate) fn forget_made(
+    keys: &KeyBook,
+    refs: &Refs,
+    block: Uuid,
+    root: be_block_keys::EntryHash,
+) -> Result<(), ClientError> {
+    keys.forget_made(block, root);
+    refs.unmade_root(block, root)?;
+    Ok(())
 }
 
 /// The root a creation made its block's log at (`Peer::new_log`).

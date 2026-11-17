@@ -173,10 +173,14 @@ with none (`RootPin::Conflicting`). A root made with a block stays in memory
 until a server takes the creation or the outbox keeps it, and only then is its
 log kept (refs `Logs`, `MadeRoot`); a creation refused, failed or discarded
 unsent lets the root and log go (`KeyBook::forget_made`), and lifts a conflict
-it caused with the one root other keys of the block carried meanwhile. An
-outbox creation the server answers `BlockAlreadyExists` stands only when the
-served log starts at the root made with it; one made by someone else (a block
-opened offline with no summary of it) is set aside as refused. A device that
+it caused with the one root other keys of the block carried meanwhile. The keys
+it minted stay, so what was set aside still reads, and they still carry that
+root: the device keeps it as unmade (refs `Unmade`, read before the keys at
+start) and pins it no more, until it makes the block again. An outbox or
+imported creation the server answers `BlockAlreadyExists` stands only when the
+served log starts at the root made with it (a log this account may not read is
+someone else's); one made by someone else (a block opened offline with no
+summary of it) is set aside as refused. A device that
 holds anything of a block's log (a root, or how far it checked the log) never
 makes a root for it: making it again is refused as `BlockAlreadyExists` before
 anything is pinned (`KeyBook::holds_log`), as a second root would conflict with
