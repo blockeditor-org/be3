@@ -57,10 +57,7 @@ async fn relayed_messages_reach_one_peer_or_all_of_them_sealed() {
         .relay(block, Some(laptop_id), b"to the laptop")
         .await
         .unwrap();
-    let to_everyone = phone
-        .relay(block, None, b"to everyone")
-        .await
-        .unwrap();
+    let to_everyone = phone.relay(block, None, b"to everyone").await.unwrap();
     to_laptop.await.unwrap();
     to_everyone.await.unwrap();
 

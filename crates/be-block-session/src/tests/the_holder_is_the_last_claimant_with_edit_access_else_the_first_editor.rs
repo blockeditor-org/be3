@@ -23,7 +23,11 @@ fn the_holder_is_the_last_claimant_with_edit_access_else_the_first_editor() {
     session.write(6, 2, MembershipChange::Access(false));
     assert!(session.is_holder(3));
     // Nothing changes, nothing is written.
-    assert!(session.write(6, 2, MembershipChange::Access(false)).is_none());
+    assert!(
+        session
+            .write(6, 2, MembershipChange::Access(false))
+            .is_none()
+    );
     assert!(session.write(6, 9, MembershipChange::Left).is_none());
 
     session.write(7, 3, MembershipChange::Left);

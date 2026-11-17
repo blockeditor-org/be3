@@ -1739,7 +1739,8 @@ impl Client {
                         .filter(|_| expected != Some(commit))
                         .map(|seal| (seal.base.sequence, seal.run));
                     let trim = journal.map(|seal| {
-                        let (registry, client) = (Arc::clone(&connection.registry), connection.client);
+                        let (registry, client) =
+                            (Arc::clone(&connection.registry), connection.client);
                         crate::journal::Asked {
                             tag: seal.tag,
                             run: seal.run,
@@ -2820,7 +2821,10 @@ impl Connection {
                 {
                     continue;
                 }
-                let access = |level| self.store.require_access(identity, vec![block.block], level);
+                let access = |level| {
+                    self.store
+                        .require_access(identity, vec![block.block], level)
+                };
                 if access(Access::View).await.is_err() {
                     self.registry.leave(block, client).await;
                     continue;

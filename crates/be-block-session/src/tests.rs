@@ -5,9 +5,9 @@ use uuid::Uuid;
 use super::*;
 
 mod replicas_fed_one_order_agree_on_the_holder_at_every_number;
-mod the_holder_is_the_last_claimant_with_edit_access_else_the_first_editor;
 mod resuming_only_merges_when_history_actually_diverged;
 mod the_first_participant_names_the_build_the_session_speaks;
+mod the_holder_is_the_last_claimant_with_edit_access_else_the_first_editor;
 mod the_order_numbers_each_submission_and_carries_its_floor;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7874);

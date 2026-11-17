@@ -15,7 +15,10 @@ fn the_first_participant_names_the_build_the_session_speaks() {
     assert!(session.speaks(1) && session.speaks(3));
     assert!(!session.speaks(2));
     session.write(0, 2, MembershipChange::Claimed);
-    assert!(session.is_holder(1), "a claim by another build took the lease");
+    assert!(
+        session.is_holder(1),
+        "a claim by another build took the lease"
+    );
 
     session.write(0, 1, MembershipChange::Left);
     assert_eq!(session.tag(), Some(other));

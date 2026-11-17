@@ -32,26 +32,47 @@ fn replicas_fed_one_order_agree_on_the_holder_at_every_number() {
     let mut heard = Vec::new();
     let mut sequence = 0;
     let mut snapshot = None;
-    let write = |server: &mut SessionState,
-                     heard: &mut Vec<Heard>,
-                     sequence: u64,
-                     client,
-                     change| {
-        if let Some(entry) = server.write(sequence, client, change) {
-            heard.push(Heard::Membership(entry));
-        }
-    };
+    let write =
+        |server: &mut SessionState, heard: &mut Vec<Heard>, sequence: u64, client, change| {
+            if let Some(entry) = server.write(sequence, client, change) {
+                heard.push(Heard::Membership(entry));
+            }
+        };
     write(&mut server, &mut heard, sequence, 1, joined(true, TAG));
     write(&mut server, &mut heard, sequence, 2, joined(true, TAG));
     for step in 0..40u64 {
         sequence += 1;
         heard.push(Heard::Numbered(sequence));
         match step % 8 {
-            1 => write(&mut server, &mut heard, sequence, 3, joined(step % 16 == 1, TAG)),
-            3 => write(&mut server, &mut heard, sequence, 2, MembershipChange::Claimed),
-            4 => write(&mut server, &mut heard, sequence, 1, MembershipChange::Access(false)),
+            1 => write(
+                &mut server,
+                &mut heard,
+                sequence,
+                3,
+                joined(step % 16 == 1, TAG),
+            ),
+            3 => write(
+                &mut server,
+                &mut heard,
+                sequence,
+                2,
+                MembershipChange::Claimed,
+            ),
+            4 => write(
+                &mut server,
+                &mut heard,
+                sequence,
+                1,
+                MembershipChange::Access(false),
+            ),
             5 => write(&mut server, &mut heard, sequence, 2, MembershipChange::Left),
-            6 => write(&mut server, &mut heard, sequence, 1, MembershipChange::Access(true)),
+            6 => write(
+                &mut server,
+                &mut heard,
+                sequence,
+                1,
+                MembershipChange::Access(true),
+            ),
             7 => write(&mut server, &mut heard, sequence, 2, joined(true, TAG)),
             _ => {}
         }
@@ -72,7 +93,11 @@ fn replicas_fed_one_order_agree_on_the_holder_at_every_number() {
         .collect::<Vec<_>>();
     let late = holders(
         state,
-        &again.into_iter().rev().chain(heard[from..].iter().cloned()).collect::<Vec<_>>(),
+        &again
+            .into_iter()
+            .rev()
+            .chain(heard[from..].iter().cloned())
+            .collect::<Vec<_>>(),
     );
     assert!(late.len() > 10);
     for (sequence, holder) in &late {

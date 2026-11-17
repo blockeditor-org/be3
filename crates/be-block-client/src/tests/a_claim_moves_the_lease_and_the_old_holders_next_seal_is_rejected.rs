@@ -11,7 +11,10 @@ use crate::Event;
 async fn a_claim_moves_the_lease_and_the_old_holders_next_seal_is_rejected() {
     let harness = Harness::start().await;
     let phone = harness.owner("phone@example.com").await;
-    let note = phone.create::<TextContent>(BlockParent::Root).await.unwrap();
+    let note = phone
+        .create::<TextContent>(BlockParent::Root)
+        .await
+        .unwrap();
     let head = phone
         .save(note, &TextBlock::of("first"), None)
         .await

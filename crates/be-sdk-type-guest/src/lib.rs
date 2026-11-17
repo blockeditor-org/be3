@@ -10,10 +10,9 @@ use be_block_content::{
     BlockContent, LiveEdit, Loads, Merge, MergeParts, PartReader, Undo, history::History,
 };
 use be_sdk_type_api::{
-    Change, ChildChange, ClientId, CommitId, Description, EditorId, Endpoint, FileChange,
-    Journal, JournalEntry, Loaded, Merged, MergedParts, Opening, PartRef, Plain, PlainFile,
-    PublishOutcome, ReorderChild, ReplaceChild, ReplicaId, SearchDocument, SessionState, TypeInfo,
-    Written,
+    Change, ChildChange, ClientId, CommitId, Description, EditorId, Endpoint, FileChange, Journal,
+    JournalEntry, Loaded, Merged, MergedParts, Opening, PartRef, Plain, PlainFile, PublishOutcome,
+    ReorderChild, ReplaceChild, ReplicaId, SearchDocument, SessionState, TypeInfo, Written,
     guest::{exports::replicas, host},
     ops::guest::{self as ops, Executor, LocalFuture, Pending, Sender},
     types::Failure,
@@ -34,9 +33,7 @@ pub use be_sdk_type_api as api;
 pub use be_wasm_guest_abi as abi;
 pub use file::{BlobFile, DocumentFile, FileForm};
 pub use record::{NoHistory, Recorder};
-pub use replica::{
-    COMMIT_INTERVAL, JOURNAL_BYTES, QUIET_INTERVAL, RESTART_STATE_BYTES,
-};
+pub use replica::{COMMIT_INTERVAL, JOURNAL_BYTES, QUIET_INTERVAL, RESTART_STATE_BYTES};
 
 use effect::{Answer, Effect, HeadEvent, RequestId};
 use replica::{AnyReplica, Input, Opened, Replica};
@@ -1037,12 +1034,7 @@ impl replicas::GuestReplica for OpenReplica {
         Box::pin(ready(()))
     }
 
-    fn message(
-        &self,
-        from: Endpoint,
-        bytes: Vec<u8>,
-        at: u64,
-    ) -> LocalFuture<()> {
+    fn message(&self, from: Endpoint, bytes: Vec<u8>, at: u64) -> LocalFuture<()> {
         self.module.tick(at);
         self.module.input(self.id, Input::Message { from, bytes });
         Box::pin(ready(()))

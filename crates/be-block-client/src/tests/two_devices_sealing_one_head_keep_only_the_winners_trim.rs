@@ -9,7 +9,10 @@ use super::*;
 async fn two_devices_sealing_one_head_keep_only_the_winners_trim() {
     let harness = Harness::start().await;
     let phone = harness.owner("phone@example.com").await;
-    let note = phone.create::<TextContent>(BlockParent::Root).await.unwrap();
+    let note = phone
+        .create::<TextContent>(BlockParent::Root)
+        .await
+        .unwrap();
     let head = phone
         .save(note, &TextBlock::of("first"), None)
         .await

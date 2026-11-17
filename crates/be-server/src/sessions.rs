@@ -230,12 +230,15 @@ impl SessionRegistry {
         };
         let participants = session.state.clients();
         self.hub
-            .send_every(&participants, &Push::Sealed {
-                block,
-                commit,
-                through,
-                run,
-            })
+            .send_every(
+                &participants,
+                &Push::Sealed {
+                    block,
+                    commit,
+                    through,
+                    run,
+                },
+            )
             .await;
     }
 

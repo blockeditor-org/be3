@@ -98,12 +98,6 @@ mod a_push_reaches_members_who_are_not_connected_and_want_it;
 mod a_push_service_refusing_the_server_or_redirecting_does_not_cost_the_right_endpoints;
 mod a_push_service_that_never_answers_delays_only_its_own_account;
 mod a_range_get_reads_part_of_an_s3_object;
-mod a_seal_by_the_old_build_after_a_new_build_started_over_trims_nothing;
-mod a_session_started_again_counts_its_membership_past_the_one_before;
-mod a_stale_seal_from_an_earlier_run_publishes_and_trims_nothing;
-mod a_trim_by_another_build_marks_the_journal_lost_until_the_next_commit;
-mod a_trim_from_other_than_the_holder_is_not_kept;
-mod a_trim_past_the_orders_last_entry_is_not_kept;
 mod a_refused_call_keeps_the_cached_graph;
 mod a_relay_to_a_client_that_left_the_session_is_dropped_without_an_error;
 mod a_remembered_account_approves_a_manually_entered_code_and_can_switch_accounts;
@@ -111,18 +105,24 @@ mod a_removed_agents_blocks_stay_charged_to_its_creator;
 mod a_reply_before_a_change_and_the_change_after_it_keep_their_order_across_a_restart;
 mod a_reserved_object_counts_only_once_its_bytes_arrive;
 mod a_rotation_gives_every_block_below_it_a_new_key_or_nothing;
+mod a_seal_by_the_old_build_after_a_new_build_started_over_trims_nothing;
 mod a_search_index_is_capped_by_the_bytes_its_commit_holds;
 mod a_search_index_takes_exactly_the_access_of_the_block_it_indexes;
 mod a_server_without_a_portal_answers_its_pages_as_json;
 mod a_session_hands_the_lease_over_without_a_merge;
+mod a_session_started_again_counts_its_membership_past_the_one_before;
 mod a_settings_block_changes_only_with_manage_on_its_parent;
 mod a_settings_kind_opens_to_anyone_who_views_a_block_inside;
 mod a_slow_store_call_does_not_delay_another_connections_ping;
 mod a_stale_proof_and_another_sessions_revocation_without_one_are_refused;
 mod a_stale_publish_is_rejected_with_the_current_head;
+mod a_stale_seal_from_an_earlier_run_publishes_and_trims_nothing;
 mod a_stored_key_is_told_only_to_who_may_open_it;
 mod a_submission_from_a_build_the_session_does_not_speak_is_refused;
 mod a_trashed_block_reaches_its_reader_as_detached;
+mod a_trim_by_another_build_marks_the_journal_lost_until_the_next_commit;
+mod a_trim_from_other_than_the_holder_is_not_kept;
+mod a_trim_past_the_orders_last_entry_is_not_kept;
 mod a_type_with_a_short_retention_keeps_only_its_recent_states;
 mod a_viewer_neither_holds_nor_claims_the_lease_and_its_presence_still_reaches_the_others;
 mod accepting_either_kind_of_link_makes_two_contacts;
@@ -396,13 +396,11 @@ impl Heard {
                         }
                         Poll::Ready(Some(SessionEvent::Sealed {
                             commit, through, ..
-                        })) => {
-                            Poll::Ready(Some(Notice::Sealed {
-                                block,
-                                commit,
-                                through,
-                            }))
-                        }
+                        })) => Poll::Ready(Some(Notice::Sealed {
+                            block,
+                            commit,
+                            through,
+                        })),
                         Poll::Ready(Some(SessionEvent::Relayed {
                             from,
                             payload,
@@ -1234,8 +1232,16 @@ impl TestClient {
         (head, chunks): (CommitId, Vec<Hash>),
         journal: be_block_protocol::JournalSeal,
     ) -> Result<be_block_protocol::PublishOutcome, Error> {
-        self.seal(author, block, head, chunks, Some(head), 1_000, Some(journal))
-            .await
+        self.seal(
+            author,
+            block,
+            head,
+            chunks,
+            Some(head),
+            1_000,
+            Some(journal),
+        )
+        .await
     }
 
     async fn history(&mut self, block: Uuid) -> Vec<HistoryEntry> {

@@ -93,7 +93,11 @@ async fn the_server_orders_sealed_submissions_and_a_seal_trims_them() {
             break (commit, through);
         }
     };
-    assert_eq!(heard, (second.0, 1), "every participant hears which head holds what");
+    assert_eq!(
+        heard,
+        (second.0, 1),
+        "every participant hears which head holds what"
+    );
     let journal = phone.journal_of(block).await.expect("one entry is left");
     assert_eq!(
         journal

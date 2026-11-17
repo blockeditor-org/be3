@@ -48,5 +48,9 @@ fn a_seal_whose_publish_was_lost_trims_the_journal_when_the_outbox_drains_it() {
             .expect("the counter opens from the server")
             .map(|counter| counter.root().value())
     });
-    assert_eq!(saved, Some(5), "the edit the lost seal held was applied twice");
+    assert_eq!(
+        saved,
+        Some(5),
+        "the edit the lost seal held was applied twice"
+    );
 }

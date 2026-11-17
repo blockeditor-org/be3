@@ -7,8 +7,8 @@ use be_block_session::Membership;
 use be_block_session::{OpId, Payload, Resume, SessionMessage, SessionOp, Submission};
 use be_block_store::{Hash, PartRef};
 use be_sdk_type_api::{
-    Change, EditorId, Endpoint, FileChange, Journal, JournalBase, KeptSubmission,
-    Merging, Recipients, ReplicaId, SessionTag, Status, UndoState, Unjournaled, Written,
+    Change, EditorId, Endpoint, FileChange, Journal, JournalBase, KeptSubmission, Merging,
+    Recipients, ReplicaId, SessionTag, Status, UndoState, Unjournaled, Written,
 };
 use uuid::Uuid;
 
@@ -3861,8 +3861,7 @@ where
             .filter(|client| *client != self.client && !known.contains(client))
             .collect();
         let before = self.presence.len();
-        self.presence
-            .retain(|(client, _), _| state.has(*client));
+        self.presence.retain(|(client, _), _| state.has(*client));
         self.presence_changed |= self.presence.len() != before;
         let was_holder = self.is_holder();
         self.state = state;

@@ -310,11 +310,10 @@ impl Harness {
     /// A harness whose server pushes to Web Push endpoints on loopback (`PushService`).
     fn pushing() -> Self {
         Self::serving(be_server::push::PushConfig {
-                allow_local_endpoints: true,
-                fcm: None,
-                hosts: vec!["127.0.0.1".to_owned()].into(),
-            },
-        )
+            allow_local_endpoints: true,
+            fcm: None,
+            hosts: vec!["127.0.0.1".to_owned()].into(),
+        })
     }
 
     fn relayed() -> Self {

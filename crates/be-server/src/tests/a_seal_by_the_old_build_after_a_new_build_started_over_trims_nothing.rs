@@ -67,7 +67,10 @@ async fn a_seal_by_the_old_build_after_a_new_build_started_over_trims_nothing() 
         )
         .await;
     assert!(
-        matches!(answered, Ok(be_block_protocol::PublishOutcome::Published(_))),
+        matches!(
+            answered,
+            Ok(be_block_protocol::PublishOutcome::Published(_))
+        ),
         "{answered:?}"
     );
     assert_eq!(

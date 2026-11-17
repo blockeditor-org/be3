@@ -14,7 +14,10 @@ fn the_next_editor_holds_the_lease_once_its_holder_leaves() {
         session.write(
             0,
             client,
-            MembershipChange::Joined(JoinedParticipant { tag, may_edit: true }),
+            MembershipChange::Joined(JoinedParticipant {
+                tag,
+                may_edit: true,
+            }),
         );
     }
     let replica = Replica::new(

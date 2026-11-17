@@ -11,8 +11,8 @@ use be_block_protocol::{JoinedParticipant, MembershipChange, SessionState};
 use be_block_session::{Membership, Resume, Sequencer};
 use be_block_store::Hash;
 use be_sdk_type_api::{
-    Change, Description, EditorId, Endpoint, Journal, JournalBase, Opening,
-    PublishOutcome, Recipients, SessionTag, Status, UndoState,
+    Change, Description, EditorId, Endpoint, Journal, JournalBase, Opening, PublishOutcome,
+    Recipients, SessionTag, Status, UndoState,
     embed::{exports::replicas::Replica, host::Call},
     ops::{Backlog, Connection, Incoming, OpId, Outcome, Outlets, Reply, Side, guest::Executor},
 };
@@ -40,9 +40,9 @@ mod a_gesture_is_one_undo_step_and_quick_edits_absorb;
 mod a_head_written_offline_merges_once_its_replica_opens;
 mod a_holder_demoted_while_its_put_is_pending_sends_the_edit_to_the_new_holder;
 mod a_holder_follows_whoever_claims_the_lease;
-mod a_holder_with_nothing_to_do_sets_no_timer;
 mod a_holder_whose_merge_cannot_read_its_parts_makes_no_due_seal_that_would_be_rejected;
 mod a_holder_whose_merge_cannot_read_its_parts_owes_no_seal_until_it_can;
+mod a_holder_with_nothing_to_do_sets_no_timer;
 mod a_holders_edit_too_large_to_relay_goes_by_its_part_and_is_committed_at_once;
 mod a_holders_edit_too_large_to_relay_is_lacking_until_its_part_is_put_and_appended;
 mod a_journal_another_build_wrote_is_dropped_and_the_block_marked;
@@ -1082,7 +1082,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.devices[device].replica = None;
                 let client = self.devices[device].client;
                 self.lease
-            .write(self.order.sequence, client, MembershipChange::Left);
+                    .write(self.order.sequence, client, MembershipChange::Left);
                 self.lease_changed(Some(device));
             }
         }

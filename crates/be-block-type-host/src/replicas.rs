@@ -433,11 +433,7 @@ impl Replayed {
             Replayed::Change { change, .. } => {
                 return Some(replica.change(connection, change).op());
             }
-            Replayed::Message {
-                from,
-                bytes,
-                at,
-            } => {
+            Replayed::Message { from, bytes, at } => {
                 replica.message(connection, from, bytes, at);
             }
             Replayed::Moved { head } => {
@@ -4385,13 +4381,13 @@ impl<H: Host> Replicas<H> {
                         expected,
                     )
                     .described(content.references, content.derived)
-                    .sealed_through(sealed_through.map(|sequence| {
-                        be_block_commit::SealedThrough {
+                    .sealed_through(
+                        sealed_through.map(|sequence| be_block_commit::SealedThrough {
                             sequence,
                             offline: made_up,
                             restarts,
-                        }
-                    }))
+                        }),
+                    )
                     // The server's journal starts from a seal of its session as the seal wins
                     // the head; one made in a session the host made up is this device's alone.
                     .seals_journal(
@@ -4424,8 +4420,13 @@ impl<H: Host> Replicas<H> {
                     };
                     // This device's journal starts from the seal too; with nothing to commit, the
                     // server's is trimmed with no new commit.
-                    if let (Some(Ok(Saved::Published(head) | Saved::Kept(head) | Saved::Unchanged(head))), Some(sequence), Some(state)) =
-                        (&saved, sealed_through, journal_state)
+                    if let (
+                        Some(Ok(
+                            Saved::Published(head) | Saved::Kept(head) | Saved::Unchanged(head),
+                        )),
+                        Some(sequence),
+                        Some(state),
+                    ) = (&saved, sealed_through, journal_state)
                     {
                         let base = be_block_protocol::JournalBase {
                             commit: Some(*head),

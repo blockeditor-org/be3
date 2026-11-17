@@ -35,9 +35,8 @@ async fn a_trim_from_other_than_the_holder_is_not_kept() {
         .trim(&author, block, first.clone(), of_build(base.clone()))
         .await;
     assert!(answered.is_ok(), "{answered:?}");
-    let entries = |journal: Option<be_block_protocol::Journal>| {
-        journal.map(|journal| journal.entries.len())
-    };
+    let entries =
+        |journal: Option<be_block_protocol::Journal>| journal.map(|journal| journal.entries.len());
     assert_eq!(entries(laptop.journal_of(block).await), Some(1));
 
     laptop.claim(block).await.unwrap();
