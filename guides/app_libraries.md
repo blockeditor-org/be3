@@ -202,7 +202,9 @@ past `STEP_TIMEOUT`. It is settled (which be-host's busy, and so `drive settle`,
 reads) while no frames wait and no step works on frames the host sent; a step
 the guest woke itself for straight after one that took frames counts as working
 on them, since an app takes an answer in one step and acts on it in the next.
-A guest that wakes itself later, on its own, does not keep it busy.
+A guest that wakes itself later, on its own, does not keep it busy, but one that
+wakes itself every step never settles, and `drive settle` times out on it with
+"has input or a step in flight".
 `thread::spawn` runs one on its own thread natively;
 `InProcess` runs a guest's Rust in-process for tests; `web::WebGuest` runs one
 in a blob worker (`src/guest.js`), which be-host's `app.js` extends for an
