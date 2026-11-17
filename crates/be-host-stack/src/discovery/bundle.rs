@@ -35,7 +35,15 @@ static ASSETS: std::sync::OnceLock<Assets> = std::sync::OnceLock::new();
 /// executable: Android's assets, or what an executable that is its whole release carries
 /// (`be`'s host apps). Called before anything discovers the apps.
 pub fn use_assets(read_asset: impl Fn(&str) -> Result<Vec<u8>, String> + Send + Sync + 'static) {
-    let _ = ASSETS.set(Box::new(read_asset));
+    let first = ASSETS.set(Box::new(read_asset)).is_ok();
+    debug_assert!(
+        !first
+            || super::APPS
+                .read()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_none(),
+        "use_assets after the apps were discovered from the bundle, which they stay"
+    );
     if let Ok(id) = read(be_lib_build_id::FILE) {
         let _ = be_lib_build_id::install_metadata(&String::from_utf8_lossy(&id));
     }

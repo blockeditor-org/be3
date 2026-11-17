@@ -32,10 +32,9 @@ impl Hosting {
             })
             .ok_or_else(|| {
                 format!(
-                    "no app of this build hosts blocks of type {block_type}: a deployed be finds \
-                     its release's apps, and one built here only those staged beside it \
-                     (`./scripts/buck run //crates/be-tool-cli:dev`, with `-c be3.apps=NAME,...` \
-                     for more)"
+                    "no app of this build hosts blocks of type {block_type}: a be built here has \
+                     only the apps staged beside it (`./scripts/buck run //crates/be-tool-cli:dev`, \
+                     with `-c be3.apps=NAME,...` for more), and a deployed one its release's"
                 )
             })?;
         let headless = be_host_runtime::Headless::start();

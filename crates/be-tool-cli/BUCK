@@ -8,7 +8,8 @@ cargo_library()
 # The apps a `be` built here stages beside it, as be-host stages its own: those with a
 # host component (guides/apps/host_services.md, "Host components"). A deployed `be`
 # ships alone and reads its release's apps instead (`host_apps`, guides/apps/runtime.md,
-# "Headless"), so no app is compiled into it. The tests point it at :test-host-apps
+# "Headless"), so no app's wasm is compiled into it (its manifests and type modules
+# still are, :app-types below, until plans/headless_apps.md step 1d). The tests point it at :test-host-apps
 # (BE_BUNDLE), and :dev runs it with them beside it.
 HOST_APPS = ["example-counter"]
 
