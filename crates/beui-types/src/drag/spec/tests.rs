@@ -4,6 +4,7 @@ use beui_tree::reactive::RootScope;
 use super::*;
 use crate::input::Modifiers;
 
+mod a_closed_point_floats_over_its_places;
 mod a_custom_site_chooses_the_drop_its_place_gives_for_the_point;
 mod a_drag_floats_beyond_the_reach_of_its_near_places;
 mod a_fast_release_lands_where_its_path_leads;
@@ -11,6 +12,7 @@ mod a_following_place_draws_the_item_under_the_pointer_along_its_line;
 mod a_free_drag_stays_inside_its_area;
 mod a_held_modifier_chooses_among_its_own_places;
 mod a_keyboard_step_takes_the_nearest_place_that_way;
+mod a_shaped_place_draws_the_item_under_the_pointer_at_its_size;
 mod a_zone_inside_a_held_zone_takes_the_pointer_that_enters_it;
 mod a_zone_left_lets_go_of_its_place;
 mod a_zoned_place_is_chosen_while_the_pointer_is_in_its_zone;
