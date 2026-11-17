@@ -789,7 +789,7 @@ enum PieceKey {
         strikethrough: bool,
         leaf: Option<SynHlStyle>,
     },
-    Space(u32),
+    Space(u32, u32),
     Inline(usize, InlineKind),
 }
 
@@ -817,7 +817,7 @@ fn piece_keys(row: &Row) -> Vec<PieceKey> {
                     leaf: span.leaf,
                 }
             }
-            SpanKind::Space(width) => PieceKey::Space(width.to_bits()),
+            SpanKind::Space(width) => PieceKey::Space(width.px.to_bits(), width.share.to_bits()),
             SpanKind::Inline(index) => PieceKey::Inline(
                 index,
                 row.inline
@@ -863,8 +863,8 @@ fn RowPiece(cx: Context, model: Memo<Rc<Row>>, key: PieceKey) -> TextChild {
                 .into_child(),
             }
         }
-        PieceKey::Space(width) => view! {
-            <Gap width={f32::from_bits(width)} />
+        PieceKey::Space(width, share) => view! {
+            <Gap width={f32::from_bits(width)} share={f32::from_bits(share)} />
         }
         .into_child(),
         PieceKey::Inline(item, kind) => {

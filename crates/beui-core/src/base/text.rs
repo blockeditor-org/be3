@@ -34,6 +34,7 @@ pub const CARET_BLINK: Duration = Duration::from_millis(530);
 pub const CARET_BLINKS_FOR: Duration = Duration::from_millis(530 * 2 * 10);
 const CARET_FLAG: Vec2 = Vec2::new(6.0, 4.0);
 
+use beui_types::GapWidth;
 use beui_types::text::{FontPatch, IconSpan};
 
 #[derive(Clone, PartialEq, Debug, Default)]
@@ -102,7 +103,7 @@ pub enum TextPart {
     Span(SpanHandle),
     Inline(NodeId),
     Anchored(NodeId),
-    Gap(f32),
+    Gap(GapWidth),
     Break,
 }
 
@@ -128,7 +129,7 @@ struct Placed {
 enum Entry {
     Span(SpanHandle, u64),
     Inline(Vec2, Option<Rc<str>>),
-    Gap(f32),
+    Gap(GapWidth),
     Break,
 }
 
@@ -308,7 +309,7 @@ impl ChildHost for TextNode {
 enum Flow<'a> {
     Span(Ref<'a, SpanContent>),
     Inline(usize, Vec2, &'a str),
-    Gap(f32),
+    Gap(GapWidth),
     Break,
 }
 
