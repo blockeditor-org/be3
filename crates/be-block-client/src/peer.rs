@@ -1263,7 +1263,7 @@ impl<S: ObjectStore> Peer<S> {
         if let Some(scope) = kept.and_then(|kept| scope_of(&kept).ok())
             && self.outdated(chosen, scope).await
         {
-            match Box::pin(self.rotate(scope)).await {
+            match self.rotate_outdated(scope).await {
                 Ok(()) => {}
                 // A person's edit made offline is never refused: it is sealed and kept here,
                 // and judged again before it is sent (`Peer::send_pending`), which sets it aside
@@ -1341,13 +1341,71 @@ impl<S: ObjectStore> Peer<S> {
         self.keys.shown_outdated(key, scope).then_some(block)
     }
 
-    /// `checked_access`, given up after `LOG_READ_LIMIT`: a key judged by a log that does not
-    /// arrive is judged by what was kept of it.
+    /// Gives `scope`, whose key at hand is outdated, a new epoch: from the highest scope above
+    /// it whose newest key is outdated too (`rotation_top`), so one rotation covers them all, or
+    /// from `scope` when that one cannot be rotated from here.
+    async fn rotate_outdated(&self, scope: Uuid) -> Result<(), ClientError> {
+        let top = self.rotation_top(scope).await;
+        match Box::pin(self.rotate(top)).await {
+            Err(error) if top != scope && !error.is_unreachable() => {
+                Box::pin(self.rotate(scope)).await
+            }
+            rotated => rotated,
+        }
+    }
+
+    /// `scope`, or the highest scope above it, up the scopes this device holds keys of, whose
+    /// newest key is outdated as `scope`'s is. A demotion outdates every scope under the escrow
+    /// at once (signed access 8), and a scope's new epoch is wrapped under the one above it,
+    /// which must be new too: rotating from below would rotate each scope above again for each
+    /// level, where rotating from the top once rotates every scope under it.
+    async fn rotation_top(&self, scope: Uuid) -> Uuid {
+        let mut top = scope;
+        for _ in 0..crate::keys::MAX_PATH {
+            let Some(above) = self.scope_above(top).await else {
+                break;
+            };
+            let Some(key) = self.keys.scope_key(above) else {
+                break;
+            };
+            if above == top || !self.outdated(key, above).await {
+                break;
+            }
+            top = above;
+        }
+        top
+    }
+
+    /// The scope `scope`'s key is wrapped under, from the summaries kept here or the server's:
+    /// none for a block at the top.
+    async fn scope_above(&self, scope: Uuid) -> Option<Uuid> {
+        let summary = match self.refs.summary(scope) {
+            Some(kept) => kept,
+            None => self.summary(scope).await.ok()?,
+        };
+        let BlockParent::Block(parent) = parent_of(&summary).ok()? else {
+            return None;
+        };
+        let summary = match self.refs.summary(parent) {
+            Some(kept) => kept,
+            None => self.summary(parent).await.ok()?,
+        };
+        scope_of(&summary).ok()
+    }
+
+    /// `checked_access`, or for the organization's id `checked_organization`, given up after
+    /// `LOG_READ_LIMIT`: a key judged by a log that does not arrive is judged by what was kept
+    /// of it.
     async fn bounded_read(&self, block: Uuid) -> Result<(), ClientError> {
         let clock = self.connection().clock().clone();
-        let read = std::pin::pin!(self.checked_access(block));
+        let read = std::pin::pin!(async {
+            match block == self.organization {
+                true => self.checked_organization().await.map(|_| ()),
+                false => self.checked_access(block).await.map(|_| ()),
+            }
+        });
         match futures_util::future::select(read, clock.sleep(LOG_READ_LIMIT)).await {
-            futures_util::future::Either::Left((read, _)) => read.map(|_| ()),
+            futures_util::future::Either::Left((read, _)) => read,
             futures_util::future::Either::Right(_) => {
                 Err(ClientError::TimedOut("reading an access log"))
             }
@@ -1368,7 +1426,7 @@ impl<S: ObjectStore> Peer<S> {
             }
         };
         if self.outdated(key, scope).await {
-            Box::pin(self.rotate(scope))
+            self.rotate_outdated(scope)
                 .await
                 .map_err(|_| ClientError::Locked(scope))?;
             return self

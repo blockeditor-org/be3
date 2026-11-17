@@ -170,8 +170,8 @@ impl<S: ObjectStore> Peer<S> {
         // scope key and its blocks' data keys, which key work lists for them). A key naming no
         // organization head (one minted before this device read the organization's log, which
         // connecting does first) goes to no administrator this way. An administrator now may
-        // hold an epoch a demotion outdates: that it is no longer written under is the block's
-        // and the escrow's concern, and the settings' keys reach a new administrator this way.
+        // hold an epoch a demotion outdates: it is written under no more (`KeyBook::outdated`,
+        // signed access 8), and the settings' keys reach a new administrator this way.
         // A proof path names no administrator it does not prove, and hides whom a reduced entry
         // demoted: only a whole log seals.
         if let Some(administrator) = organization

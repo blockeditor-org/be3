@@ -1261,9 +1261,21 @@ impl Client {
                             .drop_member(identity.organization, account)
                             .await;
                     }
-                    connection
-                        .key_work_changed(identity.organization, BTreeSet::new())
-                        .await;
+                    // A demotion outdates every epoch under the escrow (signed access 8): every
+                    // member's devices hear of it, so their next write rotates its scope.
+                    match role {
+                        be_block_protocol::OrganizationRole::Administrator => {
+                            connection
+                                .key_work_changed(identity.organization, BTreeSet::new())
+                                .await
+                        }
+                        _ => {
+                            connection
+                                .hub
+                                .announce(identity.organization, Push::KeyWorkChanged)
+                                .await
+                        }
+                    }
                     Ok(())
                 }
                 .await;
@@ -1300,8 +1312,10 @@ impl Client {
                         .drop_member(identity.organization, account)
                         .await;
                     connection.revoked(&revoked, &[account]).await;
+                    // As for a demotion: the removed may have administered.
                     connection
-                        .key_work_changed(identity.organization, BTreeSet::new())
+                        .hub
+                        .announce(identity.organization, Push::KeyWorkChanged)
                         .await;
                     Ok(())
                 }
