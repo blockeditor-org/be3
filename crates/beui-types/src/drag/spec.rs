@@ -809,6 +809,8 @@ impl Rest {
 
 /// Every fixed place in `spec`, where it is now, in the spec's order. A place whose node is
 /// gone is left out; ids are counted as `evaluate` counts them.
+/// Both sides of a `when_held` are walked, as `evaluate` counts both, so a keyboard carry,
+/// which holds no modifier, steps among the places of either.
 pub fn rests<D>(spec: &DragSpec<D>, placed: &dyn Fn(NodeId) -> Option<(Rect, f32)>) -> Vec<Rest> {
     fn walk<D>(
         spec: &DragSpec<D>,

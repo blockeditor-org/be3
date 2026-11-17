@@ -341,15 +341,19 @@ Depends on #686 (session catch-ups replaced by server ordering).
   clips (guides/beui/components.md, Drags as places). Done: the source's face
   captured as a texture on both cores floats in a top layer like a preview,
   so no carry needs `preview` just to leave its scroll.
-- **The dock's private `TabStrip`.** beui-dock-host keeps a copy of the old
-  `Reorder` for its tab bars (crates/beui-dock-host/src/unstyled/tab_strip.rs),
-  a second way to reorder until the dock moves onto drop sites. Done:
-  plans/declarative_dragging.md step 3 deletes it, right after step 5.
 - **A drag threshold for every `on_drag`.** The native core calls `on_drag`
   on any movement of a press; `Interactive`'s `drag` waits for
   `DRAG_THRESHOLD` (or `TOUCH_DRAG_THRESHOLD`), but a plain `on_drag` user
   (a slider, a pan, the dock's grips) applies its own or none. Done: the core
   starts a press's drag at the threshold, and the components' own checks go.
+- **A carry's first place in a window the host opens.** The board learns each
+  place's window from the core's `Order` at the first point it tracks after a lift,
+  so the lift's own choice takes a place whose window it does not know yet to be
+  the pointer's; a dock window's place whose rect, in its own window's points,
+  holds the pointer can be chosen for that one frame. Done: the board knows a
+  node's window at the lift (a `Space` that answers it on both cores), and a
+  test on the fake `Space` lifts with a place in another window under the
+  pointer's coordinates.
 - **Keyboard steps into a custom site.** A `custom` site (the video timeline)
   gives no fixed places, so a keyboard carry cannot step into it. Done: a
   custom site offers stepping points (a frame grid along the timeline), shown

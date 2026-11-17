@@ -8,16 +8,15 @@ Every drag in beui becomes a description of where the dragged thing can end up, 
 Each place that takes an item says where it could land and where it would rest there; the board
 does the rest: which place the pointer is choosing, the floating item, snapping, the preview,
 the animation, keyboard moves, Escape, edge scrolling and showing the drag to peers. It replaces
-`Draggable`, `DropTarget`, `Take`, `Target`, `DragSource`, `Reorder`'s own hit logic, the dock's tab
+`Draggable`, `DropTarget`, `Target`, `DragSource`, `Reorder`'s own hit logic, the dock's tab
 and tool bar drag geometry and the hand-written drop targets in apps. Nothing keeps the old API.
 
 ## Done means
 
-The final PR deletes `Draggable`, `DropTarget`, `Take`, `Target`, `DragSource`, the dock's private
-`TabStrip`, and `Reorder`'s tree-only `hover`/`part`/`shut`/`resting` with the `visit` and
+The final PR deletes `Draggable`, `DropTarget`, `Target`, `DragSource`, and `Reorder`'s tree-only `hover`/`part`/`shut`/`resting` with the `visit` and
 `slot_at` only they use (step 6), and replaces the geometry at each site: `bars.rs`'s band logic
 (`resolve_bar`, `dock_reach`, `thrown`, `float_near`, `lift_goal`, `step_lift`), the dock's
-`resolve`/`resolve_in`/`judged`/`takes`, and the game board's press state machine. The video
+`resolve`/`resolve_in` (its `judged` and `takes` went in step 3a), and the game board's press state machine. The video
 timeline's `drop_target_at` stays as its `custom` site's `place`. `Reorder` stays, built on the primitives, with its gap spring and
 `ReorderGap` (decisions/beui_reorder_stays_over_drop_sites.md). Each step's PR
 reports the lines each site had before and has after. A drag that ends up longer than it was is
@@ -100,7 +99,7 @@ the camera, not an item, and stays outside the board.
 ## Shape
 
 In `beui-types` (`drag.rs`) and unstyled `drag_board.rs`, replacing `Target`, `DragSource` and
-`Take`. Payloads and places are typed at the component; the board erases them inside.
+`Take` (gone in step 3a). Payloads and places are typed at the component; the board erases them inside.
 
 ```rust
 pub struct Candidate<D> {
@@ -164,7 +163,7 @@ What stays below unstyled, and what changes there:
 - **`Interactive`'s `drag`** lives on the `beui-view` component, not the core node: at the first
   drag the core already reports, the component calls `drag` and hands the result to the
   registered `Driver`. The core gains no logic.
-- **Leaves `beui-types`:** `Take`, `Target`, `DragSource` and their callback aliases are deleted;
+- **Leaves `beui-types`:** `Target`, `DragSource` and their callback aliases are deleted;
   `EdgeScroller` and `EDGE_BAND`, edge-scroll policy used only by the board and `Scroll` (and
   re-exported by `beui_view::drag`), move to unstyled, the band staying a behaviour
   default (decisions/beui_unstyled_layer_has_no_appearance_defaults.md).
@@ -250,7 +249,9 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      `TabStrip` is gone; a pane's grip lifts through `Interactive`'s `drag`; `DockTiles` is a drop
      site of `custom` places, one over the home window's tiles and one per window the host opens,
      each answering the drop the dock's `resolve` gives at the point where the state admits it,
-     so a locked place is no place and the refused marker is gone. `when_held(ALT, ..)` floats,
+     so a locked place is no place and the refused marker is gone, with `Take` and
+     `DropTarget`'s `takes`, which nothing else used. Each place answers only points over its
+     own node that no layer but the dock's windows covers, and a carry names its dock (`DockCarry`). `when_held(ALT, ..)` floats,
      and while held its places are the only ones; the board never chooses a place in another
      window than the pointer's; a carry let go outside every window is its source's
      (`Carry::outside`), which floats the tab there. A carried tab is listed once, as its bar's

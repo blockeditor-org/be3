@@ -181,8 +181,9 @@ a ring outside it, so content gets every press up to its edge.
 
 `DockState::windows` is bottom to top, the focused window is on top, and `Document::layers()`
 follows. The dock's drop site has a place per window, each resolving the pointer in that
-window's coordinates; the board chooses only places in the window the `DragPoint` names, and the
-dock never one in a window a non-dock layer covers at the pointer.
+window's coordinates; the board chooses only places in the window the `DragPoint` names, and each
+place answers only points over its own node that no layer but the dock's windows covers (`State::spec`), so a
+menu over the dock, a tool-bar band or another dock in the window takes no tab.
 
 The window manager (`beui-dock-host/src/unstyled/hosting/manager.rs`, `snap.rs`,
 `beui-dock-state/src/hidden.rs`) is on `DockHostLayout` for any shell: areas (`set_areas`, one `DockArea`
@@ -207,7 +208,9 @@ Tabs and panes are carries on the drag board (guides/beui/components.md, Drag an
 row lifts its tab, the grip an `Interactive`'s `drag`, and `DockTiles` is a drop site whose places
 are `custom` ones, one over the home window's tiles and one per window the host opens, each
 answering the `DockDrop` that `State::resolve` gives at the point, under `when_held(ALT, ..)`
-floating (`State::spec`). The highlight follows the site's `over` (`State::dropping`). Tool bars
+floating (`State::spec`). The highlight follows the site's `over` (`State::dropping`). A carry's
+payload is a `DockCarry`, the dragged tab or pane with its dock's id, so another dock in the
+document, whose tab ids may coincide, neither takes it nor hides a tab for it. Tool bars
 still ride the old `DropTarget` (plans/declarative_dragging.md, step 4).
 A group is a tab holding a dock tree of its own (`Entry::Group`); the tree tidies itself after every
 change (a one-tab group becomes the tab). A pinned group is never tidied away and admits only its
