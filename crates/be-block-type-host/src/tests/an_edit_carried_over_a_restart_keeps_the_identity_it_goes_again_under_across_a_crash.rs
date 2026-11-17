@@ -142,6 +142,18 @@ fn an_edit_carried_over_a_restart_keeps_the_identity_it_goes_again_under_across_
             .open((&peer, &shared), block, Tally::CONTENT_TYPE, true)
             .await
             .expect("the block opens");
+        // A replica reports no restarts until it loads: that drops none of what it was given,
+        // before it submits them again.
+        pump_until(&peer, &shared, &mut replicas, "heard from the reopened replica", |replicas| {
+            replicas
+                .submissions_of(block)
+                .is_some_and(|(_, restarts, _)| restarts == 0)
+        })
+        .await;
+        let (_, _, kept) = replicas
+            .submissions_of(block)
+            .expect("the block is open again");
+        assert_eq!(kept, [added], "the reopened replica's first status kept them");
         while replicas.joining() {
             replicas.woken().await;
             replicas.pump((&peer, &shared)).await;

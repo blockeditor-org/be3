@@ -3053,7 +3053,8 @@ where
             },
         };
         // The host keeps each operation's identity under the restart it reported last, and drops
-        // those of an earlier one: told of a restart first, it keeps this one.
+        // those of an earlier one: told of a restart first, it keeps this one. What else
+        // `report` sends is sent at the end of the run all the same, and each once.
         if self
             .reported
             .status
