@@ -18,10 +18,11 @@ graphics. One runtime, not a second one for `be`.
   that need a person or a screen (pickers, dialogs) refused.
 - An app that asks for the gpu there gets an error it can handle; a host
   component never needs one.
-- `be` hosts with the build it was made with, but carries no app wasm: it
-  downloads the app it runs from its own release, checked against the hashes
-  the release lists and cached by them (guides/apps/runtime.md, "Headless"),
-  so `be` stays one small download.
+- `be` finds its apps as be-host does, with nothing about them compiled in:
+  a build made here reads those staged beside it (`be-tool-cli:dev`), and a
+  deployed `be` downloads the one it runs from its own release, checked
+  against the list of hashes its `build-info.json` pins and cached by them
+  (guides/apps/runtime.md, "Headless"), so `be` stays one small download.
 - Whatever be-host's headless `:dev` needs that this provides, it shares
   rather than keeping its own.
 - plans/host_as_platform_adapter.md moves be-host-runtime's orchestration into
@@ -37,11 +38,13 @@ graphics. One runtime, not a second one for `be`.
    - b. A headless driver for be-host-runtime, with no beui setup, no
      presenter and no gpu (guides/apps/runtime.md, "Headless"), and a host
      component kept to its own block (guides/apps/host_services.md): done.
-   - c. `be` wiring (be-host-stack and be-host-runtime, the host app
-     downloaded from `be`'s release) and a small example app with a host
-     component: done (guides/apps/runtime.md, "Headless"; be-tool-cli's
-     `be_runs_an_apps_host_component_with_no_display`). A deployed `be` finds
-     its apps only in releases deployed with `app-hashes.json`.
+   - c. `be` wiring (be-host-stack and be-host-runtime; the host app staged
+     beside a `be` built here, `be-tool-cli:dev`, or downloaded from a
+     deployed `be`'s release and checked against the `app-hashes.json` its
+     `build-info.json` pins) and a small example app with a host component:
+     done (guides/apps/runtime.md, "Headless"; be-tool-cli's
+     `be_runs_an_apps_host_component_with_no_display`). Not yet run against a
+     real deploy: only releases deployed after it name their `apps`.
 2. **`be BLOCK host`.** Signs in (as an agent, or a block's agent, as the
    terminal host does), opens the block and runs its type's host component
    while it holds the lease, standing by otherwise. Done: plans/hosted_blocks.md

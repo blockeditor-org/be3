@@ -236,20 +236,29 @@ The runtime keeps passing while one runs (`Instances::has_hosts`) without
 asking for frames.
 
 `be` runs them this way (`be_tool_cli::hosting::Hosting`, plans/headless_apps.md),
-and carries no apps: it downloads a host app when it runs one, from the release
-it was built for (`be_tool_cli::host_apps`). That is the web bundle a deploy
-publishes at `data/BUILD/web/` on the mirror (guides/hosting.md, Deploying),
-the apps staged as be-host stages them, so `be` serves be-host-stack's
-discovery from it through `use_assets` (a reader in place of the bundle beside
-the executable, as Android's assets are) and the runtime reads only what it
-needs: `apps.json`, the manifests, then the one app's module, type module and
-libraries. Each file must hash to what the release lists in its
+and finds its apps as be-host does (`be_tool_cli::host_apps`): nothing about any
+app is compiled into it, so an app change never relinks `be`. A build that was
+not deployed reads the apps staged beside it: `//crates/be-tool-cli:dev` stages
+the apps with a host component (`HOST_APPS` in its BUCK) and `-c be3.apps=NAME,...`
+adds more, as be-host's `:dev` takes them; the tests stage the same through
+`BE_BUNDLE`. A deployed `be` ships alone, so it reads its release's apps: the
+web bundle a deploy publishes at `data/BUILD/web/` on the mirror (guides/hosting.md,
+Deploying), staged as be-host stages them, served to be-host-stack's discovery
+through `use_assets` (a reader in place of the bundle beside the executable, as
+Android's assets are), so the runtime downloads only what it needs: `apps.json`,
+the manifests, then the one app's module, type module and libraries.
+
+What it trusts is what it shipped with, as be-host trusts the apps it ships
+with. The deploy writes the release's `apps` into the `build-info.json` beside
+every executable it ships, `be`'s too: the bundle's URL and the SHA-256 of its
 `app-hashes.json` (be-host's `app-hashes`, a `bundle_hashes` over its `:apps`,
-which the web bundle carries), and is kept in `be`'s cache under that hash; a
-missing file, a mismatch or a release with no `app-hashes.json` fails, naming
-the file and the app. `BE_BUNDLE` points `be` at a local bundle instead, which
-it reads as be-host does with nothing downloaded: be-tool-cli's tests stage the
-counter example that way (`test-host-apps`).
+which the web bundle carries). `be` downloads that list and refuses it unless it
+hashes to what its `build-info.json` names, then refuses any file that does not
+hash to what the list says, so what the mirror serves later cannot change which
+apps a deployed `be` runs. Each file is kept in `be`'s cache under its hash; a
+missing file, a mismatch or a release with no list fails, naming the file. A
+terminal host's `be` gets the host's own `apps` (`Metadata::for_be`), and a `be`
+deployed with `--skip-web` names none, so it runs no host component.
 
 ## When an app stops
 

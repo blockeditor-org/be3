@@ -3,7 +3,8 @@ use super::*;
 use be_type_example_counter::CounterContent;
 
 /// `be` runs the counter's host component headless, on a block of a stack it started, the app
-/// read from the bundle BE_BUNDLE names rather than downloaded: no window, no presenter, no
+/// read from the bundle BE_BUNDLE names, as a `be` that was not deployed reads the apps staged
+/// beside it, rather than downloaded: no window, no presenter, no
 /// gpu; the component adds one once the content arrives, and the block shows it
 /// (plans/headless_apps.md, step 1).
 #[test]
