@@ -211,10 +211,13 @@ only `OUTER_EDGE`, then its group's places), and grouping in its middle, each zo
 Each place carries the `DockState` its drop leaves and where the carried item rests in it.
 A surface's places are reached only where it is the topmost of the dock's surfaces under the
 pointer and nothing but the dock's own layers covers it (`open_where`, `State::topmost`), so a menu
-over the dock, a tool-bar band or another dock in the window takes no tab; a dock dialog covers
-nothing. Over no surface, or one that offers no place (the window a lone tab is carried from), a
-`custom` place floats the tab in a window of its own at the pointer, which moves that lone
-window; with Alt held that is the only place. A carry's payload is a
+over the dock, a tool-bar band or another dock in the window takes no tab; a dock dialog, modal
+or not, covers no place (`modal` blocks only its parent panel's input). Over no surface of the
+home window, or one that offers no place (the window a lone tab is carried from), a `custom`
+place floats the tab in a window of its own at the pointer, which moves that lone window; with
+Alt held that is the only place. A window the host opens is not the home window: a lone tab
+carried inside its own host-opened window has no place there and goes home, as the host moves
+such a window by its bar. A carry's payload is a
 `DockCarry`, the dragged tab or pane with its dock's id, so another dock in the document, whose tab ids
 may coincide, neither takes it nor hides a tab for it. Tool bars still ride the old `DropTarget`
 (plans/declarative_dragging.md, step 4).
