@@ -197,7 +197,8 @@ fn inline(kind: &'static str, tag: &'static str, styles: &[(&'static str, &str)]
 }
 
 impl TextChild {
-    fn build(self, glyphed: bool) -> (NodeId, Piece) {
+    /// `font` is the text's, which a `Blank` without one of its own is measured in.
+    fn build(self, glyphed: bool, font: Option<FontId>) -> (NodeId, Piece) {
         match self {
             TextChild::Span(span) => span.build(glyphed),
             TextChild::Item(item) => (item.node, Piece::Item(item.data)),
@@ -219,16 +220,41 @@ impl TextChild {
                 (node, Piece::Skip { newline: false })
             }
             TextChild::Blank(blank) => {
-                // A space in no font, `letter-spacing` wide: the browser hangs it past a line's
-                // end as it does trailing spaces under `pre-wrap`, where a wider space character
-                // (an em space) or an inline block would wrap.
-                let node = inline(
-                    "Blank",
-                    "span",
-                    &[("font-size", "0"), ("vertical-align", "top")],
-                );
+                // A space in the blank's font, so a mark or glyph over it is as tall as the
+                // text's, `letter-spacing` making it `width` wide: the browser hangs it past a
+                // line's end as it does trailing spaces under `pre-wrap`, where a wider space
+                // character (an em space) or an inline block would wrap.
+                let node = inline("Blank", "span", &[]);
                 set_attribute(node, "class", Some("beui-blank".to_owned()));
-                set_style(node, "letter-spacing", Some(css::px(blank.width)));
+                if let Some(font) = blank.font {
+                    set_style(node, "font-size", Some(css::px(font.size)));
+                    set_style(
+                        node,
+                        "line-height",
+                        Some(css::px(font_line_height(font.size))),
+                    );
+                    set_style(node, "font-family", Some(css::family(font.family).to_owned()));
+                    set_style(
+                        node,
+                        "font-weight",
+                        Some(if font.bold { "bold" } else { "normal" }.to_owned()),
+                    );
+                    set_style(
+                        node,
+                        "font-style",
+                        Some(if font.italic { "italic" } else { "normal" }.to_owned()),
+                    );
+                }
+                let measured = blank.font.or(font);
+                let fonts = beui_core_html::page::use_font_changes();
+                let width = blank.width;
+                create_binding(move || {
+                    fonts.track();
+                    let space = measured
+                        .and_then(beui_core_html::text::space_advance)
+                        .unwrap_or(0.0);
+                    set_style(node, "letter-spacing", Some(css::px(width - space)));
+                });
                 let Some(element) = element(node) else {
                     return (node, Piece::Skip { newline: false });
                 };
@@ -257,7 +283,7 @@ impl SlotChild for TextChild {
     }
 
     fn store(self) -> NodeId {
-        self.build(false).0
+        self.build(false, None).0
     }
 }
 
@@ -268,7 +294,7 @@ struct TextHost {
 
 impl SlotHost<TextChild> for TextHost {
     fn store(&self, child: TextChild) -> NodeId {
-        let (node, piece) = child.build(self.glyphed);
+        let (node, piece) = child.build(self.glyphed, self.model.font());
         self.model.insert(node, piece);
         node
     }
