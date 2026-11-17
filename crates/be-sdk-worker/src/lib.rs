@@ -15,7 +15,7 @@
 //! Nothing here assumes the guest has one thread: the app's id is kept where any thread reads it,
 //! and a `Worker` is used from the thread whose executor spawned it, as every op is.
 
-use std::{cell::RefCell, collections::VecDeque, rc::Rc, sync::OnceLock};
+use std::{collections::VecDeque, rc::Rc, sync::OnceLock};
 
 use be_wasm_sandbox_api::{
     guest::sandbox::Instance,
