@@ -138,7 +138,8 @@ pub(crate) const PLANS: &[Plan] = &[
         lib: false,
     },
     // The games, every app's type module (be-type-bundle runs them in process
-    // on the host), the gpu shim, the remap module and the pure guests.
+    // on the host), the gpu shim, the remap module, the pure guests and the
+    // root guest be-wasm-root-host's tests run.
     Plan {
         name: "wasm32",
         mode: Mode::Build,
@@ -149,6 +150,7 @@ pub(crate) const PLANS: &[Plan] = &[
             Named("be-wasm-gpu-shim"),
             Named("be-lib-remap-module"),
             Named("be-wasm-guest-echo"),
+            Named("be-wasm-root-testing"),
         ]),
         html: false,
         lib: false,

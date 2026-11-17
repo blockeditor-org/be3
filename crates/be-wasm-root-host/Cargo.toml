@@ -1,0 +1,22 @@
+[package]
+name = "be-wasm-root-host"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-wasm-guest-host = { path = "../be-wasm-guest-host" }
+be-wasm-host = { path = "../be-wasm-host" }
+be-wasm-ops = { path = "../be-wasm-ops" }
+be-wasm-root-api = { path = "../be-wasm-root-api" }
+be-wasm-sandbox-api = { path = "../be-wasm-sandbox-api" }
+be-wasm-sandbox-host = { path = "../be-wasm-sandbox-host" }
+
+[dev-dependencies]
+be-lib-layers = { path = "../be-lib-layers" }
+be-wasm-dylink = { path = "../be-wasm-dylink" }
+be-wasm-guest-echo = { path = "../be-wasm-guest-echo" }
+be-wasm-root-testing = { path = "../be-wasm-root-testing" }
+
+[lints]
+workspace = true

@@ -947,13 +947,12 @@ impl beui::native::Draw for AppDrawing {
                 // its canvases from the frame's layers.
                 let layer = match blit.layer {
                     Some(anchored) => {
+                        // The index is taken whether or not the surface has a texture yet, as
+                        // the web takes it (layers::frame), so a piece has the same id on both.
+                        let piece = pieces.next(blit.surface, u64::from(anchored.surface), true);
                         platform
                             .size(blit.surface, anchored.surface)
-                            .and_then(|size| {
-                                let piece =
-                                    pieces.next(blit.surface, u64::from(anchored.surface), true);
-                                blit.anchored_layer(anchored, size, piece)
-                            })
+                            .and_then(|size| blit.anchored_layer(anchored, size, piece))
                     }
                     None => region.and_then(|placement| {
                         let texture = platform.size(blit.surface, placement.surface);

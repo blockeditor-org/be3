@@ -10,6 +10,8 @@ be-lib-geometry = { path = "../be-lib-geometry" }
 be-lib-input-router = { path = "../be-lib-input-router" }
 be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 be-lib-ui-types = { path = "../be-lib-ui-types" }
+postcard = { version = "1", features = ["use-std"] }
+serde = { version = "1", features = ["derive"] }
 
 [lints]
 workspace = true

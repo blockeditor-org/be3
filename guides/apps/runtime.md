@@ -86,11 +86,20 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   so an app spawns only its own workers (guides/adding_an_app.md, Workers). A spawned module gets no gpu: a
   worker computes and sends its result back as bytes, which the app uploads
   itself, so no device is handed to it, and on the web, where each worker
-  would need a device of its own, it needs none. The root guest will be served
-  with `Server::new`, which may spawn any staged app and compile modules
-  (plans/host_as_platform_adapter.md, step 4). The input remapper runs on
+  would need a device of its own, it needs none. `crates/be-wasm-root-host`
+  serves the root guest one with `Server::new`, which may spawn any staged app
+  and compile modules. The input remapper runs on
   `be_wasm_host::sandbox` (guides/desktop/login_session.md, Input remaps). The
   web has no half yet: it refuses an app's sandbox calls as unsupported.
+- **The root guest.** `crates/be-wasm-root-host`'s `Root` runs a root guest
+  (plans/host_as_platform_adapter.md, The root guest) on the calling thread,
+  stepping a `be_wasm_host::App` inline rather than on a thread of its own.
+  `Root::frame` starts the root's `frames.frame` op (`be3:root`,
+  `crates/be-wasm-root-api`) and steps the root until it answers; while the
+  frame is unanswered (pending) it serves the root's calls (the sandbox, and
+  `host.deadline`, held until the frame's deadline passes) and waits on a bell
+  that the root's instances, compiles and own wakes ring. Only its tests run a
+  root today, and the web has no half yet.
 - **V8's heap.** No guest may declare garbage-collected types (structs,
   arrays) or more than one table, and a table holds at most a million entries
   (`engine::Shape::bounded`): V8 stops delivering a termination once an

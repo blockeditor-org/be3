@@ -1938,6 +1938,8 @@ dependencies = [
  "be-lib-input-router",
  "be-lib-stable-hash",
  "be-lib-ui-types",
+ "postcard",
+ "serde",
 ]
 
 [[package]]
@@ -3123,6 +3125,43 @@ dependencies = [
  "quote",
  "syn 2.0.117",
  "wit-parser 0.254.0",
+]
+
+[[package]]
+name = "be-wasm-root-api"
+version = "0.1.0"
+dependencies = [
+ "be-wasm-ops",
+ "be-wasm-ops-bindgen",
+ "serde",
+]
+
+[[package]]
+name = "be-wasm-root-host"
+version = "0.1.0"
+dependencies = [
+ "be-lib-layers",
+ "be-wasm-dylink",
+ "be-wasm-guest-echo",
+ "be-wasm-guest-host",
+ "be-wasm-host",
+ "be-wasm-ops",
+ "be-wasm-root-api",
+ "be-wasm-root-testing",
+ "be-wasm-sandbox-api",
+ "be-wasm-sandbox-host",
+]
+
+[[package]]
+name = "be-wasm-root-testing"
+version = "0.1.0"
+dependencies = [
+ "be-lib-geometry",
+ "be-lib-layers",
+ "be-wasm-guest-abi",
+ "be-wasm-ops",
+ "be-wasm-root-api",
+ "be-wasm-sandbox-api",
 ]
 
 [[package]]

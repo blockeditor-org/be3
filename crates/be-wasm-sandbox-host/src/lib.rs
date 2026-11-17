@@ -3,8 +3,8 @@
 //! (plans/host_as_platform_adapter.md, The sandbox API). Staged apps come from a loader the host
 //! plugs in (be-host-runtime's `staged_app`), since finding them is the host's and lies above
 //! be-wasm. be-host-runtime serves one to every app (`Server::for_app`), which may spawn only its
-//! own app's modules, its workers (plans/single_threaded_guests.md); it will serve the root guest
-//! (`Server::new`, plans/host_as_platform_adapter.md, step 4).
+//! own app's modules, its workers (plans/single_threaded_guests.md); be-wasm-root-host serves the
+//! root guest one (`Server::new`, plans/host_as_platform_adapter.md, The root guest).
 
 use std::{
     collections::{BTreeMap, HashMap},

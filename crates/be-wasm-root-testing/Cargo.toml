@@ -1,0 +1,19 @@
+[package]
+name = "be-wasm-root-testing"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+be-lib-geometry = { path = "../be-lib-geometry" }
+be-lib-layers = { path = "../be-lib-layers" }
+be-wasm-guest-abi = { path = "../be-wasm-guest-abi" }
+be-wasm-ops = { path = "../be-wasm-ops" }
+be-wasm-root-api = { path = "../be-wasm-root-api" }
+be-wasm-sandbox-api = { path = "../be-wasm-sandbox-api" }
+
+[lints]
+workspace = true
