@@ -16,6 +16,7 @@ const SIZE: Vec2 = vec2(640.0, 400.0);
 enum Heard {
     Clicked(Pos2),
     Hovered(bool),
+    Keyboard(bool),
 }
 
 #[derive(Default)]
@@ -28,6 +29,10 @@ impl ContentInput for Recorded {
 
     fn hovered(&self, over: bool) {
         self.0.borrow_mut().push(Heard::Hovered(over));
+    }
+
+    fn keyboard(&self, held: bool) {
+        self.0.borrow_mut().push(Heard::Keyboard(held));
     }
 }
 
@@ -94,7 +99,7 @@ impl Shown {
             .iter()
             .filter_map(|heard| match heard {
                 Heard::Clicked(at) => Some(*at),
-                Heard::Hovered(_) => None,
+                Heard::Hovered(_) | Heard::Keyboard(_) => None,
             })
             .collect()
     }

@@ -16,6 +16,10 @@ fn only_a_click_on_the_content_focuses_its_window() {
 
     shown.keyboard.notify();
     shown.settle();
+    assert!(
+        shown.heard.0.borrow().contains(&Heard::Keyboard(true)),
+        "the shell giving the window the keyboard gives its content beui's keyboard focus"
+    );
     shown.keyboard.notify();
     shown.settle();
     assert!(
