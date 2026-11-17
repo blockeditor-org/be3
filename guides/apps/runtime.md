@@ -94,6 +94,20 @@ it from the `Embed` it fills and forwards input to it; `editors.rs` builds
 tabs, takeovers, embedded children and previews from it. What an app sends
 reaches them as one revision signal per app.
 
+## The layer list
+
+Every app surface the host shows is drawn from a `be_lib_layers::Layer`
+(plans/host_as_platform_adapter.md, The layer list): its surface by handle (`Surface::Screen` or
+`Surface::Anchored`, with the runtime's slot), a transform from the surface's pixels to the
+window's points, the clip in its pixels, the rounding of its own corners and its opacity.
+`be-host-runtime/src/layers.rs` makes one from each blit the host's frame paints
+(`Blit::screen_layer`, `Blit::anchored_layer`); natively `AppDrawing` draws it as a texture quad
+in the host's pass (`layers::texture_quad`), in the paint order of the host's UI, which is the
+one `Surface::Root(0)` drawn in that pass. On the web `layers::frame` makes the frame's list
+(Apps on the page in guides/running/web.md) and the page applies it as CSS. The list's hit test
+and damage (`WindowLayers`), and the forwarding router (`be-lib-input-router`), are not used by
+the host yet: its input still goes through beui's forwarding catchers (`AppView`).
+
 ## Frames and pacing
 
 An app draws only when the host asks for a frame. When something changes what

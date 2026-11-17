@@ -13,6 +13,8 @@ use beui::{
     pos2, vec2,
 };
 
+use be_lib_layers::{Layer, Surface};
+
 use super::backend::{Availability, Frame, ShownFrame};
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -125,7 +127,7 @@ impl Quad {
         self.turning().bounds(self.rect)
     }
 
-    fn placed(&self, source: Rect, at: &DrawAt) -> texture_quad::Quad {
+    pub(super) fn placed(&self, source: Rect, at: &DrawAt) -> texture_quad::Quad {
         let scale = at.pixels_per_point;
         texture_quad::Quad {
             rect: [
@@ -333,17 +335,52 @@ impl Blit {
     /// paint snapshot, goes through here. `painted` is the size of what is drawn (the texture,
     /// the painting), never the size the layout asked for, since a layout commit can land
     /// before the present that brings textures of its size.
-    /// Where the texture on `placement`'s surface shows for this blit, natively and as the hole
-    /// the web punches for its canvas: at the size the renderer says the texture is (`texture`;
-    /// the web keeps no textures, so it is the size the worker last painted that surface at).
-    pub(super) fn on_surface(
+    /// The layer that shows this blit of `placement`'s surface, natively and as the hole the web
+    /// punches for its canvas: at the size the renderer says the texture is (`texture`; the web
+    /// keeps no textures, so it is the size the worker last painted that surface at). `piece`
+    /// tells apart the layers of one view's pieces.
+    pub(super) fn screen_layer(
         &self,
         placement: &ScreenPlacement,
         texture: Option<(u32, u32)>,
-    ) -> Option<(u32, Quad, Rect)> {
+        piece: usize,
+    ) -> Option<Layer> {
         let painted = self.shared.borrow().holds(placement, texture)?;
-        let (quad, source) = self.shown_at(painted)?;
-        Some((placement.surface, quad, source))
+        crate::layers::screen(
+            crate::layers::id(self.surface, self.screen.0, false, piece),
+            Surface::Screen {
+                instance: self.surface,
+                surface: placement.surface,
+            },
+            self.shown_at(painted)?,
+            painted,
+        )
+    }
+
+    /// The layer that shows this blit's part of an anchored surface whose texture is `size`.
+    pub(super) fn anchored_layer(
+        &self,
+        anchored: AnchoredSource,
+        size: (u32, u32),
+        piece: usize,
+    ) -> Option<Layer> {
+        let (width, height) = (size.0 as f32, size.1 as f32);
+        if width <= 0.0 || height <= 0.0 {
+            return None;
+        }
+        let source = Rect::from_min_max(
+            pos2(anchored.pixels.min.x / width, anchored.pixels.min.y / height),
+            pos2(anchored.pixels.max.x / width, anchored.pixels.max.y / height),
+        );
+        crate::layers::screen(
+            crate::layers::id(self.surface, u64::from(anchored.surface), true, piece),
+            Surface::Anchored {
+                instance: self.surface,
+                surface: anchored.surface,
+            },
+            within_texture(self.quad, source)?,
+            Painted { size, raster: 1.0 },
+        )
     }
 
     pub(super) fn shown_at(&self, painted: Painted) -> Option<(Quad, Rect)> {
@@ -879,7 +916,7 @@ impl beui::native::Draw for AppDrawing {
                 return;
             };
             let mut placed = Vec::new();
-            for blit in blits.iter() {
+            for (index, blit) in blits.iter().enumerate() {
                 let (frames, region, surfaces) = {
                     let mut shared = blit.shared.borrow_mut();
                     let frames = shared.take_frames();
@@ -899,34 +936,32 @@ impl beui::native::Draw for AppDrawing {
                 if !frames.is_empty() {
                     platform.retain(blit.surface, &surfaces);
                 }
-                let region = match blit.layer {
-                    Some(layer) => {
-                        platform
-                            .size(blit.surface, layer.surface)
-                            .and_then(|(width, height)| {
-                                let (width, height) = (width as f32, height as f32);
-                                let source = Rect::from_min_max(
-                                    pos2(layer.pixels.min.x / width, layer.pixels.min.y / height),
-                                    pos2(layer.pixels.max.x / width, layer.pixels.max.y / height),
-                                );
-                                let (quad, source) = (width > 0.0 && height > 0.0)
-                                    .then(|| within_texture(blit.quad, source))??;
-                                Some((layer.surface, quad, source))
-                            })
-                    }
+                // Every app surface is drawn from its layer (crate::layers), as the web places
+                // its canvases from the frame's layers.
+                let layer = match blit.layer {
+                    Some(anchored) => platform
+                        .size(blit.surface, anchored.surface)
+                        .and_then(|size| blit.anchored_layer(anchored, size, index)),
                     None => region.and_then(|placement| {
-                        blit.on_surface(&placement, platform.size(blit.surface, placement.surface))
+                        let texture = platform.size(blit.surface, placement.surface);
+                        blit.screen_layer(&placement, texture, index)
                     }),
                 };
                 blit.status.set(match failure {
                     Some(error) => PresenterState::Failed(error),
                     None => PresenterState::Presenting,
                 });
-                if let Some((surface, quad, source)) = region {
+                if let Some(layer) = layer {
+                    let surface = match layer.surface {
+                        Surface::Screen { surface, .. } | Surface::Anchored { surface, .. } => {
+                            surface
+                        }
+                        Surface::Root(_) | Surface::Host(_) => continue,
+                    };
                     placed.push((
                         blit.surface,
                         surface,
-                        platform.shown(quad.placed(source, &at)),
+                        platform.shown(crate::layers::texture_quad(&layer, &at)),
                     ));
                 }
             }
@@ -1005,69 +1040,6 @@ pub(super) fn release(slot: u32, status: &PresenterStatus) {
 }
 
 const UNSUPPORTED: &str = "This build has no presenter for that app surface.";
-
-/// The CSS that places an app's canvas for the web, from what `shown_at` returned for a painting
-/// of `painted` pixels, at `scale` CSS pixels per point. It never sizes the canvas: the element
-/// keeps its natural size, which is the backing store its worker last showed, and the matrix maps
-/// one of its pixels to `scale / density` CSS pixels from the textured part's top left, with the
-/// view's part of it clipped in its own pixels. So the browser never scales a canvas into a box
-/// of another size, even when the worker shows a texture of a new size before the host hears of
-/// it: until then that texture still shows at its own size, from the same corner.
-#[cfg(any(target_arch = "wasm32", test))]
-pub(crate) fn canvas_style(
-    quad: Quad,
-    source: Rect,
-    painted: (u32, u32),
-    scale: f32,
-    order: usize,
-) -> Option<String> {
-    if !source.is_positive() || painted.0 == 0 || painted.1 == 0 {
-        return None;
-    }
-    let [first, second, _, fourth] = quad
-        .corners()
-        .map(|corner| pos2(corner.x * scale, corner.y * scale));
-    let (width, height) = (painted.0 as f32, painted.1 as f32);
-    let across = (second - first) / source.width();
-    let down = (fourth - first) / source.height();
-    let origin = first - across * source.min.x - down * source.min.y;
-    let (per_x, per_y) = (across / width, down / height);
-    let texel = per_x.length().max(f32::EPSILON);
-    if per_x.length() <= f32::EPSILON || per_y.length() <= f32::EPSILON {
-        return None;
-    }
-    let radius = quad.corner_radius.max(0.0) * scale / texel;
-    let round = |left: bool, top: bool| {
-        let reaches = |near: bool, min: f32, max: f32| match near {
-            true => min <= 0.0,
-            false => max >= 1.0,
-        };
-        match reaches(left, source.min.x, source.max.x) && reaches(top, source.min.y, source.max.y)
-        {
-            true => radius,
-            false => 0.0,
-        }
-    };
-    Some(format!(
-        "transform:matrix({},{},{},{},{},{});\
-         clip-path:xywh({}px {}px {}px {}px round {}px {}px {}px {}px);opacity:{};z-index:{order}",
-        per_x.x,
-        per_x.y,
-        per_y.x,
-        per_y.y,
-        origin.x,
-        origin.y,
-        source.min.x * width,
-        source.min.y * height,
-        source.width() * width,
-        source.height() * height,
-        round(true, true),
-        round(false, true),
-        round(false, false),
-        round(true, false),
-        quad.opacity.clamp(0.0, 1.0),
-    ))
-}
 
 /// Which of a frame's blits, each its target and whether it is an anchored view's, the web
 /// puts above the host's canvas: a screen over an anchored view painted before it (a child

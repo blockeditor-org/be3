@@ -1662,6 +1662,7 @@ dependencies = [
  "be-host-base",
  "be-host-stack",
  "be-host-testing",
+ "be-lib-layers",
  "be-lib-stable-hash",
  "be-sdk-api",
  "be-sdk-manifest",
@@ -1914,6 +1915,24 @@ name = "be-lib-graphemes"
 version = "0.1.0"
 dependencies = [
  "icu_properties",
+]
+
+[[package]]
+name = "be-lib-input-router"
+version = "0.1.0"
+dependencies = [
+ "be-lib-geometry",
+ "be-lib-ui-types",
+]
+
+[[package]]
+name = "be-lib-layers"
+version = "0.1.0"
+dependencies = [
+ "be-lib-geometry",
+ "be-lib-input-router",
+ "be-lib-stable-hash",
+ "be-lib-ui-types",
 ]
 
 [[package]]

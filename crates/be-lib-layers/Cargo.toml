@@ -1,0 +1,15 @@
+[package]
+name = "be-lib-layers"
+description = "The layer list: each OS window's surfaces in z-order with their transforms, clips, opacity and input areas, its hit test and its damage"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-lib-geometry = { path = "../be-lib-geometry" }
+be-lib-input-router = { path = "../be-lib-input-router" }
+be-lib-stable-hash = { path = "../be-lib-stable-hash" }
+be-lib-ui-types = { path = "../be-lib-ui-types" }
+
+[lints]
+workspace = true

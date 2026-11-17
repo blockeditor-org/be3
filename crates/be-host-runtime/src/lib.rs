@@ -19,6 +19,7 @@ mod headless;
 mod heads;
 mod input;
 mod instances;
+mod layers;
 pub use headless::{Headless, begin_host_frame};
 mod palette;
 mod pieces;

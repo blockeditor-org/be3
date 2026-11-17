@@ -89,7 +89,11 @@ hands workers canvases instead (crates/be-host-runtime/src/web):
   natively; every other screen stays in `#apps`, under the host's chrome (`presenter::lifted`).
   Screens and overlays carry `data-kind="screen"` or `"overlay"`.
 - Screens and overlays are placed from the host's last frame, so on the web they follow the host
-  by one frame.
+  by one frame. The frame's blits become its layer list first (`layers::frame`, guides/apps/runtime.md,
+  The layer list): the screens below `Surface::Root(0)`, the host's canvas, go in `#apps`, the
+  layers above it in `#layers`, each stacked by its place in the list, and a screen's CSS is its
+  layer's transform and clip (`layers::canvas_style`). An anchored view's pieces are its
+  `Surface::Anchored` layers, kept to the view's bounds.
 
 ## Files and offline
 

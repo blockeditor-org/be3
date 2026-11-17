@@ -47,20 +47,28 @@ fn a_layout_that_lands_before_the_present_of_its_size_shows_the_last_frame_at_it
     );
     let blit = drawing.blits_in(laid).remove(0);
 
-    let (surface, quad, source) = blit
-        .on_surface(&asked, Some((300, 200)))
+    let layer = blit
+        .screen_layer(&asked, Some((300, 200)), 0)
         .expect("the texture on the surface shows");
     assert_eq!(
-        (surface, quad.rect, source),
-        (4, last, WHOLE),
+        (layer.surface, layer.bounds(), layer.clip),
+        (
+            Surface::Screen {
+                instance: 1,
+                surface: 4
+            },
+            last,
+            Rect::from_min_size(Pos2::ZERO, vec2(300.0, 200.0))
+        ),
         "natively the texture shows at its own size at the view's top left, not stretched to the \
          size the layout asked for"
     );
-    let (_, hole, _) = blit
-        .on_surface(&asked, None)
+    let hole = blit
+        .screen_layer(&asked, None, 0)
         .expect("the web, which has no textures, still punches the hole for its canvas");
     assert_eq!(
-        hole.rect, last,
+        hole.bounds(),
+        last,
         "the hole the web punches is the size the worker last painted, where its canvas shows"
     );
 
@@ -80,7 +88,7 @@ fn a_layout_that_lands_before_the_present_of_its_size_shows_the_last_frame_at_it
         "a paint snapshot shows the painting at its own size at the view's top left"
     );
 
-    let style = canvas_style(quad, source, (300, 200), 1.5, 3).expect("the canvas is placed");
+    let style = crate::layers::canvas_style(&layer, 1.5, 3).expect("the canvas is placed");
     assert!(
         style.starts_with("transform:matrix(0.75,0,0,0.75,15,60);")
             && style.contains("clip-path:xywh(0px 0px 300px 200px ")

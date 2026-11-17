@@ -26,18 +26,18 @@ fn a_surface_painted_before_the_layout_that_brought_it_is_published_still_shows(
         placed: None,
         layer: None,
     };
-    let (_, hole, source) = blit
-        .on_surface(&fresh, None)
+    let hole = blit
+        .screen_layer(&fresh, None, 0)
         .expect("the web still punches the surface's hole once its layout is published");
     assert!(
-        canvas_style(hole, source, (300, 200), 1.0, 0).is_some(),
+        crate::layers::canvas_style(&hole, 1.0, 0).is_some(),
         "and places its canvas"
     );
     shared
         .borrow_mut()
         .publish(&ScreenLayout::default(), Vec::new(), None);
     assert!(
-        blit.on_surface(&fresh, None).is_none(),
+        blit.screen_layer(&fresh, None, 0).is_none(),
         "a surface the published layout no longer holds is forgotten"
     );
 }

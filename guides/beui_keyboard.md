@@ -226,6 +226,9 @@ text, IME and drops. The host keeps no capture, hover or
 focus of its own (`be_host_runtime::forward_view` for an app,
 `be_host_wayland::Compositor` for a window), so capture, claims, overlays,
 focus, interception and the lock apply to both by one set of rules.
+`be-lib-input-router` holds the same rules for surfaces rather than nodes,
+over a hit test such as the layer list's (plans/host_as_platform_adapter.md,
+Input); the host does not route through it yet.
 `beui_core::interact::forward::Replay` turns a `ForwardedInput` back into the
 raw `Input` a platform would push (positions relative to the catcher over its
 zoom, `PointersCancelled` for a press that ended unreleased, `PointerRested` for a
