@@ -25,7 +25,7 @@ use std::{
 
 use be_wasm_guest_host::{Deadline, Wake, Worker, thread::Threaded};
 
-use crate::{App, Code, Host, PresentedTexture, Stored, engine};
+use crate::{App, Code, Host, PresentedTexture, Presenting, Stored, engine};
 
 /// A module, by the SHA-256 of the bytes it was compiled from.
 pub type ModuleId = [u8; 32];
@@ -234,8 +234,10 @@ pub fn spawn(source: Source, config: Config, wake: Wake) -> Result<Instance, Str
     let channel = host.with_memory_limit(config.memory_limit).spawn(
         config.name,
         move |host| match source {
-            Source::Module(module) => App::new(host, Code::Compiled(module.compiled), &no_library),
-            Source::App(staged) => staged.load(host),
+            Source::Module(module) => {
+                App::new(host, Code::Compiled(module.compiled), &no_library).map(Presenting)
+            }
+            Source::App(staged) => staged.load(host).map(Presenting),
         },
         wake,
         Arc::clone(&waiting),

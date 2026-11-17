@@ -69,8 +69,9 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
     workers, and an `Open` that reads it and its libraries, loaded as the host
     loads that app, with WASI and, unless its `Config::display` gives it the host's device, no
     display (its gpu calls fail). An instance with a display keeps what each of its surfaces
-    presented last (`Instance::surface`): `App` reports what it presented each step it runs on a
-    thread of its own (`PresentedTexture`), for an instance as for be-host-runtime's apps.
+    presented last (`Instance::surface`): an app run as `Presenting` reports what it presented
+    each step (`PresentedTexture`), for an instance as for be-host-runtime's apps. A type module
+    runs as a plain `App`, which presents nothing.
     be-host-runtime's `staged_app(app id, module)` is the one place that maps a
     module's name to a file: the manifest's `entry_point`, or one of its
     `workers` under `workers/<app id>/`; any other name is refused. Its own app

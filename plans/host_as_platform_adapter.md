@@ -372,8 +372,8 @@ Other users:
 Built (step 4e1): natively a staged app the root spawns draws on the host's device, so what it
 presents never leaves the GPU. `be_wasm_host::sandbox::Config::display` gives it the device, which
 the root's sandbox passes (`Server::with_display`, from `Root::start`) and an app's sandbox never
-does. Each `Instance` keeps the texture each of its surfaces presented last (`App` reports them as
-it steps, `PresentedTexture`, the same report be-host-runtime's apps make), and the root names one
+does. Each `Instance` keeps the texture each of its surfaces presented last (`Presenting` reports
+them as it steps, `PresentedTexture`, as it does for be-host-runtime's apps), and the root names one
 in its layer list as `Surface::Screen { instance, surface }`, `instance` being its `instance`
 resource's op, which `Root::surface` resolves on the host's side.
 
