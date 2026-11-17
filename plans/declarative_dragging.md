@@ -16,7 +16,7 @@ and tool bar drag geometry and the hand-written drop targets in apps. Nothing ke
 The final PR deletes `Draggable`, `DropTarget`, `Target`, `DragSource`, and `Reorder`'s tree-only `hover`/`part`/`shut`/`resting` with the `visit` and
 `slot_at` only they use (step 6), and replaces the geometry at each site: `bars.rs`'s band logic
 (`resolve_bar`, `dock_reach`, `thrown`, `float_near`, `lift_goal`, `step_lift`), the dock's
-`resolve`/`resolve_in` (its `judged` and `takes` went in step 3a), and the game board's press state machine. The video
+`resolve`/`resolve_in` (gone in step 3b; its `judged` and `takes` in step 3a), and the game board's press state machine. The video
 timeline's `drop_target_at` stays as its `custom` site's `place`. `Reorder` stays, built on the primitives, with its gap spring and
 `ReorderGap` (decisions/beui_reorder_stays_over_drop_sites.md). Each step's PR
 reports the lines each site had before and has after. A drag that ends up longer than it was is
@@ -256,8 +256,12 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      window than the pointer's; a carry let go outside every window is its source's
      (`Carry::outside`), which floats the tab there. A carried tab is listed once, as its bar's
      preview. Tool bars stay on the old `DropTarget` until step 4.
-   - **3b: the fluid preview.** The candidates, the preview, the carried tab, panels keeping their
-     size and bars moving with their pane, below; the highlight and `resolve` go.
+   - **3b (done): the fluid preview.** The candidates, the preview, the carried tab, panels keeping their
+     size and bars moving with their pane, below; the highlight and `resolve` are gone. The dock
+     previews from `over`, so it needs no tentative gesture: its layout is view state. The spec
+     language gained `shaped()` (the item drawn the size of its place, under the pointer) and
+     `open_where` (places reached only where nothing covers their site). A tab bar parting for a
+     tab from another pane parts the dock too. Panes keep showing their real tabs until the drop.
    - **3c: panels stay built, and keyboard carries between bars**, below.
    - **Candidates:** for a lifted tab or pane grip, each `DockState` drop is a candidate: group with
      a pane, split a pane or the whole dock on an edge, insert into a tab bar after a tab, or float.

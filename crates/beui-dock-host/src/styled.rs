@@ -13,7 +13,7 @@ pub use crate::unstyled::{
 };
 use crate::unstyled::{
     DockAwayHandle, DockBarBandHandle, DockBarHandle, DockChromeHandle, DockCurves,
-    DockDialogHandle, DockDragged, DockGripHandle, DockHighlightHandle, DockPreviewHandle,
+    DockDialogHandle, DockDragged, DockGripHandle, DockPreviewHandle,
     DockSplitterHandle, DockStackHandle, DockStripHandle, DockSwitchHandle, DockSwitcherHandle,
     DockTabHandle,
 };
@@ -170,18 +170,20 @@ pub fn DockHost(
             grip={move |handle: DockGripHandle| view! {
                 <DockGrip handle />
             }}
-            highlight={move |handle: DockHighlightHandle| view! {
-                <DockDropHighlight handle />
-            }}
             bar_margin={BAR_MARGIN.px()}
             bar_band={move |handle: DockBarBandHandle| view! {
                 <DockBarBandFace handle />
             }}
             preview={move |handle: DockPreviewHandle| {
-                let DockPreviewHandle { dragged, title, icon } = handle;
+                let DockPreviewHandle { dragged, title, icon, opening, group_with } = handle;
                 let grouped = !matches!(dragged, DockDragged::Entry(Entry::Tab(_)));
-                view! {
-                    <DockDragPreview title icon grouped />
+                match opening {
+                    true => view! {
+                        <DockOpening title icon grouped group_with />
+                    },
+                    false => view! {
+                        <DockDragPreview title icon grouped />
+                    },
                 }
             }}
         />
@@ -968,13 +970,23 @@ fn DockBarBandFace(handle: DockBarBandHandle) -> NodeId {
     }
 }
 
+/// A carried tab or pane over a place, drawn the size of the pane it would open there, its
+/// tab at the top and, for a group, what it would be grouped with.
 #[component]
-fn DockDropHighlight(handle: DockHighlightHandle) -> NodeId {
-    let DockHighlightHandle { group_with } = handle;
+fn DockOpening(
+    title: Memo<String>,
+    icon: Memo<Option<Glyph>>,
+    grouped: bool,
+    group_with: Memo<Option<String>>,
+) -> NodeId {
     view! {
         <Layers>
             <Frame fill=ColorRole::Accent radius=Radius::Md opacity=DROP_OPACITY />
-            <Frame @test_id={"dock.drop"} border={Border::FOCUS} radius=Radius::Md />
+            <Frame @test_id={"dock.drop"} border={Border::FOCUS} radius=Radius::Md>
+                <Frame align=Align2::START padding=DROP_LABEL_MARGIN>
+                    <DockDragPreview title icon grouped />
+                </Frame>
+            </Frame>
             <Show value={group_with}>|title: ReadSignal<String>| {
                 let label = create_memo(move || format!("Group with {}", title.get()));
                 view! {

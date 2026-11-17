@@ -180,10 +180,8 @@ a ring outside it, so content gets every press up to its edge.
   dropped where no window is (its carry's `outside`) floats into a new window at the pointer.
 
 `DockState::windows` is bottom to top, the focused window is on top, and `Document::layers()`
-follows. The dock's drop site has a place per window, each resolving the pointer in that
-window's coordinates; the board chooses only places in the window the `DragPoint` names, and each
-place answers only points over its own node that no layer but the dock's windows and dialogs covers (`State::spec`), so a
-menu over the dock, a tool-bar band or another dock in the window takes no tab.
+follows. The dock's drop site offers each window's places relative to that window's node, topmost
+window first; the board chooses only places in the window the `DragPoint` names.
 
 The window manager (`beui-dock-host/src/unstyled/hosting/manager.rs`, `snap.rs`,
 `beui-dock-state/src/hidden.rs`) is on `DockHostLayout` for any shell: areas (`set_areas`, one `DockArea`
@@ -202,16 +200,33 @@ them (`unstyled/modifier_drag.rs`; the desktop sets Super).
 ## Dragging, groups and locks
 
 Dropping a tab on a tab bar inserts it where the bar parts for it (each bar is a `Reorder`), on a
-pane's middle groups it with the tab the pane shows (`DockDrop::Group`; the highlight names that tab
-unless tidying would only fold it into the pane), on an edge splits it; Alt while dropping floats it. Dragging a pane's grip carries the pane.
+pane's middle groups it with the tab the pane shows (`DockDrop::Group`; the carried tab names that
+tab unless tidying would only fold it into the pane), on an edge splits it; Alt while dropping floats it. Dragging a pane's grip carries the pane.
 Tabs and panes are carries on the drag board (guides/beui/components.md, Drag and drop): a bar's
-row lifts its tab, the grip an `Interactive`'s `drag`, and `DockTiles` is a drop site whose places
-are `custom` ones, one over the home window's tiles and one per window the host opens, each
-answering the `DockDrop` that `State::resolve` gives at the point, under `when_held(ALT, ..)`
-floating (`State::spec`). The highlight follows the site's `over` (`State::dropping`). A carry's
-payload is a `DockCarry`, the dragged tab or pane with its dock's id, so another dock in the
-document, whose tab ids may coincide, neither takes it nor hides a tab for it. Tool bars
-still ride the old `DropTarget` (plans/declarative_dragging.md, step 4).
+row lifts its tab, the grip an `Interactive`'s `drag`, and `DockTiles` is a drop site
+(`unstyled/fluid.rs`). At the lift, `State::spec` offers every drop the state admits as a
+place (`DockPlace`), so a locked place is no place: for each pane laid out now, a split on each
+edge, chosen in a band along it (`EDGE_ZONE` of the pane; a pane hosting a group gives its edges
+only `OUTER_EDGE`, then its group's places), and grouping in its middle, each zone leaving the pane's tab bar to the bar.
+Each place carries the `DockState` its drop leaves and where the carried item rests in it.
+A surface's places are reached only where none of the dock's other windows or dialogs, nor anything else, covers them
+(`open_where`), so a menu over the dock, a tool-bar band or another dock in the window takes no
+tab; under `when_held(ALT, ..)` a `custom` place floats it at the pointer. A carry's payload is a
+`DockCarry`, the dragged tab or pane with its dock's id, so another dock in the document, whose tab ids
+may coincide, neither takes it nor hides a tab for it. Tool bars still ride the old `DropTarget`
+(plans/declarative_dragging.md, step 4).
+
+**The preview.** Nothing is written until the release. While a place is chosen (or a tab bar parts
+for a tab from another pane, `part_for_bar`), each tree canvas lays its panes and splitters out
+as the place's state would (`State::previewed`) and springs every rect from where it is drawn
+(`Parting`, on `DockCurves::settle`): a pane that would close shrinks into its edge away from the
+neighbour taking its room, and a pane that only the drop makes is left open, empty. A pane's panel
+keeps the size it was laid out at while the dock carries anything (`DockHeldSize`), clipped by
+the pane as it moves, so no app or program in it lays out again until the drop commits; its
+docked tool bars are the pane's and move with it. The carried tab is drawn the size of where it
+would rest (`shaped()`), still under the pointer (`DockGhost`, the `preview` face with
+`opening`), and glides into that rest on release. A pane keeps showing the tab it shows until the
+drop. The carried tab is listed once: as its bar's preview while it floats, as the opening over a place.
 A group is a tab holding a dock tree of its own (`Entry::Group`); the tree tidies itself after every
 change (a one-tab group becomes the tab). A pinned group is never tidied away and admits only its
 own tabs.
@@ -219,7 +234,7 @@ own tabs.
 A `locked` pane makes an area, and every tab declared in it lives there (`DockState::home`). While
 locked, a tab at home moves and splits freely inside the area but cannot leave or float; tabs from
 elsewhere are kept out. Locks belong to places, not tabs. A drop the state refuses
-(`DockState::admits`, `admits_leaf`) is no place: nothing is highlighted there, and a release there
+(`DockState::admits`, `admits_leaf`) is no place: nothing opens there, and a release there
 does nothing and the tab glides back to its bar; check `admits` first when a drop test does nothing.
 
 ## Nested docks and the host seam
