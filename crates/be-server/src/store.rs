@@ -1,4 +1,5 @@
-pub(crate) mod account_notices;
+pub(crate) mod identity_changes;
+pub(crate) mod mailbox;
 pub mod codes;
 pub mod invite_codes;
 pub mod login_links;

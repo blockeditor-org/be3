@@ -173,7 +173,7 @@ counts and records nothing: `reserve-uploads` did before it signed.
   `unfollow(organization, topic)`, `write(organization, ops)`,
   `send(organization, target, payload)` and `events()`. Each call is an op,
   with no request ids. Every call names its organization: none for what is the
-  account's own (its recovery key, contacts, links, notices, storage, its
+  account's own (its recovery key, contacts, links, mailbox, storage, its
   organizations), else one it is a member of, so one connection works in any of
   its account's organizations at once; there is no open organization. A query
   is answered by its case of `page`, an op by its case of `done`. Client code
@@ -225,7 +225,7 @@ counts and records nothing: `reserve-uploads` did before it signed.
   changed during the read is missed: `tree` its entry (in `WatchHub`),
   `session` joins the block's session (in `SessionRegistry`), and `keys`,
   `key-work`, a listing of the roots (`children(root)`, `deleted`, `shared`),
-  `storage`, `notices`, `contacts` and `notify-modes` their topic (in the
+  `storage`, `mailbox`, `contacts` and `notify-modes` their topic (in the
   connection's `Following`). A topic-changed carries no value: the client reads
   the query again. `unfollow` stops one, and leaves a session. A query with
   nothing to follow refuses `follow`.
@@ -822,18 +822,29 @@ needs code of its own for any method.
   identity also clears `accounts.email`, and an account with no email never
   gains one from a provider it already has, since its owner may have removed
   it. While mail goes only to the server's log, every account is also told of
-  an identity added or removed, or its email changing, on its devices
-  (`store/account_notices.rs`; `query.notices`, `dismiss-notice` and
-  `topic.notices`, which every connection of the account following them
-  hears). be-host reads them at sign-in, so they show before any organization
-  is shown, and one made while no device is signed in arrives at the next;
-  while an organization is shown its stack follows them as they come. The portal's
-  settings page lists the last thirty days of changes, which nothing hides.
+  an identity added or removed, or its email changing, by a notice in its
+  mailbox (below; `store/identity_changes.rs`). be-host reads them at
+  sign-in, so they show before any organization is shown, and one made while
+  no device is signed in arrives at the next; while an organization is shown
+  its stack follows them as they come. The portal's settings page lists the
+  last thirty days of changes, which nothing hides.
+- **The mailbox** (`store/mailbox.rs`; `query.mailbox`, `delete-message`,
+  `topic.mailbox`) holds what an account is told while none of its devices
+  may be connected, each `message` kept until a device of the account deletes
+  it: the server's notices (`letter.notice`, from no one), an accepted link's
+  card (`letter.accepted`, from the accepter, left by `accept-link`) and a
+  contact's key change (`letter.key-change`, from the contact, left by
+  `set-recovery-key`). The server leaves each in the transaction of the change
+  it tells, so none is lost between the two, and tells the account's
+  connections that follow the topic. Removing a contact deletes what each left
+  the other. A block's agent reads its mailbox and deletes from it, since its
+  contacts' key changes arrive there.
 - **Holding notices.** Whoever a notice warns about may hold a session too, so
-  in its first `NOTICE_HOLD` (a week) a dismissal hides it only on the device
-  that dismissed it; after, one dismisses it for all. An account keeps
-  `MAX_ACCOUNT_NOTICES`, letting go only of those dismissed or past their
-  hold, and adds a way to sign in at most `IDENTITY_CHANGES_PER_DAY` (20)
+  in its first `NOTICE_HOLD` (a week) `delete-message` refuses it and a
+  device hides it only for itself (`be_host_base::notices::dismiss`); after,
+  one deletes it for all. An account keeps `MAX_ACCOUNT_NOTICES` notices past
+  their hold, letting go of the oldest; one in its hold always stays. It adds a
+  way to sign in at most `IDENTITY_CHANGES_PER_DAY` (20)
   times a day, counted in the transaction that adds it (`claim_identity_add`),
   so nobody pushes a fresh notice out by adding more. Removals are never
   capped, so the owner can always remove what an intruder added.

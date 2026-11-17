@@ -84,9 +84,8 @@ interface contacts {
         id: link-id,
         code: list<u8>,
         kind: link-kind,
+        /// Its card reaches the owner's mailbox (`letter.accepted`).
         accepter: option<account-id>,
-        /// The accepter's card, sealed with the code.
-        card: list<u8>,
     }
 
     record contact-row {
@@ -94,7 +93,6 @@ interface contacts {
         email: string,
         display-name: string,
         sealed: list<u8>,
-        changes: list<list<u8>>,
     }
 
 }

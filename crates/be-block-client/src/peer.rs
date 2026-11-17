@@ -718,7 +718,7 @@ impl<S: ObjectStore> Peer<S> {
 
     /// Follows what this device hears of the organization and the account as it changes
     /// (`Event`): its keys, its key work and roots, notification modes, and the account's
-    /// contacts, notices and storage. Each read follows its topic first, answered with what it
+    /// contacts, mailbox and storage. Each read follows its topic first, answered with what it
     /// reads, which is left for the readers that want it; one refused (a block's agent follows
     /// less) is let go.
     async fn follow_topics(&self) {
@@ -756,10 +756,10 @@ impl<S: ObjectStore> Peer<S> {
                 None,
                 be_block_protocol::Query::Contacts,
             ),
-            followed::<Vec<be_block_protocol::AccountNotice>>(
+            followed::<Vec<be_block_protocol::Message>>(
                 &connection,
                 None,
-                be_block_protocol::Query::Notices,
+                be_block_protocol::Query::Mailbox,
             ),
             followed::<be_block_protocol::AccountStorage>(
                 &connection,

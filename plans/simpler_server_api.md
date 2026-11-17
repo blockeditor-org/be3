@@ -278,6 +278,39 @@ guides/blocks/keys.md, guides/tracker.md (`be`'s header sign-in).
 
 ### 4. The account's own block, and one mailbox
 
+In two pieces, each landing whole: the mailbox first (4a, done), then the
+account's own block and bootstrapping (4b), which the bullets below the first
+describe.
+
+- **4a. The mailbox (done).** `query.mailbox`, `topic.mailbox` and
+  `op.delete-message` (crates/be-server/src/store/mailbox.rs): each `message`
+  names its sender (none for the server's own) and a `letter`, kept until a
+  device of the account deletes it. Account notices are `letter.notice`
+  (`query.notices`, `dismiss-notice`, `topic.notices` and the
+  `account_notices` table are gone; what stays of `store/account_notices.rs`
+  is the history of ways to sign in, now `store/identity_changes.rs`), and
+  `delete-message` refuses one in its first `NOTICE_HOLD`, where
+  `dismiss-notice` changed nothing. Pending key changes are
+  `letter.key-change` (`contact-row.changes` and the `key_changes` table are
+  gone): a device follows them from its record and deletes them with the
+  record written. Accepted links' cards are `letter.accepted`
+  (`own-link.card` and `links.accepter_card` are gone): `finish_links` takes
+  the card from the mailbox and deletes the link and the message in one
+  write. Where it differs: there is no `Mailbox(account)` send target yet.
+  Every letter today is left by the server in the transaction of the write it
+  tells (`accept-link`, `set-recovery-key`, a change to the ways to sign in),
+  so none is lost between a write and a later send, and no client sends one
+  alone; a target waits for the first letter a client writes on its own (4b's
+  own-block work may want one). Pairing stays `target.devices` and
+  `event.paired`, as only live connections pair. A block's agent reads and
+  deletes from its mailbox, where its contacts' key changes arrive. Removing a
+  contact deletes what each left the other. No per-sender bound was added: a
+  key change comes only with a new phrase and an accepted card only with a
+  link, as before. Tests: be-server's
+  `a_notice_under_a_week_old_refuses_deletion_and_one_older_deletes`,
+  be-block-client's
+  `a_key_change_reaches_a_contact_offline_and_is_read_from_its_mailbox`, and
+  `every_call_states_who_may_make_it`'s `mailbox` and `delete-message`.
 - **An owner-only block** in the personal organization holds what the account
   seals for itself: contact records, its cards and link codes, the escrow keys
   it pinned per organization. `put-contact`, `list-contacts`, `list-links`,
@@ -297,12 +330,12 @@ guides/blocks/keys.md, guides/tracker.md (`be`'s header sign-in).
   pinned, now in a block of the personal organization: simple only once 3a
   dropped the open organization, which is why this step follows it.
 
-Done: a test where a contact made on one device is a contact on a second
+Done (4b): a test where a contact made on one device is a contact on a second
 device that reads the account's block, and the server's database holds no
 sealed contact record; one where a new phrase leaves the old one unable to
-read the block's next commit; one where a notice under a week old refuses
-deletion and one older deletes; one where a key change reaches a contact
-offline and is read from the mailbox. Guides: guides/blocks/keys.md
+read the block's next commit. (4a's two, a notice under a week old refusing
+deletion and one older deleting, and a key change reaching a contact offline
+read from the mailbox, are built.) Guides: guides/blocks/keys.md
 ("Contacts", "Identity, new phrases and devices"), guides/blocks/server.md
 ("Accounts"), guides/settings.md (owner only).
 

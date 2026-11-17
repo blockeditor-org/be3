@@ -4,7 +4,7 @@ use crate::{
     passkeys,
     store::{
         AccountSession, MailLink, Profile, ServerStore,
-        account_notices::ChangeKind,
+        identity_changes::ChangeKind,
         codes::{self, CodePurpose, CodeRequest, MailedCode},
         providers::{self, Intent, Outcome},
     },
@@ -59,7 +59,7 @@ fn deliver_code(services: &Services, origin: &str, mail: MailedCode) {
 }
 
 /// Tells the account its ways to sign in changed: on its devices and in the settings page's
-/// history (`store/account_notices.rs`), and by mail to `email` when it is not empty. While mail
+/// history (`store/identity_changes.rs`, `store/mailbox.rs`), and by mail to `email` when it is not empty. While mail
 /// goes only to the server's log, the history and the notices are how the account hears of it.
 /// `recorded` says the history row was already written where the change was made
 /// (`claim_identity_add`).
@@ -170,7 +170,7 @@ async fn tell(
         // From no connection: every connection of the account hears it.
         services
             .hub
-            .send_account(account, 0, None, &crate::watch::Push::AccountNoticesChanged)
+            .send_account(account, 0, None, &crate::watch::Push::MailboxChanged)
             .await;
     }
 }

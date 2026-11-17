@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use be_block_graph::Access;
 use be_block_protocol::{
     ContactRow, ErrorCode, Invitation, InvitationPreview, InvitationRow, InvitationState, KeyKind,
-    Link, LinkKind, OrganizationRole, OwnKind, OwnLink, OwnSealed, PendingGrant, WrappedBy,
+    Letter, Link, LinkKind, OrganizationRole, OwnKind, OwnLink, OwnSealed, PendingGrant, WrappedBy,
 };
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
@@ -185,19 +185,6 @@ pub(crate) fn reseal_own(
     Ok(())
 }
 
-fn key_changes(
-    connection: &Connection,
-    account: &str,
-    caller: Uuid,
-) -> Result<Vec<Vec<u8>>, ServerError> {
-    let mut statement = connection.prepare_cached(
-        "SELECT sealed FROM key_changes WHERE account_id = ?1 AND contact_id = ?2
-         ORDER BY position",
-    )?;
-    let rows = statement.query_map(params![account, caller.to_string()], |row| row.get(0))?;
-    Ok(rows.collect::<Result<_, _>>()?)
-}
-
 pub(crate) fn role_in(
     connection: &Connection,
     account: Uuid,
@@ -220,7 +207,6 @@ struct StoredLink {
     code: Vec<u8>,
     kind: LinkKind,
     accepter: Option<Uuid>,
-    accepter_card: Vec<u8>,
     /// For an invitation, where it stands.
     invited: Option<Invited>,
 }
@@ -269,13 +255,13 @@ fn invitation_ended(state: InvitationState) -> ServerError {
 }
 
 const LINK_COLUMNS: &str = "owner_id, card, code, grant_organization, grant_block, grant_access,
-    grant_key, grant_sealed, invite_organization, invite_escrow, accepter_id, accepter_card,
+    grant_key, grant_sealed, invite_organization, invite_escrow, accepter_id,
     invite_created, invite_expires, invite_opened, invite_ended, invite_revoked";
 
 type LinkRow = (
     (String, Vec<u8>, Vec<u8>),
     (String, String, String, String, Vec<u8>),
-    (String, Vec<u8>, String, Vec<u8>),
+    (String, Vec<u8>, String),
     Invited,
 );
 
@@ -289,13 +275,13 @@ fn link_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<LinkRow> {
             row.get(6)?,
             row.get(7)?,
         ),
-        (row.get(8)?, row.get(9)?, row.get(10)?, row.get(11)?),
+        (row.get(8)?, row.get(9)?, row.get(10)?),
         Invited {
-            created: row.get(12)?,
-            expires: row.get(13)?,
-            opened: row.get(14)?,
-            ended: row.get(15)?,
-            revoked: row.get(16)?,
+            created: row.get(11)?,
+            expires: row.get(12)?,
+            opened: row.get(13)?,
+            ended: row.get(14)?,
+            revoked: row.get(15)?,
         },
     ))
 }
@@ -304,7 +290,7 @@ fn parse_link(row: LinkRow) -> Result<StoredLink, ServerError> {
     let (
         (owner, card, code),
         (organization, block, access, key, sealed),
-        (invited_to, escrow, accepter, accepter_card),
+        (invited_to, escrow, accepter),
         invited,
     ) = row;
     let (kind, invited) = match (invited_to.is_empty(), organization.is_empty()) {
@@ -336,7 +322,6 @@ fn parse_link(row: LinkRow) -> Result<StoredLink, ServerError> {
             true => None,
             false => Some(parse_uuid(&accepter)?),
         },
-        accepter_card,
         invited,
     })
 }
@@ -412,24 +397,32 @@ fn organization_name(
         .optional()?)
 }
 
+/// Marks `link` accepted by `accepter` and leaves their card, sealed with its code, in its
+/// owner's mailbox (`letter.accepted`).
 fn mark_accepted(
     connection: &Connection,
     link: Uuid,
+    owner: Uuid,
     accepter: Uuid,
-    card: &[u8],
+    card: Vec<u8>,
 ) -> Result<(), ServerError> {
     // An invitation is taken once, only while it is neither revoked nor expired.
     let marked = connection.execute(
-        "UPDATE links SET accepter_id = ?2, accepter_card = ?3,
-             invite_ended = CASE WHEN invite_organization = '' THEN 0 ELSE ?4 END
+        "UPDATE links SET accepter_id = ?2,
+             invite_ended = CASE WHEN invite_organization = '' THEN 0 ELSE ?3 END
          WHERE id = ?1 AND accepter_id = ''
-            AND (invite_organization = '' OR (invite_revoked = 0 AND invite_expires > ?4))",
-        params![link.to_string(), accepter.to_string(), card, now()],
+            AND (invite_organization = '' OR (invite_revoked = 0 AND invite_expires > ?3))",
+        params![link.to_string(), accepter.to_string(), now()],
     )?;
-    match marked {
-        1 => Ok(()),
-        _ => Err(link_not_found()),
+    if marked != 1 {
+        return Err(link_not_found());
     }
+    crate::store::mailbox::leave(
+        connection,
+        owner,
+        Some(accepter),
+        &Letter::Accepted { link, card },
+    )
 }
 
 /// What a link's kind stores in its row's grant and invitation columns.
@@ -765,9 +758,9 @@ impl ServerStore {
             let rows = statement.query_map([organization.to_string()], |row| {
                 Ok((
                     link_row(row)?,
+                    row.get::<_, String>(16)?,
                     row.get::<_, String>(17)?,
                     row.get::<_, String>(18)?,
-                    row.get::<_, String>(19)?,
                 ))
             })?;
             let mut invitations = Vec::new();
@@ -824,7 +817,7 @@ impl ServerStore {
                 return self
                     .with_database(move |_, database| {
                         let transaction = be_block_sqlite_schema::write_transaction(database)?;
-                        mark_accepted(&transaction, link, caller, &card)?;
+                        mark_accepted(&transaction, link, owner, caller, card)?;
                         befriend(&transaction, owner, &[], caller, &contact)?;
                         transaction.commit()?;
                         Ok(Accepted {
@@ -852,7 +845,7 @@ impl ServerStore {
                                 "you are already a member of that organization".into(),
                             ));
                         }
-                        mark_accepted(&transaction, link, caller, &card)?;
+                        mark_accepted(&transaction, link, owner, caller, card)?;
                         befriend(&transaction, owner, &[], caller, &contact)?;
                         crate::keys::pin_escrow(
                             &transaction,
@@ -882,7 +875,7 @@ impl ServerStore {
         let granted = self
             .with_graph(grant.organization, move |store, graph, database| {
                 let transaction = be_block_sqlite_schema::write_transaction(database)?;
-                mark_accepted(&transaction, link, caller, &card)?;
+                mark_accepted(&transaction, link, owner, caller, card)?;
                 befriend(&transaction, owner, &[], caller, &contact)?;
                 let owner_role = role_in(&transaction, owner, grant.organization)?;
                 let may_grant = is_member_of(&transaction, caller, grant.organization)?
@@ -949,7 +942,7 @@ impl ServerStore {
                              AND (accepter_id != '' OR invite_expires > ?2)))"
             ))?;
             let rows = statement.query_map(params![caller.to_string(), now()], |row| {
-                Ok((link_row(row)?, row.get::<_, String>(17)?))
+                Ok((link_row(row)?, row.get::<_, String>(16)?))
             })?;
             let mut links = Vec::new();
             for row in rows {
@@ -960,7 +953,6 @@ impl ServerStore {
                     code: stored.code,
                     kind: stored.kind,
                     accepter: stored.accepter,
-                    card: stored.accepter_card,
                 });
             }
             Ok(links)
@@ -1061,13 +1053,11 @@ impl ServerStore {
             let mut contacts = Vec::new();
             for row in rows {
                 let (account, email, display_name, sealed) = row?;
-                let changes = key_changes(&database, &account, caller)?;
                 contacts.push(ContactRow {
                     account: parse_uuid(&account)?,
                     email,
                     display_name,
                     sealed,
-                    changes,
                 });
             }
             Ok(contacts)
@@ -1125,11 +1115,7 @@ impl ServerStore {
                         OR (account_id = ?2 AND contact_id = ?1)",
                     params![caller.to_string(), other.to_string()],
                 )?;
-                transaction.execute(
-                    "DELETE FROM key_changes WHERE (account_id = ?1 AND contact_id = ?2)
-                        OR (account_id = ?2 AND contact_id = ?1)",
-                    params![caller.to_string(), other.to_string()],
-                )?;
+                crate::store::mailbox::forget_between(&transaction, caller, other)?;
                 transaction.execute(
                     "DELETE FROM links WHERE (owner_id = ?1 AND accepter_id = ?2)
                         OR (owner_id = ?2 AND accepter_id = ?1)",

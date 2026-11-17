@@ -2,7 +2,7 @@ package be3:server@0.1.0;
 
 /// Signing in, and the account's other devices.
 interface account {
-    use types.{account-id, client-id, error};
+    use types.{account-id, client-id, error, link-id};
 
     /// A browser sign-in waiting for approval: the code a person approves in
     /// the browser, the secret that proves this client began it, the fewest
@@ -59,13 +59,35 @@ interface account {
         quota: option<u64>,
     }
 
-    /// Something the account is told on its devices: a way to sign in added or
-    /// removed.
-    record account-notice {
+    /// One message in an account's mailbox (`query.mailbox`), kept until a device of the
+    /// account deletes it (`delete-message`).
+    record message {
         id: u64,
-        text: string,
-        /// When it was made, in milliseconds since the epoch.
+        /// Who it is from: the account that caused it, or none for the server's own notice.
+        %from: option<account-id>,
+        letter: letter,
+        /// When the server took it, in milliseconds since the epoch.
         created: s64,
+    }
+
+    /// What a message says. The server writes each in the transaction of the change it tells,
+    /// so none is lost between a change and its telling.
+    variant letter {
+        /// The server's notice: a way to sign in added or removed, or the email changing. In its
+        /// first `NOTICE_HOLD` (a week) no device deletes it, since whoever it warns about may
+        /// hold a session too; a device hides it for itself meanwhile.
+        notice(string),
+        /// A link of the account's was accepted (`accept-link`), by the message's sender.
+        accepted(accepted-link),
+        /// A contact took a new recovery phrase (`set-recovery-key`): its key change, sealed with
+        /// its old key for this account (`RecoverySecret::seal_key_change`).
+        key-change(list<u8>),
+    }
+
+    record accepted-link {
+        link: link-id,
+        /// The accepter's card, sealed with the link's code.
+        card: list<u8>,
     }
 
 }

@@ -199,22 +199,30 @@ async fn authenticated(
     )
 }
 
-/// The account's notices not dismissed for everyone (`query.notices`), whether or not an
-/// organization is open.
+/// The server's notices in a mailbox, by message id, oldest first.
+pub fn notices(mailbox: Vec<be_block_protocol::Message>) -> Vec<(u64, String)> {
+    mailbox
+        .into_iter()
+        .filter_map(|message| match (message.from, message.letter) {
+            (None, be_block_protocol::Letter::Notice(text)) => Some((message.id, text)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The server's notices in the account's mailbox (`query.mailbox`), by message id, whether or not
+/// an organization is open.
 pub async fn account_notices(
     server_url: String,
     token: String,
-) -> Result<Vec<be_block_protocol::AccountNotice>, AccountError> {
+) -> Result<Vec<(u64, String)>, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    Ok(ask(be_block_protocol::read::<
-        Vec<be_block_protocol::AccountNotice>,
-        _,
-    >(&connection, None, be_block_protocol::Query::Notices))
-    .await?)
+    Ok(notices(be_block_client::contacts::mailbox(&connection).await?))
 }
 
-/// Dismisses an account notice for the account's every device; in its first week the server
-/// keeps it, and only this device hides it (`be_host_base::notices::dismiss`).
+/// Deletes an account notice from the mailbox for the account's every device. The server
+/// refuses it in its first week, when only this device hides it
+/// (`be_host_base::notices::dismiss`).
 pub async fn dismiss_account_notice(
     server_url: String,
     token: String,
@@ -224,7 +232,7 @@ pub async fn dismiss_account_notice(
     Ok(ask(be_block_protocol::write::<(), _>(
         &connection,
         None,
-        be_block_protocol::Op::DismissNotice(id),
+        be_block_protocol::Op::DeleteMessage(id),
     ))
     .await?)
 }

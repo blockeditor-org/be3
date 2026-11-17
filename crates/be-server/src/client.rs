@@ -93,7 +93,7 @@ pub(crate) fn query_rule(query: &Query) -> Rule {
         Query::RecoveryKey
         | Query::Organizations
         | Query::Storage
-        | Query::Notices
+        | Query::Mailbox
         | Query::Contacts
         | Query::Links
         | Query::Link(_)
@@ -146,7 +146,7 @@ pub(crate) fn op_rule(op: &Op) -> Rule {
         | Op::DeleteLink(_)
         | Op::PutContact { .. }
         | Op::SetRecoveryKey { .. }
-        | Op::DismissNotice(_)
+        | Op::DeleteMessage(_)
         | Op::RevokeToken(_) => Rule::Account,
         // With an organization, the revocations of the grants in it go with the removal.
         Op::RemoveContact { .. } => Rule::Anywhere,
@@ -175,17 +175,18 @@ pub(crate) fn topic_rule(topic: &Topic) -> Rule {
         | Topic::KeyWork
         | Topic::Roots
         | Topic::NotifyModes => Rule::Member,
-        Topic::Storage | Topic::Notices | Topic::Contacts => Rule::Account,
+        Topic::Storage | Topic::Mailbox | Topic::Contacts => Rule::Account,
     }
 }
 
 /// Whether a block's agent bound to `root` may make `query` at all, before its rule applies.
 /// It may read what a terminal host needs on connecting (its organization, its keys and
-/// contacts as `Peer::attach` reads them, the server's account and clock, object transfers),
+/// contacts as `Peer::attach` reads them, with its mailbox, where its contacts' key changes
+/// arrive, the server's account and clock, object transfers),
 /// and the blocks, which `blocks::Visibility` limits to `root` and the blocks under it.
 /// `be terminal-host` makes no call these refuse (the `a_terminal_host_*` tests run as one).
 /// Everything that reaches past the block is refused: agents, contact links and contacts'
-/// keys, members, pairing, access, escrows, a new recovery key, notices, storage.
+/// keys, members, pairing, access, escrows, a new recovery key, storage.
 pub(crate) fn bound_may_read(query: &Query, follow: bool) -> bool {
     match query {
         Query::Blocks { .. }
@@ -197,6 +198,7 @@ pub(crate) fn bound_may_read(query: &Query, follow: bool) -> bool {
         | Query::RecoveryKey
         | Query::Organizations
         | Query::Contacts
+        | Query::Mailbox
         | Query::DownloadUrls(_)
         | Query::ServerInfo
         | Query::Session { .. } => true,
@@ -208,7 +210,6 @@ pub(crate) fn bound_may_read(query: &Query, follow: bool) -> bool {
         | Query::Members
         | Query::Invitations
         | Query::Storage
-        | Query::Notices
         | Query::Links
         | Query::Link(_)
         | Query::Invitation(_)
@@ -232,6 +233,7 @@ pub(crate) fn bound_may_write(op: &Op, root: Uuid) -> bool {
         | Op::HoldObjects { .. }
         | Op::ReserveUploads(_)
         | Op::PinEscrow(_)
+        | Op::DeleteMessage(_)
         | Op::RevokeToken(_) => true,
         Op::PutKeys(keys) => !matches!(keys, PutKeys::Escrow { .. }),
         Op::AppendLog(_)
@@ -246,8 +248,7 @@ pub(crate) fn bound_may_write(op: &Op, root: Uuid) -> bool {
         | Op::RemoveContact { .. }
         | Op::SetRecoveryKey { .. }
         | Op::SetPushEndpoint(_)
-        | Op::SetNotifyMode { .. }
-        | Op::DismissNotice(_) => false,
+        | Op::SetNotifyMode { .. } => false,
     }
 }
 
@@ -326,7 +327,7 @@ enum Followed {
     Roots(Uuid),
     NotifyModes(Uuid),
     Storage,
-    Notices,
+    Mailbox,
     Contacts,
 }
 
@@ -338,7 +339,7 @@ impl Followed {
             (Topic::Roots, Some(organization)) => Self::Roots(organization),
             (Topic::NotifyModes, Some(organization)) => Self::NotifyModes(organization),
             (Topic::Storage, None) => Self::Storage,
-            (Topic::Notices, None) => Self::Notices,
+            (Topic::Mailbox, None) => Self::Mailbox,
             (Topic::Contacts, None) => Self::Contacts,
             _ => return None,
         })
@@ -351,7 +352,7 @@ impl Followed {
             Self::Roots(organization) => (Some(organization), Topic::Roots),
             Self::NotifyModes(organization) => (Some(organization), Topic::NotifyModes),
             Self::Storage => (None, Topic::Storage),
-            Self::Notices => (None, Topic::Notices),
+            Self::Mailbox => (None, Topic::Mailbox),
             Self::Contacts => (None, Topic::Contacts),
         };
         Event::TopicChanged {
@@ -373,7 +374,7 @@ fn topic_of(query: &Query) -> Option<Topic> {
             ..
         } => Topic::Roots,
         Query::Storage => Topic::Storage,
-        Query::Notices => Topic::Notices,
+        Query::Mailbox => Topic::Mailbox,
         Query::Contacts => Topic::Contacts,
         Query::NotifyModes => Topic::NotifyModes,
         _ => return None,
@@ -799,8 +800,8 @@ impl Client {
                 true => Followed::Contacts.told(),
                 false => return Ok(()),
             },
-            Push::AccountNoticesChanged => match self.follows(Followed::Notices) {
-                true => Followed::Notices.told(),
+            Push::MailboxChanged => match self.follows(Followed::Mailbox) {
+                true => Followed::Mailbox.told(),
                 false => return Ok(()),
             },
             Push::KeyWorkChanged { organization } => {
@@ -1381,7 +1382,7 @@ impl Client {
                 let usage = store.storage_usage(admitted.account()?).await?;
                 Page::Storage(usage)
             }
-            Query::Notices => Page::Notices(store.account_notices(admitted.account()?).await?),
+            Query::Mailbox => Page::Mailbox(store.mailbox(admitted.account()?).await?),
             Query::Contacts => Page::Contacts(store.list_contacts(admitted.account()?).await?),
             Query::Links => Page::Links(store.links(admitted.account()?).await?),
             Query::Link(link) => Page::Link(store.link(admitted.account()?, link).await?),
@@ -2059,6 +2060,12 @@ impl Client {
                 connection
                     .after(After::ContactsChanged(vec![account, accepted.owner]))
                     .await;
+                connection
+                    .after(After::Tell {
+                        account: accepted.owner,
+                        push: Push::MailboxChanged,
+                    })
+                    .await;
                 Ok(Done::Nothing)
             }
             Op::DeleteLink(link) => {
@@ -2114,7 +2121,14 @@ impl Client {
                     .store
                     .set_recovery_key(account, public, signing, sealed, own, changes, retirements)
                     .await?;
-                connection.after(After::ContactsChanged(told)).await;
+                for contact in told {
+                    connection
+                        .after(After::Tell {
+                            account: contact,
+                            push: Push::MailboxChanged,
+                        })
+                        .await;
+                }
                 Ok(Done::Nothing)
             }
             Op::PinEscrow(sealed) => {
@@ -2159,13 +2173,13 @@ impl Client {
                     .await;
                 Ok(Done::Nothing)
             }
-            Op::DismissNotice(id) => {
+            Op::DeleteMessage(id) => {
                 let account = admitted.account()?;
-                if connection.store.dismiss_account_notice(account, id).await? {
+                if connection.store.delete_message(account, id).await? {
                     connection
                         .after(After::Tell {
                             account: account,
-                            push: Push::AccountNoticesChanged,
+                            push: Push::MailboxChanged,
                         })
                         .await;
                 }

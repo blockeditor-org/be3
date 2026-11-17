@@ -188,7 +188,7 @@ impl ServerStore {
                 email: String::new(),
                 created: now(),
             };
-            super::account_notices::claim_identity_add(
+            super::identity_changes::claim_identity_add(
                 &transaction,
                 account,
                 &crate::passkeys::label(identity.created, &identity.subject),

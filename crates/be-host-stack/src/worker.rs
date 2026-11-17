@@ -4383,7 +4383,11 @@ async fn heard(
         Some(Event::ContactsChanged) => tasks.contacts(peer, shared),
         Some(Event::KeysChanged) => tasks.relearn_locked(peer, shared),
         Some(Event::NotifyModesChanged) => tasks.notify_modes(peer, shared),
-        Some(Event::AccountNoticesChanged) => tasks.account_notices(peer),
+        // A notice to show, or a contact's key change or an accepted link's card to take.
+        Some(Event::MailboxChanged) => {
+            tasks.account_notices(peer);
+            tasks.contacts(peer, shared);
+        }
         Some(Event::KeyWorkChanged) => {
             let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
             tasks.spawn(async move { tend(&peer, &shared).await });
@@ -4892,22 +4896,10 @@ impl Tasks {
     fn account_notices(&self, peer: &Arc<Peer<Store>>) {
         let peer = Arc::clone(peer);
         self.spawn(async move {
-            if let Ok(listed) = be_block_client::ask(be_block_protocol::read::<
-                Vec<be_block_protocol::AccountNotice>,
-                _,
-            >(
-                &peer.connection(),
-                None,
-                be_block_protocol::Query::Notices,
-            ))
-            .await
-            {
-                crate::seen::notice(crate::seen::Notice::Account(
-                    listed
-                        .into_iter()
-                        .map(|notice| (notice.id, notice.text))
-                        .collect(),
-                ));
+            if let Ok(mailbox) = be_block_client::contacts::mailbox(&peer.connection()).await {
+                crate::seen::notice(crate::seen::Notice::Account(crate::accounts::notices(
+                    mailbox,
+                )));
             }
         });
     }

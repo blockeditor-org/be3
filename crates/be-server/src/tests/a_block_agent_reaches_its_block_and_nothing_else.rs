@@ -43,6 +43,9 @@ const CONNECTING: &[&str] = &[
     "organizations",
     "log (organization)",
     "contacts",
+    // Where its contacts' key changes arrive, which it deletes once it followed them.
+    "mailbox",
+    "delete-message",
     "reserve-uploads",
     "download-urls",
     "list",
@@ -53,7 +56,7 @@ const CONNECTING: &[&str] = &[
     "unfollow key-work",
     "unfollow roots",
     "unfollow storage",
-    "unfollow notices",
+    "unfollow mailbox",
     "unfollow contacts",
     "unfollow notify-modes",
     "keys",

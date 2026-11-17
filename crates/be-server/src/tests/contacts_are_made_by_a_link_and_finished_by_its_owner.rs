@@ -103,7 +103,27 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     assert_eq!(links.len(), 1);
     assert_eq!(links[0].accepter, Some(other_id));
     let code = InviteCode::from_bytes(&owner_secret.open_own(&links[0].code).unwrap()).unwrap();
-    let accepted = ContactCard::open(&code, CardRole::Accepter, &links[0].card).unwrap();
+    // The accepter's card waits in the owner's mailbox, from the accepter.
+    let Ok(mailbox) = owners_device
+        .call(|peer| peer.read::<Vec<be_block_protocol::Message>>(be_block_protocol::Query::Mailbox))
+        .await
+    else {
+        panic!("reading the mailbox failed");
+    };
+    let [
+        be_block_protocol::Message {
+            id: letter,
+            from: Some(from),
+            letter: be_block_protocol::Letter::Accepted { link: of, card },
+            ..
+        },
+    ] = &mailbox[..]
+    else {
+        panic!("the mailbox holds no accepted card alone: {mailbox:?}");
+    };
+    assert_eq!((*from, *of), (other_id, link));
+    let accepted = ContactCard::open(&code, CardRole::Accepter, card).unwrap();
+    let letter = *letter;
     assert_eq!(accepted, other_card);
     let response = owners_device
         .call(|peer| {
@@ -115,7 +135,12 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let _ = owners_device
-        .call(|peer| peer.write::<()>(be_block_protocol::Op::DeleteLink(link)))
+        .call(|peer| {
+            peer.write_all::<()>(vec![
+                be_block_protocol::Op::DeleteLink(link),
+                be_block_protocol::Op::DeleteMessage(letter),
+            ])
+        })
         .await;
     let Ok(links) = owner
         .call(|peer| peer.read::<Vec<be_block_protocol::OwnLink>>(be_block_protocol::Query::Links))

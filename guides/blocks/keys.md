@@ -502,7 +502,7 @@ client what it can do, and following it tells `topic.key-work` as it may have
 changed: rotations on blocks it may edit, scope keys not yet sealed to
 someone who should have them (`unsealed`, whose list is `keys::sealed_to`), and
 scope keys not yet escrowed. `Peer::tend` does all of it; the worker calls it
-on connect, `ContactsChanged`, each `KeyWorkChanged` and after its own changes.
+on connect, `ContactsChanged`, `MailboxChanged`, each `KeyWorkChanged` and after its own changes.
 
 `Peer::rotate` sends one `put-keys(rotate)` for a subtree: new epochs of every scope key,
 every data key rewrapped, a new data key per block. The server takes it only
@@ -636,10 +636,11 @@ one signature at a time (`keys::verify_escrow`) and pins the newest verified
   retire it in any log where it is still current, at any later moment, so a
   thief who retires first wins those logs ("Accepted limits"). Each
   verified contact gets a key change naming both new public keys
-  (`contacts::new_identity`, `RecoverySecret::seal_key_change`, kept in
-  `key_changes`); a contact's device
+  (`contacts::new_identity`, `RecoverySecret::seal_key_change`), left in the
+  contact's mailbox (`letter.key-change`) by the same write; a contact's device
   follows changes one at a time from the key it holds, reseals what that
-  account sealed to it (`ResealKeys`) and replaces its row (`PutContact`).
+  account sealed to it (`ResealKeys`), replaces its row (`PutContact`) and
+  deletes the changes it followed.
 - **Inviting**: the only way into an organization, and it hands over no key.
   An invitation is a link of kind `invitation` (see Contacts below): the
   inviting device makes an `InviteCode` (200 bits) and names the link by
@@ -855,8 +856,11 @@ keys the granter verified that way, which every device then seals to.
   `Contacts`), refuses an older one or one that does not open, keeps sealing
   to the pinned key, and says which (`contacts::Mismatch`: an older key, or a
   copy it can't read, as after a new phrase taken on another device) while
-  the server serves it. Key changes are followed from the record kept, since
-  the server keeps them (`key_changes`) until the contact is removed. A
+  the server serves it. Key changes are followed from the record kept, in
+  mailbox order, and deleted with the record that follows them written; one
+  that does not open from it (followed already, or forged) goes too, but none
+  while the served record does not open on this device, since the changes may
+  be sealed to a new phrase it lacks (`contacts::contacts`). A
   contact who connects again by a new link, as one who lost their phrase
   must, gets a record that follows the newest the server holds, so it
   outranks every device's pin whatever their clocks say, and a new key needs
@@ -880,13 +884,15 @@ keys the granter verified that way, which every device then seals to.
   `create-link` (`make_link`, `invite`); the other side reads it
   (`open_link`), opens the card, and on "Connect with NAME (EMAIL)?" (or the
   invitation's join dialog) accepts with its own card (`accept_link`). The
-  server records both `contacts` rows and sends `ContactsChanged`; the maker's
-  device then opens the accepter's card, writes its row, signs a contact
+  server records both `contacts` rows, leaves the accepter's card in the
+  maker's mailbox (`letter.accepted`) and tells it; the maker's device then
+  opens the card with the code it holds, writes its row, signs a contact
   link's pending grant into the block's log (only while that log names the
   accepter nowhere, so finishing again never undoes a later revocation) or an
   invitation's accepter into the organization's log, and only then deletes the
-  link, so a device that stops halfway finishes it again (`finish_links`, on
-  connect and on `ContactsChanged`).
+  link and the message in one write, so a device that stops halfway finishes
+  it again (`finish_links`, on connect, `ContactsChanged` and
+  `MailboxChanged`).
 - **A pending grant**: a link may carry a block, an access level and the
   block's scope key sealed with the code (`Peer::offer`). Accepting applies the
   grant at once, so a share works while the maker is offline; finishing

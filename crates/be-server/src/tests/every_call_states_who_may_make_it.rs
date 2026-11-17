@@ -59,7 +59,7 @@ fn query_case(query: &Query) -> &'static str {
         Query::Organizations => "organizations",
         Query::Invitations => "invitations",
         Query::Storage => "storage",
-        Query::Notices => "notices",
+        Query::Mailbox => "mailbox",
         Query::Contacts => "contacts",
         Query::Links => "links",
         Query::Link(_) => "link",
@@ -89,7 +89,7 @@ const QUERIES: &[&str] = &[
     "organizations",
     "invitations",
     "storage",
-    "notices",
+    "mailbox",
     "contacts",
     "links",
     "link",
@@ -139,7 +139,7 @@ fn op_case(op: &Op) -> &'static str {
         Op::SetPushEndpoint(PushEndpointChange::Register(_)) => "set-push-endpoint (register)",
         Op::SetPushEndpoint(PushEndpointChange::Forget(_)) => "set-push-endpoint (forget)",
         Op::SetNotifyMode { .. } => "set-notify-mode",
-        Op::DismissNotice(_) => "dismiss-notice",
+        Op::DeleteMessage(_) => "delete-message",
         Op::RevokeToken(_) => "revoke-token",
     }
 }
@@ -173,7 +173,7 @@ const OPS: &[&str] = &[
     "set-push-endpoint (register)",
     "set-push-endpoint (forget)",
     "set-notify-mode",
-    "dismiss-notice",
+    "delete-message",
     "revoke-token",
 ];
 
@@ -214,7 +214,7 @@ fn topic_case(topic: &Topic) -> &'static str {
         Topic::KeyWork => "unfollow key-work",
         Topic::Roots => "unfollow roots",
         Topic::Storage => "unfollow storage",
-        Topic::Notices => "unfollow notices",
+        Topic::Mailbox => "unfollow mailbox",
         Topic::Contacts => "unfollow contacts",
         Topic::NotifyModes => "unfollow notify-modes",
     }
@@ -227,7 +227,7 @@ const TOPICS: &[&str] = &[
     "unfollow key-work",
     "unfollow roots",
     "unfollow storage",
-    "unfollow notices",
+    "unfollow mailbox",
     "unfollow contacts",
     "unfollow notify-modes",
 ];
@@ -331,8 +331,8 @@ impl TestClient {
             .answers
             .push(("device-login (poll)", answered(polled)));
         calls.send(Target::Devices(None), sealed()).await;
-        calls.read(Query::Notices).await;
-        calls.write(Op::DismissNotice(1)).await;
+        calls.read(Query::Mailbox).await;
+        calls.write(Op::DeleteMessage(1)).await;
         calls.read(Query::Organizations).await;
         calls
             .write(Op::CreateOrganization {
@@ -645,7 +645,7 @@ impl TestClient {
             Topic::KeyWork,
             Topic::Roots,
             Topic::Storage,
-            Topic::Notices,
+            Topic::Mailbox,
             Topic::Contacts,
             Topic::NotifyModes,
         ] {
