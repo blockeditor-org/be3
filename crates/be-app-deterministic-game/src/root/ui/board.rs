@@ -364,21 +364,11 @@ pub(crate) fn Stage(
         }) as Draw
     };
 
+    // The stage's presses are caught by an `Interactive` laid over the table: a drag
+    // source's face takes its child's own size, which the table, filling whatever it is
+    // given, does not have.
     let built = view! {
-        <Interactive
-            focusable=true
-            on_key={on_key}
-            capture_presses=true
-            on_press={on_press}
-            drag={drag}
-            on_drag={on_drag}
-            on_click_at={on_click_at}
-            on_active_change={on_active_change}
-            on_pointer={beui::unstyled::gestures::secondary_drag(on_secondary_drag)}
-        >
-            // Fills the stage: a drag source's face takes its child's own size.
-            <Frame @node_ref=&stage width=Length::FILL height=Length::FILL>
-            <Layers>
+        <Layers @node_ref=&stage>
                 <List spacing=Space::None>
                     <ListItem grow=1.0>
                         <Canvas view={canvas} @node_ref={&content}>
@@ -416,9 +406,20 @@ pub(crate) fn Stage(
                         <Drawing draw={lifted_draw} />
                     </CanvasItem>
                 </Canvas>
-            </Layers>
-            </Frame>
-        </Interactive>
+            <Interactive
+                focusable=true
+                on_key={on_key}
+                capture_presses=true
+                on_press={on_press}
+                drag={drag}
+                on_drag={on_drag}
+                on_click_at={on_click_at}
+                on_active_change={on_active_change}
+                on_pointer={beui::unstyled::gestures::secondary_drag(on_secondary_drag)}
+            >
+                <Frame />
+            </Interactive>
+        </Layers>
     };
     // Measured from the start, so a lift reads where the stage is.
     if let Some(node) = stage.try_get() {
