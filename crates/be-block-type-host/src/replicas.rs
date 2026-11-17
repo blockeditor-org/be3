@@ -1046,6 +1046,59 @@ impl<H: Host> Replicas<H> {
         })
     }
 
+    /// Puts `block`'s replica in a rejoin whose answer came back after its first seal, with
+    /// the order holding `journaled` local edits of which a seal holds `sealed`, and whether a
+    /// seal would take the rest: the answer, an error, waits for the next `pump`.
+    #[cfg(test)]
+    pub(crate) fn rejoined_after_a_seal(
+        &mut self,
+        block: Uuid,
+        journaled: u64,
+        sealed: u64,
+        owes_seal: bool,
+    ) {
+        let rejoin = self.rejoins;
+        let Some(&replica) = self.blocks.get(&block) else {
+            return;
+        };
+        let Some(open) = self.open.get_mut(&replica) else {
+            return;
+        };
+        open.joining = true;
+        open.rejoining = Some(rejoin);
+        open.joined_settled = true;
+        open.sealed_joining = true;
+        open.status.journaled_taken = journaled;
+        open.status.sealed_taken = sealed;
+        open.status.owes_seal = owes_seal;
+        self.pending.push(Io::Rejoined {
+            replica,
+            block,
+            rejoin,
+            joined: Box::new(Err(ClientError::TimedOut("a test's rejoin"))),
+        });
+    }
+
+    /// Says what `block`'s replica's status says of whether a seal would take what it owes, as
+    /// a report from its module would.
+    #[cfg(test)]
+    pub(crate) fn set_owes_seal(&mut self, block: Uuid, owes_seal: bool) {
+        if let Some(replica) = self.blocks.get(&block)
+            && let Some(open) = self.open.get_mut(replica)
+        {
+            open.status.owes_seal = owes_seal;
+        }
+    }
+
+    /// Whether a seal of `block` is asked of its module and not yet answered.
+    #[cfg(test)]
+    pub(crate) fn seal_asked(&self, block: Uuid) -> bool {
+        self.asked.values().any(|(replica, asked)| {
+            matches!(asked, Asked::Seal(_))
+                && self.open.get(replica).is_some_and(|open| open.block == block)
+        })
+    }
+
     /// Waits for an answer to a rejoin and keeps it, with what came before it, for the next
     /// `pump`, which handles them before what the modules said meanwhile.
     #[cfg(test)]
@@ -3331,9 +3384,20 @@ impl<H: Host> Replicas<H> {
     /// would lose what that seal holds beyond the edits `replay` gives again (what it replayed
     /// from its journal, or sequenced for a follower): neither that head's journal nor `replay`
     /// holds them (`reopening`).
+    ///
+    /// A rejoin that sealed once and still holds journaled edits no seal holds, which a seal
+    /// cannot take now (`owes_seal` is false: it diverged, a reload is on its way, or its seal
+    /// backs off or cannot merge), is settling too: its answer stays held, asking nothing, until
+    /// a status says a seal would take them (`rejoined`).
     fn settling(&self, replica: ReplicaId) -> bool {
         self.open.get(&replica).is_some_and(|open| {
-            open.publishing > 0 || open.submitting > 0 || open.reporting.is_some()
+            open.publishing > 0
+                || open.submitting > 0
+                || open.reporting.is_some()
+                || (open.rejoining.is_some()
+                    && open.sealed_joining
+                    && journaled_unsealed(open)
+                    && !open.status.owes_seal)
         }) || self
             .asked
             .values()
@@ -3475,13 +3539,14 @@ impl<H: Host> Replicas<H> {
         // edits its order does not hold (`reopening` cuts `replay` by `journaled_taken`), and the
         // server's journal holds none of its made-up session's: those journaled and unsealed
         // would be lost. The answer comes back here once the seal is answered, and another is
-        // asked only while some are left. An edit it has not submitted (it waits for the order
-        // to number the one before) is not journaled: `replay` gives it again, and no seal
-        // commits it, so asking again for it would never end.
+        // asked only while some are left and a seal would take them; while none would, the
+        // answer stays held (`settling`). An edit it has not submitted (it waits for the order to
+        // number the one before) is not journaled: `replay` gives it again, and no seal commits
+        // it, so asking again for it would never end.
         let unsealed = open.joined_settled
             && match open.sealed_joining {
                 false => !open.status.clean || open.unreported(),
-                true => open.status.journaled_taken > open.status.sealed_taken,
+                true => journaled_unsealed(open) && open.status.owes_seal,
             };
         if unsealed {
             open.sealed_joining = true;
@@ -5169,6 +5234,12 @@ fn opened<S: be_block_store::ObjectStore>(
     let journal = journal?;
     let opened = peer.open_journal(block, journal.clone()).ok()?;
     Some((journal, opened))
+}
+
+/// Whether the order holds local edits of `open` that no seal holds: what reopening it on its
+/// head would lose (`reopening`).
+fn journaled_unsealed(open: &Open) -> bool {
+    open.status.journaled_taken > open.status.sealed_taken
 }
 
 /// What a replica opened again on `head` loads (`journal_for`), the server's journal as joining
