@@ -33,6 +33,7 @@ mod an_edit_numbered_offline_after_a_seal_survives_joining;
 mod an_edit_ordered_after_a_seal_is_given_once_to_a_restarted_replica;
 mod an_edit_sealed_beside_a_commit_waiting_in_the_outbox_is_merged_with_it;
 mod an_edit_sent_after_its_replica_made_a_clean_status_is_given_again_on_joining;
+mod an_edit_carried_over_a_restart_keeps_the_identity_it_goes_again_under_across_a_crash;
 mod an_edit_submitted_before_its_edits_were_kept_by_an_idle_pass_is_known_after_a_crash;
 mod an_editor_attached_when_its_replica_reopens_is_sent_the_content_again;
 mod an_editor_reads_no_part_of_another_block_its_replica_was_not_handed;
@@ -366,6 +367,7 @@ async fn test_modules(clock: be_block_client::Clock) -> crate::Modules {
         vec![
             in_process::<sections::BlockTypes>("test.sections"),
             in_process::<probe::BlockTypes>("test.probe"),
+            in_process::<be_sdk_type_testing::tally::BlockTypes>("test.tally"),
             in_process::<be_type_text::BlockTypes>("be3.text"),
             in_process::<be_type_example_counter::BlockTypes>("be3.counter"),
         ],
