@@ -16,7 +16,7 @@ and tool bar drag geometry and the hand-written drop targets in apps. Nothing ke
 
 The final PR deletes `Draggable`, `DropTarget`, `Target`, `DragSource`, and `Reorder`'s tree-only `hover`/`part`/`shut`/`resting` with the `visit` and
 `slot_at` only they use (step 6), and replaces the geometry at each site: `bars.rs`'s band logic
-(`resolve_bar`, `dock_reach`, `thrown`, `float_near`, `lift_goal`, `step_lift`), the dock's
+(`resolve_bar`, `dock_reach`, `thrown`, `float_near`, `lift_goal`, `step_lift`; gone in step 4), the dock's
 `resolve`/`resolve_in` (gone in step 3b; its `judged` and `takes` in step 3a), and the game board's press state machine. The video
 timeline's `drop_target_at` stays as its `custom` site's `place`. `Reorder` stays, built on the primitives, with its gap spring and
 `ReorderGap` (decisions/beui_reorder_stays_over_drop_sites.md). Each step's PR
@@ -256,7 +256,7 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      and while held its places are the only ones; the board never chooses a place in another
      window than the pointer's; a carry let go outside every window is its source's
      (`Carry::outside`), which floats the tab there. A carried tab is listed once, as its bar's
-     preview. Tool bars stay on the old `DropTarget` until step 4.
+     preview. Tool bars stayed on the old `DropTarget` until step 4.
    - **3b (done): the fluid preview.** The candidates, the preview, the carried tab, panels keeping their
      size and bars moving with their pane, below; the highlight and `resolve` are gone. The dock
      previews from `over`, so it needs no tentative gesture: its layout is view state. The spec
@@ -306,10 +306,17 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
 
    Expect a different feel, not a copy: replace the drop-highlight tests and paintings with ones
    that show the dock parting for a carried tab.
-4. **Dock tool bars.** `bars.rs`'s band geometry becomes
-   `closest(band slots, sticky).when_far(free(float)).thrown()`, with the slots read from the bars'
-   laid-out rects. Bars beside a slot move aside for the carried bar. Update tests that pin the old
-   thresholds.
+4. **Dock tool bars (done).** `bars.rs`'s band geometry is
+   `closest(band slots, sticky).when_far(float.thrown())`, with the slots read from the bars'
+   laid-out rects; bars beside a slot glide aside for the carried bar, and the tests that pinned
+   the old thresholds pin the new reaches. The float is a `custom` place, not `free`: `free`
+   clamps the item into its area, which would keep the bar's grip off the dock's edges, and
+   where a bar floats depends on the pane under the point. Only the float is thrown, so a bar
+   let go fast in a band docks there. Bar grips are focusable, so a keyboard carry steps
+   between the band slots. It added `Carry::kept_in` (a bar drawn above its dock's own windows
+   is read in the dock's window) and `PointerId::Relayed` (an app's grip moving its bar across
+   the app protocol), and `when_far` now takes its far side wherever its near side chooses no
+   place.
 5. **Apps.**
    - **video timeline (done):** a `custom` site whose `place` is `drop_target_at`, so a clip
      lands at the frame under the pointer; `DropMarker` draws from the site's `over`. A keyboard

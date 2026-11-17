@@ -68,6 +68,10 @@ pub enum PointerId {
     Pen,
     /// The keyboard carrying a dragged item: never a pointer the cores report.
     Keyboard,
+    /// A pointer another program or window relays as points, which the cores do not report:
+    /// a dock bar an app's grip carries across the app protocol, or one carried out of the
+    /// window it was popped into.
+    Relayed,
 }
 
 pub const CONTROLLER_TOUCH_DEVICE: u64 = 0x1a5e_0000;

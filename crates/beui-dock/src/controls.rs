@@ -307,7 +307,9 @@ pub trait DockBarDriver {
     fn moving(&self, bar: TabId) -> bool;
     fn place(&self, bar: TabId, placement: DockBarPlacement);
     fn pop_out(&self, bar: TabId);
-    fn begin_move(&self, bar: TabId, press: PointerPress);
+    /// What the grip's `Interactive` lifts once a press on it (`down`, where it went down)
+    /// passes the threshold, or a key lifts it: `None` when its window moves itself instead.
+    fn carry(&self, bar: TabId, down: PointerPress) -> Option<beui_view::drag::Carry>;
 }
 
 #[derive(Clone, Copy)]
@@ -476,14 +478,19 @@ impl DockBarControl {
         }
     }
 
-    /// Called from a handle's `on_drag` once past the drag threshold, with the press that went down, then
-    /// with each move. A hosted control turns it into `DockRequest::MoveBar`, mapping the press back
+    /// What a local bar's grip lifts onto the drag board once a press passes the threshold
+    /// (`down` is where it went down), or a key lifts it; `None` for a hosted bar, whose
+    /// moves go to its root as `begin_move` sends them, or a local one whose window moves
+    /// itself.
+    pub fn carry(&self, down: PointerPress) -> Option<beui_view::drag::Carry> {
+        self.driver()?.carry(self.bar, down)
+    }
+
+    /// Called from a handle's `on_drag` once past the drag threshold and `carry` declined, with
+    /// the press that went down, then with each move; a local control ignores it. A hosted control turns it into `DockRequest::MoveBar`, mapping the press back
     /// into the body's window with `window_point` when the pointer is over another window of the program.
     pub fn begin_move(&self, press: PointerPress) {
         let BarBacking::Hosted { request, last, .. } = self.backing else {
-            if let Some(driver) = self.driver() {
-                driver.begin_move(self.bar, press);
-            }
             return;
         };
         let carried = last.get_untracked();

@@ -78,6 +78,9 @@ fn a_dock_bar_lifted_by_its_grip_draws_above_a_hosted_window() {
         "the lifted bar escapes the dock's own screen, so the host draws it above its windows: {bar:?}"
     );
 
+    // Held still a moment, so the release is at rest rather than a throw.
+    test.advance(std::time::Duration::from_millis(200));
+    test.run();
     test.desk_release(to);
     test.settle();
     let bar = test.desk_rects_of("bar");

@@ -7,6 +7,7 @@ use crate::input::Modifiers;
 mod a_closed_point_floats_over_its_places;
 mod a_custom_site_chooses_the_drop_its_place_gives_for_the_point;
 mod a_drag_floats_beyond_the_reach_of_its_near_places;
+mod a_far_place_takes_over_where_every_near_place_is_closed;
 mod a_fast_release_lands_where_its_path_leads;
 mod a_following_place_draws_the_item_under_the_pointer_along_its_line;
 mod a_free_drag_stays_inside_its_area;

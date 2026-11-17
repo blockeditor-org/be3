@@ -44,9 +44,19 @@ pub fn DockBarGrip(
     let moved = StoredCell::new(false);
     let menu = control.menu();
     let open = create_signal(false);
+    // A local bar lifts onto the drag board, so the dock's bands and the keys reach it; a
+    // hosted one, or one the dock moves another way, goes on as `on_drag`.
+    let drag = Func::new(move |press: PointerPress| {
+        let carry = control.carry(pressed.get().unwrap_or(press));
+        if carry.is_some() {
+            moved.set(true);
+        }
+        carry
+    });
     view! {
         <Interactive
             cursor=beui_view::types::CursorIcon::Grab
+            drag={Some(drag)}
             on_press={move |press: PointerPress| {
                 pressed.set(Some(press));
                 moved.set(false);

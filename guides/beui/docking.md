@@ -219,8 +219,8 @@ Alt held that is the only place. A window the host opens is not the home window:
 carried inside its own host-opened window has no place there and goes home, as the host moves
 such a window by its bar. A carry's payload is a
 `DockCarry`, the dragged tab or pane with its dock's id, so another dock in the document, whose tab ids
-may coincide, neither takes it nor hides a tab for it. Tool bars still ride the old `DropTarget`
-(plans/declarative_dragging.md, step 4).
+may coincide, neither takes it nor hides a tab for it. Tool bars are carries of the same board,
+with a drop site of their own (Dialogs, tool bars, fullscreen).
 
 **From the keyboard.** A tab's row is a drag source whose tab button holds the focus, so a
 focused tab moves with the carry keys (guides/beui_keyboard.md): Ctrl+Shift and an arrow move it
@@ -295,11 +295,29 @@ alone even inside another dock's tab.
   parks it). A bar stays with its pane, not with a tab: when the tab that names its pane leaves
   that pane (moved or closed), another tab still there names it; on one pane, bars of outer
   layers start nearer the edge, and a bar dropped among another layer's lands where it was dropped.
-  Dragged by its grip (`unstyled/bars.rs`), a bar docks in an edge's band only within half a
-  band of that edge (the band there, else the bar's thickness), and holds on to the band to half
-  a band past it; a bar grabbed floating over an edge must first be pulled halfway from where it
-  was grabbed towards that edge. Let go at speed outside every band, it is thrown to float over
-  the edge its path runs into; inside a band it docks there.
+  Dragged by its grip (`unstyled/bars.rs`), a bar is a carry on the drag board, lifted by the
+  grip's `Interactive` (`DockBarControl::carry`), and `DockTiles` is its drop site (`State::bar_spec`):
+  `closest(band slots, sticky).when_far(float.thrown())`. Each band of each pane the bar may land
+  on gives a slot at each gap of each run of bars and at its ends, read from the bars' laid-out
+  rects, and is open within a bar of its edge (`DOCK_REACH`), held out to a bar and a half once
+  reached (`DOCK_HOLD`); a bar grabbed floating over an edge reaches that edge's band only once
+  pulled halfway from where it was grabbed towards it. The carried item is a square as long as
+  the bar, centred on the pointer, so a band's slot is the one nearest along it (`following`)
+  whichever way the bar lies. Away from every band it floats (`float_at`, a `custom` place): over
+  the nearest edge of the pane under it (shown while carried only within two bands of that
+  edge), or, over no pane it may land on, in a window of its own; let go at speed there it is
+  thrown along its path first, never into a band, and not at all with motion reduced. The bands
+  draw the chosen place (`Lifting::preview`): the carried bar's slot is a gap its size, and every
+  bar slot glides (`Glide`) from where it was drawn as the place changes, so the bars beside a
+  slot move aside; a dropped bar glides from where it was drawn into its slot. The bar is drawn
+  by the dock (`Carry::drawn_by_site`, `DockBarLifted`), on a band's slot across the band and
+  under the pointer along it, else under the pointer as grabbed; the carry is `kept_in` the
+  dock's window, so it crosses the dock's own windows and leaves the window it was popped into.
+  Panels keep resizing while a bar is carried (`DockHeldSize` holds them only for tabs and
+  panes). The grip's menu button holds the focus, so a focused grip carries its bar from the
+  keyboard between the slots of every band ("the top band of Files"). An app's grip (a hosted
+  `DockBarControl`) sends `DockRequest::MoveBar`, which the root dock relays onto the board as a
+  `PointerId::Relayed` carry.
 - **Hidden bands** (`unstyled/reveal.rs`): a band of the dock's own bars along an edge the user
   auto-hid (`DockState::is_edge_auto_hidden`, saved with the layout) takes no room and is drawn in
   a layer of its own at `LayerLevel::Raised`, slid out from its edge by however far the owner says

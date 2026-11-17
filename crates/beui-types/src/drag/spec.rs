@@ -94,7 +94,8 @@ pub enum DragSpec<D> {
         area: NodeRef,
         drop: Rc<dyn Fn(Rect) -> D>,
     },
-    /// `near` while the item is within `reach` of where `near` puts it, else `far`.
+    /// `near` while the item is within `reach` of where `near` puts it, else `far`, as when
+    /// `near` chooses no place.
     WhenFar {
         near: Box<DragSpec<D>>,
         far: Box<DragSpec<D>>,
@@ -376,6 +377,8 @@ pub struct Carry {
     pub item: Option<Rect>,
     face: CarryFace,
     pub outside: Option<Rc<dyn Fn(DragPoint)>>,
+    /// The window the carry is read in, whatever window the pointer is over (`kept_in`).
+    pub window: Option<crate::window::WindowId>,
 }
 
 /// What is drawn for a carried item.
@@ -398,6 +401,18 @@ impl Carry {
             item: None,
             face: CarryFace::Source,
             outside: None,
+            window: None,
+        }
+    }
+
+    /// Reads every point in `window`'s points, where the pointer's window relates to it
+    /// (`window_point`), rather than leaving the places of `window` to a pointer over it: an
+    /// item that lives in one window and is drawn above that window's own windows (a dock's
+    /// tool bar, carried over a window of its dock or out of the window it was popped into).
+    pub fn kept_in(self, window: crate::window::WindowId) -> Self {
+        Self {
+            window: Some(window),
+            ..self
         }
     }
 
@@ -726,8 +741,9 @@ fn walk<'s, D: Clone>(
             let near = walk(near, evaluation, last, carried, next, along);
             // Ids stay the same whichever side is chosen, so count `far`'s even when unused.
             let far = walk(far, evaluation, last, carried, next, along);
+            // A near side that found no place (its places all closed) is as far as can be.
             match near {
-                Some(near) if near.distance <= *reach => Some(near),
+                Some(near) if near.placed() && near.distance <= *reach => Some(near),
                 _ => far,
             }
         }
