@@ -85,7 +85,7 @@ fn discarding_the_unsent_edits_of_a_block_demoted_mid_edit_leaves_nothing_of_it_
     // owing nothing.
     add(block, 4);
     wait_until("gave up the edit the server refused", |held| {
-        held.pending() == 0 && held.unsealed == 0 && counted(held, block) == Some(1)
+        held.pending() == 0 && held.unsealed() == 0 && counted(held, block) == Some(1)
     });
     // And kept nothing of it to give a replica opened again, which would send it again.
     wait_until("kept none of the refused edit", |held| {

@@ -1047,7 +1047,7 @@ fn compact_idle_indexes(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, ta
     let idle = !held.search.off
         && held.waiting == 0
         && held.pending() == 0
-        && !held.typing
+        && held.typing.is_empty()
         && !held.arriving
         && !held.draining
         && held.search.busy_with(wants_index(&held)).is_none();

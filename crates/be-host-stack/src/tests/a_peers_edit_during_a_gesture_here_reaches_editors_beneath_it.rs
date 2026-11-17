@@ -28,7 +28,7 @@ fn a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it() {
         seen.count == Some(13)
     });
     wait_until("took the owner's add beneath its own", |shared| {
-        counted(shared, block) == Some(13) && shared.unsealed == 0
+        counted(shared, block) == Some(13) && shared.unsealed() == 0
     });
     editor.wait("followed the owner's add", |counter| {
         counter.root().value() == 13

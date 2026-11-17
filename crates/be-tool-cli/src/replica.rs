@@ -110,7 +110,7 @@ impl<S: ObjectStore + 'static> be_block_type_host::Host for Held<S> {
 
     fn counted(
         _: &Arc<Mutex<Self>>,
-        _: usize,
+        _: Vec<be_block_type_host::Owing>,
         _: Vec<be_block_type_host::Owing>,
         _: Vec<be_block_type_host::Owing>,
     ) {

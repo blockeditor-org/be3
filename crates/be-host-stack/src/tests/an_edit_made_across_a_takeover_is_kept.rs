@@ -14,7 +14,7 @@ fn an_edit_made_across_a_takeover_is_kept() {
     add(block, 10);
     owner.until("sequenced this peer's add", |seen| seen.count == Some(10));
     wait_until("had its add sequenced", |shared| {
-        counted(shared, block) == Some(10) && shared.unsealed == 0
+        counted(shared, block) == Some(10) && shared.unsealed() == 0
     });
 
     owner.seal();
@@ -28,7 +28,7 @@ fn an_edit_made_across_a_takeover_is_kept() {
     });
     crate::flush_and_send();
     wait_until("saved what it typed across the takeover", |shared| {
-        counted(shared, block) == Some(110) && shared.unsealed == 0
+        counted(shared, block) == Some(110) && shared.unsealed() == 0
     });
     let stored = owner.block_on(async {
         outside
