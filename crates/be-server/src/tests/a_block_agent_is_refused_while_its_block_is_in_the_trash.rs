@@ -35,9 +35,10 @@ async fn a_block_agent_is_refused_while_its_block_is_in_the_trash() {
 
         let mut again = harness.client().await;
         let signing = token.clone();
-        let response = again
-            .call(|peer| be_block_protocol::client::server::authenticate(peer, Some(signing)))
-            .await;
+        // Signed in without listening: following its contacts would be refused too.
+        let response = client::server::authenticate(&again.peer, Some(signing))
+            .await
+            .expect("the connection stayed open");
         assert!(
             response.is_ok(),
             "the trash deleted the block's agent: {response:?}"
