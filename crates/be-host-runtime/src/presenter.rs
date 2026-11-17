@@ -396,6 +396,9 @@ impl Blit {
     }
 }
 
+/// How close, in points, a painting's size and its view's must be to count as the same.
+const SAME: f32 = 0.05;
+
 /// Places a painting of `painted` pixels, at `density` pixels per point, for a piece of a view
 /// laid out at `quad` that shows `source` of the view's textured part: the painting keeps its own
 /// size, anchored at the textured part's top left. Returns the part of `quad` it covers and the
@@ -427,9 +430,11 @@ pub(super) fn unscaled(
     );
     let origin = rect.min - vec2(source.min.x * laid.x, source.min.y * laid.y);
     let extent = painted / density;
-    if (extent.x - laid.x).abs() < 1e-3 && (extent.y - laid.y).abs() < 1e-3 {
+    if (extent.x - laid.x).abs() < SAME && (extent.y - laid.y).abs() < SAME {
         // The painting is the size the view is laid out at, as it is whenever its app has drawn
-        // that size: the piece shows as it was cut, with no float error.
+        // that size: the piece shows as it was cut, with no float error. `laid` comes from a
+        // piece's fraction, so a thin piece knows it only to a few hundredths of a point; a
+        // painting of another size differs by a whole pixel, a third of a point even at raster 3.
         return Some((quad, source));
     }
     let covers = Rect::from_min_size(origin, extent);
