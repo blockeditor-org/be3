@@ -20,8 +20,8 @@ pub use contacts::{Contact, GrantOffer};
 pub use keys::{EscrowWarning, KeyBook};
 pub use peer::{
     BlockRead, Credentials, Drained, Listed, MAX_NOTIFICATION_AGE_MILLISECONDS,
-    MAX_NOTIFICATION_TEXT, Notification, OpenedNotification, Peer, PeerConfig, Reconciled,
-    PendingRotation, Resolver, Saved, Sealed, SealsJournal, Signer, Write,
+    MAX_NOTIFICATION_TEXT, Notification, OpenedNotification, Peer, PeerConfig, PendingRotation,
+    Reconciled, Resolver, Saved, Sealed, SealsJournal, Signer, Write,
 };
 pub use refs::{
     Aside, KeptChange, KeptEdit, KeptSubmission, ListedBlock, OpenEdits, PendingCounts, RefsDb,
