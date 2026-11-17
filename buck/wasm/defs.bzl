@@ -369,18 +369,33 @@ def app_module(name, module, libraries = None, extra_deps = [], visibility = Non
     )
     wasi_module(name = name, libraries = libraries, library = ":" + library, module = module, workers = workers, **kwargs)
 
-# A worker module (be_sdk_worker::worker!; guides/adding_an_app.md, Workers):
-# the package's crate linked as :module, named module.wasm, as app_module
-# links an app. An app stages it by naming it in app()'s workers and its
-# manifest's "workers".
+# A worker module (be_sdk_worker::worker!; guides/adding_an_app.md, Workers),
+# named module.wasm: worker.rs beside the package's Cargo.toml, which only calls
+# worker! on the crate's Work, linked as :module as app_module links an app.
+# The crate itself exports nothing, so the app that spawns the worker and its
+# tests (which serve it in their own instance) depend on it without linking a
+# second entry point. extra_deps are what cargo cannot name, such as a C
+# library the worker links. An app stages it by naming it in app()'s workers
+# and its manifest's "workers".
 def worker(module, libraries = None, extra_deps = [], visibility = None):
-    app_module(
-        name = "module",
-        extra_deps = extra_deps,
-        libraries = libraries,
-        module = module,
-        visibility = visibility,
+    kwargs = {"visibility": visibility} if visibility != None else {}
+    facts = cargo_wasm_facts()
+    if libraries == None:
+        libraries = DEFAULT_LIBRARIES
+    native.rust_library(
+        name = "wasm",
+        crate = facts.crate + "_worker",
+        crate_root = "worker.rs",
+        deps = [":" + facts.name, "root//crates/be-sdk-worker:be-sdk-worker"] + extra_deps,
+        edition = facts.edition,
+        linker_flags = _needs(libraries),
+        preferred_linkage = "shared",
+        rustc_flags = _guest_exports + ([] if libraries else _reactor) + opt_flags("app") + SYMBOL_FLAGS,
+        srcs = ["worker.rs"],
+        target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
+        **(kwargs | RUST_LOCAL)
     )
+    wasi_module(name = "module", libraries = libraries, library = ":wasm", module = module, **kwargs)
 
 # An app: the guest cdylib, :wasm (wasm32 only; an app is all behind
 # cfg(target_arch = "wasm32")), :module named after its manifest's entry point,

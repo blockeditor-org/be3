@@ -6,9 +6,13 @@ license.workspace = true
 
 [dependencies]
 be-wasm-guest-host = { path = "../be-wasm-guest-host" }
-be-wasm-host = { path = "../be-wasm-host" }
 be-wasm-ops = { path = "../be-wasm-ops" }
 be-wasm-sandbox-api = { path = "../be-wasm-sandbox-api" }
+
+# V8, which runs each instance natively. The browser runs each in a web worker
+# of its own instead (src/web.rs).
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+be-wasm-host = { path = "../be-wasm-host" }
 
 [dev-dependencies]
 be-sdk-worker = { path = "../be-sdk-worker" }

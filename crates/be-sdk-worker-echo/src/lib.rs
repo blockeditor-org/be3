@@ -1,5 +1,6 @@
-//! The smallest worker (be_sdk_worker::worker!), which be-wasm-sandbox-host's tests spawn as the
-//! echo app's: it says it started, then answers each message with `ECHOED` followed by it.
+//! The smallest worker (be_sdk_worker::Work, exported by worker.rs), which be-wasm-sandbox-host's
+//! tests spawn as the echo app's: it says it started, then answers each message with `ECHOED`
+//! followed by it.
 
 use be_sdk_worker::{App, Work};
 
@@ -25,5 +26,3 @@ impl Work for Echo {
         Ok(())
     }
 }
-
-be_sdk_worker::worker!(Echo);

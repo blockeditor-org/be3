@@ -13,7 +13,7 @@ use be_type_map::{Map, MapColor, MapContent, MapCoordinate, MapPoint, MapRegion}
 use uuid::Uuid;
 
 use crate::geo::MapView;
-use crate::raster::{TILE_PIXELS, TileLabel};
+use be_worker_map::{TILE_PIXELS, TileLabel};
 use crate::tiles::{TileId, TileWorker};
 use be_type_image::{ImageContent, ImageFile};
 use beui::ClipItem;

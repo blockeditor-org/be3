@@ -57,6 +57,8 @@ pub(crate) struct Plan {
 /// What the host's plan leaves out: the wasm-only crates.
 const HOST_EXCLUDES: &[Pick] = &[
     AppsWithoutExamples,
+    // PDFium, which it links, is built only for the apps' platform.
+    Named("be-worker-pdf-render"),
     Named("be-sdk"),
     Named("be-sdk-beui"),
     Named("be-wasm-gpu-shim"),
@@ -116,8 +118,8 @@ pub(crate) const PLANS: &[Plan] = &[
     },
     // The apps, the libraries apps are linked against and the crates that
     // test linking them (wasm_library and linked_app in buck/wasm/defs.bzl),
-    // the echo guest staged as an app and its worker, beui's demo and the paint review, whose
-    // tests paint as an app's do: a plan of their own, since they want a
+    // the echo guest staged as an app and its worker, the apps' workers, beui's demo and the paint
+    // review, whose tests paint as an app's do: a plan of their own, since they want a
     // different wgpu.
     Plan {
         name: "wasi-guest",
@@ -129,6 +131,7 @@ pub(crate) const PLANS: &[Plan] = &[
             Prefix("be-tool-tls-diamond-", &[]),
             Named("be-wasm-guest-echo"),
             Named("be-sdk-worker-echo"),
+            Prefix("be-worker-", &[]),
             Named("be-sdk"),
             Named("be-sdk-beui"),
             Named("beui-demo"),

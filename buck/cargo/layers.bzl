@@ -17,6 +17,7 @@ FAMILIES = [
     "be-tool",
     "be-type",
     "be-wasm",
+    "be-worker",
     "beui",
     "cvl2",
     "logicgame",
@@ -29,7 +30,7 @@ FAMILIES = [
 # on them.
 LAYERS = {
     # Not be-app: each app is a module of its own.
-    "be-app": ["be-sdk", "be-type", "be-block", "beui", "be-lib", "be-wasm", "logicgame", "tabletop"],
+    "be-app": ["be-sdk", "be-type", "be-worker", "be-block", "beui", "be-lib", "be-wasm", "logicgame", "tabletop"],
     # be-sdk-type-*: the type-module protocol the block stack runs types through.
     "be-block": ["be-block", "be-lib", "be-wasm", "be-sdk-type"],
     "be-host": [
@@ -50,6 +51,8 @@ LAYERS = {
     "be-type": ["be-type", "be-sdk-type", "be-block", "be-lib", "be-wasm", "logicgame", "tabletop"],
     # The guest ABI and running wasm guests: the base, under be-lib.
     "be-wasm": ["be-wasm"],
+    # An app's workers compute with no gpu and no host services, so they need no more.
+    "be-worker": ["be-worker", "be-sdk-worker", "be-lib", "be-wasm"],
     "beui": ["beui", "be-lib", "be-wasm"],
     "cvl2": [],
     "logicgame": ["be-lib"],

@@ -8,7 +8,7 @@ use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{Color32, FontId, Pos2, Rect, TextAlign, TextLayout, Vec2};
 
 use crate::geo::MapView;
-use crate::raster::TILE_PIXELS;
+use be_worker_map::TILE_PIXELS;
 use crate::tiles::TileId;
 
 use super::state::TileState;

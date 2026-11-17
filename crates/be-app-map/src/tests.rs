@@ -30,6 +30,7 @@ fn phone(size: Vec2) -> BeuiTest<MapRoot> {
 
 fn sized(editor: BeuiTest<MapRoot>) -> BeuiTest<MapRoot> {
     let mut editor = editor.in_viewport();
+    editor.serve_worker::<be_worker_map_tiles::Tiles>(be_worker_map::MODULE);
     editor.store().register(be_type_map::registrations());
     editor.hold(None, MapContent::default());
     editor.run();

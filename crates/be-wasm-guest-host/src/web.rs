@@ -44,6 +44,9 @@ pub struct WebGuest<P> {
 }
 
 impl<P: Pictures> WebGuest<P> {
+    /// Starts the guest at `url` in a worker of its own. `extension` names the script that
+    /// instantiates it, if the worker's own instantiation (a type module's) is not enough, such
+    /// as be-host's `./app.js`; both are resolved against the page, wherever the guest lies.
     pub fn start(
         url: &str,
         extension: Option<&str>,
@@ -56,7 +59,7 @@ impl<P: Pictures> WebGuest<P> {
         let message = message("start");
         set(&message, "url", &absolute(url).into());
         if let Some(extension) = extension {
-            set(&message, "extension", &extension.into());
+            set(&message, "extension", &absolute(extension).into());
         }
         worker
             .post_message(&message)

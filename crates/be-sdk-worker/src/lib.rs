@@ -4,10 +4,11 @@
 //!
 //! - The app names each worker module in its manifest's `workers`, and its BUCK file builds and
 //!   stages it (`app(workers = ...)`).
-//! - The worker module implements `Work` and exports it with `be_sdk_worker::worker!`, its entry
-//!   point. Natively it runs on a thread and isolate of its own, so it may take as long as a job
-//!   needs without holding up the app's frames. It has WASI and its libraries, but no gpu: it
-//!   computes, and sends what it made back as bytes.
+//! - The worker crate implements `Work`, and its `worker.rs` exports it with
+//!   `be_sdk_worker::worker!`, the module's entry point. It runs in an instance of its own: on a
+//!   thread and isolate of its own natively, in a worker of its own in the browser, so it may take
+//!   as long as a job needs without holding up the app's frames. It has WASI and its libraries,
+//!   but no gpu: it computes, and sends what it made back as bytes.
 //! - The app starts it with `Worker::spawn` through the sandbox API (`be3:sandbox`), sends it
 //!   messages with `send` and takes its answers with `receive`. Each message is one byte buffer,
 //!   delivered whole and in order. Dropping the `Worker` stops it.
@@ -31,7 +32,8 @@ pub mod __private {
 /// The most bytes a worker's memory may hold, as for an app; the host holds it to that too.
 pub const MEMORY_LIMIT: u64 = 1 << 30;
 
-/// Why a worker could not start on a host that serves no sandbox, such as the web's today.
+/// Why a worker could not start on a host that serves the app no sandbox, such as a wire a test
+/// made by itself.
 pub const NO_WORKERS: &str = "this host runs no workers";
 
 /// A worker the app started: an instance of one of its worker modules.
@@ -123,6 +125,26 @@ impl App<'_> {
     }
 }
 
+/// A `Work` run in the caller's own instance rather than one of its own: how an app's tests
+/// serve its workers (be-sdk-test's `BeuiTest::serve_worker`), and a worker crate's tests drive
+/// it, in step with the test.
+pub struct Hosted(Box<dyn FnMut(Vec<u8>, &mut App) -> Result<(), String>>);
+
+impl Hosted {
+    /// Starts `W`, which sends what it says as it starts to `outbound`.
+    pub fn start<W: Work>(outbound: &mut Vec<Vec<u8>>) -> Result<Self, String> {
+        let mut work = W::start(&mut App { outbound })?;
+        Ok(Self(Box::new(move |message, app| {
+            work.receive(message, app)
+        })))
+    }
+
+    /// Hands the worker one message, which it answers to `outbound`.
+    pub fn receive(&mut self, message: Vec<u8>, outbound: &mut Vec<Vec<u8>>) -> Result<(), String> {
+        (self.0)(message, &mut App { outbound })
+    }
+}
+
 /// Runs a `Work` as a guest: what `worker!` exports.
 #[doc(hidden)]
 pub struct Running<W>(W);
@@ -150,7 +172,8 @@ impl<W: Work> be_wasm_guest_abi::Guest for Running<W> {
 }
 
 /// The entry point of a worker module: exports `$work`, a `Work`, as the module's `app_start`.
-/// A worker module is a crate of its own, built as an app's module is
+/// A worker crate calls it in its `worker.rs` alone, which buck links into the module
+/// (`worker()`), so the app and tests that depend on the crate link no second entry point
 /// (guides/adding_an_app.md, Workers).
 #[macro_export]
 macro_rules! worker {
