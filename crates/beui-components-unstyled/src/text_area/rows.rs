@@ -27,7 +27,10 @@ pub const CODE_SIZE: f32 = BODY_SIZE;
 const MASK: &str = "*";
 const OBJECT: &str = "\u{fffc}";
 const NEWLINE_MARKER: &str = "\u{23ce}";
-const NEWLINE_SLOT: &str = "mm";
+/// The room a line's newline marker is drawn in: whitespace, so it hangs past the line's end
+/// as trailing spaces do (guides/beui/text.md, "Wrapping") and never wraps the last word, or
+/// itself, onto another row.
+const NEWLINE_SLOT: &str = "\u{2003}\u{2003}";
 const ELLIPSIS: &str = "...";
 const CONTROL_NAME_EM: f32 = 0.7;
 /// Set either side of a control character's name, so it does not run into the text.
@@ -402,7 +405,7 @@ fn invisible_marker(byte: u8) -> Option<&'static str> {
 
 /// The name shown for a control character with no width of its own (NUL, BEL, CR and the
 /// rest of C0, and DEL), its ASCII abbreviation, which takes its place, and so its width, in
-/// the row. Tab and newline have widths and markers of their own. The abbreviations are text,
+/// the row. Tab and newline have markers of their own (a newline's room hangs, `NEWLINE_SLOT`). The abbreviations are text,
 /// not Control Pictures symbols, which the bundled fonts do not have.
 fn control_marker(byte: u8) -> Option<&'static str> {
     const NAMES: [&str; 32] = [
