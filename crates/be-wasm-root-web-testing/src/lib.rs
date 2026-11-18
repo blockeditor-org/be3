@@ -65,7 +65,11 @@ fn staged(app: &str, module: &str) -> Result<Staged, String> {
 }
 
 async fn root() -> Result<Root, String> {
-    Root::load(ROOT, Box::new(staged)).await
+    // A page delivers Ctrl+V as a paste from the browser's paste event, as every page that runs
+    // a root does.
+    Ok(Root::load(ROOT, Box::new(staged))
+        .await?
+        .with_paste_shortcut(true))
 }
 
 /// One frame of `root`, started from the next `requestAnimationFrame` with its deadline `budget`

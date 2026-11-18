@@ -160,7 +160,10 @@ impl Windows {
                     if let Some(focused) = routing.router.focused()
                         && routing.layers.layer(focused).is_none()
                     {
-                        routing.router.focus(None);
+                        // What this tells the layer that went (that it lost the focus, and the
+                        // pointer lock if it held it) reaches nothing, as it is gone: dropped
+                        // on purpose. The window's lock follows from `Windows::locked`.
+                        let _ = routing.router.focus(None);
                     }
                 }
                 None => self.windows.push(Window {

@@ -14,6 +14,7 @@ mod the_focus_given_back_to_a_layer_that_went_goes_to_no_layer;
 mod the_focus_is_the_layer_a_press_landed_on;
 mod the_focus_moved_to_a_layer_and_back_tells_each_layer;
 mod the_focused_layer_that_asks_holds_the_pointer_lock_until_it_stops_asking;
+mod the_release_of_an_escape_that_closed_a_dialog_never_reaches_the_layer_the_focus_went_back_to;
 
 /// The root's own layer, which takes intercepted keys.
 const ROOT: LayerId = LayerId(0);

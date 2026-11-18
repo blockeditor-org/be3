@@ -4,7 +4,8 @@
 //! that surface's own coordinates: a press captures the pointer until every button lifts, hover
 //! follows the surface under the pointer, wheel and pinch go to the outermost placer whose
 //! surface grants it the gesture there, a finger landing for an outer claim takes the earlier
-//! fingers with it, keys go to the focus except the chords the compositor intercepts, and the
+//! fingers with it, keys go to the focus except the chords the compositor intercepts (a key's
+//! release going where its press went), and the
 //! pointer lock and a drag between surfaces follow the focus and the pointer.
 //!
 //! It knows nothing of how surfaces are found: the host hands it a 2D test over its layer list
@@ -148,7 +149,9 @@ pub struct Router<T> {
     gesture: Option<(Option<T>, Pos2)>,
     focused: Option<T>,
     locked: Option<T>,
-    keys: Vec<Key>,
+    /// Each key held down, and the surface its press went to (`None`: none), which hears its
+    /// release wherever the focus has gone since.
+    keys: Vec<(Key, Option<T>)>,
     carry: Option<Carry<T>>,
 }
 
@@ -394,22 +397,22 @@ impl<T: Copy + Eq + Debug> Router<T> {
                             repeat: stroke.repeat,
                             modifiers: self.modifiers,
                         };
-                        self.keys.retain(|held| *held != key);
-                        match self.intercepted.iter().any(|chord| chord.matches(press)) {
-                            true => {
-                                self.keys.push(key);
-                                self.compositor
-                            }
+                        let target = match self.intercepted.iter().any(|chord| chord.matches(press))
+                        {
+                            true => self.compositor,
                             false => self.focused,
-                        }
+                        };
+                        // A repeat travels as a press does, so it holds the key for where it went.
+                        self.keys.retain(|(held, _)| *held != key);
+                        self.keys.push((key, target));
+                        target
                     }
-                    // The release of a chord the compositor took goes to it too; any other
-                    // goes to the focus, which a surface that lost it was told of first.
-                    (Some(key), false) => match self.keys.iter().position(|held| *held == key) {
-                        Some(index) => {
-                            self.keys.remove(index);
-                            self.compositor
-                        }
+                    // A release goes where its press went, the compositor for a chord it took, so
+                    // the release of a key that moved the focus (an Escape that closed a dialog,
+                    // a Tab) never reaches the surface the focus went to. A release whose press
+                    // the router never saw goes to the focus.
+                    (Some(key), false) => match self.keys.iter().position(|(held, _)| *held == key) {
+                        Some(index) => self.keys.remove(index).1,
                         None => self.focused,
                     },
                     (None, _) => self.focused,
@@ -667,6 +670,11 @@ impl<T: Copy + Eq + Debug> Router<T> {
         }
         self.entered.retain(|entered| *entered != target);
         self.presses.retain(|press| press.target != Some(target));
+        for (_, holder) in &mut self.keys {
+            if *holder == Some(target) {
+                *holder = None;
+            }
+        }
         if let Some(carry) = &mut self.carry {
             if carry.from == target {
                 self.carry = None;

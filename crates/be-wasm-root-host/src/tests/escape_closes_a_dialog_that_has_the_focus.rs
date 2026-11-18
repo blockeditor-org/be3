@@ -4,7 +4,7 @@ use be_sdk_root_testing::DIALOG_LAYER;
 use super::*;
 
 #[test]
-fn escape_closes_a_dialog_while_the_root_intercepts_it() {
+fn escape_closes_a_dialog_that_has_the_focus() {
     let mut root = embedding();
     let mut time = 1;
     step(&mut root, time);
@@ -13,7 +13,7 @@ fn escape_closes_a_dialog_while_the_root_intercepts_it() {
         &mut root,
         &mut time,
         chord(Key::Escape, Modifiers::NONE),
-        "Escape, which the root intercepts while its dialog is open, closes it",
+        "Escape, which the dialog has while it has the focus, closes it",
         |done| layer_of(done, DIALOG_LAYER).is_none(),
     );
     assert!(closed.ime.is_none(), "the field went with the dialog");

@@ -168,7 +168,8 @@ impl Root {
     }
 
     /// Whether the page delivers the paste shortcut as a paste itself, as input, from the
-    /// browser's paste event (`host.paste-shortcut`), which a page does: false unless set.
+    /// browser's paste event (`host.paste-shortcut`), which a page does, so every page that
+    /// runs a root sets it (be-wasm-root-web-testing's does): false unless set.
     pub fn with_paste_shortcut(self, delivers: bool) -> Self {
         self.shared.core.borrow_mut().paste_shortcut = delivers;
         self
