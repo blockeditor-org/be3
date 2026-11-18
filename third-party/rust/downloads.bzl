@@ -404,6 +404,18 @@ downloads = {
         "size_bytes": 18911,
         "version": "1.5.1",
     },
+    "axum-0.8.9": {
+        "name": "axum",
+        "sha256": "31b698c5f9a010f6573133b09e0de5408834d0c82f8d7475a89fc1867a71cd90",
+        "size_bytes": 180525,
+        "version": "0.8.9",
+    },
+    "axum-core-0.5.6": {
+        "name": "axum-core",
+        "sha256": "08c78f31d7b1291f7ee735c1c6780ccde7785daae9a9206026862dab7d8792d1",
+        "size_bytes": 26769,
+        "version": "0.5.6",
+    },
     "backtrace-0.3.77": {
         "name": "backtrace",
         "sha256": "42f4220217f3288537b83684130f42fad43320b1c3b805f1910d683d52ded24f",
@@ -2516,6 +2528,12 @@ downloads = {
         "size_bytes": 7075,
         "version": "0.2.0",
     },
+    "matchit-0.8.4": {
+        "name": "matchit",
+        "sha256": "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3",
+        "size_bytes": 33986,
+        "version": "0.8.4",
+    },
     "md-5-0.11.0": {
         "name": "md-5",
         "sha256": "69b6441f590336821bb897fb28fc622898ccceb1d6cea3fde5ea86b090c4de98",
@@ -4417,6 +4435,12 @@ downloads = {
         "sha256": "ebe5ef63511595f1344e2d5cfa636d973292adc0eec1f0ad45fae9f0851ab1d4",
         "size_bytes": 110488,
         "version": "0.5.3",
+    },
+    "tower-http-0.6.11": {
+        "name": "tower-http",
+        "sha256": "4cfcf7e2740e6fc6d4d688b4ef00650406bb94adf4731e43c096c3a19fe40840",
+        "size_bytes": 156773,
+        "version": "0.6.11",
     },
     "tower-layer-0.3.3": {
         "name": "tower-layer",

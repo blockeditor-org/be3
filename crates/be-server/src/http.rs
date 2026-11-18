@@ -1,27 +1,56 @@
+//! be-server's HTTP, served with hyper, tower and axum: be-server parses no HTTP itself
+//! (decisions/be_server_serves_http_with_axum.md). The accept loop (`serve_with_mail`) admits each
+//! connection by its peer's address; [`serve`] serves it with hyper's HTTP/1 connection and
+//! [`front`], which counts each request against its client's places before handing it to the
+//! route its path names, each with its own body limit:
+//! - `/auth…`: the account portal's pages and forms (`auth`);
+//! - `…/storage/objects…`: the S3 endpoint (`s3`), s3s's own service;
+//! - `POST …/call`: one call that needs no sign-in (`call`);
+//! - `POST …/http`: the long-poll fallback, posts carrying frames (`posts`);
+//! - anything else: a websocket upgrade, handed to tokio-tungstenite (`socket`).
+//!
+//! Paths are matched by their end, since the server is reached below whatever path a proxy
+//! mounts it at.
+
 use std::{
     collections::{HashMap, VecDeque},
-    io,
+    convert::Infallible,
     net::{IpAddr, SocketAddr},
-    pin::Pin,
     sync::Arc,
-    task::{Context, Poll},
     time::{Duration, Instant},
 };
 
-use be_block_protocol::{MAX_FRAME_BYTES, Welcome, hello, read_hello};
-use tokio::{
-    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf},
-    net::TcpStream,
-    sync::{Mutex, mpsc},
+use axum::{
+    Extension, Router,
+    body::{Body, Bytes},
+    extract::{Request, State},
+    response::{IntoResponse, Response},
 };
+use be_block_protocol::{MAX_FRAME_BYTES, Welcome, hello, read_hello};
+use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, header};
+use hyper_util::rt::{TokioIo, TokioTimer};
+use tokio::{
+    net::TcpStream,
+    sync::{Mutex, Notify, OwnedSemaphorePermit, mpsc},
+};
+use tokio_tungstenite::{
+    WebSocketStream,
+    tungstenite::{
+        handshake::derive_accept_key,
+        protocol::{Role, WebSocketConfig},
+    },
+};
+use tower::ServiceExt;
+use tower_http::{limit::RequestBodyLimitLayer, timeout::RequestBodyTimeoutLayer};
 
 use crate::{
-    Admitted, Client, HANDSHAKE_TIMEOUT, IDLE_TIMEOUT, OUTBOUND_BYTES, Outbound, ServerError,
-    Services,
+    Client, HANDSHAKE_TIMEOUT, IDLE_TIMEOUT, OUTBOUND_BYTES, Outbound, ServerError, Services,
+    Watched,
     address::{Anonymous, Eviction, Held, PerAddress},
     greeting,
 };
 
+mod auth;
 mod s3;
 
 const PATH_SUFFIX: &str = "/http";
@@ -34,18 +63,418 @@ const MAX_CALL_BYTES: usize = 16 * 1024;
 /// faster than its interval.
 pub(crate) const MAX_CALLS_PER_ADDRESS: u32 = 60;
 pub(crate) const CALLS_WINDOW: Duration = Duration::from_secs(60);
-const SESSION_HEADER: &str = "be3-session";
+const SESSION_HEADER: HeaderName = HeaderName::from_static("be3-session");
 /// Set on an answer when the session has more to say, or frames of the post still to carry
 /// out; the client posts again at once, with an empty body if it has nothing to send.
-const MORE_HEADER: &str = "be3-more";
+const MORE_HEADER: HeaderName = HeaderName::from_static("be3-more");
+/// A request's head, its request line and headers, and how many headers it may have.
 const MAX_HEAD_BYTES: usize = 16 * 1024;
+const MAX_HEADERS: usize = 64;
 const MAX_BODY_BYTES: usize = 2 * MAX_FRAME_BYTES;
-const MAX_FORM_BYTES: usize = 16 * 1024;
 /// Longest a request body may go without a byte arriving.
 const BODY_READ_TIMEOUT: Duration = Duration::from_secs(30);
-/// Bytes read from a socket at a time, so a body's buffer grows only as its bytes arrive.
-const READ_CHUNK_BYTES: usize = 64 * 1024;
-const MAX_HEADERS: usize = 64;
+
+/// What a connection was let in with: its place among its address's connections and among
+/// those not signed in, both taken at its first request for a trusted proxy's, what tells it it
+/// was let go of to make room, and its place among the server's connections.
+pub(crate) struct Admitted {
+    pub(crate) place: Option<Held>,
+    pub(crate) anonymous: Option<Anonymous>,
+    pub(crate) eviction: Arc<Eviction>,
+    pub(crate) slot: OwnedSemaphorePermit,
+}
+
+/// One accepted connection, as its requests see it.
+struct Link {
+    peer: SocketAddr,
+    eviction: Arc<Eviction>,
+    places: std::sync::Mutex<Places>,
+    /// Its place among the server's connections, held by a websocket it becomes too.
+    slot: Arc<OwnedSemaphorePermit>,
+    /// Told at each request, so the first is waited for only `HANDSHAKE_TIMEOUT`.
+    requested: Notify,
+}
+
+struct Places {
+    place: Option<Held>,
+    anonymous: Option<Anonymous>,
+    /// Whether a post on the connection signed its session in: its later requests no longer
+    /// count among those not signed in.
+    signed_in: bool,
+}
+
+/// What a route is handed with each request: the address it comes from and its connection.
+#[derive(Clone)]
+struct Admission {
+    client: IpAddr,
+    link: Arc<Link>,
+}
+
+/// The routes, built once and shared by every connection.
+#[derive(Clone)]
+pub(crate) struct Routes {
+    auth: Router,
+    call: Router,
+    posts: Router,
+    socket: Router,
+    s3: Option<Router>,
+}
+
+impl Routes {
+    pub(crate) fn new(services: &Services) -> Self {
+        let limited = |router: Router<Services>, limit: usize| {
+            router
+                .layer(RequestBodyLimitLayer::new(limit))
+                .layer(RequestBodyTimeoutLayer::new(BODY_READ_TIMEOUT))
+                .with_state(services.clone())
+        };
+        Self {
+            auth: limited(Router::new().fallback(auth::serve), auth::MAX_FORM_BYTES),
+            call: limited(Router::new().fallback(call), MAX_CALL_BYTES),
+            posts: limited(Router::new().fallback(posts), MAX_BODY_BYTES),
+            socket: limited(Router::new().fallback(socket), 0),
+            s3: services.s3.clone().map(s3::router),
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Route {
+    Auth,
+    S3,
+    Call,
+    Posts,
+    Socket,
+}
+
+impl Route {
+    fn of(method: &Method, path: &str, s3: bool) -> Self {
+        if s3 && s3::is_s3(path) {
+            Self::S3
+        } else if path == "/auth" || path.starts_with("/auth/") {
+            Self::Auth
+        } else if method == Method::POST && path.ends_with(CALL_SUFFIX) {
+            Self::Call
+        } else if method == Method::POST && path.ends_with(PATH_SUFFIX) {
+            Self::Posts
+        } else {
+            Self::Socket
+        }
+    }
+}
+
+/// Serves one accepted connection until it closes, idles out, becomes a websocket, or is let go
+/// of to make room for a newer one while it is not signed in.
+pub(crate) async fn serve(
+    stream: TcpStream,
+    peer: SocketAddr,
+    admitted: Admitted,
+    routes: Routes,
+    services: Services,
+) -> Result<(), ServerError> {
+    let Admitted {
+        place,
+        anonymous,
+        eviction,
+        slot,
+    } = admitted;
+    let link = Arc::new(Link {
+        peer,
+        eviction: Arc::clone(&eviction),
+        places: std::sync::Mutex::new(Places {
+            place,
+            anonymous,
+            signed_in: false,
+        }),
+        slot: Arc::new(slot),
+        requested: Notify::new(),
+    });
+    let service = {
+        let link = Arc::clone(&link);
+        hyper::service::service_fn(move |request| {
+            let (link, routes, services) = (Arc::clone(&link), routes.clone(), services.clone());
+            async move { Ok::<_, Infallible>(front(request, link, &routes, &services).await) }
+        })
+    };
+    // hyper's head timeout covers every head, the first and those after one is answered; the
+    // first must also arrive within `HANDSHAKE_TIMEOUT`.
+    let connection = hyper::server::conn::http1::Builder::new()
+        .timer(TokioTimer::new())
+        .header_read_timeout(IDLE_TIMEOUT)
+        .max_header_size(MAX_HEAD_BYTES)
+        .max_headers(MAX_HEADERS)
+        .title_case_headers(true)
+        .serve_connection(TokioIo::new(stream), service)
+        .with_upgrades();
+    let first = async {
+        tokio::select! {
+            () = link.requested.notified() => std::future::pending().await,
+            () = tokio::time::sleep(HANDSHAKE_TIMEOUT) => {}
+        }
+    };
+    tokio::select! {
+        served = connection => served.map_err(|error| ServerError::Socket(error.to_string())),
+        () = first => Err(ServerError::Socket("the request never finished its head".into())),
+        () = eviction.wait() => Ok(()),
+    }
+}
+
+/// Counts a request against its client's places, as the accept loop counts a connection, and
+/// hands it to its route.
+async fn front(
+    request: http::Request<hyper::body::Incoming>,
+    link: Arc<Link>,
+    routes: &Routes,
+    services: &Services,
+) -> Response {
+    link.requested.notify_one();
+    // hyper reads every length and refuses one that leaves doubt; a proxy in front that framed a
+    // body by its Transfer-Encoding otherwise than hyper could smuggle a request in it, so none
+    // is taken.
+    if request.headers().contains_key(header::TRANSFER_ENCODING) {
+        return closing(refuse(
+            StatusCode::BAD_REQUEST,
+            "a request has no Transfer-Encoding; send a Content-Length",
+        ));
+    }
+    let client = services.client_address(
+        link.peer.ip(),
+        text(request.headers(), "x-forwarded-for"),
+    );
+    let route = Route::of(request.method(), request.uri().path(), routes.s3.is_some());
+    {
+        let mut places = link.places.lock().unwrap();
+        // A proxy speaks for many clients: its connection takes its places for the address its
+        // first request forwards.
+        if places.place.is_none() {
+            places.place = services.addresses.take(client);
+        }
+        let admitted = places.place.is_some()
+            && match route {
+                // An S3 request carries its own signature, which s3s checks, so it is not one of
+                // the connections waiting to sign in: a client moves many objects at once.
+                Route::S3 => {
+                    places.anonymous = None;
+                    true
+                }
+                _ if places.anonymous.is_some() || places.signed_in => true,
+                _ => {
+                    places.anonymous = services.unsigned.admit(client, &link.eviction);
+                    places.anonymous.is_some()
+                }
+            };
+        if !admitted {
+            tracing::debug!(%client, "refusing a request: its address holds too many connections");
+            return closing(refuse(
+                StatusCode::TOO_MANY_REQUESTS,
+                "too many connections from this address",
+            ));
+        }
+    }
+    let mut request = request.map(Body::new);
+    request.extensions_mut().insert(Admission { client, link });
+    let router = match route {
+        Route::Auth => &routes.auth,
+        Route::S3 => routes.s3.as_ref().expect("only routed with an S3 endpoint"),
+        Route::Call => &routes.call,
+        Route::Posts => &routes.posts,
+        Route::Socket => &routes.socket,
+    };
+    match router.clone().oneshot(request).await {
+        Ok(response) => response,
+        Err(infallible) => match infallible {},
+    }
+}
+
+/// A header's value as text, trimmed, if it is UTF-8.
+fn text<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
+    std::str::from_utf8(headers.get(name)?.as_bytes())
+        .ok()
+        .map(str::trim)
+}
+
+/// A plain-text refusal that says why.
+fn refuse(status: StatusCode, message: &str) -> Response {
+    (
+        status,
+        [
+            (header::CONTENT_TYPE, "text/plain; charset=utf-8"),
+            (header::CACHE_CONTROL, "no-store"),
+        ],
+        message.to_owned(),
+    )
+        .into_response()
+}
+
+/// `response`, after which the connection closes.
+fn closing(mut response: Response) -> Response {
+    response
+        .headers_mut()
+        .insert(header::CONNECTION, HeaderValue::from_static("close"));
+    response
+}
+
+/// The answer to a request whose handling failed: a refusal says why, anything else only that
+/// it failed.
+fn failed(error: ServerError) -> Response {
+    match error {
+        ServerError::Refused(_, message) => refuse(StatusCode::BAD_REQUEST, &message),
+        error => {
+            tracing::debug!(%error, "a request failed");
+            refuse(StatusCode::INTERNAL_SERVER_ERROR, "the request failed")
+        }
+    }
+}
+
+/// A body read whole, within `within` if given; its route's layers cap its size and how long
+/// it may stall.
+async fn read(body: Body, within: Option<Duration>) -> Result<Bytes, Response> {
+    let read = axum::body::to_bytes(body, usize::MAX);
+    let read = match within {
+        Some(within) => tokio::time::timeout(within, read)
+            .await
+            .unwrap_or_else(|_| Err(axum::Error::new("the body timed out"))),
+        None => read.await,
+    };
+    read.map_err(|error| {
+        tracing::debug!(%error, "a request body did not arrive");
+        closing(refuse(
+            StatusCode::BAD_REQUEST,
+            "the request body did not arrive",
+        ))
+    })
+}
+
+/// Upgrades a request to a websocket, which serves the protocol (`serve_socket`) once the
+/// answer is sent, holding the connection's places.
+async fn socket(
+    State(services): State<Services>,
+    Extension(Admission { client, link }): Extension<Admission>,
+    mut request: Request,
+) -> Response {
+    let headers = request.headers();
+    let has = |name: header::HeaderName, token: &str| {
+        headers.get_all(name).iter().any(|value| {
+            value.to_str().is_ok_and(|value| {
+                value
+                    .split(',')
+                    .any(|part| part.trim().eq_ignore_ascii_case(token))
+            })
+        })
+    };
+    let key = headers.get(header::SEC_WEBSOCKET_KEY).cloned();
+    let (Some(key), true, true, true, true) = (
+        key,
+        request.method() == Method::GET,
+        has(header::CONNECTION, "upgrade"),
+        has(header::UPGRADE, "websocket"),
+        has(header::SEC_WEBSOCKET_VERSION, "13"),
+    ) else {
+        return closing(refuse(
+            StatusCode::BAD_REQUEST,
+            "connect with a websocket, or post to …/http or …/call",
+        ));
+    };
+    let authorization = text(headers, "authorization").map(str::to_owned);
+    let (place, anonymous) = {
+        let mut places = link.places.lock().unwrap();
+        let anonymous = places
+            .anonymous
+            .take()
+            .or_else(|| services.unsigned.admit(client, &link.eviction));
+        (places.place.take(), anonymous)
+    };
+    let (Some(place), Some(anonymous)) = (place, anonymous) else {
+        return closing(refuse(
+            StatusCode::TOO_MANY_REQUESTS,
+            "too many connections from this address",
+        ));
+    };
+    let upgrade = hyper::upgrade::on(&mut request);
+    let (eviction, slot) = (Arc::clone(&link.eviction), Arc::clone(&link.slot));
+    tokio::spawn(async move {
+        let _held = (place, slot);
+        let upgraded = tokio::select! {
+            upgraded = tokio::time::timeout(HANDSHAKE_TIMEOUT, upgrade) => upgraded,
+            () = eviction.wait() => return,
+        };
+        let Ok(Ok(upgraded)) = upgraded else {
+            tracing::debug!(%client, "a websocket upgrade never finished");
+            return;
+        };
+        let (stream, heard) = Watched::new(TokioIo::new(upgraded));
+        let socket = WebSocketStream::from_raw_socket(
+            stream,
+            Role::Server,
+            Some(WebSocketConfig {
+                max_frame_size: Some(MAX_FRAME_BYTES),
+                max_message_size: Some(MAX_FRAME_BYTES),
+                ..WebSocketConfig::default()
+            }),
+        )
+        .await;
+        tracing::debug!(%client, "connected");
+        let served = crate::serve_socket(
+            socket,
+            &heard,
+            &services,
+            client,
+            authorization,
+            (anonymous, eviction),
+        )
+        .await;
+        if let Err(error) = served {
+            tracing::debug!(%client, %error, "a websocket ended with an error");
+        }
+    });
+    (
+        StatusCode::SWITCHING_PROTOCOLS,
+        [
+            (header::UPGRADE, HeaderValue::from_static("websocket")),
+            (header::CONNECTION, HeaderValue::from_static("Upgrade")),
+            (
+                header::SEC_WEBSOCKET_ACCEPT,
+                HeaderValue::from_str(&derive_accept_key(key.as_bytes()))
+                    .expect("an accept key is base64"),
+            ),
+        ],
+    )
+        .into_response()
+}
+
+/// Serves a post of the long-poll fallback. Its connection counts as not signed in, and can be
+/// let go of for a newer one, until a post it carries is for a session that is signed in.
+async fn posts(
+    State(services): State<Services>,
+    Extension(Admission { client, link }): Extension<Admission>,
+    headers: HeaderMap,
+    body: Body,
+) -> Response {
+    let body = match read(body, None).await {
+        Ok(body) => body,
+        Err(refused) => return refused,
+    };
+    let answer = answer(
+        text(&headers, SESSION_HEADER.as_str()),
+        text(&headers, "authorization"),
+        client,
+        body,
+        &services,
+    )
+    .await;
+    match answer {
+        Ok(answer) => {
+            if answer.signed_in {
+                let mut places = link.places.lock().unwrap();
+                places.anonymous = None;
+                places.signed_in = true;
+            }
+            answer.into_response()
+        }
+        Err(error) => closing(failed(error)),
+    }
+}
+
 /// HTTP sessions open at once on the whole server, and for one client address.
 const MAX_HTTP_SESSIONS: usize = 1024;
 pub(crate) const MAX_HTTP_SESSIONS_PER_ADDRESS: usize = 32;
@@ -177,302 +606,6 @@ impl Sessions {
     }
 }
 
-/// A request that asks for a websocket, with what the socket needs from its head.
-pub(crate) struct Upgrade {
-    pub(crate) stream: Prefixed,
-    pub(crate) client: IpAddr,
-    pub(crate) authorization: Option<String>,
-    /// The connection's place among its address's, held while it is open.
-    pub(crate) place: Held,
-    /// Its place among the connections not signed in, held until it signs in.
-    pub(crate) anonymous: Anonymous,
-}
-
-/// Reads a request's head and serves it, or hands back a websocket upgrade. `place` is the
-/// connection's place among its peer's; a trusted proxy's connection has none yet and takes
-/// one for the address it forwards.
-pub(crate) async fn route(
-    mut stream: TcpStream,
-    peer: SocketAddr,
-    admitted: Admitted,
-    services: &Services,
-) -> Result<Option<Upgrade>, ServerError> {
-    let Admitted {
-        place,
-        anonymous,
-        eviction,
-    } = admitted;
-    let mut buffer = Vec::new();
-    let read = tokio::time::timeout(HANDSHAKE_TIMEOUT, read_head(&mut stream, &mut buffer))
-        .await
-        .map_err(|_| ServerError::Socket("the request never finished its head".into()))??;
-    if !read {
-        return Ok(None);
-    }
-    let head = match Head::parse(&buffer) {
-        Ok(head) => head,
-        Err(error) => {
-            refuse_head(&mut stream, error).await?;
-            return Ok(None);
-        }
-    };
-    let client = services.client_address(peer.ip(), head.forwarded.as_deref());
-    let Some(place) = place.or_else(|| services.addresses.take(client)) else {
-        tracing::debug!(%client, "refusing a request: its address holds too many connections");
-        refuse(&mut stream, 429, "too many connections from this address").await?;
-        return Ok(None);
-    };
-    let path = head.path.split('?').next().unwrap_or_default();
-    // An S3 request carries its own signature, which s3s checks, so it is not one of the
-    // connections waiting to sign in: a client moves many objects at once.
-    if let Some(service) = &services.s3
-        && s3::is_s3(path)
-    {
-        drop(anonymous);
-        s3::serve(stream, buffer, service).await?;
-        drop(place);
-        return Ok(None);
-    }
-    let Some(anonymous) = anonymous.or_else(|| services.unsigned.admit(client, &eviction)) else {
-        tracing::debug!(%client, "refusing a request: its address holds too many connections");
-        refuse(&mut stream, 429, "too many connections from this address").await?;
-        return Ok(None);
-    };
-    if head
-        .path
-        .split('?')
-        .next()
-        .is_some_and(|path| path == "/auth" || path.starts_with("/auth/"))
-    {
-        serve_auth(stream, buffer, client, services).await?;
-        return Ok(None);
-    }
-    if head.method == "POST" && path.ends_with(CALL_SUFFIX) {
-        one_shot(stream, buffer, client, (anonymous, eviction), services).await?;
-        return Ok(None);
-    }
-    if head.method == "POST" && path.ends_with(PATH_SUFFIX) {
-        serve(stream, peer, buffer, anonymous, services).await?;
-        return Ok(None);
-    }
-    Ok(Some(Upgrade {
-        stream: Prefixed {
-            prefix: buffer,
-            position: 0,
-            stream,
-        },
-        client,
-        authorization: head.authorization,
-        place,
-        anonymous,
-    }))
-}
-
-async fn serve_auth(
-    mut stream: TcpStream,
-    mut buffer: Vec<u8>,
-    client: IpAddr,
-    services: &Services,
-) -> Result<(), ServerError> {
-    let head = Head::parse(&buffer)?;
-    if head.length > MAX_FORM_BYTES {
-        return refuse(&mut stream, 413, "the form is too large").await;
-    }
-    let host = head.host.as_deref().unwrap_or_default();
-    let local = host == "localhost"
-        || host.starts_with("localhost:")
-        || host == "127.0.0.1"
-        || host.starts_with("127.0.0.1:")
-        || host == "[::1]"
-        || host.starts_with("[::1]:");
-    let origin = services
-        .config
-        .auth_origin
-        .clone()
-        .unwrap_or_else(|| format!("{}://{host}", if local { "http" } else { "https" }));
-    if !local && services.config.auth_origin.is_none() {
-        return refuse(
-            &mut stream,
-            503,
-            "The server operator must configure --auth-origin before using the account portal.",
-        )
-        .await;
-    }
-    let (path, query) = head.path.split_once('?').unwrap_or((&head.path, ""));
-    if head.method == "GET"
-        && let Some(asset) = services
-            .portal
-            .as_ref()
-            .and_then(|served| served.asset(path))
-    {
-        let head = format!(
-            "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nCache-Control: public, max-age=31536000, immutable\r\nCross-Origin-Resource-Policy: same-origin\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\nContent-Length: {}\r\n\r\n",
-            asset.content_type,
-            asset.bytes.len()
-        );
-        stream.write_all(head.as_bytes()).await?;
-        stream.write_all(asset.bytes).await?;
-        stream.shutdown().await?;
-        return Ok(());
-    }
-    let query = crate::browser_auth::fields(query);
-    let mut fields = HashMap::new();
-    if head.method == "POST" {
-        if head.origin.as_deref() != Some(origin.as_str()) {
-            return refuse(
-                &mut stream,
-                403,
-                "submit this form from the server's account portal",
-            )
-            .await;
-        }
-        if head
-            .content_type
-            .as_deref()
-            .and_then(|value| value.split(';').next())
-            != Some("application/x-www-form-urlencoded")
-        {
-            return refuse(&mut stream, 415, "use the account portal's form").await;
-        }
-        let mut body = buffer.split_off(head.size);
-        tokio::time::timeout(
-            HANDSHAKE_TIMEOUT,
-            read_body(&mut stream, &mut body, head.length),
-        )
-        .await
-        .map_err(|_| ServerError::Socket("the form timed out".into()))??
-        .then_some(())
-        .ok_or_else(|| ServerError::Socket("incomplete form".into()))?;
-        fields = crate::browser_auth::fields(
-            std::str::from_utf8(&body[..head.length]).unwrap_or_default(),
-        );
-    }
-    let cookies = PortalCookies::for_origin(&origin);
-    let cookie = |name: &str| {
-        head.cookie
-            .as_deref()
-            .unwrap_or_default()
-            .split(';')
-            .filter_map(|part| part.trim().split_once('='))
-            .find(|(key, _)| *key == name)
-            .map(|(_, value)| value)
-            .unwrap_or_default()
-    };
-    let token = cookie(&cookies.name(ACCOUNT_COOKIE));
-    let attempt = cookie(&cookies.name(ATTEMPT_COOKIE));
-    let result = crate::portal::handle(
-        services,
-        &head.method,
-        path,
-        &query,
-        &fields,
-        token,
-        attempt,
-        &origin,
-        client,
-    )
-    .await?;
-    let mut extras = String::new();
-    if let Some(location) = result.location {
-        extras.push_str(&format!("Location: {location}\r\n"));
-    }
-    if let Some(cookie) = result.cookie {
-        let lifetime = if cookie.is_empty() { 0 } else { 30 * 86400 };
-        extras.push_str(&cookies.set(ACCOUNT_COOKIE, &cookie, lifetime));
-    }
-    if let Some(attempt) = result.attempt {
-        let lifetime = match attempt.is_empty() {
-            true => 0,
-            false => crate::store::codes::CODE_LIFETIME,
-        };
-        extras.push_str(&cookies.set(ATTEMPT_COOKIE, &attempt, lifetime));
-    }
-    let (content_type, body, page_headers) = match result.body {
-        crate::portal::Body::Html(html) => (
-            "text/html; charset=utf-8",
-            html,
-            format!(
-                "Content-Security-Policy: {}\r\nCross-Origin-Opener-Policy: same-origin\r\nCross-Origin-Embedder-Policy: require-corp\r\n",
-                services
-                    .portal
-                    .as_ref()
-                    .map(|served| served.policy.as_str())
-                    .unwrap_or_default()
-            ),
-        ),
-        crate::portal::Body::Json(json) => (
-            "application/json",
-            json,
-            "Content-Security-Policy: default-src 'none'; frame-ancestors 'none'\r\n".to_owned(),
-        ),
-    };
-    let status = result.status;
-    let response = format!(
-        "HTTP/1.1 {status} Response\r\n{extras}Content-Type: {content_type}\r\nCache-Control: no-store\r\n{page_headers}X-Content-Type-Options: nosniff\r\nReferrer-Policy: strict-origin\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{body}",
-        body.len()
-    );
-    stream.write_all(response.as_bytes()).await?;
-    stream.shutdown().await?;
-    Ok(())
-}
-
-/// Serves the posts of one connection. It counts as not signed in, and can be let go of for a
-/// newer one, until a post it carries is for a session that is signed in.
-async fn serve(
-    mut stream: TcpStream,
-    peer: SocketAddr,
-    mut buffer: Vec<u8>,
-    anonymous: Anonymous,
-    services: &Services,
-) -> Result<(), ServerError> {
-    let mut anonymous = Some(anonymous);
-    loop {
-        let head = match Head::parse(&buffer) {
-            Ok(head) => head,
-            Err(error) => return refuse_head(&mut stream, error).await,
-        };
-        if head.length > MAX_BODY_BYTES {
-            return refuse(&mut stream, 413, "the frame is too large").await;
-        }
-        let mut body = buffer.split_off(head.size);
-        if !read_body(&mut stream, &mut body, head.length).await? {
-            return Ok(());
-        }
-        buffer = body.split_off(head.length);
-        // A proxy's connection carries many clients' requests, so each request is counted by
-        // the address its own head forwards.
-        let client = services.client_address(peer.ip(), head.forwarded.as_deref());
-        let answer = answer(
-            head.session.as_deref(),
-            head.authorization.as_deref(),
-            client,
-            body,
-            services,
-        )
-        .await?;
-        if answer.signed_in {
-            drop(anonymous.take());
-        }
-        respond(
-            &mut stream,
-            answer.status,
-            answer.session.as_deref(),
-            answer.more,
-            "application/octet-stream",
-            &answer.body,
-        )
-        .await?;
-        if head.close || !answer.keep {
-            return Ok(());
-        }
-        match tokio::time::timeout(IDLE_TIMEOUT, read_head(&mut stream, &mut buffer)).await {
-            Ok(Ok(true)) => {}
-            Ok(Err(error)) => return Err(error),
-            Ok(Ok(false)) | Err(_) => return Ok(()),
-        }
-    }
-}
-
 struct Answer {
     status: u16,
     session: Option<String>,
@@ -500,7 +633,7 @@ async fn answer(
     session: Option<&str>,
     authorization: Option<&str>,
     address: IpAddr,
-    body: Vec<u8>,
+    body: Bytes,
     services: &Services,
 ) -> Result<Answer, ServerError> {
     let Some(frames) = unframed(&body) else {
@@ -681,105 +814,87 @@ async fn open_session(
     }
 }
 
-/// The portal's session cookie and its code attempt's (`codes.rs`).
-pub(crate) const ACCOUNT_COOKIE: &str = "be3-account";
-pub(crate) const ATTEMPT_COOKIE: &str = "be3-attempt";
-
-/// How the portal names and scopes its cookies at its origin. Over HTTPS each is a `__Host-`
-/// cookie (Secure, `Path=/`, no `Domain`), which a sibling subdomain can neither set nor
-/// shadow. Plain HTTP, only for a server on this machine, can't set `__Host-` (it needs
-/// Secure), so there the bare name is scoped to `/auth`: nothing else at that origin to shadow
-/// it.
-pub(crate) struct PortalCookies {
-    secure: bool,
-}
-
-impl PortalCookies {
-    pub(crate) fn for_origin(origin: &str) -> Self {
-        Self {
-            secure: origin.starts_with("https://"),
-        }
-    }
-
-    pub(crate) fn name(&self, base: &str) -> String {
-        match self.secure {
-            true => format!("__Host-{base}"),
-            false => base.to_owned(),
-        }
-    }
-
-    /// The `Set-Cookie` header line that sets `base` to `value` for `max_age` seconds (0 ends
-    /// it).
-    fn set(&self, base: &str, value: &str, max_age: i64) -> String {
-        let (path, secure) = match self.secure {
-            true => ("/", "; Secure"),
-            false => ("/auth", ""),
-        };
-        format!(
-            "Set-Cookie: {}={value}; Path={path}; HttpOnly; SameSite=Lax; Max-Age={max_age}{secure}\r\n",
-            self.name(base)
+impl IntoResponse for Answer {
+    fn into_response(self) -> Response {
+        let status = StatusCode::from_u16(self.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+        let mut response = (
+            status,
+            [
+                (header::CONTENT_TYPE, "application/octet-stream"),
+                (header::CACHE_CONTROL, "no-store"),
+            ],
+            self.body,
         )
+            .into_response();
+        let headers = response.headers_mut();
+        if let Some(session) = self.session.and_then(|session| session.parse().ok()) {
+            headers.insert(SESSION_HEADER, session);
+        }
+        if self.more {
+            headers.insert(MORE_HEADER, HeaderValue::from_static("1"));
+        }
+        match self.keep {
+            true => response,
+            false => closing(response),
+        }
     }
 }
 
-/// Answers one call that needs no sign-in (`device-login`,
-/// and `query.invitation`) posted after a
-/// greeting, then closes: signing in through the browser holds no connection while the person
+/// Answers one call that needs no sign-in (`device-login`, and `query.invitation`) posted after
+/// a greeting, then closes: signing in through the browser holds no connection while the person
 /// approves it, and an invitation is read before its holder has an account.
-async fn one_shot(
-    mut stream: TcpStream,
-    mut buffer: Vec<u8>,
-    address: IpAddr,
-    anonymous: (Anonymous, Arc<Eviction>),
-    services: &Services,
-) -> Result<(), ServerError> {
-    let head = Head::parse(&buffer)?;
-    if head.length > MAX_CALL_BYTES {
-        return refuse(&mut stream, 413, "a one-shot call is short").await;
-    }
+async fn call(
+    State(services): State<Services>,
+    Extension(Admission { client, link }): Extension<Admission>,
+    body: Body,
+) -> Response {
+    // Held until the call is answered: a one-shot call is never signed in.
+    let anonymous = link.places.lock().unwrap().anonymous.take();
+    let answered = one_shot(body, client, &services).await;
+    drop(anonymous);
+    closing(answered.unwrap_or_else(failed))
+}
+
+async fn one_shot(body: Body, address: IpAddr, services: &Services) -> Result<Response, ServerError> {
     if !services.calls.allow(address) {
-        return refuse(
-            &mut stream,
-            429,
+        return Ok(refuse(
+            StatusCode::TOO_MANY_REQUESTS,
             "too many calls from this address; wait a minute",
-        )
-        .await;
+        ));
     }
-    let mut body = buffer.split_off(head.size);
-    let read = tokio::time::timeout(
-        HANDSHAKE_TIMEOUT,
-        read_body(&mut stream, &mut body, head.length),
-    )
-    .await
-    .map_err(|_| ServerError::Socket("the call timed out".into()))??;
-    if !read {
-        return Ok(());
-    }
+    let body = match read(body, Some(HANDSHAKE_TIMEOUT)).await {
+        Ok(body) => body,
+        Err(refused) => return Ok(refused),
+    };
+    let refused = || {
+        Ok(refuse(
+            StatusCode::BAD_REQUEST,
+            "post a greeting and one call",
+        ))
+    };
     let Some([greeting_frame, call]) =
-        unframed(&body[..head.length]).and_then(|frames| <[&[u8]; 2]>::try_from(frames).ok())
+        unframed(&body).and_then(|frames| <[&[u8]; 2]>::try_from(frames).ok())
     else {
-        return refuse(&mut stream, 400, "post a greeting and one call").await;
+        return refused();
     };
     let (ours, greeting) = greeting(read_hello(greeting_frame).as_ref())?;
     let ours = hello(ours, &());
     if greeting.is_none() {
-        return respond_once(&mut stream, framed(&[ours])).await;
+        return Ok(framed_answer(&[ours]));
     }
     let method = match be_wasm_ops::decode_frame::<be_wasm_ops::Frame>(call) {
         Ok(be_wasm_ops::Frame::Start { method, .. }) => method,
-        _ => return refuse(&mut stream, 400, "post a greeting and one call").await,
+        _ => return refused(),
     };
     // Signing in through the browser, and reading an invitation (`query.invitation`), which
     // `client::query_rule` lets anyone make: any other read is refused as not signed in.
     let allowed = method == be_block_protocol::__args::SERVER_DEVICE_LOGIN
         || method == be_block_protocol::__args::SERVER_READ;
     if !allowed {
-        return refuse(
-            &mut stream,
-            403,
+        return Ok(refuse(
+            StatusCode::FORBIDDEN,
             "only signing in and reading an invitation are one-shot calls; connect with a token for the rest",
-        )
-        .await;
+        ));
     }
     let (sending, mut answered) = mpsc::unbounded_channel();
     let mut client = Client::open(services, address, move |frame| {
@@ -788,20 +903,24 @@ async fn one_shot(
     .await;
     let carried = client.receive(call).await;
     client.close().await;
-    // Held until the call is answered: a one-shot call is never signed in.
-    drop(anonymous);
     carried?;
     let mut frames = vec![ours];
     while let Ok(frame) = answered.try_recv() {
         frames.push(frame);
     }
-    respond_once(&mut stream, framed(&frames)).await
+    Ok(framed_answer(&frames))
 }
 
-async fn respond_once(stream: &mut TcpStream, body: Vec<u8>) -> Result<(), ServerError> {
-    respond(stream, 200, None, false, "application/octet-stream", &body).await?;
-    stream.shutdown().await?;
-    Ok(())
+fn framed_answer(frames: &[Vec<u8>]) -> Response {
+    Answer {
+        status: 200,
+        session: None,
+        body: framed(frames),
+        keep: false,
+        more: false,
+        signed_in: false,
+    }
+    .into_response()
 }
 
 async fn catch_up(client: &mut Client) -> Result<(), ServerError> {
@@ -832,229 +951,4 @@ fn framed(frames: &[Vec<u8>]) -> Vec<u8> {
         body.extend_from_slice(frame);
     }
     body
-}
-
-/// Answers a head [`Head::parse`] refused with a 400 that says why.
-async fn refuse_head(stream: &mut TcpStream, error: ServerError) -> Result<(), ServerError> {
-    let message = match error {
-        ServerError::Socket(message) => message,
-        other => other.to_string(),
-    };
-    refuse(stream, 400, &message).await
-}
-
-async fn refuse(stream: &mut TcpStream, status: u16, message: &str) -> Result<(), ServerError> {
-    respond(
-        stream,
-        status,
-        None,
-        false,
-        "text/plain; charset=utf-8",
-        message.as_bytes(),
-    )
-    .await
-}
-
-async fn respond(
-    stream: &mut TcpStream,
-    status: u16,
-    session: Option<&str>,
-    more: bool,
-    content_type: &str,
-    body: &[u8],
-) -> Result<(), ServerError> {
-    let reason = match status {
-        200 => "OK",
-        400 => "Bad Request",
-        401 => "Unauthorized",
-        403 => "Forbidden",
-        404 => "Not Found",
-        413 => "Payload Too Large",
-        415 => "Unsupported Media Type",
-        429 => "Too Many Requests",
-        503 => "Service Unavailable",
-        _ => "Error",
-    };
-    let mut head = format!(
-        "HTTP/1.1 {status} {reason}\r\nContent-Type: {content_type}\r\nCache-Control: no-store\r\nContent-Length: {}\r\n",
-        body.len()
-    );
-    if let Some(session) = session {
-        head.push_str(&format!("{SESSION_HEADER}: {session}\r\n"));
-    }
-    if more {
-        head.push_str(&format!("{MORE_HEADER}: 1\r\n"));
-    }
-    head.push_str("\r\n");
-    stream.write_all(head.as_bytes()).await?;
-    stream.write_all(body).await?;
-    stream.flush().await?;
-    Ok(())
-}
-
-/// Reads until `body` holds `length` bytes, growing it only as bytes arrive and giving up when
-/// none arrive for `BODY_READ_TIMEOUT`; false if the peer closed first.
-async fn read_body(
-    stream: &mut TcpStream,
-    body: &mut Vec<u8>,
-    length: usize,
-) -> Result<bool, ServerError> {
-    let mut chunk = vec![0; READ_CHUNK_BYTES.min(length.saturating_sub(body.len()))];
-    while body.len() < length {
-        let wanted = chunk.len().min(length - body.len());
-        let read = tokio::time::timeout(BODY_READ_TIMEOUT, stream.read(&mut chunk[..wanted]))
-            .await
-            .map_err(|_| ServerError::Socket("the request body stalled".into()))??;
-        if read == 0 {
-            return Ok(false);
-        }
-        body.extend_from_slice(&chunk[..read]);
-    }
-    Ok(true)
-}
-
-async fn read_head(stream: &mut TcpStream, buffer: &mut Vec<u8>) -> Result<bool, ServerError> {
-    let mut chunk = [0u8; 4096];
-    while !buffer.windows(4).any(|window| window == b"\r\n\r\n") {
-        if buffer.len() > MAX_HEAD_BYTES {
-            return Err(ServerError::Socket("the request head is too long".into()));
-        }
-        let read = stream.read(&mut chunk).await?;
-        if read == 0 {
-            return Ok(false);
-        }
-        buffer.extend_from_slice(&chunk[..read]);
-    }
-    Ok(true)
-}
-
-struct Head {
-    method: String,
-    path: String,
-    size: usize,
-    length: usize,
-    session: Option<String>,
-    close: bool,
-    authorization: Option<String>,
-    origin: Option<String>,
-    host: Option<String>,
-    cookie: Option<String>,
-    content_type: Option<String>,
-    forwarded: Option<String>,
-}
-
-/// A Content-Length's value: ASCII digits alone, with only ASCII whitespace around them. Rust's
-/// `parse` would also take a `+`, and `str::trim` Unicode spaces, which no proxy in front reads as
-/// a length, so it would frame the body otherwise and could smuggle a request inside it.
-pub(crate) fn content_length(value: &[u8]) -> Option<usize> {
-    let digits = value.trim_ascii();
-    if digits.is_empty() || !digits.iter().all(u8::is_ascii_digit) {
-        return None;
-    }
-    std::str::from_utf8(digits).ok()?.parse().ok()
-}
-
-impl Head {
-    fn parse(buffer: &[u8]) -> Result<Self, ServerError> {
-        let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
-        let mut request = httparse::Request::new(&mut headers);
-        let size = match request.parse(buffer) {
-            Ok(httparse::Status::Complete(size)) => size,
-            _ => return Err(ServerError::Socket("the request head is malformed".into())),
-        };
-        let header = |name: &str| {
-            request
-                .headers
-                .iter()
-                .find(|header| header.name.eq_ignore_ascii_case(name))
-                .and_then(|header| std::str::from_utf8(header.value).ok())
-                .map(str::trim)
-        };
-        // A proxy in front may frame the body by another of these than the server would, and
-        // smuggle a request inside it, so a request that leaves any doubt is refused.
-        let count = |name: &str| {
-            request
-                .headers
-                .iter()
-                .filter(|header| header.name.eq_ignore_ascii_case(name))
-                .count()
-        };
-        if count("transfer-encoding") > 0 {
-            return Err(ServerError::Socket(
-                "a request has no Transfer-Encoding; send a Content-Length".into(),
-            ));
-        }
-        if count("content-length") > 1 {
-            return Err(ServerError::Socket(
-                "a request has one Content-Length".into(),
-            ));
-        }
-        // Read from the raw bytes: a value that is not UTF-8 must not read as no length at all.
-        let length = match request
-            .headers
-            .iter()
-            .find(|header| header.name.eq_ignore_ascii_case("content-length"))
-        {
-            Some(header) => content_length(header.value)
-                .ok_or_else(|| ServerError::Socket("the content length is not a number".into()))?,
-            None => 0,
-        };
-        let session = header(SESSION_HEADER).map(str::to_owned);
-        let close = header("connection").is_some_and(|value| value.eq_ignore_ascii_case("close"));
-        Ok(Self {
-            method: request.method.unwrap_or_default().to_owned(),
-            path: request.path.unwrap_or_default().to_owned(),
-            size,
-            length,
-            session,
-            close,
-            authorization: header("authorization").map(str::to_owned),
-            origin: header("origin").map(str::to_owned),
-            host: header("host").map(str::to_owned),
-            cookie: header("cookie").map(str::to_owned),
-            content_type: header("content-type").map(str::to_owned),
-            forwarded: header("x-forwarded-for").map(str::to_owned),
-        })
-    }
-}
-
-pub(crate) struct Prefixed {
-    prefix: Vec<u8>,
-    position: usize,
-    stream: TcpStream,
-}
-
-impl AsyncRead for Prefixed {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        context: &mut Context<'_>,
-        buffer: &mut ReadBuf<'_>,
-    ) -> Poll<io::Result<()>> {
-        if self.position < self.prefix.len() {
-            let left = &self.prefix[self.position..];
-            let count = left.len().min(buffer.remaining());
-            buffer.put_slice(&left[..count]);
-            self.position += count;
-            return Poll::Ready(Ok(()));
-        }
-        Pin::new(&mut self.stream).poll_read(context, buffer)
-    }
-}
-
-impl AsyncWrite for Prefixed {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        context: &mut Context<'_>,
-        buffer: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut self.stream).poll_write(context, buffer)
-    }
-
-    fn poll_flush(mut self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.stream).poll_flush(context)
-    }
-
-    fn poll_shutdown(mut self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.stream).poll_shutdown(context)
-    }
 }

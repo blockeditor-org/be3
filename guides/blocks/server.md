@@ -99,7 +99,19 @@ below), and postcard frames over a websocket. Every transaction that writes
 begins with `be_block_sqlite_schema::write_transaction`, which takes the write
 lock up front, so a second connection to the database (a test or tool opening a
 `ServerStore` beside a running server) waits out `BUSY_TIMEOUT` rather than
-failing with `SQLITE_BUSY`. Where a websocket cannot get through, `POST .../http` carries the
+failing with `SQLITE_BUSY`.
+
+be-server parses no HTTP itself (decisions/be_server_serves_http_with_axum.md): the accept loop
+(`serve_with_mail`) admits each connection by its peer's address and hands it to `http::serve`,
+which serves it with hyper's HTTP/1 connection. Its `front` counts each request against its
+client's places (below, "Limits") and passes it to the route its path ends with, each an axum
+`Router` with its own body limit (`http::Routes`): `/auth…` the portal (`http/auth.rs`),
+`…/storage/objects…` the S3 endpoint, `POST …/call` a one-shot call, `POST …/http` a post of the
+long-poll fallback, and anything else a websocket upgrade, which hyper hands over once answered
+and tokio-tungstenite serves (`serve_socket`). Paths are matched by their end, since a proxy may
+mount the server below any path.
+
+Where a websocket cannot get through, `POST .../http` carries the
 same frames (`http.rs`): a post with no session carries the greeting, and
 its answer, once the greeting signs in, names a session in a
 `Be3-Session` header, and each later post carries queued client frames and is
@@ -134,7 +146,7 @@ address it listens on), `S3Endpoint::transfers`. A URL lasts
 `upload_grace`.
 
 With no bucket, be-server answers S3 requests itself at `.../storage/objects/HASH` (`s3.rs`, served
-by `http/s3.rs` through the `s3s` crate; with a bucket it serves none): path-style, one bucket `objects`,
+by `http/s3.rs`, s3s's own tower service behind the CORS headers browsers need; with a bucket it serves none): path-style, one bucket `objects`,
 keys the object's hash in lowercase hex, whatever path the proxy puts in
 front (`OneBucket` gives s3s the bucket, so signatures cover the full path;
 s3s still checks the first path segment is a valid bucket name, so the mount,
@@ -310,13 +322,24 @@ counts and records nothing: `reserve-uploads` did before it signed.
     `FORMS_PER_NETWORK`, the server `LIMIT`, and another lets go of the
     oldest of whichever is full instead of being refused, so one network
     never pushes out everyone else's.
-  - A request head with a `Transfer-Encoding`, more than one
-    `Content-Length`, or one that is anything but ASCII digits (with only
-    ASCII spaces around them) is refused with a 400
-    (`Head::parse`), so a proxy in front never frames a body otherwise than
-    the server and smuggles a request inside it.
-  - Request bodies grow only as their bytes arrive and stall out after
-    `BODY_READ_TIMEOUT`. A websocket is idle only after `IDLE_TIMEOUT` with no
+  - Places are taken before a request's body is read: a connection's by its
+    peer in the accept loop, a trusted proxy's by the address its first
+    request forwards, in `http::front`, which also admits a request that is
+    not signed in among `Unsigned` (an S3 request, signed by its URL, is not
+    counted there). A connection that is let go of to make room closes.
+  - hyper parses every head: one with more than `MAX_HEADERS` headers or
+    `MAX_HEAD_BYTES`, two differing `Content-Length`s, or a length that is
+    anything but ASCII digits is refused with a 400 (or 431), and `front`
+    refuses any `Transfer-Encoding`, so a proxy in front never frames a body
+    otherwise than the server and smuggles a request inside it. The first
+    head must arrive within `HANDSHAKE_TIMEOUT`, each later one within
+    `IDLE_TIMEOUT` (hyper's `header_read_timeout`).
+  - Each route caps its body (`tower_http::limit`, refused with a 413 before
+    it is read when its `Content-Length` is larger): `MAX_CALL_BYTES`,
+    `auth::MAX_FORM_BYTES`, `MAX_BODY_BYTES` for a post, `MAX_OBJECT_BYTES`
+    for an object. Bodies grow only as their bytes arrive and stall out after
+    `BODY_READ_TIMEOUT` (`tower_http::timeout`); a call's or a form's must
+    arrive whole within `HANDSHAKE_TIMEOUT`. A websocket is idle only after `IDLE_TIMEOUT` with no
     bytes read at all (`next_heard`), so a large message on a slow link is
     not cut off however long it takes.
 
@@ -968,7 +991,7 @@ needs code of its own for any method.
 - **Cookies.** Over HTTPS the portal's are `__Host-be3-account` and
   `__Host-be3-attempt` (Secure, `Path=/`, so no sibling subdomain can set or
   shadow them); over plain HTTP, which only a server on this machine serves,
-  the bare names scoped to `/auth` (`http::PortalCookies`).
+  the bare names scoped to `/auth` (`http::auth::PortalCookies`).
 - **Secrets.** Every token, cookie, link, form token and HTTP session id the
   server hands out is `new_secret()`, 256 bits from the operating system in
   hex; codes people type have their own alphabets. Of those in its database

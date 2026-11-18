@@ -82,7 +82,10 @@ listens on every interface.
 
 The server speaks WebSockets at `/api/be` and the same protocol over HTTP posts at
 `/api/be/http`, for clients behind proxies that refuse WebSockets; signing in through the
-browser is one-shot posts to `/api/be/call`. Caddy (`servers/api/Caddyfile`) supplies TLS at
+browser is one-shot posts to `/api/be/call`. be-server serves HTTP/1.1 only, with hyper and axum
+(decisions/be_server_serves_http_with_axum.md), and refuses a request with a `Transfer-Encoding`:
+a proxy in front speaks HTTP/1.1 to it and sends a `Content-Length`, as Caddy does. Caddy
+(`servers/api/Caddyfile`) supplies TLS at
 `api.be3.pfg.pw` and passes everything with the gateway key to the server; nothing serves
 `/build/*` (the build helper, guides/build_server.md) there now. be-host's web build is served
 by Bunny at `be3.pfg.pw`.
