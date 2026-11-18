@@ -46,10 +46,13 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   is reserved in full with guard regions and only ever grows in place
   (`engine::memories_stay_put`). That costs about 10 GiB of address space
   per memory, every guest's and worker's, so be-wasm-host turns it on only in
-  a process that can reserve 4 TiB (`ROOM`): not under an arm64 kernel built
-  with 39-bit addresses (512 GiB), as many Android and vendor kernels are.
-  Where the trap handler is off, the imports are ordinary V8 calls that ask
-  where the memory is each time, about 200 ns more a call.
+  a process that can reserve 4 TiB (`ROOM`), which it tries once as V8
+  starts (`has_room`): not under an arm64 Linux vendor kernel built with
+  39-bit addresses (512 GiB), as the PineNote's may be. Where the trap
+  handler is off, the imports are ordinary V8 calls that ask where the
+  memory is each time, about 200 ns more a call. A process that runs out of
+  address space later fails only the guest whose memory could not be
+  reserved, which does not start, with V8's allocation error.
 - **WASI.** Preview1 is implemented in Rust (`src/wasi.rs`). An app gets no
   files, arguments or environment, as `wasi.js` gives it in the browser; the
   test harness also gets arguments, environment, stdout and its preopened

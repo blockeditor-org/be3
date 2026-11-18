@@ -91,9 +91,9 @@ pub(crate) fn initialize() {
 /// The address space a process must have room to reserve before V8's trap handler is turned on.
 /// With it, every wasm32 memory, each guest's and each worker's, takes about 10 GiB of address
 /// space (its 4 GiB and guard regions), so this is room for some 400 of them. A 64-bit Linux on
-/// x86_64 has 128 TiB; an arm64 kernel built with 39-bit addresses, as many Android and vendor
-/// kernels are, has 512 GiB, which would run out after a few dozen guests, so there the memories
-/// may move and the imports are ordinary calls.
+/// x86_64 has 128 TiB; an arm64 Linux kernel built with 39-bit addresses, as vendor kernels such
+/// as the PineNote's may be, has 512 GiB, which would run out after a few dozen guests, so there
+/// the memories may move and the imports are ordinary calls. Tried once, as V8 starts.
 const ROOM: usize = 4 << 40;
 
 /// Whether the process can reserve `ROOM` of address space, tried by reserving it and letting it go.
