@@ -3234,6 +3234,7 @@ async fn invite(peer: &Peer<Store>, config: &Config) -> Result<String, ClientErr
         &be_block_client::contacts::Pinned {
             root: peer.keys().organization_root(),
             escrow: peer.keys().escrow(),
+            made: 0,
         },
     )
     .await?;
@@ -3303,7 +3304,9 @@ async fn create_agent(
                 &be_block_client::contacts::Pinned {
                     root: peer.keys().organization_root(),
                     escrow: peer.keys().escrow(),
-                },
+                    made: 0,
+                }
+                .stamped(0),
             ),
             bound_to: bound,
             member: member,

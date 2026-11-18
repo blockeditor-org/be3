@@ -22,6 +22,7 @@ async fn an_invitation_finished_halfway_signs_its_accepter_in_on_the_next_finish
         &crate::contacts::Pinned {
             root: admin.keys().organization_root(),
             escrow: admin.keys().escrow(),
+            made: 0,
         },
     )
     .await

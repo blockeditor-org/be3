@@ -607,6 +607,7 @@ impl KeyBook {
         crate::contacts::Pinned {
             root: self.organization_root(),
             escrow: self.pinned(),
+            made: 0,
         }
     }
 
