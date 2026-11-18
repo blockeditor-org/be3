@@ -1,9 +1,9 @@
 use be_lib_ui_types::{Key, Modifiers};
-use be_sdk_root_testing::{ACCOUNTS_LAYER, ACCOUNTS_SURFACE, DIALOG_LAYER, DIALOG_SURFACE};
+use be_sdk_root_testing::{ONBOARDING_LAYER, ONBOARDING_SURFACE, DIALOG_LAYER, DIALOG_SURFACE};
 use be_lib_geometry::pos2;
 use be_lib_ui_types::input::{ImeEvent, Input};
 use be_wasm_root_api::{
-    AccountRow, BrowserSignIn, CoreCommand, CoreView, DisplayQuestion, NewAccount, SigningIn,
+    AccountRow, BrowserSignIn, CoreCommand, CoreView, CoreWait, DisplayQuestion, NewAccount, SigningIn,
 };
 
 use super::*;
@@ -11,12 +11,9 @@ use super::*;
 /// The block stack's view while it waits for an account, with `accounts`.
 fn choosing(accounts: Vec<AccountRow>) -> CoreView {
     CoreView {
-        generation: 0,
-        unsent: Vec::new(),
-        choosing_account: true,
+        waits_for: Some(CoreWait::Account),
         accounts,
-        signing_in: None,
-        account_error: None,
+        ..CoreView::default()
     }
 }
 
@@ -89,16 +86,16 @@ fn a_root_shows_its_hosts_accounts_and_adds_one_handing_over_only_what_was_typed
         &mut time,
         Vec::new(),
         "while the block stack waits for an account, the accounts show",
-        |done| layer_of(done, ACCOUNTS_LAYER).is_some(),
+        |done| layer_of(done, ONBOARDING_LAYER).is_some(),
     );
-    let layer = layer_of(&shown, ACCOUNTS_LAYER).expect("the accounts show");
+    let layer = layer_of(&shown, ONBOARDING_LAYER).expect("the accounts show");
     assert!(
         layer.input.captures && layer.input.focuses,
         "the accounts take every press and the focus"
     );
     beui_paint_snapshot::assert_painting(
         "a_root_shows_its_hosts_accounts",
-        painting_of(&mut root, &mut time, ACCOUNTS_SURFACE),
+        painting_of(&mut root, &mut time, ONBOARDING_SURFACE),
     );
 
     // Open, and the chevron beside it, open the account, back where it was or choosing.
@@ -231,7 +228,7 @@ fn a_root_shows_its_hosts_accounts_and_adds_one_handing_over_only_what_was_typed
         &mut time,
         Vec::new(),
         "closed, the dialog goes",
-        |done| layer_of(done, DIALOG_LAYER).is_none() && layer_of(done, ACCOUNTS_LAYER).is_some(),
+        |done| layer_of(done, DIALOG_LAYER).is_none() && layer_of(done, ONBOARDING_LAYER).is_some(),
     );
 
     // On this device, under a name; once added, the dialog closes by itself, stopping nothing.
@@ -267,7 +264,7 @@ fn a_root_shows_its_hosts_accounts_and_adds_one_handing_over_only_what_was_typed
 
     // Once the block stack has an account open, the accounts go.
     root.show_core(CoreView {
-        choosing_account: false,
+        waits_for: None,
         ..choosing(Vec::new())
     });
     until(
@@ -275,6 +272,6 @@ fn a_root_shows_its_hosts_accounts_and_adds_one_handing_over_only_what_was_typed
         &mut time,
         Vec::new(),
         "an account open, the accounts go",
-        |done| layer_of(done, ACCOUNTS_LAYER).is_none(),
+        |done| layer_of(done, ONBOARDING_LAYER).is_none(),
     );
 }

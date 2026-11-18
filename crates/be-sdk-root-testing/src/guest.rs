@@ -23,7 +23,8 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    AccountRow, CoreCommand, CoreView, DisplayQuestion, FrameDone, FrameRequest, HostStatistics, LockState,
+    AccountRow, CoreCommand, CoreView, CoreWait, OrganizationRow, OrganizationsListed, ProfileRow,
+    SessionRow, DisplayQuestion, FrameDone, FrameRequest, HostStatistics, LockState,
     NewAccount, Notice, PowerAction, Refusal, SavingState, ServerAccount, SetAside, StatisticRow, SyncState, UnsentEdit,
     guest::{
         exports::{frames, input, paintings},
@@ -34,10 +35,10 @@ use beui::icons::{Glyph, ICON_LOG_OUT, ICON_MOON, ICON_POWER, ICON_ROTATE_CCW, I
 use beui::native::painting::{Frame as PaintFrame, Painting, ScreenPaintings};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Align, Align2, Direction, KeyPhase, NodeId, Overflow, Pos2, Rect, TextAlign, vec2};
+use beui::{Align, Align2, Direction, Justify, KeyPhase, NodeId, Overflow, Pos2, Rect, TextAlign, vec2};
 
 use crate::{
-    ACCOUNTS_LAYER, ACCOUNTS_SURFACE, ADD_ACCOUNT_TITLE, FORGET_ACCOUNT_TITLE, SIGN_IN_TITLE,
+    ONBOARDING_LAYER, ONBOARDING_SURFACE, ORGANIZATIONS_TITLE, SESSIONS_TITLE, ADD_ACCOUNT_TITLE, FORGET_ACCOUNT_TITLE, SIGN_IN_TITLE,
     APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DISCARD_UNSENT_TITLE, OPENS_UNSENT, UNSENT_TITLE, DIALOG_ORIGIN, KEEP_DISPLAY_TITLE, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
     LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG,
     OPENS_STATISTICS, ORIGIN, RASTER, RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE,
@@ -90,9 +91,9 @@ struct Root {
     /// edits, adding an account).
     core_shown: Rc<Cell<Option<Signal<CoreView>>>>,
     /// Its accounts, while the block stack waits for the person to open or add one.
-    accounts: Rc<RefCell<Option<Accounts>>>,
+    onboarding: Rc<RefCell<Option<Onboarding>>>,
     /// The core's view its accounts show, while they show.
-    accounts_shown: Rc<Cell<Option<Signal<CoreView>>>>,
+    onboarding_shown: Rc<Cell<Option<Signal<CoreView>>>>,
     /// A dialog one of its documents asked for (the accounts' add or remove), opened with the
     /// next frame unless another dialog is open.
     wanted: Rc<RefCell<Option<Asking>>>,
@@ -169,7 +170,7 @@ enum Asking {
 }
 
 /// The root's accounts while the block stack waits for the person to open or add one.
-struct Accounts {
+struct Onboarding {
     surface: BeuiSurface,
     /// The layer focused when they took the focus, which gets it back once they go.
     had: Option<LayerId>,
@@ -213,17 +214,10 @@ impl Root {
             saving: Rc::default(),
             keep_asking: Rc::default(),
             keep_answered: Rc::default(),
-            core: Rc::new(RefCell::new(CoreView {
-                generation: 0,
-                unsent: Vec::new(),
-                choosing_account: false,
-                accounts: Vec::new(),
-                signing_in: None,
-                account_error: None,
-            })),
+            core: Rc::new(RefCell::new(CoreView::default())),
             core_shown: Rc::default(),
-            accounts: Rc::default(),
-            accounts_shown: Rc::default(),
+            onboarding: Rc::default(),
+            onboarding_shown: Rc::default(),
             wanted: Rc::default(),
             resuming: Rc::default(),
             unpresented: Rc::default(),
@@ -364,7 +358,7 @@ impl Root {
             seen = view.generation;
             *self.core.borrow_mut() = view.clone();
             if let (Some(accounts), Some(shown)) =
-                (&mut *self.accounts.borrow_mut(), self.accounts_shown.get())
+                (&mut *self.onboarding.borrow_mut(), self.onboarding_shown.get())
             {
                 let view = view.clone();
                 accounts.surface.enter(|| shown.set(view));
@@ -393,14 +387,14 @@ impl Root {
     /// Shows the accounts while the block stack waits for the person to open or add one, made
     /// when it starts waiting and gone once it stops, giving the focus back to the layer that
     /// had it.
-    fn settle_accounts(&self) -> Result<(), String> {
-        let choosing = self.core.borrow().choosing_account;
-        if choosing == self.accounts.borrow().is_some() {
+    fn settle_onboarding(&self) -> Result<(), String> {
+        let choosing = self.core.borrow().waits_for.is_some();
+        if choosing == self.onboarding.borrow().is_some() {
             return Ok(());
         }
         if !choosing {
-            self.accounts_shown.set(None);
-            let gone = self.accounts.borrow_mut().take();
+            self.onboarding_shown.set(None);
+            let gone = self.onboarding.borrow_mut().take();
             if let Some(gone) = gone {
                 let told = self.embedding.borrow_mut().focus(None, gone.had);
                 self.heard(&told);
@@ -411,13 +405,13 @@ impl Root {
             return Ok(());
         };
         let core = self.core.borrow().clone();
-        let shown = Rc::clone(&self.accounts_shown);
+        let shown = Rc::clone(&self.onboarding_shown);
         let wanted = Rc::clone(&self.wanted);
         let waker = self.waker.clone();
         let wakes = self.waker.clone();
         let surface = BeuiSurface::new(
             &beui,
-            OwnSurface::new(ACCOUNTS_SURFACE, SIZE),
+            OwnSurface::new(ONBOARDING_SURFACE, SIZE),
             1.0,
             move || waker.wake(),
             move || {
@@ -429,12 +423,12 @@ impl Root {
                 });
                 view! {
                     <Root>
-                        <AccountsCard core={core} want={want} />
+                        <Onboarding core={core} want={want} />
                     </Root>
                 }
             },
         )?;
-        *self.accounts.borrow_mut() = Some(Accounts {
+        *self.onboarding.borrow_mut() = Some(Onboarding {
             surface,
             had: None,
             focused: false,
@@ -587,7 +581,7 @@ impl Root {
         if let Some(locked) = &mut *self.lock.borrow_mut() {
             locked.surface.input(own);
         }
-        if let Some(accounts) = &mut *self.accounts.borrow_mut() {
+        if let Some(accounts) = &mut *self.onboarding.borrow_mut() {
             accounts.surface.input(own);
         }
     }
@@ -1449,6 +1443,293 @@ fn UnsentDialog(core: Signal<CoreView>, done: Callback<Closed>) -> NodeId {
     }
 }
 
+/// What the block stack waits for the person to do: the accounts, the organizations or the
+/// sessions, each splitting its own memo off the one view.
+#[component]
+fn Onboarding(core: Signal<CoreView>, want: Callback<Asking>) -> NodeId {
+    let waits = create_memo(move || core.with(|view| view.waits_for.clone()));
+    let accounts = create_memo(move || waits.get() == Some(CoreWait::Account));
+    let organizations = create_memo(move || waits.get() == Some(CoreWait::Organization));
+    let sessions = create_memo(move || waits.get() == Some(CoreWait::Session));
+    view! {
+        <Frame width=Length::FILL height=Length::FILL fill=ColorRole::Background>
+            <List spacing=Space::None>
+                <Show value={accounts}>
+                    <ListItem grow=1.0>
+                        <AccountsCard core={core} want={want} />
+                    </ListItem>
+                </Show>
+                <Show value={organizations}>
+                    <ListItem grow=1.0>
+                        <OrganizationsCard core={core} />
+                    </ListItem>
+                </Show>
+                <Show value={sessions}>
+                    <ListItem grow=1.0>
+                        <SessionsCard core={core} />
+                    </ListItem>
+                </Show>
+            </List>
+        </Frame>
+    }
+}
+
+/// The account's organizations: each to open, in its last session or choosing one; an
+/// invitation opened, to join or put aside; creating one; opening an invitation's link, which
+/// the field hands over as a secret and clears; and switching account.
+#[component]
+fn OrganizationsCard(core: Signal<CoreView>) -> NodeId {
+    let area = create_memo(move || core.with(|view| view.organizations.clone()));
+    let listed = create_memo(move || area.with(|area| area.listed.clone()));
+    let loading = create_memo(move || listed.get() == OrganizationsListed::Loading);
+    let failed = create_memo(move || listed.get() == OrganizationsListed::Failed);
+    let rows = create_memo(move || match listed.get() {
+        OrganizationsListed::Loaded(rows) => rows,
+        _ => Vec::new(),
+    });
+    let busy = create_memo(move || area.with(|area| area.busy));
+    let error = create_memo(move || area.with(|area| area.error.clone()));
+    let joining = create_memo(move || area.with(|area| area.joining.is_some()));
+    let invited = create_memo(move || {
+        area.with(|area| {
+            area.joining
+                .as_ref()
+                .map(|invitation| {
+                    let lead = format!(
+                        "{} invited you to join {}",
+                        invitation.inviter, invitation.organization
+                    );
+                    match &invitation.problem {
+                        Some(problem) => format!("{lead}. {problem}"),
+                        None => lead,
+                    }
+                })
+                .unwrap_or_default()
+        })
+    });
+    let cannot_join = create_memo(move || {
+        busy.get() || !area.with(|area| area.joining.as_ref().is_some_and(|it| it.can_join))
+    });
+    let name = create_signal(String::new());
+    let link = create_signal(String::new());
+    let create = move || {
+        let named = name.get_untracked().trim().to_owned();
+        if !named.is_empty() {
+            name.set(String::new());
+            ask_core(CoreCommand::CreateOrganization(named));
+        }
+    };
+    let open_link = move || {
+        // The link is a bearer secret: it leaves the field as it is handed over.
+        let typed = link.get_untracked();
+        link.set(String::new());
+        if !typed.trim().is_empty() {
+            ask_core(CoreCommand::OpenInvitation(Password::from(typed)));
+        }
+    };
+    view! {
+        <be_host_accounts_ui::Column>
+            <Text style=TextStyle::TITLE>{ORGANIZATIONS_TITLE}</Text>
+            <Show value={loading}>
+                <Text style=TextStyle::CAPTION>"Loading organizations…"</Text>
+            </Show>
+            <Show value={failed}>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                    <ListItem grow=1.0>
+                        <Text style=TextStyle::CAPTION>"The organizations could not be listed."</Text>
+                    </ListItem>
+                    <Button
+                        label="Try again"
+                        variant=ButtonVariant::Secondary
+                        on_click={|| ask_core(CoreCommand::ReloadOrganizations)}
+                    />
+                </List>
+            </Show>
+            <ForEach
+                value={rows}
+                key={|row: &OrganizationRow| row.id}
+            >|row: ReadSignal<OrganizationRow>| {
+                let id = row.with_untracked(|row| row.id);
+                let name = create_memo(move || row.with(|row| row.name.clone()));
+                view! {
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                        <ListItem grow=1.0>
+                            <Text>{name}</Text>
+                        </ListItem>
+                        <Button
+                            label="Sessions"
+                            variant=ButtonVariant::Secondary
+                            on_click={move || ask_core(CoreCommand::ChooseSessionIn(id))}
+                        />
+                        <Button
+                            label="Open"
+                            variant=ButtonVariant::Primary
+                            on_click={move || ask_core(CoreCommand::OpenOrganization(id))}
+                        />
+                    </List>
+                }
+            }</ForEach>
+            <Show value={joining}>
+                <Card>
+                    <List spacing=Space::Md>
+                        <Text>{invited}</Text>
+                        <List direction=Direction::Horizontal justify=Justify::End spacing=Space::Md>
+                            <Button
+                                label="Not now"
+                                variant=ButtonVariant::Secondary
+                                on_click={|| ask_core(CoreCommand::CancelJoin)}
+                            />
+                            <Button
+                                label="Join"
+                                variant=ButtonVariant::Primary
+                                disabled={cannot_join}
+                                on_click={|| ask_core(CoreCommand::JoinInvited)}
+                            />
+                        </List>
+                    </List>
+                </Card>
+            </Show>
+            <be_host_accounts_ui::ErrorText text={error} />
+            <List direction=Direction::Horizontal align=Align::End spacing=Space::Md>
+                <ListItem grow=1.0>
+                    <TextInput
+                        value={name}
+                        label="New organization"
+                        placeholder="New organization"
+                        on_submit={move |_: String| create()}
+                    />
+                </ListItem>
+                <Button label="Create" disabled={busy} on_click={create} />
+            </List>
+            <List direction=Direction::Horizontal align=Align::End spacing=Space::Md>
+                <ListItem grow=1.0>
+                    <TextInput
+                        value={link}
+                        label="Invitation link"
+                        placeholder="Invitation link"
+                        kind={InputKind::Password}
+                        on_submit={move |_: String| open_link()}
+                    />
+                </ListItem>
+                <Button label="Open invitation" disabled={busy} on_click={open_link} />
+            </List>
+            <Button
+                label="Switch account"
+                variant=ButtonVariant::Secondary
+                on_click={|| ask_core(CoreCommand::SwitchAccount)}
+            />
+        </be_host_accounts_ui::Column>
+    }
+}
+
+/// The organization's sessions: those of the type this device opens, or of every type, each to
+/// open; a new one; this device's profiles, each to use, and a new one; and Close, back in the
+/// session open.
+#[component]
+fn SessionsCard(core: Signal<CoreView>) -> NodeId {
+    let area = create_memo(move || core.with(|view| view.sessions.clone()));
+    let loading = create_memo(move || !area.with(|area| area.loaded));
+    // Which types it lists is the root's own choice, not the host's.
+    let every = create_signal(false);
+    let shown = create_memo(move || {
+        let every = every.get();
+        area.with(|area| {
+            area.sessions
+                .iter()
+                .filter(|session| every || session.session_type == area.session_type)
+                .cloned()
+                .collect::<Vec<_>>()
+        })
+    });
+    let profiles = create_memo(move || area.with(|area| area.profiles.clone()));
+    let new_label = create_memo(move || {
+        area.with(|area| {
+            let name = area
+                .session_types
+                .iter()
+                .find(|kind| kind.id == area.session_type)
+                .map(|kind| kind.name.clone())
+                .unwrap_or_default();
+            format!("New {name} session")
+        })
+    });
+    let every_label = create_memo(move || match every.get() {
+        true => "Show this type only".to_owned(),
+        false => "Show every type".to_owned(),
+    });
+    view! {
+        <be_host_accounts_ui::Column>
+            <Text style=TextStyle::TITLE>{SESSIONS_TITLE}</Text>
+            <Show value={loading}>
+                <Text style=TextStyle::CAPTION>"Loading sessions and profiles…"</Text>
+            </Show>
+            <ForEach
+                value={shown}
+                key={|session: &SessionRow| session.id}
+            >|session: ReadSignal<SessionRow>| {
+                let id = session.with_untracked(|session| session.id);
+                let label = create_memo(move || {
+                    session.with(|session| match session.current {
+                        true => format!("{} (last used)", session.name),
+                        false => session.name.clone(),
+                    })
+                });
+                view! {
+                    <Button
+                        label={label}
+                        variant=ButtonVariant::Secondary
+                        on_click={move || ask_core(CoreCommand::OpenSession(id))}
+                    />
+                }
+            }</ForEach>
+            <List direction=Direction::Horizontal spacing=Space::Md>
+                <Button
+                    label={new_label}
+                    variant=ButtonVariant::Primary
+                    on_click={move || ask_core(CoreCommand::NewSession(area.with_untracked(|area| area.session_type)))}
+                />
+                <Button
+                    label={every_label}
+                    variant=ButtonVariant::Secondary
+                    on_click={move || every.set(!every.get_untracked())}
+                />
+            </List>
+            <Text weight=Weight::Bold>"Profiles"</Text>
+            <ForEach
+                value={profiles}
+                key={|profile: &ProfileRow| profile.id}
+            >|profile: ReadSignal<ProfileRow>| {
+                let id = profile.with_untracked(|profile| profile.id);
+                let label = create_memo(move || {
+                    profile.with(|profile| match profile.current {
+                        true => format!("{} (in use)", profile.name),
+                        false => profile.name.clone(),
+                    })
+                });
+                view! {
+                    <Button
+                        label={label}
+                        variant=ButtonVariant::Secondary
+                        on_click={move || ask_core(CoreCommand::UseProfile(id))}
+                    />
+                }
+            }</ForEach>
+            <List direction=Direction::Horizontal spacing=Space::Md>
+                <Button
+                    label="New profile"
+                    variant=ButtonVariant::Secondary
+                    on_click={|| ask_core(CoreCommand::NewProfile)}
+                />
+                <Button
+                    label="Close"
+                    variant=ButtonVariant::Secondary
+                    on_click={|| ask_core(CoreCommand::CloseSessions)}
+                />
+            </List>
+        </be_host_accounts_ui::Column>
+    }
+}
+
 /// The accounts this device keeps, as be-host-accounts-ui shows them: opening one, choosing its
 /// organization, removing it (asking first for one kept on this device alone, whose blocks go
 /// with it), or adding one, which `want` opens a dialog for.
@@ -1816,7 +2097,7 @@ impl frames::Guest for Root {
                 .expect("the root draws its dialog with beui");
             root.settle_lock()
                 .expect("the root draws its lock screen with beui");
-            root.settle_accounts()
+            root.settle_onboarding()
                 .expect("the root draws its accounts with beui");
             if request.time == RESIZES {
                 if let Some(own) = &mut *root.own.borrow_mut() {
@@ -1853,7 +2134,7 @@ impl frames::Guest for Root {
                     .frame()
                     .expect("the root draws its statistics with beui");
             }
-            if let Some(accounts) = &mut *root.accounts.borrow_mut() {
+            if let Some(accounts) = &mut *root.onboarding.borrow_mut() {
                 accounts
                     .surface
                     .frame()
@@ -1887,8 +2168,8 @@ impl frames::Guest for Root {
                 }
             }
             // Its accounts while the block stack waits for one, over the app, taking every press.
-            if let Some(accounts) = &*root.accounts.borrow() {
-                let mut layer = accounts.surface.layer(ACCOUNTS_LAYER, pos2(0.0, 0.0));
+            if let Some(accounts) = &*root.onboarding.borrow() {
+                let mut layer = accounts.surface.layer(ONBOARDING_LAYER, pos2(0.0, 0.0));
                 layer.input = LayerInput {
                     hit: Area::Whole,
                     captures: true,
@@ -1969,7 +2250,7 @@ impl frames::Guest for Root {
             let focus = match (
                 &mut *root.lock.borrow_mut(),
                 &mut *root.dialog.borrow_mut(),
-                &mut *root.accounts.borrow_mut(),
+                &mut *root.onboarding.borrow_mut(),
             ) {
                 (Some(locked), _, _) if !locked.focused => {
                     locked.focused = true;
@@ -1983,7 +2264,7 @@ impl frames::Guest for Root {
                     // What had the focus as they take it, which gets it back once they go.
                     accounts.had = embedding.focused(None).map(|layer| layer.id);
                     accounts.focused = true;
-                    embedding.focus(None, Some(ACCOUNTS_LAYER))
+                    embedding.focus(None, Some(ONBOARDING_LAYER))
                 }
                 _ => Vec::new(),
             };
@@ -2020,7 +2301,7 @@ impl frames::Guest for Root {
                 .as_ref()
                 .and_then(|locked| locked.surface.next());
             let accounts = root
-                .accounts
+                .onboarding
                 .borrow()
                 .as_ref()
                 .and_then(|accounts| accounts.surface.next());
@@ -2039,11 +2320,11 @@ impl frames::Guest for Root {
                 let focused = embedding.focused(None)?;
                 let dialog = root.dialog.borrow();
                 let lock = root.lock.borrow();
-                let accounts = root.accounts.borrow();
+                let accounts = root.onboarding.borrow();
                 match focused.id {
                     DIALOG_LAYER => dialog.as_ref()?.surface.ime(focused),
                     LOCK_LAYER => lock.as_ref()?.surface.ime(focused),
-                    ACCOUNTS_LAYER => accounts.as_ref()?.surface.ime(focused),
+                    ONBOARDING_LAYER => accounts.as_ref()?.surface.ime(focused),
                     _ => None,
                 }
             });
@@ -2130,7 +2411,7 @@ impl paintings::Guest for Root {
         // lock screen while locked.
         let statistics = self.statistics.borrow().as_ref().and_then(painted);
         let accounts = self
-            .accounts
+            .onboarding
             .borrow()
             .as_ref()
             .and_then(|accounts| painted(&accounts.surface));
