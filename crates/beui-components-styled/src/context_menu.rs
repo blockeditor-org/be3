@@ -249,7 +249,11 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
         (false, true) => TextColor::Danger,
         (false, false) => TextColor::Default,
     });
-    let glyph = leading_mark(kind, glyph, checked, radio);
+    let (glyph, mark) = row_marks(kind, glyph, checked, radio);
+    let mark_color = create_memo(move || match disabled.get() {
+        true => TextColor::Muted,
+        false => TextColor::Accent,
+    });
     let icon_color = create_memo(move || match (disabled.get(), danger.get(), glyph.get()) {
         (true, _, _) => TextColor::Muted,
         (false, true, _) => TextColor::Danger,
@@ -306,6 +310,9 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                             </Text>
                         </ListItem>
                     </Show>
+                    <Show value={move || mark.get().is_some()}>
+                        <GlyphSlot glyph={mark} color={mark_color} />
+                    </Show>
                     <Show value={has_submenu}>
                         <Text size=TextSize::Sm color={chevron_color} align=TextAlign::Center>
                             <Icon glyph=ICON_CHEVRON_RIGHT />
@@ -345,23 +352,32 @@ impl LeadingMark {
     }
 }
 
-fn leading_mark(
+/// What a row shows before its label, and the mark it shows at its end. A checked row with
+/// no icon of its own shows its mark in the icon's place; one with an icon keeps the icon
+/// and shows the mark at its end, as a palette row does.
+fn row_marks(
     kind: MenuRowKind,
     glyph: Prop<Option<Glyph>>,
     checked: Prop<Option<bool>>,
     radio: bool,
-) -> Memo<LeadingMark> {
+) -> (Memo<LeadingMark>, Memo<Option<Glyph>>) {
     let tick = match radio {
         true => ICON_DOT,
         false => ICON_CHECK,
     };
-    create_memo(move || match (kind, checked.get(), glyph.get()) {
+    let leading = create_memo(move || match (kind, checked.get(), glyph.get()) {
         (MenuRowKind::Back, _, _) => LeadingMark::Icon(ICON_CHEVRON_LEFT),
-        (_, Some(true), _) => LeadingMark::Mark(tick),
-        (_, Some(false), _) => LeadingMark::Unmarked,
-        (_, None, Some(glyph)) => LeadingMark::Icon(glyph),
+        (_, _, Some(glyph)) => LeadingMark::Icon(glyph),
+        (_, Some(true), None) => LeadingMark::Mark(tick),
+        (_, Some(false), None) => LeadingMark::Unmarked,
         (_, None, None) => LeadingMark::None,
-    })
+    });
+    let trailing = create_memo(move || match (kind, checked.get(), glyph.get()) {
+        (MenuRowKind::Back, _, _) => None,
+        (_, Some(true), Some(_)) => Some(tick),
+        _ => None,
+    });
+    (leading, trailing)
 }
 
 #[component]
@@ -514,16 +530,18 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
         focused,
         ..
     } = handle;
-    let mark = leading_mark(kind, glyph, checked, radio);
+    let (mark, end_mark) = row_marks(kind, glyph, checked, radio);
     let leading = create_memo(move || glyphs.get() || mark.get() != LeadingMark::None);
     let glyph_color = create_memo(move || match mark.get() {
         LeadingMark::Mark(_) => Some(TextColor::Accent),
         _ => glyph_color.get().map(TextColor::Custom),
     });
     let glyph = create_memo(move || mark.get().glyph());
-    let trailing = create_memo(move || match has_submenu.get() {
-        true => RowTrailing::Chevron,
-        false => RowTrailing::None,
+    let trailing = create_memo(move || match (has_submenu.get(), end_mark.get()) {
+        (true, _) => RowTrailing::Chevron,
+        (false, Some(_)) if radio => RowTrailing::Radio,
+        (false, Some(_)) => RowTrailing::Check,
+        (false, None) => RowTrailing::None,
     });
     view! {
         <List spacing=SHEET_SEPARATOR_SPACING>

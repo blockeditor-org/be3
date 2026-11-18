@@ -161,7 +161,7 @@ it was sent (`ActionBuilder::detached`) and passes the pick back. `unstyled::Act
 split between bar and More for any toolbar.
 
 A pane's tab strip scrolls when its tabs do not fit. The face's `strip` gets the tabs and, as
-`DockStripHandle::menu`, a row for every tab that shows it (the shown one chosen); the styled strip
+`DockStripHandle::menu`, a row for every tab that shows it, with the tab's icon (the shown one chosen, marked at the row's end); the styled strip
 fades the edge tabs lie past and, while any are hidden, ends in an All tabs button
 (`dock.<id>.all-tabs`, rows `dock.<id>.all-tabs.tab.<tab>`) with that menu, since a fade ending on
 the gap between two tabs shows nothing. Showing another tab, from that menu or a key, scrolls it into
