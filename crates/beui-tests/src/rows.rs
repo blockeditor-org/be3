@@ -75,6 +75,63 @@ pub fn ScrollFixture() -> NodeId {
     }
 }
 
+/// A virtual list in a scroll at row 40, whose rows above it, built by its overscan, grow:
+/// the list keeps row 40 where it is shown, also where the browser does not anchor the scroll
+/// itself.
+#[component]
+pub fn VirtualAnchorFixture() -> NodeId {
+    const ROW: f32 = 20.0;
+    let grown = create_signal(false);
+    let anchor = create_signal(None::<Rect>);
+    let above = create_signal(None::<Rect>);
+    let keys: Vec<u32> = (0..200).collect();
+    let scroll = view! {
+        <Scroll offset={40.0 * ROW}>
+            <VirtualList
+                value={keys}
+                item_size=ROW
+                overscan={ROW * 20.0}
+                anchor={Some(40_u32)}
+            >|row: ReadSignal<u32>| {
+                let built = view! {
+                    <Frame
+                        height={create_memo(move || {
+                            let grows = grown.get() && (30..40).contains(&row.get());
+                            Size::Custom(if grows { ROW * 3.0 } else { ROW })
+                        })}
+                        @test_id={create_memo(move || format!("anchor.row{}", row.get()))}
+                    >
+                        <Text>{create_memo(move || format!("Row {}", row.get()))}</Text>
+                    </Frame>
+                };
+                let rect = measured_rect(built);
+                create_effect(move || match row.get() {
+                    40 => anchor.set(rect.get()),
+                    39 => above.set(rect.get()),
+                    _ => {}
+                });
+                built
+            }</VirtualList>
+        </Scroll>
+    };
+    let shown = measured_rect(scroll);
+    let report = create_memo(move || match (above.get(), anchor.get(), shown.get()) {
+        (Some(above), Some(anchor), Some(shown)) => format!(
+            "Row 39 {:.0} tall, row 40 at {:.0}",
+            above.height(),
+            anchor.min.y - shown.min.y
+        ),
+        _ => "Unmeasured".to_owned(),
+    });
+    view! {
+        <List spacing=Space::Md>
+            <Frame width=Size::Custom(200.0) height=Size::Custom(200.0)>{scroll}</Frame>
+            <Button label="Grow" @test_id="anchor.grow" on_click={move || grown.set(true)} />
+            <Text>{report}</Text>
+        </List>
+    }
+}
+
 fn reach(at: ScrollPosition) -> &'static str {
     match at.offset >= at.max_offset() - 0.5 {
         true => "end",

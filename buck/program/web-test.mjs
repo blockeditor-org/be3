@@ -20,6 +20,9 @@
 // `selection none` and `selection some` (browser only) fail unless the page's
 // text selection is empty, or holds some text.
 // `elements CSS COUNT` (browser only) waits until exactly COUNT elements match CSS.
+// `css TEXT` (browser only) adds TEXT to the page as a stylesheet, to stand in for a browser
+// that lacks a feature the page uses (`* { overflow-anchor: none !important; }` for Safari's
+// missing scroll anchoring).
 // `role ROLE NAME [STATE...]` (browser only) waits until Playwright's getByRole finds exactly one
 // visible element with that ARIA role and exact accessible name, in each STATE given (checked,
 // disabled, expanded, inert, modal, pressed, selected, each also as not-STATE, or level=N; inert
@@ -305,6 +308,13 @@ async function step(page, words) {
                 throw new Failure(`${selector} has ${name} ${JSON.stringify(shown)}, not ${JSON.stringify(wanted)}`);
             }
             return "";
+        }
+        case "css": {
+            // css TEXT (browser only): adds TEXT to the page as a stylesheet, so a script can
+            // stand in for a browser without a feature (`overflow-anchor: none` for Safari).
+            if (args.length === 0) throw new Failure("css takes the stylesheet's TEXT");
+            await page.addStyleTag({ content: args.join(" ") });
+            return settle();
         }
         case "reload": {
             // reload: reloads the page, and waits for it to start and settle again.
