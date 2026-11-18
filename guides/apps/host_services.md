@@ -109,7 +109,9 @@ Notes on particular calls:
   it just made (one it created in this run) to anyone inside
   (`set_access(ANYONE_INSIDE, View)`), as the editor framework does when it
   makes a settings kind every member reads (`ensure_block_kind`,
-  `ensure_edit_kind`): that names no one and shares nothing the person had.
+  `ensure_edit_kind`): that names no one. It is not airtight: such an app can
+  still copy what it reads into a block it makes and open that one to everyone
+  inside at View.
 - `sign(bytes)` signs as the person and `verify(account, bytes, signature,
   arrived)` answers a `Signer` (verified, unverified, changed, replaced or
   bad), both in
