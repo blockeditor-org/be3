@@ -22,10 +22,12 @@ interface account {
         guest,
     }
 
-    /// The account's role in the organization open.
+    /// The account's role in the organization open; none until the host knows
+    /// which organization is open and what the account is there, so nothing is
+    /// offered on a guess.
     resource role-watch {
         constructor();
-        next: async func() -> account-role;
+        next: async func() -> option<account-role>;
     }
 
     /// The base links to blocks are made from, empty on a local server.

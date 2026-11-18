@@ -413,14 +413,28 @@ fn require_own_settings(
 /// see, nor anything in a block someone else made.
 fn require_guest_shell(
     graph: &BlockGraph,
+    database: &Connection,
     identity: Identity,
     content_type: Uuid,
     parent: BlockParent,
     owner_only: bool,
 ) -> Result<(), ServerError> {
+    // Its admission named it a guest; one its last grant dropped since is no one here, and
+    // makes nothing that would outlive it (`share_links::drop_idle_guest`).
+    if crate::contacts::role_in(database, identity.account, identity.organization)?
+        != Some(OrganizationRole::Guest)
+    {
+        return Err(ServerError::Refused(
+            ErrorCode::PermissionDenied,
+            "the account is no longer in the organization".into(),
+        ));
+    }
     let settings = <be_block::Settings as be_block_content::Root>::CONTENT_TYPE;
     let allowed = match parent {
         BlockParent::Root => owner_only && content_type == settings,
+        // Below its settings, which already only it reads, nothing is owner-only of its own, as
+        // a member's owner-only block is made only in settings that are not.
+        BlockParent::Block(_) if owner_only => false,
         BlockParent::Block(parent) => graph
             .owner_only_root(parent)
             .and_then(|root| Some((root, graph.get(root)?)))
@@ -565,7 +579,7 @@ impl ServerStore {
             }
             let account_block = block == be_block::account_block(identity.organization, identity.account);
             if identity.role == OrganizationRole::Guest {
-                require_guest_shell(graph, identity, content_type, parent, owner_only)?;
+                require_guest_shell(graph, database, identity, content_type, parent, owner_only)?;
             } else if account_block {
                 require_account_block(database, identity, content_type, parent, owner_only)?;
             } else if owner_only {
