@@ -46,7 +46,7 @@ fn dragging_the_eraser_dims_what_it_crosses_and_erases_it_on_release() {
     );
     assert!(
         entities(&editor)[1].style.opacity < left.style.opacity,
-        "what the eraser crossed is dimmed in the document, so peers see it too"
+        "what the eraser crossed is dimmed in the block, held until release"
     );
     editor.snapshot("dragging_the_eraser_dims_what_it_crosses_and_erases_it_on_release");
 

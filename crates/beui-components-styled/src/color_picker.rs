@@ -9,6 +9,7 @@ use crate::number_input::NumberInput;
 use crate::text::{Text, TextStyle};
 use crate::text_input::TextInput;
 use crate::tokens::{Size, Space, Stroke};
+use beui_components_unstyled::ValueDrag;
 use beui_components_unstyled::{
     AlphaSlider, ChoiceOptionHandle, ColorAreaHandle, ColorPickerArea, ColorPickerState, HexText,
     HueSlider, SliderHandle, SwatchHandle, Swatches, alpha_image, hue_image, plane_image,
@@ -60,7 +61,7 @@ pub fn ColorPicker(
     #[prop(default = DEFAULT_SWATCHES.to_vec())] swatches: Vec<Color32>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
-    on_drag_change: Callback<bool>,
+    on_drag_change: Callback<ValueDrag>,
 ) -> NodeId {
     let picker: ColorPickerState = ColorPickerState::new(value, disabled, on_drag_change);
     let color = picker.color();

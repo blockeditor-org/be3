@@ -7,6 +7,8 @@ use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+
+use crate::value_drag::{DragReport, ValueDrag};
 use beui_view::types::Hsva;
 use beui_view::types::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_view::types::{Pos2, Vec2, pos2};
@@ -38,7 +40,7 @@ pub fn ColorArea(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = 0.0)] thumb: f32,
     #[prop(children)] content: Render<ColorAreaHandle, NodeId>,
-    on_drag_change: Callback<bool>,
+    on_drag_change: Callback<ValueDrag>,
 ) -> NodeId {
     let color = value;
     let dragging = create_signal(false);
@@ -85,7 +87,29 @@ pub fn ColorArea(
     };
     let grab = Rc::new(Cell::new(Vec2::ZERO));
     let (press_grab, press_color) = (grab.clone(), color);
+    // A drag is reported before its first write, and a cancelled one writes back where it
+    // started.
+    let report = DragReport::new(on_drag_change);
+    let started_at = StoredCell::new(color.get_untracked());
+    let begin = move || {
+        if disabled.get_untracked() {
+            return;
+        }
+        if report.start() {
+            started_at.set(color.get_untracked());
+        }
+        dragging.set(true);
+    };
+    let cancelled = move || {
+        if report.dragging() {
+            let start = started_at.get();
+            color.set(start);
+        }
+        dragging.set(false);
+        report.end(false);
+    };
     let grabbed = move |press: PointerPress| {
+        begin();
         let color = press_color.get_untracked();
         let offset = thumb_centre(press.size, color) - press.local;
         let on_thumb = thumb > 0.0 && offset.length() <= thumb / 2.0;
@@ -168,9 +192,13 @@ pub fn ColorArea(
                 let (x, y) = dragged_to(press);
                 set(x, 1.0 - y)
             }}
-            on_active_change={move |active: bool| {
-                dragging.set(active);
-                on_drag_change.call(active);
+            on_cancel={cancelled}
+            on_active_change={move |active: bool| match active {
+                true => begin(),
+                false => {
+                    dragging.set(false);
+                    report.end(true);
+                }
             }}
             children={content_node}
         />

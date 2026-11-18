@@ -5,7 +5,7 @@ use crate::list::{List, Spacer};
 use crate::theme::{knob_border, use_theme};
 use crate::tokens::{Size, Space, Stroke};
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{SliderHandle, SliderScale};
+use beui_components_unstyled::{SliderHandle, SliderScale, ValueDrag};
 use beui_view::primitives::Layers;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
@@ -27,7 +27,7 @@ pub fn Slider(
     mark: Option<f32>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
-    on_drag_change: Callback<bool>,
+    on_drag_change: Callback<ValueDrag>,
 ) -> NodeId {
     view! {
         <unstyled::Slider

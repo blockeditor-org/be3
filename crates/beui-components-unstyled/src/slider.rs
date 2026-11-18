@@ -10,6 +10,8 @@ use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
+use crate::value_drag::{DragReport, ValueDrag};
+
 const STEP: f32 = 0.05;
 const PAGE_STEPS: f32 = 4.0;
 const STRAIGHT: f32 = 1.0;
@@ -80,7 +82,7 @@ pub fn Slider(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(children)] content: Option<Render<SliderHandle, NodeId>>,
-    on_drag_change: Callback<bool>,
+    on_drag_change: Callback<ValueDrag>,
     on_focus_change: Callback<bool>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
@@ -129,6 +131,26 @@ pub fn Slider(
         asked.set(Some((shown, next)));
         value.set(next);
     };
+    // A drag is reported before its first write, a press off the thumb's jump included, and
+    // a cancelled one writes back where it started.
+    let report = DragReport::new(on_drag_change);
+    let started_at = StoredCell::new(0.0f32);
+    let begin = move || {
+        if disabled.get_untracked() {
+            return;
+        }
+        if report.start() {
+            started_at.set(current.get_untracked());
+        }
+        dragging.set(true);
+    };
+    let cancelled = move || {
+        if report.dragging() {
+            set_value(started_at.get());
+        }
+        dragging.set(false);
+        report.end(false);
+    };
     let grab = Rc::new(Cell::new(0.0f32));
     let press_grab = grab.clone();
     let dragged_to = move |press: PointerPress| {
@@ -148,6 +170,7 @@ pub fn Slider(
         } else {
             0.0
         });
+        begin();
         if !on_thumb {
             set_value(scale.value_at(jump_to(press), min, max));
         }
@@ -190,9 +213,13 @@ pub fn Slider(
             on_drag={move |press: PointerPress| {
                 set_value(scale.value_at(dragged_to(press), min, max))
             }}
-            on_active_change={move |next: bool| {
-                dragging.set(next);
-                on_drag_change.call(next);
+            on_cancel={cancelled}
+            on_active_change={move |next: bool| match next {
+                true => begin(),
+                false => {
+                    dragging.set(false);
+                    report.end(true);
+                }
             }}
             children={content_node}
         />

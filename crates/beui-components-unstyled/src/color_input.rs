@@ -3,6 +3,7 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Color32;
 
+use crate::value_drag::ValueDrag;
 use crate::anchored::AnchoredStyle;
 use crate::color_picker::HexText;
 use crate::popover::{Popover, PopoverHandle};
@@ -24,7 +25,7 @@ pub struct ColorInputPickerHandle {
     pub value: Binding<Color32>,
     pub alpha: bool,
     pub shown: Memo<bool>,
-    pub on_drag_change: Callback<bool>,
+    pub on_drag_change: Callback<ValueDrag>,
 }
 
 #[derive(Clone, Copy)]
@@ -40,7 +41,7 @@ pub fn ColorInput(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = true)] alpha: bool,
-    on_drag_change: Callback<bool>,
+    on_drag_change: Callback<ValueDrag>,
     swatch: Render<ColorInputSwatchHandle, NodeId>,
     surface: AnchoredStyle,
     picker: RenderFn<ColorInputPickerHandle, NodeId>,

@@ -185,6 +185,7 @@ fn RegionEdges(state: MapState) -> NodeId {
                         value={north}
                         limit=MAX_LATITUDE
                         on_change={set_north}
+                        on_scrub={move |change| state.drag_value(change)}
                     />
                 </ListItem>
                 <ListItem grow=0.5>
@@ -193,15 +194,28 @@ fn RegionEdges(state: MapState) -> NodeId {
                         value={south}
                         limit=MAX_LATITUDE
                         on_change={set_south}
+                        on_scrub={move |change| state.drag_value(change)}
                     />
                 </ListItem>
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <ListItem grow=0.5>
-                    <Coordinate label={west_label} value={west} limit=180.0 on_change={set_west} />
+                    <Coordinate
+                        label={west_label}
+                        value={west}
+                        limit=180.0
+                        on_change={set_west}
+                        on_scrub={move |change| state.drag_value(change)}
+                    />
                 </ListItem>
                 <ListItem grow=0.5>
-                    <Coordinate label={east_label} value={east} limit=180.0 on_change={set_east} />
+                    <Coordinate
+                        label={east_label}
+                        value={east}
+                        limit=180.0
+                        on_change={set_east}
+                        on_scrub={move |change| state.drag_value(change)}
+                    />
                 </ListItem>
             </List>
         </List>
@@ -238,10 +252,12 @@ fn Coordinate(
     value: Memo<f64>,
     limit: f64,
     on_change: be_sdk_beui::beui::reactive::Callback<f64>,
+    on_scrub: be_sdk_beui::beui::reactive::Callback<ValueDrag>,
 ) -> NodeId {
     view! {
         <NumberInput
             value={Binding::new(value, move |next: f64| on_change.call(next))}
+            on_scrub={on_scrub}
             min={-limit}
             max={limit}
             label={label.to_owned()}
@@ -413,6 +429,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                 min={-MAX_LATITUDE}
                 max=MAX_LATITUDE
                 label="Latitude"
+                on_scrub={move |change| state.drag_value(change)}
             />
             <NumberInput
                 value={Binding::new(longitude, move |value: f64| {
@@ -425,6 +442,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                 min=-180.0
                 max=180.0
                 label="Longitude"
+                on_scrub={move |change| state.drag_value(change)}
             />
             <Text>"Colour"</Text>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
@@ -435,6 +453,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                 </ForEach>
             </List>
             <ColorInput
+                on_drag_change={move |change| state.drag_value(change)}
                 value={Binding::new(custom, move |color: Color32| {
                     let Some(mut point) = point.get_untracked() else {
                         return;

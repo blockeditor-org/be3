@@ -16,6 +16,7 @@ use be_sdk_beui::beui::icons::{
 use be_sdk_beui::beui::native::with_document;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::{Pos2, Rect, Thumbhash, Vec2, pos2};
+use be_sdk_beui::beui::unstyled::ValueDrag;
 use be_sdk_beui::{BlockFilter, ChildState, Drag, Editor, FileDrop, InteractionMode, ResizeMode};
 use be_sdk_beui::{BlockParent, BlockQuery, DropAction, PickAnchor};
 use be_sdk_beui::{ContentGesture, ContentProjection};
@@ -1039,12 +1040,17 @@ impl CanvasState {
     }
 
     /// A sidebar control (a number scrubbed, a colour or slider dragged) starts or ends a
-    /// drag: what it writes between is held, and written once when it ends.
-    pub(crate) fn drag_value(&self, dragging: bool) {
-        self.cells.value().dragging_value.set(dragging);
-        match dragging {
-            true => self.open_hold(),
-            false => self.commit_hold(),
+    /// drag: what it writes between is held, written once when the drag is kept, and dropped
+    /// when it is called off or the control goes mid-drag.
+    pub(crate) fn drag_value(&self, change: ValueDrag) {
+        self.cells
+            .value()
+            .dragging_value
+            .set(change == ValueDrag::Started);
+        match change {
+            ValueDrag::Started => self.open_hold(),
+            ValueDrag::Kept => self.commit_hold(),
+            ValueDrag::Cancelled => self.drop_hold(),
         }
     }
 

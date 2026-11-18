@@ -176,13 +176,6 @@ fn RenameBody(
     accept: Callback<()>,
     dismiss: Callback<()>,
 ) -> NodeId {
-    let previewed = create_signal(None::<Color32>);
-    let shown = create_memo(move || {
-        let look = look.get();
-        previewed
-            .get()
-            .or_else(|| look.color.or(look.type_color).map(rgb))
-    });
     let set_icon = Callback::new(move |icon: Option<&'static str>| {
         let blocks = editor.blocks();
         blocks.define(block, ICON.definition(icon.map(str::to_owned).as_ref()));
@@ -193,31 +186,23 @@ fn RenameBody(
             .blocks()
             .define(block, ICON_COLOR.definition(color.as_ref()));
     });
-    let write_color = move |color: Color32| {
+    let defined = create_memo(move || {
+        let look = look.get();
+        rgb(look.color.or(look.type_color).unwrap_or(NEUTRAL))
+    });
+    // A drag through the picker shows here and defines the block's colour once, on release.
+    let custom = HeldValue::new(Binding::new(defined, move |color: Color32| {
         let [r, g, b, _] = color.to_array();
         set_color.call(Some([r, g, b]));
-    };
-    // A drag through the picker previews here and writes the block's colour once, on release.
-    let dragging = create_signal(false);
-    let custom = Binding::new(
-        create_memo(move || {
-            let look = look.get();
-            previewed
-                .get()
-                .unwrap_or_else(|| rgb(look.color.or(look.type_color).unwrap_or(NEUTRAL)))
-        }),
-        move |color: Color32| match dragging.get_untracked() {
-            true => previewed.set(Some(color)),
-            false => write_color(color),
-        },
-    );
-    let drag_change = move |now: bool| {
-        dragging.set(now);
-        if !now && let Some(color) = previewed.get_untracked() {
-            write_color(color);
-            previewed.set(None);
+    }));
+    let shown = create_memo(move || {
+        let look = look.get();
+        let held = custom.value.get();
+        match held != defined.get() {
+            true => Some(held),
+            false => look.color.or(look.type_color).map(rgb),
         }
-    };
+    });
     let search = create_signal(String::new());
     let rows = create_memo(move || {
         let search = search.get();
@@ -299,10 +284,10 @@ fn RenameBody(
                 </List>
                 <ColorInput
                     @test_id={"rename.custom"}
-                    value={custom}
+                    value={custom.value}
                     label="Custom color"
                     alpha=false
-                    on_drag_change={drag_change}
+                    on_drag_change={custom.on_drag}
                 />
                 <Text style=TextStyle::CAPTION>"Icon"</Text>
                 <TextInput

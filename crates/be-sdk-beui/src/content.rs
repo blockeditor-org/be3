@@ -473,3 +473,62 @@ where
         self.once_arrived(read)
     }
 }
+
+/// Holds what a value control's drag writes into a block in a tentative gesture
+/// (decisions/tentative_edits_wait_for_release.md): pass `drag` to the control's drag callback
+/// (`NumberInput`'s `on_scrub`, `on_drag_change` on `Slider` and the colour controls) and make
+/// the editor's edits through `operate`. Every view of the block on this device follows the
+/// drag; it is written once, as one undo step, when kept, and leaves nothing when called off.
+pub struct DragHold<C: LiveEdit> {
+    content: ContentProjection<C>,
+    gesture: StoredCell<Option<ContentGesture>>,
+}
+
+impl<C: LiveEdit> Clone for DragHold<C> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<C: LiveEdit> Copy for DragHold<C> {}
+
+impl<C: LiveEdit + Clone + Default + 'static> DragHold<C> {
+    pub fn new(content: ContentProjection<C>) -> Self {
+        Self {
+            content,
+            gesture: StoredCell::new(None),
+        }
+    }
+
+    /// Follows the control's drag: opens the gesture as it starts, commits it when it is kept
+    /// and cancels it when it is called off. A gesture the replica ended meanwhile takes no
+    /// more edits, and ending it sends nothing.
+    pub fn drag(&self, change: beui::unstyled::ValueDrag) {
+        use beui::unstyled::ValueDrag;
+        match change {
+            ValueDrag::Started => {
+                if self.gesture.get().is_none() {
+                    self.gesture.set(Some(self.content.begin_tentative()));
+                }
+            }
+            ValueDrag::Kept => {
+                if let Some(gesture) = self.gesture.take() {
+                    self.content.commit_gesture(gesture);
+                }
+            }
+            ValueDrag::Cancelled => {
+                if let Some(gesture) = self.gesture.take() {
+                    self.content.cancel_gesture(gesture);
+                }
+            }
+        }
+    }
+
+    /// Makes `operation` in the drag's gesture while one is held, else outside any.
+    pub fn operate(&self, operation: C::Op) {
+        match self.gesture.get() {
+            Some(gesture) => self.content.operate_in(gesture, operation),
+            None => self.content.operate(operation),
+        }
+    }
+}

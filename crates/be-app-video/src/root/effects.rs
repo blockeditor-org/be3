@@ -79,6 +79,7 @@ fn ClipInspector(state: VideoState, clip: ReadSignal<VideoClip>) -> NodeId {
                 min=1.0
                 max={MAX_CLIP_LENGTH as f64}
                 label="Length"
+                on_scrub={move |change| state.drag_value(change)}
                 @test_id={"video.clip-length"}
             />
             <Text style=TextStyle::CAPTION color={seconds_color}>{seconds}</Text>
@@ -115,6 +116,7 @@ fn ClipInspector(state: VideoState, clip: ReadSignal<VideoClip>) -> NodeId {
                         state.update_clip(clip);
                     })}
                     label="Offset"
+                    on_scrub={move |change| state.drag_value(change)}
                 />
             </Show>
             <Text>"Effect stack"</Text>

@@ -6,6 +6,7 @@ use beui_macros::{component, view};
 use crate::choice::{Choice, ChoiceKind, ChoiceOption, ChoiceOptionHandle};
 use crate::color_area::{ColorArea, ColorAreaHandle};
 use crate::slider::{Slider, SliderHandle};
+use crate::value_drag::ValueDrag;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Direction;
@@ -46,25 +47,22 @@ impl ColorModel for Oklch {
 pub struct ColorPickerState<Model: ColorModel = Hsva> {
     color: Signal<Model>,
     value: Binding<Color32>,
-    dragging: Signal<bool>,
     disabled: Memo<bool>,
-    on_drag_change: Callback<bool>,
+    on_drag_change: Callback<ValueDrag>,
 }
 
 impl<Model: ColorModel> ColorPickerState<Model> {
     pub fn new(
         value: Binding<Color32>,
         disabled: Prop<bool>,
-        on_drag_change: Callback<bool>,
+        on_drag_change: Callback<ValueDrag>,
     ) -> Self {
         let color = create_linked_signal(move |held: Option<&Model>| {
             Model::from_color_keeping(value.get(), held.copied().unwrap_or_default())
         });
-        let dragging = create_signal(false);
         Self {
             color,
             value,
-            dragging,
             disabled: create_memo(move || disabled.get()),
             on_drag_change,
         }
@@ -91,14 +89,11 @@ impl<Model: ColorModel> ColorPickerState<Model> {
         self.value.set(next.to_color());
     }
 
-    /// Starts or ends a drag through one of the picker's areas or sliders, telling
-    /// `on_drag_change`: `value` is written on every move, so an owner holding a drag's writes
-    /// until release (a tentative gesture) opens and commits it here.
-    pub fn drag(&self, dragging: bool) {
-        if self.dragging.get_untracked() != dragging {
-            self.dragging.set(dragging);
-            self.on_drag_change.call(dragging);
-        }
+    /// A drag through one of the picker's areas or sliders, passed on to `on_drag_change`:
+    /// `value` is written on every move between, and a cancelled drag has written back its
+    /// start (`ValueDrag`).
+    pub fn drag(&self, change: ValueDrag) {
+        self.on_drag_change.call(change);
     }
 
     pub fn pick(&self, color: Color32) {
@@ -291,7 +286,7 @@ pub fn ColorPickerArea(
             thumb
             focused
             disabled={picker.disabled()}
-            on_drag_change={move |dragging: bool| picker.drag(dragging)}
+            on_drag_change={move |change: ValueDrag| picker.drag(change)}
             content
         />
     }
@@ -313,7 +308,7 @@ pub fn HueSlider(
             thumb
             disabled={picker.disabled()}
             accessibility={picker.hue_accessibility()}
-            on_drag_change={move |dragging: bool| picker.drag(dragging)}
+            on_drag_change={move |change: ValueDrag| picker.drag(change)}
             content
         />
     }
@@ -333,7 +328,7 @@ pub fn AlphaSlider(
             thumb
             disabled={picker.disabled()}
             accessibility={picker.alpha_accessibility()}
-            on_drag_change={move |dragging: bool| picker.drag(dragging)}
+            on_drag_change={move |change: ValueDrag| picker.drag(change)}
             content
         />
     }

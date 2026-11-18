@@ -6,6 +6,7 @@ use crate::button::ButtonVariant;
 use crate::focus_ring::FocusRing;
 use crate::text::{Text, TextColor};
 use crate::text_input::TextInput;
+use beui_components_unstyled::ValueDrag;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{NumberDrag, NumberFaceHandle, NumberFieldHandle};
 use beui_view::reactive::NodeId;
@@ -29,7 +30,7 @@ pub fn NumberInput(
     #[prop(default = NumberDrag::Linear { speed: 1.0 })] drag: NumberDrag,
     #[prop(default = None)] decimals: Prop<Option<u32>>,
     on_preview: Callback<Option<f64>>,
-    on_scrub: Callback<bool>,
+    on_scrub: Callback<ValueDrag>,
 ) -> NodeId {
     let shown = NodeRef::new();
     let inner = ComponentRef::new();

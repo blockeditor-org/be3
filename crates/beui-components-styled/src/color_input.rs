@@ -8,6 +8,7 @@ use crate::popover::popover_surface;
 use crate::text_input::TextInput;
 use crate::tokens::{Size, Space, Stroke};
 use crate::tooltip::Tooltip;
+use beui_components_unstyled::ValueDrag;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     ButtonHandle, ColorInputFieldHandle, ColorInputHandle, ColorInputPickerHandle,
@@ -28,7 +29,7 @@ pub fn ColorInput(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = true)] alpha: bool,
-    on_drag_change: Callback<bool>,
+    on_drag_change: Callback<ValueDrag>,
 ) -> NodeId {
     view! {
         <unstyled::ColorInput

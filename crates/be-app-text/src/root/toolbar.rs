@@ -268,6 +268,13 @@ fn TextSettings(state: State) -> NodeId {
         TextIndentation::Spaces { width } => f64::from(width),
         TextIndentation::Tabs => 2.0,
     });
+    // A scrubbed width shows here and is set once, when it is kept.
+    let width_held = HeldValue::new(Binding::new(width, move |value: f64| {
+        let width = value.round().clamp(1.0, 8.0) as u8;
+        state
+            .text
+            .execute(EditorCommand::SetIndentation(TextIndentation::Spaces { width }));
+    }));
     view! {
         <List spacing=SETTINGS_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
@@ -325,12 +332,8 @@ fn TextSettings(state: State) -> NodeId {
                     <Frame width=NUMBER_WIDTH>
                         <NumberInput
                             label="Indentation width"
-                            value={Binding::new(width, move |value: f64| {
-                                let width = value.round().clamp(1.0, 8.0) as u8;
-                                state.text.execute(EditorCommand::SetIndentation(
-                                    TextIndentation::Spaces { width },
-                                ));
-                            })}
+                            value={width_held.value}
+                            on_scrub={width_held.on_drag}
                             min=1.0
                             max=8.0
                             @test_id={"text.indentation-width"}
