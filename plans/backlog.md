@@ -434,17 +434,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   current key up in. Done: an account with more blocks than one frame's worth
   of retirements takes a new phrase, and every log is retired.
 
-- **A key change sealed to a phrase its reader replaced.** A device follows its
-  contacts' waiting key changes just before this account takes a new phrase
-  (`accounts::set_recovery_key`), so the changes it sends seal to each
-  contact's newest key. A contact that takes a new phrase between that read and
-  the write, or before it follows this account's change, seals its change to
-  this account's old key, which the new phrase cannot open: this account's
-  devices find the chain broken and show the contact as not confirmed until a
-  new link. Done: a key change names the recipient key it is sealed to, and a
-  device holding the old secret (or the reseal, which could carry an opened
-  copy) follows it, with a test where both accounts take new phrases at once.
-
 ## 19. Local accounts
 
 - **Share and Access offered with no server.** A local account's block menus
