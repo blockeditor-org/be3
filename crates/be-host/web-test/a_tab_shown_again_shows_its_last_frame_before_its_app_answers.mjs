@@ -7,6 +7,10 @@
 // and idle editors): over an idle spell it asks the browser for no animation frames and the
 // runner runs none but the few the drive commands that measure it take. A page that drew
 // nothing every frame would run hundreds.
+//
+// The idle part keeps the program's clock running and waits in real time on purpose: with the
+// clock stopped, each step a `pause` takes is itself a frame, so the count would measure the
+// pause rather than the page. Do not turn it into a stopped-clock pause.
 
 // The idle spell, and the frames the commands that measure it take (3 to 5 seen).
 const IDLE_MS = 6000;
@@ -92,7 +96,9 @@ export default async function (test) {
     }
 
     // A focused caret blinks for ten seconds after it last moved, asking for frames as it should
-    // (CARET_BLINKS_FOR); the spell starts after that.
+    // (CARET_BLINKS_FOR, 10.6 s, which a page cannot read); the spell starts after that. Moving
+    // the keyboard off the text instead would mean clicking somewhere with no caret, and a click
+    // on the tree's selected row starts a rename, so the test waits it out.
     await drive("pause", "11000");
     await page.evaluate(`(() => {
         window.animationFrames = 0;
