@@ -709,6 +709,13 @@ button, and the host shows a toast. A panic in host code working for one app
 (inside `Runtime::contain`), a wasm trap, a failed session, and a step not
 finished within `STEP_TIMEOUT` stop that app the same way.
 
+`be_host_base::panic_guard::contain` is what catches the host's panics. In be-host its
+panic hook (`panic_guard::install`) logs a contained panic with its backtrace. In a process
+without that hook, such as a test's, `contain` logs a contained panic as one line and does
+not use the hook that was there before. With RUST_BACKTRACE set, that earlier hook would
+symbolize the whole debug test binary for every expected panic, which takes most of a second
+of CPU and hundreds of MB, and tests running side by side ran out of memory.
+
 Stopping drops the backend, which interrupts the guest: the host terminates
 its isolates (`terminate_execution`), so every thread stops at its next loop
 or call, including one blocked in `memory.atomic.wait`; in the browser the worker and

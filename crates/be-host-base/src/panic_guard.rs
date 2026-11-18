@@ -1,6 +1,6 @@
 use std::cell::Cell;
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::Mutex;
+use std::sync::{Mutex, Once};
 
 static LAST_PANIC: Mutex<Option<String>> = Mutex::new(None);
 static PREVIOUS_PANIC: Mutex<Option<String>> = Mutex::new(None);
@@ -12,8 +12,41 @@ thread_local! {
     static CONTAINING: Cell<u32> = const { Cell::new(0) };
 }
 
+/// Whether `install` put be-host's hook in place, which `contain` then leaves as it is. Held while
+/// either sets a hook, so the two cannot interleave.
+static INSTALLED: Mutex<bool> = Mutex::new(false);
+static QUIETED: Once = Once::new();
+
 pub fn install() {
+    let mut installed = lock(&INSTALLED);
+    *installed = true;
     std::panic::set_hook(Box::new(hook));
+}
+
+/// Where be-host's hook is not in place (a test's process), a contained panic is said in a line
+/// rather than through the hook before it, which with RUST_BACKTRACE set symbolizes a backtrace
+/// of the whole binary: of a debug test harness, most of a second of CPU and hundreds of MB, for
+/// a panic the caller expects. Every other panic still goes to that hook.
+fn quiet_contained_panics() {
+    // A hook cannot be set while this thread unwinds; a later `contain` sets it.
+    if std::thread::panicking() {
+        return;
+    }
+    QUIETED.call_once(|| {
+        let installed = lock(&INSTALLED);
+        if *installed {
+            return;
+        }
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            if CONTAINING.with(Cell::get) == 0 {
+                return previous(info);
+            }
+            let thread = std::thread::current();
+            let name = thread.name().unwrap_or("unnamed");
+            eprintln!("thread '{name}' {info}\n(the panic was contained)");
+        }));
+    });
 }
 
 fn hook(info: &std::panic::PanicHookInfo<'_>) {
@@ -40,6 +73,7 @@ fn hook(info: &std::panic::PanicHookInfo<'_>) {
 }
 
 pub fn contain<R>(run: impl FnOnce() -> R) -> Result<R, String> {
+    quiet_contained_panics();
     CONTAINING.with(|depth| depth.set(depth.get() + 1));
     let ran = catch_unwind(AssertUnwindSafe(run));
     CONTAINING.with(|depth| depth.set(depth.get() - 1));
