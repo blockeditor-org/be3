@@ -977,7 +977,7 @@ impl Root {
         };
         let receives_secret =
             matches!(opening, Asking::Invitations | Asking::Agents | Asking::Contacts);
-        let holds_while_pending = matches!(opening, Asking::Agents);
+        let holds_while_pending = matches!(opening, Asking::Agents | Asking::Contacts);
         match opening {
             Asking::Invitations => ask_core(CoreCommand::ListInvitations),
             Asking::Members => ask_core(CoreCommand::ListMembers),
@@ -2876,7 +2876,7 @@ fn card_named(card: &ContactCard) -> String {
 /// The person's contacts: each with Remove, which asks first in the list's place; a contact
 /// link to make, which comes back once as `make-secret`'s answer and shows with Copy and Done;
 /// and a pasted contact link to open, handed over as a secret and cleared, then who it is from,
-/// to connect with or not.
+/// to connect with or not. While a contact link is being made it stays open, as the agents do.
 #[component]
 fn ContactsDialog(
     core: Signal<CoreView>,
@@ -2951,7 +2951,9 @@ fn ContactsDialog(
             let closes = event
                 .press()
                 .is_some_and(|press| press.pressed && !press.repeat && press.key == Key::Escape);
-            if closes {
+            // While a contact link is being made it stays open, so the link reaches the
+            // person rather than live and unheld.
+            if closes && !pending.get_untracked() {
                 match asks.get_untracked() {
                     true => removing.set(None),
                     false => done.call(Closed::Dismissed),
@@ -2973,12 +2975,12 @@ fn ContactsDialog(
                     <DialogBody
                         title=CONTACTS_TITLE
                         actions={vec![
-                            DialogAction::cancel("Close"),
+                            DialogAction::cancel("Close").disabled(move || pending.get()),
                             DialogAction::primary("New link", move || ask.call(SecretCommand::ContactLink))
                                 .busy(busy)
                                 .disabled(move || pending.get()),
                         ]}
-                        on_dismiss={move || done.call(Closed::Dismissed)}
+                        on_dismiss={move || if !pending.get_untracked() { done.call(Closed::Dismissed) }}
                     >
                         <be_host_accounts_ui::ErrorText text={error} />
                         <Note text={connected} />

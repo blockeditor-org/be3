@@ -627,7 +627,9 @@ interface host {
 
     /// What a share link opens: the block's name (its maker's words, sealed
     /// with the link's code), its organization, what it lets the person do,
-    /// and whether they join the organization as a guest.
+    /// and whether they join the organization as a guest. The name is
+    /// untrusted text from whoever made the link: the root shows it as plain
+    /// text only, on one line and cut short, never as markup or a link.
     record share-preview {
         name: string,
         organization: string,
