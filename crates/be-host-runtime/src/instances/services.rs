@@ -233,7 +233,7 @@ impl Instances {
     /// the person opened cannot share what it shows, or read who has it or its links, unasked.
     /// Any app may open a block it just made to anyone inside (`set-access` of `ANYONE_INSIDE`
     /// at View or below, on a block it made in this run), as the editor framework does for a
-    /// settings kind every member reads: that names no one and shares nothing the person had.
+    /// settings kind every member reads: that names no one, though the app can copy what it reads into such a block.
     fn refuses_sharing(&self, instance: EditorInstanceId, call: &Call) -> bool {
         if self.sharing {
             return false;
@@ -250,10 +250,16 @@ impl Instances {
                         > be_block_graph::Access::None
                     && be_host_stack::app_graph::access_of(*access)
                         <= be_block_graph::Access::View;
+                // Made by this instance, and still held as this app made it: a create the
+                // host dropped, or one the server's own block took the place of, opens nothing.
+                let block = Uuid::from_bytes(*block);
                 let made = self
                     .entries
                     .get(&instance)
-                    .is_some_and(|entry| entry.made.contains(&Uuid::from_bytes(*block)));
+                    .is_some_and(|entry| entry.made.contains(&block))
+                    && be_host_stack::node(block).is_some_and(|node| {
+                        node.metadata.get(&be_block_content::CREATED_BY) == self.created_by()
+                    });
                 !(opening && made)
             }
             Call::ListAccess { .. }
