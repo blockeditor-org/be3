@@ -27,7 +27,12 @@ async fn two_contacts_taking_new_phrases_at_once_still_follow_each_other() {
         }
     });
     let rosa_new = new_phrase(&rosa.connection(), rosa.account(), rosa.keys().identity()).await;
-    let guest_new = new_phrase(&guest.connection(), guest.account(), guest.keys().identity()).await;
+    let guest_new = new_phrase(
+        &guest.connection(),
+        guest.account(),
+        guest.keys().identity(),
+    )
+    .await;
     withheld.store(false, std::sync::atomic::Ordering::SeqCst);
 
     let key_of = |contacts: Vec<crate::Contact>, account: Uuid| {

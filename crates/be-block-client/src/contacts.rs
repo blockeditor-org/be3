@@ -1296,7 +1296,11 @@ fn recovery_parts(
     }
     for retirement in retirements {
         start(&mut size, retirement.entry.len() + OVERHEAD, &mut parts);
-        parts.last_mut().expect("one part at least").1.push(retirement);
+        parts
+            .last_mut()
+            .expect("one part at least")
+            .1
+            .push(retirement);
     }
     parts
 }

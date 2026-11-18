@@ -1615,12 +1615,7 @@ impl ServerStore {
                             AND sender = ?4)",
                     )?
                     .query_row(
-                        params![
-                            key.organization.to_string(),
-                            key.key.to_string(),
-                            by,
-                            who
-                        ],
+                        params![key.organization.to_string(), key.key.to_string(), by, who],
                         |row| row.get(0),
                     )?;
                 if !held {
@@ -1975,7 +1970,11 @@ fn with_staged(
     let mut own = std::collections::HashSet::new();
     let mut retired: Vec<be_block_protocol::Retirement> = Vec::new();
     for retirement in retirements {
-        let at = (retirement.organization, log_kind_name(retirement.kind), retirement.log);
+        let at = (
+            retirement.organization,
+            log_kind_name(retirement.kind),
+            retirement.log,
+        );
         // Twice in the write itself stays twice, for the check to refuse.
         if own.insert(at) {
             logs.remove(&at);
