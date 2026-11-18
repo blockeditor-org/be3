@@ -26,7 +26,10 @@ async fn answered(stream: &mut tokio::net::TcpStream) -> String {
         assert!(read > 0, "the server closed the connection");
         received.extend_from_slice(&chunk[..read]);
     }
-    head.split_whitespace().nth(1).unwrap_or_default().to_owned()
+    head.split_whitespace()
+        .nth(1)
+        .unwrap_or_default()
+        .to_owned()
 }
 
 fn upgrade(forwarded: &str) -> String {
@@ -77,10 +80,7 @@ async fn a_proxy_connection_takes_each_requests_places_for_the_client_it_forward
         "404",
         "the post is answered and the connection kept"
     );
-    pooled
-        .write_all(upgrade(second).as_bytes())
-        .await
-        .unwrap();
+    pooled.write_all(upgrade(second).as_bytes()).await.unwrap();
     assert_eq!(answered(&mut pooled).await, "101");
 
     let (_, status) = upgraded(&harness, second).await;
