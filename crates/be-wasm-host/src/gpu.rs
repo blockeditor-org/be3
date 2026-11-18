@@ -1,11 +1,12 @@
 //! The gpu and transport imports, one host function each, generated from the ABI's own lists
 //! (`gpu_local_imports!`, `transport_functions!`) as the browser's are.
 //!
-//! Where the guest's memory is shared, each is a fast-API function that V8 calls straight from the
-//! guest's code with the import's own arguments and its State in the callback's options: no
-//! JavaScript and no handles, so it reaches the memory without V8 (`State::view`). A guest with a
-//! memory of its own, which may move when it grows, gets the same functions made the ordinary way,
-//! which read where the memory is through a scope on every call (`State::view_in`).
+//! Where memories stay put (`engine::memories_stay_put`, `Memory::Fixed`), each is a fast-API
+//! function that V8 calls straight from the guest's code with the import's own arguments and its
+//! State in the callback's options: no JavaScript and no handles, so it reaches the memory without
+//! V8 (`State::view`). Where a memory may move when it grows, a guest gets the same functions made
+//! the ordinary way, which read where the memory is through a scope on every call
+//! (`State::view_in`).
 //!
 //! A host call that must stop the guest (it reached the gpu and none could be opened) leaves why in
 //! `State::fatal`: an ordinary function throws, and a fast one, which may not throw, terminates its
@@ -291,7 +292,7 @@ macro_rules! bind_transport {
 be_wasm_gpu_abi::gpu_local_imports!(bind_gpu);
 be_wasm_guest_abi::transport_functions!(bind_transport);
 
-/// Every gpu and transport import of an app: fast-API where its memory is shared.
+/// Every gpu and transport import of an app: fast-API where memories stay put.
 pub(crate) fn define_app<'s>(
     scope: &mut v8::PinScope<'s, '_>,
     defined: &mut Defined<'s>,

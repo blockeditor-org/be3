@@ -147,7 +147,7 @@ impl Frames {
                 }),
                 Config {
                     name: "settled child".to_owned(),
-                    // An app links its libraries into one shared memory, which the base
+                    // An app links its libraries into one memory, which the base
                     // library alone fills much of.
                     memory_limit: 1 << 30,
                 },

@@ -2,7 +2,7 @@ package be3:sandbox@0.1.0;
 
 /// Instances the host runs for a guest, of modules it compiled from bytes or
 /// of staged apps (plans/host_as_platform_adapter.md, The sandbox API). Apps
-/// are served it too, to start their workers (plans/single_threaded_guests.md).
+/// are served it too, to start their workers (decisions/guests_are_single_threaded.md).
 /// Natively each instance has a thread and an isolate of its own, and talks to
 /// its spawner by frames.
 interface sandbox {
