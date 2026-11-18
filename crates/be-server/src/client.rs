@@ -456,9 +456,6 @@ pub(crate) struct Client {
     pub(crate) lates: mpsc::UnboundedReceiver<Late>,
     outlets: Outlets<()>,
     following: Following,
-    /// What this connection may still send lease holders on host channels
-    /// (`limits::HOST_MESSAGES_PER_SECOND`).
-    host_messages: crate::limits::Bucket,
     /// The storage usage last read or told, and whether a task follows the payer's.
     storage: Option<AccountStorage>,
     following_storage: bool,
@@ -596,7 +593,6 @@ impl Client {
             lates,
             outlets: Outlets::within(STREAM_BUFFER_BYTES),
             following: Following::default(),
-            host_messages: crate::limits::Bucket::full(crate::limits::HOST_MESSAGE_BURST),
             storage: None,
             following_storage: false,
         }
@@ -1432,15 +1428,19 @@ impl Client {
             ),
             Query::Log(Some(block)) => {
                 let identity = admitted.identity()?;
-                // A reader below Edit checks the lease holder's right to host before it speaks
-                // to it (plans/hosted_blocks.md): its path proves the holder's records too.
-                let place = Place {
-                    organization: identity.organization,
-                    block,
-                };
-                let host = connection.registry.host(place).await;
-                let host = host.map(|host| host.account);
-                Page::Log(store.access_log(identity, block, host).await?)
+                // A reader below Edit checks a lease holder's right to host before it speaks to
+                // it (plans/hosted_blocks.md), in the block's log or one above it: the path proves
+                // the records of the holder of each session this connection is in, whose host it
+                // was told.
+                let mut hosts = Vec::new();
+                for place in self.following.sessions.keys() {
+                    if place.organization == identity.organization
+                        && let Some(host) = connection.registry.host(*place).await
+                    {
+                        hosts.push(host.account);
+                    }
+                }
+                Page::Log(store.access_log(identity, block, hosts).await?)
             }
             Query::Log(None) => Page::Log(store.organization_log(admitted.identity()?).await?),
             Query::Access(block) => {
@@ -2379,12 +2379,21 @@ impl Client {
                     )?;
                     let route = connection
                         .registry
-                        .host_route(place, connection.client, to)
+                        .host_route(place, connection.client, identity.account, to)
                         .await;
                     let target = match route {
                         crate::sessions::HostRoute::To(target) => target,
                         crate::sessions::HostRoute::NoHost => {
                             return Err(invalid("no one hosts the block now"));
+                        }
+                        crate::sessions::HostRoute::SlowDown => {
+                            return Err(ServerError::Refused(
+                                ErrorCode::SlowDown,
+                                format!(
+                                    "at most {} messages a second to the host",
+                                    crate::limits::HOST_MESSAGES_PER_SECOND
+                                ),
+                            ));
                         }
                         crate::sessions::HostRoute::Refused => {
                             return Err(ServerError::Refused(
@@ -2394,23 +2403,6 @@ impl Client {
                             ));
                         }
                     };
-                    // Only what goes to the holder is limited: it is what one member could
-                    // flood it with.
-                    if to.is_none()
-                        && !self.host_messages.take(
-                            std::time::Instant::now(),
-                            crate::limits::HOST_MESSAGES_PER_SECOND,
-                            crate::limits::HOST_MESSAGE_BURST,
-                        )
-                    {
-                        return Err(ServerError::Refused(
-                            ErrorCode::SlowDown,
-                            format!(
-                                "at most {} messages a second to the host",
-                                crate::limits::HOST_MESSAGES_PER_SECOND
-                            ),
-                        ));
-                    }
                     let connection = &self.connection;
                     connection
                         .hub

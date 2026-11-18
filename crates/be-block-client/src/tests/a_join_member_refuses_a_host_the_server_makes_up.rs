@@ -85,9 +85,9 @@ async fn a_join_member_refuses_a_host_the_server_makes_up() {
         .unwrap();
     let (from, heard) = hosted(&mut on_owner, world).await;
     assert_eq!(heard, first);
-    let (mut admitted, answer) = owner.admit(world, &heard).await.unwrap();
+    let (admitting, answer) = owner.admit(world, &heard).await.unwrap();
     assert_eq!(
-        (admitted.account, admitted.level),
+        (admitting.account(), admitting.level()),
         (player.account(), Level::Join)
     );
     owner
@@ -97,7 +97,6 @@ async fn a_join_member_refuses_a_host_the_server_makes_up() {
         .unwrap();
     let (_, heard) = hosted(&mut on_player, world).await;
     let mut channel = joining.finish(&heard).unwrap();
-    assert_eq!(channel.handshake_hash(), admitted.channel.handshake_hash());
     let sealed = channel.seal(b"move north");
     assert!(
         !sealed
@@ -105,20 +104,29 @@ async fn a_join_member_refuses_a_host_the_server_makes_up() {
             .any(|window| window == b"move north"),
         "a message crosses the server sealed"
     );
-    assert_eq!(admitted.channel.open(&sealed).unwrap(), b"move north");
-    assert!(
-        admitted.channel.open(&sealed).is_err(),
-        "a message the server replays is refused"
-    );
-    let later = channel.seal(b"move east");
-    let latest = channel.seal(b"move west");
-    assert_eq!(admitted.channel.open(&latest).unwrap(), b"move west");
-    assert!(
-        admitted.channel.open(&later).is_err(),
-        "a message the server holds back and sends after a later one is refused"
-    );
+    player
+        .connection()
+        .send_host(world, None, sealed)
+        .await
+        .unwrap();
+    let (_, heard) = hosted(&mut on_owner, world).await;
+    let (mut admitted, said) = admitting.confirm(&heard).unwrap();
+    assert_eq!(said, b"move north", "the member's first message admits it");
+    assert_eq!(channel.handshake_hash(), admitted.channel.handshake_hash());
     let back = admitted.channel.seal(b"you see a door");
     assert_eq!(channel.open(&back).unwrap(), b"you see a door");
+    assert!(
+        channel.open(&back).is_err(),
+        "a message the server replays is refused"
+    );
+
+    // The server replays the player's first message: the host answers, but no one there holds
+    // the keys to say anything on that channel, so no one is admitted.
+    let (replayed, _) = owner.admit(world, &first).await.unwrap();
+    assert!(
+        replayed.confirm(&heard).is_err(),
+        "a replayed handshake admitted someone"
+    );
 
     // The server names as host an account the log gives only View, or nothing.
     for (who, named) in [("a viewer", viewer.account()), ("a stranger", stranger.account())] {

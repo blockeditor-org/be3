@@ -577,15 +577,15 @@ impl ServerStore {
 
     /// The block's access log, root first (`query.log`), to a caller who may view or join it
     /// or view a block below it: whole to one with Edit or above on it, or who views it with
-    /// Edit below, else a proof path of the caller's own right, of that of `host`, the account
-    /// holding its session's lease, whom a Join member or viewer checks before it speaks to it
-    /// (plans/hosted_blocks.md), and, for a block above what the caller views, of whoever signs
-    /// below on authority from it.
+    /// Edit below, else a proof path of the caller's own right, of that of each of `hosts`, the
+    /// accounts holding the leases of the sessions the caller is in, whom a Join member or
+    /// viewer checks before it speaks to them (plans/hosted_blocks.md), and, for a block above
+    /// what the caller views, of whoever signs below on authority from it.
     pub async fn access_log(
         &self,
         identity: Identity,
         block: Uuid,
-        host: Option<Uuid>,
+        hosts: Vec<Uuid>,
     ) -> Result<Vec<Vec<u8>>, ServerError> {
         self.with_graph(identity.organization, move |_, graph, database| {
             let seen = visibility(identity);
@@ -620,7 +620,7 @@ impl ServerStore {
                     also
                 }
             };
-            also.extend(host);
+            also.extend(hosts);
             crate::access::served_log(
                 database,
                 be_block_keys::LogKind::Block,

@@ -423,12 +423,19 @@ counts and records nothing: `reserve-uploads` did before it signed.
   uses too, so no member reads another's messages to the host. The holder
   sends to one member it names; anyone else sends, naming none, to the holder
   (`SessionRegistry::host_route`); the rest is refused, and a send to a
-  session no one holds fails. What a connection sends the holder is limited to
-  `limits::HOST_MESSAGES_PER_SECOND` over a burst of `HOST_MESSAGE_BURST`
-  (`SlowDown`), each at most `MAX_HOST_MESSAGE_BYTES`. The payload is sealed
-  end to end (guides/blocks/keys.md, "Hosted channels"). `recheck_sessions`
-  takes out a Join member that lost `Join`, and a participant that fell to
-  `Join`, which joins again as a Join member. After a grant, a revocation, a move or a role change,
+  session no one holds fails. What an account sends the holder, across its
+  connections, is limited per session to `limits::HOST_MESSAGES_PER_SECOND`
+  over a burst of `HOST_MESSAGE_BURST` (`SlowDown`), each at most
+  `MAX_HOST_MESSAGE_BYTES`. The payload is sealed end to end
+  (guides/blocks/keys.md, "Hosted channels"). `query.log` proves, on a path
+  to a reader below Edit, the account holding the lease of each session the
+  connection is in, for the block's log and the logs above it. Beside what
+  the plan grants it, a Join member learns, as `KnowExists` and View members
+  already do, its no-access summary's `changed` and the length of the log.
+  `recheck_sessions` takes out a Join member that lost `Join`, and a
+  participant that fell to `Join`, which joins again as a Join member.
+
+  After a grant, a revocation, a move or a role change,
   `recheck_sessions` checks each participant below the block again: one that
   lost `View` (a grant removed, the block trashed, or a move out of view)
   leaves, and the trees it follows advance, where it reads that the block left

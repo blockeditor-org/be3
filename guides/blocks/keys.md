@@ -812,27 +812,39 @@ A hosted block's members speak to its host over a private channel
 cannot read.
 
 - **The host is an account.** The server names the lease holder's account; a
-  member checks the block's log gives it Edit or above and takes the identity
-  key that log names for it (`Peer::join_host`), else refuses it as forged. A
-  member that pinned the block's root checks the log as `checked_access`
-  does. A `Join` member holds no key of the block, so nothing carried it the
-  root: it takes the root of the log as served once that log holds a grant to
-  it signed with the key of a contact it verified (`joined_log`), and keeps
-  nothing of it ("Accepted limits").
+  member checks the signed logs give it Edit or above (`held_with_key`: its
+  record in the block's log, else the nearest block above by the signed parent
+  records, as `held_above` finds it, else administering the organization) and
+  takes the identity key the record giving it names (`Peer::join_host`), else
+  refuses it as forged. A member that pinned the block's root checks the log
+  as `checked_access` does. A `Join` member holds no key of the block, so
+  nothing carried it the root: it takes the root of the log as served once
+  that log holds a grant to it signed with a key it verified for the contact
+  who signed it (`joined_log`), and pins it weakly, in memory
+  (`KeyBook::pin_vouched`, `RootPin::Weak`), so a log rooted elsewhere later in
+  the run is refused ("Accepted limits").
 - **The handshake** is Noise IK (`Noise_IK_25519_XChaChaPoly_SHA256`: this
-  crate's one seal in place of ChaChaPoly) between the two accounts' X25519
-  identity keys, the member initiating, with the prologue
-  `hosted_prologue(block, head)`: the block and the head of the log the member
-  checked the host at, which its first message carries in the clear before the
-  Noise message, with its account id as the payload. The host
-  (`Peer::admit`), served the whole log, admits it only if its log reaches
-  that head and grants that account Join or above now, with the key the
+  crate's one seal in place of ChaChaPoly; the cipher is a private parameter,
+  and a test runs the same code as `Noise_IK_25519_ChaChaPoly_SHA256` against
+  a published vector) between the two accounts' X25519 identity keys, the
+  member initiating, with the prologue `hosted_prologue(block, head)`: the
+  block and the head of the log the member checked the host at, which its
+  first message carries in the clear before the Noise message, with its
+  account id as the payload. The host (`Peer::admit`), served the whole log,
+  answers only if its log reaches that head and the signed logs give that
+  account `Join` on the block itself, or View or above from anywhere up its
+  path (View holds Join; Join itself never passes down), now, with the key the
   handshake carried; a member revoked since, or one speaking with another
-  account's key, is refused.
+  account's key, is refused. IK's first message can be replayed, so the host
+  counts the member as admitted only once the member's first message on the
+  channel opens (`Admitting::confirm`); the member sends one at once.
 - **Messages** (`noise::Channel`) each carry a 64-bit counter, the seal's
-  nonce, and are taken only past the last counter taken, so the server can
-  neither read, forge, reorder nor replay one; one it drops is lost. A host
-  change or reconnect starts a new handshake.
+  nonce, and a side takes only the next one: a message out of place (dropped,
+  held back, replayed) or changed breaks the channel for good, and the member
+  handshakes again, as it does after a host change or a reconnect. So the
+  server can neither read, forge, reorder, replay nor silently drop a
+  transport message; the handshake's own first message it can replay, which
+  admits no one. Keys and the chaining key are wiped when dropped.
 
 ### Accepted limits
 

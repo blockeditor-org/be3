@@ -1,12 +1,14 @@
 //! The two sides of a hosted block's private channel (plans/hosted_blocks.md, "The channel"):
 //! a member checks that the account the server names as the block's host may host it, then
 //! opens a Noise IK handshake to that account's identity key (`be_block_keys::noise`); the host
-//! checks the member's grant names the key it spoke with before it answers. The messages travel
-//! on the session's host channel (`Connection::send_host`, `Event::Hosted`), which the server
-//! routes but cannot read.
+//! checks the member's grant names the key it spoke with before it answers, and counts the
+//! member as admitted only once the member's first message on the channel opens (`Admitting`),
+//! since the handshake's first message can be replayed. The messages travel on the session's
+//! host channel (`Connection::send_host`, `Event::Hosted`), which the server routes but cannot
+//! read.
 
 use be_block_keys::noise::{Channel, Initiator, Responder, hosted_prologue};
-use be_block_keys::{Level, Record, Step};
+use be_block_keys::{Checked, Level, LogKind, Placement, PublicIdentity, Record, Step};
 use be_block_protocol::ErrorCode;
 use be_block_store::ObjectStore;
 use uuid::Uuid;
@@ -29,8 +31,9 @@ impl Joining {
     }
 
     /// Reads the host's answer: the channel, once it was made by the holder of the key the
-    /// block's log names for the host. Anything else (another key, a message replayed from
-    /// another handshake) is refused as forged.
+    /// block's log names for the host. Anything else (another key, an answer to another
+    /// handshake) is refused as forged. The member's first message on the channel is what
+    /// shows the host it is there (`Admitting::confirm`), so it sends one at once.
     pub fn finish(self, answer: &[u8]) -> Result<Channel, ClientError> {
         self.initiator
             .finish(answer)
@@ -39,8 +42,53 @@ impl Joining {
     }
 }
 
-/// A member the host admitted: its account, its level in the block's log as the host checked
-/// it, and the channel to it.
+/// A member the host answered, not admitted yet: the handshake's first message can be replayed,
+/// so it is admitted only once its first message on the channel opens (`confirm`).
+#[derive(Debug)]
+pub struct Admitting {
+    block: Uuid,
+    account: Uuid,
+    level: Level,
+    channel: Channel,
+}
+
+impl Admitting {
+    /// The account the member says it is, which its first message on the channel proves.
+    pub fn account(&self) -> Uuid {
+        self.account
+    }
+
+    /// The level the signed logs give that account, as the host checked them.
+    pub fn level(&self) -> Level {
+        self.level
+    }
+
+    /// Opens the member's first message on the channel: the member admitted, and what it said.
+    /// One that does not open (a replayed handshake, whose sender holds no key of this one) is
+    /// refused, and the member is not admitted.
+    pub fn confirm(mut self, first: &[u8]) -> Result<(Admitted, Vec<u8>), ClientError> {
+        let said = self.channel.open(first).map_err(|_| {
+            ClientError::Refused(
+                ErrorCode::PermissionDenied,
+                format!(
+                    "the member of block {} that answered holds no key of this handshake",
+                    self.block
+                ),
+            )
+        })?;
+        Ok((
+            Admitted {
+                account: self.account,
+                level: self.level,
+                channel: self.channel,
+            },
+            said,
+        ))
+    }
+}
+
+/// A member the host admitted: its account, its level as the host checked it in the signed
+/// logs, and the channel to it.
 #[derive(Debug)]
 pub struct Admitted {
     pub account: Uuid,
@@ -54,18 +102,23 @@ const HEAD_LEN: usize = 32;
 
 impl<S: ObjectStore> Peer<S> {
     /// Starts the handshake to `host`, the account the server names as holding `block`'s lease
-    /// (`SessionHost`): checks `host` holds Edit or above in the block's access log, and opens
-    /// to the identity key that log names for it. Answers the first message to send the host
-    /// (`Connection::send_host`). The log is checked from the root this device pinned or, for a
-    /// Join member, which holds no key that carries one, from the root a grant to this account
-    /// fixes, signed by a contact it verified (`joined_log`). A host the log does not let host,
-    /// or a log that does not check, is refused as forged: the server cannot stand in a host of
-    /// its own, nor pass the lease to an account without Edit.
-    pub async fn join_host(&self, block: Uuid, host: Uuid) -> Result<(Joining, Vec<u8>), ClientError> {
+    /// (`SessionHost`): checks `host` holds Edit or above in the signed logs (the block's, a
+    /// block above it as its parent records place it, or administering the organization:
+    /// `held_with_key`), and opens to the identity key the record giving it names. Answers the first
+    /// message to send the host (`Connection::send_host`). The block's log is checked from the
+    /// root this device pinned or, for a Join member, which holds no key that carries one, from
+    /// the root a grant to this account fixes, signed by a contact it verified (`joined_log`). A
+    /// host the logs do not let host, or a log that does not check, is refused as forged: the
+    /// server cannot stand in a host of its own, nor pass the lease to an account without Edit.
+    pub async fn join_host(
+        &self,
+        block: Uuid,
+        host: Uuid,
+    ) -> Result<(Joining, Vec<u8>), ClientError> {
         let checked = self.joined_log(block).await?;
-        let identity = match checked.grants.get(&host.into_bytes()) {
-            Some((level, identity)) if *level >= Level::Edit => *identity,
-            _ => return Err(ClientError::Forged(block)),
+        let identity = match self.held_with_key(&checked, host.into_bytes(), Level::Edit).await? {
+            Some((_, identity)) => identity,
+            None => return Err(ClientError::Forged(block)),
         };
         let prologue = hosted_prologue(block.into_bytes(), checked.head);
         let (initiator, message) = Initiator::start(
@@ -86,16 +139,18 @@ impl<S: ObjectStore> Peer<S> {
         ))
     }
 
-    /// The host's side: reads a member's first message, admits it if the block's whole log
-    /// (which this device, holding Edit, is served) grants the account it names Join or above now,
-    /// with the identity key it spoke with, and answers with the reply to send it back. A member
-    /// revoked since, one speaking with a key its grant does not name, or one that checked a log
-    /// this device's does not reach, is refused.
+    /// The host's side: reads a member's first message and answers it if the signed logs give
+    /// the account it names Join on the block itself, or View or above from anywhere up its
+    /// path (View holds Join), now, with the identity key it spoke with (`held_with_key`). The block's
+    /// log, which this device (holding Edit) is served whole, must reach the head the member
+    /// checked. Answers the reply to send back, and the member as `Admitting`: admitted only
+    /// once its first message on the channel opens. A member revoked since, or one speaking
+    /// with a key no record names for the account it names, is refused.
     pub async fn admit(
         &self,
         block: Uuid,
         message: &[u8],
-    ) -> Result<(Admitted, Vec<u8>), ClientError> {
+    ) -> Result<(Admitting, Vec<u8>), ClientError> {
         let refused = |why: &str| {
             ClientError::Refused(
                 ErrorCode::PermissionDenied,
@@ -121,17 +176,22 @@ impl<S: ObjectStore> Peer<S> {
             .as_slice()
             .try_into()
             .map_err(|_| refused("it names no account"))?;
-        let level = match checked.grants.get(&account) {
-            Some((level, identity))
-                if *level >= Level::Join && identity.public == responder.joiner =>
-            {
-                *level
-            }
-            _ => return Err(refused("the log grants it nothing with that key")),
+        let joined = match checked.grants.get(&account) {
+            Some((level, identity)) if *level >= Level::Join => Some((*level, *identity)),
+            _ => None,
+        };
+        let level = match joined {
+            Some(joined) => Some(joined),
+            None => self.held_with_key(&checked, account, Level::View).await?,
+        };
+        let level = match level {
+            Some((level, identity)) if identity.public == responder.joiner => level,
+            _ => return Err(refused("the logs grant it nothing with that key")),
         };
         let (channel, answer) = responder.accept(&[]);
         Ok((
-            Admitted {
+            Admitting {
+                block,
                 account: Uuid::from_bytes(account),
                 level,
                 channel,
@@ -140,13 +200,77 @@ impl<S: ObjectStore> Peer<S> {
         ))
     }
 
+    /// The level `account` holds at or above `level` on the block `checked` is the log of, as
+    /// the signed logs give it now, with the identity key the record giving it names: its record
+    /// in that log; else, as `held_above` finds it, the nearest block above, by the signed
+    /// parent records; else administering the organization, by its log checked from the root
+    /// this account pinned. None when nothing gives it.
+    async fn held_with_key(
+        &self,
+        checked: &Checked,
+        account: [u8; 16],
+        level: Level,
+    ) -> Result<Option<(Level, PublicIdentity)>, ClientError> {
+        let named = |log: &Checked| match log.grants.get(&account) {
+            Some((held, identity)) if *held >= level => Some((*held, *identity)),
+            _ => None,
+        };
+        if let Some(held) = named(checked) {
+            return Ok(Some(held));
+        }
+        let mut placement = checked.placement();
+        for _ in 0..be_block_keys::MAX_ANCESTRY {
+            let Some(Placement::Block { block: up, root }) = placement else {
+                break;
+            };
+            let above = match self.checked_from(Uuid::from_bytes(up), root).await {
+                Ok(above) => above,
+                Err(error) if error.is_unreachable() => return Err(error),
+                Err(_) => break,
+            };
+            if above.holding(LogKind::Block, account, level).is_some()
+                && let Some(held) = named(&above)
+            {
+                return Ok(Some(held));
+            }
+            placement = above.placement();
+        }
+        let Some(pinned) = self.keys.organization_root() else {
+            return Ok(None);
+        };
+        let entries = match self.organization_log().await {
+            Ok(entries) => entries,
+            Err(error) if error.is_unreachable() => return Err(error),
+            Err(_) => return Ok(None),
+        };
+        let Ok(organization) = be_block_keys::check_log(
+            LogKind::Organization,
+            self.organization.into_bytes(),
+            pinned,
+            &entries,
+            &|_| None,
+        ) else {
+            return Ok(None);
+        };
+        Ok(organization
+            .administrators
+            .get(&account)
+            .filter(|_| {
+                organization
+                    .holding(LogKind::Organization, account, level)
+                    .is_some()
+            })
+            .map(|identity| (Level::Manage, *identity)))
+    }
+
     /// `block`'s log as a member checks a host by it: from the root this device pinned, as
     /// `checked_access` checks it; or, with none pinned (a Join member is sealed no key that
     /// would carry one), from the root of the log as served, taken only when that log holds a
-    /// grant to this account signed with the key of a contact this device verified, whose hash
-    /// chain fixes every entry before it, the root included. Such a log is not kept: it is
-    /// read again for each handshake.
-    async fn joined_log(&self, block: Uuid) -> Result<be_block_keys::Checked, ClientError> {
+    /// grant to this account signed with a key this device verified for the contact that
+    /// signed it, whose hash chain fixes every entry before it, the root included. That root
+    /// is then pinned as weakly as a member's escrow wrap pins one (`KeyBook::pin_vouched`), so
+    /// a log rooted elsewhere later is refused for the rest of the run.
+    async fn joined_log(&self, block: Uuid) -> Result<Checked, ClientError> {
         if !matches!(self.keys.root_pin(block), crate::keys::RootPin::Unknown) {
             return Ok(self.checked_access(block).await?.1);
         }
@@ -156,19 +280,25 @@ impl<S: ObjectStore> Peer<S> {
             true => self.logs_around(block, &entries).await?,
             false => Around::default(),
         };
-        let checked = around
+        around
             .check(self.organization, block, root, &entries)
             .ok_or(ClientError::Forged(block))?;
         let me = self.account.into_bytes();
         let vouched = entries.iter().filter_map(Step::entry).any(|entry| {
             matches!(&entry.record, Record::Grant(grant) if grant.grantee == me)
                 && self
-                    .verified_identity(Uuid::from_bytes(entry.signer))
-                    .is_some_and(|signer| entry.signed_by(&signer.signing))
+                    .refs
+                    .signers(Uuid::from_bytes(entry.signer))
+                    .iter()
+                    .filter(|signer| signer.verified)
+                    .any(|signer| {
+                        entry.signed_by(&be_block_keys::SigningPublic(signer.key))
+                    })
         });
-        match vouched {
-            true => Ok(checked),
-            false => Err(ClientError::Forged(block)),
+        if !vouched {
+            return Err(ClientError::Forged(block));
         }
+        self.keys.pin_vouched(block, root);
+        Ok(self.checked_access(block).await?.1)
     }
 }
