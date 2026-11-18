@@ -24,10 +24,12 @@ be_wasm_ops_bindgen::generate!({
 
 pub use frames::{FrameDone, FrameRequest};
 pub use host::{
-    AccountRow, AgentCredentials, ContactCard, ContactMismatch, ContactRow, ContactsArea, Leaving,
-    ShareAccess, SharePreview, ShareLinksArea, AgentRow, AgentsArea, BrowserSignIn, MemberRole, MemberRow,
-    MembersArea, RoleChange, CoreCommand, CoreSecret, CoreView, CoreWait, DiscardReason,
-    InvitationRow, InvitationState, InvitationsArea, Reauthenticating, SecretCommand, Invitation, OrganizationRow,
-    OrganizationsArea, OrganizationsListed, ProfileRow, SessionKind, SessionRow, SessionsArea, DisplayQuestion, DisplayState, HostStatistics, LockState, Notice, NoticeAction, PowerAction, SavingState, ShownNotices,
-    NewAccount, Refusal, ServerAccount, SetAside, SigningIn, StatisticRow, SyncState, UnsentEdit,
+    AccountRow, AgentCredentials, AgentRow, AgentsArea, BrowserSignIn, ContactCard,
+    ContactMismatch, ContactRow, ContactsArea, CoreCommand, CoreSecret, CoreView, CoreWait,
+    DiscardReason, DisplayQuestion, DisplayState, HostStatistics, Invitation, InvitationRow,
+    InvitationState, InvitationsArea, Leaving, LockState, MemberRole, MemberRow, MembersArea,
+    NewAccount, Notice, NoticeAction, OrganizationRow, OrganizationsArea, OrganizationsListed,
+    PowerAction, ProfileRow, Reauthenticating, Refusal, RoleChange, SavingState, SecretCommand,
+    ServerAccount, SessionKind, SessionRow, SessionsArea, SetAside, ShareAccess, ShareLinksArea,
+    SharePreview, ShownNotices, SigningIn, StatisticRow, SyncState, UnsentEdit,
 };

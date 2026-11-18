@@ -136,7 +136,10 @@ fn a_root_asks_before_leaving_a_block_and_opens_its_hosts_contact_and_share_link
     assert!(shows_dialog(&mut root, &mut time), "it stays while leaving");
     root.show_core(CoreView::default());
     let commands = asks(&mut root, &mut time, Vec::new());
-    assert!(commands.is_empty(), "left, it goes asking nothing more: {commands:?}");
+    assert!(
+        commands.is_empty(),
+        "left, it goes asking nothing more: {commands:?}"
+    );
     assert!(!shows_dialog(&mut root, &mut time));
     root.show_core(leaving(false));
     let _ = asks(&mut root, &mut time, Vec::new());
@@ -164,14 +167,19 @@ fn a_root_asks_before_leaving_a_block_and_opens_its_hosts_contact_and_share_link
     root.input(None, be_lib_ui_types::input::encode(&key(Key::Escape)))
         .expect("the root takes input");
     let _ = asks(&mut root, &mut time, Vec::new());
-    assert!(shows_dialog(&mut root, &mut time), "the contacts stay while the link is made");
+    assert!(
+        shows_dialog(&mut root, &mut time),
+        "the contacts stay while the link is made"
+    );
     let requests = root.take_secret_requests();
     let [(id, SecretCommand::ContactLink)] = requests.as_slice() else {
         panic!("New link asks for one, Escape cancelling nothing: {requests:?}");
     };
     root.answer_secret(
         *id,
-        Some(CoreSecret::Link(Password::from("https://example.com/contact#c0de".to_owned()))),
+        Some(CoreSecret::Link(Password::from(
+            "https://example.com/contact#c0de".to_owned(),
+        ))),
     );
     assert_ne!(painting(&mut root, &mut time), listed, "the link shows");
     let _ = asks(&mut root, &mut time, key(Key::Escape));
@@ -215,7 +223,11 @@ fn a_root_asks_before_leaving_a_block_and_opens_its_hosts_contact_and_share_link
         matches!(commands.as_slice(), [CoreCommand::ForgetShareLink]),
         "opening it starts afresh: {commands:?}"
     );
-    let _ = asks(&mut root, &mut time, typed("https://example.com/share#s3cret"));
+    let _ = asks(
+        &mut root,
+        &mut time,
+        typed("https://example.com/share#s3cret"),
+    );
     let commands = asks(&mut root, &mut time, key(Key::Enter));
     match commands.as_slice() {
         [CoreCommand::OpenShareLink(link)] => {

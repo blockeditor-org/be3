@@ -23,11 +23,12 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    AccountRow, AgentRow, ContactCard, ContactMismatch, ContactRow, ShareAccess, SharePreview,
-    CoreCommand, CoreSecret, MemberRole, MemberRow, RoleChange, SecretCommand, CoreView, CoreWait, DiscardReason, InvitationRow,
-    InvitationState, OrganizationRow, OrganizationsListed, ProfileRow,
-    SessionRow, DisplayQuestion, FrameDone, FrameRequest, HostStatistics, LockState,
-    NewAccount, Notice, PowerAction, Refusal, SavingState, ServerAccount, SetAside, StatisticRow, SyncState, UnsentEdit,
+    AccountRow, AgentRow, ContactCard, ContactMismatch, ContactRow, CoreCommand, CoreSecret,
+    CoreView, CoreWait, DiscardReason, DisplayQuestion, FrameDone, FrameRequest, HostStatistics,
+    InvitationRow, InvitationState, LockState, MemberRole, MemberRow, NewAccount, Notice,
+    OrganizationRow, OrganizationsListed, PowerAction, ProfileRow, Refusal, RoleChange,
+    SavingState, SecretCommand, ServerAccount, SessionRow, SetAside, ShareAccess, SharePreview,
+    StatisticRow, SyncState, UnsentEdit,
     guest::{
         exports::{frames, input, paintings},
         host,
@@ -42,17 +43,18 @@ use beui::{
 };
 
 use crate::{
-    AGENTS_TITLE, CONTACTS_TITLE, LEAVE_TITLE, OPENS_CONTACTS, OPENS_SHARE_LINKS,
-    REMOVE_CONTACT_TITLE, SHARE_LINK_TITLE, DISCARD_TITLE, INVITATIONS_TITLE, MEMBERS_TITLE, OPENS_AGENTS, OPENS_MEMBERS,
-    REMOVE_MEMBER_TITLE, OPENS_INVITATIONS, REAUTH_TITLE, ONBOARDING_LAYER,
-    ONBOARDING_SURFACE, ORGANIZATIONS_TITLE, SESSIONS_TITLE, ADD_ACCOUNT_TITLE, FORGET_ACCOUNT_TITLE, SIGN_IN_TITLE,
-    APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DISCARD_UNSENT_TITLE, OPENS_UNSENT, UNSENT_TITLE, DIALOG_ORIGIN, KEEP_DISPLAY_TITLE, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
-    LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG,
-    OPENS_STATISTICS, ORIGIN, RASTER, RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE,
-    SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE, SIZE, SLOW_SAVE, SLOW_SAVE_TITLE,
+    ADD_ACCOUNT_TITLE, AGENTS_TITLE, APP, APP_ENTRY, CLOSES, CONTACTS_TITLE, DIALOG_LAYER,
+    DIALOG_ORIGIN, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE, DISCARD_TITLE, DISCARD_UNSENT_TITLE,
+    FORGET_ACCOUNT_TITLE, INVITATIONS_TITLE, KEEP_DISPLAY_TITLE, LATE_LAYER, LATER, LATER_TEXT,
+    LEAVE_TITLE, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, MEMBERS_TITLE, ONBOARDING_LAYER,
+    ONBOARDING_SURFACE, OPENS_AGENTS, OPENS_CONTACTS, OPENS_DIALOG, OPENS_INVITATIONS,
+    OPENS_MEMBERS, OPENS_SHARE_LINKS, OPENS_STATISTICS, OPENS_UNSENT, ORGANIZATIONS_TITLE, ORIGIN,
+    RASTER, REAUTH_TITLE, REMOVE_CONTACT_TITLE, REMOVE_MEMBER_TITLE, RESIZED, RESIZES, ROOT_COLOR,
+    ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE,
+    SESSIONS_TITLE, SHARE_LINK_TITLE, SIGN_IN_TITLE, SIZE, SLOW_SAVE, SLOW_SAVE_TITLE,
     SLOW_SAVE_TOAST, STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE,
     STATISTICS_TITLE, STRAY_PASSWORD, TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA,
-    TOAST_LAYER, TOAST_SURFACE, UNLOCKS_TWICE, UNPRESENTED_SURFACE,
+    TOAST_LAYER, TOAST_SURFACE, UNLOCKS_TWICE, UNPRESENTED_SURFACE, UNSENT_TITLE,
 };
 
 /// The triangle's editor, by its manifest's id.
@@ -863,7 +865,10 @@ impl Root {
             _ if !locked && asked == Some(Asked::OpenAgents) && self.dialog.borrow().is_none() => {
                 Some(Asking::Agents)
             }
-            _ if !locked && asked == Some(Asked::OpenContacts) && self.dialog.borrow().is_none() => {
+            _ if !locked
+                && asked == Some(Asked::OpenContacts)
+                && self.dialog.borrow().is_none() =>
+            {
                 Some(Asking::Contacts)
             }
             _ if !locked
@@ -975,8 +980,10 @@ impl Root {
             Asking::Host(asks) => Some(*asks),
             _ => None,
         };
-        let receives_secret =
-            matches!(opening, Asking::Invitations | Asking::Agents | Asking::Contacts);
+        let receives_secret = matches!(
+            opening,
+            Asking::Invitations | Asking::Agents | Asking::Contacts
+        );
         let holds_while_pending = matches!(opening, Asking::Agents | Asking::Contacts);
         match opening {
             Asking::Invitations => ask_core(CoreCommand::ListInvitations),
@@ -1044,7 +1051,9 @@ impl Root {
                     Asking::Host(HostAsks::Leave(_)) => {
                         let core = create_signal(core);
                         core_shown.set(Some(core));
-                        view! { <LeaveDialog core={core} done={done} /> }
+                        view! {
+                            <LeaveDialog core={core} done={done} />
+                        }
                     }
                     Asking::Contacts => {
                         let core = create_signal(core);
@@ -1052,13 +1061,21 @@ impl Root {
                         let (link, pending, ask) =
                             secret_asker(&secret_shown, &answered, &wakes, &closes);
                         view! {
-                            <ContactsDialog core={core} link={link} pending={pending} ask={ask} done={done} />
+                            <ContactsDialog
+                                core={core}
+                                link={link}
+                                pending={pending}
+                                ask={ask}
+                                done={done}
+                            />
                         }
                     }
                     Asking::ShareLinks => {
                         let core = create_signal(core);
                         core_shown.set(Some(core));
-                        view! { <ShareLinkDialog core={core} done={done} /> }
+                        view! {
+                            <ShareLinkDialog core={core} done={done} />
+                        }
                     }
                     Asking::Host(HostAsks::Discard(reason)) => {
                         view! {
@@ -2905,7 +2922,8 @@ fn ContactsDialog(
                 .map(|card| format!("You are connected with {}.", card_named(card)))
         })
     });
-    let showing = create_memo(move || link.with(|link| link.as_ref().and_then(Held::link).is_some()));
+    let showing =
+        create_memo(move || link.with(|link| link.as_ref().and_then(Held::link).is_some()));
     let removing = create_signal(None::<[u8; 16]>);
     let asked = create_memo(move || {
         let account = removing.get()?;
@@ -2917,13 +2935,23 @@ fn ContactsDialog(
         asked.with(|asked| {
             let name = asked
                 .as_ref()
-                .map(|contact| card_named(&ContactCard { name: contact.name.clone(), email: contact.email.clone() }))
+                .map(|contact| {
+                    card_named(&ContactCard {
+                        name: contact.name.clone(),
+                        email: contact.email.clone(),
+                    })
+                })
                 .unwrap_or_default();
             format!("Remove {name}? Whatever you and they have shared with each other is unshared.")
         })
     });
     let shown = create_memo(move || {
-        link.with(|link| link.as_ref().and_then(Held::link).unwrap_or_default().to_owned())
+        link.with(|link| {
+            link.as_ref()
+                .and_then(Held::link)
+                .unwrap_or_default()
+                .to_owned()
+        })
     });
     let copy = move || {
         let text = shown.get_untracked();
@@ -2985,7 +3013,11 @@ fn ContactsDialog(
                         <be_host_accounts_ui::ErrorText text={error} />
                         <Note text={connected} />
                         <Show value={offered}>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=Space::Sm
+                            >
                                 <ListItem grow=1.0>
                                     <Text>{offer}</Text>
                                 </ListItem>
@@ -3010,7 +3042,11 @@ fn ContactsDialog(
                             let name = create_memo(move || contact.with(|it| card_named(&ContactCard { name: it.name.clone(), email: it.email.clone() })));
                             let detail = create_memo(move || contact.with(contact_detail));
                             view! {
-                                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=Space::Sm
+                                >
                                     <ListItem grow=1.0>
                                         <List spacing=Space::Xs2>
                                             <Text>{name}</Text>
@@ -3082,10 +3118,12 @@ fn ContactsDialog(
 fn contact_detail(contact: &ContactRow) -> String {
     match (&contact.mismatch, contact.verified) {
         (Some(ContactMismatch::Older), _) => {
-            "The server served an older record of this contact: this device keeps its own.".to_owned()
+            "The server served an older record of this contact: this device keeps its own."
+                .to_owned()
         }
         (Some(ContactMismatch::Unreadable), _) => {
-            "The server's record of this contact can't be read here: this device keeps its own.".to_owned()
+            "The server's record of this contact can't be read here: this device keeps its own."
+                .to_owned()
         }
         (None, true) => "Verified".to_owned(),
         (None, false) => "Not verified yet".to_owned(),
@@ -3103,7 +3141,9 @@ fn share_offered(preview: &SharePreview) -> String {
     let named = share_named(preview);
     let organization = share_organization(preview);
     let guest = match preview.guest {
-        true => format!(" You will join {organization} as a guest: you see only what links share with you there."),
+        true => format!(
+            " You will join {organization} as a guest: you see only what links share with you there."
+        ),
         false => String::new(),
     };
     format!("{named}, in {organization}, is shared with you: you can {can}.{guest}")
