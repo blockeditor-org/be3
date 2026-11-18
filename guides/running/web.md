@@ -165,7 +165,7 @@ the call (`own-memory-web-host-test`). Traps that shape this code:
   the same time in the page and the worker.
 - `web/sw.js`, the service worker, keeps what the page fetched (network first, except `/api` and
   `/auth`; a network silent for 3 s gets the kept answer), so a page opened once opens offline.
-- Push notifications (plans/notifications.md). The browser decrypts a Web Push payload before
+- Push notifications (plans/deferred/notifications_on_a_device.md). The browser decrypts a Web Push payload before
   `sw.js` sees it, so the worker holds a `PushMessage`'s bytes, never a key.
   - *Showing.* The worker asks every open window to open the push (`web/push.js`, bound in
     `host.js` to the module's `push_open`, which runs `Peer::open_notification` and names the

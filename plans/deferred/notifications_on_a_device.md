@@ -1,4 +1,4 @@
-# Notifications: what is left
+# Notifications: checked on a device
 
 Depends on: none.
 
@@ -25,6 +25,10 @@ the app closed is tested on Linux (be-host-stack's
   push must show a notification, so the service worker always shows one.
 
 ## Order of work
+
+Deferred: it needs an Android device or an emulator with KVM, which the cloud
+machines that build this lack.
+
 
 1. Android on a device. Written without an emulator to run it (no KVM where it
    was built), so only its compiling is checked. Done: on the emulator, with a

@@ -151,7 +151,7 @@ the Java is `crates/be-host/android/java/com/be3/host/`, the Rust `crates/be-hos
 - *Signing out* the last saved account sends `UNREGISTER`; every sign-out names the endpoint to
   `logout`, so the server forgets it (`android_push::sign_out`).
 
-Nothing of this has run on a device or the emulator yet; plans/notifications.md lists what to
+Nothing of this has run on a device or the emulator yet; plans/deferred/notifications_on_a_device.md lists what to
 check there, including that
 `adb shell am start -n com.be3.host.dev/com.be3.host.MainActivity --es com.be3.host.organization ORG --es com.be3.host.block BLOCK`
 opens nothing.

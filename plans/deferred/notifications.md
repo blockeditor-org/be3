@@ -1,9 +1,9 @@
 # Notifications: decrypting with no tab open
 
-Depends on: plans/notifications.md.
+Depends on: plans/deferred/notifications_on_a_device.md.
 
 On the web, a push that arrives with no tab open shows "New message" naming
-nothing (plans/notifications.md). Decrypting it in the service worker needs:
+nothing (plans/deferred/notifications_on_a_device.md). Decrypting it in the service worker needs:
 
 - a SQLite reader for the refs database in the service worker's own wasm,
   and the key-unwrapping code;

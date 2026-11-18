@@ -1004,7 +1004,7 @@ of the personal organization, made only there by `blocks::require_account_block`
 ### Notifications
 
 Push notifications for members who are not connected (`notifications.wit`,
-`notifications.rs`, `push.rs`; plans/notifications.md for what is left). The
+`notifications.rs`, `push.rs`; plans/deferred/notifications_on_a_device.md for what is left). The
 server never reads one: the text is sealed under the block's data key with the
 organization, block, sender and the time it was sent (`Peer::notify`, `be_block_client::Notification`).
 What it does learn: the block, the sender, when it was sent, whom it mentions,
