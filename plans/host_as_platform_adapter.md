@@ -1099,6 +1099,20 @@ Each step lands on its own.
          `a_root_shows_the_slow_saves_toast_while_its_hosts_changes_stay_unsaved` checks the
          wait, a save restarting it, a dismissed toast staying dismissed while still unsaved,
          and the toast hidden while locked, and snapshots the toast.
+       - 4g6c. Built: keep changes, as the platform's own capability: `host.displays` is a watch,
+         as `host.notices` is, of whether the host asks the person to keep display settings
+         that just changed (`display-state`'s `asking`, a `display-question`: its round and how
+         long the person has to answer), and `host.answer-display(round, keep)` answers it, an
+         answer to a round no longer asked changing nothing (be-wasm-root-host's
+         `Root::show_displays`, `take_display_answers`). be-host's `--root` manages no displays
+         (the desktop's), so it asks nothing and an answer changes nothing. be-sdk-root-testing
+         asks in its dialog's place while the host asks (`KEEP_DISPLAY_TITLE`, an alert with
+         Keep and Revert over the scrim, taking the focus), counting down to reverting on its
+         clock; Escape, a press on the scrim and the time running out revert, and the host
+         withdrawing the question closes it unanswered. be-wasm-root-host's
+         `a_root_asks_to_keep_display_settings_its_host_changed` keeps with Enter, reverts with
+         Escape and by the timeout, sees a withdrawn question go unanswered, and snapshots the
+         question.
        - 4g6a. Built: the lock screen, over the screen lock and password check the host grants.
          The lock is the host's (the platform's, a login session's): `be3:root` carries it as
          data, nothing beui's. `host.lock` is a watch, as `host.notices` is, answering the lock

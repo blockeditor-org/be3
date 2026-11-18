@@ -145,6 +145,13 @@ struct Core<G> {
     saving: be_wasm_root_api::SavingState,
     /// The root's `host.saving` calls waiting for it to change from what they saw.
     saving_watchers: Vec<Reply<be_wasm_root_api::SavingState>>,
+    /// Whether the host asks to keep display settings, which `host.displays` answers.
+    displays: be_wasm_root_api::DisplayState,
+    /// The root's `host.displays` calls waiting for it to change from what they saw.
+    display_watchers: Vec<Reply<be_wasm_root_api::DisplayState>>,
+    /// How the root answered the display questions (`host.answer-display`), each round and
+    /// whether kept, until the host takes them.
+    display_answers: Vec<(u64, bool)>,
 }
 
 impl<G: Inline> Core<G> {
@@ -204,6 +211,12 @@ impl<G: Inline> Core<G> {
                 sync: be_wasm_root_api::SyncState::Saved,
             },
             saving_watchers: Vec::new(),
+            displays: be_wasm_root_api::DisplayState {
+                generation: 1,
+                asking: None,
+            },
+            display_watchers: Vec::new(),
+            display_answers: Vec::new(),
         };
         core.received()?;
         Ok(core)
@@ -374,6 +387,29 @@ impl<G: Inline> Core<G> {
         answered
     }
 
+    /// Shows the root whether the host asks to keep display settings (`host.displays`), in
+    /// place of what it showed. Answers whether a root's call waited for it.
+    fn show_displays(&mut self, asking: Option<be_wasm_root_api::DisplayQuestion>) -> bool {
+        if asking == self.displays.asking {
+            return false;
+        }
+        self.displays = be_wasm_root_api::DisplayState {
+            generation: self.displays.generation + 1,
+            asking,
+        };
+        let watching = std::mem::take(&mut self.display_watchers);
+        let answered = !watching.is_empty();
+        for reply in watching {
+            reply.send(&mut self.connection, &self.displays);
+        }
+        answered
+    }
+
+    /// How the root answered the display questions since the last call, oldest first.
+    fn take_display_answers(&mut self) -> Vec<(u64, bool)> {
+        std::mem::take(&mut self.display_answers)
+    }
+
     /// Whether the root asked to lock the session since the last call.
     fn take_lock_asked(&mut self) -> bool {
         std::mem::take(&mut self.lock_asked)
@@ -536,10 +572,14 @@ impl<G: Inline> Core<G> {
                         self.watching
                             .remove(at)
                             .fail(&mut self.connection, OpError::Canceled);
-                    } else if let Some(at) = self
-                        .saving_watchers
-                        .iter()
-                        .position(|reply| reply.op() == op)
+                    } else if let Some(at) =
+                        self.display_watchers.iter().position(|reply| reply.op() == op)
+                    {
+                        self.display_watchers
+                            .remove(at)
+                            .fail(&mut self.connection, OpError::Canceled);
+                    } else if let Some(at) =
+                        self.saving_watchers.iter().position(|reply| reply.op() == op)
                     {
                         self.saving_watchers
                             .remove(at)
@@ -635,6 +675,16 @@ impl<G: Inline> Core<G> {
                     true => self.lock_watchers.push(reply),
                     false => reply.send(&mut self.connection, &self.lock),
                 }
+            }
+            embed::Call::Host(embed::host::Call::Displays { seen, reply }) => {
+                match seen == self.displays.generation {
+                    true => self.display_watchers.push(reply),
+                    false => reply.send(&mut self.connection, &self.displays),
+                }
+            }
+            embed::Call::Host(embed::host::Call::AnswerDisplay { round, keep, reply }) => {
+                self.display_answers.push((round, keep));
+                reply.send(&mut self.connection, &());
             }
             embed::Call::Host(embed::host::Call::Saving { seen, reply }) => {
                 match seen == self.saving.generation {

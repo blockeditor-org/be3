@@ -201,6 +201,23 @@ impl Root {
         }
     }
 
+    /// Shows the root whether the host asks the person to keep display settings that just
+    /// changed (`host.displays`): the question, or none. If the root waits on it and it changed,
+    /// it is stepped for it.
+    pub fn show_displays(&mut self, asking: Option<be_wasm_root_api::DisplayQuestion>) {
+        let answered = self.core.show_displays(asking);
+        if answered {
+            self.bell.ring();
+        }
+    }
+
+    /// How the root answered the display questions since the last call (`host.answer-display`),
+    /// oldest first: each round and whether it was kept, which the host does if it still asks
+    /// that round.
+    pub fn take_display_answers(&mut self) -> Vec<(u64, bool)> {
+        self.core.take_display_answers()
+    }
+
     /// Shows the root the session's screen lock (`host.lock`), in place of what it showed (its
     /// `generation` is ignored: the root counts the changes). If the root waits on it and it
     /// changed, it is stepped for it.

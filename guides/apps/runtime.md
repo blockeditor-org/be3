@@ -208,7 +208,11 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   the changes not yet sent, the sync's state; `Root::show_saving`), apart from
   anything slower since it moves at the rate the person types
   (plans/host_as_platform_adapter.md, 4g6, has how the rest of be-host's core
-  reaches the root).
+  reaches the root). Keep changes is the platform's: `host.displays` is
+  a watch of whether the host asks to keep display settings that just changed
+  (the round and how long the person has to answer; `Root::show_displays`),
+  and `host.answer-display(round, keep)` answers it
+  (`Root::take_display_answers`).
   The input method
   needs nothing more: the platform's input-method events reach the root as
   input, which its router hands the focused surface, and the field that
@@ -252,7 +256,8 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   the sampler when the watch ends, and each sample wakes the window; it hands
   the root be-host-base's performance rows each frame and its memory rows once
   a sample came. It runs no screen lock, so it leaves the root's lock unavailable
-  and answers every password handed over no, unchecked. What the root
+  and answers every password handed over no, unchecked; it manages no displays,
+  so it asks to keep none. What the root
   copies it puts on the window's clipboard (`Context::copy`), and each paste it
   asks for it reads there (`Context::read_clipboard`) and hands back with the
   next frame. `drive
@@ -339,7 +344,8 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   everything, on a layer listed only while one shows, hit only where they are
   and never taking the focus, a dialog F2 opens over a scrim, and a panel of
   its host's statistics F3 opens and closes, its host's lock screen while the
-  session is locked, and the slow save's toast, and which be-wasm-root-host's tests run with the
+  session is locked, the slow save's toast, and the question of keeping display
+  settings its host asks, and which be-wasm-root-host's tests run with the
   triangle on a stand-in device, and be-host's host test with `--root`. A root is
   built as an app is (`app_module`, in the `wasi-guest` plan, linked against
   base and beui; decisions/a_root_links_beui_as_an_app_does.md); only
