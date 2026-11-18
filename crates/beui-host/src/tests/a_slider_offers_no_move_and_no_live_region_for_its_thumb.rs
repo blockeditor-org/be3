@@ -20,7 +20,10 @@ fn a_slider_offers_no_move_and_no_live_region_for_its_thumb() {
             KeyReveal::Focus,
             move |event: KeyEvent| {
                 let wanted = event.press().is_some_and(|press| {
-                    press.pressed && press.key == Key::P && press.modifiers.ctrl && press.modifiers.shift
+                    press.pressed
+                        && press.key == Key::P
+                        && press.modifiers.ctrl
+                        && press.modifiers.shift
                 });
                 if wanted {
                     open.set(true);
@@ -62,7 +65,10 @@ fn a_slider_offers_no_move_and_no_live_region_for_its_thumb() {
     );
 
     harness.key(Key::P, shift_ctrl);
-    let shown = harness.document().api::<CommandPaletteApi>(palette.get()).shown();
+    let shown = harness
+        .document()
+        .api::<CommandPaletteApi>(palette.get())
+        .shown();
     assert!(
         !shown.iter().any(|action| action == "drag.move"),
         "the palette offers no Move for it: {shown:?}"

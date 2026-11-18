@@ -31,7 +31,10 @@ fn escape_puts_a_dragged_slider_back_and_reports_it_called_off() {
     );
     harness.frame(vec![Input::PointerMoved(thumb + vec2(0.3 * travel, 0.0))]);
     harness.frame(Vec::new());
-    assert!((value.get_untracked() - 0.5).abs() < 0.01, "and on as it moves");
+    assert!(
+        (value.get_untracked() - 0.5).abs() < 0.01,
+        "and on as it moves"
+    );
 
     harness.key(Key::Escape, Modifiers::NONE);
     harness.frame(vec![Input::PointerMoved(thumb + vec2(0.5 * travel, 0.0))]);
