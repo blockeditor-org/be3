@@ -424,7 +424,8 @@ An editor hears whether this device hosts its block as `editor-event.hosting`
 hosting while it is anything but `no` (`Editor::hosting`,
 `Editor::keep_hosting`). It sends the block command `keep-hosting`: be-host
 then counts the block as edited here once its editors close, so its component
-runs on, and lists it in the host menu with Stop (`UiCommand::StopHosting`).
+runs on, and lists it in the host menu with Stop (`UiCommand::StopHosting`), saying
+whether it hosts the block now or stands by while another device does (`KeptHost::now`).
 While kept, be-host holds the block's replica open itself
 (`be_host_stack::open`, let go with `close`), so a lease lost to a disconnect
 comes back and the component starts again; only Stop, or the account no
