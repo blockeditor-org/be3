@@ -1329,6 +1329,17 @@ impl ContentStore {
             .reverting(block, |inner| inner.change(block, change));
     }
 
+    /// Starts the editor's replica of `block` afresh, with a snapshot, as the host does when a
+    /// later replica of the block ends (`BlockStore::replica_resumed`): what was queued for the
+    /// replica that ended goes, and the store's replica answers a resend on its behalf.
+    pub(crate) fn resume_content(&self, instance: EditorInstanceId, block: Uuid) {
+        let mut inner = self.0.borrow_mut();
+        inner
+            .outbox
+            .retain(|(of, editor, _)| (*of, *editor) != (block, instance.0));
+        inner.editor_sent(block, instance.0, FromEditor::Resend);
+    }
+
     pub(crate) fn watch_content(&self, instance: EditorInstanceId, block: Uuid, watched: bool) {
         let mut inner = self.0.borrow_mut();
         if inner.own == Some(block) {

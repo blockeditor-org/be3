@@ -571,8 +571,10 @@ Each step lands on its own.
          replicas an editor holds are a library type (`EditorBlocks`) that the store keeps where
          it likes (be-host on each instance's entry) and hands the dispatcher (`held`), and the
          store says which instance holds an op (`holder`), since be-host already keeps that map
-         for its previews; frames go to the latest replica of a block, and a replica ends only
-         once no replica holds its block. be-sdk-test's watches now drop a value they were
+         for its previews. Two replicas of one block in one editor: frames go only to the
+         latest (a host holds one participant per editor and block, so fanning out would mix
+         two replicas' acknowledgements), and when it ends the earlier is started afresh from
+         a snapshot (`replica_resumed`); a replica ends only once no replica holds its block. be-sdk-test's watches now drop a value they were
          answered already, as be-host's did.
      - 4e4. be-host-runtime's orchestration in the library: pacing, settling against the
        deadline, the layout and present holds (`Laid`, `Kept`), restarts and grafting the

@@ -213,9 +213,15 @@ be-host-runtime's `Instances` (`instances/blocks.rs`, over be-host-stack) and
 be-sdk-test's `link.rs` (over its `ContentStore`). The dispatcher keeps each
 editor's watches and replicas (`EditorBlocks`): a store offers a `Subject` its
 latest value (`EditorBlocks::offer`), and a waiting watch is answered it only when
-it differs from what that watch was last answered; frames go to the latest replica
-of a block, and the store hears a replica end once no replica holds the block. The
-shows watch is a queue the store hands over (`take_shows`). The host's policy stays
+it differs from what that watch was last answered. A host holds one participant
+per editor and block, so of two replicas an editor opens on one block, frames go
+only to the latest; when it ends while an earlier one remains, the store drops what
+it queued for it and starts the earlier afresh with a snapshot
+(`BlockStore::replica_resumed`; be-host sends the replica a resend on its behalf,
+and relinks it first if it holds another content type). The store hears a replica
+end (`replica_ended`) once no replica holds the block. be-sdk holds one replica
+per block, and opens the new one before dropping the old when the content type
+changes, so the new one is the latest. The shows watch is a queue the store hands over (`take_shows`). The host's policy stays
 in its store: `admit` translates a call's ids through the checkout's scope and
 refuses what a preview or a host component may not do, and each method checks and
 does the call or answers the error.

@@ -35,11 +35,12 @@ pub(crate) struct Link {
 }
 
 /// The `Link` with what its calls reach: the store, and the account the editor's host is signed
-/// in to, which the blocks it makes are by.
+/// in to, which the blocks it makes are by: `None` where no call is dispatched (`ended`,
+/// `answers`), which refuses one that makes a block.
 struct Linked<'a> {
     link: &'a mut Link,
     store: &'a ContentStore,
-    author: Uuid,
+    author: Option<Uuid>,
 }
 
 impl BlockStore for Linked<'_> {
@@ -78,6 +79,7 @@ impl BlockStore for Linked<'_> {
     }
 
     fn create_block(&mut self, _: EditorInstanceId, created: Created) -> Result<bool, OpError> {
+        let author = self.author.ok_or(OpError::Denied)?;
         self.store.create_block(
             created.block.into_bytes(),
             created.block_type.into_bytes(),
@@ -85,7 +87,7 @@ impl BlockStore for Linked<'_> {
             created.defined,
             created.content,
             created.owner_only,
-            self.author,
+            author,
         );
         Ok(true)
     }
@@ -114,6 +116,10 @@ impl BlockStore for Linked<'_> {
         true
     }
 
+    fn replica_resumed(&mut self, instance: EditorInstanceId, _: OpId, block: Uuid, _: Uuid) {
+        self.store.resume_content(instance, block);
+    }
+
     fn replica_ended(&mut self, instance: EditorInstanceId, block: Uuid) {
         self.store.watch_content(instance, block, false);
     }
@@ -136,7 +142,7 @@ impl Link {
         }
     }
 
-    fn linked<'a>(&'a mut self, store: &'a ContentStore, author: Uuid) -> Linked<'a> {
+    fn linked<'a>(&'a mut self, store: &'a ContentStore, author: Option<Uuid>) -> Linked<'a> {
         Linked {
             link: self,
             store,
@@ -169,7 +175,7 @@ impl Link {
     /// are by. Each call is answered at once, as be-host's runtime answers it.
     pub(crate) fn call(&mut self, call: Call, store: &ContentStore, wire: &mut Wire, author: Uuid) {
         let instance = self.instance;
-        match blocks::call(&mut self.linked(store, author), instance, call).reply {
+        match blocks::call(&mut self.linked(store, Some(author)), instance, call).reply {
             Some(Reply::Answer(op, outcome)) => wire.answer(op, outcome),
             Some(Reply::Accepted(op)) => wire.accepted(op),
             None => {}
@@ -178,7 +184,7 @@ impl Link {
 
     /// A watch or replica the editor dropped, which its wire has answered.
     pub(crate) fn ended(&mut self, op: OpId, store: &ContentStore) {
-        blocks::ended(&mut self.linked(store, Uuid::nil()), op);
+        blocks::ended(&mut self.linked(store, None), op);
     }
 
     pub(crate) fn offer_history(&mut self, block: Uuid, history: &BlockHistory) {
@@ -227,7 +233,7 @@ impl Link {
             );
         }
         let waiting = wire.waiting();
-        for (op, value) in blocks::answers(&mut self.linked(store, Uuid::nil()), &waiting) {
+        for (op, value) in blocks::answers(&mut self.linked(store, None), &waiting) {
             wire.answer_watch(op, value);
         }
     }

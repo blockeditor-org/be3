@@ -411,6 +411,40 @@ impl BlockStore for Instances {
         self.replica_frame(instance, block, frame)
     }
 
+    fn replica_resumed(
+        &mut self,
+        instance: EditorInstanceId,
+        op: OpId,
+        block: Uuid,
+        content_type: Uuid,
+    ) {
+        // What the stack queued went to the replica that ended.
+        let kept = be_host_stack::take_editor_frames(instance.0)
+            .into_iter()
+            .filter(|(of, _)| *of != block)
+            .collect();
+        be_host_stack::keep_editor_frames(instance.0, kept);
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return;
+        };
+        let own = entry.role.block().is_some_and(|own| own.id == block);
+        let same = entry
+            .link_mut(block)
+            .is_some_and(|link| own || link.content_type == content_type);
+        if !same {
+            // Linked for the later replica's content type: linked afresh for this one's, as a
+            // replica opened anew is.
+            self.replica_opened(instance, op, block, content_type);
+        }
+        // The replica answers a resend with a snapshot, as it does an editor that lacks its
+        // content, and a link not attached yet is attached, which sends one.
+        self.replica_frame(
+            instance,
+            block,
+            be_sdk_type_api::encode_frame(&super::FromEditor::Resend),
+        );
+    }
+
     fn replica_ended(&mut self, instance: EditorInstanceId, block: Uuid) {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return;

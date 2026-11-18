@@ -77,11 +77,13 @@ impl Watch {
     }
 }
 
-/// The block watches and replicas one editor holds open, by op.
+/// The block watches and replicas one editor holds open, by op. Only the dispatcher adds to or
+/// removes from it; a store offers its watches values.
 #[derive(Default)]
 pub struct EditorBlocks {
     watches: BTreeMap<OpId, Watch>,
-    replicas: BTreeMap<OpId, Uuid>,
+    /// Each replica's block and content type.
+    replicas: BTreeMap<OpId, (Uuid, Uuid)>,
 }
 
 impl EditorBlocks {
@@ -120,12 +122,14 @@ impl EditorBlocks {
         self.watches.contains_key(&op) || self.replicas.contains_key(&op)
     }
 
-    /// The replica frames for `block` are relayed to: the latest it opened.
+    /// The replica frames for `block` are relayed to: the latest it opened. A host holds one
+    /// participant per editor and block, so an earlier replica of the same block hears nothing
+    /// until the later ones end, and is then brought up to date (`BlockStore::replica_resumed`).
     pub fn replica(&self, block: Uuid) -> Option<OpId> {
         self.replicas
             .iter()
             .rev()
-            .find(|(_, held)| **held == block)
+            .find(|(_, (held, _))| *held == block)
             .map(|(op, _)| *op)
     }
 
@@ -158,10 +162,12 @@ pub struct Written {
 /// it changed what the host shows (`Ok(true)`), or the error the editor is answered.
 pub trait BlockStore {
     /// What `instance` holds, or `None` for an instance the store does not know, whose calls go
-    /// unanswered here.
+    /// unanswered here. The store keeps it where it likes, but only the dispatcher adds watches
+    /// and replicas to it or removes them.
     fn held(&mut self, instance: EditorInstanceId) -> Option<&mut EditorBlocks>;
 
-    /// The instance holding the watch or replica `op`.
+    /// The instance holding the watch or replica `op`: the one whose `held` has it. The store
+    /// may answer from a map of its own, kept as the dispatcher opens and ends them.
     fn holder(&self, op: OpId) -> Option<EditorInstanceId>;
 
     /// The host's policy before a call is dispatched: it may translate the block ids the call
@@ -206,6 +212,17 @@ pub trait BlockStore {
 
     /// A frame `instance` sent its replica of `block`.
     fn replica_sent(&mut self, instance: EditorInstanceId, block: Uuid, frame: Vec<u8>) -> bool;
+
+    /// The latest replica of `block` ended while `instance` holds the earlier `op`, of
+    /// `content_type`, which heard nothing since that one opened. The store drops what it queued
+    /// for the replica that ended and starts `op` afresh: a snapshot, then what follows it.
+    fn replica_resumed(
+        &mut self,
+        instance: EditorInstanceId,
+        op: OpId,
+        block: Uuid,
+        content_type: Uuid,
+    );
 
     /// `instance` holds no replica of `block` any more.
     fn replica_ended(&mut self, instance: EditorInstanceId, block: Uuid);
@@ -334,13 +351,14 @@ pub fn call(store: &mut impl BlockStore, instance: EditorInstanceId, mut call: C
             let Some(held) = store.held(instance) else {
                 return changed(false);
             };
-            held.replicas.insert(op, block);
-            changed(store.replica_opened(instance, op, block, Uuid::from_bytes(content_type)))
+            let content_type = Uuid::from_bytes(content_type);
+            held.replicas.insert(op, (block, content_type));
+            changed(store.replica_opened(instance, op, block, content_type))
         }
         Call::ReplicaSend { reply, this, frame } => {
             let block = store
                 .held(instance)
-                .and_then(|held| held.replicas.get(&this.op()).copied());
+                .and_then(|held| held.replicas.get(&this.op()).map(|(block, _)| *block));
             Dispatched {
                 reply: Some(Reply::Accepted(reply.into_op())),
                 changed: block.is_some_and(|block| store.replica_sent(instance, block, frame)),
@@ -412,11 +430,17 @@ pub fn ended(store: &mut impl BlockStore, op: OpId) -> bool {
         store.watch_ended(instance, watch.subject);
         return true;
     }
-    let Some(block) = held.replicas.remove(&op) else {
+    let Some((block, _)) = held.replicas.remove(&op) else {
         return false;
     };
-    if !held.replicas.values().any(|held| *held == block) {
-        store.replica_ended(instance, block);
+    match held.replica(block) {
+        None => store.replica_ended(instance, block),
+        // `op` was the latest, which the frames went to.
+        Some(earlier) if earlier < op => {
+            let (_, content_type) = held.replicas[&earlier];
+            store.replica_resumed(instance, earlier, block, content_type);
+        }
+        Some(_) => {}
     }
     true
 }
