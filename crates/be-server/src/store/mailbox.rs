@@ -115,11 +115,14 @@ pub(crate) fn leave(
 
 /// Deletes what `a` and `b` left in each other's mailboxes, as they stop being contacts. An
 /// accepted link's card goes with the link itself, which `remove_contact` deletes in the same
-/// transaction, so no link is left to finish without its card.
+/// transaction, so no link is left to finish without its card. A record of the other as a
+/// contact stays, ahead of the `letter.removed` that follows it, so a device that takes both in
+/// one pass keeps the removal with the newest record it ends, and no replay of that record
+/// brings the contact back.
 pub(crate) fn forget_between(connection: &Connection, a: Uuid, b: Uuid) -> Result<(), ServerError> {
     connection.execute(
-        "DELETE FROM mailbox WHERE (account_id = ?1 AND sender_id = ?2)
-            OR (account_id = ?2 AND sender_id = ?1)",
+        "DELETE FROM mailbox WHERE ((account_id = ?1 AND sender_id = ?2)
+            OR (account_id = ?2 AND sender_id = ?1)) AND kind != 'contact'",
         params![a.to_string(), b.to_string()],
     )?;
     Ok(())

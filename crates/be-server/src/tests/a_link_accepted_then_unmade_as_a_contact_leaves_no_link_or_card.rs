@@ -30,15 +30,22 @@ async fn a_link_accepted_then_unmade_as_a_contact_leaves_no_link_or_card() {
         (0, 0),
         "a link or its card was left to finish"
     );
-    for (to, from) in [(owner_id, other_id), (other_id, owner_id)] {
+    // The accepter's record of the owner stays ahead of the removal, so its device keeps the
+    // removal with that record.
+    for (to, from, kinds) in [
+        (owner_id, other_id, &["removed"][..]),
+        (other_id, owner_id, &["contact", "removed"][..]),
+    ] {
         let letters: Vec<String> = database
-            .prepare("SELECT kind FROM mailbox WHERE account_id = ?1 AND sender_id = ?2")
+            .prepare(
+                "SELECT kind FROM mailbox WHERE account_id = ?1 AND sender_id = ?2 ORDER BY id",
+            )
             .unwrap()
             .query_map([to.to_string(), from.to_string()], |row| row.get(0))
             .unwrap()
             .map(Result::unwrap)
             .collect();
-        assert_eq!(letters, ["removed"], "what each is left of the other");
+        assert_eq!(letters, kinds, "what each is left of the other");
     }
     let listed = owner
         .call(|peer| peer.read::<Vec<be_block_protocol::OwnLink>>(be_block_protocol::Query::Links))
