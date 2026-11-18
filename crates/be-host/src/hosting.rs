@@ -148,6 +148,7 @@ impl Hosts {
             let keep = wanted.contains_key(block);
             if !keep {
                 be_host_runtime::close(&running.app.identity.id, running.instance);
+                be_host_stack::release_host(*block);
             }
             keep
         });

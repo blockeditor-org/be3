@@ -908,7 +908,7 @@ A hosted block's members speak to its host over a private channel
 (guides/blocks/server.md, "Live sessions"), which the server routes and
 cannot read.
 
-- **The host is an account.** The server names the lease holder's account; a
+- **The host is an account.** The server names the host's account (the session's claimed holder); a
   member checks the signed logs give it Edit or above (`held_with_key`: its
   record in the block's log, else the nearest block above by the signed parent
   records, as `held_above` finds it, else administering the organization) and

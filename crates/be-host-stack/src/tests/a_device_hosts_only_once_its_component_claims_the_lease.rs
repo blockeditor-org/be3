@@ -16,8 +16,9 @@ fn host_heard_by(member: &Member, block: Uuid) -> Option<Uuid> {
 
 /// A device whose replica of a hosted block is open (an editor, a child, a preview) holds the
 /// session's lease, and seals, but hosts it only once a host component starts and claims it
-/// (plans/hosted_blocks.md, step 4d2): until then the server tells members no one hosts. Once
-/// another editor's device claims after it, it hosts no longer.
+/// (plans/hosted_blocks.md, step 4d2): until then the server tells members no one hosts. A
+/// component that stops gives the claim up while the replica stays open, and once another
+/// editor's device claims after it, it hosts no longer.
 #[test]
 fn a_device_hosts_only_once_its_component_claims_the_lease() {
     let harness = Harness::start();
@@ -56,6 +57,16 @@ fn a_device_hosts_only_once_its_component_claims_the_lease() {
         Some(harness.account),
         "the component's claim makes this device the host"
     );
+
+    // The component stops while the replica stays open: the replica joins again, dropping the
+    // claim, so no one hosts until a component starts again.
+    release_host(block);
+    wait_until("hosts no longer once its component stopped", |shared| {
+        !shared.hosted.contains(&block) && shared.session_hosts.get(&block) == Some(&None)
+    });
+    assert_eq!(host_heard_by(&player, block), None);
+    restart_host(block);
+    wait_until("hosts again", |shared| shared.hosted.contains(&block));
 
     // Another editor's device opens the block's replica, running the type's build as this
     // device does, and claims the lease.

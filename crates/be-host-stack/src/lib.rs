@@ -1247,6 +1247,13 @@ pub fn restart_host(block: Uuid) {
     send(Command::RestartHost(block));
 }
 
+/// A host component stopped on `block`: if this device hosts it and its replica stays open (a
+/// preview, a child), the replica joins the session again, which drops the claim, so another
+/// device may host (plans/hosted_blocks.md, step 4d2). A replica that closes drops it anyway.
+pub fn release_host(block: Uuid) {
+    send(Command::ReleaseHost(block));
+}
+
 /// Whether a host component may start on `block` here: this device's replica is in its session
 /// and no one hosts it, or this device does. Starting one claims the lease (`restart_host`).
 pub fn may_host(block: Uuid) -> bool {

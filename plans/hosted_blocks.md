@@ -230,7 +230,7 @@ a role inside the app, since the share dialog grants no roles. A game:
      `block-command.keep-hosting`, `Hosts::keep`;
      `keep_hosting_is_in_the_frame_menu_while_this_device_hosts_the_block`,
      `the_menu_lists_what_this_device_keeps_hosting_with_stop`.
-   - d2. Hosting only where a component runs, so a device that holds the
+   - d2 (done). Hosting only where a component runs, so a device that holds the
      replica open for another reason (a child, a preview) is never taken for
      the host. The session's lease (`be-block-session`'s `holder`: the editor
      that claimed last, else the first editor) decides who seals the journal,
@@ -257,6 +257,9 @@ a role inside the app, since the share dialog grants no roles. A game:
        drops it by leaving.
      - be-host-stack's `Seen::hosted` follows `session-event.host` naming this
        connection, rather than the replica's holder status.
+     Done: `a_device_hosts_only_once_its_component_claims_the_lease`. Left:
+     a claim the server refuses leaves the component running unhosted until
+     the block stops being one this device should host.
    - e. `be BLOCK host` (plans/headless_apps.md, step 2).
    Done: a be-host-tests test with two editor devices and two players as raw
    peers, where the first host closes the world and the second carries on;
