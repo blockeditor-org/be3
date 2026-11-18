@@ -115,11 +115,11 @@ pub(crate) fn op_rule(op: &Op) -> Rule {
         Op::AppendLog(record) => match record {
             LogRecord::Grant { block: of, .. } => block(*of, Access::KnowExists),
             LogRecord::Role { .. } => Rule::Administrator,
-            // An administrator signs a person in; anyone signs in or out an agent it made.
-            LogRecord::Member(_) => Rule::Member,
+            // An administrator removes a person; anyone signs in or out an agent it made.
+            LogRecord::Member { .. } => Rule::Member,
         },
-        // Anyone removes the agents it made; an administrator, every member.
-        Op::RemoveMember { .. } => Rule::Member,
+        // Anyone deletes the agents it made; an administrator, every agent.
+        Op::DeleteAgent { .. } => Rule::Member,
         Op::PutKeys(keys) => match keys {
             PutKeys::Rows(_) => Rule::Member,
             PutKeys::Rotate { roots, .. } => Rule::Blocks(roots.clone(), Access::Edit),
@@ -140,7 +140,7 @@ pub(crate) fn op_rule(op: &Op) -> Rule {
         }
         | Op::CreateOrganization { .. }
         | Op::AcceptLink { .. }
-        | Op::DeleteLink(_)
+        | Op::DeleteLink { .. }
         | Op::DeleteMessage(_)
         | Op::RevokeToken(_) => Rule::Account,
         // With an organization, the revocations of the grants in it go with the removal.
@@ -231,13 +231,13 @@ pub(crate) fn bound_may_write(op: &Op, root: Uuid) -> bool {
         | Op::RevokeToken(_) => true,
         Op::PutKeys(keys) => !matches!(keys, PutKeys::Escrow { .. }),
         Op::AppendLog(_)
-        | Op::RemoveMember { .. }
+        | Op::DeleteAgent { .. }
         | Op::CreateOrganization { .. }
         | Op::CreateAgent { .. }
         | Op::RotateAgentToken(_)
         | Op::CreateLink { .. }
         | Op::AcceptLink { .. }
-        | Op::DeleteLink(_)
+        | Op::DeleteLink { .. }
         | Op::RemoveContact { .. }
         | Op::SetRecoveryKey { .. }
         | Op::SetPushEndpoint(_)
@@ -1784,19 +1784,41 @@ impl Client {
                             })
                             .await;
                     }
-                    LogRecord::Member(signed) => {
-                        connection.store.sign_member(identity, signed).await?;
-                        connection
-                            .after(After::KeyWorkChanged {
-                                organization: identity.organization,
-                                accounts: BTreeSet::new(),
-                            })
-                            .await;
+                    LogRecord::Member {
+                        signed,
+                        revocations,
+                    } => {
+                        let account = be_block_keys::Entry::decode(&signed)
+                            .ok()
+                            .and_then(|entry| match entry.record {
+                                be_block_keys::Record::Member(named) => {
+                                    Some(Uuid::from_bytes(named.account))
+                                }
+                                _ => None,
+                            });
+                        match connection
+                            .store
+                            .append_member(identity, signed, revocations)
+                            .await?
+                        {
+                            Some(revoked) => {
+                                let account = account.ok_or(ServerError::Corrupt)?;
+                                connection.removed(identity.organization, account, revoked).await;
+                            }
+                            None => {
+                                connection
+                                    .after(After::KeyWorkChanged {
+                                        organization: identity.organization,
+                                        accounts: BTreeSet::new(),
+                                    })
+                                    .await;
+                            }
+                        }
                     }
                 }
                 Ok(Done::Nothing)
             }
-            Op::RemoveMember {
+            Op::DeleteAgent {
                 account,
                 signed,
                 revocations,
@@ -1804,26 +1826,9 @@ impl Client {
                 let identity = admitted.identity()?;
                 let revoked = connection
                     .store
-                    .remove_member(identity, account, signed, revocations)
+                    .delete_agent(identity, account, signed, revocations)
                     .await?;
-                connection
-                    .after(After::DropMember {
-                        organization: identity.organization,
-                        account,
-                    })
-                    .await;
-                connection
-                    .after(After::Revoked {
-                        revoked,
-                        accounts: vec![account],
-                    })
-                    .await;
-                // As for a demotion: the removed may have administered.
-                connection
-                    .after(After::KeyWorkChangedForAll {
-                        organization: identity.organization,
-                    })
-                    .await;
+                connection.removed(identity.organization, account, revoked).await;
                 Ok(Done::Nothing)
             }
             Op::PutKeys(keys) => {
@@ -1999,7 +2004,12 @@ impl Client {
                         .await?,
                 ))
             }
-            Op::CreateLink { link, card, kind } => {
+            Op::CreateLink {
+                link,
+                card,
+                kind,
+                signed,
+            } => {
                 let account = admitted.account()?;
                 if let LinkKind::Invitation(invitation) = &kind
                     && Some(invitation.organization)
@@ -2011,7 +2021,7 @@ impl Client {
                 }
                 connection
                     .store
-                    .create_link(account, link, card, kind)
+                    .create_link(account, link, card, kind, signed)
                     .await?;
                 Ok(Done::Nothing)
             }
@@ -2020,11 +2030,12 @@ impl Client {
                 card,
                 contact,
                 key,
+                member,
             } => {
                 let account = admitted.account()?;
                 let accepted = connection
                     .store
-                    .accept_link(account, link, card, contact, key)
+                    .accept_link(account, link, card, contact, key, member)
                     .await?;
                 if let Some(granted) = accepted.granted {
                     connection
@@ -2040,10 +2051,10 @@ impl Client {
                     .await;
                 Ok(Done::Nothing)
             }
-            Op::DeleteLink(link) => {
+            Op::DeleteLink { link, signed } => {
                 connection
                     .store
-                    .delete_link(admitted.account()?, link)
+                    .delete_link(admitted.account()?, link, signed)
                     .await?;
                 Ok(Done::Nothing)
             }
@@ -2281,6 +2292,29 @@ impl Client {
 }
 
 impl Connection {
+    /// Tells what removing `account` from `organization` changed: its connections close, the
+    /// blocks it was revoked from are told, and key work for everyone, as for a demotion, since
+    /// the removed may have administered.
+    async fn removed(
+        &mut self,
+        organization: Uuid,
+        account: Uuid,
+        revoked: Vec<crate::contacts::Granted>,
+    ) {
+        self.after(After::DropMember {
+            organization,
+            account,
+        })
+        .await;
+        self.after(After::Revoked {
+            revoked,
+            accounts: vec![account],
+        })
+        .await;
+        self.after(After::KeyWorkChangedForAll { organization })
+            .await;
+    }
+
     /// Does `after` now, or once the batch running commits.
     async fn after(&mut self, after: After) {
         match &mut self.deferred {

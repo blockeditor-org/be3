@@ -218,15 +218,33 @@ Records after the root: grants (`Record::Grant`, a revocation is a grant to
 `None`), openings of a kind of settings to anyone inside (`Record::Opening`,
 closing is an opening to `None`), parent records (`Record::Parent`) and owner
 records (`Record::Owner`) in a block's log, the first three naming where their
-signer's right comes from (`Authority`); administrators and members
-(`Record::Administrator`, `Record::Member`) in the organization's.
-`append-log` carries a grant or an owner record (`grant`), a role or a member
-record, and `move`, `create-agent`, `remove-member` and `remove-contact` carry
-theirs;
+signer's right comes from (`Authority`); administrators, members and
+invitations (`Record::Administrator`, `Record::Member`, `Record::Invitation`) in
+the organization's. `append-log` carries a grant or an owner record (`grant`),
+a role or a member record, and `move`, `create-agent`, `delete-agent`,
+`remove-contact`, `create-link`, `accept-link` and `delete-link` carry theirs;
 `create-block` carries the creator's parent record after the root; the server
 appends each once it checks at the log's head as devices check it.
-`remove-member` is no `append-log`: a person who accepted an invitation joins
-before any record names them (plans/simpler_server_api.md, decision (b)).
+
+**Members** sign in as they accept an invitation, with no administrator
+online. Making one (`contacts::invite`), an administrator signs an invitation
+record naming a key the link's code derives (`InviteCode::invitation_key`),
+which `create-link` appends. Accepting (`contacts::accept_link`), the accepter
+signs a member record naming itself and its keys with that key
+(`Entry::accepted`, the entry's signer being the accepter), after the head of
+the log the link names (`link.head`; read and signed again a few times if the
+log moved), which `accept-link` appends. The server never holds the code, so it
+can sign no one in, and `check_log` takes such a record only once, by an
+invitation still open whose inviter still administers the organization, for an
+account the log does not name (`Checked::invitations`). An administrator ends
+one with another invitation record (`open: false`, which `delete-link` carries
+when revoking); one whose inviter stopped administering is ended with their
+role. Expiry is the server's alone: no device can check its clock. An agent is
+signed in by its maker as `create-agent` makes it. Every removal of a person is
+an `append-log(member)` signing them out, by an administrator, with the signed
+revocations of their grants; an agent's is `delete-agent`, signed out where the
+log names it (the personal organization has no log). A proof path keeps every
+invitation record whole, so a member's own record checks on theirs.
 
 **Owner records** move a block's ownership:
 only its owner (the root's creator, or whom the last owner record named, held
@@ -273,8 +291,10 @@ authority outside it, and builds a chain up its current placements
 (`Peer::held_above`), each log checked as `checked_access` checks it, so one
 served short of what it kept counts as withheld. An agent's account id is derived from its maker and its keys
 (`agent_account`). Revocations the server makes on its own wait in key work
-(`unsigned-revocations`) for a manager's device to sign them; members no
-record signed in wait in `unsigned-members`.
+(`unsigned-revocations`) for a manager's device to sign them. Members no
+record signed in are listed in `unsigned-members`: an agent its maker's device
+signs in at its next `tend`, or a person the server added on its own, which
+the members dialog warns administrators of, for them to remove.
 
 A company organization has a log too, rooted at its creator:
 `contacts::create_organization` picks the organization id, signs the root and
@@ -677,7 +697,8 @@ in the account's block (`Peer::save_pin`); an unverifiable newer key is not used
   It carries the inviter's card and what the inviter pinned for the
   organization (`Pinned`: its access log root and escrow key) sealed with the
   code; accepting it returns the invitee's card as any link does, pins both
-  and joins the organization as an editor. It names no email: the link is a bearer
+  and joins the organization as an editor, signing the invitee into its log
+  with the key the code derives ("Access logs", Members). It names no email: the link is a bearer
   secret, single use and good for `INVITATION_LIFETIME` (seven days), and the
   server mails nothing, so the inviter sends it themselves. It ends when its
   inviter stops administering the organization: demoting or removing them
@@ -962,8 +983,8 @@ keys the granter verified that way, which every device then seals to.
   opens the card with the code it holds, keeps its record in the account's
   block (`through` the letter), signs a contact
   link's pending grant into the block's log (only while that log names the
-  accepter nowhere, so finishing again never undoes a later revocation) or an
-  invitation's accepter into the organization's log, and only then deletes the
+  accepter nowhere, so finishing again never undoes a later revocation), and
+  only then deletes the
   link and the message in one write, so a device that stops halfway finishes
   it again (`finish_links`, on connect and `MailboxChanged`).
 - **A pending grant**: a link may carry a block, an access level and the
@@ -993,7 +1014,11 @@ an older one, and a contact's name is the one it verified; cards, codes, pending
 are sealed with codes it never sees; a device wraps only under keys it trusts;
 escrow keys are used only when pinned or signed down from a pinned one. It
 cannot sign as a contact: a contact's signing key comes from its card or a key
-change.
+change. It cannot sign anyone into an organization: a person signs in with the
+key of an invitation an administrator opened, derived from a code it never
+sees, once; it still decides when an invitation expires, and can list as a
+member someone no record names, whom devices then treat as no member
+(`unsigned-members`).
 
 It can make an account forget a contact, by a made-up `letter.removed`,
 which connecting again by a link recovers. What it cannot do is make the

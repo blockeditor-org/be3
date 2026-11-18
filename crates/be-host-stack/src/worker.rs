@@ -642,7 +642,7 @@ impl Command {
     }
 }
 
-type MembersReply = Reply<Result<Vec<be_block_protocol::Member>, String>>;
+type MembersReply = Reply<Result<crate::MemberList, String>>;
 
 /// What a device does with push notifications; a reply is the peer's error as text.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -3128,11 +3128,13 @@ async fn members(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, command: 
         } => (peer.set_role(account, role).await, reply),
         MembersCommand::Remove { account, reply } => (peer.remove_member(account).await, reply),
     };
-    if changed.is_ok() {
-        tend(peer, shared).await;
-    }
+    // Key work names the members no record signed in (`Peer::unsigned_members`).
+    tend(peer, shared).await;
     let listed = match changed {
-        Ok(()) => peer.members().await,
+        Ok(()) => peer.members().await.map(|members| crate::MemberList {
+            members,
+            unsigned: peer.unsigned_members(),
+        }),
         Err(error) => Err(error),
     };
     reply.send(listed.map_err(|error| error.to_string()));
@@ -3152,12 +3154,7 @@ async fn invitations(peer: &Peer<Store>, config: &Config, command: InvitationsCo
                 .map_err(|error| error.to_string()),
         ),
         InvitationsCommand::Revoke { link, reply } => {
-            let revoked = be_block_client::ask(be_block_protocol::write::<(), _>(
-                &peer.connection(),
-                None,
-                be_block_protocol::Op::DeleteLink(link),
-            ))
-            .await;
+            let revoked = peer.revoke_invitation(link).await;
             let listed = match revoked {
                 Ok(()) => list_invitations(peer, config).await,
                 Err(error) => Err(error),
@@ -3224,6 +3221,12 @@ async fn invite(peer: &Peer<Store>, config: &Config) -> Result<String, ClientErr
         &config.display_name,
         &config.email,
     );
+    let checked = peer.checked_organization().await?.ok_or_else(|| {
+        ClientError::Refused(
+            be_block_protocol::ErrorCode::InvalidRequest,
+            "only a company organization takes invitations".into(),
+        )
+    })?;
     let code = be_block_client::contacts::invite(
         &peer.connection(),
         identity,
@@ -3234,6 +3237,7 @@ async fn invite(peer: &Peer<Store>, config: &Config) -> Result<String, ClientErr
             escrow: peer.keys().escrow(),
             made: 0,
         },
+        &checked,
     )
     .await?;
     crate::own_invitations(&config.server_url, peer.account(), vec![code.clone()]);
@@ -3374,7 +3378,7 @@ async fn change_block_agent(peer: &Peer<Store>, agent: Uuid, change: AgentChange
             .map_err(|error| error.to_string()),
         ),
         // An agent not listed (removed, or collected with its block) is as removed as asked,
-        // and is never sent to `remove-member`, which would remove whoever the id now names.
+        // and is never sent to `delete-agent`, which would delete whatever agent the id now names.
         AgentChange::Remove(reply) => reply.send(match own {
             None => Ok(()),
             Some(_) => match peer.remove_member(agent).await {

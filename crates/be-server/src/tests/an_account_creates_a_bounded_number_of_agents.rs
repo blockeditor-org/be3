@@ -56,7 +56,7 @@ async fn an_account_creates_a_bounded_number_of_agents() {
         bound: None,
     };
     store
-        .remove_member(identity, agents[0].account, None, Vec::new())
+        .delete_agent(identity, agents[0].account, None, Vec::new())
         .await
         .unwrap();
     store

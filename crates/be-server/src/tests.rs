@@ -614,6 +614,12 @@ struct TestClient {
     cursors: std::collections::HashMap<Uuid, ChangeCursor>,
 }
 
+/// The codes of the invitations tests made, by link and organization (`TestClient::invite`;
+/// tests running at once reuse link ids), which accepting one signs with.
+static CODES: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::HashMap<(Uuid, Uuid), be_block_keys::InviteCode>>,
+> = std::sync::LazyLock::new(Default::default);
+
 /// Identity secrets tests gave accounts besides `test_secret`'s (an agent's, a new phrase's), by
 /// account (`remember_secret`).
 static SECRETS: std::sync::LazyLock<
@@ -1845,7 +1851,7 @@ impl TestClient {
     async fn link(&mut self, grant: Option<be_block_protocol::PendingGrant>) -> Uuid {
         let link = Uuid::new_v4();
         let response = self
-            .create_link(link, be_block_protocol::LinkKind::Contact(grant))
+            .create_link(link, be_block_protocol::LinkKind::Contact(grant), None)
             .await;
         assert!(response.is_ok(), "{response:?}");
         link
@@ -1855,29 +1861,103 @@ impl TestClient {
         &mut self,
         link: Uuid,
         kind: be_block_protocol::LinkKind,
+        signed: Option<Vec<u8>>,
     ) -> Result<(), Error> {
         self.call(|peer| {
             peer.write::<()>(be_block_protocol::Op::CreateLink {
                 link: link,
                 card: b"the owner's card".to_vec(),
                 kind: kind,
+                signed: signed,
             })
         })
         .await
     }
 
-    /// Invites `email` into `organization` as an editor; answers the link, or the refusal.
+    /// Invites into `organization` (the one open) as an editor, opening the invitation in its
+    /// log as a device does (`contacts::invite`); answers the link, or the refusal. Its code is
+    /// kept for `accept` (`CODES`).
     async fn invite(&mut self, organization: Uuid) -> Result<Uuid, Error> {
         let link = Uuid::new_v4();
-        self.create_link(
-            link,
-            be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
-                organization,
-                escrow: Vec::new(),
-            }),
-        )
+        self.invite_with(link, organization, b"the owner's card".to_vec(), Vec::new())
+            .await
+            .map(|()| link)
+    }
+
+    /// Invites into `organization` as `invite` does, by link `link`, with `card` and `escrow`.
+    async fn invite_with(
+        &mut self,
+        link: Uuid,
+        organization: Uuid,
+        card: Vec<u8>,
+        escrow: Vec<u8>,
+    ) -> Result<(), Error> {
+        let code = be_block_keys::InviteCode::generate();
+        let signed = self
+            .invitation_record(code.invitation_key(organization.into_bytes()), true)
+            .await;
+        CODES.lock().unwrap().insert((link, organization), code);
+        self.call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::CreateLink {
+                link: link,
+                card: card.clone(),
+                kind: be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
+                    organization,
+                    escrow: escrow.clone(),
+                }),
+                signed: signed.clone(),
+            })
+        })
         .await
-        .map(|()| link)
+    }
+
+    /// An invitation record opening or ending the invitation with `key` in the log of the
+    /// organization open, signed with this client's test keys after its head, whatever this
+    /// client may do there (the server judges it).
+    async fn invitation_record(
+        &mut self,
+        key: be_block_keys::SigningPublic,
+        open: bool,
+    ) -> Option<Vec<u8>> {
+        let me = self.account?;
+        let (log, checked) = self.organization_log().await?;
+        let entry = be_block_keys::Entry::sign(
+            &test_secret(me),
+            me.into_bytes(),
+            log,
+            Some(checked.head),
+            false,
+            be_block_keys::Record::Invitation(be_block_keys::Invitation { key, open }),
+        );
+        Some(entry.encode())
+    }
+
+    /// Revokes an invitation as an administrator's device does (`Peer::revoke_invitation`),
+    /// ending its key in the organization's log.
+    async fn revoke(&mut self, link: Uuid) -> Result<(), Error> {
+        let organization = self.peer.organization;
+        let key = organization.and_then(|organization| {
+            CODES
+                .lock()
+                .unwrap()
+                .get(&(link, organization))
+                .map(|code| code.to_bytes())
+        });
+        let signed = match (key, organization) {
+            (Some(code), Some(organization)) => {
+                let code = be_block_keys::InviteCode::from_bytes(&code).unwrap();
+                self.invitation_record(code.invitation_key(organization.into_bytes()), false)
+                    .await
+            }
+            _ => None,
+        };
+        self.call(|peer| {
+            peer.write::<()>(be_block_protocol::Op::DeleteLink {
+                link: link,
+                signed: signed.clone(),
+            })
+        })
+        .await
     }
 
     /// This account's links the server holds still to act on, read from its database: no call
@@ -1912,16 +1992,47 @@ impl TestClient {
             .collect()
     }
 
+    /// Accepts `link`; an invitation (one `invite` made) signs this client in with its code,
+    /// after the head the link names, as a device does (`contacts::accept_link`).
     async fn accept(&mut self, link: Uuid, key: &[u8]) -> Result<(), Error> {
+        let member = self.acceptance(link).await;
         self.call(|peer| {
             peer.write::<()>(be_block_protocol::Op::AcceptLink {
                 link: link,
                 card: b"the accepter's card".to_vec(),
                 contact: b"the owner's key, sealed for the accepter".to_vec(),
                 key: key.to_vec(),
+                member: member.clone(),
             })
         })
         .await
+    }
+
+    /// The member record accepting invitation `link` signs this client in with: none for a
+    /// link `invite` did not make, or one that does not read.
+    async fn acceptance(&mut self, link: Uuid) -> Option<Vec<u8>> {
+        let me = self.account?;
+        let read = self
+            .call(|peer| peer.read::<be_block_protocol::Link>(Query::Link(link)))
+            .await
+            .ok()?;
+        let be_block_protocol::LinkKind::Invitation(invitation) = read.kind else {
+            return None;
+        };
+        let code = CODES
+            .lock()
+            .unwrap()
+            .get(&(link, invitation.organization))
+            .map(|code| code.to_bytes())?;
+        let code = be_block_keys::InviteCode::from_bytes(&code).ok()?;
+        let entry = be_block_keys::Entry::accepted(
+            &code,
+            invitation.organization.into_bytes(),
+            read.head?,
+            me.into_bytes(),
+            test_secret(me).identity(),
+        );
+        Some(entry.encode())
     }
 
     /// The accounts the server holds as this account's contacts, read from its database: no
@@ -2241,6 +2352,7 @@ impl TestClient {
                 identity,
                 member,
                 agent,
+                invitation: None,
             }),
         )?;
         Some(entry.encode())
@@ -2302,30 +2414,67 @@ impl TestClient {
         .await
     }
 
-    /// Removes `account` from the organization open, signing it out of the log as a device does
-    /// (`Peer::remove_member`) when the log names it.
+    /// Removes `account` from the organization open as a device does (`Peer::remove_member`):
+    /// an agent with `delete-agent`, signed out of the log when it names it; a person signed out
+    /// of the log by `append-log`, signed with this client's test keys whatever it may do (the
+    /// server judges it).
     async fn remove_member(&mut self, account: Uuid) -> Result<(), Error> {
-        let named = self.organization_log().await.and_then(|(_, checked)| {
-            let identity = checked.member(account.into_bytes())?;
-            let agent = checked
-                .members
-                .get(&account.into_bytes())
-                .is_some_and(|named| named.maker.is_some());
-            Some((identity, agent))
-        });
-        let signed = match named {
-            Some((identity, agent)) => self.member_record(account, identity, false, agent).await,
-            None => None,
-        };
+        // Read from the database, as a device knows from the members it lists.
+        let agent = metadata_database(self.directory.as_ref().expect("signed in"))
+            .query_row(
+                "SELECT COUNT(*) FROM agents WHERE account_id = ?1",
+                [account.to_string()],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap()
+            > 0;
+        let log = self.organization_log().await;
+        let named = log
+            .as_ref()
+            .and_then(|(_, checked)| checked.member(account.into_bytes()));
         let revocations = self.removal_revocations(account, false).await;
-        self.call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::RemoveMember {
-                account: account,
-                signed: signed.clone(),
-                revocations: revocations.clone(),
-            })
-        })
-        .await
+        let op = match agent {
+            true => {
+                let signed = match named {
+                    Some(identity) => self.member_record(account, identity, false, true).await,
+                    None => None,
+                };
+                Op::DeleteAgent {
+                    account,
+                    signed,
+                    revocations,
+                }
+            }
+            false => {
+                let me = self.account.expect("a client removes members once signed in");
+                let Some((organization, checked)) = log else {
+                    panic!("a person is removed from an organization with a log");
+                };
+                let identity = named.unwrap_or_else(|| test_secret(account).identity());
+                let record = be_block_keys::Record::Member(be_block_keys::Member {
+                    account: account.into_bytes(),
+                    identity,
+                    member: false,
+                    agent: false,
+                    invitation: None,
+                });
+                let lowers = checked.lowers(&record);
+                let signed = be_block_keys::Entry::sign(
+                    &test_secret(me),
+                    me.into_bytes(),
+                    organization,
+                    Some(checked.head),
+                    lowers,
+                    record,
+                )
+                .encode();
+                Op::AppendLog(be_block_protocol::LogRecord::Member {
+                    signed,
+                    revocations,
+                })
+            }
+        };
+        self.call(|peer| peer.write::<()>(op.clone())).await
     }
 
     /// Removes `account` as this client's contact, with the revocations a device signs
@@ -2367,20 +2516,6 @@ impl TestClient {
         signed
     }
 
-    /// Signs `account`, which joined the organization open (with its test keys), into its log
-    /// as an administrator's device does on finishing the invitation.
-    async fn sign_in(&mut self, account: Uuid) -> Result<(), Error> {
-        let identity = test_secret(account).identity();
-        let Some(signed) = self.member_record(account, identity, true, false).await else {
-            return Ok(());
-        };
-        self.call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::AppendLog(
-                be_block_protocol::LogRecord::Member(signed.clone()),
-            ))
-        })
-        .await
-    }
 
     /// The grant record a device sends with `set-access` (`Peer::grant`), signed with this
     /// client's test keys and naming the grantee's (for anyone inside, an opening): as the

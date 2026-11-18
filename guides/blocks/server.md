@@ -965,7 +965,13 @@ guides/blocks/keys.md, "Contacts"). An administrator invites with a link of
 kind `invitation` under an id the inviting client picks, bound to no email: any
 account that opens it may accept it, once, before `INVITATION_LIFETIME`, and
 joins as an editor; the id reaches the invitee only in the link
-(guides/blocks/keys.md, "Inviting"). An organization has at most
+(guides/blocks/keys.md, "Inviting"). `create-link` appends the administrator's
+invitation record to the organization's log and keeps the key it names
+(`invite_key`); `query.link` answers the log's head (`link.head`), and
+`accept-link` appends the accepter's member record signed with that key, checked
+against it and the log (`access::append_accepted`), in the transaction that
+makes them a member, so the server cannot sign anyone in and no administrator
+need be online (guides/blocks/keys.md, "Access logs"). An organization has at most
 `MAX_INVITATIONS_PER_ORGANIZATION` outstanding. `query.invitation`, the only
 one-shot call besides signing in, reads one by its id before sign-in (its
 organization's name, the inviter's sealed card and its state) and marks it
@@ -975,14 +981,17 @@ device made the accepter a contact) for the organization's invite list
 (`query.invitations`, administrators only, which hands each inviter back only
 their own sealed code), until `INVITATION_RETENTION` passes or
 `MAX_INVITATIONS_KEPT_PER_ORGANIZATION` pushes the oldest ended out. Any
-administrator revokes an open one with `delete-link`.
+administrator revokes an open one with `delete-link`, carrying the invitation
+record that ends its key (`invitation-row.key`).
 `CreateAgent` makes a passwordless editor account with a token
 (guides/tracker.md), at most `MAX_AGENTS_PER_CREATOR` per creator. Agents are
 members: `query.members` names an agent's creator (`created-by`) and, for a
 block's agent, its block (`bound-to`), and lists every member to an
-administrator but only the agents it made to anyone else; `remove-member`
-removes any member for an administrator and an agent for its creator, deleting
-an agent's account, and tells the organization's key work as any removal does.
+administrator but only the agents it made to anyone else; `delete-agent`
+deletes any agent for an administrator and one for its creator, with its
+account, and an administrator removes a person by signing them out
+(`append-log(member)`); each tells the organization's key work as any removal
+does.
 Only its creator rotates its token (`RotateAgentToken`, which revokes every
 older one). One `bound-to` a block is that block's agent (guides/tracker.md, A
 block's agent): `Identity::bound` limits what it reaches, `client::bound_may`

@@ -11,7 +11,7 @@ const REACHING_PAST: &[&str] = &[
     "create-organization",
     "members",
     "append-log (role)",
-    "remove-member",
+    "delete-agent",
     "create-agent",
     "rotate-agent-token",
     "create-link (contact)",

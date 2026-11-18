@@ -14,8 +14,6 @@ async fn an_agents_creator_removes_it_as_a_member_and_key_work_is_told() {
     let joined = creator.accept(invitation, &[]).await;
     assert!(matches!(joined, Ok(())), "{joined:?}");
     creator.open(organization).await;
-    let signed = admin.sign_in(creator_id).await;
-    assert!(matches!(signed, Ok(())), "{signed:?}");
 
     let response = creator.agent(organization, "Helper").await;
     let Ok(be_block_protocol::CreatedAgent { agent, token }) = response else {

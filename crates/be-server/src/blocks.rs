@@ -2317,7 +2317,7 @@ pub(crate) fn write_grant(
     // Who may view everything below it moved, and each summary says what its reader may do.
     let below = graph.subtree(block);
     crate::changes::touch(database, graph, organization, &below)?;
-    // A revocation the server makes on its own (`remove-contact`, `remove-member`) of a grant
+    // A revocation the server makes on its own (`remove-contact`, `delete-agent`) of a grant
     // the block's log names waits for a device to sign it (`KeyWork::unsigned_revocations`);
     // a signed one, appended after, clears it (`access::append_grant`).
     if access == Access::None && crate::access::names_grant(database, organization, block, account)?

@@ -15,9 +15,7 @@ async fn an_expired_or_revoked_invitation_is_refused() {
             [expiring.to_string()],
         )
         .unwrap();
-    let revoking = admin
-        .call(|peer| peer.write::<()>(be_block_protocol::Op::DeleteLink(revoked)))
-        .await;
+    let revoking = admin.revoke(revoked).await;
     assert!(matches!(revoking, Ok(())), "{revoking:?}");
     let mut invited = harness.member("invited@example.com").await;
     for (link, why) in [(expiring, "expired"), (revoked, "revoked")] {
@@ -35,6 +33,7 @@ async fn an_expired_or_revoked_invitation_is_refused() {
                     card: Vec::new(),
                     contact: Vec::new(),
                     key: Vec::new(),
+                    member: None,
                 })
             })
             .await;

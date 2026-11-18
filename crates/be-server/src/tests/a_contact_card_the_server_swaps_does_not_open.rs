@@ -23,6 +23,7 @@ async fn a_contact_card_the_server_swaps_does_not_open() {
                 link: link,
                 card: honest.seal(&code, CardRole::Owner),
                 kind: be_block_protocol::LinkKind::Contact(None),
+                signed: None,
             })
         })
         .await;

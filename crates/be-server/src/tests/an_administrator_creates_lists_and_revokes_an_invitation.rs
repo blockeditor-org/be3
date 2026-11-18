@@ -26,9 +26,7 @@ async fn an_administrator_creates_lists_and_revokes_an_invitation() {
         "{found:?}"
     );
 
-    let revoked = admin
-        .call(|peer| peer.write::<()>(be_block_protocol::Op::DeleteLink(link)))
-        .await;
+    let revoked = admin.revoke(link).await;
     assert!(matches!(revoked, Ok(())), "{revoked:?}");
     assert!(admin.links().await.iter().all(|own| own.id != link));
     let found = invited
@@ -42,6 +40,7 @@ async fn an_administrator_creates_lists_and_revokes_an_invitation() {
                 card: Vec::new(),
                 contact: Vec::new(),
                 key: Vec::new(),
+                member: None,
             })
         })
         .await;

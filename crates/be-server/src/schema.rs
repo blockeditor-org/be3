@@ -178,6 +178,9 @@ const SCHEMA: &str = "
         grant_sealed    BLOB NOT NULL DEFAULT x'',
         invite_organization TEXT NOT NULL DEFAULT '',
         invite_escrow   BLOB NOT NULL DEFAULT x'',
+        -- An invitation's key, derived from its code, which its record in the organization's
+        -- log names and which signs its accepter in.
+        invite_key      BLOB NOT NULL DEFAULT x'',
         -- An invitation's times, in seconds since the epoch: made, expiring, first read, and
         -- accepted or revoked (0 for not yet).
         invite_created  INTEGER NOT NULL DEFAULT 0,
@@ -185,7 +188,7 @@ const SCHEMA: &str = "
         invite_opened   INTEGER NOT NULL DEFAULT 0,
         invite_ended    INTEGER NOT NULL DEFAULT 0,
         invite_revoked  INTEGER NOT NULL DEFAULT 0,
-        -- Its inviter's device finished it: made the accepter a contact and signed them in
+        -- Its inviter's device finished it: made the accepter a contact
         -- (`delete-link` on an accepted one);
         -- the row stays for the organization's invite list until its retention passes.
         invite_finished INTEGER NOT NULL DEFAULT 0,
@@ -261,7 +264,7 @@ const SCHEMA: &str = "
     );
 
     -- Grants a block's log names that the server revoked on its own (remove-contact,
-    -- remove-member), until a device's signed revocation goes in the log.
+    -- delete-agent), until a device's signed revocation goes in the log.
     CREATE TABLE unsigned_revocations (
         organization_id TEXT NOT NULL,
         block_id        TEXT NOT NULL,

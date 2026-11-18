@@ -23,6 +23,7 @@ async fn a_pending_grant_is_applied_when_its_link_is_accepted() {
                 link: Uuid::new_v4(),
                 card: Vec::new(),
                 kind: be_block_protocol::LinkKind::Contact(Some(pending(other_root.scope))),
+                signed: None,
             })
         })
         .await;

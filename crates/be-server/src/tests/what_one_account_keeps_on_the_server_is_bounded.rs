@@ -169,6 +169,7 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                 Uuid::new_v4(),
                 Vec::new(),
                 be_block_protocol::LinkKind::Contact(None),
+                None,
             )
             .await,
         ErrorCode::OverQuota,
@@ -180,6 +181,7 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                 Uuid::new_v4(),
                 vec![0; MAX_SEALED_BYTES + 1],
                 be_block_protocol::LinkKind::Contact(None),
+                None,
             )
             .await,
         ErrorCode::InvalidRequest,
@@ -193,6 +195,8 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                 organization,
                 escrow: Vec::new(),
             }),
+            // Refused for the bound before the record is read.
+            Some(Vec::new()),
         )
     };
     refused(invite().await, ErrorCode::OverQuota);

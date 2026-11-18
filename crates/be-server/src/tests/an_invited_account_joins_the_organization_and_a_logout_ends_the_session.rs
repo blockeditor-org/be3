@@ -21,6 +21,11 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
     assert!(matches!(refused, Err(_)), "{refused:?}");
 
     let invitation = Uuid::from_u128(7);
+    let code = be_block_keys::InviteCode::generate();
+    let signed = owner
+        .invitation_record(code.invitation_key(organization.into_bytes()), true)
+        .await;
+    CODES.lock().unwrap().insert((invitation, organization), code);
     let response = owner
         .call(|peer| {
             peer.write::<()>(be_block_protocol::Op::CreateLink {
@@ -30,6 +35,7 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
                     organization,
                     escrow: Vec::new(),
                 }),
+                signed: signed.clone(),
             })
         })
         .await;
@@ -46,16 +52,7 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
     assert_eq!(found.organization_name, "shared");
     assert_eq!(found.card, b"sealed to the invite code");
 
-    let response = guest
-        .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::AcceptLink {
-                link: invitation,
-                card: Vec::new(),
-                contact: Vec::new(),
-                key: Vec::new(),
-            })
-        })
-        .await;
+    let response = guest.accept(invitation, &[]).await;
     assert!(matches!(response, Ok(())), "{response:?}");
     guest.open(organization).await;
     let again = guest

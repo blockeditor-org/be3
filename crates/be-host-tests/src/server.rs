@@ -126,6 +126,25 @@ impl Server {
             .unwrap_or_else(|error| panic!("the test server could not spoil the keys: {error}"));
     }
 
+    /// Adds `joiner` to the organization named `name` that `of` belongs to, as an editor,
+    /// straight into the server's data, as a server adding a member on its own would: no
+    /// invitation signed them into the organization's log.
+    pub fn add_member(&self, of: &Account, name: &str, joiner: &Account) {
+        let database =
+            be_block_sqlite_schema::open(self.inner.running.directory.join("metadata.sqlite"))
+                .unwrap_or_else(|error| panic!("the test server's database did not open: {error}"));
+        let added = database
+            .execute(
+                "INSERT INTO memberships (organization_id, account_id, role)
+                 SELECT organizations.id, ?3, 'editor' FROM organizations
+                 JOIN memberships ON memberships.organization_id = organizations.id
+                 WHERE organizations.name = ?1 AND memberships.account_id = ?2",
+                [name, of.id.to_string().as_str(), joiner.id.to_string().as_str()],
+            )
+            .unwrap_or_else(|error| panic!("the test server could not add the member: {error}"));
+        assert_eq!(added, 1, "the account belongs to one organization of that name");
+    }
+
     /// A network of its own for one device, carrying its connections to the server.
     pub(crate) fn relay(&self) -> Arc<Relay> {
         let relay = Arc::new(Relay::start(self.inner.running.address));

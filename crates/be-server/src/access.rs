@@ -445,7 +445,7 @@ fn insert_entry(
         Record::Member(member) => member.account,
         Record::Retirement(retirement) => retirement.account,
         Record::Owner(owner) => owner.account,
-        Record::Opening(_) | Record::Parent(_) => entry.signer,
+        Record::Opening(_) | Record::Parent(_) | Record::Invitation(_) => entry.signer,
     };
     let accounts = [entry.signer, named];
     match kind {
@@ -800,22 +800,39 @@ pub(crate) fn checked_organization_log(
     .map_err(|_| ServerError::Corrupt)
 }
 
+/// The hash of the organization's log's head: none for one with no log.
+pub(crate) fn organization_head(
+    connection: &Connection,
+    organization: Uuid,
+) -> Result<Option<[u8; 32]>, ServerError> {
+    let head = entries(
+        connection,
+        LogKind::Organization,
+        organization,
+        organization,
+    )?
+    .last()
+    .map(Entry::hash);
+    Ok(head)
+}
+
 /// Appends `record`, signed by `signer`, to the organization's log once it checks at its head,
-/// and once `expect` takes its record, answering the account it names and whether it signs
-/// them in (so must name the keys the server holds for them).
+/// and once `expect` takes its record, answering the account it signs in, if any, with the keys
+/// it names, which must be those the server holds for it.
 fn append_organization(
     connection: &Connection,
     organization: Uuid,
     signer: Uuid,
     record: &[u8],
-    expect: impl FnOnce(&Record) -> Result<(Uuid, PublicIdentity, bool), ServerError>,
+    expect: impl FnOnce(&Record) -> Result<Option<(Uuid, PublicIdentity)>, ServerError>,
 ) -> Result<(), ServerError> {
     let entry = Entry::decode(record).map_err(|_| refused("the record does not read"))?;
     if entry.signer != signer.into_bytes() {
         return Err(refused("a record is signed by its caller"));
     }
-    let (account, identity, signs_in) = expect(&entry.record)?;
-    if signs_in && identity_of(connection, account)? != Some(identity) {
+    if let Some((account, identity)) = expect(&entry.record)?
+        && identity_of(connection, account)? != Some(identity)
+    {
         return Err(refused("a record names the keys its account holds now"));
     }
     let mut entries = entries(
@@ -867,7 +884,7 @@ pub(crate) fn append_administrator(
             Record::Administrator(made)
                 if made.account == account.into_bytes() && made.administrator == administrator =>
             {
-                Ok((account, made.identity, true))
+                Ok(Some((account, made.identity)))
             }
             _ => Err(refused(
                 "a role is set by an administrator record making what the call sets",
@@ -876,8 +893,10 @@ pub(crate) fn append_administrator(
     )
 }
 
-/// Appends a member record signing `account` in or out, as `member` says, as a person or an
-/// agent, as `agent` says (`append_organization`).
+/// Appends a member record, signed by `signer`, signing `account` in or out, as `member` says,
+/// as a person or an agent, as `agent` says (`append_organization`): an agent in or out by its
+/// maker, a person out by an administrator. A person is signed in only by an invitation
+/// (`append_accepted`).
 pub(crate) fn append_member(
     connection: &Connection,
     organization: Uuid,
@@ -896,12 +915,75 @@ pub(crate) fn append_member(
             Record::Member(named)
                 if named.account == account.into_bytes()
                     && named.member == member
-                    && named.agent == agent =>
+                    && named.agent == agent
+                    && named.invitation.is_none() =>
             {
-                Ok((account, named.identity, member))
+                Ok(member.then_some((account, named.identity)))
             }
             _ => Err(refused(
                 "a member is signed in or out by a member record naming what the call does",
+            )),
+        },
+    )
+}
+
+/// Appends an invitation record, signed by `signer`, opening or ending (as `open` says) an
+/// invitation into the organization, and answers the key it names: when ending one, it must be
+/// `key`, the one its link was made with.
+pub(crate) fn append_invitation(
+    connection: &Connection,
+    organization: Uuid,
+    signer: Uuid,
+    key: Option<SigningPublic>,
+    open: bool,
+    record: &[u8],
+) -> Result<SigningPublic, ServerError> {
+    let mut named = None;
+    append_organization(
+        connection,
+        organization,
+        signer,
+        record,
+        |record| match record {
+            Record::Invitation(invitation)
+                if invitation.open == open && key.is_none_or(|key| key == invitation.key) =>
+            {
+                named = Some(invitation.key);
+                Ok(None)
+            }
+            _ => Err(refused(
+                "an invitation is opened or ended by an invitation record naming its key",
+            )),
+        },
+    )?;
+    named.ok_or_else(|| refused("the record names no invitation"))
+}
+
+/// Appends the member record signing `accepter` in, signed with the key of the invitation it
+/// accepts (`key`, its link's), naming the keys the server holds for it.
+pub(crate) fn append_accepted(
+    connection: &Connection,
+    organization: Uuid,
+    accepter: Uuid,
+    key: &[u8],
+    record: &[u8],
+) -> Result<(), ServerError> {
+    append_organization(
+        connection,
+        organization,
+        accepter,
+        record,
+        |record| match record {
+            Record::Member(named)
+                if named.account == accepter.into_bytes()
+                    && named.member
+                    && !named.agent
+                    && named.invitation.is_some_and(|signing| signing.0 == key) =>
+            {
+                Ok(Some((accepter, named.identity)))
+            }
+            _ => Err(refused(
+                "an invitation is accepted by a member record signed with its key, naming the accepter",
             )),
         },
     )
