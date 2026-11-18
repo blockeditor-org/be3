@@ -751,7 +751,9 @@ impl Wire {
 
     /// Whether the app holds a published watch open that `open` opens.
     pub fn watching_published(&self, open: MethodId) -> bool {
-        self.published.values().any(|(_, watched, _)| *watched == open)
+        self.published
+            .values()
+            .any(|(_, watched, _)| *watched == open)
     }
 
     pub fn holds_input(&self) -> bool {
