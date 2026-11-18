@@ -349,10 +349,12 @@ pub(crate) enum Late {
     Storage,
 }
 
-fn wire(error: ServerError) -> Error {
+/// `error` as a call's refusal: its code, so a storage failure still tells the client to try
+/// again, and only what a client is told of it (`ServerError::told`).
+pub(crate) fn wire(error: ServerError) -> Error {
     Error {
         code: error.code(),
-        message: error.to_string(),
+        message: error.told(),
     }
 }
 
@@ -637,7 +639,7 @@ impl Client {
         let events = self
             .peer
             .receive(frame)
-            .map_err(|error| ServerError::Socket(error.to_string()))?;
+            .map_err(|error| ServerError::Refused(ErrorCode::InvalidRequest, error.to_string()))?;
         self.handle(events).await;
         Ok(())
     }
@@ -765,7 +767,7 @@ impl Client {
             .send(&mut self.peer.lock(), &event, |_| true)
             .map_err(|_| {
                 tracing::debug!(op = ?events, "a client is not reading its events");
-                ServerError::Socket("the client is not reading what it is sent".into())
+                crate::refused("the client is not reading what it is sent")
             })
     }
 
