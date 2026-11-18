@@ -887,7 +887,7 @@ impl ServerStore {
                 let mut granted = None;
                 if may_grant {
                     let before = graph.audience(grant.block);
-                    write_grant(
+                    write_grant(store, 
                         graph,
                         &transaction,
                         grant.organization,
@@ -1109,7 +1109,7 @@ impl ServerStore {
                     let mut revoked = Vec::new();
                     for (block, grantee) in grants {
                         let before = graph.audience(block);
-                        crate::blocks::revoke_or_grant(
+                        crate::blocks::revoke_or_grant(store, 
                             graph,
                             &transaction,
                             organization,
@@ -1135,7 +1135,7 @@ impl ServerStore {
                         });
                     }
                     let forgotten = crate::store::forget_orphaned_block_agents(
-                        graph,
+                        store, graph,
                         &transaction,
                         organization,
                     )?;

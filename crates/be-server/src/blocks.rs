@@ -1669,7 +1669,7 @@ impl ServerStore {
                 be_block_commit::now_milliseconds(),
             )?;
             let forgotten = crate::store::forget_orphaned_block_agents(
-                graph,
+                store, graph,
                 &transaction,
                 identity.organization,
             )?;
@@ -2050,7 +2050,7 @@ impl ServerStore {
             }
             let before = graph.audience(block);
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
-            revoke_or_grant(
+            revoke_or_grant(store, 
                 graph,
                 &transaction,
                 identity.organization,
@@ -2070,7 +2070,7 @@ impl ServerStore {
                 )?;
             }
             let forgotten = crate::store::forget_orphaned_block_agents(
-                graph,
+                store, graph,
                 &transaction,
                 identity.organization,
             )?;
@@ -2095,7 +2095,7 @@ impl ServerStore {
         access: Access,
         record: Vec<u8>,
     ) -> Result<Option<BTreeSet<Uuid>>, ServerError> {
-        self.with_graph(identity.organization, move |_, graph, database| {
+        self.with_graph(identity.organization, move |store, graph, database| {
             require_manage(graph, &visibility(identity), block)?;
             let node = graph.get(block).ok_or(ServerError::Corrupt)?;
             if node.author != identity.account {
@@ -2169,7 +2169,7 @@ impl ServerStore {
             // The log grants the new owner Manage, as the row does: authorship alone gives it
             // only while they can view the parent, which a block given away from somewhere
             // they cannot see would not be.
-            write_grant(
+            write_grant(store, 
                 graph,
                 &transaction,
                 identity.organization,
@@ -2177,7 +2177,7 @@ impl ServerStore {
                 account,
                 Access::Manage,
             )?;
-            write_grant(
+            write_grant(store, 
                 graph,
                 &transaction,
                 identity.organization,
@@ -2430,6 +2430,7 @@ fn holders_of(
 }
 
 pub(crate) fn revoke_or_grant(
+    store: &ServerStore,
     graph: &mut BlockGraph,
     database: &Connection,
     organization: Uuid,
@@ -2438,11 +2439,11 @@ pub(crate) fn revoke_or_grant(
     access: Access,
 ) -> Result<(), ServerError> {
     if account == be_block_graph::ANYONE_INSIDE {
-        return open_or_close_inside(graph, database, organization, block, access);
+        return open_or_close_inside(store, graph, database, organization, block, access);
     }
     let viewed = crate::keys::is_viewer(database, graph, organization, account, block)?;
     let kinds = crate::keys::open_kinds_viewed(database, graph, organization, account, block)?;
-    write_grant(graph, database, organization, block, account, access)?;
+    write_grant(store, graph, database, organization, block, account, access)?;
     if viewed && !crate::keys::is_viewer(database, graph, organization, account, block)? {
         crate::keys::lost_view(database, organization, block, account)?;
     }
@@ -2450,6 +2451,7 @@ pub(crate) fn revoke_or_grant(
 }
 
 fn open_or_close_inside(
+    store: &ServerStore,
     graph: &mut BlockGraph,
     database: &Connection,
     organization: Uuid,
@@ -2464,7 +2466,7 @@ fn open_or_close_inside(
             }
         }
     }
-    write_grant(
+    write_grant(store, 
         graph,
         database,
         organization,
@@ -2493,6 +2495,7 @@ fn was_opened(database: &Connection, organization: Uuid, kind: Uuid) -> Result<b
 }
 
 pub(crate) fn write_grant(
+    store: &ServerStore,
     graph: &mut BlockGraph,
     database: &Connection,
     organization: Uuid,
@@ -2536,7 +2539,7 @@ pub(crate) fn write_grant(
             )?;
             // A guest is there only through what links granted it: with its last grant gone,
             // whatever took it, it leaves.
-            crate::share_links::drop_idle_guest(database, graph, organization_id, account)?;
+            crate::share_links::drop_idle_guest(store, database, graph, organization_id, account)?;
         }
         Some(encoded) => {
             database.execute(
@@ -2588,6 +2591,124 @@ fn read_history(
         });
     }
     Ok(entries)
+}
+
+/// The tables that keep rows of one block by `block_id`, which `forget_blocks` deletes: every
+/// one that does not cascade from `blocks`, and those that do, so nothing outlives the block.
+const BLOCK_ROWS: &[&str] = &[
+    "access_log",
+    "access_log_names",
+    "access_log_authorities",
+    "unsigned_revocations",
+    "block_access",
+    "opened_kinds",
+    "rotations",
+    "block_sizes",
+    "journal_entries",
+    "block_journals",
+    "block_logs",
+    "block_log_nodes",
+    "block_log_heads",
+    "mutes",
+    "told_keys",
+    "share_links",
+];
+
+impl ServerStore {
+    /// Forgets `blocks` of `organization` as though never made, in the caller's transaction:
+    /// releases their commits' and pending objects (uncharging their payer), deletes every row
+    /// of them, their keys and what they seal, and their edges either way, and takes them out of
+    /// `graph`. The objects nothing holds then are deleted once that is kept (`free_later`). The
+    /// blocks are a whole subtree (a departed guest's shell): nothing outside it lies in them.
+    pub(crate) fn forget_blocks(
+        &self,
+        connection: &Connection,
+        graph: &mut BlockGraph,
+        organization: Uuid,
+        blocks: &[Uuid],
+    ) -> Result<(), ServerError> {
+        let mut freed = Vec::new();
+        let mut released: Vec<(Uuid, Vec<Hash>)> = Vec::new();
+        {
+            let mut refs = self.object_refs();
+            for block in blocks {
+                let commits = {
+                    let mut statement = connection.prepare_cached(
+                        "SELECT commit_id FROM block_commits
+                         WHERE organization_id = ?1 AND block_id = ?2",
+                    )?;
+                    let rows = statement
+                        .query_map(params![organization.to_string(), block.to_string()], |row| {
+                            row.get::<_, String>(0)
+                        })?;
+                    rows.map(|row| parse_commit(&row?))
+                        .collect::<Result<Vec<_>, _>>()?
+                };
+                let mut held = Vec::new();
+                for commit in commits {
+                    let (hashes, gone) =
+                        release_commit(connection, &mut refs, organization, *block, commit)?;
+                    held.extend(hashes);
+                    freed.extend(gone);
+                }
+                let pending = {
+                    let mut statement = connection.prepare_cached(
+                        "SELECT hash FROM block_objects WHERE organization_id = ?1 AND block_id = ?2",
+                    )?;
+                    let rows = statement
+                        .query_map(params![organization.to_string(), block.to_string()], |row| {
+                            row.get::<_, String>(0)
+                        })?;
+                    rows.map(|row| Hash::from_hex(&row?).ok_or(ServerError::Corrupt))
+                        .collect::<Result<Vec<_>, _>>()?
+                };
+                connection.execute(
+                    "DELETE FROM block_objects WHERE organization_id = ?1 AND block_id = ?2",
+                    params![organization.to_string(), block.to_string()],
+                )?;
+                freed.extend(refs.release(&pending));
+                persist_refs(connection, &refs, &pending)?;
+                held.extend(pending);
+                released.push((*block, held));
+            }
+        }
+        for (block, held) in &released {
+            self.release_charged(connection, graph, organization, *block, held)?;
+        }
+        for block in blocks {
+            let (organization, block) = (organization.to_string(), block.to_string());
+            connection.execute(
+                "DELETE FROM wrapped_keys WHERE organization_id = ?1 AND key_id IN
+                     (SELECT id FROM keys WHERE organization_id = ?1 AND block_id = ?2)",
+                params![organization, block],
+            )?;
+            connection.execute(
+                "DELETE FROM keys WHERE organization_id = ?1 AND block_id = ?2",
+                params![organization, block],
+            )?;
+            connection.execute(
+                "DELETE FROM block_edges
+                 WHERE organization_id = ?1 AND (block_id = ?2 OR reference_id = ?2)",
+                params![organization, block],
+            )?;
+            for table in BLOCK_ROWS {
+                connection.execute(
+                    &format!("DELETE FROM {table} WHERE organization_id = ?1 AND block_id = ?2"),
+                    params![organization, block],
+                )?;
+            }
+            connection.execute(
+                "DELETE FROM blocks WHERE organization_id = ?1 AND id = ?2",
+                params![organization, block],
+            )?;
+        }
+        // The deepest first, so no block leaves a child behind in the graph.
+        for block in blocks.iter().rev() {
+            graph.remove(*block);
+        }
+        self.free_later(forget_objects(connection, &freed)?);
+        Ok(())
+    }
 }
 
 fn release_commit(

@@ -377,7 +377,7 @@ impl ServerStore {
                 .and_then(|node| node.grants.get(&caller).copied())
                 .unwrap_or(Access::None);
             if found.access > held {
-                revoke_or_grant(
+                revoke_or_grant(store, 
                     graph,
                     &transaction,
                     organization,
@@ -466,7 +466,7 @@ impl ServerStore {
         link: Uuid,
         signed: Vec<u8>,
     ) -> Result<(Uuid, Revoked), ServerError> {
-        self.with_graph(identity.organization, move |_, graph, database| {
+        self.with_graph(identity.organization, move |store, graph, database| {
             let found = stored(database, link)?
                 .filter(|found| found.organization == identity.organization)
                 .ok_or_else(not_found)?;
@@ -498,7 +498,7 @@ impl ServerStore {
                 })
                 .collect();
             for account in &fallen {
-                revoke_or_grant(
+                revoke_or_grant(store, 
                     graph,
                     &transaction,
                     identity.organization,
@@ -534,6 +534,7 @@ impl ServerStore {
 /// reads (decisions/a_guest_makes_only_its_own_shell.md), go with it. Answers whether it went.
 /// Every path that removes a grant calls it (`blocks::write_grant`).
 pub(crate) fn drop_idle_guest(
+    store: &crate::store::ServerStore,
     connection: &Connection,
     graph: &mut BlockGraph,
     organization: Uuid,
@@ -562,7 +563,7 @@ pub(crate) fn drop_idle_guest(
         "DELETE FROM memberships WHERE organization_id = ?1 AND account_id = ?2",
         params![organization.to_string(), account.to_string()],
     )?;
-    // Every block below its own settings is its shell's too; what refers to them cascades.
+    // Its shell: its own settings at the top, owner-only, with everything below them.
     let shell: Vec<Uuid> = graph
         .children(be_block_graph::BlockParent::Root)
         .into_iter()
@@ -573,12 +574,6 @@ pub(crate) fn drop_idle_guest(
         })
         .flat_map(|root| graph.subtree(root))
         .collect();
-    for block in shell {
-        connection.execute(
-            "DELETE FROM blocks WHERE organization_id = ?1 AND id = ?2",
-            params![organization.to_string(), block.to_string()],
-        )?;
-        graph.remove(block);
-    }
+    store.forget_blocks(connection, graph, organization, &shell)?;
     Ok(true)
 }
