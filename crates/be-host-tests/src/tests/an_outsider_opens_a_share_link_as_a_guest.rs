@@ -62,6 +62,10 @@ fn an_outsider_opens_a_share_link_as_a_guest() {
     host.snapshot("an_outsider_opens_a_share_link_as_a_guest");
     host.key("Enter");
     host.wait("#host.share-link.opened");
+    host.key("Escape");
+    host.pause(500);
+    // The host opens Studio, where the block is shared with this guest.
+    host.wait("TreeItem \"Showcase\"");
     host.close();
     dev_device.close();
 }
