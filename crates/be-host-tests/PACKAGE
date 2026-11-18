@@ -17,9 +17,13 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-client:be-block-client",
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-block-keys:be-block-keys",
+                "//crates/be-block-protocol:be-block-protocol",
                 "//crates/be-block-sqlite-schema:be-block-sqlite-schema",
+                "//crates/be-block-store:be-block-store",
                 "//crates/be-server:be-server",
                 "//crates/be-tool-drive:be-tool-drive",
                 "//crates/beui-core:beui-core",
@@ -38,9 +42,13 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-client:be-block-client",
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-block-keys:be-block-keys",
+                "//crates/be-block-protocol:be-block-protocol",
                 "//crates/be-block-sqlite-schema:be-block-sqlite-schema",
+                "//crates/be-block-store:be-block-store",
                 "//crates/be-server:be-server",
                 "//crates/be-tool-drive:be-tool-drive",
                 "//crates/beui-core:beui-core",
@@ -59,9 +67,13 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-client:be-block-client",
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-block-keys:be-block-keys",
+                "//crates/be-block-protocol:be-block-protocol",
                 "//crates/be-block-sqlite-schema:be-block-sqlite-schema",
+                "//crates/be-block-store:be-block-store",
                 "//crates/be-server:be-server",
                 "//crates/be-tool-drive:be-tool-drive",
                 "//crates/beui-core:beui-core",
@@ -80,9 +92,13 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-client:be-block-client",
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-block-keys:be-block-keys",
+                "//crates/be-block-protocol:be-block-protocol",
                 "//crates/be-block-sqlite-schema:be-block-sqlite-schema",
+                "//crates/be-block-store:be-block-store",
                 "//crates/be-server:be-server",
                 "//crates/be-tool-drive:be-tool-drive",
                 "//crates/beui-core:beui-core",
@@ -101,9 +117,13 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-client:be-block-client",
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-block-keys:be-block-keys",
+                "//crates/be-block-protocol:be-block-protocol",
                 "//crates/be-block-sqlite-schema:be-block-sqlite-schema",
+                "//crates/be-block-store:be-block-store",
                 "//crates/be-server:be-server",
                 "//crates/be-tool-drive:be-tool-drive",
                 "//crates/beui-core:beui-core",
@@ -122,9 +142,13 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-client:be-block-client",
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-block-keys:be-block-keys",
+                "//crates/be-block-protocol:be-block-protocol",
                 "//crates/be-block-sqlite-schema:be-block-sqlite-schema",
+                "//crates/be-block-store:be-block-store",
                 "//crates/be-server:be-server",
                 "//crates/be-tool-drive:be-tool-drive",
                 "//crates/beui-core:beui-core",
@@ -143,9 +167,13 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-client:be-block-client",
                 "//crates/be-block-commit:be-block-commit",
                 "//crates/be-block-fault-relay:be-block-fault-relay",
+                "//crates/be-block-keys:be-block-keys",
+                "//crates/be-block-protocol:be-block-protocol",
                 "//crates/be-block-sqlite-schema:be-block-sqlite-schema",
+                "//crates/be-block-store:be-block-store",
                 "//crates/be-server:be-server",
                 "//crates/be-tool-drive:be-tool-drive",
                 "//crates/beui-core:beui-core",
