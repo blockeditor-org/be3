@@ -422,7 +422,13 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      the press and previewed by writing (`State::drag_edit`), its drop writing its place and a
      put-down (Escape, a cancelled press) writing back the size at the lift; a release outside
      every window keeps where it was. Its arrows step it as before, and a keyboard carry steps
-     `SPLIT_STEP` too. It gained Escape; it lost nothing the splitter tests pin.
+     `SPLIT_STEP` too. It gained Escape; it lost nothing the splitter tests pin. Lines:
+     `DockSplitterView` was 91 and is 155. What it writes that the language should give, before
+     the sliders move: the splitter's offset in the area, found to turn the item's rect into
+     travel since the lift (a `free` whose drop is given the travel, or the rect at the lift,
+     would drop it); and the start, the kept flag and the effect that writes the start back on
+     a put-down (a site handle that tells a drop from a put-down, which every site that
+     previews by writing needs: the canvas tracks the same through its hold).
    - **Next: sliders, the colour area and wheel, then the scrollbar's thumb**, in that order,
      each replacing its `on_drag` and `ValueDrag` reporting only if it keeps its keys (Home,
      End, Page Up and Down) and `Cancelled`. Owners that preview by writing need the drop's
