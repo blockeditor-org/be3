@@ -23,7 +23,7 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    AccountRow, AgentRow, MemoryHistory, PairingApproval, ContactCard, ContactMismatch, ContactRow, ShareAccess, SharePreview,
+    AccountRow, AgentRow, MemoryMinutes, PairingApproval, ContactCard, ContactMismatch, ContactRow, ShareAccess, SharePreview,
     CoreCommand, CoreSecret, MemberRole, MemberRow, RoleChange, SecretCommand, CoreView, CoreWait, DiscardReason, InvitationRow,
     InvitationState, OrganizationRow, OrganizationsListed, ProfileRow,
     SessionRow, DisplayQuestion, FrameDone, FrameRequest, HostStatistics, LockState,
@@ -140,7 +140,7 @@ struct Root {
     /// The statistics that panel shows, which the host's answers set.
     shown_statistics: Rc<Cell<Option<Signal<HostStatistics>>>>,
     /// The memory over time that panel graphs, which the host's answers set.
-    shown_memory: Rc<Cell<Option<Signal<MemoryHistory>>>>,
+    shown_memory: Rc<Cell<Option<Signal<MemoryMinutes>>>>,
     /// Counts the panel's openings, so a watch begun for an earlier one stops.
     statistics_opened: Rc<Cell<u64>>,
     /// The session's screen lock as the host said last, until a frame shows it.
@@ -731,7 +731,7 @@ impl Root {
                     memory_file: None,
                 });
                 shown.set(Some(statistics));
-                let history = create_signal(MemoryHistory::default());
+                let history = create_signal(MemoryMinutes::default());
                 graphed.set(Some(history));
                 view! {
                     <Root>
@@ -1413,7 +1413,7 @@ fn slow_save(saving: Signal<SavingState>) -> SlowSave {
 /// The host's statistics as its debug panels show them: a row a measurement, under headings,
 /// its performance first and then its memory, scrolling.
 #[component]
-fn StatisticsPanel(statistics: Signal<HostStatistics>, history: Signal<MemoryHistory>) -> NodeId {
+fn StatisticsPanel(statistics: Signal<HostStatistics>, history: Signal<MemoryMinutes>) -> NodeId {
     let rows = create_memo(move || {
         statistics.with(|statistics| {
             let mut rows = statistics.performance.clone();
@@ -1464,9 +1464,19 @@ fn StatisticsPanel(statistics: Signal<HostStatistics>, history: Signal<MemoryHis
 /// the peak resident size rounded up to 64 MiB, a gap of more than two minutes breaking a line.
 /// Nothing shows until a minute is measured.
 #[component]
-fn MemoryGraph(history: Signal<MemoryHistory>) -> NodeId {
-    let theme = use_theme();
+fn MemoryGraph(history: Signal<MemoryMinutes>) -> NodeId {
     let measured = create_memo(move || history.with(|history| !history.points.is_empty()));
+    view! {
+        <Show value={measured}>
+            <MemoryDrawing history={history} />
+        </Show>
+    }
+}
+
+/// The graph itself, drawn each time the minutes or the theme change.
+#[component]
+fn MemoryDrawing(history: Signal<MemoryMinutes>) -> NodeId {
+    let theme = use_theme();
     let draw: Prop<Draw> = Prop::dynamic(move || {
         let history = history.get();
         let colors = [theme.accent.get(), theme.success.get(), theme.warning.get(), theme.danger.get()];
@@ -1476,11 +1486,9 @@ fn MemoryGraph(history: Signal<MemoryHistory>) -> NodeId {
         }) as Draw
     });
     view! {
-        <Show value={measured}>
-            <Frame height={Size::Custom(MEMORY_GRAPH_HEIGHT)}>
-                <Drawing draw />
-            </Frame>
-        </Show>
+        <Frame height={Size::Custom(MEMORY_GRAPH_HEIGHT)}>
+            <Drawing draw />
+        </Frame>
     }
 }
 
@@ -1490,7 +1498,7 @@ const MEMORY_GRAPH_HEIGHT: f32 = 60.0;
 fn draw_memory(
     painter: &Painter,
     rect: Rect,
-    history: &MemoryHistory,
+    history: &MemoryMinutes,
     colors: [beui::Color; 4],
     border: beui::Color,
 ) {

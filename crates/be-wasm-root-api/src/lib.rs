@@ -17,14 +17,14 @@ be_wasm_ops_bindgen::generate!({
     },
     copy: ["uuid"],
     default: [
-        "agents-area", "memory-history", "contacts-area", "recovery-area", "unlock-area", "core-view", "share-links-area", "invitations-area", "members-area", "organizations-area", "organizations-listed", "sessions-area",
+        "agents-area", "memory-minutes", "contacts-area", "recovery-area", "unlock-area", "core-view", "share-links-area", "invitations-area", "members-area", "organizations-area", "organizations-listed", "sessions-area",
     ],
     secret: ["password"],
 });
 
 pub use frames::{FrameDone, FrameRequest};
 pub use host::{
-    AccountRow, AgentCredentials, MemoryHistory, MemoryPoint, CoreFailure, PairingApproval, PairingRequest, RecoveryArea,
+    AccountRow, AgentCredentials, MemoryMinutes, MemoryPoint, CoreFailure, PairingApproval, PairingRequest, RecoveryArea,
     UnlockArea, ContactCard, ContactMismatch, ContactRow, ContactsArea, Leaving,
     ShareAccess, SharePreview, ShareLinksArea, AgentRow, AgentsArea, BrowserSignIn, MemberRole, MemberRow,
     MembersArea, RoleChange, CoreCommand, CoreSecret, CoreView, CoreWait, DiscardReason,
