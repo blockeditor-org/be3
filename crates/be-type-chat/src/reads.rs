@@ -1,64 +1,42 @@
 use std::collections::BTreeMap;
 
-use be_block_content::Root;
 use be_block_content::layered::{KindVisibility, Layered, union};
+use be_block_content::{LogItem, Root};
 use be_block_model::{Document, Edit, Map, Model, ObjectId};
 use uuid::Uuid;
 
-/// Where the account has read each chat up to, per device. An owner-only settings kind
-/// (guides/settings.md, Owner only): kept apart from the chat, where it would be a read
-/// receipt, readable by this account alone (administrators and the server included), and
-/// synced to every device it uses.
+use crate::ChatLog;
+
+/// Where the account has read each chat up to, per device: the place in the chat's log of the
+/// last entry read. An owner-only settings kind (guides/settings.md, Owner only): kept apart
+/// from the chat, where it would be a read receipt, readable by this account alone
+/// (administrators and the server included), and synced to every device it uses.
 ///
-/// A place is a key of its own, `chat/device/message`, so a device moving on writes a key no
-/// other device has seen, and drops only keys it has seen: its own older place, and others'
-/// places that are not further on. A move another device made meanwhile is a key nobody
-/// dropped, so a device behind or offline never takes reading back, and the chat counts from
-/// the furthest place (`ChatContent::unread`). The kind grows only with the devices still
-/// ahead.
+/// Each device writes its own key, `chat/device`, so devices moving on at once never meet,
+/// and the chat counts from the furthest place any of them read (`ChatLog::unread`): a device
+/// behind or offline never takes reading back.
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct ChatReads {
-    /// Each device's last message read, keyed `chat/device/message`.
-    pub read: Map<String, ObjectId>,
-}
-
-/// One device's place in a chat, and the key that holds it.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ReadPlace {
-    pub key: String,
-    pub device: Uuid,
-    pub message: ObjectId,
+    /// Each device's last place read, keyed `chat/device`.
+    pub read: Map<String, u64>,
 }
 
 impl ChatReads {
-    /// Where each device read `chat` up to.
-    pub fn places(&self, chat: Uuid) -> Vec<ReadPlace> {
+    /// The furthest place any device read `chat` up to.
+    pub fn place(&self, chat: Uuid) -> Option<u64> {
         let prefix = format!("{chat}/");
         self.read
             .iter()
-            .filter_map(|(key, message)| {
-                let rest = key.strip_prefix(&prefix)?;
-                let device = rest.split('/').next()?.parse().ok()?;
-                Some(ReadPlace {
-                    key: key.clone(),
-                    device,
-                    message: *message,
-                })
-            })
-            .collect()
+            .filter(|(key, _)| key.starts_with(&prefix))
+            .map(|(_, place)| *place)
+            .max()
     }
 
-    /// Puts `device`'s place in `chat` at `message`, and drops the places in `seen` that no
-    /// longer count: this device's older ones, and others' not further on.
-    pub fn set_read(chat: Uuid, device: Uuid, message: ObjectId, seen: &[ReadPlace]) -> Edit {
-        let key = format!("{chat}/{device}/{message}");
-        std::iter::once(Self::READ.put(ObjectId::ROOT, &key, Some(&message)))
-            .chain(
-                seen.iter()
-                    .filter(|place| place.key != key)
-                    .map(|place| Self::READ.put(ObjectId::ROOT, &place.key, None::<&ObjectId>)),
-            )
-            .collect()
+    /// Puts `device`'s place in `chat` at `place`.
+    pub fn set_read(chat: Uuid, device: Uuid, place: u64) -> Edit {
+        Self::READ
+            .put(ObjectId::ROOT, &format!("{chat}/{device}"), Some(&place))
+            .into()
     }
 }
 
@@ -81,30 +59,26 @@ pub type ChatReadsContent = Document<ChatReads>;
 
 impl be_block_content::Unread for crate::ChatContent {
     type Reads = ChatReads;
-    /// The messages each device read the chat up to, in order, so the same places are the
-    /// same bytes.
-    type Place = Vec<ObjectId>;
+    /// The furthest place read.
+    type Place = Option<u64>;
 
-    fn places(reads: &ChatReads) -> Vec<(Uuid, Vec<ObjectId>)> {
-        let mut places: BTreeMap<Uuid, Vec<ObjectId>> = BTreeMap::new();
-        for (key, message) in reads.read.iter() {
+    fn places(reads: &ChatReads) -> Vec<(Uuid, Option<u64>)> {
+        let mut places: BTreeMap<Uuid, u64> = BTreeMap::new();
+        for (key, place) in reads.read.iter() {
             if let Some(chat) = key.split('/').next().and_then(|chat| chat.parse().ok()) {
-                places.entry(chat).or_default().push(*message);
+                let furthest = places.entry(chat).or_insert(*place);
+                *furthest = (*furthest).max(*place);
             }
         }
         places
             .into_iter()
-            .map(|(chat, mut messages)| {
-                messages.sort();
-                messages.dedup();
-                (chat, messages)
-            })
+            .map(|(chat, place)| (chat, Some(place)))
             .collect()
     }
 
-    /// The messages others sent since the furthest place any of the account's devices read
-    /// the chat up to (`ChatContent::unread`), from the header alone.
-    fn count_unread(&self, place: &Vec<ObjectId>, me: Uuid) -> u32 {
-        u32::try_from(self.unread(place.iter().copied(), me)).unwrap_or(u32::MAX)
+    /// The messages others sent among the log's latest entries since the place read
+    /// (`ChatLog::unread`).
+    fn count_unread(&self, place: &Option<u64>, log: &[LogItem], me: Uuid) -> u32 {
+        u32::try_from(ChatLog::of(log).unread(*place, me)).unwrap_or(u32::MAX)
     }
 }
