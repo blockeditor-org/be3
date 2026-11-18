@@ -214,16 +214,13 @@ Depends on #686 (session catch-ups replaced by server ordering).
 
 ## 15. Flaky host tests
 
-- **A chat message unsent across a restart, stalled under load.**
-  be-host-stack's `a_chat_message_unsent_across_a_restart_notifies_once_after_reconnecting`
-  timed out in a verify at "the stack never reached read the chat's log: it
-  made no progress for 60 s", using 0.5 s of CPU in 60 s: a wait that never
-  woke. Its state then: connected, reached the server, no error, no commands,
-  edits or listings owed, nothing draining, progressed 30 to 32, wakes 5, one
-  open block. Run straight from its built harness it failed 2 of 48 times on the
-  integration tip at 16 at once on 4 cores, and 0 of 30 at 6 at once, so it is
-  older than any one branch. Done: what the stack waits on there is found and
-  woken, and the test passes 200 runs at 16 at once.
+- **A seal's lost publish and a joined channel, often at 16 at once.**
+  Run straight from be-host-stack's built harness, each in its own temp dir, 16
+  at once on 4 cores, `a_seal_whose_publish_was_lost_trims_the_journal_when_the_outbox_drains_it`
+  failed 22 of 240 ("the stack never reached counted 5: it made no progress for
+  60 s") and `a_joined_channel_opens_to_its_host_and_again_to_the_next` 95 of
+  240 ("the channel to the first host closed: []"). Done: each cause found and
+  fixed at its source, and each passes 400 runs at 16 at once.
 
 - **A joined block's tabs, once under verify load.**
   `a_joined_blocks_tabs_carry_its_menu` waited for "Referenced by (2)" and saw
