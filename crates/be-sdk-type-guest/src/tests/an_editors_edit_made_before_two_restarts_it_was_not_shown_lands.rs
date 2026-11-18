@@ -22,9 +22,9 @@ fn an_editors_edit_made_before_two_restarts_it_was_not_shown_lands() {
             let typed = sim.typed(0, 2).find("start").expect("the text is there");
             sim.erase(0, 2, 0..typed);
         }
-        // Settled first: edits still on their way at a restart do not all carry over it
-        // (plans/backlog.md, "Edits on their way at a restart").
-        sim.settle();
+        // The seal the churn comes due on holds less than the order numbered, so the restart
+        // waits for the next.
+        sim.advance(crate::QUIET_INTERVAL);
         sim.advance(crate::QUIET_INTERVAL);
         assert_eq!(
             sim.devices[0].status.restarts, restart,
