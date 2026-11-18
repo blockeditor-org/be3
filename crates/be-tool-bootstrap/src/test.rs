@@ -45,14 +45,14 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
         for krate in crates {
             let rules =
                 std::fs::read_to_string(repository().join(&krate).join("BUCK")).unwrap_or_default();
-            let has_test = has_test_target(&rules);
-            if !has_test {
+            let tests = test_targets(&rules);
+            if tests.is_empty() {
                 eprintln!(
-                    "Skipping {krate}: it holds a test whose name contains '{name}' but has no :test target in its BUCK."
+                    "Skipping {krate}: it holds a test whose name contains '{name}' but has no test target in its BUCK."
                 );
                 continue;
             }
-            targets.push(format!("//{krate}:test"));
+            targets.extend(tests.into_iter().map(|test| format!("//{krate}:{test}")));
         }
         if targets.is_empty() {
             return Err(String::new());
@@ -307,19 +307,57 @@ fn update_paintings(buck2: &Path, targets: &[String], name: String) -> Result<bo
     Ok(failed)
 }
 
-/// Whether a crate's BUCK makes a :test: cargo_test, an app's or app_tests'
-/// wasm tests, or a macro that makes one unless told `test = False`
-/// (buck/cargo/defs.bzl, buck/wasm/defs.bzl).
-pub fn has_test_target(rules: &str) -> bool {
-    rules.lines().any(|line| {
-        ["cargo_test(", "app(", "app_tests(", "game_module("]
+/// The test targets a crate's BUCK makes: `test` for an unnamed cargo_test, an
+/// app's or app_tests' wasm tests, or a macro that makes one unless told
+/// `test = False` (buck/cargo/defs.bzl, buck/wasm/defs.bzl), and a named
+/// cargo_test's own name (crates/beui's `html-test`), so a crate whose only tests
+/// run on another platform is not asked for a `:test` it lacks.
+pub fn test_targets(rules: &str) -> Vec<String> {
+    let lines: Vec<&str> = rules.lines().collect();
+    let mut targets: Vec<String> = Vec::new();
+    for (at, line) in lines.iter().enumerate() {
+        let made = if line.starts_with("cargo_test(") {
+            // The call's own lines: this one, through the line that closes it.
+            let call = match line.trim_end().ends_with(')') {
+                true => &lines[at..=at],
+                false => {
+                    let end = lines[at..]
+                        .iter()
+                        .position(|line| line.starts_with(')'))
+                        .map_or(lines.len(), |end| at + end + 1);
+                    &lines[at..end]
+                }
+            };
+            Some(named(call).unwrap_or_else(|| "test".to_owned()))
+        } else if ["app(", "app_tests(", "game_module("]
             .iter()
             .any(|rule| line.starts_with(rule))
             || (["cargo_crate(", "type_module("]
                 .iter()
                 .any(|rule| line.starts_with(rule))
                 && !line.contains("test = False"))
-    })
+        {
+            Some("test".to_owned())
+        } else {
+            None
+        };
+        if let Some(made) = made
+            && !targets.contains(&made)
+        {
+            targets.push(made);
+        }
+    }
+    targets
+}
+
+/// The `name = "…"` a rule's call gives itself, if any.
+fn named(call: &[&str]) -> Option<String> {
+    call.iter()
+        .flat_map(|line| line.split(['(', ',']))
+        .find_map(|argument| {
+            let rest = argument.trim_start().strip_prefix("name = \"")?;
+            Some(rest.split_once('"')?.0.to_owned())
+        })
 }
 
 fn report(target: &str, directory: &Path) -> bool {
