@@ -83,12 +83,18 @@ async fn a_key_the_server_wraps_under_the_settings_key_and_names_current_seals_n
             .unwrap();
         drop(database);
 
+        // It names the key current, and says the note lives under the settings, to every device
+        // of the victim's.
+        harness.server.lie(victim.account(), move |summary| {
+            if summary.id == note {
+                summary.key = Some(planted);
+                summary.parent = Some(BlockParent::Block(settings));
+            }
+        });
         let device = harness.second(victim).await;
         device.refresh_keys(None).await.unwrap();
-        // It names the key current, and says the note lives under the settings.
-        let mut summary = device.summary(note).await.unwrap();
-        summary.key = Some(planted);
-        summary.parent = Some(BlockParent::Block(settings));
+        let summary = device.summary(note).await.unwrap();
+        assert_eq!(summary.key, Some(planted), "the server lied");
         device.note(&summary);
         assert!(
             !matches!(device.sealing_key(note).await, Ok(key) if key == planted),

@@ -1185,8 +1185,10 @@ impl Client {
     ) -> Result<Page, ServerError> {
         let bound = bound_may_read(&query, follow);
         let admitted = self.admit(organization, query_rule(&query), bound).await?;
+        let account = admitted.identity().ok().map(|identity| identity.account);
         if !follow {
-            return self.answer(admitted, query).await;
+            let page = self.answer(admitted, query).await?;
+            return Ok(self.lied(account, page));
         }
         let topic = topic_of(&query).ok_or_else(|| invalid("this query has nothing to follow"))?;
         match topic {
@@ -1198,7 +1200,22 @@ impl Client {
                 self.following.topics.insert(followed);
             }
         }
-        self.answer_following(admitted, query).await
+        let page = self.answer_following(admitted, query).await?;
+        Ok(self.lied(account, page))
+    }
+
+    /// `page` as a test's lying server sends it to `account` (`ServerConfig::lies`).
+    fn lied(&self, account: Option<Uuid>, mut page: Page) -> Page {
+        let (Some(lies), Some(account)) = (&self.connection.config.lies, account) else {
+            return page;
+        };
+        match &mut page {
+            Page::Summaries(summaries) => lies.apply(account, summaries.iter_mut().flatten()),
+            Page::Contents(contents) => lies.apply(account, contents.blocks.iter_mut()),
+            Page::Listed(listed) => lies.apply(account, listed.blocks.iter_mut()),
+            _ => {}
+        }
+        page
     }
 
     /// Answers a read that follows its topic: a tree is followed in the hub before it is read,
