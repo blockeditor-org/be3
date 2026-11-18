@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block_commit::retention::{DAY, MINUTE};
+use be_block_commit::{DAY, MINUTE};
 use be_block_graph::SEARCH_INDEX_TYPE;
 
 /// Publishes a commit at each age, oldest first, and answers them in that order.

@@ -37,7 +37,7 @@ crates. What is left is used:
 |---|---|
 | be-block-content | the traits, metadata, `Root`, blobs |
 | be-block-model, be-lib-sequence | `Document<R>`, text and lists |
-| be-block-commit, `similar` | `MergeResult`; `similar` is the line diff under be-block-model's sequence merge (`merge_lines`) |
+| be-block-commit (no `store`), `similar` | `MergeResult`; `similar` is the line diff under be-block-model's sequence merge (`merge_lines`) |
 | be-block-store (no `vault`), sha2, ciborium | `Part`/`PartRef`/`Hash`/`Manifest`, CBOR of the model |
 | be-block-session (no `store`) | the order (`Sequencer`) and `SessionMessage` the replica runs |
 | be-block-protocol, be-block-graph | `SessionState`, `ClientId`, `RelayKind`; graph only for `Access`/`BlockParent` in the protocol, and `WORKSPACE_TYPE` |
@@ -60,10 +60,14 @@ the icu crates are, through beui.
 
 ## Steps
 
-1. Split be-block-commit's host-only parts from what the replica uses:
-   `retention` and `CommitStore` (already behind `store`) are server and
-   client only. Small, and only a compile-time win, since the linker already
-   drops them.
+1. Split be-block-commit's host-only parts from what the replica uses: done.
+   `retention` sits behind the `store` feature with `CommitStore`, which no
+   type module enables, and the time spans (`MINUTE`, `HOUR`, `DAY`, `WEEK`)
+   moved to the crate root, which be-block and be-block-search-index read
+   without it. Only a compile-time win, as expected: the dev `:module`s did
+   not change size beyond noise (chat 4,166,413 to 4,166,001 bytes, checklist
+   3,433,545 to 3,434,000, text 3,547,056 to 3,547,518), since the linker
+   already dropped them.
 2. `similar` in type modules: replacing it means writing the line diff that
    `merge_lines` needs (Myers over slices) in be-block-model or
    be-lib-sequence. That is a design change, not a split: worth it only if

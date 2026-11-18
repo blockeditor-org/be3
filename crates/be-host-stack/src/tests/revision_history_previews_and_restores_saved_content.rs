@@ -15,7 +15,7 @@ fn revision_history_previews_and_restores_saved_content() {
     // History keeps a state per minute, so each saved state below is a minute after the last.
     let start = be_block_commit::now_milliseconds();
     let minutes = |minutes: i64| {
-        be_block_commit::pin_now(Some(start + minutes * be_block_commit::retention::MINUTE));
+        be_block_commit::pin_now(Some(start + minutes * be_block_commit::MINUTE));
     };
     minutes(0);
     harness.connect();

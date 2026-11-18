@@ -37,7 +37,7 @@ impl Held {
 }
 
 /// How long the server keeps an index block's old states (`be_server::retention`).
-pub const SEARCH_INDEX_KEPT: i64 = be_block_commit::retention::DAY;
+pub const SEARCH_INDEX_KEPT: i64 = be_block_commit::DAY;
 
 /// How long a retired segment or a removed block is remembered (`SearchIndexContent::compact`):
 /// several times `SEARCH_INDEX_KEPT`, for a device that comes back after longer than that with
