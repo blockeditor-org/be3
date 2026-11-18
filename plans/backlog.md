@@ -7,14 +7,6 @@ Fixed items are removed as they land.
 
 ## 1. Text
 
-- **A long text's first row heights.** Opening a long Markdown text far from
-  its top (a restored scroll), the rows around a fenced code block above the
-  view are first placed tens of points apart from where they settle a layout
-  later, so the scrollbar's thumb jumps as they are measured (the line at the
-  top now stays put: `VirtualList`'s `anchor`). Find whether the list places
-  them by its estimate before measuring them or a row measures short at first.
-  Done: the first layout places them where they settle, shown by a beui test.
-
 - **Anchored rows on the web without `overflow-anchor`.** On the HTML core a
   `VirtualList` leaves its `anchor` to the browser's scroll anchoring, which
   Safari (and so every iOS browser) lacks, so rows measured anew above the view
