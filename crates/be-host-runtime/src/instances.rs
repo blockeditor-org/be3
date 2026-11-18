@@ -145,6 +145,9 @@ struct Instance {
     /// Blocks the host refused to make for the editor, so a gift asked for one (the ask comes
     /// after the failed call) ends at once.
     block_refused: Vec<Uuid>,
+    /// Blocks it made in this run, the only ones an app whose manifest does not set `sharing`
+    /// may open to anyone inside (`services::refuses_sharing`).
+    made: HashSet<Uuid>,
     screens: HashMap<ViewId, Screen>,
     anchored: Vec<AnchoredScreen>,
     opened: bool,
@@ -316,6 +319,7 @@ impl Instance {
             gift: None,
             departed: VecDeque::new(),
             block_refused: Vec::new(),
+            made: HashSet::default(),
             screens: HashMap::default(),
             anchored: Vec::new(),
             opened: false,
