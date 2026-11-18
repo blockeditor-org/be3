@@ -5,9 +5,12 @@ use beui_view::types::TextAlign;
 
 use crate::frame::{ColorRole, Frame, Radius};
 use crate::text::{Text, TextColor, TextSize, Weight};
-use crate::tokens::{Padding, Space};
+use crate::tokens::{Length, Padding, Size, Space};
 
 const PADDING: Padding = Padding::symmetric(Space::Xs, Space::None);
+
+/// At least as wide as it is tall, so a single digit reads as a round pill.
+const LEAST_WIDTH: Length = Length::AtLeast(Size::Xs);
 
 /// The most a badge spells out; more shows as this and a plus.
 pub const COUNT_BADGE_MOST: u32 = 99;
@@ -28,7 +31,12 @@ pub fn CountBadge(count: Prop<u32>) -> NodeId {
     let text = create_memo(move || count_badge_text(count.get()));
     view! {
         <Show value={move || count.get() > 0}>
-            <Frame fill=ColorRole::Accent radius=Radius::Full padding=PADDING>
+            <Frame
+                width=LEAST_WIDTH
+                fill=ColorRole::Accent
+                radius=Radius::Full
+                padding=PADDING
+            >
                 <Text
                     size=TextSize::Xs
                     weight=Weight::Bold

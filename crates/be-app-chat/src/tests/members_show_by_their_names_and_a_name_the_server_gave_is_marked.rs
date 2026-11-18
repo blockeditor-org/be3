@@ -44,7 +44,8 @@ fn members_show_by_their_names_and_a_name_the_server_gave_is_marked() {
     );
     assert_eq!(
         chat.row(teo),
-        "Teo Lind unverified name 09:03 not verified I can check the installers."
+        "Teo Lind unverified name 09:03 I can check the installers.",
+        "a name the server gave carries one caption, for the key not verified too"
     );
     assert_eq!(chat.row(mine), "You 09:06 It is. Thanks, both.");
     assert!(!chat.editor.shown(&format!("chat.message.{rosa}.name_unverified")));

@@ -1754,6 +1754,8 @@ fn MessageRow(
     let author = create_memo(move || account.get().map(|author| names.name(author)).unwrap_or_default());
     let name_unverified =
         create_memo(move || account.get().is_some_and(|author| names.unverified(author)));
+    // A name the server gave says so already; one caption is enough for a key not verified too.
+    let key_unverified = create_memo(move || unverified.get() && !name_unverified.get());
     let time = create_memo(move || row.with(|row| row.time.clone()));
     let arrived = create_memo(move || row.with(|row| row.arrived.clone().unwrap_or_default()));
     let late = create_memo(move || row.with(|row| row.arrived.is_some()));
@@ -1958,7 +1960,7 @@ fn MessageRow(
                                     </List>
                                 </Show>
                             </Show>
-                            <Show value={unverified}>
+                            <Show value={key_unverified}>
                                 <Text style=TextStyle::CAPTION>"not verified"</Text>
                             </Show>
                             <Show value={changed}>
