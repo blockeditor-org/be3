@@ -4,7 +4,7 @@ An app's tests stay unit tests of its crate: `app_tests` (buck/wasm/defs.bzl) co
 
 ## Why
 
-Piloted in November 2026 (plans/cheaper_incremental_builds.md): the app compiled once as an rlib, which both a one-line cdylib for `:module` and a test crate of its own (a root file plus the package's `src/**/tests*`) linked, the rlib compiled with `-Zdefault-visibility=hidden` so the module exported exactly what it did before. buck2 compiles a binary or cdylib against a dependency's real rlib, not its `-Zno-codegen` metadata, so it added no frontend pass. Measured from the build server's records after a no-op edit to the app (wall time, noisy by about a third):
+Piloted in November 2026: the app compiled once as an rlib, which both a one-line cdylib for `:module` and a test crate of its own (a root file plus the package's `src/**/tests*`) linked, the rlib compiled with `-Zdefault-visibility=hidden` so the module exported exactly what it did before. buck2 compiles a binary or cdylib against a dependency's real rlib, not its `-Zno-codegen` metadata, so it added no frontend pass. Measured from the build server's records after a no-op edit to the app (wall time, noisy by about a third):
 
 - checklist (about 400 library lines): 6 to 8 s before, 4 to 10 s after; nothing measurable.
 - infinite-canvas (15.6k lines): 33 to 41 s before, 19 to 29 s after, the test module's 19 to 28 s replaced by a test crate of 7 to 9 s. Its tests used 29.6 CPU s against 26.4, the app's code being at opt-level 0 in them rather than 1.

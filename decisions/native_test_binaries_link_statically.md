@@ -4,7 +4,7 @@ A native `:test-harness` links every Rust crate in its closure into one executab
 
 ## Why
 
-Linking is the largest part of rebuilding a big native test binary: in November 2026, from buck2's cached wall times, be-host-stack's `:test-harness` took 24 s to link and be-server's 16 s, longer than compiling be-server's library (9 s), and be-host-stack's is relinked on 29% of edits (plans/cheaper_incremental_builds.md). A test binary linked against a shared object per crate would relink only the crates above an edit, not wasmtime, cranelift, tokio, SQLite and the first-party crates below it. Counting the other big harnesses too, perhaps 15 to 25 s of wall time an edit.
+Linking is the largest part of rebuilding a big native test binary: in November 2026, from buck2's cached wall times, be-host-stack's `:test-harness` took 24 s to link and be-server's 16 s, longer than compiling be-server's library (9 s), and be-host-stack's is relinked on 29% of edits (measured as decisions/no_crate_splits_inside_dependency_chains.md says). A test binary linked against a shared object per crate would relink only the crates above an edit, not wasmtime, cranelift, tokio, SQLite and the first-party crates below it. Counting the other big harnesses too, perhaps 15 to 25 s of wall time an edit.
 
 It was not done because the prelude cannot do it for tests alone:
 

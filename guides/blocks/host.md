@@ -254,7 +254,7 @@ the connection a stopping stack closed.
   rebase and the outbox published it and those sealed offline on it since,
   whose entries the head holds and merging it into the base would count again
   (the walk stops at a merge, and is bounded by run, by the base's number, and
-  by depth; plans/simpler_server_api.md step 1 removes it);
+  by depth; plans/backlog.md, "A lost seal's rebase with a merge above it", says when it can go);
   offline, on this device's journal when
   it is on the head, entries included, `journal-kept` when this device numbered
   them. This device's journal keeps the server's as joining answered it. A

@@ -1,4 +1,4 @@
-# V8: Android checked, and a guest thread's own instances
+# V8: Android checked
 
 Depends on: none.
 
@@ -9,13 +9,8 @@ left:
    fixes now in scripts/internal/build-rusty-v8-android.sh made by hand. Done: a clean run of
    the script on a fresh machine makes files with the pinned sha256s (or new pins from it), and
    the APK opens the dev workspace on a device.
-2. **A thread's own instances.** Every guest thread runs on an isolate of its own, so each
-   thread V8 starts instantiates its app and every library it links again: the module is
-   compiled once and shared (`Compiled`), but instantiating and linking the dylink imports repeat
-   per thread, and code V8 optimises for one isolate is shared through the module while each
-   isolate's own wrappers and feedback are not. Measure what a thread's start costs in a host test (an app
-   that spawns threads, such as the text editor), and if it shows, make a thread's instance
-   cheaper: link against the trimmed export list (`keep_exports`) once per module rather than
-   per instance, or keep a warm isolate per guest to hand a new thread. Done: a thread's start
-   measured, and either made cheaper with the before and after in decisions/guests_run_on_v8.md
-   or recorded there as not worth it.
+2. **A thread's own instances: dropped.** Each guest thread runs on an isolate of its own and
+   instantiates its app and every library it links again. plans/single_threaded_guests.md step 3
+   leaves guests with no threads and its step 4 deletes `thread-spawn`, so there is no thread
+   start left to make cheaper; don't measure or optimise it before then. A worker
+   (be_sdk::worker) is one instance of its own module started once per app, not per thread.

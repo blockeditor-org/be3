@@ -1,7 +1,7 @@
 # Declarative dragging: drags as the places they can lead to
 
-Depends on: plans/host_as_platform_adapter.md, step 4f2 (the forwarding router, built in step 3, routing the
-host's input over the layer list), before step 6.
+Depends on: plans/host_as_platform_adapter.md, step 4g7 (the compositor in the root, whose router
+carries the cross-app drag session), before step 6.
 
 Every drag in beui becomes a description of where the dragged thing can end up, adapted from
 *Declarative Dragging* (Horowitz, Blinn, Heer, UIST 2026; https://declarative-dragging.github.io/).
@@ -46,7 +46,7 @@ letting go), and `drop_target`/`switch_to_state_and_follow` handle what is not r
     drop caret). For a site whose content is not a block, or where applying would cost too much
     (the dock: every app in a pane would lay out each frame).
   - **in a tentative gesture:** inside the block the drag started in, it applies the chosen place
-    as a tentative edit (plans/tentative_gestures.md), so every view of the block follows: a
+    as a tentative edit (decisions/tentative_edits_wait_for_release.md), so every view of the block follows: a
     canvas's bound lines, its z-order while a layer is dragged in the sidebar, a builder's layout.
     The edit is sent and saved only on commit; Escape, a crash or a closed instance leave nothing.
 

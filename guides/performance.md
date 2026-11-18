@@ -335,3 +335,7 @@ left: decisions/page_teardown_runs_during_the_frame.md,
 decisions/system_allocator_over_jemalloc_or_mimalloc.md,
 decisions/accessibility_tree_always_built.md, decisions/no_idle_time_glyph_prerasterizing.md.
 Measured and not worth their code: decisions/reactive_scopes_keep_their_simple_paths.md.
+Crate splits and cut edges measured for what an edit rebuilds, and how to measure one:
+decisions/no_crate_splits_inside_dependency_chains.md,
+decisions/app_tests_compile_with_their_app.md,
+decisions/native_test_binaries_link_statically.md.

@@ -17,7 +17,8 @@ moves or changes what already exists; anything a drop creates is created on comm
 
 Concurrent tentative edits in one block (two fingers, two controllers, two windows) join one
 tentative gesture, which commits as one step when the last of them ends; cancelling one reverts
-only its part. Edits in different blocks are independent. Built by plans/tentative_gestures.md.
+only its part. Edits in different blocks are independent. How the replica and the app protocol hold them:
+guides/blocks/host.md (Undo) and guides/type_modules.md (Tentative gestures).
 
 The invariant on order: a tentative edit is never sent ahead of a tentative edit it was built on.
 Other edits (typing during a drag, a peer's) may be sent ahead of held ones. That is safe because

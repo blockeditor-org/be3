@@ -63,6 +63,29 @@ screen, which is how to find what to tap.
 Tap a text field before typing into it. The keyboard takes the bottom of the screen, and
 be-host's area shrinks to what is left.
 
+## A phone without a device
+
+Without KVM, most phone behaviour still reproduces headless at phone size:
+`./scripts/buck run //crates/be-host:dev -- --size=390x844@3`, driven with touch and swipes
+(guides/running/drive.md).
+
+- Lock and unlock: `drive blur` and `drive focus` stand in.
+- The keyboard opening: `drive resize 390x480@3`. On API 30 and later the keyboard's inset
+  shrinks the area be-host lays out (`BeuiView`'s window insets, crates/beui-platform-android).
+- The back gesture: `drive back` is a whole one; `drive back left` (or `right`) starts one and
+  leaves it running, `drive back 0.5` moves it, and `drive back commit` or `back cancel` ends it.
+- Offline: host tests have `HostTest::offline` (a drop the device notices at once) and
+  `HostTest::unreachable` (connections stay open and carry nothing, noticed only once a ping
+  goes unanswered, about 25 s). Under `:dev`, block the in-process server's listening port with
+  iptables, both directions, `--reject-with tcp-reset`; the port changes on every launch, so
+  find it in `/proc/net/tcp` as the local listener with an established connection from be-host.
+  `drive offline` then waits until be-host sees it, and `drive network` after unblocking. To
+  start with no connection, block SYNs to the ephemeral ports (`32768:60999`) on `lo`, after
+  accepting the build daemon's and the build-server proxy's ports and starting the daemon, or
+  `./scripts/buck` breaks.
+- Smoothness: `drive frames` counts frames headless with no vsync, so a fling runs far more
+  frames a second than a phone draws. Compare ratios between runs, not rates.
+
 ## TalkBack
 
     adb shell settings put secure enabled_accessibility_services com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService
