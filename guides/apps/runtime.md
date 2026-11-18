@@ -516,8 +516,19 @@ screen, host components (guides/apps/host_services.md, "Host components").
 The runtime keeps passing while one runs (`Instances::has_hosts`) without
 asking for frames.
 
-`be` runs them this way (`be_tool_cli::hosting::Hosting`, plans/headless_apps.md),
-and finds its apps as be-host does (`be_tool_cli::release`), through
+`be` runs them this way, one host component per `be_tool_cli::hosting::Hosting`
+(plans/headless_apps.md), on a block stack it has already started and connected:
+`Hosting::start(block, type, client)` finds the app whose manifest's `hosts` names
+the block's type, starts a `Headless`, opens the component with `be_host_runtime::host`, and fails, naming the
+app, if it could not start. `run_until` steps it until a condition holds or a time
+passes, and dropping it closes the instance and steps once more so it stops cleanly. Its
+graph calls and host services are answered by be-host-stack as be-host answers them,
+within a host component's reach (guides/apps/host_services.md, "Host components"), so
+nothing it may call needs a person or a screen. No command starts one yet (`be BLOCK host` is
+plans/headless_apps.md's step 2); be-tool-cli's
+`be_runs_an_apps_host_component_with_no_display` runs the counter's.
+
+`be` finds its apps as be-host does (`be_tool_cli::release`), through
 `be_host_stack::discovery`: the manifests, the type modules it reads blocks through
 (`be_host_stack::types::app_sources`, guides/type_modules.md, "Hosts") and the apps whose
 host components it runs. No app's wasm, manifest, type module, list or hash is compiled
