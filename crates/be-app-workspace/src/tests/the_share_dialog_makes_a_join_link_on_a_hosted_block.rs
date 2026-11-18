@@ -1,5 +1,5 @@
 use be_sdk_beui::be_block_content::BlockContent;
-use be_sdk_beui::{AccessGrant, AccessLevel, AccessListing, BlockInfo, LinkAdmits, ShellDialog};
+use be_sdk_beui::{AccessGrant, AccessLevel, AccessListing, BlockInfo, ShellDialog};
 use be_sdk_test::HostCall;
 use be_type_workspace::FolderContent;
 
@@ -38,7 +38,6 @@ fn the_share_dialog_makes_a_join_link_on_a_hosted_block() {
                     }],
                     company: false,
                     set_inside: 0,
-                    links_admit: Some(LinkAdmits::Members),
                     hosted: true,
                 }),
             ),

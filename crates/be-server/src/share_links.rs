@@ -153,24 +153,6 @@ impl ServerStore {
         )
     }
 
-    /// The most a share link in `organization` may admit as its policy stands: none where it
-    /// allows no links.
-    pub(crate) fn links_admit(
-        &self,
-        graph: &BlockGraph,
-        connection: &Connection,
-        organization: Uuid,
-    ) -> Result<Option<LinkAdmits>, ServerError> {
-        Ok(
-            match self.link_policy_allows(graph, connection, organization, Admits::Anyone)? {
-                true => Some(LinkAdmits::Anyone),
-                false => self
-                    .link_policy_allows(graph, connection, organization, Admits::Members)?
-                    .then_some(LinkAdmits::Members),
-            },
-        )
-    }
-
     /// Makes share link `link` on `block`, by a manager of it who is a member, with the record
     /// opening it in the block's log, while the organization's policy allows whom it admits.
     pub async fn create_share_link(

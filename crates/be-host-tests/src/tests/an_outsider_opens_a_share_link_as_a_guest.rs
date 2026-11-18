@@ -25,17 +25,10 @@ fn an_outsider_opens_a_share_link_as_a_guest() {
     host.type_text("Showcase");
     host.key("Enter");
     host.wait("TreeItem \"Showcase\"");
-    // The server reads the policy once the settings reach it: the dialog offers the choice then.
-    for _ in 0..20 {
-        host.run(&["click", "TreeItem \"Showcase\"", "right"]);
-        host.click("#file-tree.section.share");
-        host.wait("#share.links.make");
-        if host.tree().contains("ComboBox \"Who can open it\"") {
-            break;
-        }
-        host.click("#share.close");
-        host.pause(1000);
-    }
+    // The dialog follows the policy as this member reads it: it offers the choice once it holds.
+    host.run(&["click", "TreeItem \"Showcase\"", "right"]);
+    host.click("#file-tree.section.share");
+    host.wait("ComboBox \"Who can open it\"");
     host.click("ComboBox \"Who can open it\"");
     host.click("ListBoxOption \"Anyone with an account here\"");
     host.click("#share.links.make");

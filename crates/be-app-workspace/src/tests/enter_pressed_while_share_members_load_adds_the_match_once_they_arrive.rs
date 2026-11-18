@@ -55,7 +55,6 @@ fn enter_pressed_while_share_members_load_adds_the_match_once_they_arrive() {
             ],
             company: false,
             set_inside: 0,
-            links_admit: None,
             hosted: false,
         }),
     );

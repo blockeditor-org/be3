@@ -158,9 +158,6 @@ interface blocks {
         entries: list<access-entry>,
         company: bool,
         set-inside: u32,
-        /// The most a share link on the block may admit as the organization's
-        /// policy stands; none where it allows no links.
-        links-admit: option<link-admits>,
     }
 
     /// An account that may view a block, with the name it gave the server

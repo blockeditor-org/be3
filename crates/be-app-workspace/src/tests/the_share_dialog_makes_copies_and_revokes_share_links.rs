@@ -1,3 +1,7 @@
+use be_sdk_beui::be_block::{
+    Allowance, LinkSharing, OrganizationPolicies, OrganizationPoliciesContent, Settings,
+    SettingsContent, organization_settings,
+};
 use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::{
     AccessGrant, AccessLevel, AccessListing, BlockInfo, LinkAdmits, ShareLink, ShellDialog,
@@ -42,7 +46,6 @@ fn answer_listings(fixture: &mut Fixture, block: Uuid) -> Vec<HostCall> {
                         ],
                         company: true,
                         set_inside: 0,
-                        links_admit: Some(LinkAdmits::Anyone),
                         hosted: false,
                     }),
                 );
@@ -71,6 +74,36 @@ fn answer_listings(fixture: &mut Fixture, block: Uuid) -> Vec<HostCall> {
     others
 }
 
+/// Holds the organization's settings with its policies, which let links admit only members, as
+/// every member reads them; returns the policies' block.
+fn hold_policies(fixture: &mut Fixture) -> Uuid {
+    let settings = organization_settings(fixture.host.organization_id());
+    let policies = Uuid::from_u128(0x5a_0201);
+    let store = fixture.test.store();
+    store.add_block(BlockInfo::new(
+        settings,
+        SettingsContent::CONTENT_TYPE,
+        BlockParent::Root,
+    ));
+    store.add_block(BlockInfo::new(
+        policies,
+        OrganizationPoliciesContent::CONTENT_TYPE,
+        BlockParent::Block(settings),
+    ));
+    let mut held = SettingsContent::default();
+    held.apply(&Settings::set_policy(
+        OrganizationPoliciesContent::CONTENT_TYPE,
+        policies,
+    ));
+    store.hold(Some(settings), held);
+    let mut set = OrganizationPoliciesContent::default();
+    set.apply(&OrganizationPolicies::set_outside_sharing(Some(
+        Allowance::Allowed,
+    )));
+    store.hold(Some(policies), set);
+    policies
+}
+
 #[test]
 fn the_share_dialog_makes_copies_and_revokes_share_links() {
     let (mut fixture, block) = editor_sized(Some(Vec2::new(900.0, 1000.0)));
@@ -78,9 +111,28 @@ fn the_share_dialog_makes_copies_and_revokes_share_links() {
     let mut shared = BlockInfo::new(block, FolderContent::CONTENT_TYPE, BlockParent::Root);
     shared.set_name("Plans");
     store.add_block(shared);
+    let policies = hold_policies(&mut fixture);
     fixture.test.show_dialog(block, ShellDialog::Share);
     fixture.settle();
     answer_listings(&mut fixture, block);
+    assert!(
+        !fixture.says("People in the organization"),
+        "while the policy lets links admit only members, there is no one else to choose"
+    );
+
+    // An administrator lets links admit anyone: the open dialog follows, listing nothing again.
+    fixture.test.edit::<OrganizationPoliciesContent>(
+        Some(policies),
+        &OrganizationPolicies::set_link_sharing(Some(LinkSharing::Anyone)),
+    );
+    fixture.settle();
+    assert!(
+        fixture.test.take_requests().iter().all(|call| !matches!(
+            call,
+            HostCall::ListAccess { .. } | HostCall::ListShareLinks { .. }
+        )),
+        "the policy reaches the dialog without listing again"
+    );
 
     assert!(
         fixture.says("Anyone in the organization with the link can view. Made by you."),

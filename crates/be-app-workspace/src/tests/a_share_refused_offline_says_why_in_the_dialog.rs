@@ -46,7 +46,6 @@ fn a_share_refused_offline_says_why_in_the_dialog() {
             ],
             company: false,
             set_inside: 0,
-            links_admit: None,
             hosted: false,
         }),
     );

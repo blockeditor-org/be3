@@ -1,4 +1,5 @@
 use be_sdk_beui::{AccessGrant, AccessLevel, AccessListing, LinkAdmits, ShareLink};
+use be_sdk_beui::be_block::LinkSharing;
 use uuid::Uuid;
 
 /// What the share dialog offers. `KnowExists` is not among them: a reference
@@ -280,13 +281,14 @@ impl Share {
             .any(|grant| grant.account == me.into_bytes() && grant.effective == AccessLevel::Manage)
     }
 
-    /// Whom links may admit: the organization's policy, and in a company organization a
-    /// choice between its members and anyone with an account on the server.
-    pub(crate) fn link_choices(listing: &AccessListing) -> Vec<LinkAdmits> {
-        match (listing.links_admit, listing.company) {
-            (None, _) => Vec::new(),
-            (Some(LinkAdmits::Anyone), true) => vec![LinkAdmits::Members, LinkAdmits::Anyone],
-            (Some(_), _) => vec![LinkAdmits::Members],
+    /// Whom links may admit: in a personal organization its members; in a company one what
+    /// its policy allows, as this member reads it (the server holds makers to it too).
+    pub(crate) fn link_choices(policy: LinkSharing, company: bool) -> Vec<LinkAdmits> {
+        match (company, policy) {
+            (false, _) => vec![LinkAdmits::Members],
+            (true, LinkSharing::Off) => Vec::new(),
+            (true, LinkSharing::Members) => vec![LinkAdmits::Members],
+            (true, LinkSharing::Anyone) => vec![LinkAdmits::Members, LinkAdmits::Anyone],
         }
     }
 
