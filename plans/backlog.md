@@ -72,15 +72,8 @@ Fixed items are removed as they land.
 
 ## 7. Sessions
 
-- **A diverged replica's journaled edits after it closes.** A replica that
-  diverged, or whose seal cannot merge, seals nothing as it closes, so journaled
-  edits no seal holds (as a held rejoin's, `rejoin_held`, be-block-type-host's
-  replicas.rs) are left only in this device's journal; `ended` drops them from
-  its open edits as the order holds them, and a replica opened online passes
-  that journal over for the server's when there is one (`journal_for`). Whether
-  to give them again on the content a reload replaces is a product call. Done:
-  decided, and if they are kept, a test with a replica that really diverged
-  shows them given again once after it closes and opens online.
+- **A diverged replica's journaled edits after it closes.** Decided: kept, given
+  again, and a conflict where they no longer apply; plans/journaled_edits_kept.md.
 
 - **A seal of its own during a join that holds kept edits.** `rejoined` seals
   and waits only for a join begun on a settled made-up session
