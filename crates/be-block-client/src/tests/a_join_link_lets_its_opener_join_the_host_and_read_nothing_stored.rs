@@ -25,10 +25,9 @@ async fn a_join_link_lets_its_opener_join_the_host_and_read_nothing_stored() {
         .await
         .unwrap();
 
-    let (preview, handed) =
-        crate::share_links::preview_share_link(&player.connection(), &code)
-            .await
-            .unwrap();
+    let (preview, handed) = crate::share_links::preview_share_link(&player.connection(), &code)
+        .await
+        .unwrap();
     assert_eq!(preview.access, Access::Join);
     assert!(handed.scope.is_none(), "a Join link carries no key");
     crate::share_links::open_share_link(

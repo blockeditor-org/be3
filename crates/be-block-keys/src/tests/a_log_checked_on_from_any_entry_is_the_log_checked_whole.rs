@@ -76,7 +76,12 @@ fn a_log_checked_on_from_any_entry_is_the_log_checked_whole() {
         Entry::retirement(&creator, &renewed, creator_id, block, head),
     );
     let code = InviteCode::generate();
-    append(&mut entries, &renewed, creator_id, link(&code, Level::Edit, true));
+    append(
+        &mut entries,
+        &renewed,
+        creator_id,
+        link(&code, Level::Edit, true),
+    );
     let head = entries.last().unwrap().hash();
     push(
         &mut entries,
@@ -87,9 +92,19 @@ fn a_log_checked_on_from_any_entry_is_the_log_checked_whole() {
         &mut entries,
         Entry::retirement(&opener, &opener_renewed, opener_id, block, head),
     );
-    append(&mut entries, &renewed, creator_id, link(&code, Level::Edit, false));
+    append(
+        &mut entries,
+        &renewed,
+        creator_id,
+        link(&code, Level::Edit, false),
+    );
     let join = InviteCode::generate();
-    append(&mut entries, &renewed, creator_id, link(&join, Level::Join, true));
+    append(
+        &mut entries,
+        &renewed,
+        creator_id,
+        link(&join, Level::Join, true),
+    );
     let head = entries.last().unwrap().hash();
     push(
         &mut entries,

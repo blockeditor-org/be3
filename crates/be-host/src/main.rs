@@ -5,7 +5,6 @@ mod android_push;
 mod arguments;
 mod compositor;
 mod contacts;
-mod share_link;
 mod debug;
 mod display;
 mod editors;
@@ -28,6 +27,7 @@ mod reveals;
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 mod root;
 mod root_settings;
+mod share_link;
 mod shell_route;
 mod surfaces;
 mod ui;
@@ -3734,7 +3734,10 @@ impl HostCore {
             .poll(&accounts::link_base(&self.server_url), ready);
         self.share_links
             .poll(&accounts::link_base(&self.server_url), ready);
-        let current = self.organization.as_ref().map(|organization| organization.id);
+        let current = self
+            .organization
+            .as_ref()
+            .map(|organization| organization.id);
         if let Some(elsewhere) = self.share_links.take_elsewhere(current) {
             // Listed again, so a guest's new organization is among them, then opened.
             self.opening_after_link = Some(elsewhere);

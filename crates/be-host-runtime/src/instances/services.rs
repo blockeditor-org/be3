@@ -572,9 +572,8 @@ impl Instances {
             Call::ListAccess { reply, block } => {
                 let answering = self.answering(instance, reply);
                 let block = Uuid::from_bytes(block);
-                let hosted = be_host_stack::node(block).is_some_and(|node| {
-                    be_host_stack::discovery::hosted(node.content_type)
-                });
+                let hosted = be_host_stack::node(block)
+                    .is_some_and(|node| be_host_stack::discovery::hosted(node.content_type));
                 be_host_stack::list_access(block, move |listed| {
                     answering.listed(be_host_stack::app_graph::grants_of(listed, hosted));
                 });

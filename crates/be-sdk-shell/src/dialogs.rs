@@ -1,3 +1,4 @@
+use be_sdk_beui::be_block::OrganizationPolicies;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::icons::{
     ICON_CROWN, ICON_LINK, ICON_LOCK, ICON_TRIANGLE_ALERT, ICON_USER, ICON_USER_PLUS, ICON_X,
@@ -5,10 +6,9 @@ use be_sdk_beui::beui::icons::{
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{
-    AccessLevel, AccessListing, BlockParent, ChildId, ChildMode, ChildState, DialogAnswer, LinkAdmits, ShareLink,
-    Subregion, SubregionContent,
+    AccessLevel, AccessListing, BlockParent, ChildId, ChildMode, ChildState, DialogAnswer,
+    LinkAdmits, ShareLink, Subregion, SubregionContent,
 };
-use be_sdk_beui::be_block::OrganizationPolicies;
 use uuid::Uuid;
 
 use super::share::{GRANTABLE, Member, Person, Share, ShareAction};
@@ -496,7 +496,15 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                     </Card>
                 </Show>
                 <Show value={links}>|links: ReadSignal<Vec<ShareLink>>|
-                    <LinksSection links listing choices={admits_choices} company state me act={act} />
+                    <LinksSection
+                        links
+                        listing
+                        choices={admits_choices}
+                        company
+                        state
+                        me
+                        act={act}
+                    />
                 </Show>
                 <Text style=TextStyle::HEADING>"People with access"</Text>
                 <Show value={loading}>
