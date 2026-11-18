@@ -75,14 +75,25 @@ fn the_share_dialog_makes_copies_and_revokes_share_links() {
         "a link says whom it admits and what it grants"
     );
     assert!(
-        fixture.says("View, through a share link"),
+        fixture.says("Can view, through a share link"),
         "someone who opened a link is listed as such"
     );
-    assert!(fixture.says("Who can open it"), "a company that allows it chooses whom a link admits");
+    assert!(fixture.says("People in the organization"), "a company that allows it chooses whom a link admits");
     fixture
         .test
         .snapshot("the_share_dialog_makes_copies_and_revokes_share_links");
 
+    fixture.test.click("share.links.revoke");
+    fixture.settle();
+    let revoked = fixture
+        .test
+        .take_requests()
+        .into_iter()
+        .find_map(|call| match call {
+            HostCall::RevokeShareLink { link, .. } => Some(link),
+            _ => None,
+        });
+    assert_eq!(revoked, Some(Uuid::from_u128(0x11).to_string()));
     fixture.test.click("share.links.make");
     fixture.settle();
     let made = fixture
@@ -100,16 +111,4 @@ fn the_share_dialog_makes_copies_and_revokes_share_links() {
         Some((AccessLevel::View, LinkAdmits::Members)),
         "a link grants viewing to members unless the person chooses otherwise"
     );
-
-    fixture.test.click("share.links.revoke");
-    fixture.settle();
-    let revoked = fixture
-        .test
-        .take_requests()
-        .into_iter()
-        .find_map(|call| match call {
-            HostCall::RevokeShareLink { link, .. } => Some(link),
-            _ => None,
-        });
-    assert_eq!(revoked, Some(Uuid::from_u128(0x11).to_string()));
 }
