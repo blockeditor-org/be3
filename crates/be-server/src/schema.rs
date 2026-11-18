@@ -371,7 +371,10 @@ const SCHEMA: &str = "
     CREATE TABLE recovery_keys (
         account_id      TEXT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
         public          BLOB NOT NULL,
-        signing         BLOB NOT NULL DEFAULT x''
+        signing         BLOB NOT NULL DEFAULT x'',
+        -- The newest name card its devices published (`publish-name`), and its date.
+        name            BLOB NOT NULL DEFAULT x'',
+        name_dated      INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE keys (

@@ -39,10 +39,12 @@ async fn signing_keys_are_served_only_for_accounts_the_caller_knows() {
         SigningKey {
             account: me,
             key: owner_key,
+            name: Vec::new(),
         },
         SigningKey {
             account: agent,
             key: test_secret(agent).signing().0,
+            name: Vec::new(),
         },
     ];
     expected.sort_by_key(|key| key.account);
@@ -66,6 +68,7 @@ async fn signing_keys_are_served_only_for_accounts_the_caller_knows() {
         vec![SigningKey {
             account: me,
             key: owner_key,
+            name: Vec::new(),
         }],
         "every account is a member of the personal organization"
     );
