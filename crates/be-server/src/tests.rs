@@ -1583,7 +1583,7 @@ async fn get_from(url: String) -> (u16, Vec<u8>) {
 /// A commit time that many minutes ago: retention keeps one state per minute for the last hour,
 /// so commits a minute apart are all kept.
 fn minutes_ago(minutes: i64) -> i64 {
-    be_block_commit::now_milliseconds() - minutes * be_block_commit::retention::MINUTE
+    be_block_commit::now_milliseconds() - minutes * be_block_commit::MINUTE
 }
 
 fn row(id: Uuid, block: Uuid, kind: KeyKind) -> KeyRow {
