@@ -45,9 +45,6 @@ interface contacts {
         id: link-id,
         inviter: account-id,
         inviter-name: string,
-        /// The code sealed to its inviter, as `own-link.code`; empty in
-        /// another administrator's list.
-        code: list<u8>,
         state: invitation-state,
         accepter: option<account-id>,
         accepter-name: string,
@@ -77,15 +74,6 @@ interface contacts {
         /// The name of the organization an invitation is into; empty for a
         /// contact link.
         organization-name: string,
-    }
-
-    /// A link of the caller's own, and who accepted it.
-    record own-link {
-        id: link-id,
-        code: list<u8>,
-        kind: link-kind,
-        /// Its card reaches the owner's mailbox (`letter.accepted`).
-        accepter: option<account-id>,
     }
 
 }

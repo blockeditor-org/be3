@@ -45,7 +45,6 @@ async fn key_rows_are_served_only_to_who_may_see_their_block() {
             peer.write::<()>(be_block_protocol::Op::CreateLink {
                 link: Uuid::from_u128(1),
                 card: Vec::new(),
-                code: Vec::new(),
                 kind: be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                     organization,
                     escrow: Vec::new(),

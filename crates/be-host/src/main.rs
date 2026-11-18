@@ -1730,7 +1730,6 @@ impl HostCore {
                         .public
                 }),
                 sealed: Vec::new(),
-                own: Vec::new(),
                 logs: Vec::new(),
             };
             let organization = Organization {

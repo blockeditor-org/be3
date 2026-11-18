@@ -66,7 +66,6 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
                 public: [2; 32],
                 signing: [2; 32],
                 sealed: Vec::new(),
-                own: Vec::new(),
                 changes: Vec::new(),
                 retirements: Vec::new(),
             })
@@ -114,7 +113,6 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
                     sender: account,
                     sealed: b"resealed to the new phrase".to_vec(),
                 }],
-                own: Vec::new(),
                 changes: Vec::new(),
                 retirements: retirements.clone(),
             })
@@ -137,7 +135,6 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
                     sender: account,
                     sealed: b"resealed to the new phrase".to_vec(),
                 }],
-                own: Vec::new(),
                 changes: Vec::new(),
                 retirements: retirements,
             })

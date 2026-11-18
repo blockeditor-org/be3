@@ -39,7 +39,6 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
             peer.write::<()>(be_block_protocol::Op::CreateLink {
                 link: Uuid::from_u128(1),
                 card: Vec::new(),
-                code: Vec::new(),
                 kind: be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                     organization,
                     escrow: Vec::new(),

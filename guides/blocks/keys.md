@@ -280,10 +280,16 @@ A company organization has a log too, rooted at its creator:
 `contacts::create_organization` picks the organization id, signs the root and
 sends it with `create-organization`, registering the account's keys first if
 the server holds none. What an account pins for an organization is
-`contacts::Pinned`, the root's hash and the escrow key, sealed to itself
-(`seal_pin`, kept by `pin-escrow` and in the session): the creator pins it on
-making it, a member from the invitation, which carries it sealed with the code,
-and an agent from its maker. `Peer::organization_log` refuses a log whose root
+`contacts::Pinned`, the root's hash and the escrow key, kept in the account's
+block (Contacts below; `contacts::keep_pin`, `contacts::pinned`) and in the
+session: the creator pins it on making it, a member from the invitation, which
+carries it sealed with the code, and an agent from its maker. Each arrives
+sealed by the account for itself (`seal_pin`) as a `letter.pinned` left by the
+write it came with (`create-organization`, the invitation's `accept-link`,
+`create-agent`), which a device takes into the block; an agent, which has no
+block, keeps the letter. A device working in a company organization reads its
+pin from there as its session opens (`Peer::open_session`), so a new device
+needs only the identity secret to open the organization's escrow chain. `Peer::organization_log` refuses a log whose root
 is not the pinned one. The personal organization has no log.
 
 A device takes a log only checked from its pinned root to its head
@@ -616,7 +622,7 @@ A member wraps only under an escrow key it pinned from somewhere the server
 cannot forge: its own, the invitation (`InviteCode::seal_escrow`), an agent's
 maker, or a secret an administrator contact sealed to it. It follows the chain
 one signature at a time (`keys::verify_escrow`) and pins the newest verified
-(`PinEscrow`); an unverifiable newer key is not used, and the host's menu shows
+in the account's block (`Peer::save_pin`); an unverifiable newer key is not used, and the host's menu shows
 `KeyBook::escrow_warning`.
 
 ### Identity, new phrases and devices
@@ -630,9 +636,8 @@ one signature at a time (`keys::verify_escrow`) and pins the newest verified
   save its phrase: its secret sits beside its database anyway, so be-host saves
   the first phrase without the check screen, as the dev workspace does.
 - **A new phrase** (`contacts::set_recovery_key`) must reseal every row the
-  account sealed for itself, and everything it sealed for itself outside its
-  block (`OwnSealed`), which the server checks, so only a device with the old
-  secret can make one; it reseals too every row a contact sealed to it that its
+  account sealed for itself, which the server checks, so only a device with the
+  old secret can make one; it reseals too every row a contact sealed to it that its
   records in the account's block reach, which the server cannot check. The
   account's block's keys are among those rows, so the new phrase reads its
   history; and in the same write the block starts a new key epoch whose scope
@@ -695,9 +700,9 @@ one signature at a time (`keys::verify_escrow`) and pins the newest verified
   accepted it and when. A row stays `INVITATION_RETENTION` after it ends, and
   an organization keeps at most `MAX_INVITATIONS_KEPT_PER_ORGANIZATION`; one
   accepted stays until its inviter's device finished it (made the accepter a
-  contact), whatever its age. The
-  code comes back only to its inviter, sealed to their identity
-  (`RecoverySecret::seal_own`), so they copy the link again; any administrator
+  contact), whatever its age. Its
+  inviter's account's block keeps its code (`contacts::kept_links`), so they
+  copy the link again; any administrator
   revokes an open one (`delete-link`), and an expired one offers a fresh link.
   The Invite member dialog makes a link at once and ends on it, with copy and
   a QR code (`be-host/src/qr.rs`).
@@ -870,11 +875,13 @@ keys the granter verified that way, which every device then seals to.
 - A **contact card** (`be_block_keys::ContactCard`: account id, identity public
   key, signing key, name, email) is sealed with a link's code (`ContactCard::seal`, keyed by
   code and side). A contact link is `{server}/#contact/{CODE}`. What the account
-  seals for itself outside its block (link codes) is sealed with a key derived
-  from its identity secret (`RecoverySecret::seal_own`): sealing to the public
-  key would let the server forge a row the owner trusts.
+  sends itself through the server (a record or a pin in a letter) is sealed with
+  a key derived from its identity secret (`RecoverySecret::seal_own`): sealing
+  to the public key would let the server forge one the owner trusts.
 - **The account's block** (`be_block::account_block`, `AccountBlock`) holds the
-  account's records of its contacts: an owner-only block (guides/settings.md,
+  account's records of its contacts, the code and kind of each link it made
+  until it is finished (`contacts::KeptLink`, kept before `create-link`, so a
+  code is never lost), and what it pins per organization: an owner-only block (guides/settings.md,
   Owner only) at the top of the personal organization, at an id derived from
   the account, made by its first device that has a record to keep
   (`be_block_client::AccountRecords`, a peer of the personal organization that
@@ -935,9 +942,9 @@ keys the granter verified that way, which every device then seals to.
   carry a pending grant (below); an `invitation` joins its organization as
   an editor. Any account makes a contact link; only an administrator of the
   organization makes an invitation (`rule` splits `create-link` on the kind),
-  and any account opens and accepts it. `list-links` lists the caller's links
-  still to act on, outstanding ones included, and `delete-link` revokes one, or
-  finishes one accepted; an invitation's row stays for the invite list.
+  and any account opens and accepts it. No call lists an account's links: its
+  block keeps their codes, and `delete-link` revokes one, or finishes one
+  accepted; an invitation's row stays for the invite list.
 - **The exchange** (`be_block_client::contacts`): the maker posts
   `create-link` (`make_link`, `invite`); the other side reads it
   (`open_link`), opens the card, and on "Connect with NAME (EMAIL)?" (or the

@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use be_block_graph::Access;
 use be_block_protocol::{
     ErrorCode, Invitation, InvitationPreview, InvitationRow, InvitationState, KeyKind,
-    Letter, Link, LinkKind, OrganizationRole, OwnKind, OwnLink, OwnSealed, PendingGrant, WrappedBy,
+    Letter, Link, LinkKind, OrganizationRole, PendingGrant, WrappedBy,
 };
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
@@ -112,60 +112,6 @@ pub(crate) fn befriend(
     Ok(())
 }
 
-pub(crate) fn own_sealed(
-    connection: &Connection,
-    account: Uuid,
-) -> Result<Vec<OwnSealed>, ServerError> {
-    let mut own = Vec::new();
-    for (kind, query) in [
-        (
-            OwnKind::Link,
-            "SELECT id, code FROM links WHERE owner_id = ?1 AND length(code) > 0",
-        ),
-        (
-            OwnKind::Escrow,
-            "SELECT organization_id, sealed FROM pinned_escrows WHERE account_id = ?1",
-        ),
-    ] {
-        let mut statement = connection.prepare(query)?;
-        let rows = statement.query_map([account.to_string()], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
-        })?;
-        for row in rows {
-            let (id, sealed) = row?;
-            own.push(OwnSealed {
-                kind,
-                id: parse_uuid(&id)?,
-                sealed,
-            });
-        }
-    }
-    Ok(own)
-}
-
-pub(crate) fn reseal_own(
-    connection: &Connection,
-    account: Uuid,
-    resealed: &OwnSealed,
-) -> Result<(), ServerError> {
-    let (account, id) = (account.to_string(), resealed.id.to_string());
-    match resealed.kind {
-        OwnKind::Link => {
-            connection.execute(
-                "UPDATE links SET code = ?3 WHERE owner_id = ?1 AND id = ?2",
-                params![account, id, resealed.sealed],
-            )?;
-        }
-        OwnKind::Escrow => {
-            connection.execute(
-                "UPDATE pinned_escrows SET sealed = ?3 WHERE account_id = ?1 AND organization_id = ?2",
-                params![account, id, resealed.sealed],
-            )?;
-        }
-    }
-    Ok(())
-}
-
 pub(crate) fn role_in(
     connection: &Connection,
     account: Uuid,
@@ -185,7 +131,6 @@ pub(crate) fn role_in(
 struct StoredLink {
     owner: Uuid,
     card: Vec<u8>,
-    code: Vec<u8>,
     kind: LinkKind,
     accepter: Option<Uuid>,
     /// For an invitation, where it stands.
@@ -235,12 +180,12 @@ fn invitation_ended(state: InvitationState) -> ServerError {
     )
 }
 
-const LINK_COLUMNS: &str = "owner_id, card, code, grant_organization, grant_block, grant_access,
+const LINK_COLUMNS: &str = "owner_id, card, grant_organization, grant_block, grant_access,
     grant_key, grant_sealed, invite_organization, invite_escrow, accepter_id,
     invite_created, invite_expires, invite_opened, invite_ended, invite_revoked";
 
 type LinkRow = (
-    (String, Vec<u8>, Vec<u8>),
+    (String, Vec<u8>),
     (String, String, String, String, Vec<u8>),
     (String, Vec<u8>, String),
     Invited,
@@ -248,28 +193,28 @@ type LinkRow = (
 
 fn link_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<LinkRow> {
     Ok((
-        (row.get(0)?, row.get(1)?, row.get(2)?),
+        (row.get(0)?, row.get(1)?),
         (
+            row.get(2)?,
             row.get(3)?,
             row.get(4)?,
             row.get(5)?,
             row.get(6)?,
-            row.get(7)?,
         ),
-        (row.get(8)?, row.get(9)?, row.get(10)?),
+        (row.get(7)?, row.get(8)?, row.get(9)?),
         Invited {
-            created: row.get(11)?,
-            expires: row.get(12)?,
-            opened: row.get(13)?,
-            ended: row.get(14)?,
-            revoked: row.get(15)?,
+            created: row.get(10)?,
+            expires: row.get(11)?,
+            opened: row.get(12)?,
+            ended: row.get(13)?,
+            revoked: row.get(14)?,
         },
     ))
 }
 
 fn parse_link(row: LinkRow) -> Result<StoredLink, ServerError> {
     let (
-        (owner, card, code),
+        (owner, card),
         (organization, block, access, key, sealed),
         (invited_to, escrow, accepter),
         invited,
@@ -297,7 +242,6 @@ fn parse_link(row: LinkRow) -> Result<StoredLink, ServerError> {
     Ok(StoredLink {
         owner: parse_uuid(&owner)?,
         card,
-        code,
         kind,
         accepter: match accepter.is_empty() {
             true => None,
@@ -447,7 +391,6 @@ impl ServerStore {
         owner: Uuid,
         link: Uuid,
         card: Vec<u8>,
-        code: Vec<u8>,
         mut kind: LinkKind,
     ) -> Result<(), ServerError> {
         crate::limits::at_most(
@@ -455,7 +398,6 @@ impl ServerStore {
             card.len(),
             crate::limits::MAX_SEALED_BYTES,
         )?;
-        crate::limits::at_most("a link code", code.len(), crate::limits::MAX_SEALED_BYTES)?;
         match &mut kind {
             LinkKind::Contact(Some(grant)) => {
                 crate::limits::at_most(
@@ -549,15 +491,14 @@ impl ServerStore {
             } = columns;
             let inserted = transaction.execute(
                 "INSERT OR IGNORE INTO links
-                    (id, owner_id, card, code, grant_organization, grant_block, grant_access,
+                    (id, owner_id, card, grant_organization, grant_block, grant_access,
                      grant_key, grant_sealed, invite_organization, invite_escrow, invite_created,
                      invite_expires)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
                 params![
                     link.to_string(),
                     owner.to_string(),
                     card,
-                    code,
                     organization,
                     block,
                     access,
@@ -711,11 +652,10 @@ impl ServerStore {
         .await
     }
 
-    /// The organization's invitations, newest first, for one of its administrators, who gets
-    /// back the codes of its own; ended ones past their retention go first.
+    /// The organization's invitations, newest first, for one of its administrators; ended ones
+    /// past their retention go first. Its inviter keeps each one's code in its block.
     pub async fn list_invitations(
         &self,
-        caller: Uuid,
         organization: Uuid,
     ) -> Result<Vec<InvitationRow>, ServerError> {
         self.with_database(move |_, database| {
@@ -739,9 +679,9 @@ impl ServerStore {
             let rows = statement.query_map([organization.to_string()], |row| {
                 Ok((
                     link_row(row)?,
+                    row.get::<_, String>(15)?,
                     row.get::<_, String>(16)?,
                     row.get::<_, String>(17)?,
-                    row.get::<_, String>(18)?,
                 ))
             })?;
             let mut invitations = Vec::new();
@@ -757,10 +697,6 @@ impl ServerStore {
                     id: parse_uuid(&id)?,
                     inviter: stored.owner,
                     inviter_name,
-                    code: match stored.owner == caller {
-                        true => stored.code,
-                        false => Vec::new(),
-                    },
                     state,
                     accepter: stored.accepter,
                     accepter_name,
@@ -831,6 +767,7 @@ impl ServerStore {
                         crate::keys::pin_escrow(
                             &transaction,
                             caller,
+                            owner,
                             invitation.organization,
                             &key,
                         )?;
@@ -910,35 +847,6 @@ impl ServerStore {
             })
             .await?;
         Ok(Accepted { owner, granted })
-    }
-
-    /// The caller's links still to act on: outstanding, or accepted and not yet finished. An
-    /// invitation expired, revoked or finished is none.
-    pub async fn links(&self, caller: Uuid) -> Result<Vec<OwnLink>, ServerError> {
-        self.with_database(move |_, database| {
-            let mut statement = database.prepare(&format!(
-                "SELECT {LINK_COLUMNS}, id FROM links WHERE owner_id = ?1
-                    AND (invite_organization = ''
-                         OR (invite_finished = 0 AND invite_revoked = 0
-                             AND (accepter_id != '' OR invite_expires > ?2)))"
-            ))?;
-            let rows = statement.query_map(params![caller.to_string(), now()], |row| {
-                Ok((link_row(row)?, row.get::<_, String>(16)?))
-            })?;
-            let mut links = Vec::new();
-            for row in rows {
-                let (row, id) = row?;
-                let stored = parse_link(row)?;
-                links.push(OwnLink {
-                    id: parse_uuid(&id)?,
-                    code: stored.code,
-                    kind: stored.kind,
-                    accepter: stored.accepter,
-                });
-            }
-            Ok(links)
-        })
-        .await
     }
 
     /// Ends a link: a contact link of the caller's goes; an invitation, the caller's own or one

@@ -72,15 +72,15 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
         for index in 0..MAX_CONTACT_LINKS_PER_ACCOUNT {
             transaction
                 .execute(
-                    "INSERT INTO links (id, owner_id, card, code) VALUES (?1, ?2, x'', x'')",
+                    "INSERT INTO links (id, owner_id, card) VALUES (?1, ?2, x'')",
                     params![Uuid::new_v4().to_string(), account.to_string()],
                 )
                 .unwrap();
             transaction
                 .execute(
-                    "INSERT INTO links (id, owner_id, card, code, invite_organization,
+                    "INSERT INTO links (id, owner_id, card, invite_organization,
                                         invite_created, invite_expires)
-                     VALUES (?1, ?2, x'', x'', ?3, ?4, ?5)",
+                     VALUES (?1, ?2, x'', ?3, ?4, ?5)",
                     params![
                         Uuid::new_v4().to_string(),
                         account.to_string(),
@@ -168,7 +168,6 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                 account,
                 Uuid::new_v4(),
                 Vec::new(),
-                Vec::new(),
                 be_block_protocol::LinkKind::Contact(None),
             )
             .await,
@@ -180,7 +179,6 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                 account,
                 Uuid::new_v4(),
                 vec![0; MAX_SEALED_BYTES + 1],
-                Vec::new(),
                 be_block_protocol::LinkKind::Contact(None),
             )
             .await,
@@ -190,7 +188,6 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
         store.create_link(
             account,
             Uuid::new_v4(),
-            Vec::new(),
             Vec::new(),
             be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                 organization,

@@ -2,7 +2,7 @@ package be3:server@0.1.0;
 
 /// Signing in, and the account's other devices.
 interface account {
-    use types.{account-id, client-id, error, link-id};
+    use types.{account-id, client-id, error, link-id, organization-id};
 
     /// A browser sign-in waiting for approval: the code a person approves in
     /// the browser, the secret that proves this client began it, the fewest
@@ -90,6 +90,16 @@ interface account {
         /// The sender is no longer a contact (`remove-contact`, left to both): a device drops
         /// its record from the account's block.
         removed,
+        /// What the account pins for an organization (its access log's root and escrow key),
+        /// sealed by the account for itself (`be_block_client::contacts::seal_pin`), left by the
+        /// write it came with (`create-organization`, an invitation's `accept-link`,
+        /// `create-agent`) for a device to keep in the account's block.
+        pinned(pinned-letter),
+    }
+
+    record pinned-letter {
+        organization: organization-id,
+        sealed: list<u8>,
     }
 
     record accepted-link {

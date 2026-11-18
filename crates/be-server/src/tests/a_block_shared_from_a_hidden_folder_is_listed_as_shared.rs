@@ -36,7 +36,6 @@ async fn a_block_shared_from_a_hidden_folder_is_listed_as_shared() {
             peer.write::<()>(be_block_protocol::Op::CreateLink {
                 link: Uuid::from_u128(1),
                 card: Vec::new(),
-                code: Vec::new(),
                 kind: be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                     organization,
                     escrow: Vec::new(),

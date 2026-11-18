@@ -6,7 +6,7 @@ use be_block_keys::{
 use std::collections::HashMap;
 
 use be_block_protocol::{
-    ErrorCode, EscrowKey, Invitation, KeyChange, Link, LinkKind, OwnSealed, PendingGrant, SealedKey,
+    ErrorCode, EscrowKey, Invitation, KeyChange, Link, LinkKind, PendingGrant, SealedKey,
 };
 use uuid::Uuid;
 
@@ -248,6 +248,127 @@ impl Pinned {
     }
 }
 
+/// A link this account made, as its block keeps it until the link is finished: its code, and
+/// what accepting it does.
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+pub struct KeptLink {
+    pub code: Vec<u8>,
+    pub kind: LinkKind,
+}
+
+impl KeptLink {
+    pub fn encode(&self) -> Vec<u8> {
+        postcard::to_stdvec(self).expect("a kept link always encodes")
+    }
+
+    pub fn decode(bytes: &[u8]) -> Option<Self> {
+        postcard::from_bytes(bytes).ok()
+    }
+
+    pub fn code(&self) -> Option<InviteCode> {
+        InviteCode::from_bytes(&self.code).ok()
+    }
+}
+
+/// The links this account made that its block keeps, by link; none for an account with no block
+/// or one this device cannot read.
+pub async fn kept_links(
+    connection: &Arc<Connection>,
+    account: Uuid,
+    identity: &RecoverySecret,
+) -> Result<HashMap<Uuid, KeptLink>, ClientError> {
+    let Some(block) = AccountRecords::open(connection, account, identity).await? else {
+        return Ok(HashMap::new());
+    };
+    Ok(match block.read().await {
+        Ok(held) => held
+            .content
+            .root()
+            .links
+            .iter()
+            .filter_map(|(link, bytes)| Some((*link, KeptLink::decode(bytes)?)))
+            .collect(),
+        Err(ClientError::Locked(_)) => HashMap::new(),
+        Err(error) => return Err(error),
+    })
+}
+
+/// Keeps `link` in the account's block before the server holds it, so its code is never lost:
+/// a link the server then refuses leaves a code nothing reaches.
+async fn keep_link(
+    connection: &Arc<Connection>,
+    account: Uuid,
+    identity: &RecoverySecret,
+    link: Uuid,
+    kept: KeptLink,
+) -> Result<(), ClientError> {
+    let Some(block) = AccountRecords::open(connection, account, identity).await? else {
+        return Err(ClientError::Refused(
+            ErrorCode::PermissionDenied,
+            "an account in no personal organization makes no links".into(),
+        ));
+    };
+    let bytes = kept.encode();
+    block
+        .update(move |_| vec![be_block::AccountBlock::set_link(link, Some(bytes.clone()))])
+        .await
+}
+
+/// What the account pins for `organization`: from its block, or from a letter not yet taken
+/// into it (an agent, which has no block, keeps the one its maker left). The newest letter wins
+/// over the block, as it came with the account joining or making the organization.
+pub async fn pinned(
+    connection: &Arc<Connection>,
+    account: Uuid,
+    identity: &RecoverySecret,
+    organization: Uuid,
+) -> Result<Option<Pinned>, ClientError> {
+    let lettered = mailbox(connection)
+        .await?
+        .into_iter()
+        .rev()
+        .find_map(|message| match message.letter {
+            be_block_protocol::Letter::Pinned {
+                organization: of,
+                sealed,
+            } if of == organization => open_pin(identity, organization, &sealed),
+            _ => None,
+        });
+    if lettered.is_some() {
+        return Ok(lettered);
+    }
+    let Some(block) = AccountRecords::open(connection, account, identity).await? else {
+        return Ok(None);
+    };
+    Ok(match block.read().await {
+        Ok(held) => held
+            .content
+            .root()
+            .pin(organization)
+            .and_then(Pinned::decode),
+        Err(ClientError::Locked(_)) => None,
+        Err(error) => return Err(error),
+    })
+}
+
+/// Keeps `pinned` for `organization` in the account's block; an account with no block keeps
+/// what its letter carried.
+pub async fn keep_pin(
+    connection: &Arc<Connection>,
+    account: Uuid,
+    identity: &RecoverySecret,
+    organization: Uuid,
+    pinned: &Pinned,
+) -> Result<(), ClientError> {
+    let Some(block) = AccountRecords::open(connection, account, identity).await? else {
+        return Ok(());
+    };
+    let bytes = pinned.encode();
+    block
+        .update(move |_| vec![be_block::AccountBlock::set_pin(organization, Some(bytes.clone()))])
+        .await
+}
+
 /// Makes a company organization with this account as its administrator, rooting its access
 /// log at the account's keys (guides/blocks/keys.md) and pinning that root for it. The server
 /// takes a root only as the caller's current keys, so they are registered first when the
@@ -310,7 +431,6 @@ pub async fn register_identity(
             public: identity.public().0,
             signing: identity.signing().0,
             sealed: Vec::new(),
-            own: Vec::new(),
             changes: Vec::new(),
             retirements: Vec::new(),
         },
@@ -430,6 +550,7 @@ async fn contacts_once(
     };
     let mailbox = mailbox(connection).await?;
     let mut taken = Vec::new();
+    let mut pins = Vec::new();
     let mut changes: HashMap<Uuid, Vec<(u64, Vec<u8>)>> = HashMap::new();
     for message in &mailbox {
         let Some(from) = message.from else {
@@ -456,6 +577,18 @@ async fn contacts_once(
             be_block_protocol::Letter::Removed => {
                 if message.id > through && records.remove(&from).is_some() {
                     removed.insert(from, (verified, message.id));
+                }
+                taken.push(message.id);
+            }
+            be_block_protocol::Letter::Pinned {
+                organization,
+                sealed,
+            } => {
+                if let Some(pinned) = open_pin(identity, *organization, sealed) {
+                    pins.push(be_block::AccountBlock::set_pin(
+                        *organization,
+                        Some(pinned.encode()),
+                    ));
                 }
                 taken.push(message.id);
             }
@@ -540,7 +673,7 @@ async fn contacts_once(
     if let (Some(block), Some(held), true) = (block, held, keeps) {
         // Each contact whose state, kept or removed, differs from what the block held: a record
         // taken and removed in one pass still leaves its tombstone.
-        let mut edits = Vec::new();
+        let mut edits = pins;
         let mut ended: HashMap<Uuid, KeptContact> = removed
             .iter()
             .map(|(contact, (verified, through))| {
@@ -698,7 +831,6 @@ async fn reseal_from(
 
 pub struct NewIdentity {
     pub sealed: Vec<SealedKey>,
-    pub own: Vec<OwnSealed>,
     pub changes: Vec<KeyChange>,
     /// An entry retiring the old keys for the new ones in each access log the account signed
     /// in (guides/blocks/keys.md, "Identity, new phrases and devices").
@@ -707,14 +839,13 @@ pub struct NewIdentity {
 
 /// What moving the account from `old` to `fresh` sends: every key in `held` sealed to it by
 /// itself or a contact it holds a record of (`records`, from the account's block) sealed again,
-/// what it sealed for itself outside the block (`own`), a key change for each contact, and a
-/// retirement in each of `logs`. None when something of `own` does not open with `old`.
+/// a key change for each contact, and a retirement in each of `logs`. None when a log's head is
+/// malformed.
 pub fn new_identity(
     account: Uuid,
     old: &RecoverySecret,
     fresh: &RecoverySecret,
     held: Vec<SealedKey>,
-    own: Vec<OwnSealed>,
     records: &HashMap<Uuid, OwnContact>,
     logs: Vec<be_block_protocol::SignedLog>,
 ) -> Option<NewIdentity> {
@@ -760,16 +891,6 @@ pub fn new_identity(
             })
         })
         .collect();
-    let own = own
-        .into_iter()
-        .map(|held| {
-            let plain = old.open_own(&held.sealed).ok()?;
-            Some(OwnSealed {
-                sealed: fresh.seal_own(&plain),
-                ..held
-            })
-        })
-        .collect::<Option<Vec<_>>>()?;
     let changes = contacts
         .iter()
         .map(|(contact, party)| KeyChange {
@@ -798,7 +919,6 @@ pub fn new_identity(
         .collect::<Option<Vec<_>>>()?;
     Some(NewIdentity {
         sealed,
-        own,
         changes,
         retirements,
     })
@@ -837,16 +957,14 @@ pub async fn set_recovery_key(
             "be-block-client: a new phrase goes on without following the contacts' key changes: {error}"
         );
     }
-    let be_block_protocol::RecoveryKey {
-        sealed, own, logs, ..
-    } = crate::ask(be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
+    let be_block_protocol::RecoveryKey { sealed, logs, .. } = crate::ask(be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
         connection,
         None,
         be_block_protocol::Query::RecoveryKey,
     ))
     .await?;
     let Some(old) = old else {
-        if !(sealed.is_empty() && own.is_empty() && logs.is_empty()) {
+        if !(sealed.is_empty() && logs.is_empty()) {
             return Ok(Err(CannotReseal::NoOldPhrase));
         }
         crate::ask(be_block_protocol::write::<(), _>(
@@ -856,7 +974,6 @@ pub async fn set_recovery_key(
                 public: fresh.public().0,
                 signing: fresh.signing().0,
                 sealed: Vec::new(),
-                own: Vec::new(),
                 changes: Vec::new(),
                 retirements: Vec::new(),
             },
@@ -873,14 +990,13 @@ pub async fn set_recovery_key(
         },
         None => HashMap::new(),
     };
-    let Some(resealed) = new_identity(account, old, fresh, sealed, own, &records, logs) else {
+    let Some(resealed) = new_identity(account, old, fresh, sealed, &records, logs) else {
         return Ok(Err(CannotReseal::Unreadable));
     };
     let mut ops = vec![be_block_protocol::Op::SetRecoveryKey {
         public: fresh.public().0,
         signing: fresh.signing().0,
         sealed: resealed.sealed,
-        own: resealed.own,
         changes: resealed.changes,
         retirements: resealed.retirements,
     }];
@@ -919,14 +1035,26 @@ pub async fn make_link(
         key: offer.key,
         sealed: code.seal_grant(offer.key.into_bytes(), &offer.secret),
     });
+    let kind = LinkKind::Contact(grant);
+    let account = Uuid::from_bytes(me.account);
+    keep_link(
+        connection,
+        account,
+        identity,
+        link_id(&code),
+        KeptLink {
+            code: code.to_bytes().to_vec(),
+            kind: kind.clone(),
+        },
+    )
+    .await?;
     be_block_protocol::write::<(), _>(
         connection,
         None,
         be_block_protocol::Op::CreateLink {
             link: link_id(&code),
             card: me.seal(&code, CardRole::Owner),
-            code: identity.seal_own(&code.to_bytes()),
-            kind: LinkKind::Contact(grant),
+            kind,
         },
     )
     .await??;
@@ -1064,97 +1192,108 @@ pub async fn accept_link(
     Ok((link, card))
 }
 
+/// The links this account made that were accepted, each with its accepter's card opened with
+/// the code the account's block keeps, recorded in the block as a contact. One whose card does
+/// not open, or whose code the block no longer keeps, goes with its letter. A link for another
+/// organization waits for a peer of that one.
 pub(crate) async fn finish_links(
     connection: &Arc<Connection>,
     account: Uuid,
     identity: &RecoverySecret,
     organization: Uuid,
 ) -> Result<Vec<Finished>, ClientError> {
-    let links = be_block_protocol::read::<Vec<be_block_protocol::OwnLink>, _>(
-        connection,
-        None,
-        be_block_protocol::Query::Links,
-    )
-    .await??;
-    // Each accepted link's card, from the mailbox: by link, the message and its sender.
-    let mut cards: HashMap<Uuid, (u64, Uuid, Vec<u8>)> = HashMap::new();
-    let mut stray = Vec::new();
     let held = mailbox(connection).await?;
-    for message in held.clone() {
-        if let (Some(from), be_block_protocol::Letter::Accepted { link, card }) =
-            (message.from, message.letter)
-        {
-            match links.iter().any(|own| own.id == link) {
-                true => {
-                    cards.insert(link, (message.id, from, card));
-                }
-                // Its link was finished, or ended, already.
-                false => stray.push(be_block_protocol::Op::DeleteMessage(message.id)),
+    let accepted: Vec<(u64, Uuid, Uuid, Vec<u8>)> = held
+        .iter()
+        .filter_map(|message| match (&message.letter, message.from) {
+            (be_block_protocol::Letter::Accepted { link, card }, Some(from)) => {
+                Some((message.id, from, *link, card.clone()))
             }
-        }
+            _ => None,
+        })
+        .collect();
+    if accepted.is_empty() {
+        return Ok(Vec::new());
     }
-    if !stray.is_empty() {
-        be_block_protocol::write_all::<(), _>(connection, None, stray).await??;
-    }
-    let block = match links.iter().any(|link| link.accepter.is_some()) {
-        true => AccountRecords::open(connection, account, identity).await?,
-        false => None,
+    let Some(block) = AccountRecords::open(connection, account, identity).await? else {
+        return Ok(Vec::new());
+    };
+    let kept: HashMap<Uuid, KeptLink> = match block.read().await {
+        Ok(held) => held
+            .content
+            .root()
+            .links
+            .iter()
+            .filter_map(|(link, bytes)| Some((*link, KeptLink::decode(bytes)?)))
+            .collect(),
+        // A block sealed to a phrase this device lacks: another device finishes them.
+        Err(ClientError::Locked(_)) => return Ok(Vec::new()),
+        Err(error) => return Err(error),
     };
     let mut finished = Vec::new();
-    for link in links {
-        let Some(accepter) = link.accepter else {
+    for (letter, accepter, link, card) in accepted {
+        let Some(own) = kept.get(&link) else {
+            // Its link was finished already, or was never this account's.
+            be_block_protocol::write_all::<(), _>(
+                connection,
+                None,
+                vec![be_block_protocol::Op::DeleteMessage(letter)],
+            )
+            .await??;
             continue;
         };
-        // A card from anyone but the accepter the server names is no card for this link.
-        let (letter, card) = match cards.remove(&link.id) {
-            Some((letter, from, card)) if from == accepter => (Some(letter), card),
-            Some((letter, ..)) => (Some(letter), Vec::new()),
-            None => (None, Vec::new()),
-        };
-        let opened = identity
-            .open_own(&link.code)
-            .ok()
-            .and_then(|code| InviteCode::from_bytes(&code).ok())
+        // A card from anyone but the account the letter is from is no card for this link.
+        let opened = own
+            .code()
             .and_then(|code| ContactCard::open(&code, CardRole::Accepter, &card).ok())
             .filter(|card| card.account == accepter.into_bytes());
+        let Some(card) = opened else {
+            be_block_protocol::write_all::<(), _>(
+                connection,
+                None,
+                vec![
+                    be_block_protocol::Op::DeleteLink(link),
+                    be_block_protocol::Op::DeleteMessage(letter),
+                ],
+            )
+            .await??;
+            forget_link(&block, link).await?;
+            continue;
+        };
         // Kept in the account's block before the link and its letter go, so a device that stops
         // between keeps the card and finishes the link again.
-        let kept = opened.is_some();
-        if let (Some(card), Some(block), Some(letter)) = (&opened, &block, letter) {
-            let kept = block
-                .update(|current| {
-                    let before = current
-                        .contact(accepter)
-                        .and_then(|bytes| KeptContact::decode(bytes, accepter));
-                    if let Some(KeptContact::Record(before)) = &before
-                        && before.through >= letter
-                        && before.card == *card
-                    {
-                        return Vec::new();
-                    }
-                    // Newer than whatever the block held, a removal included.
-                    let record = OwnContact {
-                        through: letter,
-                        ..OwnContact::new(card.clone(), before.map_or(0, |before| before.verified()))
-                    };
-                    vec![be_block::AccountBlock::set_contact(
-                        accepter,
-                        Some(record.kept()),
-                    )]
-                })
-                .await;
-            match kept {
-                Ok(()) => {}
-                // A block sealed to a phrase this device lacks: another device finishes it.
-                Err(ClientError::Locked(_)) => continue,
-                Err(error) => return Err(error),
-            }
-            let ops = outdated(&held, account, identity, card);
-            if !ops.is_empty() {
-                be_block_protocol::write_all::<(), _>(connection, None, ops).await??;
-            }
+        let recorded = block
+            .update(|current| {
+                let before = current
+                    .contact(accepter)
+                    .and_then(|bytes| KeptContact::decode(bytes, accepter));
+                if let Some(KeptContact::Record(before)) = &before
+                    && before.through >= letter
+                    && before.card == card
+                {
+                    return Vec::new();
+                }
+                // Newer than whatever the block held, a removal included.
+                let record = OwnContact {
+                    through: letter,
+                    ..OwnContact::new(card.clone(), before.map_or(0, |before| before.verified()))
+                };
+                vec![be_block::AccountBlock::set_contact(
+                    accepter,
+                    Some(record.kept()),
+                )]
+            })
+            .await;
+        match recorded {
+            Ok(()) => {}
+            Err(ClientError::Locked(_)) => continue,
+            Err(error) => return Err(error),
         }
-        let (grant, invited) = match link.kind {
+        let ops = outdated(&held, account, identity, &card);
+        if !ops.is_empty() {
+            be_block_protocol::write_all::<(), _>(connection, None, ops).await??;
+        }
+        let (grant, invited) = match own.kind.clone() {
             LinkKind::Contact(grant) => (grant, None),
             LinkKind::Invitation(invitation) => (None, Some(invitation.organization)),
         };
@@ -1165,25 +1304,28 @@ pub(crate) async fn finish_links(
             .map(|grant| grant.organization)
             .or(invited)
             .is_some_and(|of| of != organization);
-        if kept && elsewhere {
+        if elsewhere {
             continue;
         }
-        match (opened.filter(|_| kept), letter) {
-            (Some(card), Some(letter)) => finished.push(Finished {
-                card,
-                grant,
-                invited,
-                link: link.id,
-                letter,
-            }),
-            (_, letter) => {
-                let mut ops = vec![be_block_protocol::Op::DeleteLink(link.id)];
-                ops.extend(letter.map(be_block_protocol::Op::DeleteMessage));
-                be_block_protocol::write_all::<(), _>(connection, None, ops).await??
-            }
-        }
+        finished.push(Finished {
+            card,
+            grant,
+            invited,
+            link,
+            letter,
+        });
     }
     Ok(finished)
+}
+
+/// Drops a finished link's code from the account's block.
+pub(crate) async fn forget_link(block: &AccountRecords, link: Uuid) -> Result<(), ClientError> {
+    block
+        .update(move |current| match current.link(link) {
+            Some(_) => vec![be_block::AccountBlock::set_link(link, None)],
+            None => Vec::new(),
+        })
+        .await
 }
 
 /// Invites whoever opens the link into `organization`, as an editor: a link any account on
@@ -1201,17 +1343,28 @@ pub async fn invite(
         true => Vec::new(),
         false => code.seal_escrow(organization.into_bytes(), &pinned.encode()),
     };
+    let kind = LinkKind::Invitation(Invitation {
+        organization,
+        escrow,
+    });
+    keep_link(
+        connection,
+        Uuid::from_bytes(me.account),
+        identity,
+        link_id(&code),
+        KeptLink {
+            code: code.to_bytes().to_vec(),
+            kind: kind.clone(),
+        },
+    )
+    .await?;
     be_block_protocol::write::<(), _>(
         connection,
         Some(organization),
         be_block_protocol::Op::CreateLink {
             link: link_id(&code),
             card: me.seal(&code, CardRole::Owner),
-            code: identity.seal_own(&code.to_bytes()),
-            kind: LinkKind::Invitation(Invitation {
-                organization,
-                escrow,
-            }),
+            kind,
         },
     )
     .await??;
@@ -1243,10 +1396,3 @@ pub async fn preview_invitation(
     Ok((preview, card))
 }
 
-/// The code of an invitation in the invite list, which only its inviter's identity opens.
-pub fn invitation_link_code(identity: &RecoverySecret, sealed: &[u8]) -> Option<InviteCode> {
-    identity
-        .open_own(sealed)
-        .ok()
-        .and_then(|code| InviteCode::from_bytes(&code).ok())
-}
