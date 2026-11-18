@@ -13,22 +13,18 @@ use uuid::Uuid;
 
 use crate::ServerError;
 
-/// How many logs the server keeps checked (`checked`).
-const CHECKED_LOGS: usize = 4096;
+/// How many entries of the logs it checked the server keeps (`CHECKED`): about 100 bytes each.
+const CHECKED_ENTRIES: usize = 1 << 20;
 
-/// The logs the server checked, at their heads, by kind, organization and log, each with when it
-/// was last used: at most `CHECKED_LOGS`, the one used longest ago let go first. Kept for the
+/// The logs the server checked, at their heads, by kind, organization and log, weighed by their
+/// entries: at most `CHECKED_ENTRIES` in all, the one used longest ago let go first. Kept for the
 /// process, so every server in it shares them; a log another's data holds (a restore, a test's
-/// other server) does not reach a kept head by its hashes, and is checked from its root. Each
-/// holds every entry's hash and place (`Checked::positions`) and each account's levels, so they
-/// cost about 100 bytes an entry of the logs kept.
-#[allow(clippy::type_complexity)]
+/// other server) does not reach a kept head by its hashes, and is checked from its root.
 static CHECKED: std::sync::LazyLock<
-    std::sync::Mutex<(
-        u64,
-        std::collections::HashMap<(LogKind, Uuid, Uuid), (u64, std::sync::Arc<Checked>)>,
-    )>,
-> = std::sync::LazyLock::new(Default::default);
+    std::sync::Mutex<be_block_keys::lru::Lru<(LogKind, Uuid, Uuid), std::sync::Arc<Checked>>>,
+> = std::sync::LazyLock::new(|| {
+    std::sync::Mutex::new(be_block_keys::lru::Lru::new(CHECKED_ENTRIES))
+});
 
 /// The `kind` log of `log` checked from `pinned` to its head, as devices check it
 /// (`be_block_keys::check_log`), checking only the entries after what the server checked of it
@@ -45,41 +41,22 @@ pub(crate) fn checked(
     outside: &dyn Fn(&Asked) -> Option<be_block_keys::SigningPublic>,
 ) -> Result<Checked, be_block_keys::KeyError> {
     let key = (kind, organization, log);
-    let kept = {
-        let mut held = CHECKED.lock().unwrap();
-        held.0 += 1;
-        let now = held.0;
-        held.1.get_mut(&key).map(|(used, kept)| {
-            *used = now;
-            std::sync::Arc::clone(kept)
-        })
-    };
-    // Copied out of the shared map, never while holding it.
+    let kept = CHECKED.lock().unwrap().get(&key).cloned();
+    // Copied out of the shared cache, never while holding it.
     let checked = kept
         .filter(|kept| kept.root == pinned && kept.reaches(entries))
         .map_or_else(|| Checked::unchecked(pinned), |kept| (*kept).clone())
         .resume(kind, log.into_bytes(), entries, outside)?;
+    let weight = checked.positions.len();
     let kept = std::sync::Arc::new(checked.clone());
-    let mut held = CHECKED.lock().unwrap();
-    held.0 += 1;
-    let now = held.0;
-    held.1.insert(key, (now, kept));
-    if held.1.len() > CHECKED_LOGS
-        && let Some(oldest) = held
-            .1
-            .iter()
-            .min_by_key(|(_, (used, _))| *used)
-            .map(|(key, _)| *key)
-    {
-        held.1.remove(&oldest);
-    }
+    CHECKED.lock().unwrap().insert(key, kept, weight);
     Ok(checked)
 }
 
 /// Lets go of every log the server kept checked, so the next check of each is from its root.
 #[cfg(test)]
 pub(crate) fn forget_checked() {
-    CHECKED.lock().unwrap().1.clear();
+    CHECKED.lock().unwrap().clear();
 }
 
 fn refused(message: &str) -> ServerError {

@@ -575,7 +575,8 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   authority from the logs alone, which block is above which by their parent
   records (`access::checked_block_log`), never its own tree. It checks each
   log once: it keeps every log it checked at its head (`access::checked`, the
-  `CHECKED_LOGS` used last), and checks an append or a read again only past
+  most recently used up to `CHECKED_ENTRIES` entries in all, `be_block_keys::lru`),
+  and checks an append or a read again only past
   it, unless the stored log no longer reaches that head, when it checks it from
   its root. A company
   organization's log (`organization_log`) is rooted the same way by
