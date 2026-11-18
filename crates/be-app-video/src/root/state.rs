@@ -23,6 +23,8 @@ pub(crate) const ZOOM_STEP: f32 = 1.5;
 pub(crate) struct ClipDrag {
     pub(crate) clip: Uuid,
     pub(crate) grab: u64,
+    /// Whether the keyboard carries it, which the timeline pans to follow.
+    pub(crate) keyboard: bool,
 }
 
 #[derive(Clone, Copy)]

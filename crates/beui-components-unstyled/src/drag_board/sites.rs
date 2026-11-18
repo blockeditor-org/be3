@@ -45,6 +45,10 @@ pub(crate) struct Placing {
     told: Option<(u64, Option<CandidateId>)>,
     velocity: Velocity,
     last: Option<DragPoint>,
+    /// The labelled place a keyboard step last aimed at, by its id and label: the one of
+    /// several sharing an id (a `custom` site's stops) the carry is at, and where `retrack`
+    /// aims again once what is under it has moved.
+    aimed: Option<(CandidateId, String)>,
     /// The pointer that lifted it: only it moves and releases the carry.
     pub(crate) pointer: PointerId,
 }
@@ -142,6 +146,7 @@ impl Board {
             pointer: point.pointer,
             velocity: Velocity::new(now(), point.pos),
             last: None,
+            aimed: None,
         });
         self.lifted.update(|lifted| lifted.push((id, payload)));
         self.place(point, false);
@@ -237,7 +242,7 @@ impl Board {
     /// Moves the carry the keyboard holds to the nearest place `toward` from the one it is
     /// over, aiming at the place's zone when it has one, and says the place then chosen.
     pub fn step(&self, toward: beui_view::types::Vec2) -> bool {
-        let Some((item, chosen, drawn, last)) = self
+        let Some((item, chosen, drawn, last, aimed)) = self
             .placing
             .borrow()
             .iter()
@@ -248,6 +253,7 @@ impl Board {
                     placing.frame.chosen,
                     placing.frame.item.center(),
                     placing.last,
+                    placing.aimed.clone(),
                 )
             })
         else {
@@ -258,7 +264,7 @@ impl Board {
         };
         let rests = self.rests_of(PointerId::Keyboard);
         let from = chosen
-            .and_then(|chosen| at_chosen(&rests, chosen, last.pos))
+            .and_then(|chosen| at_chosen(&rests, chosen, aimed.as_ref(), last.pos))
             .map_or(drawn, |at| rests[at].aim());
         let aims: Vec<_> = rests
             .iter()
@@ -277,18 +283,16 @@ impl Board {
         if let Some((node, part)) = target.within {
             beui_view::nodes::TreeNode::reveal_part(&node, part);
         }
-        // A zoned place is chosen while the pointer is in its zone; any other while the item
-        // is drawn on its rest.
-        let pos = match target.zone {
-            Some(zone) => zone.center(),
-            None => {
-                let item = item.unwrap_or(beui_view::types::Rect::from_center_size(
-                    beui_view::types::Pos2::ZERO,
-                    target.rest.size(),
-                ));
-                target.rest.center() - item.center().to_vec2()
-            }
-        };
+        let pos = aim_point(target, item);
+        let aimed = target.label.clone().map(|label| (target.id, label));
+        if let Some(placing) = self
+            .placing
+            .borrow_mut()
+            .iter_mut()
+            .find(|placing| placing.pointer == PointerId::Keyboard)
+        {
+            placing.aimed = aimed;
+        }
         self.place(DragPoint { pos, ..last }, false);
         self.say_over(PointerId::Keyboard);
         true
@@ -323,16 +327,16 @@ impl Board {
     /// screen reader; "over a place" for one that is not fixed (free or a nested site), none
     /// when it chose nothing.
     fn over_chosen(&self, pointer: PointerId) -> Option<String> {
-        let (chosen, last) = self
+        let (chosen, last, aimed) = self
             .placing
             .borrow()
             .iter()
             .find(|placing| placing.pointer == pointer)
-            .map(|placing| (placing.frame.chosen, placing.last))?;
+            .map(|placing| (placing.frame.chosen, placing.last, placing.aimed.clone()))?;
         let chosen = chosen?;
         let rests = self.rests_of(pointer);
         let at = match last {
-            Some(last) => at_chosen(&rests, chosen, last.pos),
+            Some(last) => at_chosen(&rests, chosen, aimed.as_ref(), last.pos),
             None => rests.iter().position(|rest| rest.id == chosen),
         };
         let Some(at) = at else {
@@ -366,12 +370,37 @@ impl Board {
         !self.placing.borrow().is_empty()
     }
 
-    /// Where each carry was last placed.
-    pub(crate) fn placing_last(&self) -> Vec<DragPoint> {
-        self.placing
+    /// Where each carry is placed again once what is under it has moved: where it was last,
+    /// but for a keyboard carry stepped to a labelled place, at that place wherever it is now,
+    /// so a scroll or pan under it keeps it on the place it said.
+    pub(crate) fn placing_again(&self) -> Vec<DragPoint> {
+        let held: Vec<(PointerId, DragPoint, Option<(CandidateId, String)>, Option<Rect>)> = self
+            .placing
             .borrow()
             .iter()
-            .filter_map(|placing| placing.last)
+            .filter_map(|placing| {
+                Some((
+                    placing.pointer,
+                    placing.last?,
+                    placing.aimed.clone(),
+                    placing.carry.item,
+                ))
+            })
+            .collect();
+        held.into_iter()
+            .map(|(pointer, last, aimed, item)| {
+                let Some((id, label)) = aimed else {
+                    return last;
+                };
+                let rests = self.rests_of(pointer);
+                rests
+                    .iter()
+                    .find(|rest| rest.id == id && rest.label.as_deref() == Some(label.as_str()))
+                    .map_or(last, |rest| DragPoint {
+                        pos: aim_point(rest, item),
+                        ..last
+                    })
+            })
             .collect()
     }
 
@@ -645,13 +674,39 @@ impl Board {
     }
 }
 
+/// Where the keyboard's pointer goes to choose `target`: a zoned place is chosen while the
+/// pointer is in its zone; any other while the item (`item`, relative to the pointer) is
+/// drawn on its rest.
+fn aim_point(target: &beui_view::drag::Rest, item: Option<Rect>) -> beui_view::types::Pos2 {
+    match target.zone {
+        Some(zone) => zone.center(),
+        None => {
+            let item = item.unwrap_or(Rect::from_center_size(
+                beui_view::types::Pos2::ZERO,
+                target.rest.size(),
+            ));
+            target.rest.center() - item.center().to_vec2()
+        }
+    }
+}
+
 /// Which of `rests` the chosen place is: the one with its id, or, where several share it (a
-/// `custom` site's stops), the one aimed nearest `pointer`.
+/// `custom` site's stops), the one a keyboard step last `aimed` at, else the one aimed
+/// nearest `pointer`.
 fn at_chosen(
     rests: &[beui_view::drag::Rest],
-    chosen: beui_view::drag::CandidateId,
+    chosen: CandidateId,
+    aimed: Option<&(CandidateId, String)>,
     pointer: beui_view::types::Pos2,
 ) -> Option<usize> {
+    if let Some((id, label)) = aimed
+        && *id == chosen
+        && let Some(at) = rests
+            .iter()
+            .position(|rest| rest.id == chosen && rest.label.as_ref() == Some(label))
+    {
+        return Some(at);
+    }
     rests
         .iter()
         .enumerate()
