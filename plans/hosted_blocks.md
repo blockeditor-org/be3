@@ -166,10 +166,14 @@ a role inside the app, since the share dialog grants no roles. A game:
    so nothing carries it the log's root; it takes the root of the log as
    served once a grant to it there is signed by a contact it verified, whose
    hash chain fixes the root (guides/blocks/keys.md, "Accepted limits"), and
-   keeps nothing of it. A share link (plans/share_links.md, step 3) carries
-   the root instead. The host admits only an account the block's own log
-   grants Join or above: a member whose access comes from a block above, or
-   from administering, is not admitted yet.
+   pins it weakly, in memory only. A share link (plans/share_links.md, step 3)
+   carries the root instead. Access from above counts: an editor whose Edit
+   comes from a block above may host, and a member with View or above from
+   anywhere up the path is admitted, but Join itself never passes down. The
+   host counts a member as admitted once its first channel message opens (key
+   confirmation, since IK's first message can be replayed), and a channel
+   message out of order breaks the channel, after which the member handshakes
+   again.
 4. **Hosting.** The host component, starting and stopping it with the editor,
    Keep hosting and the shell's list, lease handoff and reconnecting, ban
    records; then `be BLOCK host`. Done: a test with two editors and two

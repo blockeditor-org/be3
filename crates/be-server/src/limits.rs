@@ -75,12 +75,12 @@ pub const MAX_PAIRING_BYTES: usize = 64 * 1024;
 /// be-sdk-type-guest); a catch-up snapshot carries the operations since the last seal, so this
 /// leaves room for both.
 pub const MAX_RELAY_BYTES: usize = MAX_FRAME_BYTES / 2;
-/// Messages one connection sends a lease holder on a session's host channel a second, on
-/// average (`session-send.host`; plans/hosted_blocks.md): a Join member admitted by a link is
-/// no contact of the host, so the server keeps it from flooding one. The holder's own sends
-/// are not limited.
+/// Messages one account sends a session's lease holder on its host channel a second, on
+/// average, across all its connections (`session-send.host`; plans/hosted_blocks.md): a Join
+/// member admitted by a link is no contact of the host, so the server keeps it from flooding
+/// one. The holder's own sends are not limited.
 pub const HOST_MESSAGES_PER_SECOND: f64 = 30.0;
-/// The burst of host-channel messages a connection may send at once before
+/// The burst of host-channel messages an account may send at once before
 /// `HOST_MESSAGES_PER_SECOND` holds it back.
 pub const HOST_MESSAGE_BURST: f64 = 120.0;
 /// The largest message on a session's host channel.

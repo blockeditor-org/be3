@@ -44,6 +44,9 @@ struct Session {
     accounts: HashMap<ClientId, uuid::Uuid>,
     /// The Join members, with their accounts.
     joiners: BTreeMap<ClientId, uuid::Uuid>,
+    /// What each account may still send the lease holder (`limits::HOST_MESSAGES_PER_SECOND`),
+    /// across all its connections, for as long as the session lasts.
+    sends: HashMap<uuid::Uuid, crate::limits::Bucket>,
 }
 
 impl Session {
@@ -75,6 +78,8 @@ pub enum HostRoute {
     To(ClientId),
     /// No one holds the lease.
     NoHost,
+    /// The sender's account sent the holder more than `limits::HOST_MESSAGES_PER_SECOND`.
+    SlowDown,
     /// The sender may not send it there: one from anyone but the holder names someone, or one
     /// from the holder names no member of the session, or itself.
     Refused,
@@ -309,15 +314,17 @@ impl SessionRegistry {
     }
 
     /// Where `from`'s message on `block`'s host channel goes: from the lease holder, to the
-    /// member `to` names; from any other member, naming none, to the holder.
+    /// member `to` names; from any other member, naming none, to the holder, while `account`,
+    /// which `from` is signed in as, keeps within its rate.
     pub async fn host_route(
         &self,
         block: Place,
         from: ClientId,
+        account: uuid::Uuid,
         to: Option<ClientId>,
     ) -> HostRoute {
-        let sessions = self.sessions.lock().await;
-        let Some(session) = sessions.sessions.get(&block) else {
+        let mut sessions = self.sessions.lock().await;
+        let Some(session) = sessions.sessions.get_mut(&block) else {
             return HostRoute::Refused;
         };
         let member = |client: ClientId| {
@@ -334,7 +341,20 @@ impl SessionRegistry {
         };
         match (from == holder, to) {
             (true, Some(to)) if to != holder && member(to) => HostRoute::To(to),
-            (false, None) => HostRoute::To(holder),
+            (false, None) => {
+                let sends = session
+                    .sends
+                    .entry(account)
+                    .or_insert_with(|| crate::limits::Bucket::full(crate::limits::HOST_MESSAGE_BURST));
+                match sends.take(
+                    std::time::Instant::now(),
+                    crate::limits::HOST_MESSAGES_PER_SECOND,
+                    crate::limits::HOST_MESSAGE_BURST,
+                ) {
+                    true => HostRoute::To(holder),
+                    false => HostRoute::SlowDown,
+                }
+            }
             _ => HostRoute::Refused,
         }
     }

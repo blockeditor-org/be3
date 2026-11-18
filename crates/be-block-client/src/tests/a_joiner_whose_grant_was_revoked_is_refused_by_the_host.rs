@@ -27,8 +27,10 @@ async fn a_joiner_whose_grant_was_revoked_is_refused_by_the_host() {
             .unwrap();
     }
 
-    let (_, first) = player.join_host(world, owner.account()).await.unwrap();
-    let (admitted, _) = owner.admit(world, &first).await.unwrap();
+    let (joining, first) = player.join_host(world, owner.account()).await.unwrap();
+    let (admitting, answer) = owner.admit(world, &first).await.unwrap();
+    let mut channel = joining.finish(&answer).unwrap();
+    let (admitted, _) = admitting.confirm(&channel.seal(b"hello")).unwrap();
     assert_eq!(
         (admitted.account, admitted.level),
         (player.account(), Level::Join),
@@ -52,8 +54,8 @@ async fn a_joiner_whose_grant_was_revoked_is_refused_by_the_host() {
         "a member was admitted as another account"
     );
     let (_, theirs) = other.join_host(world, owner.account()).await.unwrap();
-    let (admitted, _) = owner.admit(world, &theirs).await.unwrap();
-    assert_eq!(admitted.account, other.account());
+    let (admitting, _) = owner.admit(world, &theirs).await.unwrap();
+    assert_eq!(admitting.account(), other.account());
 
     let (_, before) = player.join_host(world, owner.account()).await.unwrap();
     owner
