@@ -1,19 +1,15 @@
 mod chat;
+mod log;
 mod reads;
-mod segment;
-mod signed;
 
-pub use chat::{
-    Carried, ChatContent, ChatHeader, ChatOp, Closing, Deletion, Draft, EditSlot, Gap, Head,
-    Message, MessageEdit, OFFLINE_AFTER, Reaction, ReactionKey, Segment, Sent, Shown, Signature,
-};
-pub use reads::{ChatReads, ChatReadsContent, ReadPlace};
-pub use signed::{MessageHash, Prior};
+pub use chat::{Carried, ChatContent, ChatHeader, Draft};
+pub use log::{ChatEntry, ChatLog, Shown, least_trusted};
+pub use reads::{ChatReads, ChatReadsContent};
 
 be_sdk_type_guest::be_block_types![
     ChatContent {
         undo,
-        merge_parts,
+        log,
         unread
     },
     ChatReadsContent
