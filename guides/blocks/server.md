@@ -1258,6 +1258,12 @@ starts one beside the web build.
 - `be_server::Running` serves a fresh temporary directory on an ephemeral port
   in the current runtime and removes it when dropped: `Harness` in
   `crates/be-server/src/tests.rs` and `crates/be-block-client/src/tests.rs`.
+  `Running::lie(account, rewrite)` makes it lie: every block summary it sends
+  that account's devices (`query.blocks` and listings) is rewritten
+  (`ServerConfig::lies`, `Lies`), so a test shows a client refuses what the
+  server alone could say (a block's parent, its current key, its history),
+  which editing the database cannot, as summaries come from the in-memory
+  graph.
 - be-host-stack's `Harness` (`src/tests.rs`) starts the embedded server and the
   host's peer against it; crates above it use `be-host-testing`'s `Harness`,
   which serves the first-party types in process
