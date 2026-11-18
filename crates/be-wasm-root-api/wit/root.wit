@@ -350,7 +350,9 @@ interface host {
     }
 
     /// The person asked `command` of the block stack, which the host does. It
-    /// answers at once; what changes reaches `core`.
+    /// answers at once; what changes reaches `core`. A command naming a block
+    /// the view no longer lists (it went while the person was asked) changes
+    /// nothing.
     ask-core: async func(command: core-command);
 }
 
