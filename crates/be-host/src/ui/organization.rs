@@ -292,8 +292,11 @@ fn HostMenu(
         let measured = measure(rows);
         create_effect(move || {
             if let Some(measured) = measured.get() {
-                let beyond = scrolled.with(|scrolled| (scrolled.content - scrolled.viewport).max(0.0));
-                report.size.set(Some(measured.rect.size() + beui::vec2(0.0, beyond)));
+                let beyond =
+                    scrolled.with(|scrolled| (scrolled.content - scrolled.viewport).max(0.0));
+                report
+                    .size
+                    .set(Some(measured.rect.size() + beui::vec2(0.0, beyond)));
             }
         });
     }
