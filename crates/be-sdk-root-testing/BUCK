@@ -1,4 +1,5 @@
 load("@root//buck/cargo:defs.bzl", "cargo_package")
+load("@root//buck/program:defs.bzl", "app_data", "app_types")
 load("@root//buck/wasm:defs.bzl", "wasm32_crate")
 
 cargo_package()
@@ -6,4 +7,23 @@ cargo_package()
 # A root guest built on be-sdk-root, which be-wasm-root-host's tests run: it
 # spawns the triangle as a staged app and shows its screen. Only :module, with
 # the `module` feature, exports its entry points.
-wasm32_crate(extra_features = ["module"])
+wasm32_crate(
+    extra_features = ["module"],
+    module = "root_testing",
+)
+
+# The root staged as an app, with no editors, data or block types, for a host
+# test that runs it with `be-host --root=be3.root-testing`
+# (crates/be-host-tests/BUCK).
+export_file(
+    name = "manifest",
+    src = "manifest.json",
+)
+
+app_data(
+    name = "data",
+)
+
+app_types(
+    name = "types",
+)

@@ -263,6 +263,9 @@ app in it. A test fails unless the host exits cleanly at `close()`.
   the apps have answered the one before (they work on threads of their own), so an animation
   that spans a pause ends under load as it does idle. `HostTest`'s doc comments cover cropping, and
   `Options` covers the desktop, previews, space and rendering.
+- `HostTest::root(APP)` runs be-host with a root guest in place of its UI (`--root=APP`), drawn
+  through lavapipe. Nothing paints what the root shows yet, so its test reads the window's pixels
+  with `shot()` instead of a snapshot. The root is staged by naming its package's label in `APPS`.
 - Paintings are `drive paint` and fail on overflow (`drive overflows`) in the host or any app
   shown, whatever the crop.
 - Each test names the apps it uses in `APPS` in crates/be-host-tests/BUCK (the comment there

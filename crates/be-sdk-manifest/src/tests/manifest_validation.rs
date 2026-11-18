@@ -38,6 +38,7 @@ fn manifest_validation() {
         block_agents: false,
         hosts: Vec::new(),
         workers: Vec::new(),
+        root: false,
     };
     assert_eq!(manifest.validate(), Ok(()));
 
@@ -52,6 +53,14 @@ fn manifest_validation() {
     let mut invalid = manifest.clone();
     invalid.editors.clear();
     assert_eq!(invalid.validate(), Err(ManifestError::NoEditors));
+
+    // A root (`be-host --root=APP`) is a module with no editors or block types of its own.
+    let mut root = invalid.clone();
+    root.root = true;
+    assert_eq!(root.validate(), Ok(()));
+    let mut invalid = manifest.clone();
+    invalid.root = true;
+    assert_eq!(invalid.validate(), Err(ManifestError::RootWithEditors));
 
     let mut invalid = manifest.clone();
     invalid.editors.push(editor.clone());

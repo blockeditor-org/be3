@@ -10,7 +10,7 @@ BASE = ["file-tree", "workspace"]
 # test shares, beside the one be-host built. A host that held its own copy of the
 # binary and of every library took 800 MB, and there are twenty.
 def _host_with(name, apps, libraries = "exclude"):
-    packages = ["//crates/be-app-" + app for app in apps]
+    packages = [_package(app) for app in apps]
     program(
         name = name,
         app_types = [package + ":types" for package in packages],
@@ -44,6 +44,16 @@ def _code_cache(name):
         out = "code-cache",
     )
 
+# An app's package: crates/be-app-<app>, or a package named by its label, such
+# as a root a test runs with --root (ROOTS in BUCK), which stages as an app does
+# (:manifest, :module, :data and :types) but ships in no host.
+def _package(app):
+    return app if app.startswith("//") else "//crates/be-app-" + app
+
+# The name an app goes by in its host's name and HOST_TEST_APPS.
+def _short(app):
+    return app.split("/")[-1] if app.startswith("//") else app
+
 # Defines the apps each test's host stages, one :host-with-<apps> for each
 # distinct set of apps and :host-with-all with every app, and gives each test
 # named in `apps` its host as apart_env for cargo_test, with the apps it stages
@@ -58,16 +68,16 @@ def host_test_apps(apps):
         if test not in tests:
             fail("{} names no test under crates/be-host-tests/src/tests".format(test))
         for app in wanted:
-            if app not in every:
+            if app not in every and not app.startswith("//crates/"):
                 fail("{} names {}, which is not an app: there is no crates/be-app-{}".format(test, app, app))
         extra = sorted({app: True for app in wanted if app not in BASE}.keys())
-        name = "host-with-" + ("+".join(extra) if extra else "base")
+        name = "host-with-" + ("+".join([_short(app) for app in extra]) if extra else "base")
         hosts[name] = sorted(BASE + extra)
         apart_env[test] = {
             "BE3_CODE_CACHE": "$(location :{}-code-cache)".format(name),
             "BE3_CODE_CACHE_READ_ONLY": "1",
             "BE_BUNDLE": "$(location :{}):$(location :host-libraries)".format(name),
-            "HOST_TEST_APPS": ",".join(hosts[name]),
+            "HOST_TEST_APPS": ",".join([_short(app) for app in hosts[name]]),
             "HOST_TEST_MANIFESTS": ":".join(["$(location //crates/be-app-{}:manifest)".format(app) for app in every]),
         }
     for name, staged in hosts.items():

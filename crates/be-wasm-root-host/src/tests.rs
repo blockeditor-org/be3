@@ -15,6 +15,7 @@ mod a_frame_waits_for_its_child_and_shows_it;
 mod a_root_built_on_the_library_shows_the_editor_it_embeds;
 mod a_root_names_what_its_child_presented_only_by_handle;
 mod a_root_that_keeps_waking_itself_without_answering_stops_at_its_patience;
+mod a_root_wants_frames_until_its_app_presents_and_wakes_its_host_for_them;
 mod input_reaches_the_child_under_it_by_the_layers_drawn_last;
 
 const ROOT: &[u8] = include_bytes!(env!("ROOT_GUEST_WASM"));

@@ -43,5 +43,6 @@ pub(super) fn app(id: &str, editors: Vec<EditorManifest>) -> Arc<AppManifest> {
         block_agents: false,
         hosts: Vec::new(),
         workers: Vec::new(),
+        root: false,
     })
 }

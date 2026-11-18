@@ -42,6 +42,11 @@ interface frames {
         /// (plans/host_as_platform_adapter.md, The layer list), in
         /// be-lib-layers' encoding (`LayerList::encode`).
         layers: list<u8>,
+        /// The frame clock's time, in nanoseconds, the root wants its next frame drawn for:
+        /// at once if it is not after this frame's, and none while it wants no frame until its
+        /// input or something it spawned wakes it, which wakes its host too. A host that draws
+        /// only on demand draws that frame; one that draws every frame may ignore it.
+        next: option<u64>,
     }
 
     /// Draws a frame. The host steps the root until it answers: between

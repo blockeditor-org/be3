@@ -341,7 +341,8 @@ use an editor extension's rust-analyzer: the toolchain's panics on this workspac
 - **A crate is built only where cargo planned it.** Building one for a platform whose plan does
   not include it, such as an app crate for anything but `wasi_guest`, fails when the build is
   configured, with `root//buck/constraints:planned_by_cargo unsatisfied`; add the crate to that
-  plan in `PLANS` in `crates/be-tool-buck/src/plan.rs` and run `./scripts/buckify`. A binary or
+  plan in `PLANS` in `crates/be-tool-buck/src/plan.rs` and run `./scripts/buckify`. A pure guest
+  built with `wasm32_crate`, such as a test's root guest, is named in the `wasm32` plan there. A binary or
   an example is likewise built only for the plans that build it (`cargo build --lib` builds
   none).
 - **Lints** are rustc's, and a warning fails the compile, but verify compiles only

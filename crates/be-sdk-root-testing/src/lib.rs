@@ -146,8 +146,12 @@ impl frames::Guest for Root {
                     layers,
                 }],
             };
+            let mut embedding = root.embedding.borrow_mut();
             FrameDone {
-                layers: root.embedding.borrow_mut().drew(list).layers,
+                layers: embedding.drew(list).layers,
+                next: embedding
+                    .next_frame()
+                    .map(|at| u64::try_from(at.as_nanos()).unwrap_or(u64::MAX)),
             }
         })
     }

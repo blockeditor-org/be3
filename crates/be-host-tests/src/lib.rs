@@ -19,6 +19,9 @@ const OUT_OF_STEP_WAIT: Duration = Duration::from_secs(5);
 const FILES: &str = "Pane \"Files\"";
 const SHOW_A_CODE: &str = "Button \"Show a code\"";
 const FILE_TREE: &str = "#file-tree.filter";
+/// What a host running a root shows once it runs: the input catcher over its window
+/// (crates/be-host/src/root.rs).
+const ROOT_CATCHER: &str = "#root";
 
 /// be-host started headless with the dev workspace open, driven as `drive` drives it, for a test
 /// of what happens between editors (guides/testing_a_gui.md, 6).
@@ -78,6 +81,16 @@ impl HostTest {
             .map(str::to_owned)
             .collect();
         Self::begin(start, ready, options.space, None)
+    }
+
+    /// Starts the host with the staged app `app`'s entry point as the root guest in place of
+    /// its own UI (`--root=APP`), with no workspace. It draws through lavapipe, since the root's
+    /// apps draw on the window's device, and shows only what the root draws, so look at it with
+    /// [`HostTest::shot`]: the window has no painting of it yet.
+    pub fn root(app: &str) -> Self {
+        let mut start = Self::program(false, true);
+        start.arguments = vec![format!("--root={app}")];
+        Self::begin(start, ROOT_CATCHER, false, None)
     }
 
     /// Starts a device of `account` on its test [`Server`], in a data directory of its own,
@@ -392,6 +405,23 @@ impl HostTest {
 
     pub fn shown(&mut self, text: &str) -> bool {
         self.tree().contains(text)
+    }
+
+    /// What the window shows, as the GPU drew it (`drive shot`): its width and height in
+    /// pixels and its RGBA, row by row. Only a host drawing through lavapipe has one
+    /// ([`Options::previews`], [`HostTest::root`]).
+    pub fn shot(&mut self) -> (u32, u32, Vec<u8>) {
+        let words = ["shot"];
+        self.steps.push(line(&words));
+        match self.driven().request(&words) {
+            Ok(Reply::Image {
+                width,
+                height,
+                rgba,
+            }) => (width, height, rgba),
+            Ok(_) => self.fail("shot answered with something other than an image"),
+            Err(error) => self.fail(&error),
+        }
     }
 
     /// Paints only that target's area from here on. Block ids are random, so a painting that

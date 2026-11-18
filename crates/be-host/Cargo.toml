@@ -81,6 +81,14 @@ tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "ti
 # Desktop only: Android has no embedded browser, and the browser sandbox has
 # none either.
 [target.'cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
+# `--root=APP` (src/root.rs): a root guest in place of the host's own UI.
+be-lib-layers = { path = "../be-lib-layers" }
+be-lib-ui-types = { path = "../be-lib-ui-types" }
+be-wasm-host = { path = "../be-wasm-host" }
+be-wasm-root-api = { path = "../be-wasm-root-api" }
+be-wasm-root-host = { path = "../be-wasm-root-host" }
+beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
+wgpu = { version = "29", default-features = false }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 # The block stack with the apps' type modules in process.

@@ -44,7 +44,12 @@ impl Inline for App {
 struct Bell {
     rung: Mutex<u64>,
     ringing: Condvar,
+    /// Also told of every ring: the host, which draws a frame for it (`Root::on_wake`).
+    host: Mutex<Option<Wake>>,
 }
+
+/// What the host is told when the root has something to step for.
+type Wake = Arc<dyn Fn() + Send + Sync>;
 
 impl Bell {
     fn rung(&self) -> u64 {
@@ -55,6 +60,15 @@ impl Bell {
         let mut rung = self.rung.lock().unwrap_or_else(|held| held.into_inner());
         *rung = rung.wrapping_add(1);
         self.ringing.notify_all();
+        drop(rung);
+        let host = self
+            .host
+            .lock()
+            .unwrap_or_else(|held| held.into_inner())
+            .clone();
+        if let Some(wake) = host {
+            wake();
+        }
     }
 
     /// Waits until it rings after `since` or `until` passes.
@@ -95,6 +109,19 @@ impl Root {
     pub fn with_patience(mut self, patience: Duration) -> Self {
         self.core.patience = patience;
         self
+    }
+
+    /// Calls `wake` on whatever thread it happens on whenever the root has something to step
+    /// for between frames: an instance it spawned sent frames or stopped, a compile finished, or
+    /// it woke itself. A host that draws only on demand draws a frame for it, which steps the
+    /// root with what arrived; it is also called while a frame is drawn, which costs a host
+    /// that draws on demand one more frame at most.
+    pub fn on_wake(&self, wake: impl Fn() + Send + Sync + 'static) {
+        *self
+            .bell
+            .host
+            .lock()
+            .unwrap_or_else(|held| held.into_inner()) = Some(Arc::new(wake));
     }
 
     /// Hands the root `window`'s input since the last call, in the window's points: `events` is
