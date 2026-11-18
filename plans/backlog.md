@@ -280,15 +280,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
 
 ## 15. Flaky host tests
 
-- **The first text opened, above 2 hosts per core.**
-  `unlinking_a_reference_in_a_text_puts_a_copy_in_its_place` timed out at its
-  first `wait 'Pane "Text"'` 11 times in 192 under `stress` at 16 at a time on
-  4 cores, and none in 96 at 8: the new text's row showed, its tab never
-  opened, and nothing was busy but a frame the stopped clock held.
-  `Runtime::busy` (be-host-runtime's runtime.rs) answers nothing for an app with
-  no mounted view, so an app still starting may read as settled. Done: an app
-  starting for a view the host shows keeps it busy, or the cause found
-  elsewhere, and the test passes 96 at 16 at a time.
 - **A joined block's tabs, once under verify load.**
   `a_joined_blocks_tabs_carry_its_menu` waited for "Referenced by (2)" and saw
   (1), and has not failed since in 240 runs under `stress`. Its next failure
