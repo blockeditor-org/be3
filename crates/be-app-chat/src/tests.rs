@@ -15,6 +15,7 @@ use crate::root::ChatRoot;
 
 mod a_closed_message_deleted_by_someone_else_shows_as_forged;
 mod a_conversation_shows_each_message_with_its_author_and_time;
+mod a_deletion_signed_with_a_replaced_key_shows_where_it_was;
 mod a_discarded_message_does_not_return_as_not_sent_when_the_chat_opens_again;
 mod a_draft_stays_in_the_editor_until_it_is_sent;
 mod a_drafts_made_blocks_come_back_as_chips_when_the_chat_opens_again;
@@ -96,6 +97,22 @@ fn deleted_by(content: &ChatContent, message: ObjectId, author: Uuid, time: i64)
     )
 }
 
+/// A chat of `messages`, each signed by its author and sent live three minutes after the one
+/// before, from 09:00.
+fn conversation(messages: &[(Uuid, &str)]) -> ChatContent {
+    let mut content = ChatContent::default();
+    for (index, (author, body)) in messages.iter().enumerate() {
+        let time = MORNING + index as i64 * 3 * MINUTE;
+        let send = signed_by(&content, *author, Message::new(*author, time, *body));
+        // The server took it at once.
+        content.apply(&ChatOp::Edit {
+            edit: send,
+            arrival: Some(time),
+        });
+    }
+    content
+}
+
 impl Harness {
     fn new(messages: &[(Uuid, &str)]) -> Self {
         Self::trusting(messages, &[])
@@ -118,13 +135,7 @@ impl Harness {
     }
 
     fn shown_as(messages: &[(Uuid, &str)], trusted: &[(Uuid, Signer)], shown: Uuid) -> Self {
-        let mut content = ChatContent::default();
-        for (index, (author, body)) in messages.iter().enumerate() {
-            let time = MORNING + index as i64 * 3 * MINUTE;
-            let send = signed_by(&content, *author, Message::new(*author, time, *body));
-            content.apply(&send.into());
-        }
-        Self::open(content, trusted, shown, false)
+        Self::open(conversation(messages), trusted, shown, false)
     }
 
     /// The editor of a chat whose closed segments are saved as parts, which it reads by range.
@@ -177,6 +188,7 @@ impl Harness {
             .edit::<ChatContent>(None, &ChatOp::from(operation));
         self.run();
     }
+
 
     fn click(&mut self, test_id: &str) {
         self.editor.click(test_id);

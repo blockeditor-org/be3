@@ -138,6 +138,11 @@ pub struct Deletion {
     /// anyone else shows (only a message's author deletes it). Signed by its hash. None for a
     /// message in a closed segment, which still holds it.
     pub message: Option<Sent>,
+    /// When the server took the operation that wrote it, as `Message::arrival` is for a
+    /// message: stamped by the session owner, not signed, and never what a member wrote, so a
+    /// deletion signed with a contact's replaced key can show it was written after the key
+    /// changed (guides/blocks/keys.md, Verifying). None when unknown.
+    pub arrival: Option<i64>,
 }
 
 /// What a message's author signed of it (`Message::signed_bytes`), what it says by its
@@ -479,7 +484,7 @@ impl From<Edit> for ChatOp {
 /// message's `arrival` is dropped, and each message it inserts holds the stamp (none when
 /// unknown) inside the insert itself, so it lands only when the insert does (an insert of an id
 /// the chat holds already does nothing) and a message's arrival is only ever what the owner
-/// stamped.
+/// stamped. Each deletion it writes holds the stamp too, in place of whatever it said.
 fn stamped(edit: &Edit, arrival: Option<i64>) -> Edit {
     let messages = Place {
         object: ObjectId::ROOT,
@@ -527,6 +532,32 @@ fn stamped(edit: &Edit, arrival: Option<i64>) -> Edit {
                     })
                     .collect(),
             },
+            Change::Stamp {
+                object,
+                field,
+                key,
+                stamped,
+            } if *object == ObjectId::ROOT && *field == ChatHeader::DELETIONS.index() => {
+                let value = stamped.value.as_ref().map(|value| {
+                    match be_block_model::from_cbor::<Deletion>(value) {
+                        Some(mut deletion) => {
+                            deletion.arrival = arrival;
+                            be_block_model::to_cbor(&deletion)
+                        }
+                        // Unreadable, it reads as no deletion whatever its stamp.
+                        None => value.clone(),
+                    }
+                });
+                Change::Stamp {
+                    object: *object,
+                    field: *field,
+                    key: key.clone(),
+                    stamped: be_block_model::Stamped {
+                        stamp: stamped.stamp,
+                        value,
+                    },
+                }
+            }
             change => change.clone(),
         })
         .collect()
@@ -965,6 +996,7 @@ impl ChatContent {
             signature: Signature::default(),
             after,
             message: self.message(message).map(|message| message.sent()),
+            arrival: None,
         }
     }
 

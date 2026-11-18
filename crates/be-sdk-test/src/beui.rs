@@ -1010,7 +1010,8 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
     }
 
     /// How `verify` answers a signature `account` made (`be_sdk_test::signature`); a contact's,
-    /// `Signer::Verified`, unless set. A signature it did not make is always `Signer::Bad`.
+    /// `Signer::Verified`, unless set; set to `Signer::Replaced`, `Changed` for a record that
+    /// keeps no arrival. A signature it did not make is always `Signer::Bad`.
     pub fn set_signer(&mut self, account: Uuid, signer: be_sdk_api::Signer) {
         self.signatures.set(account, signer);
     }

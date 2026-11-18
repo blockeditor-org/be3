@@ -106,7 +106,8 @@ Notes on particular calls:
   `unavailable` while its answer needs the server and it is out of reach.
   `BeuiTest` answers both itself: everyone signs as `be_sdk_test::signature`
   gives, and `set_signer(account, signer)` sets how a good signature by
-  `account` verifies (a contact's, `Verified`, unless set).
+  `account` verifies (a contact's, `Verified`, unless set; set to `Replaced`,
+  `Changed` for a record given no `arrived`, as the host answers).
 - Web views can be placed (`SubregionContent::WebView`) but no host shows one
   yet: every open fails, and the editor shows that in its place.
 - A revision preview is a temporary, read-only block: the host isolates it

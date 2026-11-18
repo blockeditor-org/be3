@@ -55,8 +55,9 @@ struct Row {
     /// What its authors signed: the message, its edit if it has one, and every reaction record
     /// to it; for a deleted message's row, the deletion.
     proofs: Vec<Proof>,
-    /// The row of a message whose deletion is forged, in the deleted message's place: it shows
-    /// who claims to have deleted it, and takes no reply, reaction or edit.
+    /// The row of a message whose deletion is forged or signed with a replaced key, in the
+    /// deleted message's place: it shows who claims to have deleted it, and takes no reply,
+    /// reaction or edit.
     deleted: bool,
     /// The row of a message removed outright, which a later message names
     /// (`ChatContent::gaps`): a line saying so, in its place.
@@ -83,9 +84,9 @@ enum Record {
     /// A record removed outright or a chain's latest record cut (`Head::cut`), which no
     /// signature can cover.
     Removed,
-    /// A record found forged before its row was made, whatever its signature: a forged
-    /// deletion (`forged_deletions`).
-    Forged,
+    /// A deletion whose verdict was found before its row was made, whatever its signature
+    /// says now: forged, or signed with a replaced key (`marked_deletions`).
+    Deletion(Trust),
 }
 
 impl Record {
@@ -106,7 +107,7 @@ impl Record {
             Self::Message(id, message) => Some(message.signed_bytes(chat, *id)),
             Self::Edit(id, edit, sent) => Some(edit.signed_bytes(chat, *id, sent.hash(chat, *id))),
             Self::Reaction(key, reaction) => Some(key.signed_bytes(chat, reaction)),
-            Self::Removed | Self::Forged => None,
+            Self::Removed | Self::Deletion(_) => None,
         }
     }
 }
@@ -344,15 +345,15 @@ pub fn Chat(editor: Editor) -> NodeId {
         }
     });
     on_cleanup(move || asking.cancel());
-    let forged = forged_deletions(editor, chat, signing);
+    let marked = marked_deletions(editor, chat, signing);
     let missing = missing_messages(editor, chat, signing);
     let rows: KeyedStore<ObjectId, Row> = KeyedStore::new();
     create_effect(move || {
         chat.track();
-        let forged = forged.get();
+        let marked = marked.get();
         let missing = missing.get();
         if let Ok(rows_now) = chat.read(|content| {
-            let mut rows = row_list(content, &content.shown(), me, &forged, None);
+            let mut rows = row_list(content, &content.shown(), me, &marked, None);
             // Before the first message that names it.
             for (naming, gone) in missing {
                 if let Some(at) = rows.iter().position(|(id, _)| *id == naming) {
@@ -365,7 +366,7 @@ pub fn Chat(editor: Editor) -> NodeId {
         }
     });
     let ids = rows.keys();
-    let older = Older::new(chat, editor, me, forged);
+    let older = Older::new(chat, editor, me, marked);
     let older_ids = older.rows.keys();
     let empty = create_memo(move || ids.with(Vec::is_empty) && older_ids.with(Vec::is_empty));
     let composer = Composer {
@@ -767,7 +768,7 @@ struct Older {
 }
 
 impl Older {
-    fn new(chat: Chat, editor: Editor, me: Uuid, forged: Memo<Vec<(ObjectId, Deletion)>>) -> Self {
+    fn new(chat: Chat, editor: Editor, me: Uuid, marked: Memo<Vec<Marked>>) -> Self {
         let segments = chat.project(|content: &ChatContent| content.segments());
         let read: Signal<Vec<(Segment, Vec<(ObjectId, Message)>)>> = create_signal(Vec::new());
         let rows = KeyedStore::new();
@@ -793,7 +794,7 @@ impl Older {
         // What was read follows the edits, deletions and reactions made to it since.
         create_effect(move || {
             chat.track();
-            let (segments, read, forged) = (segments.get(), read.get(), forged.get());
+            let (segments, read, marked) = (segments.get(), read.get(), marked.get());
             let rows_now = chat
                 .read(|content| {
                     // Segments closed apart can overlap: a message shows once, in its place.
@@ -806,20 +807,22 @@ impl Older {
                     let order: Vec<ObjectId> = messages.iter().map(|(id, _)| *id).collect();
                     // The segment still holds a deleted message: a deletion by anyone but its
                     // author is forged, whatever it signed.
-                    let mut forged = forged;
+                    let mut marked = marked;
                     for (id, message) in &messages {
                         if let Some(deletion) = content.deletion_of(*id)
                             && !deletion.by_author(Some(message))
-                            && !forged.iter().any(|(held, _)| held == id)
                         {
-                            forged.push((*id, deletion));
+                            match marked.iter_mut().find(|(held, _, _)| held == id) {
+                                Some((_, _, trust)) => *trust = Trust::Forged,
+                                None => marked.push((*id, deletion, Trust::Forged)),
+                            }
                         }
                     }
                     row_list(
                         content,
                         &content.shown_of(messages),
                         me,
-                        &forged,
+                        &marked,
                         Some(&order),
                     )
                 })
@@ -927,14 +930,14 @@ pub(crate) fn unread_segment<T>(segments: &[Segment], read: &[(Segment, T)]) -> 
 }
 
 /// The rows of `shown` messages, each with its replied-to message and who signed it, and a
-/// row for each message of `forged` (forged deletions) in its place: by `order`, the messages
+/// row for each message of `marked` (deletions forged or signed with a replaced key) in its place: by `order`, the messages
 /// read back from closed segments with the deleted ones, when given, else after the message
 /// the deletion says it followed.
 fn row_list(
     content: &ChatContent,
     shown: &[Shown],
     me: Uuid,
-    forged: &[(ObjectId, Deletion)],
+    marked: &[Marked],
     order: Option<&[ObjectId]>,
 ) -> Vec<(ObjectId, Row)> {
     let by_id: HashMap<ObjectId, &Shown> =
@@ -950,7 +953,7 @@ fn row_list(
             (message.id, row)
         })
         .collect();
-    for (message, deletion) in forged {
+    for (message, deletion, trust) in marked {
         let after = match order {
             // Read back from a segment: after the nearest message before it that has a row.
             Some(order) => {
@@ -976,7 +979,7 @@ fn row_list(
                 .map(|at| at + 1),
         };
         if let Some(at) = at {
-            rows.insert(at, (*message, deleted_row(deletion, me, today)));
+            rows.insert(at, (*message, deleted_row(deletion, *trust, me, today)));
         }
     }
     rows
@@ -1321,10 +1324,10 @@ fn proofs(content: &ChatContent, message: &Shown) -> Vec<Proof> {
     proofs
 }
 
-/// The row of a message whose deletion is forged: only a forged one has a row, so its proof
-/// is forged whatever the deletion's own signature says (one someone else signed as themselves
-/// verifies as theirs).
-fn deleted_row(deletion: &Deletion, me: Uuid, today: i64) -> Row {
+/// The row of a message whose deletion is forged or signed with a replaced key: only such a
+/// deletion has a row, and its proof is the verdict found for it, whatever the deletion's own
+/// signature says (one someone else signed as themselves verifies as theirs).
+fn deleted_row(deletion: &Deletion, trust: Trust, me: Uuid, today: i64) -> Row {
     Row {
         author: author(deletion.author, me),
         mine: false,
@@ -1338,25 +1341,26 @@ fn deleted_row(deletion: &Deletion, me: Uuid, today: i64) -> Row {
         proofs: vec![Proof {
             author: deletion.author,
             signature: Vec::new(),
-            record: Record::Forged,
+            record: Record::Deletion(trust),
         }],
         deleted: true,
         missing: false,
     }
 }
 
-/// The forged deletions, each with the message it deleted: one the host says its author did not
-/// sign, one that keeps a message by someone else or one whose own signature is forged
-/// (only a message's author deletes it), one that keeps another message than the one a later
-/// message cites (`Deletion::kept_matches`), and one of a recent message that keeps none of it.
-/// Each deletion is asked about once, when it first shows in the content, and only a forged
-/// one gets a row; a closed message's deletion is checked against the segment's copy when it
-/// is read (`Older`).
-fn forged_deletions(
-    editor: Editor,
-    chat: Chat,
-    signing: Signal<Uuid>,
-) -> Memo<Vec<(ObjectId, Deletion)>> {
+/// A deletion that gets a row, the id of the message it deleted and its verdict: `Forged` or
+/// `Replaced`.
+type Marked = (ObjectId, Deletion, Trust);
+
+/// The deletions that get a row, each with the message it deleted. Forged: one the host says
+/// its author did not sign, one that keeps a message by someone else or one whose own signature
+/// is forged (only a message's author deletes it), one that keeps another message than the one
+/// a later message cites (`Deletion::kept_matches`), and one of a recent message that keeps none
+/// of it. Replaced: one signed with a contact's key it had replaced before the server took the
+/// deletion (`Deletion::arrival`), which may be someone holding the old phrase, so it is not
+/// silent. Each deletion is asked about once, when it first shows in the content; a closed
+/// message's deletion is checked against the segment's copy when it is read (`Older`).
+fn marked_deletions(editor: Editor, chat: Chat, signing: Signal<Uuid>) -> Memo<Vec<Marked>> {
     type Verdicts = HashMap<ObjectId, (Deletion, Option<Signer>)>;
     let verdicts: Signal<Verdicts> = create_signal(HashMap::new());
     create_effect(move || {
@@ -1402,7 +1406,7 @@ fn forged_deletions(
                         checked.author,
                         checked.signed_bytes(block, message),
                         checked.signature.0.clone(),
-                        None,
+                        checked.arrival,
                     )
                     .await?
                 {
@@ -1446,13 +1450,16 @@ fn forged_deletions(
     });
     create_memo(move || {
         verdicts.with(|verdicts| {
-            let mut forged: Vec<(ObjectId, Deletion)> = verdicts
+            let mut marked: Vec<Marked> = verdicts
                 .iter()
-                .filter(|(_, (_, verdict))| *verdict == Some(Signer::Bad))
-                .map(|(message, (deletion, _))| (*message, deletion.clone()))
+                .filter_map(|(message, (deletion, verdict))| {
+                    let trust = Trust::from((*verdict)?);
+                    matches!(trust, Trust::Forged | Trust::Replaced)
+                        .then(|| (*message, deletion.clone(), trust))
+                })
                 .collect();
-            forged.sort_by_key(|(message, _)| *message);
-            forged
+            marked.sort_by_key(|(message, _, _)| *message);
+            marked
         })
     })
 }
@@ -1665,8 +1672,8 @@ fn MessageRow(
             // The least a row's records are trusted: one forged record makes it forged.
             let mut least = Trust::Verified;
             for proof in proofs {
-                if matches!(proof.record, Record::Forged) {
-                    least = least.max(Trust::Forged);
+                if let Record::Deletion(trust) = proof.record {
+                    least = least.max(trust);
                     continue;
                 }
                 let Some(bytes) = proof.record.signed_bytes(chat) else {
@@ -1699,6 +1706,11 @@ fn MessageRow(
     let mine = create_memo(move || row.with(|row| row.mine));
     let actionable = create_memo(move || row.with(|row| !row.deleted));
     let deleted = create_memo(move || !actionable.get());
+    // A deletion row's record is the deletion, signed with the old key.
+    let old_key = create_memo(move || match deleted.get() {
+        true => "deleted with an old key".to_owned(),
+        false => "sent with an old key".to_owned(),
+    });
     let quote = create_memo(move || row.with(|row| row.reply.clone().unwrap_or_default()));
     let replies = create_memo(move || row.with(|row| row.reply.is_some()));
     let reactions = create_memo(move || {
@@ -1895,7 +1907,7 @@ fn MessageRow(
                             </Show>
                             <Show value={replaced}>
                                 <Text style=TextStyle::CAPTION color=TextColor::Warning>
-                                    "sent with an old key"
+                                    {old_key}
                                 </Text>
                             </Show>
                             <Show value={altered}>

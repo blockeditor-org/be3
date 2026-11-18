@@ -65,7 +65,9 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   the insert does, and drops any change that sets a message's `arrival`. So a
   member in a live session cannot choose an arrival: not by sending a message
   holding one, setting one after, or sending again under an existing message's
-  id. A closed segment keeps each message's stamp.
+  id. A closed segment keeps each message's stamp. A deletion keeps its
+  operation's stamp the same way (`Deletion::arrival`, written over whatever
+  the deletion said), so one signed with a replaced key can answer `Replaced`.
 - The guarantee holds only for operations the server orders. A merge keeps
   whatever `arrival` a commit holds, so a member who commits directly (or seals
   as the lease holder) can write any arrival; accepted, as for any content a
@@ -239,10 +241,12 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   honest deletion show as forged: nobody can tell which is true without the
   message, but the citer signed the lie, so the dispute is theirs and the
   deleter's, not the deleter's alone. It is asked about once when it
-  appears (`forged_deletions`); a forged one keeps a muted, italic "Message
-  deleted" row, marked forged, in the message's place (after
+  appears (`marked_deletions`), with its arrival; a forged one keeps a muted,
+  italic "Message deleted" row, marked forged, in the message's place (after
   `Deletion::after` among the recent messages, where it was in a closed
-  segment read back), while one by the author leaves none. A recent message
+  segment read back), and so does one answered `Replaced`, marked "deleted
+  with an old key", since someone holding the old phrase can delete the
+  account's messages; one by the author otherwise leaves none. A recent message
   removed outright, which no deletion records, is told by the later messages
   that name it (`seen`, `own_previous`; `ChatContent::gaps`): a muted, italic
   "A message that was here is no longer in the chat" row takes its place,
