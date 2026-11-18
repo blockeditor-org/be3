@@ -54,6 +54,7 @@ async fn upload(peer: &Peer<MemoryStore>, objects: Vec<Vec<u8>>) -> Result<(), C
 mod a_banned_member_is_refused_until_a_grant_lifts_the_ban;
 mod a_block_a_shared_one_links_to_shows_only_that_it_exists;
 mod a_block_deleted_after_its_folder_was_listed_is_listed_only_as_deleted_offline;
+mod a_block_file_with_another_blocks_log_entry_does_not_read;
 mod a_block_made_offline_keeps_its_edits_when_read_before_it_is_sent;
 mod a_block_made_offline_takes_the_access_the_server_will_give_it;
 mod a_block_made_offline_under_a_scope_the_server_claims_is_set_aside;
@@ -171,6 +172,7 @@ mod a_record_found_forged_is_not_asked_about_again;
 mod a_record_the_old_key_signs_after_a_new_phrase_is_refused;
 mod a_record_the_server_replays_after_a_removal_does_not_bring_the_contact_back;
 mod a_redaction_is_told_to_the_logs_followers;
+mod a_redaction_made_while_a_device_was_away_is_told_as_it_reconnects;
 mod a_relay_sealed_under_another_blocks_key_is_refused;
 mod a_reordered_reference_list_keeps_its_new_order;
 mod a_request_fails_once_a_ping_goes_unanswered;

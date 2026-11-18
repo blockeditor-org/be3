@@ -254,6 +254,10 @@ interface server {
         %from: u64,
         limit: u32,
         known: option<u64>,
+        /// With a count of the log's redactions the caller holds
+        /// (`log-page.redactions`), the places of those redacted since, so a
+        /// device that missed `event.redacted` catches up in this read.
+        redactions-after: option<u64>,
     }
 
     /// A read's answer: the case its query asks for.
