@@ -1757,7 +1757,11 @@ impl Refs {
             }
             state.name_cards.insert(account, kept.clone());
         }
-        self.write(vec![row(Table::NameCards, account.as_bytes().to_vec(), &kept)])
+        self.write(vec![row(
+            Table::NameCards,
+            account.as_bytes().to_vec(),
+            &kept,
+        )])
     }
 
     /// Keeps `key` as one `account` signs with: verified once a contact's card or key change

@@ -35,7 +35,10 @@ async fn a_contacts_name_card_kept_under_a_replaced_key_gives_way_to_the_new_key
             }
         }
     });
-    assert_eq!(named(guest.refresh_contacts().await.unwrap()), "Rosa Far Ahead");
+    assert_eq!(
+        named(guest.refresh_contacts().await.unwrap()),
+        "Rosa Far Ahead"
+    );
     *serving.lock().unwrap() = None;
 
     let fresh = new_phrase(&rosa.connection(), rosa.account(), rosa.keys().identity()).await;

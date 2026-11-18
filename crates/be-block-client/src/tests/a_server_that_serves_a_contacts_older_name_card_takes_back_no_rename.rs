@@ -23,7 +23,10 @@ async fn a_server_that_serves_a_contacts_older_name_card_takes_back_no_rename() 
             .map(|contact| contact.display_name)
             .unwrap()
     };
-    assert_eq!(named(guest.refresh_contacts().await.unwrap()), "Rosa Renamed");
+    assert_eq!(
+        named(guest.refresh_contacts().await.unwrap()),
+        "Rosa Renamed"
+    );
 
     // A card rosa did sign, dated before the rename, then none at all.
     let older = be_block_keys::NameCard {
