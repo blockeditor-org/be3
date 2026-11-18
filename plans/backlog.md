@@ -299,7 +299,10 @@ Depends on #686 (session catch-ups replaced by server ordering).
   8 runs of the whole test binary (the server refused an edit: "not editable by
   this account"); it fails 1 in 40 alone. Done: the cause
   found (under the suite's load, or `stress` at more at a time) and fixed at
-  its source, with a test that shows it.
+  its source, with a test that shows it. Not seen since the take ordering fix
+  (`telling` in be-host-stack's lib.rs), which may be what it was: 0 of 600 runs
+  alone (200 at 8 at a time, 400 at 16, on a 4-core VM, the harness run
+  directly) and 8 of 8 runs of the whole test binary, 4 at a time.
 
 - **A note made offline, once under the render-props branch's tests.**
   `a_note_made_while_a_device_is_offline_reaches_it_once_it_reconnects`
