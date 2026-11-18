@@ -1012,6 +1012,14 @@ impl KeyBook {
         roots.pin(block, root);
     }
 
+    /// Takes `root` for a block whose log this device checked only through a grant to it that a
+    /// verified contact signed (a Join member's, `Peer::join_host`): weakly, as a member's escrow
+    /// wrap pins one (`RootPin::Weak`), never passed on, and in memory only, so a log rooted
+    /// elsewhere later in the run is refused.
+    pub fn pin_vouched(&self, block: Uuid, root: EntryHash) {
+        self.roots.lock().unwrap().pin_weak(block, root);
+    }
+
     /// `key` as it travels sealed or wrapped (`CarriedKey`): with the block it is a key of
     /// (the organization, for an escrow key), and that block's root only when this device holds
     /// it pinned, so a root it took from nowhere trusted is never passed on as one it vouches
