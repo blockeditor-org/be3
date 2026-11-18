@@ -2744,18 +2744,16 @@ impl<S: ObjectStore> Peer<S> {
         let named = checked.grants.get(&account.into_bytes()).copied();
         // A revocation of someone the log names nowhere is still recorded while the server holds
         // a grant for them (a contact link's, applied when it was accepted and not yet finished),
-        // so finishing the link reads the log alone.
+        // so finishing the link reads the log alone. A server that cannot say (unreachable, or
+        // this device may not list access) is taken as holding none, as before this check.
         let applied = level == be_block_keys::Level::None
             && named.is_none()
-            && self
-                .list_access(block)
-                .await?
-                .entries
-                .iter()
-                .any(|entry| {
+            && self.list_access(block).await.is_ok_and(|listed| {
+                listed.entries.iter().any(|entry| {
                     entry.account == account
                         && entry.granted.is_some_and(|granted| granted > Access::None)
-                });
+                })
+            });
         if level == be_block_keys::Level::None
             && named.is_none_or(|(named, _)| named == be_block_keys::Level::None)
             && !applied
