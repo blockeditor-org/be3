@@ -14,10 +14,14 @@ fn a_quoted_code_lines_prefix_takes_the_gutter_before_its_background() {
     editor.snapshot("a_quoted_code_lines_prefix_takes_the_gutter_before_its_background_before");
 
     editor.key(Key::ArrowRight, Modifiers::NONE);
-    editor.snapshot("a_quoted_code_lines_prefix_takes_the_gutter_before_its_background_after_the_mark");
+    editor.snapshot(
+        "a_quoted_code_lines_prefix_takes_the_gutter_before_its_background_after_the_mark",
+    );
 
     editor.key(Key::ArrowRight, Modifiers::NONE);
-    editor.snapshot("a_quoted_code_lines_prefix_takes_the_gutter_before_its_background_after_the_space");
+    editor.snapshot(
+        "a_quoted_code_lines_prefix_takes_the_gutter_before_its_background_after_the_space",
+    );
 
     editor.key(Key::ArrowLeft, Modifiers::SHIFT);
     editor.key(Key::ArrowLeft, Modifiers::SHIFT);
