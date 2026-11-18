@@ -375,49 +375,9 @@ pub(crate) fn Stage(
         }) as Draw
     };
 
-    // The stage's presses are caught by an `Interactive` laid over the table: a drag
-    // source's face takes its child's own size, which the table, filling whatever it is
-    // given, does not have.
+    // The stage's presses are caught by the `Interactive` around the table.
     let built = view! {
-        <Layers @node_ref=&stage>
-            <List spacing=Space::None>
-                <ListItem grow=1.0>
-                    <Canvas view={canvas} @node_ref={&content}>
-                        <ForEach value={item_keys}>|id: ItemId|
-                            <TableItem id layout={layout} play={play} hidden={hidden} />
-                        </ForEach>
-                        <ForEach value={spot_keys}>|spot: Spot|
-                            <SpotItem spot layout={layout} play={play} />
-                        </ForEach>
-                        <CanvasItem
-                            x=0.0
-                            y=0.0
-                            width={move || bounds.get().width().max(1.0)}
-                            height={move || bounds.get().height().max(1.0)}
-                            @test_id={"game.board"}
-                        >
-                            <Drawing draw={marks_draw} />
-                        </CanvasItem>
-                    </Canvas>
-                </ListItem>
-                <HandBar hand bar play={play} hidden />
-            </List>
-            <Canvas view={screen_view()}>
-                <ForEach value={motion.flying}>|id: ItemId|
-                    <FlightItem id motion={motion} />
-                </ForEach>
-                <CanvasItem
-                    x={create_memo(move || lifted_rect.get().left())}
-                    y={create_memo(move || lifted_rect.get().top())}
-                    width={create_memo(move || lifted_rect.get().width())}
-                    height={create_memo(move || lifted_rect.get().height())}
-                    clip=false
-                    @test_id={"game.lifted"}
-                >
-                    <Drawing draw={lifted_draw} />
-                </CanvasItem>
-            </Canvas>
-            <Interactive
+        <Interactive
                 focusable=true
                 on_key={on_key}
                 capture_presses=true
@@ -428,9 +388,46 @@ pub(crate) fn Stage(
                 on_active_change={on_active_change}
                 on_pointer={beui::unstyled::gestures::secondary_drag(on_secondary_drag)}
             >
-                <Frame />
-            </Interactive>
-        </Layers>
+            <Layers @node_ref=&stage>
+                <List spacing=Space::None>
+                    <ListItem grow=1.0>
+                        <Canvas view={canvas} @node_ref={&content}>
+                            <ForEach value={item_keys}>|id: ItemId|
+                                <TableItem id layout={layout} play={play} hidden={hidden} />
+                            </ForEach>
+                            <ForEach value={spot_keys}>|spot: Spot|
+                                <SpotItem spot layout={layout} play={play} />
+                            </ForEach>
+                            <CanvasItem
+                                x=0.0
+                                y=0.0
+                                width={move || bounds.get().width().max(1.0)}
+                                height={move || bounds.get().height().max(1.0)}
+                                @test_id={"game.board"}
+                            >
+                                <Drawing draw={marks_draw} />
+                            </CanvasItem>
+                        </Canvas>
+                    </ListItem>
+                    <HandBar hand bar play={play} hidden />
+                </List>
+                <Canvas view={screen_view()}>
+                    <ForEach value={motion.flying}>|id: ItemId|
+                        <FlightItem id motion={motion} />
+                    </ForEach>
+                    <CanvasItem
+                        x={create_memo(move || lifted_rect.get().left())}
+                        y={create_memo(move || lifted_rect.get().top())}
+                        width={create_memo(move || lifted_rect.get().width())}
+                        height={create_memo(move || lifted_rect.get().height())}
+                        clip=false
+                        @test_id={"game.lifted"}
+                    >
+                        <Drawing draw={lifted_draw} />
+                    </CanvasItem>
+                </Canvas>
+            </Layers>
+        </Interactive>
     };
     // Measured from the start, so a lift reads where the stage is.
     if let Some(node) = stage.try_get() {
