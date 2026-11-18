@@ -81,14 +81,53 @@ mkdir -p "$ghostty"
 tar -xzf "$source" -C "$ghostty" --strip-components 1
 (cd "$ghostty" && patch --quiet -p1) < "$patch"
 
-# Each package into the cache the build reads. The cache is content addressed
-# and every package is pinned by hash in a .zon manifest, so the build finds
-# them there and fetches nothing; one it still lacks fails the build, naming
-# its URL, which is how a newer Ghostty asks for another download in BUCK.
-for package in "${packages[@]}"; do
-    package="$(realpath "$package")"
-    (cd "$ghostty" && zig fetch "$package" > /dev/null)
-done
+# Each package unpacked into a package directory the build reads with
+# --system, which also stops it from fetching anything: one it still lacks
+# fails the build, naming the package, which is how a newer Ghostty asks for
+# another download in BUCK. Zig 0.17's `zig fetch` only stores an archive,
+# which --system cannot read, so a throwaway project that depends on every
+# package by a file:// URL has `zig build --fetch` unpack them as a build
+# would. Each package's hash comes from Ghostty's deps/packages.json, matched
+# by the basename of its URL, which is the name BUCK gives its download.
+packages_dir="$scratch/packages"
+shim="$scratch/shim"
+mkdir -p "$packages_dir" "$shim"
+echo 'pub fn build(_: *@import("std").Build) void {}' > "$shim/build.zig"
+{
+    echo '.{'
+    echo '    .name = .fetch_shim,'
+    echo '    .version = "0.0.0",'
+    # What Zig computes for the name fetch_shim; it rejects any other.
+    echo '    .fingerprint = 0x5d559c7454d9543b,'
+    echo '    .paths = .{""},'
+    echo '    .dependencies = .{'
+    index=0
+    for package in "${packages[@]}"; do
+        package="$(realpath "$package")"
+        # deps/packages.json is generated and formatted by prettier: each
+        # package is a key indented by two spaces, followed by its "url"
+        # indented by four.
+        hash="$(awk -v name="${package##*/}" '
+            /^  "[^"]*": \{/ { key = $0; sub(/^  "/, "", key); sub(/".*/, "", key) }
+            /^    "url": "/ {
+                url = $0
+                sub(/^    "url": "/, "", url)
+                sub(/",?[[:space:]]*$/, "", url)
+                sub(/.*\//, "", url)
+                if (url == name) { print key; exit }
+            }
+        ' "$ghostty/deps/packages.json")"
+        if [[ -z "$hash" ]]; then
+            echo "Ghostty's deps/packages.json has no package named ${package##*/}" >&2
+            exit 1
+        fi
+        echo "        .p$index = .{ .url = \"file://$package\", .hash = \"$hash\" },"
+        index=$((index + 1))
+    done
+    echo '    },'
+    echo '}'
+} > "$shim/build.zig.zon"
+(cd "$shim" && zig build --fetch=needed --pkg-dir "$packages_dir" --cache-dir "$scratch/shim-cache")
 
 # app-runtime=none and emit-lib-vt leave the terminal emulator and nothing
 # else: no GUI, no font stack, no xcframework. SIMD is what would pull in the
@@ -96,6 +135,7 @@ done
 # needs and more than the browser can link.
 zig_arguments=(
     build
+    --system "$packages_dir"
     -Demit-lib-vt=true
     -Demit-xcframework=false
     -Dapp-runtime=none

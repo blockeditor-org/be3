@@ -135,7 +135,7 @@ impl Terminal {
     }
 
     fn scroll(&mut self, behavior: sys::ScrollViewport) {
-        unsafe { sys::ghostty_terminal_scroll_viewport(self.handle, behavior) }
+        let _ = unsafe { sys::ghostty_terminal_scroll_viewport(self.handle, behavior) };
     }
 
     pub(crate) fn handle(&self) -> sys::Terminal {

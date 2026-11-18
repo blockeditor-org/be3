@@ -169,7 +169,7 @@ impl KeyEncoder {
     pub fn encode(&mut self, terminal: &Terminal, input: &KeyInput<'_>) -> Vec<u8> {
         let event = self.event;
         unsafe {
-            sys::ghostty_key_encoder_setopt_from_terminal(self.encoder, terminal.handle());
+            sys::ghostty_key_encoder_set_from_terminal(self.encoder, terminal.handle());
             sys::ghostty_key_event_set_action(
                 event,
                 match input.pressed {
@@ -184,7 +184,13 @@ impl KeyEncoder {
                 false => 0,
             };
             sys::ghostty_key_event_set_consumed_mods(event, consumed);
-            sys::ghostty_key_event_set_utf8(event, input.text.as_ptr().cast(), input.text.len());
+            sys::ghostty_key_event_set_utf8(
+                event,
+                sys::GhosttyString {
+                    ptr: input.text.as_ptr(),
+                    len: input.text.len(),
+                },
+            );
             sys::ghostty_key_event_set_unshifted_codepoint(
                 event,
                 input.unshifted.map_or(0, u32::from),
@@ -280,8 +286,8 @@ impl MouseEncoder {
         };
         let event = self.event;
         unsafe {
-            sys::ghostty_mouse_encoder_setopt_from_terminal(self.encoder, terminal.handle());
-            sys::ghostty_mouse_encoder_setopt(
+            sys::ghostty_mouse_encoder_set_from_terminal(self.encoder, terminal.handle());
+            sys::ghostty_mouse_encoder_set(
                 self.encoder,
                 sys::MOUSE_ENCODER_OPT_SIZE,
                 ptr::from_ref(&size).cast(),

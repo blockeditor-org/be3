@@ -1,8 +1,8 @@
 diff --git a/pkg/wuffs/build.zig b/pkg/wuffs/build.zig
-index 82cfec3..960af51 100644
+index 80252a3e3..538b9c75d 100644
 --- a/pkg/wuffs/build.zig
 +++ b/pkg/wuffs/build.zig
-@@ -35,8 +35,11 @@ pub fn build(b: *std.Build) !void {
+@@ -42,8 +42,11 @@ pub fn build(b: *std.Build) !void {
  
      translate: {
          const wuffs_dep = b.lazyDependency("wuffs", .{}) orelse break :translate;
@@ -16,7 +16,7 @@ index 82cfec3..960af51 100644
              // Wuffs only needs stdlib.h and string.h from libc, and only for
              // a handful of declarations. We provide minimal versions of these
 diff --git a/pkg/wuffs/include/stdlib.h b/pkg/wuffs/include/stdlib.h
-index 5c05074..320052a 100644
+index 5c0507438..320052ae9 100644
 --- a/pkg/wuffs/include/stdlib.h
 +++ b/pkg/wuffs/include/stdlib.h
 @@ -10,4 +10,12 @@ void *calloc(size_t count, size_t size);
@@ -33,10 +33,10 @@ index 5c05074..320052a 100644
 +
  #endif
 diff --git a/pkg/wuffs/src/main.zig b/pkg/wuffs/src/main.zig
-index ec9f8da..42b7447 100644
+index f9aa7c3ab..8b6609721 100644
 --- a/pkg/wuffs/src/main.zig
 +++ b/pkg/wuffs/src/main.zig
-@@ -24,7 +24,7 @@ pub const ImageData = struct {
+@@ -25,7 +25,7 @@ pub const ImageData = struct {
  // definition wins. Hidden keeps them out of the export table where the
  // format honors it (e.g. wasm).
  comptime {
@@ -46,10 +46,10 @@ index ec9f8da..42b7447 100644
              .name = "calloc",
              .linkage = .weak,
 diff --git a/src/build/GhosttyLibVt.zig b/src/build/GhosttyLibVt.zig
-index 690f864..fe4cc29 100644
+index 7e0662ec2..19bbbc390 100644
 --- a/src/build/GhosttyLibVt.zig
 +++ b/src/build/GhosttyLibVt.zig
-@@ -241,14 +241,22 @@ fn initLib(
+@@ -277,14 +277,22 @@ fn initLib(
          // Otherwise, you get undefined symbol errors. This could cause
          // problems if you're linking multiple static Zig libraries but
          // we'll cross that bridge when we get to it.
@@ -74,20 +74,3 @@ index 690f864..fe4cc29 100644
      }
  
      if (target.result.os.tag == .windows) {
-diff --git a/src/lib_vt.zig b/src/lib_vt.zig
-index a0227ae..6c2c628 100644
---- a/src/lib_vt.zig
-+++ b/src/lib_vt.zig
-@@ -187,7 +187,11 @@ comptime {
-         // emitted. This must stay inside the root guard so that
-         // downstream Zig module consumers don't get the override
-         // injected into their binaries. See quirks_memset.zig.
--        _ = @import("quirks_memset.zig");
-+        //
-+        // Not on Darwin: there compiler_rt's memset is not weak, so the
-+        // two collide in a static library, and libSystem's is already
-+        // vectorized.
-+        if (!builtin.os.tag.isDarwin()) _ = @import("quirks_memset.zig");
- 
-         const c = terminal.c_api;
-         const features = terminal.options;
