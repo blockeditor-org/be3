@@ -225,13 +225,16 @@ Later, not part of this plan: the Post access level on `append`
 (plans/deferred/chat_moderation.md), comments on any block, the tracker's
 history as a log.
 
-## Questions for the user
+## Decided
 
-- **Duplicate.** A signature binds the block it was made in, so a duplicated
-  chat cannot verify its copied messages. Copy them marked as copied
-  (unverified, original author and time shown), or duplicate only the
-  settings and start an empty chat?
-- **Who may redact.** The author and Manage only (proposed), or anyone with
-  Edit as today's deletions allow?
-- **Taken-back reactions.** Redact the earlier reaction (nobody learns who
-  once reacted) or keep it as history?
+The user chose option A, and these answers (2026-11-18):
+
+- **Duplicate** copies the settings and starts an empty chat; export still
+  carries the whole history with its signatures.
+- **Redaction** is for the entry's author and Manage only; Edit alone no
+  longer removes others' messages.
+- **A taken-back reaction** redacts the earlier one, so the log keeps only
+  that an entry existed and who wrote it.
+- **Verification cost**: a device verifies each entry it reads on its own and
+  the chain only from the last head it verified, page by page as it scrolls;
+  it never reads a whole log to trust its end.
