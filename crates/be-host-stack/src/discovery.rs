@@ -232,6 +232,18 @@ pub fn exported_whole(content_type: Uuid) -> bool {
         })
 }
 
+/// Whether an app's manifest says `content_type` counts what is unread (`counts_unread`), so the
+/// stack starts its module to count it (`unread`).
+pub fn counts_unread(content_type: Uuid) -> bool {
+    apps()
+        .manifests
+        .iter()
+        .flat_map(|manifest| &manifest.block_types)
+        .any(|block_type| {
+            block_type.counts_unread && Uuid::from_bytes(block_type.content_type()) == content_type
+        })
+}
+
 /// What a start read to find its apps: the build's id, and each manifest the index names with
 /// what reading it gave, or why the index could not be read. On the web the page reads it once
 /// and hands it to its host's worker as a stack starts there (`web::fetched`), since the two

@@ -1266,6 +1266,7 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
 
     /// Answers what the store, the fetches and the workers have for the editor since.
     fn answer_wire(&mut self) {
+        self.store.sign_in(self.host.account_id());
         self.link.answer(&self.store, &mut self.wire);
         self.fetches.answer(&mut self.wire);
         self.wire.poll_sandbox();
@@ -2187,6 +2188,7 @@ impl<A: BeuiRoot + AppEditor> Gui for BeuiTest<A> {
             self.step(events);
         }
         for _ in 0..HOST_ROUNDS {
+            self.store.sign_in(self.host.account_id());
             if self.inbox.is_empty() && !self.store.pending() {
                 break;
             }

@@ -151,6 +151,22 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
     }
 }
 
+/// Content that counts what the account has not read in it yet (a chat's messages from
+/// others), so a row showing the block can carry the count without opening it. Where the
+/// account read up to is never in the content, where others would see it, but in an owner-only
+/// settings kind of the type's own (`Reads`, `KindVisibility::Owner`): the host hands the
+/// count the account's layers of it, combined, with the content as the type loads it (only its
+/// first part for a type that loads only that), and keeps the answer on the block's row
+/// (guides/blocks/host.md, "Unread counts"). Registered with the type's `unread` part
+/// (`be_block_types!`).
+pub trait Unread: BlockContent {
+    type Reads: Layered;
+
+    /// How many of the things in this content `me` has not read, by `reads`. Counted from what
+    /// is loaded alone: a type that loads only its first part reads no other part for it.
+    fn count_unread(&self, block: Uuid, reads: &Self::Reads, me: Uuid) -> u32;
+}
+
 /// A searchable document of a block's content (`BlockContent::search_text`).
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct SearchDocument {

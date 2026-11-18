@@ -76,3 +76,14 @@ impl Root for ChatReads {
 }
 
 pub type ChatReadsContent = Document<ChatReads>;
+
+impl be_block_content::Unread for crate::ChatContent {
+    type Reads = ChatReads;
+
+    /// The messages others sent since the furthest place any of the account's devices read
+    /// the chat up to (`ChatContent::unread`), from the header alone.
+    fn count_unread(&self, block: Uuid, reads: &ChatReads, me: Uuid) -> u32 {
+        let places = reads.places(block).into_iter().map(|place| place.message);
+        u32::try_from(self.unread(places, me)).unwrap_or(u32::MAX)
+    }
+}

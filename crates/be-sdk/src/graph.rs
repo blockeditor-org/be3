@@ -118,6 +118,9 @@ pub struct BlockInfo {
     /// The host is offline and holds no version of the block's content whole, so the block can
     /// be neither opened nor changed until it reconnects.
     pub out_of_reach: bool,
+    /// How many things in the block's content this account has not read, for a type that
+    /// counts them (a chat's new messages): what a row shows as a badge. Zero otherwise.
+    pub unread: u32,
 }
 
 impl BlockInfo {
@@ -136,6 +139,7 @@ impl BlockInfo {
             size: 0,
             tree_size: 0,
             out_of_reach: false,
+            unread: 0,
         }
     }
 
@@ -221,6 +225,7 @@ impl BlockInfo {
             size: self.size,
             tree_size: self.tree_size,
             out_of_reach: self.out_of_reach,
+            unread: self.unread,
         }
     }
 
@@ -242,6 +247,7 @@ impl BlockInfo {
             size: info.size,
             tree_size: info.tree_size,
             out_of_reach: info.out_of_reach,
+            unread: info.unread,
         }
     }
 }

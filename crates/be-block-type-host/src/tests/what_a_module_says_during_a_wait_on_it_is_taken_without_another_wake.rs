@@ -48,6 +48,7 @@ impl Guest for Talker {
                     whole_bytes: true,
                     blank: Vec::new(),
                     blank_description: Description::default(),
+                    reads: None,
                 }];
                 self.connection
                     .complete(started.op, Outcome::returned(&types));
