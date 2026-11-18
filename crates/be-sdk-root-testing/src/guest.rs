@@ -248,7 +248,10 @@ impl input::Guest for Root {
 }
 
 impl paintings::Guest for Root {
-    /// Its own surface's painting, all `ROOT_COLOR`, and what beui painted of its strip.
+    /// Its own surface's painting, all `ROOT_COLOR`, and what beui painted of its strip. After a
+    /// `RESIZES` frame the painting has the surface's new size while the host still shows the
+    /// first fill at the old one: the root never presents it again, which is what that frame
+    /// tests (the host keeps a surface's last frame until it is presented anew).
     fn paintings(&self) -> LocalFuture<Vec<u8>> {
         let own = self.own.borrow().as_ref().map(|own| {
             let (width, height) = own.size();

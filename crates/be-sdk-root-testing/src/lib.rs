@@ -10,8 +10,8 @@
 //! strip `TEXT_SURFACE` it draws with beui (be-sdk-beui-root): `TEXT` in the host's fonts, and
 //! `LATER_TEXT` in its place from `LATER` on.
 //! A frame at `CLOSES` lets go of the app, which stops it. The window's input is routed by the
-//! library over the layers it drew last, and what lands on its own surface its beui document
-//! hears.
+//! library over the layers it drew last; what lands on `TEXT_SURFACE` its beui document hears,
+//! and what lands on its own surface beside the strip nothing does.
 //!
 //! The triangle needs no block content (its `connect` reads nothing), so the root serves it no
 //! block store: that waits for step 5.

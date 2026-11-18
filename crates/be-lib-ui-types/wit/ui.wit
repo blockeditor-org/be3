@@ -483,9 +483,8 @@ interface types {
         data: list<u8>,
     }
 
-    /// Faces to add, or with `replace` the whole set: what a host tells an app and a root of
-    /// the fonts it bundles, and what beui draws text in (beui-font-freetype's
-    /// `FontSources::of_faces`).
+    /// Faces to add, or with `replace` the whole set: the fonts a host bundles, which it tells
+    /// an app and a root.
     record fonts {
         replace: bool,
         faces: list<font-face>,
