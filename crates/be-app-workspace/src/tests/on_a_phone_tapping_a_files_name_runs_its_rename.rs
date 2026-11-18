@@ -20,6 +20,12 @@ fn on_a_phone_tapping_a_files_name_runs_its_rename() {
         .find(|placement| placement.content.block_id() == Some(notes.into_bytes()))
         .expect("the block is on show")
         .child;
+    fixture.settle();
+    fixture.test.settle();
+    assert!(
+        !fixture.test.shown("dock.title.cue"),
+        "a name nothing renames shows no cue"
+    );
     fixture.test.report_children(|placement| ChildStatus {
         instance: EditorInstanceId(0),
         view: ViewId::MAIN,
@@ -35,6 +41,7 @@ fn on_a_phone_tapping_a_files_name_runs_its_rename() {
             true => MenuEntry::flatten(&[MenuEntry::Command(MenuCommand {
                 id: "editor.rename".into(),
                 label: "Rename".into(),
+                glyph: "pencil-line".into(),
                 enabled: true,
                 pin: MenuPin::Title,
                 ..MenuCommand::default()
@@ -58,6 +65,10 @@ fn on_a_phone_tapping_a_files_name_runs_its_rename() {
     });
     fixture.settle();
     fixture.test.settle();
+    assert!(
+        fixture.test.shown("dock.title.cue"),
+        "a name tapping renames carries the rename's pencil"
+    );
     fixture
         .test
         .snapshot("a_phones_bar_offers_its_files_name_to_rename");

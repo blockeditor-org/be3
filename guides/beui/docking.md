@@ -140,7 +140,9 @@ it is on a phone; thresholds are the styled `Docking`'s `NARROW_WIDTH`, `SHORT_H
 `PHONE_LANDSCAPE_WIDTH`):
 
 - **Stacked** (`DockMode::Stacked`): the focused tab fills the dock under the dock's own stacked bar
-  (icon and title, a count that opens a sheet of open tabs, back). A joined editor's stage (the one
+  (icon and title, a count that opens a sheet of open tabs, back). A tab's `Pin::Title` action
+  makes the title a button that runs it, with the action's glyph after the title as the cue for
+  what a tap does (a pencil for Rename; a chevron when it has none; `dock.title.cue`). A joined editor's stage (the one
   bare pane of its group) is named and counted as the tab its dock took the place of
   (`DockState::standing_in`), so a document reads as itself. No tab bars, splitters or
   windows, but the whole state is kept, so widening tiles it again. Locks are ignored while

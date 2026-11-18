@@ -38,10 +38,6 @@ Fixed items are removed as they land.
   keyboard to another block. Done: a pending rename is dropped, and a started
   one ends as left, once the tree's keyboard goes to another block, shown by a
   file tree test.
-- **Renaming from a stacked bar's title.** On a phone a new block is named from
-  its title in the stacked bar, which shows no cue that a tap renames it.
-  Done: the title reads as renamable (a cue the styled dock draws), shown in a
-  painting of the stacked bar.
 
 ## 2. Docking
 
