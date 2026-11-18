@@ -172,10 +172,16 @@ pub trait Unread: BlockContent {
     /// same reads, since the host recounts a block when the place's bytes change.
     fn places(reads: &Self::Reads) -> Vec<(Uuid, Self::Place)>;
 
-    /// How many of the things in this content `me` has not read, by `place`. Counted from what
-    /// is loaded alone: a type that loads only its first part reads no other part for it.
-    fn count_unread(&self, place: &Self::Place, me: Uuid) -> u32;
+    /// How many of the things in this content and `log` `me` has not read, by `place`. Counted
+    /// from what is loaded alone: a type that loads only its first part reads no other part for
+    /// it, and a type with a signed log is handed its latest entries, at most `UNREAD_ENTRIES`
+    /// (none for a type without), so a count past them is at least theirs.
+    fn count_unread(&self, place: &Self::Place, log: &[LogItem], me: Uuid) -> u32;
 }
+
+/// How many of a block's latest log entries a count of what is unread is handed
+/// (`Unread::count_unread`): past them, an editor shows the count as at least as many.
+pub const UNREAD_ENTRIES: u32 = 100;
 
 /// A searchable document of a block's content (`BlockContent::search_text`).
 #[derive(Clone, Debug, Default, Eq, PartialEq)]

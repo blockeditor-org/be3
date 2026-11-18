@@ -72,7 +72,7 @@ type ReplayFn = fn(Option<&[u8]>, &Journal) -> Result<Vec<u8>, String>;
 #[derive(Clone, Copy)]
 struct UnreadFns {
     places: fn(&[Vec<u8>]) -> Result<Vec<(Uuid, Vec<u8>)>, String>,
-    count: fn(Content, Option<&[u8]>, Uuid) -> Result<u32, String>,
+    count: fn(Content, Option<&[u8]>, &[be_block_content::LogItem], Uuid) -> Result<u32, String>,
 }
 
 /// Content handed to a stateless request: as a host loads a commit, or whole bytes.
@@ -344,6 +344,7 @@ fn places<C: Unread>(reads: &[Vec<u8>]) -> Result<Vec<(Uuid, Vec<u8>)>, String> 
 fn count_unread<C: Unread>(
     content: Content,
     place: Option<&[u8]>,
+    log: &[be_block_content::LogItem],
     me: Uuid,
 ) -> Result<u32, String> {
     let content = match content {
@@ -360,7 +361,7 @@ fn count_unread<C: Unread>(
         Some(bytes) => postcard::from_bytes(bytes).map_err(|error| error.to_string())?,
         None => C::Place::default(),
     };
-    Ok(content.count_unread(&place, me))
+    Ok(content.count_unread(&place, log, me))
 }
 
 /// Content as a commit writes it: its parts, unchanged ones by their refs, and what it
@@ -553,6 +554,7 @@ impl Module {
         content_type: Uuid,
         bytes: &[u8],
         reads: &[Vec<u8>],
+        log: &[be_sdk_type_api::LogItem],
         block: Uuid,
         account: Uuid,
     ) -> Option<u32> {
@@ -562,7 +564,8 @@ impl Module {
             .iter()
             .find(|(of, _)| *of == block)
             .map(|(_, place)| place.as_slice());
-        (fns.count)(Content::Bytes(bytes), place, account).ok()
+        let log: Vec<_> = log.iter().cloned().map(log_item).collect();
+        (fns.count)(Content::Bytes(bytes), place, &log, account).ok()
     }
 
     fn unread_fns(&self, content_type: Uuid) -> Result<UnreadFns, Failure> {
@@ -1197,10 +1200,12 @@ impl replicas::Guest for Module {
         content_type: Uuid,
         content: Loaded,
         place: Option<Vec<u8>>,
+        log: Vec<be_sdk_type_api::LogItem>,
         account: Uuid,
     ) -> LocalFuture<Result<u32, Failure>> {
+        let log: Vec<_> = log.into_iter().map(log_item).collect();
         Box::pin(ready(match self.unread_fns(content_type) {
-            Ok(fns) => (fns.count)(Content::Loaded(content), place.as_deref(), account)
+            Ok(fns) => (fns.count)(Content::Loaded(content), place.as_deref(), &log, account)
                 .map_err(Failure::Malformed),
             Err(failure) => Err(failure),
         }))
