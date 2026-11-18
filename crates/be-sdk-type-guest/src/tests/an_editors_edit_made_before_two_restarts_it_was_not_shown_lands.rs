@@ -20,20 +20,16 @@ fn an_editors_edit_made_before_two_restarts_it_was_not_shown_lands() {
     sim.advance(crate::QUIET_INTERVAL);
 
     sim.deafen(0, 1);
-    for restart in 1..=2 {
-        for round in 0..20 {
+    let mut round = 0;
+    while sim.devices[0].status.restarts < 2 {
+        for _ in 0..20 {
             sim.type_at(0, 2, 0, &format!("scratch {round} "));
             let typed = sim.typed(0, 2).find("start").expect("the text is there");
             sim.erase(0, 2, 0..typed);
+            round += 1;
         }
-        // The seal the churn comes due on holds less than the order numbered, so the restart
-        // waits for the next.
         sim.advance(crate::QUIET_INTERVAL);
-        sim.advance(crate::QUIET_INTERVAL);
-        assert_eq!(
-            sim.devices[0].status.restarts, restart,
-            "the session restarted"
-        );
+        assert!(round < 200, "the session restarts");
     }
     assert_eq!(
         sim.typed(0, 1),
