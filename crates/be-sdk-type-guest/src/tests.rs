@@ -140,6 +140,7 @@ mod status_cuts_count_a_held_drag_once_it_commits;
 mod tentative;
 mod the_next_editor_holds_the_lease_once_its_holder_leaves;
 mod two_drags_in_one_block_commit_as_one_step_when_the_second_ends;
+mod two_editors_of_one_block_on_one_device_each_land_what_they_type_unheard;
 mod two_editors_typing_at_once_keep_their_own_undo_steps;
 mod two_edits_one_submission_held_go_again_as_it_once_both_are_given_again;
 mod two_oversized_edits_in_a_row_land_in_order;
@@ -150,7 +151,6 @@ mod undo_mid_drag_cancels_it;
 mod undo_reverts_only_this_devices_edit;
 mod what_is_typed_while_a_seal_waits_on_the_server_is_journaled_at_once;
 mod what_is_typed_while_a_seal_waits_survives_a_crash_before_the_seal_is_answered;
-mod two_editors_of_one_block_on_one_device_each_land_what_they_type_unheard;
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 struct Checklist {
