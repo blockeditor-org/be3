@@ -234,7 +234,6 @@ pub(crate) fn bound_may_read(query: &Query, follow: bool) -> bool {
         | Query::History(_)
         | Query::Log { .. }
         | Query::BlockLog { .. }
-        | Query::LogRedactions(_)
         | Query::KeyWork
         | Query::RecoveryKey
         | Query::Organizations
@@ -244,7 +243,9 @@ pub(crate) fn bound_may_read(query: &Query, follow: bool) -> bool {
         | Query::Session { .. } => true,
         // The keys topic tells of keys for any block the account may open.
         Query::Keys { .. } => !follow,
-        Query::Access(_)
+        // It asks of many blocks, the agent's own among others.
+        Query::LogRedactions(_)
+        | Query::Access(_)
         | Query::Names(_)
         | Query::Revocations { .. }
         | Query::SigningKeys(_)
