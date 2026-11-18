@@ -175,7 +175,11 @@ impl Sessions {
             .map(|(client, account)| (*client, *account))
             .collect();
         let mut members = session.members();
-        members.retain(|member| *member != client);
+        // A joiner has the host its join answers; a claimant hears its own claim, in order
+        // with every other change of host.
+        if joined {
+            members.retain(|member| *member != client);
+        }
         self.issued = self.issued.max(entry.index);
         let state = session.state.clone();
         let mut told = state.clients();

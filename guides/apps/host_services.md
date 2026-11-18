@@ -372,7 +372,15 @@ the host, the server's claimed holder; a later claim elsewhere makes that device
 the host, and this one stops its component. When the host leaves, no one hosts
 until a device with an editor open starts its component and claims. One that
 stops while its replica stays open (a preview) has the replica join the session
-again (`release_host`, `Replicas::rejoin_block`), which drops the claim. The component hears its block's host channel members as `editor-event.member`
+again (`release_host`, `Replicas::rejoin_block`), which drops the claim; so does
+one stopped because another device claimed after it, since its claim stays in the
+session and would name this device host again once that device goes. Which claims
+those are is be-host-stack's `Hosting::claimed`, each claim since the replica last
+joined, and be-host also releases any block the server names this device host of
+(`be_host_stack::hosted`) with no component running. That this device hosts comes
+only from `session-event.host`, the claimant's own included, never from a claim's
+answer, so it stays in order with every other claim; Keep hosting is offered only
+where a component runs and the server names this device host. The component hears its block's host channel members as `editor-event.member`
 (`member-event`: `joined` with the member's number, account and level, `said`,
 `left`), which be-host-stack admits and checks (`crates/be-host-stack/src/hosting.rs`,
 guides/blocks/keys.md, "Hosted channels") and the runtime passes on

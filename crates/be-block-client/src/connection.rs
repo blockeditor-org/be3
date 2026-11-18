@@ -105,11 +105,13 @@ pub enum Event {
         received: i64,
     },
     /// Who hosts a block's session now (`session-event.host`), and whether it is this
-    /// connection. Told too as each join of the session is answered, with the host as of it.
+    /// connection. Told too as each join of the session is answered, with the host as of it
+    /// (`joined`): a join starts this connection in the session afresh, with no claim of its own.
     Host {
         block: Uuid,
         host: Option<be_block_protocol::SessionHost>,
         ours: bool,
+        joined: bool,
     },
     /// A Join member came to or left a block's session this connection holds the lease of
     /// (`session-event.joiner`).
@@ -398,12 +400,16 @@ impl Connection {
                         payload,
                         received,
                     },
-                    SessionEvent::Host(host) => {
-                        let ours = host.is_some_and(|host| {
+                    SessionEvent::Host(host) => Event::Host {
+                        block,
+                        host,
+                        // Worked out once held events are let go, as the join they wait on
+                        // names this connection's client.
+                        ours: host.is_some_and(|host| {
                             self.registry().clients.get(&block) == Some(&host.client)
-                        });
-                        Event::Host { block, host, ours }
-                    }
+                        }),
+                        joined: false,
+                    },
                     SessionEvent::Joiner(change) => Event::Joiner { block, change },
                 };
                 let mut registry = self.registry();
@@ -479,8 +485,12 @@ impl Connection {
                 block,
                 host: joined.host,
                 ours: joined.host.is_some_and(|host| host.client == joined.client),
+                joined: true,
             });
-            for event in held {
+            for mut event in held {
+                if let Event::Host { host, ours, .. } = &mut event {
+                    *ours = host.is_some_and(|host| host.client == joined.client);
+                }
                 let _ = connection.events.send(event);
             }
             Ok(joined)

@@ -179,6 +179,13 @@ impl Hosts {
             }
             keep
         });
+        // One the server names this device host of that runs no component here (a claim left
+        // from one that stopped, named again once a later claimant went) is let go too.
+        for block in be_host_stack::hosted() {
+            if !self.running.contains_key(&block) && !wanted.contains_key(&block) {
+                be_host_stack::release_host(block);
+            }
+        }
         for (id, block) in wanted {
             if self.running.contains_key(&id) || self.failed.contains(&id) {
                 continue;
@@ -231,11 +238,15 @@ impl Hosts {
         ));
     }
 
-    /// Tells the runtime which blocks this device hosts and keeps, so their editors show it.
+    /// Tells the runtime which blocks this device hosts and keeps, so their editors show it: one
+    /// whose component runs here, once the server names this device its host, so a claim
+    /// refused or overtaken offers no Keep hosting.
     fn tell_runtime(&mut self) {
+        let hosted = be_host_stack::hosted();
         let now: HashMap<Uuid, HostingHere> = self
             .running
             .keys()
+            .filter(|block| hosted.contains(block))
             .map(|block| {
                 let hosting = match self.kept.contains_key(block) {
                     true => HostingHere::Kept,

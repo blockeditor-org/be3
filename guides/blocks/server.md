@@ -440,8 +440,10 @@ counts and records nothing: `reserve-uploads` did before it signed.
   account (`SessionRegistry::host`): the lease holder only by a claim
   (`Membership::claimed_holder`), never the first editor the lease falls to
   with none, since a device claims as its host component starts
-  (plans/hosted_blocks.md, step 4d2); the lease, who seals, is unchanged. The
-  claimant is not told of its own claim. `query.log` then proves the host to a
+  (plans/hosted_blocks.md, step 4d2); the lease, who seals, is unchanged. Every
+  member hears a change of host, its claimant too, so a claim reaches the device
+  that made it in order with any claim after it; only a joiner learns the host
+  from its join's answer instead. `query.log` then proves the host to a
   reader below Edit, and `query.access` names it to a manager as who hosts the
   block now (`access-list.host`, the share dialog's line on a hosted block).
 - **Join members** (plans/hosted_blocks.md): a caller below `View` joins as one

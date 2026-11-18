@@ -65,11 +65,9 @@ fn a_device_hosts_only_once_its_component_claims_the_lease() {
         !shared.hosted.contains(&block) && shared.session_hosts.get(&block) == Some(&None)
     });
     assert_eq!(host_heard_by(&player, block), None);
-    restart_host(block);
-    wait_until("hosts again", |shared| shared.hosted.contains(&block));
 
     // Another editor's device opens the block's replica, running the type's build as this
-    // device does, and claims the lease.
+    // device does.
     let Member { runtime, peer, .. } = other;
     let local = tokio::task::LocalSet::new();
     let session = local.block_on(&runtime, async move {
@@ -82,9 +80,32 @@ fn a_device_hosts_only_once_its_component_claims_the_lease() {
         local,
         session: Some(session),
     };
+
+    // A component starts here and the other device claims right after, while this device's
+    // claim may still be being answered: the later claim wins, and the answer to the earlier
+    // one does not bring hosting back.
+    restart_host(block);
+    wait_until("hosts again", |shared| shared.hosted.contains(&block));
     outside.claim();
     wait_until("hosts no longer", |shared| {
         !shared.hosted.contains(&block) && shared.session_hosts.get(&block) == Some(&Some(false))
     });
     assert!(!may_host(block), "another device hosts");
+
+    // Its component stops, as be-host stops one once another device hosts, while the replica
+    // stays open: the claim it made goes, so once the other device leaves, no one hosts, rather
+    // than this device by a claim no component stands behind.
+    release_host(block);
+    wait_until("joined again with no claim", |shared| {
+        shared.session_hosts.get(&block) == Some(&Some(false))
+    });
+    outside.leave();
+    wait_until("no one hosts once the other device left", |shared| {
+        shared.session_hosts.get(&block) == Some(&None) && !shared.hosted.contains(&block)
+    });
+    assert_eq!(
+        host_heard_by(&player, block),
+        None,
+        "an open replica whose claim went hosts nothing"
+    );
 }
