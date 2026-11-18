@@ -1,7 +1,8 @@
 //! The test double of `sign` and `verify` (plans/authorship.md): no key and no cryptography,
 //! only the contract. Every account signs bytes the same way, `signature(account, bytes)`, and
 //! verifying answers how far the test trusts the account (`BeuiTest::set_signer`) for that
-//! signature and `Signer::Bad` for any other, so a test forges a message by giving it a
+//! signature (`Signer::Replaced` only for a record that says when it arrived, `Changed` for one
+//! that does not) and `Signer::Bad` for any other, so a test forges a message by giving it a
 //! signature its author did not make.
 
 use std::collections::BTreeMap;
@@ -63,15 +64,16 @@ impl Signatures {
                 account,
                 bytes,
                 signature: signed,
-                ..
+                arrived,
             } => {
                 let account = Uuid::from_bytes(account);
                 let signer = match signed == signature(account, &bytes) {
-                    true => self
-                        .trusted
-                        .get(&account)
-                        .copied()
-                        .unwrap_or(Signer::Verified),
+                    true => match self.trusted.get(&account).copied() {
+                        // Only a record that keeps when the server took it can show it
+                        // arrived after the key was replaced, as the host's `verify` answers.
+                        Some(Signer::Replaced) if arrived.is_none() => Signer::Changed,
+                        trusted => trusted.unwrap_or(Signer::Verified),
+                    },
                     false => Signer::Bad,
                 };
                 Ok(reply.answer(&Ok(signer)))

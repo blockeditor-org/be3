@@ -770,7 +770,7 @@ Edit can write as someone else.
   since someone holding the old phrase can sign with it. A newer verified key
   marks the older ones replaced as of the server's clock as the device estimates
   it (`KnownSigner::replaced`, `Peer::server_now`); a record that keeps when the
-  server took it (`verify`'s `arrived`, chat's `Message::arrival`) and arrived
+  server took it (`verify`'s `arrived`, chat's `Message::arrival` and `Deletion::arrival`) and arrived
   more than a minute after that answers `Replaced`: louder than `Changed`, but
   not `Bad`, since the account's own devices not yet told of the new phrase and
   sends held offline sign with the old key too, as does someone holding the old
