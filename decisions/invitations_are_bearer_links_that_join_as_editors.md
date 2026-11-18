@@ -16,7 +16,7 @@ organization's invite list (guides/blocks/keys.md, "Inviting").
   escrow key and opens everything, so a leaked administrator invitation would
   hand over the organization. Promoting a member who is already the
   administrator's verified contact (`set-role`) is the one way to make one.
-- For an editor, the list showing who accepted, and `remove-member`, are enough
+- For an editor, the list showing who accepted, and removing a member, are enough
   of a check: no confirming step.
 - The invitation is read before sign-in (`read-invitation`), so the person
   sees who invited them, and to what, before registering.

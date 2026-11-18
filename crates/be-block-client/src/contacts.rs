@@ -200,10 +200,10 @@ pub struct GrantOffer {
 pub struct Finished {
     pub card: ContactCard,
     pub grant: Option<PendingGrant>,
-    /// For an invitation, the organization its accepter joined, which an administrator's device
-    /// signs them into (`Peer::finish_links`).
+    /// For an invitation, the organization its accepter joined, signing themselves in as they
+    /// accepted it: the link is finished in that organization.
     pub invited: Option<Uuid>,
-    /// The link, which `Peer::finish_links` deletes once it signed the grant or the member in,
+    /// The link, which `Peer::finish_links` deletes once it signed the grant, if any,
     /// with the mailbox message that brought its accepter's card (`letter`), so a device that
     /// stops before then finishes it again.
     pub(crate) link: Uuid,
@@ -1152,6 +1152,7 @@ pub async fn make_link(
             link: link_id(&code),
             card: me.seal(&code, CardRole::Owner),
             kind,
+            signed: None,
         },
     )
     .await??;
@@ -1232,7 +1233,9 @@ async fn held_verified(
 }
 
 /// Accepts a link of the kind `expected`: a contact link's grant, or an invitation's escrow
-/// key, is sealed to `identity` as it is taken.
+/// key, is sealed to `identity` as it is taken. Accepting an invitation signs this account into
+/// its organization's log, with the key the code derives, after the head the link names; read
+/// again and signed again if the log moved meanwhile.
 pub async fn accept_link(
     connection: &Arc<Connection>,
     identity: &RecoverySecret,
@@ -1243,7 +1246,7 @@ pub async fn accept_link(
     // The card names these keys; the server holds them first, so a record the link's owner
     // signs naming them (a member signed in) checks.
     register_identity(connection, identity).await?;
-    let (link, card) = open_link(connection, code, expected).await?;
+    let (mut link, card) = open_link(connection, code, expected).await?;
     let after = held_verified(
         connection,
         Uuid::from_bytes(me.account),
@@ -1283,21 +1286,57 @@ pub async fn accept_link(
             seal_pin(identity, invitation.organization, &opened.stamped(after))
         }
     };
-    let mut ops = vec![be_block_protocol::Op::AcceptLink {
-        link: link.id,
-        card: me.seal(code, CardRole::Accepter),
-        contact: OwnContact::new(card.clone(), after).seal(identity),
-        key: key,
-    }];
-    ops.extend(outdated(
+    let changes = outdated(
         &mailbox(connection).await?,
         Uuid::from_bytes(me.account),
         identity,
         &card,
-    ));
-    be_block_protocol::write_all::<(), _>(connection, None, ops).await??;
-    Ok((link, card))
+    );
+    // The log may move between reading the link and accepting it: a few tries, each after the
+    // head read last.
+    let mut tries = 0;
+    loop {
+        let member = match (&link.kind, link.head) {
+            (LinkKind::Invitation(invitation), Some(head)) => Some(
+                be_block_keys::Entry::accepted(
+                    code,
+                    invitation.organization.into_bytes(),
+                    head,
+                    me.account,
+                    identity.identity(),
+                )
+                .encode(),
+            ),
+            _ => None,
+        };
+        let mut ops = vec![be_block_protocol::Op::AcceptLink {
+            link: link.id,
+            card: me.seal(code, CardRole::Accepter),
+            contact: OwnContact::new(card.clone(), after).seal(identity),
+            key: key.clone(),
+            member,
+        }];
+        ops.extend(changes.iter().cloned());
+        let written = be_block_protocol::write_all::<(), _>(connection, None, ops).await?;
+        let Err(error) = written else {
+            return Ok((link, card));
+        };
+        tries += 1;
+        let signed_at = link.head;
+        if tries >= ACCEPT_TRIES || signed_at.is_none() {
+            return Err(error.into());
+        }
+        let (again, _) = open_link(connection, code, expected).await?;
+        if again.head == signed_at {
+            return Err(error.into());
+        }
+        link = again;
+    }
 }
+
+/// How often `accept_link` signs an invitation's acceptance again after the organization's log
+/// moved under it.
+const ACCEPT_TRIES: usize = 3;
 
 /// The links this account made that were accepted, each with its accepter's card opened with
 /// the code the account's block keeps, recorded in the block as a contact. One whose card does
@@ -1359,7 +1398,7 @@ pub(crate) async fn finish_links(
                 connection,
                 None,
                 vec![
-                    be_block_protocol::Op::DeleteLink(link),
+                    be_block_protocol::Op::DeleteLink { link, signed: None },
                     be_block_protocol::Op::DeleteMessage(letter),
                 ],
             )
@@ -1436,16 +1475,36 @@ pub(crate) async fn forget_link(block: &AccountRecords, link: Uuid) -> Result<()
 }
 
 /// Invites whoever opens the link into `organization`, as an editor: a link any account on
-/// the server accepts, once, before it expires. Its code is sealed to the inviter too, so the
-/// organization's invite list can show the link again (`invitation_link_code`).
+/// the server accepts, once, before it expires. Its code is kept in the account's block, so the
+/// organization's invite list can show the link again (`kept_links`). The invitation opens in
+/// the organization's log, `checked` as this administrator's device last read it, by the key
+/// the code derives, which signs its accepter in (`accept_link`).
 pub async fn invite(
     connection: &Arc<Connection>,
     identity: &RecoverySecret,
     me: &ContactCard,
     organization: Uuid,
     pinned: &Pinned,
+    checked: &be_block_keys::Checked,
 ) -> Result<InviteCode, ClientError> {
     let code = InviteCode::generate();
+    let signed = checked
+        .next(
+            identity,
+            me.account,
+            organization.into_bytes(),
+            be_block_keys::Record::Invitation(be_block_keys::Invitation {
+                key: code.invitation_key(organization.into_bytes()),
+                open: true,
+            }),
+        )
+        .ok_or_else(|| {
+            ClientError::Refused(
+                ErrorCode::PermissionDenied,
+                "this account is not served the organization's whole log".into(),
+            )
+        })?
+        .encode();
     let escrow = match pinned.is_empty() {
         true => Vec::new(),
         false => code.seal_escrow(organization.into_bytes(), &pinned.encode()),
@@ -1473,6 +1532,7 @@ pub async fn invite(
             link: link_id(&code),
             card: me.seal(&code, CardRole::Owner),
             kind,
+            signed: Some(signed),
         },
     )
     .await??;

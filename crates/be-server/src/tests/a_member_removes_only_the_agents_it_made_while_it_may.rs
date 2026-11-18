@@ -21,14 +21,10 @@ async fn a_member_removes_only_the_agents_it_made_while_it_may() {
         assert!(matches!(joined, Ok(())), "{joined:?}");
         member.open(organization).await;
     }
-    for joined in [creator_id, colleague_id] {
-        let signed = admin.sign_in(joined).await;
-        assert!(matches!(signed, Ok(())), "{signed:?}");
-    }
 
     let refused = creator.remove_member(colleague_id).await;
     assert!(
-        refused_as(&refused, ErrorCode::MemberNotFound),
+        refused_as(&refused, ErrorCode::PermissionDenied),
         "an editor removed a person: {refused:?}"
     );
 

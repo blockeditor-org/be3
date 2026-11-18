@@ -324,6 +324,7 @@ fn MembersPanel(view: HostUiStore) -> NodeId {
                     let account = row.with_untracked(|row| row.account);
                     let name = create_memo(move || row.get().name);
                     let detail = create_memo(move || row.get().detail);
+                    let unsigned = create_memo(move || row.get().unsigned);
                     let next_role = move || match row.get_untracked().administrator {
                         true => OrganizationRole::Editor,
                         false => OrganizationRole::Administrator,
@@ -334,6 +335,11 @@ fn MembersPanel(view: HostUiStore) -> NodeId {
                                 <List spacing=Space::Xs2>
                                     <Text>{name}</Text>
                                     <Text style=TextStyle::CAPTION>{detail}</Text>
+                                    <Show value={unsigned}>
+                                        <Text style=TextStyle::CAPTION>
+                                            "No invitation signed them in: the server added them. Remove them unless you know why they are here."
+                                        </Text>
+                                    </Show>
                                 </List>
                             </ListItem>
                             <Button

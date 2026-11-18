@@ -134,6 +134,7 @@ mod a_long_listing_is_read_page_by_page;
 mod a_lowering_shown_past_a_paths_last_whole_entry_is_not_forgotten;
 mod a_member_served_the_organizations_log_short_of_a_demotion_escrows_and_seals_nothing_to_them;
 mod a_member_the_server_adds_is_listed_as_signed_in_by_no_one;
+mod accepting_an_invitation_signs_the_member_in_with_no_administrator_online;
 mod a_member_who_roots_a_block_they_do_not_hold_is_taken_only_weakly;
 mod a_member_with_view_is_served_no_other_members_grant;
 mod a_merge_left_waiting_is_sent_once_the_device_reconnects;
@@ -196,7 +197,6 @@ mod an_exported_artifact_imports_pointing_to_its_imported_source;
 mod an_image_round_trips_without_being_re_encoded;
 mod an_import_another_device_of_the_account_made_first_stands;
 mod an_import_under_the_id_of_a_block_someone_else_made_is_set_aside;
-mod an_invitation_finished_halfway_signs_its_accepter_in_on_the_next_finish;
 mod an_offline_edit_merges_against_the_head_it_left_after_the_server_pruned_it;
 mod an_offline_save_under_a_key_named_between_the_last_lowering_and_the_head_goes_through;
 mod an_older_pin_the_server_sends_again_is_not_taken;
@@ -315,6 +315,7 @@ impl Harness {
                 escrow,
                 made: 0,
             },
+            &admin.checked_organization().await.unwrap().unwrap(),
         )
         .await
         .unwrap();

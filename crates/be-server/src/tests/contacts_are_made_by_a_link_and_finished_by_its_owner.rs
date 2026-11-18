@@ -32,6 +32,7 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
                 link: link,
                 card: owner_card.seal(&code, CardRole::Owner),
                 kind: be_block_protocol::LinkKind::Contact(None),
+                signed: None,
             })
         })
         .await;
@@ -61,6 +62,7 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
                 card: other_card.seal(&code, CardRole::Accepter),
                 contact: other_secret.seal_own(&opened.encode()),
                 key: Vec::new(),
+                member: None,
             })
         })
         .await;
@@ -137,7 +139,7 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     let _ = owners_device
         .call(|peer| {
             peer.write_all::<()>(vec![
-                be_block_protocol::Op::DeleteLink(link),
+                be_block_protocol::Op::DeleteLink { link, signed: None },
                 be_block_protocol::Op::DeleteMessage(letter),
             ])
         })

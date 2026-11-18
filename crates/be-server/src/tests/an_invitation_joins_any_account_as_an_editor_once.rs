@@ -18,16 +18,7 @@ async fn an_invitation_joins_any_account_as_an_editor_once() {
         matches!(&found, Ok(found) if found.organization_name == "team"),
         "{found:?}"
     );
-    let accepted = anyone
-        .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::AcceptLink {
-                link: link,
-                card: Vec::new(),
-                contact: Vec::new(),
-                key: Vec::new(),
-            })
-        })
-        .await;
+    let accepted = anyone.accept(link, &[]).await;
     assert!(matches!(accepted, Ok(())), "{accepted:?}");
     let members = admin
         .call(|peer| peer.read::<Vec<be_block_protocol::Member>>(be_block_protocol::Query::Members))
@@ -55,6 +46,7 @@ async fn an_invitation_joins_any_account_as_an_editor_once() {
                 card: Vec::new(),
                 contact: Vec::new(),
                 key: Vec::new(),
+                member: None,
             })
         })
         .await;

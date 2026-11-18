@@ -1,6 +1,6 @@
 use super::*;
 
-/// An administrator's `remove-member` removes any member, so an app's `remove-agent` and
+/// An administrator removes any member, so an app's `remove-agent` and
 /// `rotate-agent-token` are refused for a person, or for an agent another member made.
 #[test]
 fn an_app_changes_only_a_blocks_agent_the_person_made_even_as_an_administrator() {
@@ -94,7 +94,8 @@ fn an_app_changes_only_a_blocks_agent_the_person_made_even_as_an_administrator()
     let members = runtime
         .block_on(listed)
         .expect("the worker answers")
-        .expect("the members list");
+        .expect("the members list")
+        .members;
     for kept in [member.session.account, theirs] {
         assert!(
             members.iter().any(|listed| listed.account == kept),

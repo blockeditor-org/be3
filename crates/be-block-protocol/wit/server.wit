@@ -109,7 +109,7 @@ interface server {
         /// the connection hears `key-work` as it may have changed.
         key-work,
         /// The grants named in their blocks' logs that removing `account`
-        /// would revoke: as a member (`remove-member`), or with `contact`, as
+        /// would revoke: as a member (`append-log(member)`, `delete-agent`), or with `contact`, as
         /// the caller's contact (`remove-contact`: each one's grants on
         /// blocks the other manages). The caller signs each revocation and
         /// sends them with the removal.
@@ -287,16 +287,15 @@ interface server {
         /// Appends a signed record to an access log once the server checks it
         /// there (guides/blocks/keys.md).
         append-log(log-record),
-        /// Removes a member: any, by an administrator; an agent, by the account
-        /// that made it (a block's agent, only while it manages the block). An
-        /// agent removed is deleted, with what it was granted and what was
-        /// sealed to it. In a company organization, `signed` is the member
-        /// record (be_block_keys::Member) signing them out, needed when its log
-        /// names them; `revocations` are the signed revocations of their grants
-        /// that blocks' logs name (`revocations`), each needed. Not an
-        /// `append-log`: a person who accepted an invitation joins before any
-        /// record names them (plans/simpler_server_api.md, decision (b)).
-        remove-member(remove-member),
+        /// Deletes an agent: by the account that made it (a block's agent, only
+        /// while it manages the block), or by an administrator. It goes with
+        /// what it was granted and what was sealed to it. In a company
+        /// organization, `signed` is the member record (be_block_keys::Member)
+        /// signing it out, needed when its log names it; `revocations` are the
+        /// signed revocations of its grants that blocks' logs name
+        /// (`revocations`), each needed. Not an `append-log`: the personal
+        /// organization has no log. A person is removed by `append-log(member)`.
+        delete-agent(delete-agent),
         put-keys(put-keys),
         /// Keeps stored objects alive for `block`. Holding one again extends
         /// it, and a lasting hold outlasts any other.
@@ -334,7 +333,9 @@ interface server {
         /// in its block (guides/blocks/keys.md, "Contacts"). A
         /// contact link any account makes, as its own; an invitation needs an
         /// administrator of the organization the write names, which has a
-        /// bounded number outstanding.
+        /// bounded number outstanding, and `signed`, the invitation record
+        /// (be_block_keys::Invitation) the caller signed opening it in the
+        /// organization's log, naming the key the code derives.
         create-link(create-link),
         /// Accepts a link, leaving the caller's `card` in its owner's mailbox
         /// (`letter.accepted`) and its record of the owner, sealed to itself,
@@ -342,13 +343,20 @@ interface server {
         /// for a contact link with a grant, the granted key sealed to the
         /// caller; for an invitation, what it pins for the organization sealed
         /// to itself, left in its mailbox (`letter.pinned`); otherwise empty.
-        /// The account's own.
+        /// An invitation also takes `member`, the member record signing the
+        /// caller in with the keys the server holds for it, signed with the key
+        /// the code derives after the head of the organization's log
+        /// (`link.head`; be_block_keys::Entry::accepted), which the server
+        /// appends. The account's own.
         accept-link(accept-link),
         /// Ends a link: revokes one outstanding, or finishes one accepted. A
         /// contact link goes; an invitation's row stays in its organization's
         /// list. The caller's own, or with an organization, an invitation into
-        /// it, which the caller administers.
-        delete-link(link-id),
+        /// it, which the caller administers. Revoking an invitation takes
+        /// `signed`, the invitation record ending it, signed by an
+        /// administrator; an inviter who no longer administers revokes theirs
+        /// without, since the log ended it with their role.
+        delete-link(delete-link),
         /// Removes a contact, revoking each one's grants on blocks the other
         /// manages, and leaving each a `letter.removed` from the other.
         /// `revocations` are the signed revocations of those grants
@@ -445,11 +453,14 @@ interface server {
         /// administrator record (be_block_keys::Administrator) the caller
         /// signed, appended to the organization's log.
         role(role-record),
-        /// A member record (be_block_keys::Member) signing a member of the
-        /// organization in (a person, by an administrator, from the
-        /// invitation it made; an agent, by its maker), or signing out an
-        /// agent the server removed on its own, by its maker.
-        member(list<u8>),
+        /// A member record (be_block_keys::Member): signing in an agent, by
+        /// its maker; signing out an agent the server removed on its own, by
+        /// its maker; or removing a person, by an administrator, with the
+        /// signed revocations of their grants that blocks' logs name
+        /// (`revocations`), each needed. A person is signed in only by
+        /// accepting an invitation (`accept-link`), and an agent removed by
+        /// `delete-agent`.
+        member(member-record),
     }
 
     record grant-record {
@@ -465,7 +476,12 @@ interface server {
         signed: option<list<u8>>,
     }
 
-    record remove-member {
+    record member-record {
+        signed: list<u8>,
+        revocations: list<list<u8>>,
+    }
+
+    record delete-agent {
         account: account-id,
         signed: option<list<u8>>,
         revocations: list<list<u8>>,
@@ -528,6 +544,7 @@ interface server {
         link: link-id,
         card: list<u8>,
         kind: link-kind,
+        signed: option<list<u8>>,
     }
 
     record accept-link {
@@ -535,6 +552,12 @@ interface server {
         card: list<u8>,
         contact: list<u8>,
         key: list<u8>,
+        member: option<list<u8>>,
+    }
+
+    record delete-link {
+        link: link-id,
+        signed: option<list<u8>>,
     }
 
     record remove-contact {

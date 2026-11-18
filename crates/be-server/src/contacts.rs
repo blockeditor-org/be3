@@ -135,6 +135,8 @@ struct StoredLink {
     accepter: Option<Uuid>,
     /// For an invitation, where it stands.
     invited: Option<Invited>,
+    /// For an invitation, the key its record in the organization's log names.
+    invitation_key: Vec<u8>,
 }
 
 /// An invitation's times and marks, in seconds since the epoch (0 for not yet).
@@ -182,13 +184,14 @@ fn invitation_ended(state: InvitationState) -> ServerError {
 
 const LINK_COLUMNS: &str = "owner_id, card, grant_organization, grant_block, grant_access,
     grant_key, grant_sealed, invite_organization, invite_escrow, accepter_id,
-    invite_created, invite_expires, invite_opened, invite_ended, invite_revoked";
+    invite_created, invite_expires, invite_opened, invite_ended, invite_revoked, invite_key";
 
 type LinkRow = (
     (String, Vec<u8>),
     (String, String, String, String, Vec<u8>),
     (String, Vec<u8>, String),
     Invited,
+    Vec<u8>,
 );
 
 fn link_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<LinkRow> {
@@ -209,6 +212,7 @@ fn link_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<LinkRow> {
             ended: row.get(13)?,
             revoked: row.get(14)?,
         },
+        row.get(15)?,
     ))
 }
 
@@ -218,6 +222,7 @@ fn parse_link(row: LinkRow) -> Result<StoredLink, ServerError> {
         (organization, block, access, key, sealed),
         (invited_to, escrow, accepter),
         invited,
+        invitation_key,
     ) = row;
     let (kind, invited) = match (invited_to.is_empty(), organization.is_empty()) {
         (false, _) => (
@@ -248,6 +253,7 @@ fn parse_link(row: LinkRow) -> Result<StoredLink, ServerError> {
             false => Some(parse_uuid(&accepter)?),
         },
         invited,
+        invitation_key,
     })
 }
 
@@ -392,6 +398,7 @@ impl ServerStore {
         link: Uuid,
         card: Vec<u8>,
         mut kind: LinkKind,
+        signed: Option<Vec<u8>>,
     ) -> Result<(), ServerError> {
         crate::limits::at_most(
             "a contact card",
@@ -408,6 +415,12 @@ impl ServerStore {
                 self.check_grant(owner, grant.clone()).await?;
             }
             LinkKind::Contact(None) => {}
+            LinkKind::Invitation(_) if signed.is_none() => {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "an invitation carries the record opening it in the organization's log".into(),
+                ));
+            }
             LinkKind::Invitation(invitation) => {
                 crate::limits::at_most(
                     "an invitation's escrow",
@@ -423,6 +436,12 @@ impl ServerStore {
                     ));
                 }
             }
+        }
+        if matches!(kind, LinkKind::Contact(_)) && signed.is_some() {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                "a contact link carries no record".into(),
+            ));
         }
         let columns = kind_columns(&kind);
         self.with_database(move |_, database| {
@@ -485,6 +504,22 @@ impl ServerStore {
                 LinkKind::Invitation(_) => (now(), now() + crate::limits::INVITATION_LIFETIME),
                 LinkKind::Contact(_) => (0, 0),
             };
+            // An invitation opens in the organization's log, by its key, as it is made.
+            let invitation_key = match (&kind, &signed) {
+                (LinkKind::Invitation(invitation), Some(signed)) => {
+                    crate::access::append_invitation(
+                        &transaction,
+                        invitation.organization,
+                        owner,
+                        None,
+                        true,
+                        signed,
+                    )?
+                    .0
+                    .to_vec()
+                }
+                _ => Vec::new(),
+            };
             let KindColumns {
                 grant: (organization, block, access, key, sealed),
                 invitation: (invited_to, escrow),
@@ -493,8 +528,8 @@ impl ServerStore {
                 "INSERT OR IGNORE INTO links
                     (id, owner_id, card, grant_organization, grant_block, grant_access,
                      grant_key, grant_sealed, invite_organization, invite_escrow, invite_created,
-                     invite_expires)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                     invite_expires, invite_key)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
                 params![
                     link.to_string(),
                     owner.to_string(),
@@ -507,7 +542,8 @@ impl ServerStore {
                     invited_to,
                     escrow,
                     created,
-                    expires
+                    expires,
+                    invitation_key
                 ],
             )?;
             if inserted == 0 {
@@ -609,12 +645,19 @@ impl ServerStore {
                     name
                 }
             };
+            let head = match &stored.kind {
+                LinkKind::Contact(_) => None,
+                LinkKind::Invitation(invitation) => {
+                    crate::access::organization_head(&database, invitation.organization)?
+                }
+            };
             Ok(Link {
                 id: link,
                 owner: stored.owner,
                 card: stored.card,
                 kind: stored.kind,
                 organization_name,
+                head,
             })
         })
         .await
@@ -679,9 +722,9 @@ impl ServerStore {
             let rows = statement.query_map([organization.to_string()], |row| {
                 Ok((
                     link_row(row)?,
-                    row.get::<_, String>(15)?,
                     row.get::<_, String>(16)?,
                     row.get::<_, String>(17)?,
+                    row.get::<_, String>(18)?,
                 ))
             })?;
             let mut invitations = Vec::new();
@@ -704,6 +747,7 @@ impl ServerStore {
                     expires: seconds(invited.expires),
                     opened: seconds(invited.opened),
                     ended: seconds(invited.ended),
+                    key: stored.invitation_key.as_slice().try_into().unwrap_or_default(),
                 });
             }
             Ok(invitations)
@@ -718,6 +762,7 @@ impl ServerStore {
         card: Vec<u8>,
         contact: Vec<u8>,
         key: Vec<u8>,
+        member: Option<Vec<u8>>,
     ) -> Result<Accepted, ServerError> {
         for (what, bytes) in [
             ("a contact card", &card),
@@ -728,6 +773,12 @@ impl ServerStore {
         }
         let found = self.link(caller, link).await?;
         let owner = found.owner;
+        if matches!(found.kind, LinkKind::Contact(_)) && member.is_some() {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                "accepting a contact link signs no one in".into(),
+            ));
+        }
         let grant = match found.kind {
             LinkKind::Contact(Some(grant)) => grant,
             LinkKind::Contact(None) => {
@@ -745,6 +796,13 @@ impl ServerStore {
                     .await;
             }
             LinkKind::Invitation(invitation) => {
+                let member = member.ok_or_else(|| {
+                    ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "accepting an invitation carries the member record signing the accepter in"
+                            .into(),
+                    )
+                })?;
                 return self
                     .with_database(move |_, database| {
                         let transaction = be_block_sqlite_schema::write_transaction(database)?;
@@ -762,7 +820,18 @@ impl ServerStore {
                                 "you are already a member of that organization".into(),
                             ));
                         }
+                        let stored =
+                            stored_link(&transaction, link)?.ok_or_else(link_not_found)?;
                         mark_accepted(&transaction, link, owner, caller, card)?;
+                        // Signed in by the invitation's key, which only the code's holder has:
+                        // the log, not the server, says who joined.
+                        crate::access::append_accepted(
+                            &transaction,
+                            invitation.organization,
+                            caller,
+                            &stored.invitation_key,
+                            &member,
+                        )?;
                         befriend(&transaction, owner, &[], caller, &contact)?;
                         crate::keys::pin_escrow(
                             &transaction,
@@ -851,8 +920,15 @@ impl ServerStore {
 
     /// Ends a link: a contact link of the caller's goes; an invitation, the caller's own or one
     /// into an organization it administers, is revoked while outstanding, or finished by its
-    /// inviter once accepted, and its row stays for the organization's list.
-    pub async fn delete_link(&self, caller: Uuid, link: Uuid) -> Result<(), ServerError> {
+    /// inviter once accepted, and its row stays for the organization's list. Revoked by an
+    /// administrator, it is ended in the organization's log by `signed`; an inviter who no
+    /// longer administers needs none, as their invitations ended there with their role.
+    pub async fn delete_link(
+        &self,
+        caller: Uuid,
+        link: Uuid,
+        signed: Option<Vec<u8>>,
+    ) -> Result<(), ServerError> {
         self.with_database(move |_, database| {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             let Some(stored) = stored_link(&transaction, link)? else {
@@ -868,6 +944,28 @@ impl ServerStore {
                     }
                     match invited.state(stored.accepter.is_some()) {
                         InvitationState::Waiting | InvitationState::Opened => {
+                            match (administrator, &signed) {
+                                (true, Some(signed)) => {
+                                    let key = <[u8; 32]>::try_from(stored.invitation_key.as_slice())
+                                        .map_err(|_| ServerError::Corrupt)?;
+                                    crate::access::append_invitation(
+                                        &transaction,
+                                        invitation.organization,
+                                        caller,
+                                        Some(be_block_keys::SigningPublic(key)),
+                                        false,
+                                        signed,
+                                    )?;
+                                }
+                                (true, None) => {
+                                    return Err(ServerError::Refused(
+                                        ErrorCode::InvalidRequest,
+                                        "an administrator revokes an invitation with the record ending it"
+                                            .into(),
+                                    ));
+                                }
+                                (false, _) => {}
+                            }
                             transaction.execute(
                                 "UPDATE links SET invite_revoked = 1, invite_ended = ?2
                                  WHERE id = ?1 AND accepter_id = ''",
@@ -882,6 +980,12 @@ impl ServerStore {
                         }
                         _ => {}
                     }
+                }
+                _ if signed.is_some() => {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "only revoking an invitation carries a record".into(),
+                    ));
                 }
                 _ => {
                     transaction.execute(

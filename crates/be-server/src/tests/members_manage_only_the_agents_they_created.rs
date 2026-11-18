@@ -8,15 +8,11 @@ async fn members_manage_only_the_agents_they_created() {
     let personal = owner.personal().await;
     assert_eq!(other.personal().await, personal);
     let company = owner.organization("Team").await;
-    let store = ServerStore::open(&harness.directory).unwrap();
-    let other_account = store.resolve_token(&other.token).await.unwrap().account;
-    store
-        .add_member(company, other_account, OrganizationRole::Editor)
-        .await
-        .unwrap();
+    let other_account = other.id();
     owner.open(company).await;
-    let signed = owner.sign_in(other_account).await;
-    assert!(matches!(signed, Ok(())), "{signed:?}");
+    let invitation = owner.invite(company).await.expect("the owner invites");
+    let joined = other.accept(invitation, &[]).await;
+    assert!(matches!(joined, Ok(())), "{joined:?}");
     // The owner administers the company, and only is a member of the personal organization.
     for (organization, administers) in [(personal, false), (company, true)] {
         owner.open(organization).await;

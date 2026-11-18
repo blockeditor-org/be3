@@ -7,6 +7,11 @@ async fn an_invitation_is_read_before_sign_in_and_listed_as_it_goes() {
     let mut admin = harness.member("admin@example.com").await;
     let organization = admin.organization("team").await;
     let link = Uuid::new_v4();
+    let code = be_block_keys::InviteCode::generate();
+    let signed = admin
+        .invitation_record(code.invitation_key(organization.into_bytes()), true)
+        .await;
+    CODES.lock().unwrap().insert((link, organization), code);
     let made = admin
         .call(|peer| {
             peer.write::<()>(be_block_protocol::Op::CreateLink {
@@ -16,6 +21,7 @@ async fn an_invitation_is_read_before_sign_in_and_listed_as_it_goes() {
                     organization,
                     escrow: b"the sealed escrow key".to_vec(),
                 }),
+                signed: signed.clone(),
             })
         })
         .await;
@@ -80,16 +86,7 @@ async fn an_invitation_is_read_before_sign_in_and_listed_as_it_goes() {
     // Accepted, it shows who accepted it; another administrator sees it without its code, and
     // an editor not at all.
     let mut joiner = harness.member("joiner@example.com").await;
-    let accepted = joiner
-        .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::AcceptLink {
-                link: link,
-                card: Vec::new(),
-                contact: Vec::new(),
-                key: Vec::new(),
-            })
-        })
-        .await;
+    let accepted = joiner.accept(link, &[]).await;
     assert!(matches!(accepted, Ok(())), "{accepted:?}");
     let row = listed(
         &admin

@@ -10,16 +10,7 @@ async fn a_member_makes_contact_links_but_only_an_administrator_invites() {
         .invite(organization)
         .await
         .expect("an administrator invites");
-    let joined = editor
-        .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::AcceptLink {
-                link: invitation,
-                card: Vec::new(),
-                contact: Vec::new(),
-                key: Vec::new(),
-            })
-        })
-        .await;
+    let joined = editor.accept(invitation, &Vec::new()).await;
     assert!(matches!(joined, Ok(())), "{joined:?}");
     editor.open(organization).await;
 
@@ -30,7 +21,7 @@ async fn a_member_makes_contact_links_but_only_an_administrator_invites() {
     );
     let link = Uuid::new_v4();
     let made = editor
-        .create_link(link, be_block_protocol::LinkKind::Contact(None))
+        .create_link(link, be_block_protocol::LinkKind::Contact(None), None)
         .await;
     assert!(
         matches!(made, Ok(())),

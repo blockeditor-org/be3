@@ -838,35 +838,63 @@ impl ServerStore {
         .await
     }
 
-    /// Removes a member of the organization open: any, by an administrator; an agent, by the
-    /// account that made it (a block's agent, while it manages the block). An agent removed is
-    /// deleted, and its connections close.
-    /// Appends `signed`, a member record signing a member of the organization in: a person, by
-    /// an administrator; an agent, by the account that made it (checked as devices check it).
-    pub async fn sign_member(
+    /// Appends `signed`, a member record of the organization (checked as devices check it): an
+    /// agent signed in by the account that made it, or one the server removed on its own
+    /// (collected with its block, or deleted on taking an account back) signed out by its maker;
+    /// or a person removed by an administrator, with `revocations`, the signed revocations of
+    /// each grant of theirs a block's log names. Answers what a removal revoked, none for an
+    /// agent's record. A person is signed in only by accepting an invitation, and an agent still
+    /// a member is removed by `delete_agent`.
+    pub async fn append_member(
         &self,
         identity: Identity,
         signed: Vec<u8>,
-    ) -> Result<(), ServerError> {
+        revocations: Vec<Vec<u8>>,
+    ) -> Result<Option<Vec<crate::contacts::Granted>>, ServerError> {
         let organization = identity.organization;
-        self.with_graph(organization, move |_, _, database| {
+        self.with_graph(organization, move |store, graph, database| {
             let entry = be_block_keys::Entry::decode(&signed).map_err(|_| {
                 ServerError::Refused(ErrorCode::InvalidRequest, "the record does not read".into())
             })?;
             let be_block_keys::Record::Member(named) = entry.record else {
                 return Err(ServerError::Refused(
                     ErrorCode::InvalidRequest,
-                    "a member is signed in by a member record".into(),
+                    "a member is signed in or out by a member record".into(),
                 ));
             };
             let account = Uuid::from_bytes(named.account);
-            let member = crate::contacts::role_in(database, account, organization)?.is_some();
-            // A member is signed in; one the server removed on its own (an agent collected with
-            // its block, or deleted on taking an account back) is signed out, by its maker.
-            if named.member != member || (!named.member && !named.agent) {
+            if !named.agent {
+                if named.member {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "a person is signed in by accepting an invitation".into(),
+                    ));
+                }
+                return remove_account(
+                    store,
+                    graph,
+                    database,
+                    identity,
+                    account,
+                    Some(signed),
+                    revocations,
+                    false,
+                )
+                .map(Some);
+            }
+            if !revocations.is_empty() {
                 return Err(ServerError::Refused(
                     ErrorCode::InvalidRequest,
-                    "a member is signed in, and an agent no longer one signed out".into(),
+                    "only a person's removal carries revocations".into(),
+                ));
+            }
+            let member = crate::contacts::role_in(database, account, organization)?.is_some();
+            // An agent is signed in; one the server removed on its own is signed out, by its
+            // maker, and one still a member is deleted (`delete-agent`).
+            if named.member != member {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "an agent is signed in, and one no longer a member signed out: delete-agent removes one".into(),
                 ));
             }
             if !named.member {
@@ -881,7 +909,7 @@ impl ServerStore {
                     &signed,
                 )?;
                 transaction.commit()?;
-                return Ok(());
+                return Ok(None);
             }
             let made_by_caller = database
                 .query_row(
@@ -891,10 +919,10 @@ impl ServerStore {
                 )
                 .optional()?
                 .map(|maker| maker == identity.account.to_string());
-            if made_by_caller.is_some() != named.agent || made_by_caller == Some(false) {
+            if made_by_caller != Some(true) {
                 return Err(ServerError::Refused(
                     ErrorCode::PermissionDenied,
-                    "an agent is signed in by its maker, and a person as one".into(),
+                    "an agent is signed in by its maker".into(),
                 ));
             }
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
@@ -904,11 +932,11 @@ impl ServerStore {
                 identity.account,
                 account,
                 true,
-                named.agent,
+                true,
                 &signed,
             )?;
             transaction.commit()?;
-            Ok(())
+            Ok(None)
         })
         .await
     }
@@ -927,82 +955,26 @@ impl ServerStore {
         .await
     }
 
-    pub async fn remove_member(
+    /// Deletes an agent of the organization: by an administrator, or by the account that made it
+    /// (a block's agent, while it manages the block). Its connections close.
+    pub async fn delete_agent(
         &self,
         identity: Identity,
         account: Uuid,
         signed: Option<Vec<u8>>,
         revocations: Vec<Vec<u8>>,
     ) -> Result<Vec<crate::contacts::Granted>, ServerError> {
-        let organization = identity.organization;
-        self.with_graph(organization, move |store, graph, database| {
-            // Each grant a log names is revoked there by the remover's signed record.
-            let pairs = member_grants(graph, account);
-            let named = crate::access::named_pairs(database, organization, &pairs)?;
-            let revoking = crate::access::revocations_for(&named, &revocations)?;
-            if !identity.is_administrator() {
-                require_agent_of(graph, database, identity.account, organization, account)?;
-            }
-            let role =
-                crate::contacts::role_in(database, account, organization)?.ok_or_else(|| {
-                    ServerError::Refused(
-                        ErrorCode::MemberNotFound,
-                        "that account is not a member of this organization".into(),
-                    )
-                })?;
-            if role == OrganizationRole::Administrator {
-                refuse_last_administrator(database, organization)?;
-            }
-            let agent = is_agent(database, account)?;
-            let named = crate::access::checked_organization_log(database, organization)?
-                .is_some_and(|checked| checked.member(account.into_bytes()).is_some());
-            let transaction = be_block_sqlite_schema::write_transaction(database)?;
-            match (named, signed) {
-                (true, Some(signed)) => crate::access::append_member(
-                    &transaction,
-                    organization,
-                    identity.account,
-                    account,
-                    false,
-                    agent,
-                    &signed,
-                )?,
-                (true, None) => {
-                    return Err(ServerError::Refused(
-                        ErrorCode::InvalidRequest,
-                        "a member the organization's log names is signed out by a member record"
-                            .into(),
-                    ));
-                }
-                (false, Some(_)) => {
-                    return Err(ServerError::Refused(
-                        ErrorCode::InvalidRequest,
-                        "only a member the organization's log names is signed out".into(),
-                    ));
-                }
-                (false, None) => {}
-            }
-            let revoked = match agent {
-                true => delete_agent(graph, &transaction, organization, account)?,
-                false => remove_from(graph, &transaction, organization, account)?,
-            };
-            for ((block, grantee), record) in &revoking {
-                crate::access::append_grant(
-                    &transaction,
-                    organization,
-                    *block,
-                    identity.account,
-                    *grantee,
-                    Access::None,
-                    record,
-                )?;
-            }
-            let forgotten = forget_orphaned_block_agents(graph, &transaction, organization)?;
-            transaction.commit()?;
-            if agent || !forgotten.is_empty() {
-                store.sessions_changed();
-            }
-            Ok(revoked)
+        self.with_graph(identity.organization, move |store, graph, database| {
+            remove_account(
+                store,
+                graph,
+                database,
+                identity,
+                account,
+                signed,
+                revocations,
+                true,
+            )
         })
         .await
     }
@@ -1759,6 +1731,107 @@ fn require_administrator(identity: Identity) -> Result<(), ServerError> {
             "only an organization administrator can manage its members".into(),
         )),
     }
+}
+
+/// Removes `account` from `identity`'s organization: an agent (`agent`), by an administrator
+/// or its maker, deleted with it; or a person, by an administrator. `signed` is the member record
+/// signing them out, appended to the organization's log: needed for a person, and for an agent
+/// the log names. `revocations` are the signed revocations of each of their grants a block's log
+/// names, each needed. Answers what was revoked.
+#[allow(clippy::too_many_arguments)]
+fn remove_account(
+    store: &ServerStore,
+    graph: &mut BlockGraph,
+    database: &Connection,
+    identity: Identity,
+    account: Uuid,
+    signed: Option<Vec<u8>>,
+    revocations: Vec<Vec<u8>>,
+    agent: bool,
+) -> Result<Vec<crate::contacts::Granted>, ServerError> {
+    let organization = identity.organization;
+    // Each grant a log names is revoked there by the remover's signed record.
+    let pairs = member_grants(graph, account);
+    let named = crate::access::named_pairs(database, organization, &pairs)?;
+    let revoking = crate::access::revocations_for(&named, &revocations)?;
+    if !identity.is_administrator() {
+        if !agent {
+            return Err(ServerError::Refused(
+                ErrorCode::PermissionDenied,
+                "only an administrator removes a person".into(),
+            ));
+        }
+        require_agent_of(graph, database, identity.account, organization, account)?;
+    }
+    let role = crate::contacts::role_in(database, account, organization)?.ok_or_else(|| {
+        ServerError::Refused(
+            ErrorCode::MemberNotFound,
+            "that account is not a member of this organization".into(),
+        )
+    })?;
+    if is_agent(database, account)? != agent {
+        return Err(ServerError::Refused(
+            ErrorCode::InvalidRequest,
+            match agent {
+                true => "that member is a person: append-log signs them out",
+                false => "that member is an agent: delete-agent removes it",
+            }
+            .into(),
+        ));
+    }
+    if role == OrganizationRole::Administrator {
+        refuse_last_administrator(database, organization)?;
+    }
+    let checked = crate::access::checked_organization_log(database, organization)?;
+    // A person is always signed out, whether or not a record signed them in (one the server
+    // added on its own); an agent, where the log names it.
+    let named = checked.is_some_and(|checked| !agent || checked.member(account.into_bytes()).is_some());
+    let transaction = be_block_sqlite_schema::write_transaction(database)?;
+    match (named, signed) {
+        (true, Some(signed)) => crate::access::append_member(
+            &transaction,
+            organization,
+            identity.account,
+            account,
+            false,
+            agent,
+            &signed,
+        )?,
+        (true, None) => {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                "a member the organization's log names is signed out by a member record".into(),
+            ));
+        }
+        (false, Some(_)) => {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                "only a member the organization's log names is signed out".into(),
+            ));
+        }
+        (false, None) => {}
+    }
+    let revoked = match agent {
+        true => delete_agent(graph, &transaction, organization, account)?,
+        false => remove_from(graph, &transaction, organization, account)?,
+    };
+    for ((block, grantee), record) in &revoking {
+        crate::access::append_grant(
+            &transaction,
+            organization,
+            *block,
+            identity.account,
+            *grantee,
+            Access::None,
+            record,
+        )?;
+    }
+    let forgotten = forget_orphaned_block_agents(graph, &transaction, organization)?;
+    transaction.commit()?;
+    if agent || !forgotten.is_empty() {
+        store.sessions_changed();
+    }
+    Ok(revoked)
 }
 
 fn refuse_last_administrator(

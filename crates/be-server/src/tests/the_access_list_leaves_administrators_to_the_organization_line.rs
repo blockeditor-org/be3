@@ -11,28 +11,10 @@ pub(super) async fn join(
     role: OrganizationRole,
 ) {
     let response = owner
-        .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::CreateLink {
-                link: Uuid::from_u128(invitation),
-                card: Vec::new(),
-                kind: be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
-                    organization,
-                    escrow: Vec::new(),
-                }),
-            })
-        })
+        .invite_with(Uuid::from_u128(invitation), organization, Vec::new(), Vec::new())
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
-    let _ = member
-        .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::AcceptLink {
-                link: Uuid::from_u128(invitation),
-                card: Vec::new(),
-                contact: Vec::new(),
-                key: Vec::new(),
-            })
-        })
-        .await;
+    let _ = member.accept(Uuid::from_u128(invitation), &Vec::new()).await;
     // An invitation joins as an editor; an administrator is made one after.
     if role == OrganizationRole::Administrator {
         let members = owner

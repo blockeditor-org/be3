@@ -32,28 +32,10 @@ async fn a_block_shared_from_a_hidden_folder_is_listed_as_shared() {
 
     let mut guest = harness.member("guest@example.com").await;
     let response = owner
-        .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::CreateLink {
-                link: Uuid::from_u128(1),
-                card: Vec::new(),
-                kind: be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
-                    organization,
-                    escrow: Vec::new(),
-                }),
-            })
-        })
+        .invite_with(Uuid::from_u128(1), organization, Vec::new(), Vec::new())
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
-    let _ = guest
-        .call(|peer| {
-            peer.write::<()>(be_block_protocol::Op::AcceptLink {
-                link: Uuid::from_u128(1),
-                card: Vec::new(),
-                contact: Vec::new(),
-                key: Vec::new(),
-            })
-        })
-        .await;
+    let _ = guest.accept(Uuid::from_u128(1), &Vec::new()).await;
     guest.open(organization).await;
     let account = guest.id();
     let own = guest.create_block(BlockParent::Root).await;

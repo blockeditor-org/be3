@@ -2163,7 +2163,16 @@ pub fn leave(block: Uuid, reply: impl FnOnce(Result<(), String>) + Send + 'stati
     });
 }
 
-type MembersReply = Box<dyn FnOnce(Result<Vec<be_block_protocol::Member>, String>) + Send>;
+type MembersReply = Box<dyn FnOnce(Result<MemberList, String>) + Send>;
+
+/// The organization's members, and those of them no record in its log signed in
+/// (`Peer::unsigned_members`): every such member, to an administrator. A person signs in as they
+/// accept an invitation, so one listed here is a member the server added on its own.
+#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
+pub struct MemberList {
+    pub members: Vec<be_block_protocol::Member>,
+    pub unsigned: Vec<Uuid>,
+}
 
 pub fn list_members(reply: MembersReply) {
     send(Command::Members(worker::MembersCommand::List(
@@ -2195,9 +2204,8 @@ pub async fn agents() -> Result<Vec<be_block_protocol::Agent>, String> {
     own_agents(listed.await.unwrap_or_else(|_| Err(NOT_OPEN.to_owned()))?)
 }
 
-/// Removes one of the person's own agents (`remove-member`); answers those left. Anything else
-/// is refused here, before the server is asked: an administrator's `remove-member` would remove
-/// any member.
+/// Removes one of the person's own agents (`delete-agent`); answers those left. Anything else
+/// is refused here, before the server is asked: an administrator removes any member.
 pub async fn remove_agent(agent: Uuid) -> Result<Vec<be_block_protocol::Agent>, String> {
     let own = agents().await?;
     if own.iter().all(|listed| listed.account != agent) {
@@ -2213,11 +2221,10 @@ pub async fn remove_agent(agent: Uuid) -> Result<Vec<be_block_protocol::Agent>, 
     own_agents(listed.await.unwrap_or_else(|_| Err(NOT_OPEN.to_owned()))?)
 }
 
-fn own_agents(
-    members: Vec<be_block_protocol::Member>,
-) -> Result<Vec<be_block_protocol::Agent>, String> {
+fn own_agents(listed: MemberList) -> Result<Vec<be_block_protocol::Agent>, String> {
     let me = account().ok_or_else(|| NOT_OPEN.to_owned())?;
-    Ok(members
+    Ok(listed
+        .members
         .into_iter()
         .filter(|member| member.created_by == Some(me) && member.bound_to.is_none())
         .map(|member| be_block_protocol::Agent {

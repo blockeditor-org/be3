@@ -596,31 +596,117 @@ impl<S: ObjectStore> Peer<S> {
         Ok(Some(entry.encode()))
     }
 
-    /// Removes a member, signing them out of the organization's log when it names them.
+    /// Removes a member: an agent with `delete-agent`, signing it out of the organization's log
+    /// when it names it; a person by signing them out of the log (`append-log`), as an
+    /// administrator. Each carries the signed revocations of their grants that logs name.
     pub async fn remove_member(&self, account: Uuid) -> Result<(), ClientError> {
+        let agent = self
+            .members()
+            .await?
+            .iter()
+            .find(|member| member.account == account)
+            .is_some_and(|member| member.created_by.is_some());
         let checked = self.checked_organization().await?;
-        let signed = match checked.as_ref().and_then(|checked| {
-            let identity = checked.member(account.into_bytes())?;
-            let agent = checked
-                .members
-                .get(&account.into_bytes())
-                .is_some_and(|named| named.maker.is_some());
-            Some((identity, agent))
-        }) {
-            Some((identity, agent)) => {
-                self.member_record(checked.as_ref(), account, identity, false, agent)
-            }
-            None => None,
-        };
+        let named = checked
+            .as_ref()
+            .and_then(|checked| checked.member(account.into_bytes()));
         let revocations = self.removal_revocations(account, false).await?;
+        let op = match agent {
+            true => be_block_protocol::Op::DeleteAgent {
+                account: account,
+                signed: named.and_then(|identity| {
+                    self.member_record(checked.as_ref(), account, identity, false, true)
+                }),
+                revocations: revocations,
+            },
+            false => {
+                // A person no record signed in (the server added them on its own) is signed out
+                // naming the signing key the server holds for them: nothing seals to them once out.
+                let identity = match named.or_else(|| self.verified_identity(account)) {
+                    Some(identity) => identity,
+                    None => self.served_identity(account).await?,
+                };
+                let signed = self
+                    .member_record(checked.as_ref(), account, identity, false, false)
+                    .ok_or_else(|| {
+                        ClientError::Refused(
+                            ErrorCode::PermissionDenied,
+                            "only an administrator served the organization's whole log removes a person"
+                                .into(),
+                        )
+                    })?;
+                be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Member {
+                    signed,
+                    revocations,
+                })
+            }
+        };
+        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), op).await??;
+        Ok(())
+    }
+
+    /// `account`'s signing key as the server holds it, with no identity key: what a sign-out of
+    /// someone no record names names.
+    async fn served_identity(
+        &self,
+        account: Uuid,
+    ) -> Result<be_block_keys::PublicIdentity, ClientError> {
+        let signing = be_block_protocol::read::<Vec<be_block_protocol::SigningKey>, _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Query::SigningKeys(vec![account]),
+        )
+        .await??
+        .into_iter()
+        .find(|served| served.account == account)
+        .map(|served| served.key)
+        .unwrap_or_default();
+        Ok(be_block_keys::PublicIdentity {
+            public: be_block_keys::RecoveryPublic([0; 32]),
+            signing: be_block_keys::SigningPublic(signing),
+        })
+    }
+
+    /// Revokes an outstanding invitation into this organization: as an administrator, ending
+    /// its key in the organization's log; as an inviter who no longer administers, with no
+    /// record, since the log ended it with their role.
+    pub async fn revoke_invitation(&self, link: Uuid) -> Result<(), ClientError> {
+        let rows = be_block_protocol::read::<Vec<be_block_protocol::InvitationRow>, _>(
+            &self.connection(),
+            Some(self.organization),
+            be_block_protocol::Query::Invitations,
+        )
+        .await??;
+        let checked = self.checked_organization().await?;
+        let administers = checked
+            .as_ref()
+            .is_some_and(|checked| checked.administrators.contains_key(&self.account.into_bytes()));
+        let outstanding = rows.iter().find(|row| {
+            row.id == link
+                && matches!(
+                    row.state,
+                    be_block_protocol::InvitationState::Waiting
+                        | be_block_protocol::InvitationState::Opened
+                )
+        });
+        let signed = match (outstanding, checked.as_ref(), administers) {
+            (Some(row), Some(checked), true) => checked
+                .next(
+                    self.keys.identity(),
+                    self.account.into_bytes(),
+                    self.organization.into_bytes(),
+                    be_block_keys::Record::Invitation(be_block_keys::Invitation {
+                        key: be_block_keys::SigningPublic(row.key),
+                        open: false,
+                    }),
+                )
+                .map(|entry| entry.encode()),
+            _ => None,
+        };
         be_block_protocol::write::<(), _>(
             &self.connection(),
             Some(self.organization),
-            be_block_protocol::Op::RemoveMember {
-                account: account,
-                signed: signed,
-                revocations: revocations,
-            },
+            be_block_protocol::Op::DeleteLink { link, signed },
         )
         .await??;
         Ok(())
@@ -676,7 +762,8 @@ impl<S: ObjectStore> Peer<S> {
     /// one that a device stops halfway through, or that fails while the server is out of
     /// reach, is finished again on the next sync, rather than leave a contact link's grant
     /// unsigned or an invitation's accepter waiting, unsigned, for an administrator. Every link
-    /// is tried; the first error, if any, is answered once they all were.
+    /// is tried; the first error, if any, is answered once they all were. An invitation's
+    /// accepter signed themselves in as they accepted it; finishing makes them a contact.
     pub async fn finish_links(&self) -> Result<Vec<crate::contacts::Finished>, ClientError> {
         let finished = crate::contacts::finish_links(
             &self.connection(),
@@ -699,7 +786,10 @@ impl<S: ObjectStore> Peer<S> {
                 &self.connection(),
                 None,
                 vec![
-                    be_block_protocol::Op::DeleteLink(done.link),
+                    be_block_protocol::Op::DeleteLink {
+                        link: done.link,
+                        signed: None,
+                    },
                     be_block_protocol::Op::DeleteMessage(done.letter),
                 ],
             )
@@ -734,8 +824,7 @@ impl<S: ObjectStore> Peer<S> {
 
     /// Finishes an accepted link in this organization, as often as it is asked to: signs a
     /// contact link's grant into the block's log and seals the block's scope to the accepter,
-    /// and signs an invitation's accepter into the organization's log, with the keys their
-    /// card, opened with the link's code, names.
+    /// with the keys their card, opened with the link's code, names.
     pub(crate) async fn finish_link(
         &self,
         done: &crate::contacts::Finished,
@@ -779,9 +868,6 @@ impl<S: ObjectStore> Peer<S> {
                 self.seal_share(grant.block, account, &done.card.public)
                     .await?;
             }
-        }
-        if done.invited == Some(self.organization) {
-            self.sign_in(account, identity, false).await?;
         }
         Ok(())
     }
@@ -839,6 +925,7 @@ impl<S: ObjectStore> Peer<S> {
                 identity,
                 member,
                 agent,
+                invitation: None,
             }),
         )?;
         Some(entry.encode())
@@ -855,13 +942,13 @@ impl<S: ObjectStore> Peer<S> {
         Ok(self.member_record(checked.as_ref(), account, identity, true, true))
     }
 
-    /// Signs `account` into the organization's log with the keys this device verified for it:
-    /// a person, as an administrator; an agent, as its maker.
-    pub async fn sign_in(
+    /// Signs `account`, an agent this account made, into the organization's log with the keys
+    /// this device made for it. A person signs themselves in as they accept an invitation
+    /// (`contacts::accept_link`).
+    pub async fn sign_in_agent(
         &self,
         account: Uuid,
         identity: be_block_keys::PublicIdentity,
-        agent: bool,
     ) -> Result<(), ClientError> {
         let checked = self.checked_organization().await?;
         if checked
@@ -870,14 +957,17 @@ impl<S: ObjectStore> Peer<S> {
         {
             return Ok(());
         }
-        let Some(signed) = self.member_record(checked.as_ref(), account, identity, true, agent)
+        let Some(signed) = self.member_record(checked.as_ref(), account, identity, true, true)
         else {
             return Ok(());
         };
         be_block_protocol::write::<(), _>(
             &self.connection(),
             Some(self.organization),
-            be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Member(signed)),
+            be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Member {
+                signed,
+                revocations: Vec::new(),
+            }),
         )
         .await??;
         Ok(())
@@ -886,9 +976,9 @@ impl<S: ObjectStore> Peer<S> {
     /// Keeps the organization's log in step with the agents this account made: signs in those
     /// key work lists as signed in by no record, and signs out those the log names that the
     /// server removed on its own (collected with their block, or deleted on taking an account
-    /// back). A person is signed in only from an invitation this device made
-    /// (`finish_links`): that someone is a member is the server's word alone, so other unsigned
-    /// members wait, listed, for an administrator to act (`unsigned_members`).
+    /// back). A person signs themselves in as they accept an invitation, so a person listed
+    /// unsigned is one the server added on its own: that they are a member is the server's word
+    /// alone, and they stay listed (`unsigned_members`) for an administrator to remove.
     async fn tend_agents(&self, unsigned: &[Uuid]) -> Result<(), ClientError> {
         let Some(checked) = self.checked_organization().await? else {
             return Ok(());
@@ -910,7 +1000,7 @@ impl<S: ObjectStore> Peer<S> {
                 && unsigned.contains(&member.account)
                 && let Some(identity) = self.verified_identity(member.account)
             {
-                self.sign_in(member.account, identity, true).await?;
+                self.sign_in_agent(member.account, identity).await?;
             }
         }
         for (account, identity) in made {
@@ -925,7 +1015,10 @@ impl<S: ObjectStore> Peer<S> {
                 be_block_protocol::write::<(), _>(
                     &self.connection(),
                     Some(self.organization),
-                    be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Member(signed)),
+                    be_block_protocol::Op::AppendLog(be_block_protocol::LogRecord::Member {
+                        signed,
+                        revocations: Vec::new(),
+                    }),
                 )
                 .await??;
             }

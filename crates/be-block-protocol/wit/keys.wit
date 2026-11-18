@@ -60,7 +60,7 @@ interface keys {
     }
 
     /// A grant a block's log names that the server revoked on its own
-    /// (remove-contact, remove-member), until a device signs the revocation.
+    /// (remove-contact, delete-agent), until a device signs the revocation.
     record revocation {
         block: block-id,
         account: account-id,
@@ -70,9 +70,11 @@ interface keys {
     /// whose keys to rotate, whether to rotate the escrow key, keys to seal
     /// to accounts, scope keys not yet wrapped under the escrow key, the
     /// escrow chain, and the members no record in the organization's log
-    /// signed in yet (every such member, to an administrator; the caller
-    /// alone, to a member it names), whose escrow wraps administrators do
-    /// not open until one is.
+    /// signed in (every such member, to an administrator; the caller alone,
+    /// to a member it names): a person signs in as they accept an invitation
+    /// and an agent as it is made, so such a member is one the server added
+    /// on its own, or an agent its maker's device has yet to sign in, and
+    /// administrators open none of their escrow wraps.
     record key-work {
         rotations: list<block-id>,
         escrow-rotation: bool,

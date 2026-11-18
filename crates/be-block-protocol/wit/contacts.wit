@@ -8,12 +8,14 @@ package be3:server@0.1.0;
 /// does is its `link-kind`.
 interface contacts {
     use types.{
-        account-id, error, link-id, organization-id, pending-grant,
+        account-id, entry-hash, error, link-id, organization-id, pending-grant,
+        public-key,
     };
 
     /// An invitation into an organization. Its link is a bearer secret: any
     /// account on the server that opens it may accept it, once, before it
-    /// expires, and joins as an editor, never as an administrator.
+    /// expires, and joins as an editor, never as an administrator, signing
+    /// itself into the organization's log with the key the code derives.
     record invitation {
         organization: organization-id,
         /// The organization's escrow key sealed with the code, which the
@@ -48,6 +50,9 @@ interface contacts {
         state: invitation-state,
         accepter: option<account-id>,
         accepter-name: string,
+        /// The key its record in the organization's log names, which an
+        /// administrator's record revoking it names too.
+        key: public-key,
         /// When it was made, expires, was first read, and was accepted or
         /// revoked (0 for not yet), in milliseconds since the epoch.
         created: s64,
@@ -74,6 +79,9 @@ interface contacts {
         /// The name of the organization an invitation is into; empty for a
         /// contact link.
         organization-name: string,
+        /// For an invitation, the head of its organization's log, which the
+        /// member record accepting it follows; none for a contact link.
+        head: option<entry-hash>,
     }
 
 }

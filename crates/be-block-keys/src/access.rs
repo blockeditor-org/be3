@@ -14,7 +14,9 @@ use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use crate::{KeyError, PublicIdentity, RecoverySecret, SigningPublic, verify_signature};
+use crate::{
+    InviteCode, KeyError, PublicIdentity, RecoverySecret, SigningPublic, verify_signature,
+};
 
 /// What an access record's signature covers comes after this, so it never verifies as anything
 /// else the account's signing key signs (authorship has a domain of its own).
@@ -48,6 +50,9 @@ pub enum Record {
     Administrator(Administrator),
     /// Who is a member of the organization, in its log.
     Member(Member),
+    /// An invitation into the organization, opened or ended by an administrator, in its log:
+    /// the key its link's code derives, which signs one person in.
+    Invitation(Invitation),
     /// A kind of settings opened to whoever views a block inside, or closed again, as a member
     /// who may give access gave it: a grant to no one by name, so it names no keys.
     Opening(Opening),
@@ -179,14 +184,33 @@ pub struct Administrator {
 }
 
 /// Whether `account`, with the keys its signer verified, is a member of the organization: a
-/// person an administrator signed in (from the invitation they made), or an agent the member
-/// signing made (`agent`), whose maker may sign it out again.
+/// person who accepted an invitation (`invitation`), or an agent the member signing made
+/// (`agent`), whose maker may sign it out again. Signed out by an administrator, or an agent by
+/// its maker.
+///
+/// A person signs themselves in (the entry's signer is `account`) with the key of the
+/// invitation they accept (`Entry::accepted`), which names the keys they hold: the server never
+/// holds the invitation's code, so it cannot sign anyone in, and no administrator need be online.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Member {
     pub account: [u8; 16],
     pub identity: PublicIdentity,
     pub member: bool,
     pub agent: bool,
+    /// For a person signed in, the key of the invitation that signs the entry
+    /// (`Invitation::key`); none for anything else.
+    pub invitation: Option<SigningPublic>,
+}
+
+/// An invitation into the organization, as an administrator opened it (`open`) or ended it: its
+/// key, derived from the link's code (`InviteCode::invitation_key`), signs in the one person who
+/// accepts it, as an editor. Its signer must still administer the organization then; one used,
+/// ended or never opened signs no one. Expiry is the server's alone: no device can check the time
+/// a server keeps.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Invitation {
+    pub key: SigningPublic,
+    pub open: bool,
 }
 
 /// The account id of the agent `maker` makes with `identity`: derived from both, so a member
@@ -360,6 +384,39 @@ impl Entry {
                 endorsement,
             }),
         )
+    }
+
+    /// The entry after `previous` in the log of `organization` that signs `account`, with
+    /// `identity`, in as a member: signed with the key of the invitation `code` made
+    /// (`Invitation`), so only whoever holds the code can make it.
+    pub fn accepted(
+        code: &InviteCode,
+        organization: [u8; 16],
+        previous: EntryHash,
+        account: [u8; 16],
+        identity: PublicIdentity,
+    ) -> Self {
+        use ed25519_dalek::Signer;
+        let key = code.invitation_signing(organization);
+        let record = Record::Member(Member {
+            account,
+            identity,
+            member: true,
+            agent: false,
+            invitation: Some(SigningPublic(key.verifying_key().to_bytes())),
+        });
+        let signature = key
+            .sign(&signed(organization, Some(previous), false, &record, account))
+            .to_bytes()
+            .to_vec();
+        Self {
+            log: organization,
+            previous: Some(previous),
+            lowers: false,
+            record,
+            signer: account,
+            signature,
+        }
     }
 
     /// Whether the signature is `signing`'s over this entry.
@@ -560,7 +617,8 @@ impl StepRef<'_> {
 /// block lies (and the signers' own right there); every owner record, so the reader knows who
 /// owns the block and that its former owners grant no more; and in an organization's log every
 /// administrator record and every record about someone who ever administered it, so no demotion is
-/// hidden there: an honest organization path reduces no entry that lowered anyone.
+/// hidden there: an honest organization path reduces no entry that lowered anyone; and every
+/// invitation record, so a member signed in by one checks.
 pub fn proof_path(
     kind: LogKind,
     entries: &[Entry],
@@ -582,14 +640,15 @@ pub fn proof_path(
         Record::Member(member) => Some(member.account),
         Record::Retirement(retirement) => Some(retirement.account),
         Record::Owner(owner) => Some(owner.account),
-        Record::Opening(_) | Record::Parent(_) => None,
+        Record::Opening(_) | Record::Parent(_) | Record::Invitation(_) => None,
     };
     let always = |entry: &Entry| match &entry.record {
         Record::Root(_)
         | Record::Opening(_)
         | Record::Administrator(_)
         | Record::Parent(_)
-        | Record::Owner(_) => true,
+        | Record::Owner(_)
+        | Record::Invitation(_) => true,
         Record::Member(member) => administrators.contains(&member.account),
         Record::Retirement(retirement) => administrators.contains(&retirement.account),
         Record::Grant(_) => false,
@@ -714,6 +773,9 @@ pub struct Checked {
     pub administrators: HashMap<[u8; 16], PublicIdentity>,
     /// For an organization's log: its members other than through administering it.
     pub members: HashMap<[u8; 16], Named>,
+    /// For an organization's log: each invitation key its records named, with who opened it
+    /// while it is open, and none once it signed someone in or was ended (`Invitation`).
+    pub invitations: HashMap<SigningPublic, Option<[u8; 16]>>,
     /// For a block's log: who owns the block (holds what authorship gives), its creator until
     /// an owner record moves it on. None for an organization's log, and on a proof path after
     /// an owner record served reduced, which hides whom it named.
@@ -808,7 +870,9 @@ impl Checked {
             }
             // The owner always holds Manage, and keeps less.
             Record::Owner(_) => true,
-            Record::Root(_) | Record::Retirement(_) | Record::Parent(_) => false,
+            Record::Root(_) | Record::Retirement(_) | Record::Parent(_) | Record::Invitation(_) => {
+                false
+            }
         }
     }
 
@@ -1134,10 +1198,56 @@ pub fn check_log(
                     }
                 }
             }
+            Record::Invitation(invitation) => {
+                let administrator = state.administrators.contains_key(&entry.signer)
+                    && own.is_some_and(|signing| entry.signed_by(&signing));
+                // Opened once, by a key never named before; ended only while open.
+                let held = state.invitations.get(&invitation.key).copied();
+                let may = match invitation.open {
+                    true => held.is_none(),
+                    false => held.is_some_and(|open| open.is_some()),
+                };
+                if kind != LogKind::Organization || !administrator || !may {
+                    return Err(KeyError::Record);
+                }
+                state.invitations.insert(
+                    invitation.key,
+                    invitation.open.then_some(entry.signer),
+                );
+            }
+            Record::Member(Member {
+                account,
+                identity,
+                member: true,
+                agent: false,
+                invitation: Some(key),
+            }) => {
+                // A person signs themselves in with the key of an invitation still open, whose
+                // inviter administers the organization still, once: no one already named.
+                let inviter = state.invitations.get(key).copied().flatten();
+                let may = kind == LogKind::Organization
+                    && entry.signer == *account
+                    && inviter.is_some_and(|inviter| state.administrators.contains_key(&inviter))
+                    && !state.members.contains_key(account)
+                    && !state.administrators.contains_key(account)
+                    && entry.signed_by(key);
+                if !may {
+                    return Err(KeyError::Record);
+                }
+                state.invitations.insert(*key, None);
+                state.signers.insert(*account, identity.signing);
+                state.members.insert(
+                    *account,
+                    Named {
+                        identity: *identity,
+                        maker: None,
+                    },
+                );
+            }
             Record::Member(member) => {
                 let signed = own.is_some_and(|signing| entry.signed_by(&signing));
                 let administrator = state.administrators.contains_key(&entry.signer);
-                // A person is signed in only by an administrator; an agent by a member who is
+                // A person is signed in only by an invitation (above); an agent by a member who is
                 // no agent, its maker; a member out by an administrator, or an agent by its maker.
                 let maker = state
                     .members
@@ -1152,7 +1262,8 @@ pub fn check_log(
                 let named = state.members.contains_key(&member.account)
                     || state.administrators.contains_key(&member.account);
                 let may = match (member.member, member.agent) {
-                    (true, false) => administrator && !named,
+                    (_, _) if member.invitation.is_some() => false,
+                    (true, false) => false,
                     (true, true) => {
                         (administrator || person)
                             && !named

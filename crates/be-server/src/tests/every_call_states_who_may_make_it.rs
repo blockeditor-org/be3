@@ -107,8 +107,8 @@ fn op_case(op: &Op) -> &'static str {
         Op::Move { .. } => "move",
         Op::AppendLog(LogRecord::Grant { .. }) => "append-log (grant)",
         Op::AppendLog(LogRecord::Role { .. }) => "append-log (role)",
-        Op::AppendLog(LogRecord::Member(_)) => "append-log (member)",
-        Op::RemoveMember { .. } => "remove-member",
+        Op::AppendLog(LogRecord::Member { .. }) => "append-log (member)",
+        Op::DeleteAgent { .. } => "delete-agent",
         Op::PutKeys(PutKeys::Rows(_)) => "put-keys (rows)",
         Op::PutKeys(PutKeys::Rotate { .. }) => "put-keys (rotate)",
         Op::PutKeys(PutKeys::Escrow { .. }) => "put-keys (escrow)",
@@ -127,7 +127,7 @@ fn op_case(op: &Op) -> &'static str {
             ..
         } => "create-link (invitation)",
         Op::AcceptLink { .. } => "accept-link",
-        Op::DeleteLink(_) => "delete-link",
+        Op::DeleteLink { .. } => "delete-link",
         Op::RemoveContact { .. } => "remove-contact",
         Op::SetRecoveryKey { .. } => "set-recovery-key",
         Op::SetPushEndpoint(PushEndpointChange::Register(_)) => "set-push-endpoint (register)",
@@ -146,7 +146,7 @@ const OPS: &[&str] = &[
     "append-log (grant)",
     "append-log (role)",
     "append-log (member)",
-    "remove-member",
+    "delete-agent",
     "put-keys (rows)",
     "put-keys (rotate)",
     "put-keys (escrow)",
@@ -340,6 +340,7 @@ impl TestClient {
                     organization,
                     escrow: sealed(),
                 }),
+                signed: None,
             })
             .await;
         calls.read(Query::Members).await;
@@ -351,7 +352,7 @@ impl TestClient {
             }))
             .await;
         calls
-            .write(Op::RemoveMember {
+            .write(Op::DeleteAgent {
                 account: other,
                 signed: None,
                 revocations: Vec::new(),
@@ -364,7 +365,10 @@ impl TestClient {
             })
             .await;
         calls
-            .write(Op::AppendLog(LogRecord::Member(sealed())))
+            .write(Op::AppendLog(LogRecord::Member {
+                signed: sealed(),
+                revocations: Vec::new(),
+            }))
             .await;
         calls
             .write(Op::CreateAgent {
@@ -385,6 +389,7 @@ impl TestClient {
                 link: other,
                 card: sealed(),
                 kind: LinkKind::Contact(None),
+                signed: None,
             })
             .await;
         calls.read(Query::Link(other)).await;
@@ -396,9 +401,15 @@ impl TestClient {
                 card: sealed(),
                 contact: sealed(),
                 key: sealed(),
+                member: None,
             })
             .await;
-        calls.write(Op::DeleteLink(other)).await;
+        calls
+            .write(Op::DeleteLink {
+                link: other,
+                signed: None,
+            })
+            .await;
         calls
             .write(Op::RemoveContact {
                 account: other,

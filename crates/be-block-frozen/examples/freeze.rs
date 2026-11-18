@@ -369,6 +369,11 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         &owner_card,
         organization,
         &owner.keys().pins(),
+        &owner
+            .checked_organization()
+            .await
+            .map_err(text)?
+            .ok_or("the organization has a log")?,
     )
     .await
     .map_err(text)?;
@@ -400,6 +405,11 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         &owner_card,
         organization,
         &owner.keys().pins(),
+        &owner
+            .checked_organization()
+            .await
+            .map_err(text)?
+            .ok_or("the organization has a log")?,
     )
     .await
     .map_err(text)?;

@@ -59,7 +59,7 @@ with `follow`, the session's entries arrive as events until `unfollow`).
 reference change, and an optional `journal-seal`; covers `set-metadata` and
 `rebase-journal`), `Move` (`set-parent`, with its signed parent record),
 `AppendLog` (grant, revocation, administrator, member and owner records:
-covers `set-access`, `set-role`, `sign-member` and a person's `remove-member`), `PutKeys` (covers
+covers `set-access`, `set-role`, `sign-member` and a person's removal), `PutKeys` (covers
 `put-keys`, `rotate`, `create-escrow`, `reseal-keys`, and the key arguments of
 `create-block` and `set-parent`, which a batch carries beside them),
 `HoldObjects`, `ReserveUploads` (answers the URLs `upload-urls` does),
@@ -100,7 +100,7 @@ which steps 3 and 4 move into `AcceptLink`, `CreateLink` and the mailbox.
 
 `AppendLog` is where the signed access logs (guides/blocks/keys.md, "Access
 logs") already point: each of
-`set-access`, `set-role`, `sign-member` and `remove-member` carries a signed
+`set-access`, `set-role`, `sign-member` and a removal carries a signed
 record the server appends to a log once it checks there. What is built that
 touches these calls:
 
@@ -202,8 +202,8 @@ In three pieces, each landing whole.
   grant or an owner record (`grant`, as `set-access` carried both), a role or
   a member record; `put-keys` is `rows`, `rotate`, `escrow` or `reseal`, each with its own
   rule; notices, contacts, links, `put-contact` and `pin-escrow` wait for step
-  4; `remove-member` and the notify modes (`notify-modes`, `set-notify-mode`,
-  `topic.notify-modes`) are as they were, decisions (a) and (b) unanswered
+  4; `remove-member` (until decision (b), below) and the notify modes
+  (`notify-modes`, `set-notify-mode`, `topic.notify-modes`) were as they were
   (the modes became the mutes below);
   no `members` topic, since nothing pushed one before. Tests:
   `every_call_states_who_may_make_it` (by case of query, op and target),
@@ -446,25 +446,35 @@ be-host-stack's `a_folders_order_is_read_from_its_content_online_and_offline`
 and `a_blocks_references_are_read_from_its_head_not_its_summary`; the server's
 order tests read its kept references from its database.
 
-## Decisions for the user
+## Decided
 
-- **(b) Removing a member no record names.** A person accepting an invitation
-  joins before any administrator's device signs a member record for them
-  (guides/blocks/keys.md, "Access logs"), so `remove-member` without a record
-  stays, and does not fit `AppendLog`. Recommended: sign every member in when
-  they accept. The administrator who makes an invitation appends an invitation
-  record to the organization's log naming a public key derived from the link's
-  code; accepting appends a member record signed with that key and naming the
-  accepter's keys. The server never holds the code, so it cannot forge the
-  record, and no administrator need be online. Then every removal of a person
-  is an `AppendLog`, and an agent's is `DeleteAgent` (the personal
-  organization has no log, so an agent there has no record to sign it out).
-  Interaction: the members dialog work on `claude/members-sign-in-wip` shows
-  administrators the members no record signed in, with a Sign in action. Once
-  accepting signs a member in, and with old data deleted, nobody is unsigned
-  but a member the server added itself; the list stays as that warning and
-  its Sign in action goes. Land that work first, and remove the action in
-  step 3b if (b) is taken.
+- **(b) Every member is signed in as they accept (taken, built).** A person
+  accepting an invitation joined before any administrator's device signed a
+  member record for them, so `remove-member` without a record stayed and did
+  not fit `AppendLog`. Now making an invitation appends an invitation record
+  (`be_block_keys::Invitation`, `create-link.signed`) naming a key the link's
+  code derives (`InviteCode::invitation_key`); accepting appends a member
+  record naming the accepter's keys, signed with that key after the log head
+  `query.link` answers (`Entry::accepted`, `accept-link.member`), checked by the
+  server against the link's key and by `check_log` against the log: once per
+  invitation, while it is open and its inviter administers, for an account the
+  log does not name. Revoking one carries the record ending it
+  (`delete-link.signed`, naming `invitation-row.key`). The server never holds
+  the code, and no administrator need be online. A person's removal is
+  `append-log(member)` with its revocations; `remove-member` became
+  `delete-agent`, for agents alone (the personal organization has no log, so an
+  agent there has no record to sign it out). Expiry stays the server's word. A
+  member the server adds on its own stays unsigned, listed in
+  `unsigned-members`, which the members dialog shows administrators as a
+  warning; the `claude/members-sign-in-wip` Sign in action went (an
+  administrator no longer signs a person in). Tests: be-block-keys'
+  `a_member_is_signed_in_by_an_invitation_and_an_agent_by_its_maker`,
+  be-block-client's
+  `accepting_an_invitation_signs_the_member_in_with_no_administrator_online`
+  (a used invitation signs no second account in even once the server forgets
+  it was used, and a member record the server signs itself is refused), the
+  `removing_a_member_*` tests, and be-host-tests'
+  `the_members_dialog_warns_of_a_member_no_invitation_signed_in`.
 
 ## Trade-offs
 

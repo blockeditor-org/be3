@@ -4,7 +4,8 @@ mod access;
 pub mod aead;
 pub use access::{
     Administrator, Asked, Authority, CarriedKey, Checked, Entry, EntryHash, FORMER_OWNER, Grant,
-    Heads, Level, Link, LogKind, Logged, Logs, MAX_ANCESTRY, Member, Named, Opening, Owner, Parent,
+    Heads, Invitation, Level, Link, LogKind, Logged, Logs, MAX_ANCESTRY, Member, Named, Opening,
+    Owner, Parent,
     Placement, Record, Reduced, Retirement, Root, Step, StepRef, agent_account, answer, check_log,
     check_log_as_of, proof_path,
 };
@@ -22,6 +23,7 @@ const SEAL_INFO: &[u8] = b"be3.seal.v1";
 const PAIRING_CONTEXT: &[u8] = b"be3.pairing.v1";
 const INVITE_INFO: &[u8] = b"be3.invite.v1";
 const INVITE_LOOKUP_INFO: &[u8] = b"be3.invite.lookup.v1";
+const INVITE_SIGNING_INFO: &[u8] = b"be3.invite.signing.v1";
 const OWN_INFO: &[u8] = b"be3.own.v1";
 const CARD_OWNER: &[u8] = b"be3.contact.owner.v1";
 const CARD_ACCEPTER: &[u8] = b"be3.contact.accepter.v1";
@@ -467,6 +469,26 @@ impl InviteCode {
 
     fn key(&self, context: &[u8]) -> [u8; 32] {
         expand(&self.0, context, INVITE_INFO)
+    }
+
+    /// The key an invitation into `organization` made with this code signs its accepter in
+    /// with (guides/blocks/keys.md, "Access logs"): its public half is in the organization's
+    /// log, and the server, which never holds the code, cannot sign with it.
+    pub(crate) fn invitation_signing(&self, organization: [u8; 16]) -> ed25519_dalek::SigningKey {
+        ed25519_dalek::SigningKey::from_bytes(&expand(
+            &self.0,
+            &[INVITE_SIGNING_INFO, &organization].concat(),
+            INVITE_SIGNING_INFO,
+        ))
+    }
+
+    /// The public half of `invitation_signing`, which the invitation record names.
+    pub fn invitation_key(&self, organization: [u8; 16]) -> SigningPublic {
+        SigningPublic(
+            self.invitation_signing(organization)
+                .verifying_key()
+                .to_bytes(),
+        )
     }
 }
 
