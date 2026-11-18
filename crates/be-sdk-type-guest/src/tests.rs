@@ -148,6 +148,8 @@ mod what_is_typed_while_a_seal_waits_on_the_server_is_journaled_at_once;
 mod what_is_typed_while_a_seal_waits_survives_a_crash_before_the_seal_is_answered;
 mod edits_on_their_way_when_another_head_lands_land_on_it;
 mod an_editors_edit_made_before_two_restarts_it_was_not_shown_lands;
+mod a_reload_the_server_refuses_is_made_again_and_seals_go_on;
+mod a_merge_whose_state_is_too_large_to_go_inline_reloads_by_a_part;
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
 struct Checklist {
@@ -637,6 +639,9 @@ struct Sim<C: LiveEdit + Clone + Default> {
     resumed: Vec<usize>,
     /// Submissions wait until `unstall`.
     stalled_submits: bool,
+    /// The largest submission the server takes (`MAX_RELAY_BYTES` in be-server): a larger one
+    /// fails.
+    largest_submission: usize,
     /// What the next `open` is told the host kept across a stop: the last restart its replica
     /// had applied and the number of the last kept edit (`opening.kept-restart`,
     /// `opening.kept-through`).
@@ -730,6 +735,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             read_stalled: false,
             resumed: vec![0; devices],
             stalled_submits: false,
+            largest_submission: usize::MAX,
             kept_opening: None,
             kept_submitted: 0,
             kept_submissions: Vec::new(),
@@ -1639,6 +1645,10 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 }
                 if !self.lease.speaks(client) {
                     let refused = be_sdk_type_api::host::Submitted::Failed("refused".into());
+                    return self.to(device, |host| reply.send(host, &refused));
+                }
+                if submission.payload.len() > self.largest_submission {
+                    let refused = be_sdk_type_api::host::Submitted::Failed("too large".into());
                     return self.to(device, |host| reply.send(host, &refused));
                 }
                 if self.offline_submits {

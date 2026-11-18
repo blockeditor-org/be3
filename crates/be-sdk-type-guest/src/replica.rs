@@ -358,6 +358,19 @@ enum Slot<C> {
 }
 
 /// What this replica submitted that has not come back numbered.
+/// A reload waiting to be submitted until the part its state goes by is put
+/// (`Replica::submit_reloads`).
+struct PendingReload {
+    commit: CommitId,
+    head: bool,
+    replace: bool,
+    restart: bool,
+    /// Its `BaseState`, encoded.
+    state: Vec<u8>,
+    reply: Option<RequestId>,
+    through: u64,
+}
+
 struct Sent<C: LiveEdit> {
     id: OpId,
     /// The operation it submitted, none for a reload or a stash to keep.
@@ -496,7 +509,7 @@ const MERGE_READ_TRIES: u8 = 3;
 /// How long a merge that could not read its parts waits to be tried again, doubling up to the
 /// ceiling.
 const MERGE_RETRY_INTERVAL: u64 = 5_000;
-const MERGE_RETRY_CEILING: u64 = 60_000;
+pub(crate) const MERGE_RETRY_CEILING: u64 = 60_000;
 
 /// How long a holder whose seal failed (its block's key not on this device while offline, say)
 /// waits before it seals again, doubling up to `SEAL_RETRY_CEILING`.
@@ -618,6 +631,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     keep: Vec<CommitId>,
     /// The reloads this holder submitted that have not come back: it seals none meanwhile.
     reloading: Vec<OpId>,
+    /// Reloads waiting for the part their state goes by (`submit_reloads`): seals wait for
+    /// them as for those in `reloading`.
+    reloads_putting: VecDeque<PendingReload>,
     /// The last barrier applied.
     replaced_at: u64,
     /// The counter of this replica's last submission, from a random start: ids never repeat.
@@ -963,6 +979,7 @@ where
             heard_seal: None,
             keep: Vec::new(),
             reloading: Vec::new(),
+            reloads_putting: VecDeque::new(),
             replaced_at: 0,
             // Leaves room for 2^48 submissions after it.
             counter: Uuid::new_v4().as_u64_pair().0 >> 16,
@@ -1125,7 +1142,10 @@ where
         let settled = self.unreadable.is_some()
             || !self.loaded
             || self.diverged
-            || (self.pending.is_empty() && self.unsent.is_empty() && self.reloading.is_empty());
+            || (self.pending.is_empty()
+                && self.unsent.is_empty()
+                && self.reloading.is_empty()
+                && self.reloads_putting.is_empty());
         settled
             || self
                 .closing
@@ -1135,10 +1155,7 @@ where
     /// The parts an entry names that this replica has yet to read, unless one is longer than any
     /// part an entry may name: every replica passes that entry over unread.
     fn missing_parts(&self, op: &SessionOp) -> Vec<PartRef> {
-        let Some(Submitted {
-            entry: Entry::Operation(Payload::Part(part)),
-            ..
-        }) = Submitted::decode(&op.payload)
+        let Some(part) = Submitted::decode(&op.payload).and_then(|submitted| submitted.entry.part())
         else {
             return Vec::new();
         };
@@ -1171,7 +1188,7 @@ where
     /// What an operation encoded as `bytes` goes as: the bytes, or for one too large to relay
     /// the part they were put as. None until that part is put, which this starts.
     fn payload_of(&mut self, bytes: Vec<u8>) -> Option<Payload> {
-        if bytes.len() <= LARGEST_RELAYED_OPERATION {
+        if bytes.len() <= largest_inline() {
             return Some(Payload::Inline(bytes));
         }
         let hash = Hash::of(&bytes);
@@ -1265,10 +1282,8 @@ where
         named.extend(self.pending.iter().filter_map(|sent| sent.payload.part()));
         for job in &self.jobs {
             if let Job::Ordered(op) = job
-                && let Some(Submitted {
-                    entry: Entry::Operation(Payload::Part(part)),
-                    ..
-                }) = Submitted::decode(&op.payload)
+                && let Some(part) =
+                    Submitted::decode(&op.payload).and_then(|submitted| submitted.entry.part())
             {
                 named.insert(part);
             }
@@ -1289,7 +1304,7 @@ where
                     "an edit too large to submit inline could not be put: {error}"
                 ));
                 // Kept, and put again after a while, when it next goes out.
-                if !self.unsent.is_empty() {
+                if !self.unsent.is_empty() || !self.reloads_putting.is_empty() {
                     let wait =
                         (PUT_RETRY_INTERVAL << self.put_failures.min(4)).min(PUT_RETRY_CEILING);
                     self.put_failures += 1;
@@ -2936,6 +2951,12 @@ where
                 if op.base < op.floor && !replace && !restart {
                     return self.passed(&op, mine);
                 }
+                // Read before the entry was let through (`missing_parts`); one too long to read
+                // reloads with none, as every replica does.
+                let state = match state {
+                    Payload::Inline(bytes) => bytes,
+                    Payload::Part(part) => self.payloads.get(&part).cloned().unwrap_or_default(),
+                };
                 self.read(
                     vec![Some(commit)],
                     Then::Reload {
@@ -3104,6 +3125,12 @@ where
             false => None,
         };
         self.reloading.retain(|id| *id != op.id);
+        // Its own reload of a merge landed: one that never reached the order before is settled
+        // (`answer_submitted`).
+        if mine && head {
+            self.merge_failures = 0;
+            self.merge_retry_at = None;
+        }
         let before = std::mem::replace(&mut self.confirmed, C::default());
         let mut reapplied = false;
         if !replace && !restart {
@@ -3235,6 +3262,7 @@ where
             && !self.diverged
             && self.merge_failures == 0
             && self.reloading.is_empty()
+            && self.reloads_putting.is_empty()
             && self.seal_retry_at.is_none_or(|at| self.now >= at)
     }
 
@@ -3461,6 +3489,9 @@ where
     /// Submits the next operation waiting, once nothing of this replica's is in flight: what is
     /// typed meanwhile is absorbed into one edit (decisions/a_replica_keeps_one_edit_in_flight.md).
     fn flush(&mut self) {
+        if !self.released {
+            self.submit_reloads();
+        }
         // A put that failed goes again on its timer (`tick`), whatever asks meanwhile.
         if !self.loaded
             || self.released
@@ -3618,14 +3649,55 @@ where
         through: u64,
     ) {
         let restart = head && replace;
-        let entry = Entry::Reload {
+        let reload = PendingReload {
             commit,
             head,
             replace: replace && !restart,
             restart,
             state: self.base_state(state, self.applied),
+            reply,
+            through,
         };
-        let barrier = replace;
+        self.reloads_putting.push_back(reload);
+        self.submit_reloads();
+    }
+
+    /// Submits the reloads waiting, in order, each once its state can go: inline, or by the
+    /// part it is put as (`payload_of`), which the replica waits for, sealing nothing, as for a
+    /// reload on its way.
+    fn submit_reloads(&mut self) {
+        while let Some(reload) = self.reloads_putting.front() {
+            if self.put_retry_at.is_some() {
+                return;
+            }
+            let Some(state) = self.payload_of(reload.state.clone()) else {
+                return;
+            };
+            let Some(reload) = self.reloads_putting.pop_front() else {
+                return;
+            };
+            self.submit_reload_entry(reload, state);
+        }
+    }
+
+    fn submit_reload_entry(&mut self, reload: PendingReload, state: Payload) {
+        let PendingReload {
+            commit,
+            head,
+            replace,
+            restart,
+            reply,
+            through,
+            ..
+        } = reload;
+        let entry = Entry::Reload {
+            commit,
+            head,
+            replace,
+            restart,
+            state: state.clone(),
+        };
+        let barrier = replace || restart;
         let local = self.entry_through();
         self.counter += 1;
         let submission = Submission {
@@ -3648,7 +3720,8 @@ where
         self.pending.push_back(Sent {
             id,
             operation: None,
-            payload: Payload::Inline(Vec::new()),
+            // The part its state went by, kept until it lands (`prune_payloads`).
+            payload: state,
             entry,
             reply,
         });
@@ -3671,6 +3744,28 @@ where
         if let Some(id) = reply {
             let made = !matches!(outcome, Outcome::Failed(_) | Outcome::Refused(_));
             self.reply(id, Answer::Changed(made));
+        }
+        // A reload that never reached the order would hold seals back for good (`reloading`):
+        // it is let go.
+        if matches!(outcome, Outcome::Failed(_) | Outcome::Refused(_))
+            && let Some(at) = self
+                .pending
+                .iter()
+                .position(|sent| sent.id.counter == counter && sent.operation.is_none())
+            && let Some(sent) = self.pending.remove(at)
+        {
+            let (Outcome::Failed(error) | Outcome::Refused(error)) = outcome else {
+                return;
+            };
+            self.reloading.retain(|id| *id != sent.id);
+            let error = format!("a reload did not reach the session: {error}");
+            match sent.entry {
+                // A merge's: it is made again on the merge's timer, as a merge that failed is.
+                Entry::Reload { head: true, .. } => self.merge_failed(error),
+                _ => self.error(error),
+            }
+            self.jobs.push_back(Job::Unblocked);
+            return;
         }
         match outcome {
             Outcome::Held => self.lacking.held(counter),
@@ -4654,7 +4749,7 @@ where
         };
         // A reload of its own on its way: the seal waits for it, as it would publish on the head
         // the reload replaces.
-        if skip || !self.reloading.is_empty() {
+        if skip || !self.reloading.is_empty() || !self.reloads_putting.is_empty() {
             self.sealing = false;
             if let Some(id) = reply {
                 self.reply(id, Answer::Sealed);
@@ -4807,6 +4902,23 @@ where
         // They go again as new submissions: the ones on their way are passed over.
         self.lacking.unsubmitted();
     }
+}
+
+/// The most an entry carries inline (`LARGEST_RELAYED_OPERATION`); past it, it goes by a part.
+#[cfg(not(test))]
+fn largest_inline() -> usize {
+    LARGEST_RELAYED_OPERATION
+}
+
+#[cfg(test)]
+thread_local! {
+    pub(crate) static LARGEST_INLINE: std::cell::Cell<usize> =
+        const { std::cell::Cell::new(LARGEST_RELAYED_OPERATION) };
+}
+
+#[cfg(test)]
+fn largest_inline() -> usize {
+    LARGEST_INLINE.with(std::cell::Cell::get)
 }
 
 #[cfg(not(test))]
