@@ -106,6 +106,12 @@ pub struct ChatLog {
     /// The places of redacted entries a later entry of their author's names, deleting or taking
     /// them back: any other redacted entry was removed by someone else, and shows so.
     taken_back: BTreeSet<u64>,
+    /// The places of redacted entries a reaction's take-back named: reaction records, not
+    /// messages.
+    reactions_taken: BTreeSet<u64>,
+    /// Redacted entries their author's deletion names, with when and who signed it: shown as
+    /// deleted messages once the fold knows none was a reaction taken back (`show_deleted`).
+    deleted: BTreeMap<u64, (i64, LogSigner)>,
 }
 
 impl ChatLog {
@@ -115,6 +121,7 @@ impl ChatLog {
         for item in items {
             log.take(item);
         }
+        log.show_deleted();
         log.show_removed();
         log.group_reactions();
         log
@@ -169,8 +176,10 @@ impl ChatLog {
                 takes_back,
                 ..
             })) => {
-                if let Some(taken) = takes_back {
-                    self.take_back(taken, item);
+                if let Some(taken) = takes_back
+                    && self.take_back(taken, item)
+                {
+                    self.reactions_taken.insert(taken);
                 }
                 if self.messages.contains_key(&message) {
                     self.reactions
@@ -178,32 +187,10 @@ impl ChatLog {
                 }
             }
             Some(Some(ChatEntry::Delete { message, time })) => {
-                // One a take-back named already (a reaction taken back) was no message.
-                let taken = self.taken_back.contains(&message);
-                self.take_back(message, item);
-                if let Some(gone) = self
-                    .unopened
-                    .get(&message)
-                    .filter(|gone| !taken && gone.author == item.author)
-                {
-                    self.messages.insert(
-                        message,
-                        Shown {
-                            seq: gone.seq,
-                            id: gone.id,
-                            author: gone.author,
-                            arrival: gone.arrival,
-                            time: gone.arrival,
-                            body: None,
-                            edited: false,
-                            reply_to: None,
-                            attachments: Vec::new(),
-                            reactions: Vec::new(),
-                            signer: gone.signer,
-                            deleted: None,
-                            removed: false,
-                        },
-                    );
+                // A redacted entry it names is shown deleted once the fold knows it was no
+                // reaction taken back, whichever came first (`show_deleted`).
+                if self.take_back(message, item) {
+                    self.deleted.insert(message, (time, item.signer));
                 }
                 if let Some(shown) = self.authored(message, item.author) {
                     shown.deleted = Some((time, item.signer));
@@ -213,16 +200,48 @@ impl ChatLog {
         }
     }
 
-    /// Notes that `item` names the redacted entry at `seq` as its author's to take back; one
-    /// naming another author's entry counts for nothing.
-    fn take_back(&mut self, seq: u64, item: &LogItem) {
-        if seq < item.seq
+    /// Notes that `item` names the redacted entry at `seq` as its author's to take back,
+    /// answering whether it does; one naming another author's entry counts for nothing.
+    fn take_back(&mut self, seq: u64, item: &LogItem) -> bool {
+        let named = seq < item.seq
             && self
                 .unopened
                 .get(&seq)
-                .is_some_and(|taken| taken.author == item.author)
-        {
+                .is_some_and(|taken| taken.author == item.author);
+        if named {
             self.taken_back.insert(seq);
+        }
+        named
+    }
+
+    /// Shows each redacted entry its author's deletion named as that message, deleted, unless
+    /// a take-back named it as a reaction record, before or after the deletion.
+    fn show_deleted(&mut self) {
+        for (seq, (time, signer)) in &self.deleted {
+            if self.reactions_taken.contains(seq) || self.messages.contains_key(seq) {
+                continue;
+            }
+            let Some(gone) = self.unopened.get(seq) else {
+                continue;
+            };
+            self.messages.insert(
+                *seq,
+                Shown {
+                    seq: gone.seq,
+                    id: gone.id,
+                    author: gone.author,
+                    arrival: gone.arrival,
+                    time: gone.arrival,
+                    body: None,
+                    edited: false,
+                    reply_to: None,
+                    attachments: Vec::new(),
+                    reactions: Vec::new(),
+                    signer: gone.signer,
+                    deleted: Some((*time, *signer)),
+                    removed: false,
+                },
+            );
         }
     }
 
