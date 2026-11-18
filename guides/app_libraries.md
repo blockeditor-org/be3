@@ -206,7 +206,10 @@ guest, which links base and beui to draw with beui
 A type module (`:module`, wasm32-unknown-unknown) builds only what its replica runs, about 72
 Rust libraries with the type crates. Features keep host-only parts out: be-block-store without
 `vault`, be-block-commit without `store` (sealed commits, `CommitStore` and history retention),
-be-block-session without `store`. What is left, and why:
+be-block-session without `store`. The linker drops unused code anyway, so those features save
+compile time, not size: moving be-block-commit's retention behind `store` left the dev modules
+the same size within noise (November 2026: chat 4,166,413 to 4,166,001 bytes, checklist
+3,433,545 to 3,434,000, text 3,547,056 to 3,547,518). What is left, and why:
 
 | crate | type modules use it for |
 |---|---|
