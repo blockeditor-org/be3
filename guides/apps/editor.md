@@ -27,7 +27,8 @@ action is also in the command palette, and buttons and menu rows that take it
 as their `action` prop share its label, enabled state, tick and shortcut
 (guides/beui_keyboard.md, Actions and the command palette). An action with
 `.pin(Pin::Icon | Pin::Label)` sits in the tab bar beside More; `Pin::Title`
-runs when a phone's stacked bar's title is tapped (Rename). The canvas builds
+runs when a phone's stacked bar's title is tapped (Rename), which shows its
+glyph after the title as the cue. The canvas builds
 its frame menu and context menu from the same submenus (`root/menu.rs`); the
 text editor offers what does not fit its bar there.
 
