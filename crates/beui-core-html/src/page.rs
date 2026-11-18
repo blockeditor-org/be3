@@ -11,6 +11,7 @@ struct PageSignals {
     motion: Signal<Option<Motion>>,
     viewport: Signal<Vec2>,
     pixels_per_point: Signal<f32>,
+    share_sheet: Signal<bool>,
     fonts_loaded: Trigger,
 }
 
@@ -22,6 +23,7 @@ thread_local! {
         motion: crate::global_signal(None),
         viewport: crate::global_signal(Vec2::ZERO),
         pixels_per_point: crate::global_signal(1.0),
+        share_sheet: crate::global_signal(false),
         fonts_loaded: crate::global_trigger(),
     };
 }
@@ -147,6 +149,19 @@ pub fn copy(clip: &beui_types::Clip) {
     HELD.with(|held| held.borrow_mut().copy(clip.clone()));
 }
 
+/// Hands `clip` to the browser's share sheet, from the press that asks for it.
+pub fn share(clip: &beui_types::Clip) {
+    #[cfg(target_arch = "wasm32")]
+    beui_web_input::share::share(clip);
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = clip;
+}
+
+/// Whether the browser has a share sheet for `share`.
+pub fn use_share_sheet() -> ReadSignal<bool> {
+    signals().share_sheet.read_only()
+}
+
 /// The clip this page copied, while `text`, the plain text a paste carries,
 /// is still what it wrote; dropped once another program has copied.
 pub fn held(text: Option<&str>) -> Option<beui_types::Clip> {
@@ -203,6 +218,9 @@ pub(crate) fn watch(window: &web_sys::Window) -> Vec<crate::dom::Listener> {
         }
     };
     report();
+    signals
+        .share_sheet
+        .set(beui_web_input::share::has_share_sheet());
     for media in [
         "(prefers-color-scheme: dark)",
         "(prefers-color-scheme: light)",

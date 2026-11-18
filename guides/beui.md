@@ -136,7 +136,7 @@ how to test on both.
 - [beui/programs.md](beui/programs.md): standalone programs, `Root`,
   `RunOptions`, layers, drivers, the inspector and simulation tools, beui in
   an app.
-- [beui/platforms.md](beui/platforms.md): the runner, input, the clipboard,
+- [beui/platforms.md](beui/platforms.md): the runner, input, the clipboard, the share sheet,
   renderers, each platform, displays under drm.
 - [beui/space.md](beui/space.md): the Space VR simulator, XR headsets, the
   on-screen keyboard.
