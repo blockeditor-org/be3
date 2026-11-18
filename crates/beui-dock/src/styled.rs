@@ -67,7 +67,7 @@ pub fn DockBarGrip(
                 };
                 if moved.get() {
                     control.begin_move(press);
-                } else if (press.pos - down.pos).length() >= beui_components_unstyled::DRAG_THRESHOLD {
+                } else if (press.pos - down.pos).length() >= beui_view::types::DRAG_THRESHOLD {
                     moved.set(true);
                     control.begin_move(down);
                     control.begin_move(press);
