@@ -55,11 +55,13 @@ graphics. One runtime, not a second one for `be`.
      not yet run against a real deploy. A development build's terminal host
      uploads `be-tool-cli:terminal-host`, `be` with every manifest and type
      module beside it (guides/terminal.md).
-2. **`be BLOCK host`.** Signs in (as an agent, or a block's agent, as the
+2. **`be BLOCK host`** (done). Signs in (as an agent, or a block's agent, as the
    terminal host does), opens the block and runs its type's host component
-   while it holds the lease, standing by otherwise. Done: plans/hosted_blocks.md
-   step 4's headless test.
+   while no other device hosts it, claiming the lease as it starts, standing by
+   otherwise (guides/apps/runtime.md, "Headless");
+   `be_hosts_a_block_while_no_other_device_does`. Not yet run against a real
+   deploy. Left: plans/hosted_blocks.md step 4's acceptance test.
 3. **Guides.** guides/apps/runtime.md and guides/common_commands.md say how
    `be` runs apps: done for what step 1 built (guides/apps/runtime.md,
    "Headless"; `be-tool-cli:dev` in guides/common_commands.md). Step 2's
-   command joins them when it lands.
+   command is in both.
