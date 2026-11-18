@@ -1071,8 +1071,11 @@ pub(crate) fn AppView(
     let site = use_drop_site(
         Func::new(|_: BlockDrag| true),
         Func::new(move |drag: BlockDrag| {
+            // Only inside the view: `takes` reads a point already known to be in it, as a
+            // press is, and says only which parts of it are the app's.
             drag::custom(area, move |_: Pos2, point: DragPoint| {
-                takes(point.pos - state.with_untracked(|view| view.rect.min.to_vec2()))
+                let rect = state.with_untracked(|view| view.rect);
+                (rect.contains(point.pos) && takes(point.pos - rect.min.to_vec2()))
                     .then_some((drag, point.pos, DropAction::of(point.modifiers)))
             })
         }),
