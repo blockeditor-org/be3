@@ -8,9 +8,9 @@ use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{
     AccountStorage, Authenticated, BrowserLogin, BrowserLoginState, Contents, CreatedAgent,
     DeviceLoginAnswer, DeviceLoginStep, Done, Error, ErrorCode, Event, Header, JoinedSession,
-    LinkKind, Listing, LogRecord, Op, Page, PairingMessage, PushEndpointChange, PutKeys, Query,
-    RecoveryKey, ServerInfo, SessionEvent, SessionSend, Target, Topic, UploadUrl, WriteError,
-    embed,
+    LinkKind, Listing, LogRecord, MemberKind, Op, Page, PairingMessage, PushEndpointChange,
+    PutKeys, Query, RecoveryKey, ServerInfo, SessionEvent, SessionSend, SessionState, Target,
+    Topic, UploadUrl, WriteError, embed,
 };
 use be_wasm_ops::{Backlog, Incoming, OpError, OpId, Outlets, Reply, Started, net::Peer};
 use tokio::sync::mpsc;
@@ -99,7 +99,8 @@ pub(crate) fn query_rule(query: &Query) -> Rule {
         | Query::ServerInfo => Rule::Account,
         // A bearer read of an invitation, before its holder signs in (a one-shot call).
         Query::Invitation(_) => Rule::OneShot,
-        Query::Session { block: of, .. } => block(*of, Access::View),
+        // A Join member joins as one, hearing only the host channel (`Client::join`).
+        Query::Session { block: of, .. } => block(*of, Access::Join),
     }
 }
 
@@ -161,6 +162,7 @@ pub(crate) fn target_rule(target: &Target) -> Rule {
         Target::Session { block, kind } => match kind {
             SessionSend::Ordered(_) | SessionSend::Claim => Rule::Session(*block, Access::Edit),
             SessionSend::Ephemeral(_) => Rule::Session(*block, Access::View),
+            SessionSend::Host(_) => Rule::Session(*block, Access::Join),
         },
         Target::Devices(_) => Rule::Account,
         Target::Push { block: of, .. } => block(*of, Access::Edit),
@@ -454,6 +456,9 @@ pub(crate) struct Client {
     pub(crate) lates: mpsc::UnboundedReceiver<Late>,
     outlets: Outlets<()>,
     following: Following,
+    /// What this connection may still send lease holders on host channels
+    /// (`limits::HOST_MESSAGES_PER_SECOND`).
+    host_messages: crate::limits::Bucket,
     /// The storage usage last read or told, and whether a task follows the payer's.
     storage: Option<AccountStorage>,
     following_storage: bool,
@@ -591,6 +596,7 @@ impl Client {
             lates,
             outlets: Outlets::within(STREAM_BUFFER_BYTES),
             following: Following::default(),
+            host_messages: crate::limits::Bucket::full(crate::limits::HOST_MESSAGE_BURST),
             storage: None,
             following_storage: false,
         }
@@ -794,6 +800,30 @@ impl Client {
                         received,
                     },
                 ),
+                false => return Ok(()),
+            },
+            Push::Hosted {
+                block,
+                from,
+                payload,
+                received,
+            } => match self.following.sessions.contains_key(&block) {
+                true => session(
+                    block,
+                    SessionEvent::Hosted {
+                        from,
+                        payload: payload.to_vec(),
+                        received,
+                    },
+                ),
+                false => return Ok(()),
+            },
+            Push::Host { block, host } => match self.following.sessions.contains_key(&block) {
+                true => session(block, SessionEvent::Host(host)),
+                false => return Ok(()),
+            },
+            Push::Joiner { block, change } => match self.following.sessions.contains_key(&block) {
+                true => session(block, SessionEvent::Joiner(change)),
                 false => return Ok(()),
             },
             Push::Sequenced { block, entry } => {
@@ -1240,6 +1270,39 @@ impl Client {
         // none of it reaches the connection as if of the session it joins.
         self.drain_pushes().await;
         let connection = &self.connection;
+        // Below View, a Join member (the rule admitted Join): it hears who hosts and the host
+        // channel, nothing of the order, and only the lease holder hears of it.
+        if connection
+            .store
+            .require_access(identity, vec![block], Access::View)
+            .await
+            .is_err()
+        {
+            self.following.sessions.insert(place, tag);
+            let connection = &self.connection;
+            let host = connection
+                .registry
+                .join_member(place, connection.client, identity.account)
+                .await;
+            // A Join lost since the rule ran leaves again.
+            let still = connection
+                .store
+                .require_access(identity, vec![block], Access::Join)
+                .await;
+            if let Err(error) = still {
+                connection.registry.leave(place, connection.client).await;
+                self.following.sessions.remove(&place);
+                return Err(error);
+            }
+            return Ok(Page::Session(JoinedSession {
+                client: connection.client,
+                state: SessionState::default(),
+                journal: None,
+                may_edit: false,
+                joined_as: MemberKind::Join,
+                host,
+            }));
+        }
         let may_edit = connection
             .store
             .require_access(identity, vec![block], Access::Edit)
@@ -1247,9 +1310,9 @@ impl Client {
             .is_ok();
         self.following.sessions.insert(place, tag);
         let connection = &self.connection;
-        let state = connection
+        let (state, host) = connection
             .registry
-            .join(place, connection.client, may_edit, tag)
+            .join(place, connection.client, identity.account, may_edit, tag)
             .await;
         // A view lost since the check ran leaves the session again.
         let journal = async {
@@ -1269,6 +1332,8 @@ impl Client {
                 state,
                 journal,
                 may_edit,
+                joined_as: MemberKind::Participant,
+                host,
             })),
             Err(error) => {
                 connection.registry.leave(place, connection.client).await;
@@ -1366,7 +1431,16 @@ impl Client {
                     .await?,
             ),
             Query::Log(Some(block)) => {
-                Page::Log(store.access_log(admitted.identity()?, block).await?)
+                let identity = admitted.identity()?;
+                // A reader below Edit checks the lease holder's right to host before it speaks
+                // to it (plans/hosted_blocks.md): its path proves the holder's records too.
+                let place = Place {
+                    organization: identity.organization,
+                    block,
+                };
+                let host = connection.registry.host(place).await;
+                let host = host.map(|host| host.account);
+                Page::Log(store.access_log(identity, block, host).await?)
             }
             Query::Log(None) => Page::Log(store.organization_log(admitted.identity()?).await?),
             Query::Access(block) => {
@@ -2297,6 +2371,61 @@ impl Client {
                     block,
                 };
                 let tag = *self.following.sessions.get(&place).ok_or_else(not_joined)?;
+                if let SessionSend::Host(to) = kind {
+                    crate::limits::at_most(
+                        "a message to the host",
+                        payload.len(),
+                        crate::limits::MAX_HOST_MESSAGE_BYTES,
+                    )?;
+                    let route = connection
+                        .registry
+                        .host_route(place, connection.client, to)
+                        .await;
+                    let target = match route {
+                        crate::sessions::HostRoute::To(target) => target,
+                        crate::sessions::HostRoute::NoHost => {
+                            return Err(invalid("no one hosts the block now"));
+                        }
+                        crate::sessions::HostRoute::Refused => {
+                            return Err(ServerError::Refused(
+                                ErrorCode::PermissionDenied,
+                                "only the host sends to a member, and a member only to the host"
+                                    .into(),
+                            ));
+                        }
+                    };
+                    // Only what goes to the holder is limited: it is what one member could
+                    // flood it with.
+                    if to.is_none()
+                        && !self.host_messages.take(
+                            std::time::Instant::now(),
+                            crate::limits::HOST_MESSAGES_PER_SECOND,
+                            crate::limits::HOST_MESSAGE_BURST,
+                        )
+                    {
+                        return Err(ServerError::Refused(
+                            ErrorCode::SlowDown,
+                            format!(
+                                "at most {} messages a second to the host",
+                                crate::limits::HOST_MESSAGES_PER_SECOND
+                            ),
+                        ));
+                    }
+                    let connection = &self.connection;
+                    connection
+                        .hub
+                        .send_to(
+                            target,
+                            Push::Hosted {
+                                block: place,
+                                from: connection.client,
+                                payload: payload.into(),
+                                received: be_block_commit::now_milliseconds(),
+                            },
+                        )
+                        .await;
+                    return Ok(());
+                }
                 let participants = connection.registry.participants(place).await;
                 if !participants.contains(&connection.client) {
                     return Err(not_joined());
@@ -2342,6 +2471,7 @@ impl Client {
                         }
                         Ok(())
                     }
+                    SessionSend::Host(_) => unreachable!("sent above"),
                     SessionSend::Ordered(submission) => {
                         if !connection.registry.speaks(place, connection.client).await {
                             return Err(invalid(
@@ -2789,8 +2919,8 @@ impl Connection {
                 held.retain(|(place, _)| below.contains(&place.block));
             }
         }
-        for (block, clients) in held {
-            for client in clients {
+        for (block, members) in held {
+            for (client, kind) in members {
                 let Some(identity) = self.hub.identity(client, organization).await else {
                     continue;
                 };
@@ -2801,8 +2931,16 @@ impl Connection {
                     self.store
                         .require_access(identity, vec![block.block], level)
                 };
-                if access(Access::View).await.is_err() {
+                // A participant that falls to Join leaves too, and joins again as a Join member.
+                let needs = match kind {
+                    MemberKind::Participant => Access::View,
+                    MemberKind::Join => Access::Join,
+                };
+                if access(needs).await.is_err() {
                     self.registry.leave(block, client).await;
+                    continue;
+                }
+                if kind == MemberKind::Join {
                     continue;
                 }
                 let may_edit = access(Access::Edit).await.is_ok();

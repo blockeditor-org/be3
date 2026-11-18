@@ -223,6 +223,37 @@ interface types {
         participants: list<participant>,
     }
 
+    /// How a connection is in a block's live session.
+    enum member-kind {
+        /// A participant (View or above): in the membership, hearing the
+        /// order and its relays.
+        participant,
+        /// A Join member (plans/hosted_blocks.md): in no membership, hearing
+        /// only the host channel and who hosts, and shown to the lease holder
+        /// alone.
+        join,
+    }
+
+    /// The lease holder of a block's session, and the account it is signed
+    /// in as: a Join member checks that account's right to host before it
+    /// speaks to it.
+    record session-host {
+        client: client-id,
+        account: account-id,
+    }
+
+    /// A Join member came or went: told to the lease holder alone, and to a
+    /// new holder for every Join member already in the session.
+    variant joiner-change {
+        joined(joined-member),
+        left(client-id),
+    }
+
+    record joined-member {
+        client: client-id,
+        account: account-id,
+    }
+
     /// A change of who is in a session, which only the server writes.
     variant membership-change {
         /// Joined, running the build `tag`.

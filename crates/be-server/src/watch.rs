@@ -52,6 +52,23 @@ pub enum Push {
         payload: std::sync::Arc<[u8]>,
         received: i64,
     },
+    /// A message on a session's host channel (`session-send.host`), to one member.
+    Hosted {
+        block: Place,
+        from: ClientId,
+        payload: std::sync::Arc<[u8]>,
+        received: i64,
+    },
+    /// Who holds a session's lease now, told to every member as it changes.
+    Host {
+        block: Place,
+        host: Option<be_block_protocol::SessionHost>,
+    },
+    /// A Join member came or went, told to the lease holder.
+    Joiner {
+        block: Place,
+        change: be_block_protocol::JoinerChange,
+    },
     /// The order numbered a submission: every participant hears it, its author too.
     Sequenced {
         block: Place,

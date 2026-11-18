@@ -1187,6 +1187,7 @@ impl Workspace {
         match self.simulated(id) {
             Some(AccessLevel::None) => AccessLevel::None.min(ceiling),
             Some(AccessLevel::KnowExists) => AccessLevel::KnowExists.min(ceiling),
+            Some(AccessLevel::Join) => AccessLevel::Join.min(ceiling),
             Some(AccessLevel::View) => AccessLevel::View.min(ceiling),
             Some(AccessLevel::Edit) => AccessLevel::Edit.min(ceiling),
             Some(AccessLevel::Manage) | None => ceiling,

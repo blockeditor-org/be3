@@ -250,6 +250,7 @@ pub(crate) fn not_found(block: Uuid) -> ServerError {
 fn verb(level: Access) -> &'static str {
     match level {
         Access::None | Access::KnowExists => "known",
+        Access::Join => "joinable",
         Access::View => "readable",
         Access::Edit => "editable",
         Access::Manage => "managed",
@@ -574,28 +575,33 @@ impl ServerStore {
         .await
     }
 
-    /// The block's access log, root first (`query.log`), to a caller who may view it or a
-    /// block below it: whole to one with Edit or above on it, or who views it with Edit below,
-    /// else a proof path of the caller's own right, and, for a block above what the caller
-    /// views, of whoever signs below on authority from it.
+    /// The block's access log, root first (`query.log`), to a caller who may view or join it
+    /// or view a block below it: whole to one with Edit or above on it, or who views it with
+    /// Edit below, else a proof path of the caller's own right, of that of `host`, the account
+    /// holding its session's lease, whom a Join member or viewer checks before it speaks to it
+    /// (plans/hosted_blocks.md), and, for a block above what the caller views, of whoever signs
+    /// below on authority from it.
     pub async fn access_log(
         &self,
         identity: Identity,
         block: Uuid,
+        host: Option<Uuid>,
     ) -> Result<Vec<Vec<u8>>, ServerError> {
         self.with_graph(identity.organization, move |_, graph, database| {
             let seen = visibility(identity);
             let viewed = graph.contains(block) && seen.can_view(graph, block);
-            if !viewed && !seen.reads_below(graph, block) {
+            let joins = graph.contains(block) && seen.inherited(graph, block).can_join();
+            let below = !viewed && seen.reads_below(graph, block);
+            if !viewed && !joins && !below {
                 return Err(refusal(graph, &seen, block, "visible"));
             }
             let whole = viewed && seen.served_whole(graph, block);
             let reader = (!whole).then_some(identity.account);
             // Above what the caller views: whoever signs below on authority from it, and whoever
             // sealed the caller a key, who may hold Edit here (`KeyBook::vouch`).
-            let also = match viewed {
-                true => Vec::new(),
-                false => {
+            let mut also = match below {
+                false => Vec::new(),
+                true => {
                     let mut also: Vec<Uuid> =
                         crate::access::inherited_signers(database, identity.organization, block)?
                             .into_iter()
@@ -614,6 +620,7 @@ impl ServerStore {
                     also
                 }
             };
+            also.extend(host);
             crate::access::served_log(
                 database,
                 be_block_keys::LogKind::Block,
@@ -2730,7 +2737,7 @@ fn listing_ids(
         Listing::Shared => graph
             .shared(identity.account)
             .into_iter()
-            .filter(|block| graph.contains(*block) && seen.access(graph, *block).can_view())
+            .filter(|block| graph.contains(*block) && seen.access(graph, *block).can_join())
             .collect(),
         Listing::Children(parent) => {
             let settings = crate::organization::settings_of(identity.organization);

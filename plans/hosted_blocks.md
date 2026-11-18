@@ -77,12 +77,11 @@ a role inside the app, since the share dialog grants no roles. A game:
   go only to the lease holder, its presence is shown only to the host, and it
   learns whether a host is online and which account it is. View members join as today, and their
   messages to the host use the same channel, so one View member cannot read
-  another member's messages to the host. Relays already name a `relay-kind` the server checks
-  against the sender's access (`peer` needs View, `edit` needs Edit;
-  guides/blocks/server.md); this adds a `host` kind, the first the
-  server checks against the lease: one from anyone but the lease holder, or to
-  a member of another kind, is refused. Each Join member is rate limited by
-  the server. A Join member admitted by a link may message the host though
+  another member's messages to the host. The channel is the session send
+  `host` (guides/blocks/server.md, "Live sessions"), the first the server
+  checks against the lease: one from anyone but the lease holder naming a
+  member, or from the holder naming no member, is refused. What each member
+  sends the holder is rate limited by the server. A Join member admitted by a link may message the host though
   the two are not contacts: the link was the out-of-band start
   (decisions/share_links_are_an_out_of_band_start.md).
 - The same handshake works over a direct connection a game sets up later; the
@@ -143,20 +142,34 @@ a role inside the app, since the share dialog grants no roles. A game:
 
 ## Order of work
 
-1. **The level.** `Access::Join`, granted like any level; Join members see the
+1. **The level** (done). `Access::Join`, granted like any level; Join members see the
    block in Shared with me by its type, as `KnowExists` does (its name is
    sealed metadata they hold no key to; the Join side shows what the host
-   tells it), and are served no keys or objects. Done: be-block-graph's random-graph access tests include Join; a
-   be-server test that a Join member is served nothing a viewer is.
-2. **Routing.** Session member kinds, the host relay kind, host online state,
-   rate limits. Done: a test where a Join member's message reaches only the
+   tells it), and are served no keys or objects. Like `KnowExists`, a Join
+   grant reaches only its own block, never the blocks below it. Done: be-block-graph's random-graph access tests include Join; a
+   be-server test that a Join member is served nothing a viewer is
+   (`a_join_member_is_served_nothing_a_viewer_is`).
+2. **Routing** (done). Session member kinds (`member-kind`), the `host` session
+   send, host online state (`session-event.host`, `joined-session.host`),
+   rate limits (`limits::HOST_MESSAGES_PER_SECOND`). Done: a test where a Join member's message reaches only the
    lease holder, and another Join member hears nothing of it, not even that it
-   was sent.
-3. **The handshake.** Checking the host's account, Noise IK in
-   `be-block-keys`, the client sides in `be-block-client`. Done: a test with a
+   was sent (`a_join_members_message_reaches_only_the_host`).
+3. **The handshake** (done). Checking the host's account, Noise IK in
+   `be-block-keys` (`noise`), the client sides in `be-block-client`
+   (`Peer::join_host`, `Peer::admit`). Done: a test with a
    forging server that names an account without Edit as the host, or offers a
-   key of its own, and the Join member refuses it; and one where a joiner
-   whose grant was revoked is refused.
+   key of its own, and the Join member refuses it
+   (`a_join_member_refuses_a_host_the_server_makes_up`); and one where a joiner
+   whose grant was revoked is refused
+   (`a_joiner_whose_grant_was_revoked_is_refused_by_the_host`).
+   Where it differs from the above: a Join member holds no key of the block,
+   so nothing carries it the log's root; it takes the root of the log as
+   served once a grant to it there is signed by a contact it verified, whose
+   hash chain fixes the root (guides/blocks/keys.md, "Accepted limits"), and
+   keeps nothing of it. A share link (plans/share_links.md, step 3) carries
+   the root instead. The host admits only an account the block's own log
+   grants Join or above: a member whose access comes from a block above, or
+   from administering, is not admitted yet.
 4. **Hosting.** The host component, starting and stopping it with the editor,
    Keep hosting and the shell's list, lease handoff and reconnecting, ban
    records; then `be BLOCK host`. Done: a test with two editors and two

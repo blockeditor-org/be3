@@ -20,6 +20,7 @@ pub use contacts::{Contact, GrantOffer};
 pub use keys::{EscrowWarning, KeyBook};
 pub use peer::account_block::AccountRecords;
 pub use peer::log::{Appended, LogRead, LoggedEntry};
+pub use peer::hosted::{Admitted, Joining};
 pub use peer::{
     BlockRead, Drained, Listed, MAX_NOTIFICATION_AGE_MILLISECONDS, MAX_NOTIFICATION_TEXT,
     Notification, OpenedNotification, Peer, PeerConfig, PendingRotation, Reconciled, Resolver,

@@ -1445,6 +1445,7 @@ pub fn encode_access(access: Access) -> Option<&'static str> {
     match access {
         Access::None => None,
         Access::KnowExists => Some("know_exists"),
+        Access::Join => Some("join"),
         Access::View => Some("view"),
         Access::Edit => Some("edit"),
         Access::Manage => Some("manage"),
@@ -1454,6 +1455,7 @@ pub fn encode_access(access: Access) -> Option<&'static str> {
 pub fn decode_access(value: &str) -> Result<Access, ServerError> {
     match value {
         "know_exists" => Ok(Access::KnowExists),
+        "join" => Ok(Access::Join),
         "view" => Ok(Access::View),
         "edit" => Ok(Access::Edit),
         "manage" => Ok(Access::Manage),

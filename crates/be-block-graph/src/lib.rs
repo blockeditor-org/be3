@@ -964,7 +964,7 @@ impl BlockGraph {
                 };
                 !self.inherited(parent, account).can_view()
                     && level_below(node, account, Access::None, false, self.in_settings(parent))
-                        .can_view()
+                        .can_join()
             })
             .collect()
     }

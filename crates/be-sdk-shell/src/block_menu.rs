@@ -153,6 +153,6 @@ fn wording(access: AccessLevel) -> &'static str {
         AccessLevel::Manage => "Managing",
         AccessLevel::Edit => "Editing",
         AccessLevel::View => "Viewing",
-        AccessLevel::KnowExists | AccessLevel::None => "No access",
+        AccessLevel::Join | AccessLevel::KnowExists | AccessLevel::None => "No access",
     }
 }

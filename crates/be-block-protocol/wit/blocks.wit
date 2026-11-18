@@ -165,7 +165,7 @@ interface blocks {
 /// connections send each other. The lease holder, derived from that order,
 /// seals with `blocks.publish`.
 interface sessions {
-    use types.{block-id, client-id, commit-id, error, hash, journal, journal-entry, membership-entry, session-state};
+    use types.{block-id, client-id, commit-id, error, hash, journal, journal-entry, joiner-change, membership-entry, session-host, session-state};
 
     record relayed {
         %from: client-id,
@@ -195,5 +195,13 @@ interface sessions {
         sequenced(journal-entry),
         /// A seal moved the head and trimmed the journal.
         sealed(sealed),
+        /// A message on the host channel (`session-send.host`): from the
+        /// lease holder to this member, or to the holder from a member.
+        hosted(relayed),
+        /// Who holds the lease now, or none: told to every member, Join
+        /// members included, as it changes.
+        host(option<session-host>),
+        /// A Join member came or went: told to the lease holder alone.
+        joiner(joiner-change),
     }
 }

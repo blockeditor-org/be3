@@ -62,6 +62,8 @@ mod a_graph_change_reaches_only_the_members_who_may_see_it;
 mod a_greeting_that_signs_nothing_in_is_closed_before_any_call;
 mod a_head_moves_only_to_a_commit_that_descends_from_it;
 mod a_holder_that_loses_edit_access_hands_the_lease_on;
+mod a_join_member_is_served_nothing_a_viewer_is;
+mod a_join_members_message_reaches_only_the_host;
 mod a_key_change_past_the_bound_lets_the_oldest_go_but_an_accepted_card_is_refused;
 mod a_kind_open_inside_passes_from_one_viewer_inside_to_another;
 mod a_link_accepted_then_unmade_as_a_contact_leaves_no_link_or_card;
@@ -415,6 +417,22 @@ enum Notice {
     },
     /// Entries were appended to a log the connection follows (`event.appended`).
     Appended(be_block_protocol::Appended),
+    /// A message on a block's host channel.
+    Hosted {
+        block: Uuid,
+        from: ClientId,
+        payload: Vec<u8>,
+    },
+    /// Who holds a block's lease now.
+    Host {
+        block: Uuid,
+        host: Option<be_block_protocol::SessionHost>,
+    },
+    /// A Join member came or went, told to the lease holder.
+    Joiner {
+        block: Uuid,
+        change: be_block_protocol::JoinerChange,
+    },
     /// Another topic the connection follows changed (`event.topic-changed`).
     Changed {
         organization: Option<Uuid>,
@@ -465,6 +483,13 @@ impl Notice {
                     received,
                 },
                 SessionEvent::Sequenced(entry) => Notice::Sequenced { block, entry },
+                SessionEvent::Hosted { from, payload, .. } => Notice::Hosted {
+                    block,
+                    from,
+                    payload,
+                },
+                SessionEvent::Host(host) => Notice::Host { block, host },
+                SessionEvent::Joiner(change) => Notice::Joiner { block, change },
             },
         }
     }
@@ -1120,6 +1145,31 @@ impl TestClient {
                 state.apply(&entry);
             }
         }
+    }
+
+    /// Joins `block`'s session, answering all the server said (as a participant or as a Join
+    /// member, and who hosts).
+    async fn join_as_member(
+        &mut self,
+        block: Uuid,
+    ) -> Result<be_block_protocol::JoinedSession, Error> {
+        let tag = TYPE_BUILD;
+        self.call(|peer| {
+            peer.ask::<be_block_protocol::JoinedSession>(Query::Session { block, tag }, true)
+        })
+        .await
+    }
+
+    /// Sends `payload` on `block`'s host channel (`session-send.host`).
+    async fn to_host(
+        &mut self,
+        block: Uuid,
+        to: Option<ClientId>,
+        payload: Vec<u8>,
+    ) -> Result<(), Error> {
+        let kind = SessionSend::Host(to);
+        self.call(|peer| peer.send(Target::Session { block, kind }, payload))
+            .await
     }
 
     async fn relay(

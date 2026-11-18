@@ -409,9 +409,26 @@ counts and records nothing: `reserve-uploads` did before it signed.
   and whether it may edit; it is in one session per block (joining again leaves
   and joins), hears the session as `events.session` until `unfollow` or its own
   `left` entry, and sends to it with `send` (`ordered` submissions, `ephemeral`
-  relays, `claim`). Joining needs `View`, and claiming a session's lease needs
-  `Edit` (a viewer's claim is refused, and the replica host ignores the
-  refusal). After a grant, a revocation, a move or a role change,
+  relays, `claim`, `host`). Joining needs `Join`, and claiming a session's
+  lease needs `Edit` (a viewer's claim is refused, and the replica host ignores
+  the refusal). Each answer and `session-event.host` name the lease holder and
+  its account (`SessionRegistry::host`), which `query.log` then proves to a
+  reader below Edit.
+- **Join members** (plans/hosted_blocks.md): a caller below `View` joins as one
+  (`joined-session.joined-as`, `member-kind.join`). It is in no membership, so
+  no participant learns of it; it hears only `session-event.host` and what the
+  holder sends it, and the holder alone hears it come and go
+  (`session-event.joiner`, and every Join member already there when the lease
+  moves). Its only send is `host`: the host channel, which a viewer or editor
+  uses too, so no member reads another's messages to the host. The holder
+  sends to one member it names; anyone else sends, naming none, to the holder
+  (`SessionRegistry::host_route`); the rest is refused, and a send to a
+  session no one holds fails. What a connection sends the holder is limited to
+  `limits::HOST_MESSAGES_PER_SECOND` over a burst of `HOST_MESSAGE_BURST`
+  (`SlowDown`), each at most `MAX_HOST_MESSAGE_BYTES`. The payload is sealed
+  end to end (guides/blocks/keys.md, "Hosted channels"). `recheck_sessions`
+  takes out a Join member that lost `Join`, and a participant that fell to
+  `Join`, which joins again as a Join member. After a grant, a revocation, a move or a role change,
   `recheck_sessions` checks each participant below the block again: one that
   lost `View` (a grant removed, the block trashed, or a move out of view)
   leaves, and the trees it follows advance, where it reads that the block left
@@ -461,7 +478,7 @@ changing a member closes their connections (`WatchHub::drop_member`) so they
 reconnect with what they now are.
 
 Access is per member (`Visibility` in `blocks.rs`, `be_block_graph::Access`:
-`None < KnowExists < View < Edit < Manage`): administrators manage everything
+`None < KnowExists < Join < View < Edit < Manage`): administrators manage everything
 but owner-only blocks, which they only know exist (guides/settings.md, Owner only);
 anyone else gets the best grant on the block or an ancestor (a lower grant
 never reduces an inherited one), and `Manage` on what they authored while they
@@ -476,6 +493,11 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   may not watch it or join its session. Anyone can give themselves
   `KnowExists` on any id by listing it in their own block's references, so it
   never grants more than that summary.
+- `Join` (plans/hosted_blocks.md) is granted like any level and, like
+  `KnowExists`, reaches only its own block: its member reads the same summary
+  (the block is listed in its `Shared`), is served no keys or objects, joins
+  the block's session as a Join member (below, "Live sessions") and is served
+  the block's log as a proof path of its own right and of the lease holder's.
   A viewable block whose parent is not viewable is an entry point (Shared with
   me).
 - Moving (`move`) needs `Edit` on the block and the new parent, and

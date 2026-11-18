@@ -574,6 +574,7 @@ pub(crate) fn level(access: Access) -> Level {
     match access {
         Access::None => Level::None,
         Access::KnowExists => Level::KnowExists,
+        Access::Join => Level::Join,
         Access::View => Level::View,
         Access::Edit => Level::Edit,
         Access::Manage => Level::Manage,

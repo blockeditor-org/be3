@@ -54,6 +54,7 @@ pub(crate) const CONTENTS_BLOCKS: usize = if cfg!(test) { 8 } else { 256 };
 
 pub mod account_block;
 mod authorship;
+pub mod hosted;
 mod import;
 mod journal;
 pub use journal::Submitted;
@@ -4608,6 +4609,7 @@ fn grant_level(access: Access) -> be_block_keys::Level {
     match access {
         Access::None => be_block_keys::Level::None,
         Access::KnowExists => be_block_keys::Level::KnowExists,
+        Access::Join => be_block_keys::Level::Join,
         Access::View => be_block_keys::Level::View,
         Access::Edit => be_block_keys::Level::Edit,
         Access::Manage => be_block_keys::Level::Manage,
