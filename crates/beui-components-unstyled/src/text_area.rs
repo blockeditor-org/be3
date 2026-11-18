@@ -50,10 +50,10 @@ use rows::{BODY_SIZE, Composition, Inline, InlineItem, Row, line_of};
 use state::{AreaGeometry, Grab};
 
 use beui_view::types::{Extent, Sides};
-use hooks::MARGIN_MIN_WIDTH_EM;
 pub use colors::{SyntaxColors, TextAreaColors};
 pub use completion::{Completer, Completion, CompletionMenu, CompletionRowHandle};
 pub use emoji::{emoji_completer, search_emoji};
+use hooks::MARGIN_MIN_WIDTH_EM;
 pub use hooks::{
     LeafSpan, Margin, MarkerColumn, MarkerKind, PlainLine, QuoteBar, TableFill, TableLines,
     TextLeaf, TextLine, TextMarker,
