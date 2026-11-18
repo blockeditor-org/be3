@@ -902,6 +902,7 @@ impl TestClient {
                     from,
                     limit: 100,
                     known,
+                    redactions_after: None,
                 },
                 follow,
             )

@@ -65,5 +65,10 @@ interface logs {
         entries: list<log-entry>,
         proof: list<hash>,
         consistency: list<hash>,
+        /// How many entries of the log were ever redacted, each numbered so.
+        redactions: u64,
+        /// With `redactions-after`, the places of those redacted after it, in
+        /// the order they were.
+        redacted: list<u64>,
     }
 }

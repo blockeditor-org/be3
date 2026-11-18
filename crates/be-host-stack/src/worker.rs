@@ -2305,6 +2305,12 @@ impl Session<'_> {
         }
         self.replicas.pump((peer, shared)).await;
         self.replicas.follow_logs((peer, shared));
+        // Redactions pushed while this device was away are told again, so search and open
+        // replicas drop what they took (`Peer::catch_up_redactions`).
+        let caught_up = Arc::clone(peer);
+        self.tasks
+            .0
+            .spawn(async move { caught_up.catch_up_redactions().await });
         self.versions.reconnected();
         shared
             .lock()

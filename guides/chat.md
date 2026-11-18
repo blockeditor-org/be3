@@ -120,6 +120,17 @@ message with the keyboard. The host counts a chat it is not showing from the
 log's latest entries (`be_block_content::UNREAD_ENTRIES`, guides/blocks/host.md,
 "Unread counts") and counts again as the log grows.
 
+## Imported history
+
+An import keeps the exported chat's messages as history (`ChatLog::history`):
+folded apart from the chat's own by their places in the chat they were
+written in, so an imported edit, reaction, deletion or reply names only
+imported messages, and none of the chat's own names one of them. The editor
+shows it above the chat's own messages, read-only, under "Imported by
+{importer} from an export", with no verdict on when a message arrived (the
+file's word). An entry that may not be history here (`Bad`: not the log's
+leading run, or not appended by the chat's creator) is hidden.
+
 ## Search
 
 Each message is a document of the chat's log (`LogFold::search`): its own,
