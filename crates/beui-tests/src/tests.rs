@@ -86,6 +86,7 @@ mod reorder;
 mod rows;
 mod scroll;
 mod scroll_chain;
+mod share;
 mod sheet;
 mod stack;
 mod stretch;

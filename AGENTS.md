@@ -20,7 +20,7 @@ Guides:
 - guides/beui/overlays.md: overlays and layers: the layer tree and stacking, anchors and placement, policies, dismissing and back, focus and layers, the lock screen, modals and dialogs, toasts, trees, claiming presses, layers that escape their window
 - guides/beui/docking.md: the dock (beui-dock, beui-dock-host, beui-dock-state): declaring and reconciling, saving, panels and focus, modes, the window manager, nested docks, dialogs, tool bars, fullscreen; and windows and window hosts
 - guides/beui/programs.md: a standalone beui program (Program, Root, features, RunOptions), the layer stack, drivers, the inspector and its simulation tools, and beui inside an app
-- guides/beui/platforms.md: what runs under a beui program: the runner, window state and reports, unseen windows, input normalization, clipboard and paste, renderers, winit, the web, Android, headless, and displays under beui-platform-drm
+- guides/beui/platforms.md: what runs under a beui program: the runner, window state and reports, unseen windows, input normalization, clipboard and paste, the share sheet, renderers, winit, the web, Android, headless, and displays under beui-platform-drm
 - guides/beui/space.md: the Space VR simulator layer and OpenXR headsets (beui-layer-space, beui-layer-xr), controller lasers, and beui's on-screen keyboard
 - guides/beui_keyboard.md: focus and input in beui: the keyboard conventions controls follow, how a key travels, actions and the command palette, forwarding to embedded editors and Wayland programs, the input method, touch
 - guides/buck2.md

@@ -4,19 +4,43 @@ use crate::ui::{InvitationRow, InvitationsView, InviteView};
 #[test]
 fn the_invite_dialog_ends_on_its_link_and_the_list_shows_each_invitation() {
     // The link, with its QR code, and that nothing was sent.
-    let mut shown = Shown::dialogs(HostUi {
+    let link = "https://api.be3.example/#invite/ABCDEFGHJKMNPQRSTVWXYZ234567ABCDEFGHJKMNP";
+    let invite = || HostUi {
         invite: Some(InviteView {
             organization: "Acme".to_owned(),
             busy: false,
             error: None,
-            link: Some(
-                "https://api.be3.example/#invite/ABCDEFGHJKMNPQRSTVWXYZ234567ABCDEFGHJKMNP"
-                    .to_owned(),
-            ),
+            link: Some(link.to_owned()),
         }),
         ..Default::default()
-    });
+    };
+    let mut shown = Shown::dialogs(invite());
     shown.painted("the_invite_dialog_ends_on_its_link");
+    assert!(
+        !shown.stepped.shown("host.invite.share"),
+        "no Share where the platform has no share sheet"
+    );
+    // Where the platform has a share sheet, Share hands it the link.
+    let mut shown = Shown::dialogs(invite());
+    shown
+        .stepped
+        .simulation()
+        .expect("a simulated window")
+        .share_sheet = true;
+    shown.painted("the_invite_dialog_shares_its_link_where_there_is_a_share_sheet");
+    shown.stepped.click("host.invite.share");
+    let shared = &shown
+        .stepped
+        .simulation()
+        .expect("a simulated window")
+        .shared;
+    assert_eq!(
+        shared
+            .iter()
+            .map(|clip| clip.plain_text())
+            .collect::<Vec<_>>(),
+        [Some(link.to_owned())]
+    );
     // Each invitation's state, whose it is and when: copy and revoke for an open one of the
     // person's own, a fresh link for an expired one.
     let row =

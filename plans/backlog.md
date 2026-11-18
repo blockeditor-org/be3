@@ -23,12 +23,6 @@ Fixed items are removed as they land.
 
 ## 3. beui platforms
 
-- **A share sheet.** beui has no way to hand a link to the platform's share
-  sheet, so the Invite member dialog offers copy and a QR code only. Done: a
-  beui call that shares a `Clip` where the platform has a sheet (the web's
-  `navigator.share`, Android's send intent) and says whether it has one, with
-  a Share button in the Invite member dialog where it does, and in beui-demo.
-
 - **The first frame after a page grows.** In headless Chromium the first frame after the page
   grows shows the workspace's tabs and files at the old width with a plain background beyond.
   be-host's own canvas is not behind it: the window's `resize` event schedules an animation

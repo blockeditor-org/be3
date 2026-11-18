@@ -1,7 +1,7 @@
 # beui platforms
 
 What runs underneath a beui program: the runner every platform shares, how
-input is normalized, the clipboard, renderers, and what is particular to each
+input is normalized, the clipboard, the share sheet, renderers, and what is particular to each
 platform. How a program uses them is in guides/beui/programs.md.
 
 ## Where the code is
@@ -33,7 +33,7 @@ or a `Waker` was woken.
 `requests` (`WindowRequests`, the same type an app sends its host: cursor,
 pointer lock, back handling, keyboard wanted, intercepted keys, paste kinds,
 IME area), `cursor_image`, `typed` and `appearance`. The runner calls
-`show_window` only when it changed. One-off actions (copy, paste, file pick,
+`show_window` only when it changed. One-off actions (copy, share, paste, file pick,
 fullscreen, close) have calls of their own. `typed` counts frames that
 delivered text, because typing moves the platform's own copy of a field (the
 web's hidden textarea, Android's editable) even when the program rejects it;
@@ -230,6 +230,23 @@ program sees the key: it stops the browser's copy, paste and cut but lets
 Ctrl+Shift+V make a `paste` event. A node that takes these keys and leaves
 Ctrl+V unanswered gets no paste on the web.
 
+## Share sheet
+
+`reactive::share(Clip)` hands a clip to the platform's share sheet, and
+`reactive::use_share_sheet()` says whether there is one: show a Share control
+only while it is true. The native core keeps the clip until the end of the frame
+(`Document::share`, `Context::share`, `FrameOutput::shared`), when the runner
+calls `PlatformServices::share`, where `has_share_sheet`, read each frame, says
+there is a sheet. Call it from the press: the web shares only within a user
+gesture, which the end of the press's frame still is. The web
+(`beui-web-input/src/share.rs`, used by both cores) has one where
+`navigator.share` is defined, and passes the clip's plain text as `url` when it
+is one link (`clip::shared_link`), else as `text`; Android always has one, an
+`ACTION_SEND` of the plain text through the system's chooser (`BeuiView.share`,
+only compile-checked). Desktops and DRM have none, nor does beui inside an app
+yet: the app protocol does not carry a share. The headless `Simulation` has one
+when a test sets `share_sheet`, and keeps what was shared in `shared`.
+
 ## Renderers
 
 Platforms name no renderer crate: they draw through a
@@ -293,7 +310,7 @@ the focus takes text, the document scrolls the focused field into what is
 left. beui's own on-screen keyboard is guides/beui/space.md.
 
 **Headless.** `beui_platform_headless::Simulation` is the window: a
-`PlatformServices` with a clipboard and a screen to go fullscreen into, and the
+`PlatformServices` with a clipboard, a share sheet a test can turn on, and a screen to go fullscreen into, and the
 only window a driver can `resize`. beui's tests drive one with a renderer that
 draws nothing.
 

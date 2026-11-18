@@ -1083,7 +1083,35 @@ fn NameInput() -> NodeId {
                 label="Invite link"
                 copyable=true
             />
+            <ShareLink />
             <ImagePaste />
+        </List>
+    }
+}
+
+/// A Share button where the platform has a share sheet (`use_share_sheet`), which hands
+/// the link to it (`share`).
+#[sample]
+#[component]
+fn ShareLink() -> NodeId {
+    let sheet = use_share_sheet();
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+            <Show
+                value={sheet}
+                fallback={|| view! {
+                    <Text style=TextStyle::CAPTION>
+                        "This platform has no share sheet: copy the link instead."
+                    </Text>
+                }}
+            >||
+                <Button
+                    @test_id={"demo.share"}
+                    label="Share link"
+                    variant=ButtonVariant::Secondary
+                    on_click={|| share(Clip::text("https://blocks.example/invite/3f9c"))}
+                />
+            </Show>
         </List>
     }
 }

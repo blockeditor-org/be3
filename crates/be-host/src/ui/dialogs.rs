@@ -36,6 +36,7 @@ fn InviteDialog(view: HostUiStore) -> NodeId {
     let open = create_memo(move || invite.with(Option::is_some));
     let link = create_memo(move || invite.get().and_then(|invite| invite.link));
     let made = create_memo(move || link.with(Option::is_some));
+    let sheet = use_share_sheet();
     view! {
         <Dialog
             open={open}
@@ -50,6 +51,14 @@ fn InviteDialog(view: HostUiStore) -> NodeId {
                 })
                 .disabled(move || !made.get())
                 .named("copy"),
+                DialogAction::secondary("Share", move || {
+                    if let Some(link) = link.get_untracked() {
+                        share(Clip::text(link));
+                    }
+                })
+                .disabled(move || !made.get())
+                .shown(sheet)
+                .named("share"),
                 DialogAction::cancel("Done"),
             ]}
             on_dismiss={|| send(UiCommand::CloseInvite)}
