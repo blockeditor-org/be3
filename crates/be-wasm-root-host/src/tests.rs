@@ -171,3 +171,16 @@ fn glyphs(primitives: &[beui_paint_format::Primitive]) -> Vec<[f32; 4]> {
         })
         .collect()
 }
+
+/// Far enough off that a child that answers at all answers before it.
+const PATIENT: Duration = Duration::from_secs(60);
+
+/// The ids of the layers a frame shows, bottom first.
+fn shown(done: &FrameDone) -> Vec<LayerId> {
+    LayerList::decode(&done.layers)
+        .expect("the frame is a layer list")
+        .windows
+        .iter()
+        .flat_map(|window| window.layers.iter().map(|layer| layer.id))
+        .collect()
+}
