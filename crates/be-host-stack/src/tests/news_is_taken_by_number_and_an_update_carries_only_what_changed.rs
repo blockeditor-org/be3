@@ -28,7 +28,11 @@ fn news_is_taken_by_number_and_an_update_carries_only_what_changed() {
     queue.push(one, 1000);
     let delta = NewsQueue::diff(&before, &queue).expect("the queue changed");
     let sent = postcard::to_allocvec(&delta).expect("the delta encodes");
-    assert!(sent.len() < 64, "the delta carried {} bytes for one news", sent.len());
+    assert!(
+        sent.len() < 64,
+        "the delta carried {} bytes for one news",
+        sent.len()
+    );
     let mut applied = before;
     applied.apply(delta);
     assert_eq!(applied, queue);

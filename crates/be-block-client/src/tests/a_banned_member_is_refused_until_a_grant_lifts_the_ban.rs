@@ -38,7 +38,10 @@ async fn a_banned_member_is_refused_until_a_grant_lifts_the_ban() {
     assert!(
         matches!(
             &joined,
-            Err(ClientError::Refused(be_block_protocol::ErrorCode::PermissionDenied, _))
+            Err(ClientError::Refused(
+                be_block_protocol::ErrorCode::PermissionDenied,
+                _
+            ))
         ),
         "the server let a banned account join: {joined:?}"
     );

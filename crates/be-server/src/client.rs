@@ -1312,7 +1312,14 @@ impl Client {
                 .await
                 .is_ok();
             // A ban that cannot be read bars: it fails closed.
-            Ok::<_, ServerError>(!editor && connection.store.banned(identity, block).await.unwrap_or(true))
+            Ok::<_, ServerError>(
+                !editor
+                    && connection
+                        .store
+                        .banned(identity, block)
+                        .await
+                        .unwrap_or(true),
+            )
         };
         if barred().await? {
             return Err(ServerError::Refused(

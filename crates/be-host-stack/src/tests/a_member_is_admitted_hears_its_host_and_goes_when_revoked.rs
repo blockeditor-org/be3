@@ -3,7 +3,11 @@ use super::*;
 use be_sdk_api::blocks::{JoinedMember, MemberEvent, MemberSaid};
 
 /// What `block`'s host component has yet to hear, once `ready` holds of it.
-fn queued_until(what: &str, block: Uuid, ready: impl Fn(&[MemberEvent]) -> bool) -> Vec<MemberEvent> {
+fn queued_until(
+    what: &str,
+    block: Uuid,
+    ready: impl Fn(&[MemberEvent]) -> bool,
+) -> Vec<MemberEvent> {
     wait_until(what, |shared| ready(&crate::hosting::queued(shared, block)));
     take_member_events(block)
 }
@@ -28,10 +32,17 @@ fn a_member_is_admitted_hears_its_host_and_goes_when_revoked() {
     );
     flush();
     open(block, CounterContent::CONTENT_TYPE);
-    set_access(block, player.account(), be_block_graph::Access::Join, |_| {});
+    set_access(
+        block,
+        player.account(),
+        be_block_graph::Access::Join,
+        |_| {},
+    );
     flush_and_send();
     assert_eq!(status().error, None);
-    wait_until("held the world's lease", |shared| shared.hosted.contains(&block));
+    wait_until("held the world's lease", |shared| {
+        shared.hosted.contains(&block)
+    });
 
     let peer = &player.peer;
     let mut events = peer.connection().subscribe();
@@ -40,7 +51,11 @@ fn a_member_is_admitted_hears_its_host_and_goes_when_revoked() {
         peer.refresh_contacts().await.expect("the contacts read");
         let joined = peer
             .connection()
-            .join(organization, block, be_block_store::Hash::from_bytes([3; 32]))
+            .join(
+                organization,
+                block,
+                be_block_store::Hash::from_bytes([3; 32]),
+            )
             .await
             .expect("the player joins");
         let host = joined.host.expect("this device hosts");
@@ -53,8 +68,9 @@ fn a_member_is_admitted_hears_its_host_and_goes_when_revoked() {
             .await
             .expect("the first message goes");
         let answer = loop {
-            if let be_block_client::Event::Hosted { block: of, payload, .. } =
-                events.recv().await.expect("the events go on")
+            if let be_block_client::Event::Hosted {
+                block: of, payload, ..
+            } = events.recv().await.expect("the events go on")
                 && of == block
             {
                 break payload;
@@ -87,8 +103,9 @@ fn a_member_is_admitted_hears_its_host_and_goes_when_revoked() {
     tell_member(block, member, b"you see a door".to_vec());
     let told = player.runtime.block_on(async {
         loop {
-            if let be_block_client::Event::Hosted { block: of, payload, .. } =
-                events.recv().await.expect("the events go on")
+            if let be_block_client::Event::Hosted {
+                block: of, payload, ..
+            } = events.recv().await.expect("the events go on")
                 && of == block
             {
                 break channel.open(&payload).expect("the host's message opens");
@@ -97,7 +114,12 @@ fn a_member_is_admitted_hears_its_host_and_goes_when_revoked() {
     });
     assert_eq!(told, b"you see a door");
 
-    set_access(block, player.account(), be_block_graph::Access::None, |_| {});
+    set_access(
+        block,
+        player.account(),
+        be_block_graph::Access::None,
+        |_| {},
+    );
     flush_and_send();
     let heard = queued_until("heard the player go", block, |events| !events.is_empty());
     assert_eq!(heard, vec![MemberEvent::Left(member)]);

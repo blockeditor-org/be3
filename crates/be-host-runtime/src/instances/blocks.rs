@@ -139,9 +139,9 @@ impl Instances {
                 Ok(true)
             }
             BlockCommand::TellMember(said) => {
-                let hosting = self.entries.get(&instance).is_some_and(|entry| {
-                    matches!(entry.role, InstanceRole::Host(_, own) if own.id == block)
-                });
+                let hosting = self.entries.get(&instance).is_some_and(
+                    |entry| matches!(entry.role, InstanceRole::Host(_, own) if own.id == block),
+                );
                 if !hosting {
                     return Err(OpError::Denied);
                 }

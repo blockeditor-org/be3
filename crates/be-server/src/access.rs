@@ -945,9 +945,11 @@ pub(crate) fn banned(
     if entries.is_empty() {
         return Ok(false);
     }
-    Ok(checked_block_log(connection, organization, block, &entries)?
-        .banned
-        .contains(&account.into_bytes()))
+    Ok(
+        checked_block_log(connection, organization, block, &entries)?
+            .banned
+            .contains(&account.into_bytes()),
+    )
 }
 
 /// Whether `record` is an owner record: `set-access` carrying one moves the block's ownership

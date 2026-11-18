@@ -46,7 +46,12 @@ fn a_ban_checks_only_from_an_editor_and_only_a_grant_lifts_it() {
     let check = |entries: &[Entry]| check_log(LogKind::Block, block, pinned, entries, &none);
 
     let banned = sign(&editor, editor_id, &viewing, ban(player_id));
-    let mut log = vec![root.clone(), editing.clone(), viewing.clone(), banned.clone()];
+    let mut log = vec![
+        root.clone(),
+        editing.clone(),
+        viewing.clone(),
+        banned.clone(),
+    ];
     let checked = check(&log).expect("an editor bans");
     assert!(checked.banned.contains(&player_id));
     assert_eq!(
@@ -71,7 +76,10 @@ fn a_ban_checks_only_from_an_editor_and_only_a_grant_lifts_it() {
     );
     log.push(left.clone());
     assert!(
-        check(&log).expect("anyone revokes their own grant").banned.contains(&player_id),
+        check(&log)
+            .expect("anyone revokes their own grant")
+            .banned
+            .contains(&player_id),
         "the banned account lifted its own ban"
     );
 
@@ -83,7 +91,10 @@ fn a_ban_checks_only_from_an_editor_and_only_a_grant_lifts_it() {
     );
     log.push(regranted);
     assert!(
-        !check(&log).expect("a manager grants again").banned.contains(&player_id),
+        !check(&log)
+            .expect("a manager grants again")
+            .banned
+            .contains(&player_id),
         "a grant after the ban lifts it"
     );
 }

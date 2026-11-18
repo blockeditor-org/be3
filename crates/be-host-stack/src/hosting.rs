@@ -46,7 +46,9 @@ pub struct Hosting {
 
 enum Member {
     /// Its first message is being checked (`Peer::admit`): this device's `admit`th.
-    Answering { admit: u64 },
+    Answering {
+        admit: u64,
+    },
     /// Answered: admitted once its first message on the channel opens.
     Admitting(Box<Admitting>),
     Admitted(Box<Admitted>),
@@ -209,7 +211,9 @@ pub fn tell(
         _ => return,
     };
     drop(held);
-    let sent = peer.connection().send_host(block, Some(said.member), sealed);
+    let sent = peer
+        .connection()
+        .send_host(block, Some(said.member), sealed);
     tasks.spawn(async move {
         let _ = sent.await;
     });
@@ -384,15 +388,17 @@ fn checked_members(
         .channels
         .iter()
         .flat_map(|(block, channels)| {
-            channels.iter().filter_map(move |(member, held)| match held {
-                Member::Admitted(admitted) => {
-                    Some((*block, *member, admitted.account, admitted.public))
-                }
-                Member::Admitting(admitting) => {
-                    Some((*block, *member, admitting.account(), admitting.public()))
-                }
-                Member::Answering { .. } => None,
-            })
+            channels
+                .iter()
+                .filter_map(move |(member, held)| match held {
+                    Member::Admitted(admitted) => {
+                        Some((*block, *member, admitted.account, admitted.public))
+                    }
+                    Member::Admitting(admitting) => {
+                        Some((*block, *member, admitting.account(), admitting.public()))
+                    }
+                    Member::Answering { .. } => None,
+                })
         })
         .collect()
 }
