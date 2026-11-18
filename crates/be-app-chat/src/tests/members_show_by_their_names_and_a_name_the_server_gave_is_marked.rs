@@ -9,9 +9,9 @@ fn members_show_by_their_names_and_a_name_the_server_gave_is_marked() {
             (TEO, "I can check the installers."),
             (ME, "It is. Thanks, both."),
         ],
-        &[(TEO, Signer::Unverified)],
+        &[(TEO, LogSigner::Unverified)],
     );
-    let (rosa, teo, mine) = (chat.id(0), chat.id(1), chat.id(2));
+    let (rosa, teo, mine) = (chat.seq(0), chat.seq(1), chat.seq(2));
     // Until the host names them, members show by their account's first digits.
     assert_eq!(
         chat.row(rosa),
@@ -62,7 +62,7 @@ fn members_show_by_their_names_and_a_name_the_server_gave_is_marked() {
     // the quote, as in the composer's "Replying to", where no caption follows it.
     chat.click(&format!("chat.message.{teo}.reply"));
     chat.send("Great, thank you.");
-    let reply = chat.id(3);
+    let reply = chat.seq(3);
     assert!(
         chat.row(reply)
             .contains("Teo Lind (unverified name): I can check the installers."),

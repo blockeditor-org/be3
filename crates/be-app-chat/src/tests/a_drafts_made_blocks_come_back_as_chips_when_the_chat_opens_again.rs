@@ -29,12 +29,9 @@ fn a_drafts_made_blocks_come_back_as_chips_when_the_chat_opens_again() {
     again.editor.advance(Duration::from_millis(500));
     again.editor.run();
     again.run();
-    let sent = again.id(1);
+    let sent = again.seq(1);
     assert_eq!(
-        again
-            .content()
-            .message(sent)
-            .map(|message| message.attachments),
+        again.log().message(sent).map(|shown| shown.attachments.clone()),
         Some(vec![
             be_sdk_beui::be_block_content::be_block_model::BlockRef(sketch)
         ])

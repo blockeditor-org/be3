@@ -30,7 +30,7 @@ fn a_made_block_moved_out_of_the_chat_survives_the_composer() {
         .content()
         .drop_draft(sketch)
         .expect("a draft can be taken out");
-    chat.arrive(taken);
+    chat.arrive_edit(taken);
     assert!(!chat.content().references().contains(&sketch));
 
     // Closing the composer deletes nothing, and the block is not a draft when it opens again.
