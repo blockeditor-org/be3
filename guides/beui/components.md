@@ -55,7 +55,7 @@ Program code wants `styled::Scroll`, which adds the overlay scrollbar ([decision
 - Content is laid out at least as long as the scroll, and content that overflows is first shrunk to `Element::least_length` (shrinking children give up length), like a flex box in `overflow: auto`. A scroll sized to its content up to a bound is `max_length`; a `Frame` with a `max` around it fills up to the max instead.
 - Scrolls chain as in a browser: one at its edge when a gesture starts turns it down, so the enclosing one takes it. A horizontal scroll leaves a plain wheel to what is around it.
 - The offset is anchored to the node at the viewport's top, so content above it changing size leaves what is read in place. `follow_end` keeps a log or terminal at its end while it grows.
-- On the HTML core `unstyled::Scroll` is a real `overflow: auto` element through the platform escape (`BrowserScroll` in `scroll.rs`): the browser scrolls and chains it, with none of beui's momentum, rubber band or drawn bar.
+- On the HTML core `unstyled::Scroll` is a real `overflow: auto` element through the platform escape (`BrowserScroll` in `scroll.rs`): the browser scrolls and chains it, with none of beui's momentum, rubber band or drawn bar. So the HTML core has two scroll paths: a `Scroll` leaves anchoring to the browser (`overflow-anchor: auto`, which Safari lacks), while a bare `Offset` is beui-core-html's `Scroller` (`overflow: hidden`, `overflow-anchor: none`), which keeps its own anchor node (`scroll.rs`) on every browser. Whatever keeps content in place on the web has to handle the first.
 
 ### Long lists
 
