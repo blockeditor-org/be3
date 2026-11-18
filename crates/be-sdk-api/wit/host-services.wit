@@ -75,8 +75,10 @@ interface host-services {
         /// default, and only its links offer Join. Empty for any other block,
         /// which offers the core levels by their own names.
         levels: list<offered-level>,
-        /// On a hosted block, the account hosting it now: the one whose device
-        /// holds its live session's lease. None when no one hosts it.
+        /// The account hosting the block now: the one whose device holds its
+        /// live session's lease. Always filled; meaningful only on a hosted
+        /// block (`levels` not empty). None when no one with edit access is in
+        /// a session of it.
         host: option<account-id>,
     }
 
