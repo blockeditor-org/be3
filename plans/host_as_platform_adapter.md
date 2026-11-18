@@ -1192,7 +1192,13 @@ Each step lands on its own.
          account, the question before discarding unsaved changes (be-host's
          `PendingDestructiveAction`), and the organization's dialogs (inviting, the
          invitations, members and agents, whose links and credentials are secrets the root
-         shows); 4g6f3 contacts, share links and leaving a block.
+         shows); 4g6f3 contacts, share links and leaving a block. Decided for 4g6f2: a secret
+         the host hands the person (an invite link made, an agent's credentials) comes back
+         once, as the reply to the command that made it (`ask-core` answering an
+         `option<password>`, or a call of its own), never in `core-view`, which carries only
+         what is not secret about it (that a link exists, whose, when it expires); the root
+         holds it only while the dialog showing it is open, and drops it, zeroed, as it
+         closes.
          - 4g6f1. Built: `core-view`'s `waits-for`, a `core-wait` (`account`, `organization`,
            `session`; none once an organization's blocks are open), in place of 4g6e's flag:
            be-host's `Screen::Accounts`, `Organizations` and `Sessions` (its `Recovery`,
@@ -1202,7 +1208,7 @@ Each step lands on its own.
            `problem` in words and whether the account may join), and `busy` and `error`.
            `sessions`, a `sessions-area`: whether `loaded`, the organization's sessions of
            every type (each `session-row`: id, name, its `session-type` and whether used
-           last), the `session-types` a new session can be with their names, the type this
+           last), the `session-kinds` a new session can be with their names, the type this
            device opens, and the `profiles`. The commands: `switch-account` (be-host's
            `SwitchAccount` and `ManageAccounts`; logging out of the account open is
            `forget-account` with its key), `reload-organizations`, `open-organization`,
@@ -1220,7 +1226,8 @@ Each step lands on its own.
            waits for, a memo per area off the one view: the accounts, the organizations
            (`ORGANIZATIONS_TITLE`: each with Sessions and Open, Try again when listing failed,
            the invitation with Not now and Join, a name to create one, an invitation link
-           handed over as a secret and cleared, Switch account) or the sessions
+           handed over as a secret and cleared, though shown as typed so the person sees what
+           they pasted, Switch account) or the sessions
            (`SESSIONS_TITLE`: those of this device's type, or every type, each to open, a new
            one, the profiles to use and a new one, Close). be-wasm-root-host's
            `a_root_shows_its_hosts_organizations_and_sessions` clicks each and checks the
