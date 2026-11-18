@@ -175,11 +175,13 @@ impl Harness {
                     None => LogSigner::Redacted,
                 },
                 payload: item.payload,
-                imported: item.imported.map(|from| be_sdk_beui::be_block_content::LogImport {
-                    block: from.block,
-                    seq: from.seq,
-                    importer: from.importer,
-                }),
+                imported: item
+                    .imported
+                    .map(|from| be_sdk_beui::be_block_content::LogImport {
+                        block: from.block,
+                        seq: from.seq,
+                        importer: from.importer,
+                    }),
             })
             .collect();
         ChatLog::of(&items)

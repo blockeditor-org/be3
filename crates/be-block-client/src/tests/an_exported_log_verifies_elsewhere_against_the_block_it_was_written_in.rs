@@ -61,7 +61,12 @@ async fn an_exported_log_verifies_elsewhere_against_the_block_it_was_written_in(
     // which its own entries go.
     elsewhere.drain(|_| false).await.unwrap();
     elsewhere
-        .append(new, "test.app", b"after the import", be_block_content::Along::default())
+        .append(
+            new,
+            "test.app",
+            b"after the import",
+            be_block_content::Along::default(),
+        )
         .await
         .unwrap();
     let history = elsewhere.read_log(new, 0, 10).await.unwrap();
@@ -82,16 +87,16 @@ async fn an_exported_log_verifies_elsewhere_against_the_block_it_was_written_in(
         ]
     );
     assert_eq!(
-        history.entries[0].imported.as_ref().map(|original| original.author),
+        history.entries[0]
+            .imported
+            .as_ref()
+            .map(|original| original.author),
         Some(owner.account()),
         "an imported entry keeps its original author"
     );
     for entry in &saved.log[..2] {
         assert_eq!(
-            elsewhere
-                .verify_exported("test.app", entry)
-                .await
-                .unwrap(),
+            elsewhere.verify_exported("test.app", entry).await.unwrap(),
             Some(Signer::Verified),
             "an exported entry verifies against the block it was written in"
         );
@@ -147,7 +152,9 @@ async fn an_exported_log_verifies_elsewhere_against_the_block_it_was_written_in(
     // Replayed into the log after an entry of the block's own, an exported entry lands past
     // the place its importer signed: no one's.
     let key = elsewhere.sealing_key(new).await.unwrap();
-    elsewhere.push_imported(new, key, (0, 3), &saved.log[0]).unwrap();
+    elsewhere
+        .push_imported(new, key, (0, 3), &saved.log[0])
+        .unwrap();
     elsewhere.drain(|_| false).await.unwrap();
     let after = elsewhere.read_log(new, 4, 10).await.unwrap();
     assert!(after.entries[0].imported.is_some());

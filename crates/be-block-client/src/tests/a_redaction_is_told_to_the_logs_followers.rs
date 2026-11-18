@@ -11,7 +11,12 @@ async fn a_redaction_is_told_to_the_logs_followers() {
     let laptop = harness.device(&owner, &refs, &store).await;
     let chat = workspace(&laptop, "Chat").await;
     laptop
-        .append(chat, "test.app", b"take this back", be_block_content::Along::default())
+        .append(
+            chat,
+            "test.app",
+            b"take this back",
+            be_block_content::Along::default(),
+        )
         .await
         .unwrap();
     let phone = harness.second(&owner).await;

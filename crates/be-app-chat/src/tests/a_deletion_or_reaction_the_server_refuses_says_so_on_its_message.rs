@@ -45,9 +45,12 @@ fn a_deletion_or_reaction_the_server_refuses_says_so_on_its_message() {
     );
     chat.click(&format!("chat.message.{question}.dismiss"));
     assert!(
-        !chat.editor.shown(&format!("chat.message.{question}.undone")),
+        !chat
+            .editor
+            .shown(&format!("chat.message.{question}.undone")),
         "{:?}",
-        chat.editor.label(&format!("chat.message.{question}.undone"))
+        chat.editor
+            .label(&format!("chat.message.{question}.undone"))
     );
     assert!(chat.editor.store().refused_appends(None).is_empty());
 }
