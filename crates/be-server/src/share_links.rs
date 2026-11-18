@@ -138,9 +138,7 @@ impl ServerStore {
         organization: Uuid,
         admits: Admits,
     ) -> Result<bool, ServerError> {
-        if crate::keys::organization_kind(connection, organization)?
-            == OrganizationKind::Personal
-        {
+        if crate::keys::organization_kind(connection, organization)? == OrganizationKind::Personal {
             return Ok(admits == Admits::Members);
         }
         Ok(
@@ -295,7 +293,9 @@ impl ServerStore {
     /// Share link `link`, as `caller` reads it to open it.
     pub async fn share_link(&self, caller: Uuid, link: Uuid) -> Result<ShareLink, ServerError> {
         let organization = self
-            .with_database(move |_, database| Ok(stored(database, link)?.map(|found| found.organization)))
+            .with_database(move |_, database| {
+                Ok(stored(database, link)?.map(|found| found.organization))
+            })
             .await?
             .ok_or_else(not_found)?;
         self.with_graph(organization, move |store, graph, database| {
@@ -329,9 +329,15 @@ impl ServerStore {
         key: Uuid,
         sealed: Vec<u8>,
     ) -> Result<Opened, ServerError> {
-        crate::limits::at_most("a sealed key", sealed.len(), crate::limits::MAX_SEALED_BYTES)?;
+        crate::limits::at_most(
+            "a sealed key",
+            sealed.len(),
+            crate::limits::MAX_SEALED_BYTES,
+        )?;
         let organization = self
-            .with_database(move |_, database| Ok(stored(database, link)?.map(|found| found.organization)))
+            .with_database(move |_, database| {
+                Ok(stored(database, link)?.map(|found| found.organization))
+            })
             .await?
             .ok_or_else(not_found)?;
         self.with_graph(organization, move |store, graph, database| {

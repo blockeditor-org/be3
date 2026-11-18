@@ -1283,7 +1283,11 @@ impl KeyBook {
     /// The identity key `block`'s log, as this device checked it this run, names for `account`
     /// while granting it Edit or above: whom a key of the block may come from when no contact
     /// or organization log vouches for them (`Peer::settle_escrowed` then checks the log again).
-    fn log_names_editor(&self, block: Uuid, account: Uuid) -> Option<be_block_keys::RecoveryPublic> {
+    fn log_names_editor(
+        &self,
+        block: Uuid,
+        account: Uuid,
+    ) -> Option<be_block_keys::RecoveryPublic> {
         let roots = self.roots.lock().unwrap();
         let (level, identity) = roots.logs.get(&block)?.grants.get(&account.into_bytes())?;
         (*level >= Level::Edit).then_some(identity.public)
@@ -1657,7 +1661,8 @@ impl KeyBook {
                         .members
                         .get(&wrap.sender)
                         .map(|member| member.public);
-                    let public = member.or_else(|| self.log_names_editor(row?.block, wrap.sender))?;
+                    let public =
+                        member.or_else(|| self.log_names_editor(row?.block, wrap.sender))?;
                     let from = Party {
                         account: wrap.sender.into_bytes(),
                         public,

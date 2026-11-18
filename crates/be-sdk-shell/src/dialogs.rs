@@ -303,7 +303,8 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
     });
     // Share links show to a manager once both the people and the links are listed.
     let links = create_memo(move || {
-        let manages = listing.with(|listing| matches!(listing, Ok(listing) if Share::manages(listing, me)));
+        let manages =
+            listing.with(|listing| matches!(listing, Ok(listing) if Share::manages(listing, me)));
         manages.then(|| workspace.share_links.get()).flatten()
     });
     // Whom a link may admit, as the organization's policy allows: none where it allows no links.
@@ -489,14 +490,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                     </Card>
                 </Show>
                 <Show value={links}>|links: ReadSignal<Vec<ShareLink>>|
-                    <LinksSection
-                        links
-                        choices={admits_choices}
-                        company
-                        state
-                        me
-                        act={act}
-                    />
+                    <LinksSection links choices={admits_choices} company state me act={act} />
                 </Show>
                 <Text style=TextStyle::HEADING>"People with access"</Text>
                 <Show value={loading}>
@@ -554,7 +548,11 @@ fn LinksSection(
     let allowed = create_memo(move || choices.with(|choices| !choices.is_empty()));
     let several = create_memo(move || choices.with(|choices| choices.len() > 1));
     let access = create_memo(move || {
-        Some(state.with(|share| share.as_ref().map_or(AccessLevel::View, |share| share.link_access)))
+        Some(state.with(|share| {
+            share
+                .as_ref()
+                .map_or(AccessLevel::View, |share| share.link_access)
+        }))
     });
     let admits = create_memo(move || {
         Some(state.with(|share| {
@@ -564,7 +562,11 @@ fn LinksSection(
         }))
     });
     let making = create_memo(move || {
-        state.with(|share| share.as_ref().is_some_and(|share| share.making_link.is_some()))
+        state.with(|share| {
+            share
+                .as_ref()
+                .is_some_and(|share| share.making_link.is_some())
+        })
     });
     let revoking = create_memo(move || {
         state.with(|share| share.as_ref().is_some_and(|share| share.revoking.is_some()))
@@ -625,7 +627,12 @@ fn LinksSection(
                     </Text>
                 }}
             >
-                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md wrap=true>
+                <List
+                    direction=Direction::Horizontal
+                    align=Align::Center
+                    spacing=Space::Md
+                    wrap=true
+                >
                     <Select
                         selected={Binding::new(access, move |access: Option<AccessLevel>| {
                             if let Some(access) = access {
@@ -649,7 +656,10 @@ fn LinksSection(
                             label="Who can open it"
                             options={view! {
                                 <ForEach value={choices}>|admits: LinkAdmits|
-                                    <ChoiceOption value=admits label={Share::admits_label(admits)} />
+                                    <ChoiceOption
+                                        value=admits
+                                        label={Share::admits_label(admits)}
+                                    />
                                 </ForEach>
                             }}
                         />

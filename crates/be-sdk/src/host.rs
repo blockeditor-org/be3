@@ -21,9 +21,9 @@ use be_sdk_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BlockAgent,
     BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
     ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick, FileSave, FitArea,
-    HostPanel, HostView, HostWindowId, MenuEntry, NotifyMode, Occluder, ParentView,
-    LinkAdmits, PerformanceMeasurement, Revision, ShareLink, ShellDialog, Signer, TerminalHostBe, ViewChange, ViewId,
-    ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
+    HostPanel, HostView, HostWindowId, LinkAdmits, MenuEntry, NotifyMode, Occluder, ParentView,
+    PerformanceMeasurement, Revision, ShareLink, ShellDialog, Signer, TerminalHostBe, ViewChange,
+    ViewId, ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use be_sdk_api::{BlockFilter, FileFilter, SavedFile};
 use be_sdk_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};
@@ -2002,7 +2002,9 @@ impl EditorHost {
     /// Revokes the share link `link` (a `ShareLink::id`) on `block_id`.
     pub fn revoke_share_link(&self, block_id: Uuid, link: &str) -> Asked<Result<(), Failure>> {
         let link = link.to_owned();
-        Asked::of(self.ask(move || host_services::revoke_share_link(block_id.into_bytes(), link.clone())))
+        Asked::of(
+            self.ask(move || host_services::revoke_share_link(block_id.into_bytes(), link.clone())),
+        )
     }
 
     pub fn contact_link(

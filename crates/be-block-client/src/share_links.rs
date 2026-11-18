@@ -39,7 +39,10 @@ impl Handed {
 
     /// What `link` hands, opened with `code`: refused when it does not open, or carries a key of
     /// another block than the one the server names.
-    pub fn open(code: &InviteCode, link: &be_block_protocol::ShareLink) -> Result<Self, ClientError> {
+    pub fn open(
+        code: &InviteCode,
+        link: &be_block_protocol::ShareLink,
+    ) -> Result<Self, ClientError> {
         let handed = code
             .open_share(link.block.into_bytes(), &link.sealed)
             .ok()
@@ -148,7 +151,12 @@ pub async fn open_share_link(
         public: identity.public(),
     };
     let sealed = identity
-        .seal_for(account.into_bytes(), &mine, handed.key.as_bytes(), &handed.scope)
+        .seal_for(
+            account.into_bytes(),
+            &mine,
+            handed.key.as_bytes(),
+            &handed.scope,
+        )
         .map_err(|error| {
             ClientError::Encoding(format!(
                 "this device could not seal the link's key to this account: {error:?}"
@@ -339,7 +347,12 @@ impl<S: ObjectStore> Peer<S> {
             }
         };
         checked
-            .next(self.keys().identity(), me, block.into_bytes(), make(authority))
+            .next(
+                self.keys().identity(),
+                me,
+                block.into_bytes(),
+                make(authority),
+            )
             .map(|entry| entry.encode())
             .ok_or_else(|| {
                 ClientError::Refused(
@@ -350,14 +363,18 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     async fn records(&self) -> Result<Arc<AccountRecords>, ClientError> {
-        AccountRecords::open(&self.connection(), self.keys().account(), self.keys().identity())
-            .await?
-            .ok_or_else(|| {
-                ClientError::Refused(
-                    ErrorCode::PermissionDenied,
-                    "an account in no personal organization makes no share links".into(),
-                )
-            })
+        AccountRecords::open(
+            &self.connection(),
+            self.keys().account(),
+            self.keys().identity(),
+        )
+        .await?
+        .ok_or_else(|| {
+            ClientError::Refused(
+                ErrorCode::PermissionDenied,
+                "an account in no personal organization makes no share links".into(),
+            )
+        })
     }
 
     async fn keep_share(&self, link: Uuid, kept: Option<KeptShare>) -> Result<(), ClientError> {

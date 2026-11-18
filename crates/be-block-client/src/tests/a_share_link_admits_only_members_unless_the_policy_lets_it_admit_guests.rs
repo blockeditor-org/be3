@@ -32,7 +32,10 @@ async fn a_share_link_admits_only_members_unless_the_policy_lets_it_admit_guests
         .await
         .unwrap_err();
     assert!(
-        matches!(refused, ClientError::Refused(ErrorCode::PermissionDenied, _)),
+        matches!(
+            refused,
+            ClientError::Refused(ErrorCode::PermissionDenied, _)
+        ),
         "{refused}"
     );
     let refused = admin
@@ -98,7 +101,10 @@ async fn a_share_link_admits_only_members_unless_the_policy_lets_it_admit_guests
             |row| row.get(0),
         )
         .unwrap();
-    assert_eq!(left, 0, "a guest with no grant left leaves the organization");
+    assert_eq!(
+        left, 0,
+        "a guest with no grant left leaves the organization"
+    );
 
     harness.stop().await;
 }
