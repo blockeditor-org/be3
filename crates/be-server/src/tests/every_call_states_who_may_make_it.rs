@@ -67,6 +67,8 @@ fn query_case(query: &Query) -> &'static str {
         Query::ServerInfo => "server-info",
         Query::Mutes => "mutes",
         Query::Session { .. } => "session",
+        Query::ShareLink(_) => "share-link",
+        Query::ShareLinks(_) => "share-links",
     }
 }
 
@@ -96,6 +98,8 @@ const QUERIES: &[&str] = &[
     "server-info",
     "mutes",
     "session",
+    "share-link",
+    "share-links",
 ];
 
 /// The name of an op's case, as `query_case` names a query's.
@@ -132,6 +136,9 @@ fn op_case(op: &Op) -> &'static str {
         } => "create-link (invitation)",
         Op::AcceptLink { .. } => "accept-link",
         Op::DeleteLink { .. } => "delete-link",
+        Op::CreateShareLink { .. } => "create-share-link",
+        Op::OpenShareLink { .. } => "open-share-link",
+        Op::RevokeShareLink { .. } => "revoke-share-link",
         Op::RemoveContact { .. } => "remove-contact",
         Op::SetRecoveryKey { .. } => "set-recovery-key",
         Op::SetPushEndpoint(PushEndpointChange::Register(_)) => "set-push-endpoint (register)",
@@ -166,6 +173,9 @@ const OPS: &[&str] = &[
     "create-link (invitation)",
     "accept-link",
     "delete-link",
+    "create-share-link",
+    "open-share-link",
+    "revoke-share-link",
     "remove-contact",
     "set-recovery-key",
     "set-push-endpoint (register)",
@@ -421,6 +431,30 @@ impl TestClient {
             .write(Op::DeleteLink {
                 link: other,
                 signed: None,
+            })
+            .await;
+        calls
+            .write(Op::CreateShareLink {
+                link: other,
+                block,
+                sealed: sealed(),
+                signed: sealed(),
+            })
+            .await;
+        calls.read(Query::ShareLink(other)).await;
+        calls.read(Query::ShareLinks(block)).await;
+        calls
+            .write(Op::OpenShareLink {
+                link: other,
+                signed: sealed(),
+                key: other,
+                sealed: sealed(),
+            })
+            .await;
+        calls
+            .write(Op::RevokeShareLink {
+                link: other,
+                signed: sealed(),
             })
             .await;
         calls
@@ -779,6 +813,8 @@ async fn every_call_states_who_may_make_it() {
         "log (block)",
         "tree",
         "access",
+        "create-share-link",
+        "share-links",
         "append-log (grant)",
         "put-keys (rotate)",
         "session",

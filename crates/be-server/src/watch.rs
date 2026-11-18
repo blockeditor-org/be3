@@ -593,7 +593,7 @@ impl WatchHub {
                         .or_default()
                         .insert(client);
                 }
-                OrganizationRole::Editor => {
+                OrganizationRole::Editor | OrganizationRole::Guest => {
                     unindex(&mut joined.administrators, organization, client);
                 }
             }

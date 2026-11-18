@@ -344,7 +344,7 @@ pub(crate) fn store_keys(
                 }
             }
             WrappedBy::Account(account) => {
-                if !is_member_of(connection, account, organization)? {
+                if !crate::store::holds_membership(connection, account, organization)? {
                     return Err(refused(format!(
                         "account {account} is not a member of this organization"
                     )));
@@ -767,7 +767,10 @@ pub(crate) fn is_viewer(
             Some(be_block_protocol::OrganizationRole::Administrator) => {
                 graph.contains(block) && !graph.closed_to(block, account)
             }
-            Some(be_block_protocol::OrganizationRole::Editor) => {
+            Some(
+                be_block_protocol::OrganizationRole::Editor
+                | be_block_protocol::OrganizationRole::Guest,
+            ) => {
                 graph.inherited(block, account).can_view()
                     || crate::organization::in_settings(graph, organization, block)
             }

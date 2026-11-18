@@ -150,6 +150,8 @@ interface blocks {
         source: option<block-id>,
         contact: bool,
         waiting: bool,
+        /// Their grant on the block came through a share link they opened.
+        through-link: bool,
     }
 
     record access-list {
