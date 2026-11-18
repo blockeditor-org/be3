@@ -2,6 +2,16 @@
 // frame until its app draws it anew, as natively (guides/apps/runtime.md, Layout and present
 // commits): the page keeps a hidden view's canvas, with what the app's worker last drew into it,
 // and shows that canvas again, rather than a fresh one that stays empty until the app answers.
+//
+// Then, with nothing left to do, the page runs no frames (guides/apps/runtime.md, Late answers
+// and idle editors): over an idle spell it asks the browser for no animation frames and the
+// runner runs none but the few the drive commands that measure it take. A page that drew
+// nothing every frame would run hundreds.
+
+// The idle spell, and the frames the commands that measure it take (3 to 5 seen).
+const IDLE_MS = 6000;
+const MEASURING_FRAMES = 8;
+
 export default async function (test) {
     const { drive, page } = test;
     for (const name of ["One", "Two"]) {
@@ -79,5 +89,29 @@ export default async function (test) {
     })()`);
     if (back !== marked) {
         throw new Error(`One's tab showed ${marked} screen(s) before the switch and ${back} of them after it`);
+    }
+
+    // A focused caret blinks for ten seconds after it last moved, asking for frames as it should
+    // (CARET_BLINKS_FOR); the spell starts after that.
+    await drive("pause", "11000");
+    await page.evaluate(`(() => {
+        window.animationFrames = 0;
+        const request = window.requestAnimationFrame.bind(window);
+        window.requestAnimationFrame = (callback) =>
+            request((time) => {
+                window.animationFrames++;
+                return callback(time);
+            });
+    })()`);
+    await drive("frames");
+    await drive("pause", String(IDLE_MS));
+    const ran = await drive("frames");
+    const animationFrames = await page.evaluate("window.animationFrames");
+    const runnerFrames = Number(/^window: (\d+) frames/m.exec(ran)?.[1]);
+    if (!(animationFrames <= MEASURING_FRAMES && runnerFrames <= MEASURING_FRAMES)) {
+        throw new Error(
+            `idle for ${IDLE_MS} ms, the page ran ${animationFrames} animation frame(s) and its runner ` +
+                `${runnerFrames} frame(s), more than the ${MEASURING_FRAMES} measuring it takes:\n${ran}`,
+        );
     }
 }
