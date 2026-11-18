@@ -40,9 +40,11 @@ Fixed items are removed as they land.
   (be-app-workspace), which shows its old frame at its old size until its frame of the new size
   arrives, which in a browser is always a later page frame, since the page cannot wait on a
   worker; beyond its last placement the host's canvas shows its surface (guides/apps/runtime.md,
-  Late answers). What is left is a decision: accept that frame, or fill beyond a view's last
-  placement with its app's clear colour (the next entry), which makes the gap the app's
-  background rather than the host's.
+  Late answers). An app view's backdrop now fills its laid box (`Backdrop` in be-host's
+  `app_view.rs`), so beyond the workspace's last placement the gap should read as its
+  background rather than the host's. Done: a web test that grows the page shows the
+  workspace's backdrop beyond its old placement in the first frame, or this entry goes as
+  the one frame a browser cannot avoid.
 
 - **A live resize on macOS.** `CAMetalLayer`'s default `contentsGravity` (resize) may stretch
   the last frame while a window is resized live, before beui draws the new size. Check it, and
