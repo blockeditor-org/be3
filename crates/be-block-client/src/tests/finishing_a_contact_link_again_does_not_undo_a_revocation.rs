@@ -38,6 +38,7 @@ async fn finishing_a_contact_link_again_does_not_undo_a_revocation() {
         &member_card,
         &link,
         crate::contacts::Expected::Contact,
+        &Default::default(),
     )
     .await
     .unwrap();
@@ -55,6 +56,7 @@ async fn finishing_a_contact_link_again_does_not_undo_a_revocation() {
         admin.account(),
         admin.keys().identity(),
         admin.organization(),
+        &admin.contact_pins(),
     )
     .await
     .unwrap();

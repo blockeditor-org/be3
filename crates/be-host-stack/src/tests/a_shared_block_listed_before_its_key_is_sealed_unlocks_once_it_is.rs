@@ -26,6 +26,7 @@ fn a_shared_block_listed_before_its_key_is_sealed_unlocks_once_it_is() {
             &sharer.me().card(),
             &code,
             be_block_client::contacts::Expected::Contact,
+            &Default::default(),
         ))
         .expect("the sharer accepts the link");
     runtime

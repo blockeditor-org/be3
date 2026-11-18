@@ -30,6 +30,7 @@ async fn a_contact_taken_and_removed_in_one_pass_stays_removed_whatever_is_repla
         ),
         &code,
         crate::contacts::Expected::Contact,
+        &Default::default(),
     )
     .await
     .unwrap();

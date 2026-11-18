@@ -24,6 +24,7 @@ fn a_linked_block_moved_out_of_view_shows_as_no_access_not_where_it_was() {
             &sharer.me().card(),
             &code,
             be_block_client::contacts::Expected::Contact,
+            &Default::default(),
         ))
         .expect("the sharer accepts the link");
     runtime

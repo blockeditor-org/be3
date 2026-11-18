@@ -3579,6 +3579,7 @@ async fn contact(
                 &me,
                 &code,
                 be_block_client::contacts::Expected::Contact,
+                &peer.contact_pins(),
             )
             .await
             .map(|(_, card)| card);

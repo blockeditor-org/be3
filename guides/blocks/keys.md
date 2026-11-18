@@ -1111,7 +1111,9 @@ keys the granter verified that way, which every device then seals to.
   each contact it has seen (refs' `Contacts`), refuses an older one, keeps
   sealing to the pinned key, and says which (`contacts::Mismatch`: an older
   key, or a block it can't read, as after a new phrase taken on another
-  device) while the block holds it. Key changes are followed from the record
+  device) while the block holds it. A record a link makes (`accept_link`,
+  `finish_links`) follows the newest of the block's and this device's pin, so
+  a device served an older block never reads its own new link as one. Key changes are followed from the record
   kept, in mailbox order, and deleted once the record that follows them is
   written, with any before the last followed that did not open (forged). One
   after it that does not open breaks the chain: the server let older ones go

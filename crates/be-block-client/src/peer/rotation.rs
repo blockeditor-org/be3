@@ -754,6 +754,7 @@ impl<S: ObjectStore> Peer<S> {
             self.account,
             self.keys.identity(),
             self.organization,
+            &self.contact_pins(),
         )
         .await?;
         let mut failed = None;
@@ -825,9 +826,10 @@ impl<S: ObjectStore> Peer<S> {
         {
             // A contact link's grant, applied when it was accepted, goes in the block's log now
             // that the accepter's card names their keys; until then no one seals to them by it.
-            // Only while the log names them nowhere and the server still holds the grant the
-            // link applied: once either changed, a later grant or revocation decides, and
-            // finishing again must not undo it.
+            // Only while the log names them nowhere: a later grant or revocation is in the log
+            // (`signed_grant` records a revocation of a grant the server applied), and finishing
+            // again must not undo it. The server's grant is checked too, for a revocation made
+            // before this device knew the accepter's keys, which could name no one.
             let (_, checked) = self.checked_access(grant.block).await?;
             let level = match checked.grants.get(&account.into_bytes()) {
                 Some((level, _)) => *level,

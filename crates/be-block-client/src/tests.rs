@@ -133,6 +133,7 @@ mod a_kind_opened_on_authority_from_above_is_offered_to_contacts_inside;
 mod a_kind_opened_then_closed_is_sealed_to_no_contact;
 mod a_large_block_saved_after_a_small_change_uploads_only_what_changed;
 mod a_large_image_streams_without_downloading_all_of_it;
+mod a_link_accepted_after_the_server_serves_an_older_contact_record_outranks_this_devices_pin;
 mod a_link_carrying_access_is_refused_where_nothing_is_shared_outside;
 mod a_listed_block_this_device_may_no_longer_know_of_is_left_out_offline;
 mod a_local_account_keeps_what_it_makes_as_final_with_no_server;
@@ -346,6 +347,7 @@ impl Harness {
             &theirs,
             &code,
             crate::contacts::Expected::Invitation,
+            &Default::default(),
         )
         .await
         .unwrap();
@@ -839,6 +841,7 @@ async fn befriend(maker: &Peer<MemoryStore>, accepter: &Peer<MemoryStore>) {
         ),
         &code,
         crate::contacts::Expected::Contact,
+        &Default::default(),
     )
     .await
     .unwrap();

@@ -534,22 +534,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   "Epochs name their heads"), shown by a client test where a member is removed while another
   device writes offline and the removed member cannot open what it sends.
 
-- **A link's record below its own device's pin.** A record a contact link
-  makes follows the newest the server holds for that contact
-  (`contacts::served_verified`), not this device's own pin, so a server that
-  hides the newest record from the accepting device makes that device list its
-  own new link as an older key (flagged, never silent). Done: `accept_link`
-  and `finish_links` also start after the caller's pin, shown by a client test
-  where the server serves the accepting device an old record.
-- **A revocation the block's log does not record.** Revoking someone the
-  block's log names nowhere (a contact link's grant, applied by the server
-  when the link was accepted and not yet finished by its maker's device) signs
-  no record (`signed_grant` answers none), so only the server's row says the
-  grant is gone: `Peer::finish_link` checks that row before signing the link's
-  grant. Done: a revocation signs a `Level::None` record whenever the server
-  holds a row for the grantee, whether the log names them or not, and
-  `finish_link` reads only the log, shown by a client test that revokes a link's
-  grant before it is finished.
 - **A contact's name as they rename.** A contact's name and email are the
   card's from when the two connected (guides/blocks/keys.md, Contacts), so a
   contact who renames keeps the old name on their contacts' devices until they

@@ -23,6 +23,7 @@ fn a_first_edit_refused_for_a_key_not_yet_sealed_lands_once_it_is() {
             &sharer.me().card(),
             &code,
             be_block_client::contacts::Expected::Contact,
+            &Default::default(),
         ))
         .expect("the sharer accepts the link");
     runtime

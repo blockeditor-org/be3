@@ -383,6 +383,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         &card(&editor, scene::EDITOR_NAME, scene::EDITOR_EMAIL),
         &code,
         be_block_client::contacts::Expected::Invitation,
+        &Default::default(),
     )
     .await
     .map_err(text)?;
@@ -718,6 +719,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         &card(&friend, scene::FRIEND_NAME, scene::FRIEND_EMAIL),
         &link,
         be_block_client::contacts::Expected::Contact,
+        &Default::default(),
     )
     .await
     .map_err(text)?;
