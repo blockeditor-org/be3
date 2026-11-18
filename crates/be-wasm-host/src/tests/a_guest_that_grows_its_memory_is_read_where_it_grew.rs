@@ -18,7 +18,10 @@ fn a_guest_that_grows_its_memory_is_read_where_it_grew() {
     let outbound = app.take_outbound();
     assert_eq!(outbound.len(), 1);
     let handle = u32::from_le_bytes(outbound[0][..4].try_into().unwrap());
-    assert_ne!(handle, 0, "the descriptor in the grown pages should have been read");
+    assert_ne!(
+        handle, 0,
+        "the descriptor in the grown pages should have been read"
+    );
     assert!(
         engine::memories_stay_put(),
         "V8's trap handler should be on here, which keeps the gpu calls fast"

@@ -2,7 +2,8 @@ use super::*;
 
 #[test]
 fn a_guest_that_would_have_threads_is_refused() {
-    let entries = r#"(func (export "app_start")) (func (export "app_step")) (func (export "app_shutdown"))"#;
+    let entries =
+        r#"(func (export "app_start")) (func (export "app_step")) (func (export "app_shutdown"))"#;
     for (module, why) in [
         (
             format!(r#"(module (import "env" "memory" (memory 1 4 shared)) {entries})"#),

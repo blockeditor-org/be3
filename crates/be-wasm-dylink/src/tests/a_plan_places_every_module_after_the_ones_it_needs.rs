@@ -14,11 +14,7 @@ fn a_plan_places_every_module_after_the_ones_it_needs() {
     assert_eq!(plan.region, 65648);
     assert_eq!(
         left.imports,
-        vec![
-            Import::Table,
-            Import::Constant(65536),
-            Import::Function(0),
-        ]
+        vec![Import::Table, Import::Constant(65536), Import::Function(0),]
     );
     assert_eq!(
         app.imports,
