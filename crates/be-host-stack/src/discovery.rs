@@ -315,16 +315,18 @@ pub fn manifests() -> Vec<Arc<AppManifest>> {
     apps().manifests.clone()
 }
 
-/// Whether a block of `content_type` is hosted: an app's manifest names a host component that
-/// runs on it (guides/apps/host_services.md, "Host components"), so its share links grant Join
-/// by default (guides/blocks/keys.md, "Share links").
-pub fn hosted(content_type: Uuid) -> bool {
-    apps().manifests.iter().any(|manifest| {
-        manifest
-            .hosts
-            .iter()
-            .any(|host| host.edits == content_type.into_bytes())
-    })
+/// The levels a block of `content_type` is shared at when it is hosted: an app's manifest names
+/// a host component that runs on it (guides/apps/host_services.md, "Host components"), with the
+/// levels it offers (plans/hosted_blocks.md, "The share dialog"). Empty for a type no host
+/// component runs on.
+pub fn offered_levels(content_type: Uuid) -> Vec<be_sdk_manifest::OfferedLevel> {
+    apps()
+        .manifests
+        .iter()
+        .flat_map(|manifest| &manifest.hosts)
+        .find(|host| host.edits == content_type.into_bytes())
+        .map(|host| host.levels.clone())
+        .unwrap_or_default()
 }
 
 pub fn entry_point(app_id: &str, entry: &str) -> Option<String> {

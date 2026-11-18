@@ -232,9 +232,15 @@ a role inside the app, since the share dialog grants no roles. A game:
    peers, where the first host closes the world and the second carries on;
    and a be-host-stack test where Keep hosting outlives the editor and Stop
    ends it.
-5. **The share dialog.** The offered levels, names and lines from the
-   manifest (above); who is hosting now. Done: paintings of a game's dialog
-   (Join, Host, Manage) and a text block's (unchanged).
+5. **The share dialog.**
+   - a. The offered levels, names and lines from the manifest (above) (done):
+     a host component's `levels` (`HostManifest::levels`, Join required), the
+     access listing's `levels`, and be-sdk-shell's `Offered`, which every level
+     choice and name in the dialog goes through, with the chosen level's line
+     under its choice; people added and links start at Join.
+     `the_share_dialog_makes_a_join_link_on_a_hosted_block` paints a game's
+     dialog (Join game, Host, Manage); a text block's paintings are unchanged.
+   - b. Who is hosting now, in the dialog. Depends on step 4's lease (4b).
 6. **A first hosted type**: a small game world in the logic game's spirit,
    with secret state, or a hosted variant of an existing game. Done: a host
    test where an editor hosts and a Join member plays.

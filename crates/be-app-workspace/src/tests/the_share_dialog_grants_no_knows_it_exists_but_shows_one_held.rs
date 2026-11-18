@@ -49,7 +49,7 @@ fn the_share_dialog_grants_no_knows_it_exists_but_shows_one_held() {
             ],
             company: false,
             set_inside: 0,
-            hosted: false,
+            levels: Vec::new(),
         }),
     );
     fixture.settle();

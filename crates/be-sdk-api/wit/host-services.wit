@@ -69,10 +69,20 @@ interface host-services {
         grants: list<access-grant>,
         company: bool,
         set-inside: u32,
-        /// Whether the block is hosted (an app runs a host component on its
-        /// type): its share links grant Join by default, and only its links
-        /// offer Join.
-        hosted: bool,
+        /// The levels the block's type offers, in the order to list them, when
+        /// it is hosted (an app runs a host component on its type): each named
+        /// for what it adds for the stored block. Its share links grant Join by
+        /// default, and only its links offer Join. Empty for any other block,
+        /// which offers the core levels by their own names.
+        levels: list<offered-level>,
+    }
+
+    /// A level a hosted type offers in the share dialog, with its name and
+    /// one line saying what it means.
+    record offered-level {
+        access: access-level,
+        name: string,
+        line: string,
     }
 
     /// A block a file was imported into.
