@@ -132,7 +132,7 @@ pub(super) enum Command {
         content_type: Uuid,
         owned: bool,
     },
-    #[cfg(any(test, feature = "testing"))]
+    /// Lets go of a block `Open` kept open (`crate::close`).
     Close(Uuid),
     /// Start or stop following the account's storage.
     Storage(bool),
@@ -455,7 +455,6 @@ impl Command {
             Command::PreviewChild { .. } => "preview child",
             Command::Revision { .. } => "revision",
             Command::Open { .. } => "open",
-            #[cfg(any(test, feature = "testing"))]
             Command::Close(..) => "close",
             Command::Storage(_) => "storage",
             Command::WantSearches(..) => "want searches",
@@ -541,7 +540,6 @@ impl Command {
     /// lane holds others (`Served`). The rest, which may reach a whole tree (a version command,
     /// an import), wait for the lane to be empty.
     fn order_safe(&self) -> bool {
-        #[cfg(any(test, feature = "testing"))]
         if let Command::Close(_) = self {
             return true;
         }
@@ -641,7 +639,6 @@ impl Command {
                 ..
             }) => Some(*block),
             Command::Duplicate { to, .. } => Some(*to),
-            #[cfg(any(test, feature = "testing"))]
             Command::Close(block) => Some(*block),
             #[cfg(test)]
             Command::Presence { block, .. }
@@ -4133,7 +4130,6 @@ async fn apply(
             open_wanted(peer, shared, wanted, replicas, block, content_type).await;
             false
         }
-        #[cfg(any(test, feature = "testing"))]
         Command::Close(block) => {
             wanted.open.remove(&block);
             wanted.readers.remove(&block);

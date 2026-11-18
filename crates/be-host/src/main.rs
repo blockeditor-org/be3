@@ -3514,7 +3514,9 @@ impl HostCore {
     fn handle_block_command(&mut self, from: Option<Uuid>, id: Uuid, command: BlockCommand) {
         match command {
             BlockCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
-            BlockCommand::KeepHosting(keep) => self.hosts.keep(id, keep),
+            // Only an editor of the block keeps hosting it.
+            BlockCommand::KeepHosting(keep) if from == Some(id) => self.hosts.keep(id, keep),
+            BlockCommand::KeepHosting(_) => {}
             BlockCommand::Leave => ask_to_leave(&mut self.leaving, id),
             BlockCommand::CloseEditor if from == Some(id) => self.close_itself(id),
             BlockCommand::CloseEditor => {
@@ -4431,7 +4433,7 @@ impl HostCore {
                 error: reauth.error.clone(),
             }),
             status: ui::StatusView {
-                hosting: self.hosts.kept(),
+                hosting: self.hosts.kept(&self.registry),
                 sync,
                 unsaved: be_status.unsaved > 0,
                 unsent: be_status.unsent,

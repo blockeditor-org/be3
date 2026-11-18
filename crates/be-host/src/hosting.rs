@@ -6,7 +6,8 @@
 //! stops it, so the lease goes on to another editor and a world left closed uses nothing,
 //! unless the person chose Keep hosting in its frame menu (`block-command.keep-hosting`): a kept
 //! block's component runs on with no editor open, listed in the host menu with Stop, until
-//! Stop, the lease or the access goes, or be-host quits. Nothing keeps it across a restart.
+//! Stop, the account may no longer edit it, or be-host quits; meanwhile this device holds its
+//! replica open, so a lease lost to a disconnect comes back. Nothing keeps it across a restart.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -68,27 +69,40 @@ pub(crate) struct Hosts {
 impl Hosts {
     /// Keeps hosting `block` after its editors here close, or no longer: only a block whose
     /// component runs here may be kept.
+    /// While kept, this device holds the block's replica open itself (`be_host_stack::open`),
+    /// so a lease lost to a disconnect or a rejoin comes back with the session and the
+    /// component starts again; only Stop, or the account no longer allowed to edit, lets it go.
     pub(crate) fn keep(&mut self, block: Uuid, keep: bool) {
         match keep {
             true => {
                 let Some(running) = self.running.get(&block) else {
                     return;
                 };
-                self.kept.insert(block, running.block);
+                if self.kept.insert(block, running.block).is_none() {
+                    be_host_stack::open(block, running.block.block_type);
+                }
             }
-            false => {
-                self.kept.remove(&block);
-            }
+            false => self.let_go(block),
         }
         self.seen = None;
     }
 
-    /// The blocks kept hosting, by name, for the host menu's Stop.
-    pub(crate) fn kept(&self) -> Vec<(Uuid, String)> {
+    fn let_go(&mut self, block: Uuid) {
+        if self.kept.remove(&block).is_some() {
+            be_host_stack::close(block);
+        }
+    }
+
+    /// The blocks kept hosting, by name (their type's, for one not named), for the host menu's
+    /// Stop.
+    pub(crate) fn kept(&self, registry: &crate::editors::EditorRegistry) -> Vec<(Uuid, String)> {
         let mut kept: Vec<(Uuid, String)> = self
             .kept
-            .keys()
-            .map(|block| (*block, crate::name_of(*block, "Untitled")))
+            .iter()
+            .map(|(block, kept)| {
+                let type_name = registry.display_name(kept.block_type).unwrap_or("Untitled");
+                (*block, crate::name_of(*block, type_name))
+            })
             .collect();
         kept.sort_by(|left, right| left.1.cmp(&right.1).then(left.0.cmp(&right.0)));
         kept
@@ -140,8 +154,18 @@ impl Hosts {
                 wanted.insert(block.id, block);
             }
         }
-        // One that may no longer run here (the lease or the access went) is kept no longer.
-        self.kept.retain(|block, _| wanted.contains_key(block));
+        // One the account may no longer edit is kept no longer. One whose lease went (a
+        // disconnect, a rejoin, another device's turn) stays kept: its replica stays open, and
+        // the component starts again once the lease comes back.
+        let unkept: Vec<Uuid> = self
+            .kept
+            .keys()
+            .filter(|block| !be_host_stack::access(**block).can_edit())
+            .copied()
+            .collect();
+        for block in unkept {
+            self.let_go(block);
+        }
         self.failed.retain(|block| wanted.contains_key(block));
         self.running.retain(|block, running| {
             let keep = wanted.contains_key(block);
