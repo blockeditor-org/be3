@@ -184,7 +184,7 @@ fn run(arguments: Vec<String>) -> Result<usize, String> {
     print!("{}", report(&failures));
     if !failures.is_empty() {
         println!(
-            "The failing runs' output is in {}/, as N.log, and the paintings of run N that differ from the accepted ones in N/changed/.",
+            "The failing runs' output is in {}/, as N.log, the whole logs of the programs each drove in N.logs/, and the paintings of run N that differ from the accepted ones in N/changed/.",
             output.display()
         );
     }
@@ -385,6 +385,12 @@ fn listed_tests(listing: &str) -> usize {
 fn once(built: &Built, options: &Options, log: &Path, paintings: &Path) -> Result<(), String> {
     let limit = options.limit;
     let made = paintings.join("made");
+    // Each program the run drives writes its whole log here, beside the run's own output, so a
+    // run killed for passing its limit keeps them too; a run that passed has them removed.
+    let logs = std::env::current_dir()
+        .unwrap_or_default()
+        .join(log.with_extension("logs"));
+    let _ = fs::remove_dir_all(&logs);
     let mut command = Command::new(&built.harness);
     if let Some(latency) = options.latency {
         command.env("HOST_TEST_LATENCY_MS", latency.as_millis().to_string());
@@ -393,6 +399,8 @@ fn once(built: &Built, options: &Options, log: &Path, paintings: &Path) -> Resul
         .arg(&options.name)
         .envs(built.environment.iter().map(|(key, value)| (key, value)))
         .env("MADE_PAINTINGS", &made)
+        // be-tool-drive's `Driven` keeps them there (its `KEEP_LOGS`).
+        .env("BE_DRIVE_KEEP_LOGS", &logs)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -423,6 +431,7 @@ fn once(built: &Built, options: &Options, log: &Path, paintings: &Path) -> Resul
         && status.success()
     {
         let Some((painting, why)) = changed.into_iter().next() else {
+            let _ = fs::remove_dir_all(&logs);
             return Ok(());
         };
         let _ = fs::write(log, &text);
