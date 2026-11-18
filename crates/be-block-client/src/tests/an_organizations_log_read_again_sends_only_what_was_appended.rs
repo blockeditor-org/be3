@@ -21,14 +21,16 @@ async fn an_organizations_log_read_again_sends_only_what_was_appended() {
     };
 
     let member = harness.member(&owner, "member@example.com").await;
-    let page = crate::ask(be_block_protocol::read::<be_block_protocol::AccessLogPage, _>(
-        &owner.connection(),
-        Some(organization),
-        be_block_protocol::Query::Log {
-            log: None,
-            held: Some(held),
-        },
-    ))
+    let page = crate::ask(
+        be_block_protocol::read::<be_block_protocol::AccessLogPage, _>(
+            &owner.connection(),
+            Some(organization),
+            be_block_protocol::Query::Log {
+                log: None,
+                held: Some(held),
+            },
+        ),
+    )
     .await
     .unwrap();
     assert_eq!(
@@ -36,22 +38,31 @@ async fn an_organizations_log_read_again_sends_only_what_was_appended() {
         first.len() as u64,
         "only the entries after the one held are sent"
     );
-    assert_eq!(page.entries.len(), 2, "the invitation and the member it signed in");
+    assert_eq!(
+        page.entries.len(),
+        2,
+        "the invitation and the member it signed in"
+    );
 
     let second = owner.organization_log().await.unwrap();
     assert_eq!(second.len(), first.len() + 2);
     assert_eq!(hashes(&second[..first.len()]), hashes(&first));
-    let fresh = crate::ask(be_block_protocol::read::<be_block_protocol::AccessLogPage, _>(
-        &owner.connection(),
-        Some(organization),
-        be_block_protocol::Query::Log {
-            log: None,
-            held: None,
-        },
-    ))
+    let fresh = crate::ask(
+        be_block_protocol::read::<be_block_protocol::AccessLogPage, _>(
+            &owner.connection(),
+            Some(organization),
+            be_block_protocol::Query::Log {
+                log: None,
+                held: None,
+            },
+        ),
+    )
     .await
     .unwrap();
-    assert_eq!(fresh.from, 0, "a read naming nothing held is sent from the root");
+    assert_eq!(
+        fresh.from, 0,
+        "a read naming nothing held is sent from the root"
+    );
     assert_eq!(
         fresh
             .entries
@@ -74,14 +85,16 @@ async fn an_organizations_log_read_again_sends_only_what_was_appended() {
         .grant(shared, member.account(), be_block_graph::Access::Edit)
         .await
         .unwrap();
-    let page = crate::ask(be_block_protocol::read::<be_block_protocol::AccessLogPage, _>(
-        &owner.connection(),
-        Some(organization),
-        be_block_protocol::Query::Log {
-            log: Some(shared),
-            held: Some(held),
-        },
-    ))
+    let page = crate::ask(
+        be_block_protocol::read::<be_block_protocol::AccessLogPage, _>(
+            &owner.connection(),
+            Some(organization),
+            be_block_protocol::Query::Log {
+                log: Some(shared),
+                held: Some(held),
+            },
+        ),
+    )
     .await
     .unwrap();
     assert_eq!(page.from, before.len() as u64);

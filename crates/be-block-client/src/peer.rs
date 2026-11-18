@@ -2596,14 +2596,16 @@ impl<S: ObjectStore> Peer<S> {
                 hash: steps.last()?.hash(),
             })
         });
-        let page = crate::ask(be_block_protocol::read::<be_block_protocol::AccessLogPage, _>(
-            &self.connection(),
-            Some(self.organization),
-            be_block_protocol::Query::Log {
-                log,
-                held: held_entry,
-            },
-        ))
+        let page = crate::ask(
+            be_block_protocol::read::<be_block_protocol::AccessLogPage, _>(
+                &self.connection(),
+                Some(self.organization),
+                be_block_protocol::Query::Log {
+                    log,
+                    held: held_entry,
+                },
+            ),
+        )
         .await?;
         let sent = page
             .entries

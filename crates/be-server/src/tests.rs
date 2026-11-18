@@ -2280,11 +2280,7 @@ impl TestClient {
             BlockParent::Root => Placement::Top,
             BlockParent::Detached => Placement::Detached,
             BlockParent::Block(above) => {
-                let log = decode_steps(
-                    self.access_log(Some(above))
-                    .await
-                    .unwrap_or_default(),
-                );
+                let log = decode_steps(self.access_log(Some(above)).await.unwrap_or_default());
                 Placement::Block {
                     block: above.into_bytes(),
                     root: log.first().map_or([0; 32], be_block_keys::Step::hash),
@@ -2321,11 +2317,7 @@ impl TestClient {
         let Some(me) = self.account else {
             return Vec::new();
         };
-        let log = decode_steps(
-            self.access_log(Some(block))
-                .await
-                .unwrap_or_default(),
-        );
+        let log = decode_steps(self.access_log(Some(block)).await.unwrap_or_default());
         let Some(head) = log.last().map(be_block_keys::Step::hash) else {
             return Vec::new();
         };
@@ -2382,11 +2374,7 @@ impl TestClient {
             .and_then(|summary| summary.parent)
         {
             at = parent;
-            let above = decode_steps(
-                self.access_log(Some(parent))
-                .await
-                .unwrap_or_default(),
-            );
+            let above = decode_steps(self.access_log(Some(parent)).await.unwrap_or_default());
             let Some(head) = above.last() else {
                 break;
             };
@@ -2402,11 +2390,7 @@ impl TestClient {
                 return Authority::Inherited(chain);
             }
         }
-        let organization = decode_steps(
-            self.access_log(None)
-                .await
-                .unwrap_or_default(),
-        );
+        let organization = decode_steps(self.access_log(None).await.unwrap_or_default());
         match organization.last() {
             Some(head) => Authority::Organization(head.hash()),
             None => Authority::Log,
@@ -2508,11 +2492,7 @@ impl TestClient {
     /// The organization open's log as served to this client, checked from its root: its id and
     /// what it gives. None in an organization with no log.
     async fn organization_log(&mut self) -> Option<([u8; 16], be_block_keys::Checked)> {
-        let steps = decode_steps(
-            self.access_log(None)
-                .await
-                .ok()?,
-        );
+        let steps = decode_steps(self.access_log(None).await.ok()?);
         let root = steps.first()?.entry()?.clone();
         let checked = be_block_keys::check_log(
             be_block_keys::LogKind::Organization,
@@ -2678,11 +2658,7 @@ impl TestClient {
         let opening = account == be_block_graph::ANYONE_INSIDE;
         let me = self.account?;
         let decode = decode_steps;
-        let log = decode(
-            self.access_log(Some(block))
-                .await
-                .ok()?,
-        );
+        let log = decode(self.access_log(Some(block)).await.ok()?);
         let level = crate::access::level(access);
         // The last grant the log names for them; the server checks the whole log.
         let named =

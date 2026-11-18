@@ -29,7 +29,11 @@ fn a_tail_the_server_makes_up_is_refused() {
     let tail = next(first.hash(), 3);
 
     let grown = crate::peer::extended(Some(&held), 2, vec![Step::from(tail.clone())]).unwrap();
-    assert_eq!(grown.len(), 3, "a tail that follows the held head extends it");
+    assert_eq!(
+        grown.len(),
+        3,
+        "a tail that follows the held head extends it"
+    );
     assert_eq!(
         crate::peer::extended(Some(&held), 0, vec![Step::from(root.clone())])
             .unwrap()
