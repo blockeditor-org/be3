@@ -257,10 +257,9 @@ impl Board {
             return false;
         };
         let rests = self.rests_of(PointerId::Keyboard);
-        let from = rests
-            .iter()
-            .find(|rest| Some(rest.id) == chosen)
-            .map_or(drawn, |rest| rest.aim());
+        let from = chosen
+            .and_then(|chosen| at_chosen(&rests, chosen, last.pos))
+            .map_or(drawn, |at| rests[at].aim());
         let aims: Vec<_> = rests
             .iter()
             .map(|rest| {
@@ -324,15 +323,19 @@ impl Board {
     /// screen reader; "over a place" for one that is not fixed (free or a nested site), none
     /// when it chose nothing.
     fn over_chosen(&self, pointer: PointerId) -> Option<String> {
-        let chosen = self
+        let (chosen, last) = self
             .placing
             .borrow()
             .iter()
-            .find(|placing| placing.pointer == pointer)?
-            .frame
-            .chosen?;
+            .find(|placing| placing.pointer == pointer)
+            .map(|placing| (placing.frame.chosen, placing.last))?;
+        let chosen = chosen?;
         let rests = self.rests_of(pointer);
-        let Some(at) = rests.iter().position(|rest| rest.id == chosen) else {
+        let at = match last {
+            Some(last) => at_chosen(&rests, chosen, last.pos),
+            None => rests.iter().position(|rest| rest.id == chosen),
+        };
+        let Some(at) = at else {
             return Some("over a place".to_owned());
         };
         let name = rests[at]
@@ -640,4 +643,23 @@ impl Board {
         }
         true
     }
+}
+
+/// Which of `rests` the chosen place is: the one with its id, or, where several share it (a
+/// `custom` site's stops), the one aimed nearest `pointer`.
+fn at_chosen(
+    rests: &[beui_view::drag::Rest],
+    chosen: beui_view::drag::CandidateId,
+    pointer: beui_view::types::Pos2,
+) -> Option<usize> {
+    rests
+        .iter()
+        .enumerate()
+        .filter(|(_, rest)| rest.id == chosen)
+        .min_by(|(_, a), (_, b)| {
+            a.aim()
+                .distance(pointer)
+                .total_cmp(&b.aim().distance(pointer))
+        })
+        .map(|(at, _)| at)
 }

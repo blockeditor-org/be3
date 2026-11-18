@@ -12,6 +12,7 @@ use uuid::Uuid;
 use crate::root::VideoRoot;
 use crate::timeline::timecode;
 
+mod a_clip_is_carried_along_the_timeline_from_the_keyboard;
 mod a_trim_keeps_following_the_pointer_once_its_first_edit_lands;
 mod a_video_on_a_phone_on_its_side_shows_its_panes_beside_the_player;
 mod a_video_on_a_phone_shows_its_panes_below_the_player;
