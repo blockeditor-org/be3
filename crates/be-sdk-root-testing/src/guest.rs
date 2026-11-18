@@ -96,6 +96,9 @@ struct Root {
     /// A dialog one of its documents asked for (the accounts' add or remove), opened with the
     /// next frame unless another dialog is open.
     wanted: Rc<RefCell<Option<Asking>>>,
+    /// Whether the host's question of keeping display settings replaced the dialog adding an
+    /// account mid sign-in, which reopens once no dialog is open if the sign-in goes on.
+    resuming: Rc<Cell<bool>>,
     /// The surface a `RESIZES` frame configures and never presents.
     unpresented: Rc<RefCell<Option<OwnSurface>>>,
     /// The scrim under its dialog, filled with `SCRIM_COLOR` on its first frame.
@@ -157,8 +160,9 @@ enum Asking {
     KeepDisplay(DisplayQuestion),
     /// The list of the block stack's unsent edits.
     Unsent,
-    /// Adding an account.
-    AddAccount,
+    /// Adding an account: afresh, or `resumed` mid sign-in once a question that replaced it
+    /// went.
+    AddAccount { resumed: bool },
     /// The question before removing the account of `key`, named `name`, kept on this device
     /// alone.
     ForgetAccount { key: String, name: String },
@@ -167,7 +171,7 @@ enum Asking {
 /// The root's accounts while the block stack waits for the person to open or add one.
 struct Accounts {
     surface: BeuiSurface,
-    /// The layer focused when they showed, which gets the focus back once they go.
+    /// The layer focused when they took the focus, which gets it back once they go.
     had: Option<LayerId>,
     /// Whether they took the focus yet: once drawn.
     focused: bool,
@@ -221,6 +225,7 @@ impl Root {
             accounts: Rc::default(),
             accounts_shown: Rc::default(),
             wanted: Rc::default(),
+            resuming: Rc::default(),
             unpresented: Rc::default(),
             scrim: Rc::default(),
             dialog: Rc::default(),
@@ -429,10 +434,9 @@ impl Root {
                 }
             },
         )?;
-        let had = self.embedding.borrow().focused(None).map(|layer| layer.id);
         *self.accounts.borrow_mut() = Some(Accounts {
             surface,
-            had,
+            had: None,
             focused: false,
         });
         Ok(())
@@ -723,14 +727,31 @@ impl Root {
             _ if !locked && asked == Some(Asked::OpenUnsent) && self.dialog.borrow().is_none() => {
                 Some(Asking::Unsent)
             }
+            _ if !locked && self.dialog.borrow().is_none() && self.resuming.take() => self
+                .core
+                .borrow()
+                .signing_in
+                .is_some()
+                .then_some(Asking::AddAccount { resumed: true }),
             _ if !locked && self.dialog.borrow().is_none() => wanted,
             _ => None,
         };
         let closing =
             closed.is_some() || asked == Some(Asked::Close) || withdrawn || opening.is_some();
-        // Closing the dialog adding an account, other than for the account added, stops adding.
-        if closing && signs_in && !matches!(closed, Some(Closed::Added)) {
-            ask_core(CoreCommand::CancelSignIn);
+        // The host's question replacing the dialog adding an account mid sign-in leaves the
+        // sign-in going, and the dialog reopens once the question goes. Closing it otherwise,
+        // other than for the account added, stops adding.
+        let replaced = closed.is_none()
+            && asked != Some(Asked::Close)
+            && matches!(opening, Some(Asking::KeepDisplay(_)));
+        if closing && signs_in {
+            match replaced && self.core.borrow().signing_in.is_some() {
+                true => self.resuming.set(true),
+                false if !matches!(closed, Some(Closed::Added)) => {
+                    ask_core(CoreCommand::CancelSignIn);
+                }
+                false => {}
+            }
         }
         if closing {
             self.close_dialog();
@@ -777,13 +798,15 @@ impl Root {
         let waker = self.waker.clone();
         let keep = match &opening {
             Asking::KeepDisplay(asked) => Some(asked.round),
-            Asking::Rename | Asking::Unsent | Asking::AddAccount | Asking::ForgetAccount { .. } => {
-                None
-            }
+            Asking::Rename
+            | Asking::Unsent
+            | Asking::AddAccount { .. }
+            | Asking::ForgetAccount { .. } => None,
         };
-        let signs_in = matches!(opening, Asking::AddAccount);
-        // Adding an account starts afresh: whatever was being added, and why it failed, goes.
-        if signs_in {
+        let signs_in = matches!(opening, Asking::AddAccount { .. });
+        // Adding an account starts afresh, unless resumed: whatever was being added, and why it
+        // failed, goes.
+        if matches!(opening, Asking::AddAccount { resumed: false }) {
             ask_core(CoreCommand::CancelSignIn);
         }
         let core = self.core.borrow().clone();
@@ -813,7 +836,7 @@ impl Root {
                             <UnsentDialog core={core} done={done} />
                         }
                     }
-                    Asking::AddAccount => {
+                    Asking::AddAccount { .. } => {
                         let known: Vec<String> =
                             core.accounts.iter().map(|row| row.key.clone()).collect();
                         let core = create_signal(core);
@@ -1455,7 +1478,7 @@ fn AccountsCard(core: Signal<CoreView>, want: Callback<Asking>) -> NodeId {
             <be_host_accounts_ui::AccountsScreen
                 accounts
                 error
-                on_add={move || want.call(Asking::AddAccount)}
+                on_add={move || want.call(Asking::AddAccount { resumed: false })}
                 on_open={|key: String| ask_core(CoreCommand::OpenAccount(key))}
                 on_choose_organization={|key: String| ask_core(CoreCommand::ChooseOrganization(key))}
                 on_log_out={forget}
@@ -1477,7 +1500,7 @@ fn account_row(account: &AccountRow) -> be_host_accounts_ui::AccountRow {
         local: account.server.is_none(),
         has_last_organization: account.has_last_organization,
         current: account.current,
-        companies: account.companies.clone(),
+        companies: account.organizations.clone(),
     }
 }
 
@@ -1957,6 +1980,8 @@ impl frames::Guest for Root {
                     embedding.focus(None, Some(DIALOG_LAYER))
                 }
                 (None, None, Some(accounts)) if !accounts.focused => {
+                    // What had the focus as they take it, which gets it back once they go.
+                    accounts.had = embedding.focused(None).map(|layer| layer.id);
                     accounts.focused = true;
                     embedding.focus(None, Some(ACCOUNTS_LAYER))
                 }

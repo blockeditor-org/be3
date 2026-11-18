@@ -1148,7 +1148,7 @@ Each step lands on its own.
          waits for the person to open or add an account: be-host's `Screen::Accounts`), the
          `accounts` (each `account-row`: the host's key for it, its name, email, its server or
          none for one kept on this device alone, whether it remembers its organization,
-         whether it is open, its organizations), `signing-in` (an account being added, with the
+         whether it is open, its `organizations`), `signing-in` (an account being added, with the
          `browser-sign-in`'s page and code once the server gave them) and `account-error`, in
          words as be-host has it. The commands are `open-account` and `choose-organization`
          (be-host's `OpenAccount`, `ChooseOrganization`), `forget-account` (its `LogOut` and
@@ -1172,12 +1172,18 @@ Each step lands on its own.
          server's address and its gateway token, or a name; then `SIGN_IN_TITLE` with the code,
          Check now and Open browser), clearing the token's field as it hands it over, starting
          afresh when it opens, stopping the sign-in when it closes other than for an account
-         added, and closing itself once an account it did not list is added; removing one kept
-         on this device asks first (`FORGET_ACCOUNT_TITLE`). be-wasm-root-host's
+         added, and closing itself once an account it did not list is added; the host's
+         question of keeping display settings replaces it without stopping a sign-in, and it
+         reopens mid sign-in once the question goes if the sign-in goes on. Removing one kept
+         on this device asks first (`FORGET_ACCOUNT_TITLE`). The accounts take back the focus's
+         earlier holder from when they took it. At 4g7 be-host-accounts-ui's `AccountsScreen`
+         and `ErrorText` move to a crate a root may use (be-host's own UI goes then), rather
+         than the root reaching into a crate named for be-host. be-wasm-root-host's
          `a_root_shows_its_hosts_accounts_and_adds_one_handing_over_only_what_was_typed` opens
          an account both ways, asks before removing a local one, hands over a server's address
          and gateway token as typed, opens the sign-in's page, stops the sign-in when closed,
-         adds a local account and sees the dialog close for it stopping nothing, sees the
+         keeps a sign-in going under the display question and shows it again after, adds a
+         local account and sees the dialog close for it stopping nothing, sees the
          accounts go once one is open, and snapshots the accounts, the removal question, the
          dialog and the browser sign-in.
        - 4g6a. Built: the lock screen, over the screen lock and password check the host grants.
