@@ -415,16 +415,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   and a host test at phone size that opens a document from the files and
   shows each frame between.
 
-- **be-host-bench fails on its own.** `app-canvas-and-text` (the bench suite's
-  end-to-end bench) failed every run on 8bca15a9, so it could not compare two
-  builds (decisions/guests_are_single_threaded.md): with the 50 MB paste the
-  host fails to allocate 52,462,484 bytes, and with a 5 MB paste
-  (`HOST_BENCH_TEXT_BYTES`) it clicks `#text.surface` while be3.text still has
-  an editor waiting for its block's content, so no node has that id. Done: the
-  bench waits for the text editor to show its block before it clicks, the
-  50 MB paste fits, and `bench compare BASE app-canvas-and-text` runs three
-  rounds on two builds of one commit.
-
 ## 17. Dragging
 
 - **A carried item's own face, unclipped.** A carry with no `preview` floats as
