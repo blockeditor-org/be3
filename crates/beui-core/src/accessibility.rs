@@ -582,6 +582,13 @@ impl Pass<'_> {
             return;
         };
         let element = document.arena.get(id);
+        if element
+            .as_any()
+            .downcast_ref::<crate::base::frame::FrameNode>()
+            .is_some_and(|frame| frame.accessibility_hidden)
+        {
+            return;
+        }
         let overlay = element.as_any().downcast_ref::<OverlayNode>();
         if overlay.is_some_and(|node| !node.is_open()) {
             return;
