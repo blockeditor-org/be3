@@ -69,9 +69,6 @@ interface host-services {
         grants: list<access-grant>,
         company: bool,
         set-inside: u32,
-        /// The most a share link on the block may admit, as the
-        /// organization's policy stands; none where it allows no links.
-        links-admit: option<link-admits>,
         /// Whether the block is hosted (an app runs a host component on its
         /// type): its share links grant Join by default, and only its links
         /// offer Join.

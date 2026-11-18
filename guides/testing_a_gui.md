@@ -265,7 +265,8 @@ app in it. A test fails unless the host exits cleanly at `close()`.
 - Every step settles as `drive` does, and the clock is stopped, so carets and animations paint
   the same every run; time passes only with `pause`. A pause runs a frame only once
   the apps have answered the one before (they work on threads of their own), so an animation
-  that spans a pause ends under load as it does idle. `HostTest`'s doc comments cover cropping, and
+  that spans a pause ends under load as it does idle. A closing dialog or alert animates out,
+  so `gone` after closing one needs a `pause` past its exit first. `HostTest`'s doc comments cover cropping, and
   `Options` covers the desktop, previews, space and rendering.
 - `HostTest::root(APP)` runs be-host with a root guest in place of its UI (`--root=APP`), drawn
   through lavapipe. A snapshot paints what the root's own surfaces painted (`be3:root`'s

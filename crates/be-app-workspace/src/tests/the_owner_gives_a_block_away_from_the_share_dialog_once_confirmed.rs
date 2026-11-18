@@ -60,7 +60,6 @@ fn the_owner_gives_a_block_away_from_the_share_dialog_once_confirmed() {
             ],
             company: false,
             set_inside: 0,
-            links_admit: None,
             hosted: false,
         }),
     );
