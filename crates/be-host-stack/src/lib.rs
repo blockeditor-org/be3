@@ -1197,21 +1197,15 @@ pub fn detach(block: Uuid, editor: u64) {
 /// (plans/hosted_blocks.md, "Hosting"), taken: the runtime passes it on as `member-event`s.
 pub fn take_member_events(block: Uuid) -> Vec<be_sdk_api::blocks::MemberEvent> {
     let Some((events, upto)) = with_seen(|seen| {
-        let news = seen.member_news.get(&block)?;
-        let events = news.iter().map(|news| hosting::event_of(&news.news)).collect();
-        Some((events, news.last()?.number))
+        let (news, last) = seen.member_news.of(block)?;
+        let events = news.into_iter().map(hosting::event_of).collect();
+        Some((events, last))
     })
     .flatten() else {
         return Vec::new();
     };
     edit(vec![Edit::TookMemberNews { block, upto }]);
     events
-}
-
-/// How many events were ever queued for host components: the runtime takes them
-/// (`take_member_events`) only when this moved.
-pub fn news_revision() -> u64 {
-    with_seen(|seen| seen.news_queued).unwrap_or_default()
 }
 
 /// How many times the blocks whose lease this device holds changed: be-host looks again at
@@ -1223,10 +1217,13 @@ pub fn lease_revision() -> u64 {
 /// A host component starts on `block`: it hears every member already admitted join, and none of
 /// what an earlier component left untaken.
 pub fn restart_host(block: Uuid) {
-    edit(vec![Edit::TookMemberNews {
-        block,
-        upto: u64::MAX,
-    }]);
+    // The worker drops the rest and replays the joins in one step; the page drops what it holds
+    // now, so the new component takes none of it before that step reaches it. The replayed
+    // joins are numbered after all of it.
+    if let Some(upto) = with_seen(|seen| seen.member_news.of(block).map(|(_, last)| last)).flatten()
+    {
+        edit(vec![Edit::TookMemberNews { block, upto }]);
+    }
     send(Command::RestartHost(block));
 }
 

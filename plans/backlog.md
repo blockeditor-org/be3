@@ -707,11 +707,6 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   each with a test that counts the work it drops, as be-server
   `an_append_checks_only_the_appended_entry_on_the_server` does.
 
-- **Bans read the whole log.** `access::banned` checks the block's access log
-  from its root on every session join and recheck (plans/hosted_blocks.md,
-  step 4a). Cache it with the checked log, as one check per log head, before
-  hosted blocks see many joins.
-
 - **A block known only through a reference.** A block a reader knows only
   exists (through a reference) names no entry point, so it is read again only on
   `roots` or a reconnect (decisions/server_protocol_is_five_calls.md). Done:

@@ -78,9 +78,6 @@ pub fn roles_revision() -> u64 {
 #[derive(Default)]
 pub(super) struct Instances {
     entries: HashMap<EditorInstanceId, Instance>,
-    /// The stack's count of member events queued for host components as this pass last took
-    /// them (`be_host_stack::news_revision`): taken again only when it moved.
-    news: u64,
     focus: Focus,
     connection: Option<Connection>,
     next_screen: u64,
@@ -2193,8 +2190,6 @@ impl Instances {
         self.touch(&changes);
         let graph_moved = changes.graph;
         let contacts_moved = changes.contacts;
-        let news = be_host_stack::news_revision();
-        let news_moved = std::mem::replace(&mut self.news, news) != news;
         let mut opened = Vec::new();
         let mut screens = Vec::new();
         self.relaying.clear();
@@ -2371,9 +2366,9 @@ impl Instances {
             }
             // A host component hears its block's host channel members come, speak and go
             // (plans/hosted_blocks.md, "Hosting"), as the stack admits them.
-            if let InstanceRole::Host(_, block) = entry.role
-                && news_moved
-            {
+            // Taken on every pass it reaches, so news queued while it was skipped (no
+            // connection yet) waits for it rather than being passed over.
+            if let InstanceRole::Host(_, block) = entry.role {
                 for event in be_host_stack::take_member_events(block.id) {
                     opened.push(Outbound::Event(instance, EditorEvent::Member(event)));
                 }
