@@ -803,8 +803,10 @@ impl StepRef<'_> {
 /// block lies (and the signers' own right there); every owner record, so the reader knows who
 /// owns the block and that its former owners grant no more; and in an organization's log every
 /// administrator record and every record about someone who ever administered it, so no demotion is
-/// hidden there: an honest organization path reduces no entry that lowered anyone; and every
-/// invitation record, so a member signed in by one checks.
+/// hidden there: an honest organization path reduces no entry that lowered anyone; and the
+/// invitation records of each invitation that signed in a member the path proves, so that member
+/// checks. Every other invitation record is reduced, opened or ended alike, so a path grows with
+/// the invitations its members came by, not every one the organization made.
 pub fn proof_path(
     kind: LogKind,
     entries: &[Entry],
@@ -838,27 +840,36 @@ pub fn proof_path(
         | Record::Administrator(_)
         | Record::Parent(_)
         | Record::Owner(_)
-        | Record::Invitation(_)
         | Record::ShareLink(_) => true,
         Record::Member(member) => administrators.contains(&member.account),
         Record::Retirement(retirement) => administrators.contains(&retirement.account),
-        Record::Grant(_) | Record::Opened(_) | Record::Ban(_) => false,
+        Record::Grant(_) | Record::Opened(_) | Record::Ban(_) | Record::Invitation(_) => false,
     };
     let mut accounts: HashSet<[u8; 16]> = sealers.into_iter().collect();
     accounts.insert(reader);
+    // The keys of the invitations that signed in a member the path proves.
+    let mut used: HashSet<SigningPublic> = HashSet::new();
     let mut whole = vec![false; entries.len()];
     loop {
         let mut grew = false;
         for (at, entry) in entries.iter().enumerate() {
             let proves = always(entry)
                 || entry.signer == reader
-                || named(entry).is_some_and(|named| accounts.contains(&named));
+                || named(entry).is_some_and(|named| accounts.contains(&named))
+                || matches!(&entry.record, Record::Invitation(invitation) if used.contains(&invitation.key));
             if whole[at] || !proves {
                 continue;
             }
             whole[at] = true;
             grew |= accounts.insert(entry.signer);
             grew |= named(entry).is_some_and(|named| accounts.insert(named));
+            if let Record::Member(Member {
+                invitation: Some(invited),
+                ..
+            }) = &entry.record
+            {
+                grew |= used.insert(invited.key);
+            }
         }
         if !grew {
             break;

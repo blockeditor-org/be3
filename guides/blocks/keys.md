@@ -256,8 +256,11 @@ an `append-log(member)` signing them out, by an administrator, with the signed
 revocations of their grants. A sign-out names no keys (`Member::identity` is
 none), so one of a person no record signed in (the server added them) takes
 nothing from the server's word; an agent's is `delete-agent`, signed out where the
-log names it (the personal organization has no log). A proof path keeps every
-invitation record whole, so a member's own record checks on theirs.
+log names it (the personal organization has no log). A proof path keeps whole
+the invitation records of each invitation that signed in a member it proves, so
+that member's record checks on theirs, and reduces every other, open or ended:
+a path below Edit grows with the invitations its members came by, not with every
+one the organization made (`proof_path`).
 
 **Owner records** move a block's ownership:
 only its owner (the root's creator, or whom the last owner record named, held
