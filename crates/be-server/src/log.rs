@@ -626,6 +626,12 @@ impl ServerStore {
         identity: Identity,
         asked: Vec<be_block_protocol::LogRedactionsQuery>,
     ) -> Result<Vec<be_block_protocol::LogRedactions>, ServerError> {
+        if asked.len() > be_block_protocol::MAX_LOG_REDACTIONS_ASKED {
+            return Err(crate::limits::too_many(
+                "logs asked of at once",
+                be_block_protocol::MAX_LOG_REDACTIONS_ASKED,
+            ));
+        }
         self.with_graph(identity.organization, move |_, graph, database| {
             let seen = visibility(identity);
             let mut answered = Vec::new();
