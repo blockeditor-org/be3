@@ -3,7 +3,7 @@ use beui::NodeId;
 use beui::icons::Glyph;
 use beui::icons::{
     ICON_ARCHIVE_RESTORE, ICON_ARROW_LEFT_RIGHT, ICON_BOT, ICON_BUG, ICON_CLOUD_ALERT,
-    ICON_CLOUD_CHECK, ICON_CLOUD_OFF, ICON_CLOUD_SYNC, ICON_CONTACT, ICON_INFO, ICON_KEY,
+    ICON_CLOUD_CHECK, ICON_CLOUD_OFF, ICON_CLOUD_SYNC, ICON_CONTACT, ICON_INFO, ICON_KEY, ICON_LINK,
     ICON_LAYOUT_PANEL_LEFT, ICON_MAIL, ICON_POWER, ICON_SHIELD_ALERT, ICON_USER_COG,
     ICON_USER_PLUS, ICON_USERS,
 };
@@ -156,6 +156,12 @@ fn HostMenu(
             glyph=ICON_CONTACT
             separated=true
             on_click={move || pick(UiCommand::OpenContacts)}
+        />
+        <MenuItem
+            @test_id={"host.menu.share-link".to_owned()}
+            label="Open a share link"
+            glyph=ICON_LINK
+            on_click={move || pick(UiCommand::OpenShareLinks)}
         />
         <Show value={company}>
             <MenuItem

@@ -54,7 +54,8 @@ pub use graph::{Graph, Node, Owner, Query, Scope};
 pub use search::{SearchAsk, SearchHit, Searched};
 pub use seen::{Frame, Part, Seen};
 pub use worker::{
-    History, OFFLINE_LEAVING, OFFLINE_PAIRING, OFFLINE_SHARING, PairingRequest, Shared,
+    History, OFFLINE_LEAVING, OFFLINE_PAIRING, OFFLINE_SHARING, PairingRequest, SharePreview,
+    Shared,
 };
 
 use seen::Edit;
@@ -1523,6 +1524,29 @@ pub fn accept_contact_link(
     reply: impl FnOnce(Result<be_block_keys::ContactCard, String>) + Send + 'static,
 ) {
     send(Command::Contact(worker::ContactCommand::Accept {
+        code,
+        reply: replies::expect(reply),
+    }));
+}
+
+/// Reads the share link with `code` before it is opened: the block it shares and its name, its
+/// organization, and whether opening it joins that organization as a guest.
+pub fn preview_share_link(
+    code: be_block_keys::InviteCode,
+    reply: impl FnOnce(Result<worker::SharePreview, String>) + Send + 'static,
+) {
+    send(Command::Contact(worker::ContactCommand::PreviewShare {
+        code,
+        reply: replies::expect(reply),
+    }));
+}
+
+/// Opens the share link with `code` as the signed-in account.
+pub fn open_share_link(
+    code: be_block_keys::InviteCode,
+    reply: impl FnOnce(Result<worker::SharePreview, String>) + Send + 'static,
+) {
+    send(Command::Contact(worker::ContactCommand::OpenShare {
         code,
         reply: replies::expect(reply),
     }));
