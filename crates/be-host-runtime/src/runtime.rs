@@ -2033,10 +2033,7 @@ pub fn content_delivered(app_id: &str, instance: EditorInstanceId) -> Option<u64
 /// The frames asked of the app and the frames it answered: input sent while `asked` was `n`
 /// has been drawn once `answered` exceeds `n`.
 pub fn frames_answered(app_id: &str) -> (u64, u64) {
-    with(app_id, |runtime| {
-        runtime.pacing.answered()
-    })
-    .unwrap_or_default()
+    with(app_id, |runtime| runtime.pacing.answered()).unwrap_or_default()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

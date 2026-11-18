@@ -20,7 +20,10 @@ fn an_app_repaint_deadline_wakes_the_host_on_every_frame_until_it_is_due() {
     assert!(pacing.due(false, ms(1500), 3));
     pacing.request(ms(1500), 3);
     assert_eq!(pacing.wake_after(ms(1500), true), Some(FRAME_TIMEOUT));
-    assert!(!pacing.due(false, ms(1516), 4), "a frame is not asked for twice");
+    assert!(
+        !pacing.due(false, ms(1516), 4),
+        "a frame is not asked for twice"
+    );
 
     pacing.presented(ms(1520), false, None, false);
     assert_eq!(pacing.wake_after(ms(1520), true), None);

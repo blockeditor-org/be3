@@ -46,7 +46,10 @@ fn settling_ends_at_its_deadline() {
         ..Apps::default()
     };
     assert_eq!(settle(&mut apps, soon), Settled::Relaid);
-    assert_eq!(apps.requests, 1, "a relaid host lays out before asking again");
+    assert_eq!(
+        apps.requests, 1,
+        "a relaid host lays out before asking again"
+    );
 
     let mut clock = FrameClock::default();
     let mut apps = Apps::default();
