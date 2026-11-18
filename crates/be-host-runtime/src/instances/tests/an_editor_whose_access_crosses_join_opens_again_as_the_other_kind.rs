@@ -8,13 +8,11 @@ fn opened_and_closed(next: &NextScreens) -> Vec<&'static str> {
         .iter()
         .filter_map(|message| match message {
             Outbound::Close(instance) if *instance == INSTANCE => Some("close"),
-            Outbound::Open(opening) if opening.instance == INSTANCE => {
-                Some(match &opening.kind {
-                    OpeningKind::Block(_) => "open block",
-                    OpeningKind::Join(_) => "open join",
-                    _ => "open other",
-                })
-            }
+            Outbound::Open(opening) if opening.instance == INSTANCE => Some(match &opening.kind {
+                OpeningKind::Block(_) => "open block",
+                OpeningKind::Join(_) => "open join",
+                _ => "open other",
+            }),
             _ => None,
         })
         .collect()
@@ -43,7 +41,10 @@ fn an_editor_whose_access_crosses_join_opens_again_as_the_other_kind() {
         "closed, then opened once as a Join member"
     );
     let entry = &instances.entries[&INSTANCE];
-    assert!(entry.joined && entry.content.is_none(), "a Join member holds no content");
+    assert!(
+        entry.joined && entry.content.is_none(),
+        "a Join member holds no content"
+    );
     assert!(
         opened_and_closed(&next_screens(&mut instances)).is_empty(),
         "nothing more while the access stays"
@@ -56,5 +57,8 @@ fn an_editor_whose_access_crosses_join_opens_again_as_the_other_kind() {
         "closed, then opened once as an editor"
     );
     let entry = &instances.entries[&INSTANCE];
-    assert!(!entry.joined && entry.content.is_some(), "its content is attached again");
+    assert!(
+        !entry.joined && entry.content.is_some(),
+        "its content is attached again"
+    );
 }

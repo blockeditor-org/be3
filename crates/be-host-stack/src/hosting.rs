@@ -49,7 +49,10 @@ enum Member {
     /// sent since (`next`, the newest only) is taken as its new handshake once the check ends:
     /// a member speaks again only after a handshake of its own, so the last thing it sent is
     /// the one it waits on.
-    Answering { admit: u64, next: Option<Vec<u8>> },
+    Answering {
+        admit: u64,
+        next: Option<Vec<u8>>,
+    },
     /// Answered: admitted once its first message on the channel opens.
     Admitting(Box<Admitting>),
     Admitted(Box<Admitted>),

@@ -119,7 +119,12 @@ fn lock(shared: &Arc<Mutex<Shared>>) -> std::sync::MutexGuard<'_, Shared> {
 
 /// The blocks an editor here joins are now `blocks`: each new one joins its session, and each
 /// no longer wanted leaves it.
-pub fn want(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks, blocks: HashSet<Uuid>) {
+pub fn want(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    tasks: &Tasks,
+    blocks: HashSet<Uuid>,
+) {
     let leaves = {
         let mut held = lock(shared);
         let leaves: Vec<Uuid> = held
@@ -190,9 +195,11 @@ fn join(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks, blo
     };
     // A Join member runs no build of the type, so it names none: the server keeps the tag only
     // for participants.
-    let joined = peer
-        .connection()
-        .join(peer.organization(), block, be_block_store::Hash::from_bytes([0; 32]));
+    let joined = peer.connection().join(
+        peer.organization(),
+        block,
+        be_block_store::Hash::from_bytes([0; 32]),
+    );
     let (peer, shared, tasks) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
     tasks.clone().spawn(async move {
         // Refused or out of reach, it waits for a reconnect or the editor opening again.
@@ -217,13 +224,23 @@ fn join(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks, blo
 }
 
 /// Sends the handshake's first message to whoever hosts `block`, when anyone does.
-fn handshake(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks, block: Uuid, attempt: u64) {
+fn handshake(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    tasks: &Tasks,
+    block: Uuid,
+    attempt: u64,
+) {
     // No one hosts, or this connection does (an editor of the block that joined it as a
     // participant may hold its lease): no channel until another does.
     let Some(host) = lock(shared)
         .joining
         .current(block, attempt)
-        .and_then(|joined| joined.host.filter(|host| Some(host.client) != joined.client))
+        .and_then(|joined| {
+            joined
+                .host
+                .filter(|host| Some(host.client) != joined.client)
+        })
     else {
         return;
     };
@@ -261,7 +278,11 @@ fn handshake(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks
             joined.state = State::Handshaking(Box::new(joining));
         }
         loop {
-            match peer.connection().send_host(block, None, first.clone()).await {
+            match peer
+                .connection()
+                .send_host(block, None, first.clone())
+                .await
+            {
                 Ok(()) => return,
                 // Held back by the rate limit: the same message again, while it is still this
                 // attempt's.
@@ -295,7 +316,13 @@ fn rejoin(shared: &Arc<Mutex<Shared>>, block: Uuid, attempt: u64) {
 
 /// Seals `payload` on `block`'s channel and sends it after anything sent before it: nothing
 /// while the channel is not open.
-pub fn tell(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks, block: Uuid, payload: Vec<u8>) {
+pub fn tell(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    tasks: &Tasks,
+    block: Uuid,
+    payload: Vec<u8>,
+) {
     {
         let mut held = lock(shared);
         let Some(joined) = held.joining.blocks.get_mut(&block) else {
@@ -378,7 +405,13 @@ fn pump(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks, blo
 }
 
 /// Starts `block`'s channel over with the same host, unless it was started over since `attempt`.
-fn rehandshake(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks, block: Uuid, attempt: u64) {
+fn rehandshake(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    tasks: &Tasks,
+    block: Uuid,
+    attempt: u64,
+) {
     let restarted = {
         let mut held = lock(shared);
         match held.joining.current(block, attempt).is_some() {
@@ -393,7 +426,12 @@ fn rehandshake(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tas
 
 /// Takes what the server told of a joined block's session: who hosts it, and what the host
 /// said on the channel. A resynchronized connection (`None`) joins every session again.
-pub fn heard(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks, event: Option<&Event>) {
+pub fn heard(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    tasks: &Tasks,
+    event: Option<&Event>,
+) {
     match event {
         Some(Event::Host { block, host }) => {
             let restarted = {
@@ -444,7 +482,14 @@ pub fn reconnect(shared: &Arc<Mutex<Shared>>) {
     }
 }
 
-fn hosted(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks, block: Uuid, from: u64, payload: &[u8]) {
+fn hosted(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    tasks: &Tasks,
+    block: Uuid,
+    from: u64,
+    payload: &[u8],
+) {
     let mut guard = lock(shared);
     let held = &mut *guard;
     let Some(joined) = held.joining.blocks.get_mut(&block) else {

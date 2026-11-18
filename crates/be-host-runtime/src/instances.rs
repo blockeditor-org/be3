@@ -4,9 +4,9 @@ use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, ArtifactDescription, AudioCommand, BlockPick, ChildContent,
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus,
     EditorInstanceId, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock,
-    OpenCreation, OpenHost, OpenJoin, OpenPicker, OpenRename, Opening, OpeningKind, PerformanceMeasurement,
-    ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, Stopped, View, ViewAnchor, ViewId,
-    ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
+    OpenCreation, OpenHost, OpenJoin, OpenPicker, OpenRename, Opening, OpeningKind,
+    PerformanceMeasurement, ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, Stopped, View,
+    ViewAnchor, ViewId, ViewPlacement, ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
 };
 use be_sdk_api::{
     DescribedAction, HostView, WindowOpen, WindowRequests,
@@ -424,11 +424,7 @@ fn forget_opened(
             be_host_stack::revisions::release(block);
         }
     }
-    super::events::emit(
-        app_id,
-        instance,
-        InstanceEvent::ArtifactWatch(Vec::new()),
-    );
+    super::events::emit(app_id, instance, InstanceEvent::ArtifactWatch(Vec::new()));
     entry.held.clear();
     entry.shows.clear();
     entry.reported_size = None;
@@ -444,8 +440,7 @@ fn forget_opened(
         if screen.input.focused() {
             let mut batch = be_sdk_api::InputBatch::new(screen.request.screen, false);
             batch.push(be_sdk_api::TimedInput::from(be_sdk_api::Input::Focus(true)));
-            unannounced
-                .push(Outbound::App(AppCall::Input(batch)));
+            unannounced.push(Outbound::App(AppCall::Input(batch)));
         }
         screen.input = InputForwarder::new(heard.clone());
     }
@@ -2507,7 +2502,10 @@ impl Instances {
                     .entry(block.id)
                     .or_insert_with(|| be_host_stack::take_channel_events(block.id));
                 for event in events.iter() {
-                    opened.push(Outbound::Event(instance, EditorEvent::Channel(event.clone())));
+                    opened.push(Outbound::Event(
+                        instance,
+                        EditorEvent::Channel(event.clone()),
+                    ));
                 }
             }
             entry.offer_blocks(scope);

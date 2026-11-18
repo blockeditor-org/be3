@@ -5,9 +5,7 @@ use be_sdk_api::blocks::ChannelEvent;
 
 /// What `block`'s Join editors have yet to hear, once `ready` holds of it.
 fn channel_until(what: &str, block: Uuid, ready: impl Fn(usize) -> bool) -> Vec<ChannelEvent> {
-    wait_until(what, |shared| {
-        ready(shared.channel_news.len(block))
-    });
+    wait_until(what, |shared| ready(shared.channel_news.len(block)));
     take_channel_events(block)
 }
 
@@ -32,18 +30,31 @@ async fn next_hosted(
 
 /// Joins `block`'s session as `host`, an editor, claiming its lease if `claim`, and answers
 /// what it hears there.
-fn join_as_editor(host: &Member, block: Uuid, claim: bool) -> tokio::sync::broadcast::Receiver<Event> {
+fn join_as_editor(
+    host: &Member,
+    block: Uuid,
+    claim: bool,
+) -> tokio::sync::broadcast::Receiver<Event> {
     let peer = &host.peer;
     let organization = peer.organization();
     host.runtime.block_on(async {
         let events = peer.connection().subscribe();
-        peer.refresh_keys(None).await.expect("the host's keys arrive");
+        peer.refresh_keys(None)
+            .await
+            .expect("the host's keys arrive");
         peer.connection()
-            .join(organization, block, be_block_store::Hash::from_bytes([3; 32]))
+            .join(
+                organization,
+                block,
+                be_block_store::Hash::from_bytes([3; 32]),
+            )
             .await
             .expect("the host joins");
         if claim {
-            peer.connection().claim(block).await.expect("the host claims the lease");
+            peer.connection()
+                .claim(block)
+                .await
+                .expect("the host claims the lease");
         }
         events
     })
@@ -69,7 +80,10 @@ fn admit(
         let (admitted, said) = admitting
             .confirm(&confirming)
             .expect("the member's first message opens");
-        assert!(said.is_empty(), "the first message only confirms the channel");
+        assert!(
+            said.is_empty(),
+            "the first message only confirms the channel"
+        );
         (member, admitted)
     })
 }
@@ -113,7 +127,11 @@ fn a_joined_channel_opens_to_its_host_and_again_to_the_next() {
         first
             .peer
             .connection()
-            .send_host(block, Some(member), admitted.channel.seal(b"you see a door"))
+            .send_host(
+                block,
+                Some(member),
+                admitted.channel.seal(b"you see a door"),
+            )
             .await
             .expect("the host's message goes");
     });
@@ -134,11 +152,19 @@ fn a_joined_channel_opens_to_its_host_and_again_to_the_next() {
         while told.len() < 2 {
             let (from, payload) = next_hosted(&mut first_events, block).await;
             assert_eq!(from, member);
-            told.push(admitted.channel.open(&payload).expect("in order, and sealed"));
+            told.push(
+                admitted
+                    .channel
+                    .open(&payload)
+                    .expect("in order, and sealed"),
+            );
         }
         told
     });
-    assert_eq!(told, vec![b"open the door".to_vec(), b"go through".to_vec()]);
+    assert_eq!(
+        told,
+        vec![b"open the door".to_vec(), b"go through".to_vec()]
+    );
 
     // A message that does not open breaks the channel, and the member handshakes again. A
     // stray message of the old channel reaching it before the host's answer leaves that
