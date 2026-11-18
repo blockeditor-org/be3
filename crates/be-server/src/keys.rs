@@ -1584,6 +1584,112 @@ impl ServerStore {
             .await
     }
 
+    /// Holds `part` of `account`'s move to new keys for the `set-recovery-key` that names them
+    /// (`stage-recovery-key`): parts staged for other keys go, and each key or log it names
+    /// replaces what was staged for it. A part names only keys sealed to the account and logs
+    /// it signed in, so what it stages stays bounded by what the move needs.
+    pub async fn stage_recovery_key(
+        &self,
+        account: Uuid,
+        part: be_block_protocol::RecoveryKeyPart,
+    ) -> Result<(), ServerError> {
+        let by = encode_wrapped_by(WrappedBy::Account(account));
+        self.with_database(move |_, database| {
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
+            let who = account.to_string();
+            let (public, signing) = (part.public.to_vec(), part.signing.to_vec());
+            for table in ["recovery_sealed_parts", "recovery_retirement_parts"] {
+                transaction.execute(
+                    &format!(
+                        "DELETE FROM {table} WHERE account_id = ?1
+                            AND (public != ?2 OR signing != ?3)"
+                    ),
+                    params![who, public, signing],
+                )?;
+            }
+            for key in &part.sealed {
+                let held: bool = transaction
+                    .prepare_cached(
+                        "SELECT EXISTS (SELECT 1 FROM wrapped_keys
+                         WHERE organization_id = ?1 AND key_id = ?2 AND wrapped_by = ?3
+                            AND sender = ?4)",
+                    )?
+                    .query_row(
+                        params![
+                            key.organization.to_string(),
+                            key.key.to_string(),
+                            by,
+                            who
+                        ],
+                        |row| row.get(0),
+                    )?;
+                if !held {
+                    return Err(refused(format!(
+                        "{} is not a key you sealed for yourself",
+                        key.key
+                    )));
+                }
+                transaction.execute(
+                    "INSERT OR REPLACE INTO recovery_sealed_parts
+                        (account_id, public, signing, organization_id, key_id, sealed)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    params![
+                        who,
+                        public,
+                        signing,
+                        key.organization.to_string(),
+                        key.key.to_string(),
+                        key.sealed
+                    ],
+                )?;
+            }
+            for retirement in &part.retirements {
+                let (names, column) = match retirement.kind {
+                    be_block_protocol::LogKind::Block => ("access_log_names", "block_id"),
+                    be_block_protocol::LogKind::Organization => {
+                        ("organization_log_names", "organization_id")
+                    }
+                };
+                let signed: bool = transaction
+                    .prepare_cached(&format!(
+                        "SELECT EXISTS (SELECT 1 FROM {names}
+                         WHERE account_id = ?1 AND organization_id = ?2 AND {column} = ?3)"
+                    ))?
+                    .query_row(
+                        params![
+                            who,
+                            retirement.organization.to_string(),
+                            retirement.log.to_string()
+                        ],
+                        |row| row.get(0),
+                    )?;
+                if !signed {
+                    return Err(refused(format!(
+                        "you signed in no log of {}",
+                        retirement.log
+                    )));
+                }
+                transaction.execute(
+                    "INSERT OR REPLACE INTO recovery_retirement_parts
+                        (account_id, public, signing, organization_id, kind, log_id, entry)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    params![
+                        who,
+                        public,
+                        signing,
+                        retirement.organization.to_string(),
+                        log_kind_name(retirement.kind),
+                        retirement.log.to_string(),
+                        retirement.entry
+                    ],
+                )?;
+            }
+            transaction.commit()?;
+            Ok(())
+        })
+        .await
+    }
+
     pub async fn set_recovery_key(
         &self,
         account: Uuid,
@@ -1596,6 +1702,10 @@ impl ServerStore {
         let (_, held) = self.recovery_key(account).await?;
         let by = encode_wrapped_by(WrappedBy::Account(account));
         self.with_database(move |store, database| {
+            // What parts staged for these keys carry, beside what this write does: its own go
+            // over theirs.
+            let (sealed, retirements) =
+                with_staged(database, account, &public, &signing, sealed, retirements)?;
             let resealed: BTreeMap<(Uuid, Uuid), &SealedKey> = sealed
                 .iter()
                 .map(|key| ((key.organization, key.key), key))
@@ -1648,6 +1758,12 @@ impl ServerStore {
                  VALUES (?1, ?2, ?3)",
                 params![account.to_string(), public.to_vec(), signing.to_vec()],
             )?;
+            for table in ["recovery_sealed_parts", "recovery_retirement_parts"] {
+                transaction.execute(
+                    &format!("DELETE FROM {table} WHERE account_id = ?1"),
+                    [account.to_string()],
+                )?;
+            }
             transaction.execute("DELETE FROM wrapped_keys WHERE wrapped_by = ?1", [&by])?;
             for held in &held {
                 let Some(key) = resealed.get(&(held.organization, held.key)) else {
@@ -1763,4 +1879,101 @@ fn unsigned_revocations(
         }
     }
     Ok(found)
+}
+
+fn log_kind_name(kind: be_block_protocol::LogKind) -> &'static str {
+    match kind {
+        be_block_protocol::LogKind::Block => "block",
+        be_block_protocol::LogKind::Organization => "organization",
+    }
+}
+
+fn parse_log_kind(name: &str) -> Result<be_block_protocol::LogKind, ServerError> {
+    match name {
+        "block" => Ok(be_block_protocol::LogKind::Block),
+        "organization" => Ok(be_block_protocol::LogKind::Organization),
+        _ => Err(ServerError::Corrupt),
+    }
+}
+
+/// `sealed` and `retirements`, with what parts staged for `account`'s move to `public` and
+/// `signing` carry (`stage-recovery-key`) beside them: the write's own go over a part's for
+/// the same key or log.
+fn with_staged(
+    database: &Connection,
+    account: Uuid,
+    public: &[u8; 32],
+    signing: &[u8; 32],
+    sealed: Vec<SealedKey>,
+    retirements: Vec<be_block_protocol::Retirement>,
+) -> Result<(Vec<SealedKey>, Vec<be_block_protocol::Retirement>), ServerError> {
+    let who = account.to_string();
+    let mut keys: BTreeMap<(Uuid, Uuid), SealedKey> = BTreeMap::new();
+    let mut statement = database.prepare_cached(
+        "SELECT organization_id, key_id, sealed FROM recovery_sealed_parts
+         WHERE account_id = ?1 AND public = ?2 AND signing = ?3",
+    )?;
+    let rows = statement.query_map(params![who, public.to_vec(), signing.to_vec()], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, Vec<u8>>(2)?,
+        ))
+    })?;
+    for row in rows {
+        let (organization, key, bytes) = row?;
+        let (organization, key) = (parse_uuid(&organization)?, parse_uuid(&key)?);
+        keys.insert(
+            (organization, key),
+            SealedKey {
+                organization,
+                key,
+                sender: account,
+                sealed: bytes,
+            },
+        );
+    }
+    for key in sealed {
+        keys.insert((key.organization, key.key), key);
+    }
+    let mut logs: BTreeMap<(Uuid, &'static str, Uuid), be_block_protocol::Retirement> =
+        BTreeMap::new();
+    let mut statement = database.prepare_cached(
+        "SELECT organization_id, kind, log_id, entry FROM recovery_retirement_parts
+         WHERE account_id = ?1 AND public = ?2 AND signing = ?3",
+    )?;
+    let rows = statement.query_map(params![who, public.to_vec(), signing.to_vec()], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, Vec<u8>>(3)?,
+        ))
+    })?;
+    for row in rows {
+        let (organization, kind, log, entry) = row?;
+        let kind = parse_log_kind(&kind)?;
+        let retirement = be_block_protocol::Retirement {
+            organization: parse_uuid(&organization)?,
+            kind,
+            log: parse_uuid(&log)?,
+            entry,
+        };
+        logs.insert(
+            (retirement.organization, log_kind_name(kind), retirement.log),
+            retirement,
+        );
+    }
+    let mut own = std::collections::HashSet::new();
+    let mut retired: Vec<be_block_protocol::Retirement> = Vec::new();
+    for retirement in retirements {
+        let at = (retirement.organization, log_kind_name(retirement.kind), retirement.log);
+        // Twice in the write itself stays twice, for the check to refuse.
+        if own.insert(at) {
+            logs.remove(&at);
+        }
+        retired.push(retirement);
+    }
+    retired.extend(logs.into_values());
+    Ok((keys.into_values().collect(), retired))
 }

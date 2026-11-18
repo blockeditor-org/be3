@@ -1079,6 +1079,24 @@ pub async fn set_recovery_key(
     fresh: &RecoverySecret,
     pins: &HashMap<Uuid, OwnContact>,
 ) -> Result<Result<(), CannotReseal>, ClientError> {
+    set_recovery_key_in(connection, account, old, fresh, pins, RECOVERY_PART_BYTES).await
+}
+
+/// About how many bytes of keys sealed again and retirements one write of a new phrase
+/// carries: what more there is goes ahead in parts (`stage-recovery-key`), so an account that
+/// signed in more logs than one frame holds still takes a new phrase.
+const RECOVERY_PART_BYTES: usize = be_block_protocol::MAX_FRAME_BYTES / 4;
+
+/// `set_recovery_key`, with at most about `part_bytes` of what it seals again and retires in
+/// each write.
+pub(crate) async fn set_recovery_key_in(
+    connection: &Arc<Connection>,
+    account: Uuid,
+    old: Option<&RecoverySecret>,
+    fresh: &RecoverySecret,
+    pins: &HashMap<Uuid, OwnContact>,
+    part_bytes: usize,
+) -> Result<Result<(), CannotReseal>, ClientError> {
     if let Some(old) = old
         && let Err(error) = contacts(connection, account, old, pins).await
     {
@@ -1124,12 +1142,28 @@ pub async fn set_recovery_key(
     let Some(resealed) = new_identity(account, old, fresh, sealed, &records, logs) else {
         return Ok(Err(CannotReseal::Unreadable));
     };
+    // What one write cannot carry goes ahead in parts, which the last write takes as one.
+    let mut parts = recovery_parts(resealed.sealed, resealed.retirements, part_bytes);
+    let (sealed, retirements) = parts.pop().unwrap_or_default();
+    for (sealed, retirements) in parts {
+        crate::ask(be_block_protocol::write::<(), _>(
+            connection,
+            None,
+            be_block_protocol::Op::StageRecoveryKey(be_block_protocol::RecoveryKeyPart {
+                public: fresh.public().0,
+                signing: fresh.signing().0,
+                sealed,
+                retirements,
+            }),
+        ))
+        .await?;
+    }
     let mut ops = vec![be_block_protocol::Op::SetRecoveryKey {
         public: fresh.public().0,
         signing: fresh.signing().0,
-        sealed: resealed.sealed,
+        sealed,
         changes: resealed.changes,
-        retirements: resealed.retirements,
+        retirements,
     }];
     let mut organization = None;
     if let Some(block) = &block
@@ -1153,6 +1187,40 @@ pub async fn set_recovery_key(
     AccountRecords::forget(connection);
     written?;
     Ok(Ok(()))
+}
+
+/// One write's share of a new phrase: keys sealed again, and retirements.
+type RecoveryPart = (
+    Vec<be_block_protocol::SealedKey>,
+    Vec<be_block_protocol::Retirement>,
+);
+
+/// `sealed` and `retirements` in parts of at most about `budget` bytes each, at least one.
+fn recovery_parts(
+    sealed: Vec<be_block_protocol::SealedKey>,
+    retirements: Vec<be_block_protocol::Retirement>,
+    budget: usize,
+) -> Vec<RecoveryPart> {
+    // Room for each item's ids and framing beside its bytes.
+    const OVERHEAD: usize = 64;
+    let mut parts: Vec<RecoveryPart> = vec![(Vec::new(), Vec::new())];
+    let mut size = 0;
+    let start = |size: &mut usize, bytes: usize, parts: &mut Vec<RecoveryPart>| {
+        if *size > 0 && *size + bytes > budget {
+            parts.push((Vec::new(), Vec::new()));
+            *size = 0;
+        }
+        *size += bytes;
+    };
+    for key in sealed {
+        start(&mut size, key.sealed.len() + OVERHEAD, &mut parts);
+        parts.last_mut().expect("one part at least").0.push(key);
+    }
+    for retirement in retirements {
+        start(&mut size, retirement.entry.len() + OVERHEAD, &mut parts);
+        parts.last_mut().expect("one part at least").1.push(retirement);
+    }
+    parts
 }
 
 pub async fn make_link(
