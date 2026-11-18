@@ -6,6 +6,7 @@ use crate::native::{Embed, EmbedPlacement, EmbedSlot};
 use crate::reactive::Painter;
 use crate::{CanvasView, FontId};
 
+mod the_arrow_keys_step_a_focused_sheet_handle_between_its_stops;
 mod a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there;
 mod a_back_gesture_slides_a_dialog_away_once_its_owner_closes_it;
 mod a_back_handler_goes_back_while_enabled_without_moving_its_content;
