@@ -10,7 +10,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
-use crate::value_drag::{DragReport, ValueDrag};
+use crate::value_drag::{ThumbCarry, ValueDrag};
 
 const STEP: f32 = 0.05;
 const PAGE_STEPS: f32 = 4.0;
@@ -88,7 +88,6 @@ pub fn Slider(
 ) -> NodeId {
     let current = create_memo(move || value.get().clamp(min, max));
     let fraction = create_memo(move || scale.fraction_of(current.get(), min, max));
-    let dragging = create_signal(false);
     let focused = create_signal(false);
     let disabled = create_memo(move || disabled.get());
 
@@ -108,16 +107,6 @@ pub fn Slider(
         node
     }));
 
-    let content_node = content.map(|build| {
-        build.call(SliderHandle {
-            value,
-            fraction,
-            dragging: dragging.read_only(),
-            focused: focused.read_only(),
-            disabled,
-        })
-    });
-
     let asked = StoredCell::new(None::<(f32, f32)>);
     let set_value = move |next: f32| {
         if disabled.get_untracked() {
@@ -131,26 +120,6 @@ pub fn Slider(
         asked.set(Some((shown, next)));
         value.set(next);
     };
-    // A drag is reported before its first write, a press off the thumb's jump included, and
-    // a cancelled one writes back where it started.
-    let report = DragReport::new(on_drag_change);
-    let started_at = StoredCell::new(0.0f32);
-    let begin = move || {
-        if disabled.get_untracked() {
-            return;
-        }
-        if report.start() {
-            started_at.set(current.get_untracked());
-        }
-        dragging.set(true);
-    };
-    let cancelled = move || {
-        if report.dragging() {
-            set_value(started_at.get());
-        }
-        dragging.set(false);
-        report.end(false);
-    };
     let grab = Rc::new(Cell::new(0.0f32));
     let press_grab = grab.clone();
     let dragged_to = move |press: PointerPress| {
@@ -161,6 +130,13 @@ pub fn Slider(
         }
     };
     let jump_to = dragged_to.clone();
+    let carry = ThumbCarry::new(
+        on_drag_change,
+        move || disabled.get_untracked(),
+        (move || current.get_untracked(), set_value),
+        move |press: PointerPress| set_value(scale.value_at(dragged_to(press), min, max)),
+    );
+    // A press off the thumb jumps there, after the drag is reported begun.
     let grabbed = move |press: PointerPress| {
         let travel = (press.size.x - thumb).max(0.0);
         let centre = thumb / 2.0 + fraction.get_untracked() * travel;
@@ -170,11 +146,20 @@ pub fn Slider(
         } else {
             0.0
         });
-        begin();
+        carry.begin();
         if !on_thumb {
             set_value(scale.value_at(jump_to(press), min, max));
         }
     };
+    let content_node = content.map(|build| {
+        build.call(SliderHandle {
+            value,
+            fraction,
+            dragging: carry.dragging(),
+            focused: focused.read_only(),
+            disabled,
+        })
+    });
 
     api.fill(SliderApi(value));
 
@@ -210,17 +195,12 @@ pub fn Slider(
             }}
             cursor=CursorIcon::PointingHand
             on_press={grabbed}
-            on_drag={move |press: PointerPress| {
-                set_value(scale.value_at(dragged_to(press), min, max))
-            }}
-            on_cancel={cancelled}
-            on_active_change={move |next: bool| match next {
-                true => begin(),
-                false => {
-                    dragging.set(false);
-                    report.end(true);
-                }
-            }}
+            @node_ref={&carry.node}
+            lifts_on_press=true
+            lifts_by_keys=false
+            drag={carry.drag()}
+            on_cancel={move || carry.cancel()}
+            on_active_change={move |active: bool| carry.active(active)}
             children={content_node}
         />
     }

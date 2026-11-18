@@ -504,6 +504,7 @@ mod a_simulated_screen_larger_than_the_window_is_shrunk_to_fit;
 mod a_simulated_window_tells_the_program_it_went_fullscreen_in_the_next_frame;
 mod a_single_line_input_longer_than_its_field_scrolls_rather_than_overflows;
 mod a_skipped_element_keeps_the_repaint_deadline_it_asked_for;
+mod a_slider_offers_no_move_and_no_live_region_for_its_thumb;
 mod a_slider_asks_once_for_a_value_its_owner_has_not_shown_yet;
 mod a_slider_removed_mid_drag_reports_the_drag_called_off;
 mod a_slider_reports_and_steps_within_the_range_it_was_given;
@@ -840,6 +841,10 @@ mod escape_closes_the_emoji_menu_until_the_colon_is_typed_again;
 mod escape_discards_what_was_typed_into_a_number_input;
 mod escape_glides_a_lifted_row_back_and_moves_nothing;
 mod escape_hides_a_focused_tooltip_and_a_second_escape_reaches_its_dialog;
+mod escape_puts_a_dragged_slider_back_and_reports_it_called_off;
+mod escape_puts_a_dragged_color_picker_back_and_reports_it_called_off;
+mod escape_puts_a_dragged_color_wheel_back;
+mod escape_puts_the_dragged_scrollbar_thumb_back;
 mod escape_puts_a_dragged_splitter_back_where_it_was_pressed;
 mod escape_then_tab_moves_the_focus_out_of_a_text_area_that_takes_tab;
 mod escaping_a_pick_clears_its_highlight;
@@ -2127,7 +2132,11 @@ pub(crate) fn scrollbar_of(harness: &Harness, scroll: NodeId) -> NodeId {
 pub(crate) fn track_within(harness: &Harness, bar: NodeId) -> Rect {
     let document = harness.document();
     let interactive = document.children(bar)[0];
-    let inset = document.children(interactive)[0];
+    // The bar's `Interactive` lifts its thumb, so its content sits in the carried face: a
+    // raised frame, its layers, and last the frame that moves it.
+    let face = document.children(document.children(interactive)[0])[0];
+    let shown = *document.children(face).last().expect("the face shows the bar");
+    let inset = document.children(shown)[0];
     harness.rect(document.children(inset)[0])
 }
 

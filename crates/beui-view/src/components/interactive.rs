@@ -85,6 +85,12 @@ pub fn Interactive(
     /// it.
     #[prop(default = true)]
     lifts_on_space: bool,
+    /// Whether the keyboard lifts `drag`'s carry at all (Space, Ctrl+Shift and an arrow, Move
+    /// in the palette), and a live region says what the carry does. Off for a control whose
+    /// own keys move what it carries and whose value says where it is: a slider's thumb, a
+    /// scrollbar's.
+    #[prop(default = true)]
+    lifts_by_keys: bool,
     on_pointer: Callback<PointerInput, bool>,
     on_wheel: Callback<WheelInput, bool>,
     #[prop(default = Area::Nowhere)] gesture_area: Prop<Area>,
@@ -113,7 +119,7 @@ pub fn Interactive(
                     on_drag,
                     on_long_press_drag,
                     (on_active_change, on_cancel),
-                    (lifts_on_long_press, lifts_on_press),
+                    (lifts_on_long_press, lifts_on_press, lifts_by_keys),
                 );
                 let Face {
                     raised,
@@ -123,8 +129,9 @@ pub fn Interactive(
                     open,
                     preview,
                 } = carry.face.clone();
+                let speaks = lifts_by_keys;
                 let face = view! {
-                    <CarriedFace raised offset said anchor open preview children />
+                    <CarriedFace raised offset speaks said anchor open preview children />
                 };
                 let on_key = (carry.finish)(face, on_key);
                 (
@@ -248,7 +255,7 @@ fn carrying(
     on_drag: Callback<PointerPress>,
     on_long_press_drag: Callback<PointerPress>,
     (on_active_change, on_cancel): (Callback<bool>, Callback<()>),
-    (lifts_on_long_press, lifts_on_press): (bool, bool),
+    (lifts_on_long_press, lifts_on_press, lifts_by_keys): (bool, bool, bool),
 ) -> Carrying {
     use crate::reactive::{Get, Set, create_memo, create_signal, on_cleanup};
     use crate::types::Rect;
@@ -501,6 +508,9 @@ fn carrying(
         use crate::types::KeyPhase;
         let laid_out = crate::measure::measure(wrapped);
         measured.set(Some(laid_out));
+        if !lifts_by_keys {
+            return on_key;
+        }
         let at = (wrapped, laid_out);
         // The source hears the carry keys while it or a node within it has the focus (a tab
         // bar's row, whose tab is the focusable button inside it), and offers "Move" in the
@@ -732,12 +742,13 @@ fn lift_by_keys(
 }
 
 /// What an `Interactive` given `drag` wraps its children in: drawn raised and offset by
-/// `offset` while carried, a live region saying what the carry does, and the overlay its
-/// `preview` floats in.
+/// `offset` while carried, a live region saying what the carry does (unless it says
+/// nothing: `lifts_by_keys` off), and the overlay its `preview` floats in.
 #[component]
 fn CarriedFace(
     raised: crate::reactive::Memo<bool>,
     offset: crate::reactive::Memo<Vec2>,
+    speaks: bool,
     said: crate::reactive::Memo<Option<String>>,
     anchor: crate::reactive::Memo<crate::reactive::OverlayAnchor>,
     open: crate::reactive::Memo<bool>,
@@ -750,10 +761,15 @@ fn CarriedFace(
     // Stacked over one box, the face lays its child out as a plain `Interactive` does: a
     // child that fills what it is given (a canvas) fills it here too. The status and the
     // overlay's anchor take no room and catch no pointer.
+    let status = speaks.then(|| {
+        view! {
+            <CarryStatus said={said} />
+        }
+    });
     view! {
         <Frame raised={raised}>
             <Layers>
-                <CarryStatus said={said} />
+                {status}
                 <Overlay
                     anchor={anchor}
                     placement=Placement::At

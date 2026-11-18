@@ -13,6 +13,8 @@ use beui_view::types::PointerPress;
 use beui_view::types::{Direction, ScrollPosition};
 use beui_view::types::{Rect, pos2};
 
+use crate::value_drag::{ThumbCarry, ValueDrag};
+
 const MINIMUM_THUMB: f32 = 0.08;
 
 pub struct ScrollbarHandle {
@@ -142,23 +144,44 @@ pub fn Scrollbar(
     let position = create_memo(move || position.get());
     let hovered = create_signal(false);
     let over_bar = create_signal(false);
-    let dragging = create_signal(false);
     let held = create_signal(false);
     let engaged = create_memo(move || over_bar.get() || held.get());
     create_effect(move || on_engage.call(engaged.get()));
     let grab = Rc::new(Cell::new(None::<f32>));
+    let dragged_grab = grab.clone();
+    // A press on the thumb carries it on the board; Escape scrolls back where it was pressed.
+    let carry = ThumbCarry::new(
+        Callback::new(|_: ValueDrag| {}),
+        || false,
+        (
+            move || position.get_untracked().offset,
+            move |offset| on_scroll_to.call(offset),
+        ),
+        move |press: PointerPress| {
+            let (Some(grab), position) = (dragged_grab.get(), position.get_untracked()) else {
+                return;
+            };
+            if position.max_offset() > 0.0 {
+                on_scroll_to.call(offset_at(position, along(&direction, press) - grab));
+            }
+        },
+    );
+    let dragging = carry.dragging();
 
     let content_node = content.call(ScrollbarHandle {
         position,
         direction,
         hovered: hovered.read_only(),
-        dragging: dragging.read_only(),
+        dragging,
         engaged,
     });
 
-    let (pressed_grab, dragged_grab, active_grab) = (grab.clone(), grab.clone(), grab);
     view! {
         <Interactive
+            @node_ref={&carry.node}
+            lifts_on_press=true
+            lifts_by_keys=false
+            drag={carry.drag()}
             on_press={move |press: PointerPress| {
                 let position = position.get_untracked();
                 if position.max_offset() <= 0.0 {
@@ -166,26 +189,18 @@ pub fn Scrollbar(
                 }
                 let at = along(&direction, press);
                 if over_thumb(position, at) {
-                    pressed_grab.set(Some(at - thumb_start(position)));
+                    grab.set(Some(at - thumb_start(position)));
+                    carry.begin();
                     return;
                 }
-                pressed_grab.set(None);
+                grab.set(None);
                 let page = match at < thumb_start(position) {
                     true => -position.viewport,
                     false => position.viewport,
                 };
                 on_scroll_to.call((position.offset + page).clamp(0.0, position.max_offset()));
             }}
-            on_drag={move |press: PointerPress| {
-                let Some(grab) = dragged_grab.get() else {
-                    return;
-                };
-                let position = position.get_untracked();
-                if position.max_offset() <= 0.0 {
-                    return;
-                }
-                on_scroll_to.call(offset_at(position, along(&direction, press) - grab));
-            }}
+            on_cancel={move || carry.cancel()}
             on_hover_move={move |press: PointerPress| {
                 let position = position.get_untracked();
                 let at = along(&direction, press);
@@ -200,9 +215,8 @@ pub fn Scrollbar(
             hit_area={create_memo(move || shown.get() && position.get().max_offset() > 0.0)}
             on_active_change={move |active: bool| {
                 held.set(active);
-                dragging.set(active && active_grab.get().is_some());
                 if !active {
-                    active_grab.set(None);
+                    carry.active(false);
                 }
             }}
             children={content_node}
