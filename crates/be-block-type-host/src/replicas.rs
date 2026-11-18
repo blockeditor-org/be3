@@ -6221,3 +6221,9 @@ fn note_opening(openings: &mut Vec<(Uuid, u64, Vec<u64>)>, opening: &Opening) {
             .collect(),
     ));
 }
+
+/// Whether the entry at `seq` of a page is imported history (`history`, by place in the block
+/// it was written in, with its place here).
+fn history_place(history: &HashMap<u64, (u64, Uuid, bool)>, seq: u64) -> bool {
+    history.values().any(|(place, ..)| *place == seq)
+}
