@@ -58,6 +58,8 @@ pub fn start_within(list: NodeId, row: NodeId, direction: Direction) -> Option<f
 /// Scrolls the scroll around `list` on to follow a row that moved `drift` points along it,
 /// so the row stays where it is shown: unless the browser anchors that scroll itself
 /// (`overflow-anchor: auto`, which Safari lacks) or it is an `Offset`, which anchors itself.
+/// Only an element's own scroll (`overflow: auto` or `scroll`) is followed: a list scrolled by
+/// the page itself (the document's scrolling element, whose overflow is `visible`) is not.
 pub fn follow_row(list: NodeId, direction: Direction, drift: f32) {
     #[cfg(target_arch = "wasm32")]
     web::follow_row(list, direction, drift);
@@ -149,11 +151,17 @@ mod web {
             {
                 return;
             }
+            // `drift` is in the list's own CSS px (points), and `scrollTop` in the viewer's:
+            // they differ by any transform between the two, so go through the screen's.
+            let scale = |element: &web_sys::Element| {
+                crate::dom::scale_of(element, crate::dom::client_rect(element))
+            };
+            let by = drift * scale(&list) / scale(&viewer);
             let at = js_sys::Reflect::get(&viewer, &position.into())
                 .ok()
                 .and_then(|value| value.as_f64())
                 .unwrap_or(0.0);
-            let to = at + f64::from(drift);
+            let to = at + f64::from(by);
             let _ = js_sys::Reflect::set(&viewer, &position.into(), &to.into());
             return;
         }
