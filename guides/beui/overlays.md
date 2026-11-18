@@ -294,10 +294,12 @@ document (plans/host_as_platform_adapter.md, step 4g4; be-sdk-root-testing's
 is the example): a scrim layer over the rest, which takes no press itself but
 `captures` every press that misses the dialog for its placer, the root's own
 layer, which closes the dialog; and above it the dialog's layer, a document
-showing a `DialogBody` in a card that fills its surface. While it is open the
-root intercepts Escape (`Embedding::intercept`), so Escape reaches the root
-wherever the focus is and closes it; once drawn the dialog takes the focus
-(`Embedding::focus`), and closing gives it back to the layer that had it. Its
+showing a `DialogBody` in a card that fills its surface. Once drawn the dialog
+takes the focus (`Embedding::focus`), and closing gives it back to the layer
+that had it, or to none if that layer went meanwhile. With the focus in it,
+Escape is its document's, bubbling from the focus so a popup inside takes it
+first; while it is open and the focus is elsewhere, the root intercepts Escape
+(`Embedding::intercept`) and closes it. Its
 field's input method area is the one the root hands its host
 (`BeuiSurface::ime`).
 

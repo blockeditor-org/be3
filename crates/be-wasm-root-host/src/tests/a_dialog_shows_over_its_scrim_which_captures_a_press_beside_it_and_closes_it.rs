@@ -53,10 +53,10 @@ fn a_dialog_shows_over_its_scrim_which_captures_a_press_beside_it_and_closes_it(
         .find(|(surface, _)| *surface == u64::from(DIALOG_SURFACE))
         .map(|(_, painting)| painting)
         .expect("the root paints its dialog");
-    beui_paint_snapshot::assert_painting(
-        "a_dialog_shows_over_its_scrim_which_captures_a_press_beside_it_and_closes_it",
-        painting,
-    );
+    // The dialog's own surface alone: the host test
+    // `a_root_in_place_of_the_hosts_ui_opens_a_dialog_on_the_hosts_clipboard_and_input_method`
+    // paints it composed over its scrim.
+    beui_paint_snapshot::assert_painting("a_roots_dialog_on_its_own_surface", painting);
 
     // A press on the dialog, by its title, is the dialog's.
     let on_title = pos2(DIALOG_ORIGIN.0 + 60.0, DIALOG_ORIGIN.1 + 30.0);

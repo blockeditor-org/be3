@@ -170,7 +170,11 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   the host takes after the frame (`Root::take_copies`), and `host.paste` asks
   for the first of some formats it holds, which the host takes
   (`Root::take_pastes`), reads from its clipboard and answers by id, in a
-  later frame if its platform is slow (`Root::answer_paste`). The input method
+  later frame if its platform is slow (`Root::answer_paste`); `host.paste-shortcut`
+  says whether the host delivers Ctrl+V as a paste itself, as a web page does
+  (`Root::with_paste_shortcut`), so the root does not ask again. The host
+  trusts its root with the clipboard as it trusts no app, and a root never
+  relays these calls for an app it embeds. The input method
   needs nothing more: the platform's input-method events reach the root as
   input, which its router hands the focused surface, and the field that
   surface edits is `frame-done`'s `ime`. Choosing and saving files are the
@@ -272,7 +276,8 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   `Embedding::intercept` hands chords to the root's own layer, ahead of the
   focus, in every window, and `Embedding::focus` moves the keyboard to a layer
   or takes it from all, telling the layer that had it and the one that gets
-  it; a root's own dialog uses both (guides/beui/overlays.md, Modals and
+  it (a layer the window was not drawn with last cannot take it, and a focused
+  layer a list leaves out loses it); a root's own dialog uses both (guides/beui/overlays.md, Modals and
   dialogs).
   Input for a window the last list leaves out is still routed, against the
   layers it had last, until its presses lift, and only then its router goes,

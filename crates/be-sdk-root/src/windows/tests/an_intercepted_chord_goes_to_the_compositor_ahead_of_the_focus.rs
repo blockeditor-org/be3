@@ -40,10 +40,34 @@ fn an_intercepted_chord_goes_to_the_compositor_ahead_of_the_focus() {
         "while the root intercepts it, Escape and its release go to the root's own layer"
     );
 
+    // A window first drawn while Escape is intercepted takes it too, and lets go of it with
+    // the rest.
+    let other = be_lib_ui_types::window::WindowId::next();
+    windows.drew(LayerList {
+        windows: vec![
+            drawn().windows.remove(0),
+            WindowLayers {
+                window: Some(other),
+                layers: vec![layer(ROOT, Surface::Root(0), 0.0)],
+            },
+        ],
+    });
+    assert_eq!(
+        targets(&windows.route(Some(other.raw()), vec![escape(true), escape(false)])),
+        vec![(ROOT, true), (ROOT, true)],
+        "a window drawn while Escape is intercepted hands it to the root's own layer"
+    );
+
     windows.intercept(Vec::new());
     assert_eq!(
         targets(&windows.route(None, vec![escape(true)])),
         vec![(SCREEN, true)],
         "once the root lets go of it, Escape goes to the focus again"
+    );
+    assert!(
+        windows
+            .route(Some(other.raw()), vec![escape(true)])
+            .is_empty(),
+        "and in the other window, where nothing is focused, to no layer"
     );
 }

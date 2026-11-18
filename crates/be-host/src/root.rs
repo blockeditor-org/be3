@@ -515,17 +515,22 @@ fn answer_notices(context: &beui::native::Context, answers: Vec<(u64, Option<Str
 
 /// Puts what `root` copied on the window's clipboard, the last copy staying, and reads the
 /// clipboard for each paste it asked for, whose answer `pasted` keeps until the next frame hands
-/// it over (`Root::answer_paste`). A copied item that cannot be read is left out.
+/// it over (`Root::answer_paste`). A copied item that cannot be read is left out, and a copy
+/// with none that can be read changes nothing.
 fn clipboard(
     context: &beui::native::Context,
     root: &mut Root,
     pasted: &Rc<RefCell<Vec<(u64, Option<ClipItem>)>>>,
 ) {
     for items in root.take_copies() {
-        let items = items
+        let items: Vec<ClipItem> = items
             .iter()
-            .filter_map(|item| be_sdk_api::ops::decode::<ClipItem>(item));
-        context.copy(Clip::items(items));
+            .filter_map(|item| be_sdk_api::ops::decode::<ClipItem>(item))
+            .collect();
+        // A copy none of whose items can be read leaves the clipboard as it was.
+        if !items.is_empty() {
+            context.copy(Clip::items(items));
+        }
     }
     for (id, formats) in root.take_pastes() {
         let pasted = Rc::clone(pasted);

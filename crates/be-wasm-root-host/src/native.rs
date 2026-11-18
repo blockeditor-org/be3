@@ -128,6 +128,13 @@ impl Root {
         self
     }
 
+    /// Whether the host delivers the paste shortcut as a paste itself, as input
+    /// (`host.paste-shortcut`): false unless set, as a native window's platform asks for pastes.
+    pub fn with_paste_shortcut(mut self, delivers: bool) -> Self {
+        self.core.paste_shortcut = delivers;
+        self
+    }
+
     /// Asks the root what its own surfaces painted, which it answers as it steps through the
     /// next frame (`take_paintings`). A root that stopped says why.
     pub fn ask_paintings(&mut self) -> Result<(), String> {

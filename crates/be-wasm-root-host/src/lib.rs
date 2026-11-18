@@ -114,6 +114,8 @@ struct Core<G> {
     pasting: Vec<(u64, PasteReply)>,
     /// The id the next paste asked for is given.
     next_paste: u64,
+    /// Whether the host delivers the paste shortcut as a paste itself (`host.paste-shortcut`).
+    paste_shortcut: bool,
 }
 
 impl<G: Inline> Core<G> {
@@ -141,6 +143,7 @@ impl<G: Inline> Core<G> {
             pastes: Vec::new(),
             pasting: Vec::new(),
             next_paste: 0,
+            paste_shortcut: false,
         };
         core.received()?;
         Ok(core)
@@ -427,6 +430,9 @@ impl<G: Inline> Core<G> {
             embed::Call::Host(embed::host::Call::Copy { items, reply }) => {
                 self.copies.push(items);
                 reply.send(&mut self.connection, &());
+            }
+            embed::Call::Host(embed::host::Call::PasteShortcut { reply }) => {
+                reply.send(&mut self.connection, &self.paste_shortcut);
             }
             embed::Call::Host(embed::host::Call::Paste { formats, reply }) => {
                 let id = self.next_paste;
