@@ -345,14 +345,17 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
     let column = line.column();
     let right = line.right();
     let code_padding = line.code_padding();
+    let (code_start, code_lead) = (line.code_start(), line.code_lead());
+    // The code block's background is drawn apart from the text, from past any quote's gutter
+    // (whose prefix the row lays over it), so a quoted code line's carets have room there.
     let outset = create_memo(move || match code_padding.get() > 0.0 {
         true => 0.0,
-        false => CODE_INSET.min(left.get()),
+        false => CODE_INSET.min(left.get() + code_start.get()),
     });
-    let outer = create_memo(move || {
+    let background = create_memo(move || {
         let outset = outset.get();
         Padding::custom(Sides::new(
-            left.get() - outset,
+            left.get() + code_start.get() - outset,
             0.0,
             (right.get() - outset).max(0.0),
             0.0,
@@ -360,8 +363,12 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
     });
     let inner = create_memo(move || {
         let (above, below) = line.space.get();
-        let side = outset.get() + code_padding.get();
-        Padding::custom(Sides::new(side, above, side, below))
+        Padding::custom(Sides::new(
+            left.get() + code_lead.get(),
+            above,
+            right.get() + code_padding.get(),
+            below,
+        ))
     });
     let code = create_memo(move || match look.get().code_block {
         true => ColorRole::Shade,
@@ -413,9 +420,10 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
     view! {
         <Layers>
             <TableFill line fill=header />
-            <Frame padding=outer>
-                <Frame fill=code radius=CODE_BLOCK_RADIUS corners padding=inner>{text}</Frame>
+            <Frame padding=background>
+                <Frame fill=code radius=CODE_BLOCK_RADIUS corners />
             </Frame>
+            <Frame padding=inner>{text}</Frame>
             <TableLines line color=border rule=RULE_WIDTH />
             <Show value={opens}>
                 <Frame padding=corner align={Align2::new(Align::End, Align::Start)}>
