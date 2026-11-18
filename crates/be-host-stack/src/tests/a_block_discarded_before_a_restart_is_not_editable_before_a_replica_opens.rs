@@ -23,6 +23,7 @@ fn a_block_discarded_before_a_restart_is_not_editable_before_a_replica_opens() {
             &sharer.me().card(),
             &code,
             be_block_client::contacts::Expected::Contact,
+            &Default::default(),
         ))
         .expect("the sharer accepts the link");
     runtime

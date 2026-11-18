@@ -40,6 +40,7 @@ async fn a_key_sealed_by_a_contact_verified_later_arrives_as_it_is_verified() {
         ),
         &code,
         crate::contacts::Expected::Contact,
+        &Default::default(),
     )
     .await
     .unwrap();

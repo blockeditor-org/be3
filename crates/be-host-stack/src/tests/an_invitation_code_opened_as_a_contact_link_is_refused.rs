@@ -47,6 +47,7 @@ fn an_invitation_code_opened_as_a_contact_link_is_refused() {
         &guest.me().card(),
         &parsed.code,
         be_block_client::contacts::Expected::Contact,
+        &Default::default(),
     ));
     assert!(accepted.is_err(), "{accepted:?}");
 

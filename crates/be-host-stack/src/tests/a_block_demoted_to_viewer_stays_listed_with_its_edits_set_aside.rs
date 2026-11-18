@@ -23,6 +23,7 @@ fn a_block_demoted_to_viewer_stays_listed_with_its_edits_set_aside() {
             &sharer.me().card(),
             &code,
             be_block_client::contacts::Expected::Contact,
+            &Default::default(),
         ))
         .expect("the sharer accepts the link");
     runtime

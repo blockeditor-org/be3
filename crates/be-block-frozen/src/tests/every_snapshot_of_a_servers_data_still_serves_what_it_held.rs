@@ -544,6 +544,7 @@ async fn check(snapshot: &Snapshot) {
         &me,
         &code,
         be_block_client::contacts::Expected::Contact,
+        &Default::default(),
     )
     .await
     .unwrap_or_else(|error| panic!("{name}: the pending link no longer opens: {error}"));
@@ -575,6 +576,7 @@ async fn check(snapshot: &Snapshot) {
         &me,
         &code,
         be_block_client::contacts::Expected::Invitation,
+        &Default::default(),
     )
     .await
     .unwrap_or_else(|error| panic!("{name}: the invitation no longer opens: {error}"));

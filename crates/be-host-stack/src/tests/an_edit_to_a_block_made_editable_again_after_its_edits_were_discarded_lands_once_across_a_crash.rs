@@ -25,6 +25,7 @@ fn an_edit_to_a_block_made_editable_again_after_its_edits_were_discarded_lands_o
             &sharer.me().card(),
             &code,
             be_block_client::contacts::Expected::Contact,
+            &Default::default(),
         ))
         .expect("the sharer accepts the link");
     runtime

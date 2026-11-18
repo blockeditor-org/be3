@@ -25,6 +25,7 @@ fn discarding_the_unsent_edits_of_a_block_demoted_mid_edit_leaves_nothing_of_it_
             &sharer.me().card(),
             &code,
             be_block_client::contacts::Expected::Contact,
+            &Default::default(),
         ))
         .expect("the sharer accepts the link");
     runtime
