@@ -330,7 +330,7 @@ pub fn agent_account(maker: [u8; 16], identity: &PublicIdentity) -> [u8; 16] {
 }
 
 /// A member as the organization's log names them: their keys, and for an agent, its maker.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Named {
     pub identity: PublicIdentity,
     pub maker: Option<[u8; 16]>,
@@ -993,10 +993,13 @@ impl CarriedKey {
 }
 
 /// A log checked from its root to its head (`check_log`): the hash of its head, the signing key
-/// each account that holds a record in it signs with now, and what the records give.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+/// each account that holds a record in it signs with now, and what the records give. A device
+/// keeps it, and checks only what is appended after its head (`extend`, `resume`).
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Checked {
     pub head: EntryHash,
+    /// The hash of the log's root, which the device pinned.
+    pub root: EntryHash,
     pub signers: HashMap<[u8; 16], SigningPublic>,
     /// For a block's log: each account's access as its records give it (the creator's is
     /// Manage), with the keys last named for it.
@@ -1049,6 +1052,10 @@ pub struct Checked {
     /// any reduced lowering after it, hold as for a whole log. Nothing is sealed to anyone, nor
     /// signed, by a partial log (guides/blocks/keys.md, "Who is served what").
     pub partial: bool,
+    /// The place of the last opening, and of the last reduced entry that lowered anyone: one
+    /// after the opening may have closed it.
+    opened_at: usize,
+    hidden_lowering: usize,
 }
 
 impl Checked {
@@ -1252,412 +1259,468 @@ pub fn check_log(
     entries: &[impl Logged],
     outside: &dyn Fn(&Asked) -> Option<SigningPublic>,
 ) -> Result<Checked, KeyError> {
-    let (root, rest) = entries.split_first().ok_or(KeyError::Record)?;
-    let StepRef::Entry(root) = root.step() else {
-        return Err(KeyError::Record);
-    };
-    let checked = root.checked_root(kind, log)?;
-    if root.lowers {
-        return Err(KeyError::Record);
-    }
-    if root.hash() != pinned {
-        return Err(KeyError::Record);
-    }
-    let mut state = Checked {
-        head: pinned,
-        signers: HashMap::from([(checked.creator, checked.identity.signing)]),
-        positions: HashMap::from([(pinned, 0)]),
-        ..Checked::default()
-    };
-    state.set_level(checked.creator, Level::Manage);
-    match kind {
-        LogKind::Block => {
-            state
-                .grants
-                .insert(checked.creator, (Level::Manage, checked.identity));
-            state.owner = Some(checked.creator);
-        }
-        LogKind::Organization => {
-            state
-                .administrators
-                .insert(checked.creator, checked.identity);
+    Checked::unchecked(pinned).extend(kind, log, entries, outside)
+}
+
+impl Checked {
+    /// A log nothing of which is checked yet, whose root must hash to `pinned`: `extend` with
+    /// its entries from the root checks it as `check_log` does.
+    pub fn unchecked(pinned: EntryHash) -> Self {
+        Self {
+            head: pinned,
+            root: pinned,
+            ..Self::default()
         }
     }
-    // The place of the last opening, and of the last reduced entry that lowered anyone: one after
-    // the opening may have closed it.
-    let mut opened_at = 0;
-    let mut hidden_lowering = 0;
-    for step in rest {
-        let step = step.step();
-        if step.previous() != Some(state.head) {
-            return Err(KeyError::Record);
-        }
-        let hash = step.hash();
-        let place = state.positions.len();
-        if state.positions.insert(hash, place).is_some() {
-            return Err(KeyError::Record);
-        }
-        let entry = match step {
-            StepRef::Entry(entry) => entry,
-            // Reduced on a proof path: whom it is about is hidden, so a lowering may have closed
-            // the kind or lowered anyone the path names.
-            StepRef::Reduced(reduced) => {
-                state.partial = true;
-                if reduced.places {
-                    state.placements.push((place, None));
+
+    /// This log checked on through `entries`, the ones after its head (from the root when
+    /// nothing is checked yet), as `check_log` checks each: only they are checked, so a device
+    /// that kept what it checked verifies each entry's signature once. A partial log (a proof
+    /// path) is only ever checked whole, from the root.
+    pub fn extend(
+        self,
+        kind: LogKind,
+        log: [u8; 16],
+        entries: &[impl Logged],
+        outside: &dyn Fn(&Asked) -> Option<SigningPublic>,
+    ) -> Result<Checked, KeyError> {
+        let mut state = self;
+        let mut rest = entries;
+        if state.positions.is_empty() {
+            let (root, after) = entries.split_first().ok_or(KeyError::Record)?;
+            let StepRef::Entry(root) = root.step() else {
+                return Err(KeyError::Record);
+            };
+            let checked = root.checked_root(kind, log)?;
+            if root.lowers || root.hash() != state.root {
+                return Err(KeyError::Record);
+            }
+            let pinned = state.root;
+            state.head = pinned;
+            state.signers = HashMap::from([(checked.creator, checked.identity.signing)]);
+            state.positions = HashMap::from([(pinned, 0)]);
+            state.set_level(checked.creator, Level::Manage);
+            match kind {
+                LogKind::Block => {
+                    state
+                        .grants
+                        .insert(checked.creator, (Level::Manage, checked.identity));
+                    state.owner = Some(checked.creator);
                 }
-                // A transfer is signed by the owner, whom it lowers: hidden, it still leaves
-                // them no more than a former owner keeps, and the new owner unknown.
-                if reduced.owns {
-                    if kind != LogKind::Block || !reduced.lowers {
+                LogKind::Organization => {
+                    state
+                        .administrators
+                        .insert(checked.creator, checked.identity);
+                }
+            }
+            rest = after;
+        } else if state.partial {
+            return Err(KeyError::Record);
+        }
+        for step in rest {
+            let step = step.step();
+            if step.previous() != Some(state.head) {
+                return Err(KeyError::Record);
+            }
+            let hash = step.hash();
+            let place = state.positions.len();
+            if state.positions.insert(hash, place).is_some() {
+                return Err(KeyError::Record);
+            }
+            let entry = match step {
+                StepRef::Entry(entry) => entry,
+                // Reduced on a proof path: whom it is about is hidden, so a lowering may have closed
+                // the kind or lowered anyone the path names.
+                StepRef::Reduced(reduced) => {
+                    state.partial = true;
+                    if reduced.places {
+                        state.placements.push((place, None));
+                    }
+                    // A transfer is signed by the owner, whom it lowers: hidden, it still leaves
+                    // them no more than a former owner keeps, and the new owner unknown.
+                    if reduced.owns {
+                        if kind != LogKind::Block || !reduced.lowers {
+                            return Err(KeyError::Record);
+                        }
+                        if let Some(former) = state.owner.take() {
+                            state.demote_owner(former);
+                        }
+                    }
+                    if reduced.lowers {
+                        state.last_lowering = place;
+                        state.hides_lowering = true;
+                        state.hidden_lowering = place;
+                    }
+                    state.head = hash;
+                    continue;
+                }
+            };
+            if entry.log != log {
+                return Err(KeyError::Record);
+            }
+            let own = state.signers.get(&entry.signer).copied();
+            match &entry.record {
+                Record::Root(_) => return Err(KeyError::Record),
+                Record::Retirement(retirement) => {
+                    let current = own.ok_or(KeyError::Record)?;
+                    let endorsed_by_current = retirement.account == entry.signer
+                        && retirement.old == current
+                        && verify_signature(
+                            &current.0,
+                            &endorsed(retirement.account, &retirement.new),
+                            &retirement.endorsement,
+                        );
+                    if !endorsed_by_current || !entry.signed_by(&retirement.new.signing) {
                         return Err(KeyError::Record);
                     }
-                    if let Some(former) = state.owner.take() {
-                        state.demote_owner(former);
-                    }
-                }
-                if reduced.lowers {
-                    state.last_lowering = place;
-                    state.hides_lowering = true;
-                    hidden_lowering = place;
-                }
-                state.head = hash;
-                continue;
-            }
-        };
-        if entry.log != log {
-            return Err(KeyError::Record);
-        }
-        let own = state.signers.get(&entry.signer).copied();
-        match &entry.record {
-            Record::Root(_) => return Err(KeyError::Record),
-            Record::Retirement(retirement) => {
-                let current = own.ok_or(KeyError::Record)?;
-                let endorsed_by_current = retirement.account == entry.signer
-                    && retirement.old == current
-                    && verify_signature(
-                        &current.0,
-                        &endorsed(retirement.account, &retirement.new),
-                        &retirement.endorsement,
-                    );
-                if !endorsed_by_current || !entry.signed_by(&retirement.new.signing) {
-                    return Err(KeyError::Record);
-                }
-                state.signers.insert(entry.signer, retirement.new.signing);
-                for (account, identity) in state
-                    .grants
-                    .iter_mut()
-                    .map(|(account, (_, identity))| (account, identity))
-                    .chain(state.administrators.iter_mut())
-                    .chain(
-                        state
-                            .members
-                            .iter_mut()
-                            .map(|(account, named)| (account, &mut named.identity)),
-                    )
-                {
-                    if *account == entry.signer {
-                        *identity = retirement.new;
-                    }
-                }
-            }
-            Record::Grant(grant) => {
-                let own_revocation = grant.grantee == entry.signer && grant.level == Level::None;
-                // Authorship is Manage from the root and owner records alone: no grant lowers or
-                // names the owner.
-                if kind != LogKind::Block || state.owner == Some(grant.grantee) {
-                    return Err(KeyError::Record);
-                }
-                state.granting(
-                    entry,
-                    own,
-                    &grant.authority,
-                    Level::Manage,
-                    own_revocation,
-                    outside,
-                )?;
-                state.signers.insert(grant.grantee, grant.identity.signing);
-                state
-                    .grants
-                    .insert(grant.grantee, (grant.level, grant.identity));
-                state.set_level(grant.grantee, grant.level);
-                state.linked.remove(&grant.grantee);
-            }
-            Record::Opening(opening) => {
-                // Open to view, or closed: no other level, so the record has one meaning.
-                if kind != LogKind::Block || !matches!(opening.level, Level::None | Level::View) {
-                    return Err(KeyError::Record);
-                }
-                state.granting(
-                    entry,
-                    own,
-                    &opening.authority,
-                    Level::Manage,
-                    false,
-                    outside,
-                )?;
-                if opening.level < state.open_inside {
-                    state.last_lowering = state.positions.len() - 1;
-                }
-                state.open_inside = opening.level;
-                opened_at = place;
-            }
-            Record::Parent(parent) => {
-                let under_itself = matches!(
-                    parent.placement,
-                    Placement::Block { block, .. } if block == log
-                );
-                if kind != LogKind::Block || under_itself {
-                    return Err(KeyError::Record);
-                }
-                state.granting(entry, own, &parent.authority, Level::Edit, false, outside)?;
-                state.placements.push((place, Some(parent.placement)));
-            }
-            Record::Owner(owner) => {
-                // Only the owner moves ownership on, signing with their current key, to
-                // someone else.
-                let may = kind == LogKind::Block
-                    && state.owner == Some(entry.signer)
-                    && owner.account != entry.signer
-                    && own.is_some_and(|signing| entry.signed_by(&signing));
-                if !may {
-                    return Err(KeyError::Record);
-                }
-                state.demote_owner(entry.signer);
-                state.signers.insert(owner.account, owner.identity.signing);
-                state
-                    .grants
-                    .insert(owner.account, (Level::Manage, owner.identity));
-                state.set_level(owner.account, Level::Manage);
-                state.owner = Some(owner.account);
-                state.linked.remove(&owner.account);
-            }
-            Record::ShareLink(link) => {
-                // Made once, by a key never named before, granting View or Edit; revoked only
-                // while open.
-                let held = state.share_links.get(&link.key).copied();
-                let well_formed = match link.open {
-                    true => held.is_none() && matches!(link.level, Level::View | Level::Edit),
-                    false => held.is_some_and(|open| open.is_some()),
-                };
-                if kind != LogKind::Block || !well_formed {
-                    return Err(KeyError::Record);
-                }
-                state.granting(entry, own, &link.authority, Level::Manage, false, outside)?;
-                state
-                    .share_links
-                    .insert(link.key, link.open.then_some(link.level));
-                if !link.open {
-                    let fallen: Vec<[u8; 16]> = state
-                        .linked
-                        .iter()
-                        .filter(|(_, key)| **key == link.key)
-                        .map(|(account, _)| *account)
-                        .collect();
-                    for account in fallen {
-                        state.linked.remove(&account);
-                        if let Some((level, _)) = state.grants.get_mut(&account) {
-                            *level = Level::None;
+                    state.signers.insert(entry.signer, retirement.new.signing);
+                    for (account, identity) in state
+                        .grants
+                        .iter_mut()
+                        .map(|(account, (_, identity))| (account, identity))
+                        .chain(state.administrators.iter_mut())
+                        .chain(
+                            state
+                                .members
+                                .iter_mut()
+                                .map(|(account, named)| (account, &mut named.identity)),
+                        )
+                    {
+                        if *account == entry.signer {
+                            *identity = retirement.new;
                         }
-                        state.set_level(account, Level::None);
                     }
                 }
-                // On a proof path the grants a link made may be reduced: whether revoking it
-                // lowered anyone is the record's signed word, which only outdates epochs.
-                if !link.open && state.partial && entry.lowers {
-                    state.last_lowering = place;
+                Record::Grant(grant) => {
+                    let own_revocation = grant.grantee == entry.signer && grant.level == Level::None;
+                    // Authorship is Manage from the root and owner records alone: no grant lowers or
+                    // names the owner.
+                    if kind != LogKind::Block || state.owner == Some(grant.grantee) {
+                        return Err(KeyError::Record);
+                    }
+                    state.granting(
+                        entry,
+                        own,
+                        &grant.authority,
+                        Level::Manage,
+                        own_revocation,
+                        outside,
+                    )?;
+                    state.signers.insert(grant.grantee, grant.identity.signing);
+                    state
+                        .grants
+                        .insert(grant.grantee, (grant.level, grant.identity));
+                    state.set_level(grant.grantee, grant.level);
+                    state.linked.remove(&grant.grantee);
                 }
-            }
-            Record::Opened(opened) => {
-                // Granted by the link's key to its signer alone, at most what the link grants,
-                // raising them, and endorsed by the keys it names.
-                let most = state.share_links.get(&opened.key).copied().flatten();
-                let before = state
-                    .grants
-                    .get(&opened.grantee)
-                    .map_or(Level::None, |(level, _)| *level);
-                // An account the log names already keeps the key it signs with here: the record
-                // may name no other, which only its own retirement changes.
-                let known = own.is_none_or(|signing| signing == opened.identity.signing);
-                let may = kind == LogKind::Block
-                    && known
-                    && entry.signer == opened.grantee
-                    && state.owner != Some(opened.grantee)
-                    && opened.level >= Level::View
-                    && most.is_some_and(|most| opened.level <= most)
-                    && opened.level > before
-                    && entry.signed_by(&opened.key)
-                    && verify_signature(
-                        &opened.identity.signing.0,
-                        &self::opened(
-                            log,
-                            opened.grantee,
-                            &opened.identity,
-                            &opened.key,
-                            opened.level,
-                        ),
-                        &opened.endorsement,
+                Record::Opening(opening) => {
+                    // Open to view, or closed: no other level, so the record has one meaning.
+                    if kind != LogKind::Block || !matches!(opening.level, Level::None | Level::View) {
+                        return Err(KeyError::Record);
+                    }
+                    state.granting(
+                        entry,
+                        own,
+                        &opening.authority,
+                        Level::Manage,
+                        false,
+                        outside,
+                    )?;
+                    if opening.level < state.open_inside {
+                        state.last_lowering = state.positions.len() - 1;
+                    }
+                    state.open_inside = opening.level;
+                    state.opened_at = place;
+                }
+                Record::Parent(parent) => {
+                    let under_itself = matches!(
+                        parent.placement,
+                        Placement::Block { block, .. } if block == log
                     );
-                if !may {
-                    return Err(KeyError::Record);
-                }
-                state
-                    .signers
-                    .insert(opened.grantee, opened.identity.signing);
-                state
-                    .grants
-                    .insert(opened.grantee, (opened.level, opened.identity));
-                state.set_level(opened.grantee, opened.level);
-                state.linked.insert(opened.grantee, opened.key);
-            }
-            Record::Administrator(administrator) => {
-                if !administrator.administrator {
-                    state.end_invitations_of(administrator.account);
-                }
-                let may = kind == LogKind::Organization
-                    && state.administrators.contains_key(&entry.signer)
-                    && own.is_some_and(|signing| entry.signed_by(&signing));
-                if !may {
-                    return Err(KeyError::Record);
-                }
-                state
-                    .signers
-                    .insert(administrator.account, administrator.identity.signing);
-                match administrator.administrator {
-                    true => {
-                        state
-                            .administrators
-                            .insert(administrator.account, administrator.identity);
-                        state.set_level(administrator.account, Level::Manage);
+                    if kind != LogKind::Block || under_itself {
+                        return Err(KeyError::Record);
                     }
-                    false => {
-                        state.administrators.remove(&administrator.account);
-                        state.set_level(administrator.account, Level::None);
+                    state.granting(entry, own, &parent.authority, Level::Edit, false, outside)?;
+                    state.placements.push((place, Some(parent.placement)));
+                }
+                Record::Owner(owner) => {
+                    // Only the owner moves ownership on, signing with their current key, to
+                    // someone else.
+                    let may = kind == LogKind::Block
+                        && state.owner == Some(entry.signer)
+                        && owner.account != entry.signer
+                        && own.is_some_and(|signing| entry.signed_by(&signing));
+                    if !may {
+                        return Err(KeyError::Record);
+                    }
+                    state.demote_owner(entry.signer);
+                    state.signers.insert(owner.account, owner.identity.signing);
+                    state
+                        .grants
+                        .insert(owner.account, (Level::Manage, owner.identity));
+                    state.set_level(owner.account, Level::Manage);
+                    state.owner = Some(owner.account);
+                    state.linked.remove(&owner.account);
+                }
+                Record::ShareLink(link) => {
+                    // Made once, by a key never named before, granting View or Edit; revoked only
+                    // while open.
+                    let held = state.share_links.get(&link.key).copied();
+                    let well_formed = match link.open {
+                        true => held.is_none() && matches!(link.level, Level::View | Level::Edit),
+                        false => held.is_some_and(|open| open.is_some()),
+                    };
+                    if kind != LogKind::Block || !well_formed {
+                        return Err(KeyError::Record);
+                    }
+                    state.granting(entry, own, &link.authority, Level::Manage, false, outside)?;
+                    state
+                        .share_links
+                        .insert(link.key, link.open.then_some(link.level));
+                    if !link.open {
+                        let fallen: Vec<[u8; 16]> = state
+                            .linked
+                            .iter()
+                            .filter(|(_, key)| **key == link.key)
+                            .map(|(account, _)| *account)
+                            .collect();
+                        for account in fallen {
+                            state.linked.remove(&account);
+                            if let Some((level, _)) = state.grants.get_mut(&account) {
+                                *level = Level::None;
+                            }
+                            state.set_level(account, Level::None);
+                        }
+                    }
+                    // On a proof path the grants a link made may be reduced: whether revoking it
+                    // lowered anyone is the record's signed word, which only outdates epochs.
+                    if !link.open && state.partial && entry.lowers {
+                        state.last_lowering = place;
                     }
                 }
-            }
-            Record::Invitation(invitation) => {
-                let administrator = state.administrators.contains_key(&entry.signer)
-                    && own.is_some_and(|signing| entry.signed_by(&signing));
-                // Opened once, by a key never named before; ended only while open.
-                let held = state.invitations.get(&invitation.key).copied();
-                let may = match invitation.open {
-                    true => held.is_none(),
-                    false => held.is_some_and(|open| open.is_some()),
-                };
-                if kind != LogKind::Organization || !administrator || !may {
-                    return Err(KeyError::Record);
-                }
-                state
-                    .invitations
-                    .insert(invitation.key, invitation.open.then_some(entry.signer));
-            }
-            Record::Member(Member {
-                account,
-                identity: Some(identity),
-                member: true,
-                agent: false,
-                invitation: Some(Invited { key, endorsement }),
-            }) => {
-                // A person signs themselves in with the key of an invitation still open, whose
-                // inviter administers the organization still, once: no one already named; and
-                // their own keys endorse it.
-                let inviter = state.invitations.get(key).copied().flatten();
-                let may = kind == LogKind::Organization
-                    && entry.signer == *account
-                    && inviter.is_some_and(|inviter| state.administrators.contains_key(&inviter))
-                    && !state.members.contains_key(account)
-                    && !state.administrators.contains_key(account)
-                    && entry.signed_by(key)
-                    && verify_signature(
-                        &identity.signing.0,
-                        &invited(log, *account, identity, key),
-                        endorsement,
-                    );
-                if !may {
-                    return Err(KeyError::Record);
-                }
-                state.invitations.insert(*key, None);
-                state.signers.insert(*account, identity.signing);
-                state.members.insert(
-                    *account,
-                    Named {
-                        identity: *identity,
-                        maker: None,
-                    },
-                );
-            }
-            Record::Member(member) => {
-                let signed = own.is_some_and(|signing| entry.signed_by(&signing));
-                let administrator = state.administrators.contains_key(&entry.signer);
-                // A person is signed in only by an invitation (above); an agent by a member who is
-                // no agent, its maker; a member out by an administrator, or an agent by its maker.
-                let maker = state
-                    .members
-                    .get(&member.account)
-                    .and_then(|named| named.maker);
-                let person = state
-                    .members
-                    .get(&entry.signer)
-                    .is_some_and(|named| named.maker.is_none());
-                // No one already named is signed in again: their keys change only by their own
-                // retirement, or by signing them out and in, both in the log.
-                let named = state.members.contains_key(&member.account)
-                    || state.administrators.contains_key(&member.account);
-                // A sign-in names keys, and a sign-out none.
-                let may = match (member.member, member.agent, &member.identity) {
-                    _ if member.invitation.is_some() => false,
-                    (true, true, Some(identity)) => {
-                        (administrator || person)
-                            && !named
-                            && member.account == agent_account(entry.signer, identity)
-                    }
-                    (false, _, None) => administrator || maker == Some(entry.signer),
-                    _ => false,
-                };
-                if kind != LogKind::Organization || !signed || !may {
-                    return Err(KeyError::Record);
-                }
-                match member.identity {
-                    Some(identity) => {
-                        state.signers.insert(member.account, identity.signing);
-                        state.members.insert(
-                            member.account,
-                            Named {
-                                identity,
-                                maker: member.agent.then_some(entry.signer),
-                            },
+                Record::Opened(opened) => {
+                    // Granted by the link's key to its signer alone, at most what the link grants,
+                    // raising them, and endorsed by the keys it names.
+                    let most = state.share_links.get(&opened.key).copied().flatten();
+                    let before = state
+                        .grants
+                        .get(&opened.grantee)
+                        .map_or(Level::None, |(level, _)| *level);
+                    // An account the log names already keeps the key it signs with here: the record
+                    // may name no other, which only its own retirement changes.
+                    let known = own.is_none_or(|signing| signing == opened.identity.signing);
+                    let may = kind == LogKind::Block
+                        && known
+                        && entry.signer == opened.grantee
+                        && state.owner != Some(opened.grantee)
+                        && opened.level >= Level::View
+                        && most.is_some_and(|most| opened.level <= most)
+                        && opened.level > before
+                        && entry.signed_by(&opened.key)
+                        && verify_signature(
+                            &opened.identity.signing.0,
+                            &self::opened(
+                                log,
+                                opened.grantee,
+                                &opened.identity,
+                                &opened.key,
+                                opened.level,
+                            ),
+                            &opened.endorsement,
                         );
+                    if !may {
+                        return Err(KeyError::Record);
                     }
-                    // Signed out, an administrator administers no more, and their invitations end.
-                    None => {
-                        state.members.remove(&member.account);
-                        if state.administrators.remove(&member.account).is_some() {
-                            state.set_level(member.account, Level::None);
-                            state.end_invitations_of(member.account);
+                    state
+                        .signers
+                        .insert(opened.grantee, opened.identity.signing);
+                    state
+                        .grants
+                        .insert(opened.grantee, (opened.level, opened.identity));
+                    state.set_level(opened.grantee, opened.level);
+                    state.linked.insert(opened.grantee, opened.key);
+                }
+                Record::Administrator(administrator) => {
+                    if !administrator.administrator {
+                        state.end_invitations_of(administrator.account);
+                    }
+                    let may = kind == LogKind::Organization
+                        && state.administrators.contains_key(&entry.signer)
+                        && own.is_some_and(|signing| entry.signed_by(&signing));
+                    if !may {
+                        return Err(KeyError::Record);
+                    }
+                    state
+                        .signers
+                        .insert(administrator.account, administrator.identity.signing);
+                    match administrator.administrator {
+                        true => {
+                            state
+                                .administrators
+                                .insert(administrator.account, administrator.identity);
+                            state.set_level(administrator.account, Level::Manage);
+                        }
+                        false => {
+                            state.administrators.remove(&administrator.account);
+                            state.set_level(administrator.account, Level::None);
+                        }
+                    }
+                }
+                Record::Invitation(invitation) => {
+                    let administrator = state.administrators.contains_key(&entry.signer)
+                        && own.is_some_and(|signing| entry.signed_by(&signing));
+                    // Opened once, by a key never named before; ended only while open.
+                    let held = state.invitations.get(&invitation.key).copied();
+                    let may = match invitation.open {
+                        true => held.is_none(),
+                        false => held.is_some_and(|open| open.is_some()),
+                    };
+                    if kind != LogKind::Organization || !administrator || !may {
+                        return Err(KeyError::Record);
+                    }
+                    state
+                        .invitations
+                        .insert(invitation.key, invitation.open.then_some(entry.signer));
+                }
+                Record::Member(Member {
+                    account,
+                    identity: Some(identity),
+                    member: true,
+                    agent: false,
+                    invitation: Some(Invited { key, endorsement }),
+                }) => {
+                    // A person signs themselves in with the key of an invitation still open, whose
+                    // inviter administers the organization still, once: no one already named; and
+                    // their own keys endorse it.
+                    let inviter = state.invitations.get(key).copied().flatten();
+                    let may = kind == LogKind::Organization
+                        && entry.signer == *account
+                        && inviter.is_some_and(|inviter| state.administrators.contains_key(&inviter))
+                        && !state.members.contains_key(account)
+                        && !state.administrators.contains_key(account)
+                        && entry.signed_by(key)
+                        && verify_signature(
+                            &identity.signing.0,
+                            &invited(log, *account, identity, key),
+                            endorsement,
+                        );
+                    if !may {
+                        return Err(KeyError::Record);
+                    }
+                    state.invitations.insert(*key, None);
+                    state.signers.insert(*account, identity.signing);
+                    state.members.insert(
+                        *account,
+                        Named {
+                            identity: *identity,
+                            maker: None,
+                        },
+                    );
+                }
+                Record::Member(member) => {
+                    let signed = own.is_some_and(|signing| entry.signed_by(&signing));
+                    let administrator = state.administrators.contains_key(&entry.signer);
+                    // A person is signed in only by an invitation (above); an agent by a member who is
+                    // no agent, its maker; a member out by an administrator, or an agent by its maker.
+                    let maker = state
+                        .members
+                        .get(&member.account)
+                        .and_then(|named| named.maker);
+                    let person = state
+                        .members
+                        .get(&entry.signer)
+                        .is_some_and(|named| named.maker.is_none());
+                    // No one already named is signed in again: their keys change only by their own
+                    // retirement, or by signing them out and in, both in the log.
+                    let named = state.members.contains_key(&member.account)
+                        || state.administrators.contains_key(&member.account);
+                    // A sign-in names keys, and a sign-out none.
+                    let may = match (member.member, member.agent, &member.identity) {
+                        _ if member.invitation.is_some() => false,
+                        (true, true, Some(identity)) => {
+                            (administrator || person)
+                                && !named
+                                && member.account == agent_account(entry.signer, identity)
+                        }
+                        (false, _, None) => administrator || maker == Some(entry.signer),
+                        _ => false,
+                    };
+                    if kind != LogKind::Organization || !signed || !may {
+                        return Err(KeyError::Record);
+                    }
+                    match member.identity {
+                        Some(identity) => {
+                            state.signers.insert(member.account, identity.signing);
+                            state.members.insert(
+                                member.account,
+                                Named {
+                                    identity,
+                                    maker: member.agent.then_some(entry.signer),
+                                },
+                            );
+                        }
+                        // Signed out, an administrator administers no more, and their invitations end.
+                        None => {
+                            state.members.remove(&member.account);
+                            if state.administrators.remove(&member.account).is_some() {
+                                state.set_level(member.account, Level::None);
+                                state.end_invitations_of(member.account);
+                            }
                         }
                     }
                 }
             }
+            // The entry says whether it lowered anyone, as it did: its hash commits a reader of a
+            // proof path to that.
+            if entry.lowers != (state.last_lowering == place) {
+                return Err(KeyError::Record);
+            }
+            state.head = hash;
         }
-        // The entry says whether it lowered anyone, as it did: its hash commits a reader of a
-        // proof path to that.
-        if entry.lowers != (state.last_lowering == place) {
+        if state.hidden_lowering > state.opened_at {
+            state.open_inside = Level::None;
+        }
+        // An honest path of an organization's log reduces nothing that lowered anyone
+        // (`proof_path`): one that does hides whom it demoted, so it names no administrator, nor
+        // anyone's administering as of any entry, for taking a seal, an escrow wrap or an epoch.
+        if kind == LogKind::Organization && state.hides_lowering {
+            state.administrators.clear();
+            state.levels.clear();
+        }
+        Ok(state)
+    }
+
+    /// This log, kept as checked to its head, checked on through `served`, the whole log as the
+    /// server serves it again from its root. The entries up to this head must be the ones
+    /// checked: each names the hash of the one before, and the last of them hashes to this head
+    /// (no signature is verified for them). Else the server rewrote what was checked, and the
+    /// log is refused as forged. Only the entries after the head are checked. A partial log is
+    /// checked again from its root.
+    pub fn resume(
+        self,
+        kind: LogKind,
+        log: [u8; 16],
+        served: &[impl Logged],
+        outside: &dyn Fn(&Asked) -> Option<SigningPublic>,
+    ) -> Result<Checked, KeyError> {
+        if self.partial || self.positions.is_empty() {
+            return check_log(kind, log, self.root, served, outside);
+        }
+        let held = self.positions.len();
+        let prefix = served.get(..held).ok_or(KeyError::Record)?;
+        let mut previous = None;
+        for step in prefix {
+            let step = step.step();
+            if step.previous() != previous {
+                return Err(KeyError::Record);
+            }
+            previous = Some(step.hash());
+        }
+        if previous != Some(self.head) {
             return Err(KeyError::Record);
         }
-        state.head = hash;
+        self.extend(kind, log, &served[held..], outside)
     }
-    if hidden_lowering > opened_at {
-        state.open_inside = Level::None;
-    }
-    // An honest path of an organization's log reduces nothing that lowered anyone
-    // (`proof_path`): one that does hides whom it demoted, so it names no administrator, nor
-    // anyone's administering as of any entry, for taking a seal, an escrow wrap or an epoch.
-    if kind == LogKind::Organization && state.hides_lowering {
-        state.administrators.clear();
-        state.levels.clear();
-    }
-    Ok(state)
 }
 
 /// The log as `check_log` checks it up to `as_of`, one of its entries, which a grant names as

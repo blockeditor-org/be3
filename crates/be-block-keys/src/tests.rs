@@ -5,6 +5,7 @@ mod a_block_is_above_another_only_as_signed_parent_records_place_it;
 mod a_contact_card_opens_only_with_its_code_in_its_role;
 mod a_contact_verifies_what_another_signed_with_the_key_on_its_card;
 mod a_grant_or_administrator_checks_only_as_one_who_may_make_it_signed_it;
+mod a_kept_log_checks_only_what_was_appended_and_refuses_a_rewritten_prefix;
 mod a_hosted_handshake_opens_only_between_the_keys_it_names;
 mod a_key_change_carries_the_new_signing_key;
 mod a_log_tells_each_level_as_of_each_of_its_entries;
@@ -27,6 +28,19 @@ mod pairing_with_a_different_code_fails;
 mod pairing_with_the_same_code_shares_a_key;
 mod the_hosted_handshake_makes_noises_published_ik_vector;
 mod what_an_account_seals_for_itself_opens_only_with_its_secret;
+
+thread_local! {
+    /// Signatures verified on this thread (`verify_signature`), so a test can tell how many a
+    /// check verified.
+    pub(crate) static VERIFIED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// The signatures `run` verifies.
+fn verified(run: impl FnOnce()) -> usize {
+    let before = VERIFIED.with(std::cell::Cell::get);
+    run();
+    VERIFIED.with(std::cell::Cell::get) - before
+}
 
 fn hex(text: &str) -> Vec<u8> {
     (0..text.len())

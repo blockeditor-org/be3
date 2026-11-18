@@ -507,6 +507,10 @@ pub struct KeptLog {
     /// when the wrap arrived (`KeyBook::vouch`): the key, its sender and the digest of what was
     /// sealed. Each wrap alone: any other, from that sender or another, is judged afresh.
     pub vouched: Vec<([u8; 16], [u8; 16], [u8; 32])>,
+    /// The whole log as checked to `head`, so a later read checks only the entries after it
+    /// (`be_block_keys::Checked::resume`). None for a proof path, which is checked whole, and
+    /// for a block made here and not yet read back.
+    pub checked: Option<be_block_keys::Checked>,
 }
 
 /// The head of a block's signed log this device last verified: a log the server serves later

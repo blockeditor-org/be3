@@ -333,7 +333,15 @@ is signed by its signer's current key. Every root names its kind
 (`LogKind`), so a block's log never checks as an organization's. A checked
 log (`Checked`) also tells whether it reaches an entry (`holds`) and each
 account's level as of any entry it reaches (`level_as_of`; for an
-organization's log, administering it is Manage).
+organization's log, administering it is Manage). `check_log` is
+`Checked::extend` from the empty state (`Checked::unchecked`), and a device
+checks each signature once: a whole block log it checked is kept with the refs
+(`KeptLog::checked`), and `checked_access` and `checked_organization` check the log served next on from
+it (`Checked::resume`), which takes its prefix only when every entry names the
+one before and the last kept hashes to the kept head, verifying no signature
+there, and refuses it as forged otherwise. A proof path is checked whole each
+time (plans/access_logs_checked_once.md has what is left: Merkle reads, proof
+paths, the organization's log and the server).
 
 **Who is served what.** A sealer must see every entry up to the head, since
 an entry reduced to its hash could be the revocation of whom it seals to, or of

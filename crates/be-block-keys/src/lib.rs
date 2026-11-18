@@ -664,6 +664,8 @@ impl fmt::Debug for EscrowSecret {
 }
 
 pub fn verify_signature(signing: &[u8; 32], message: &[u8], signature: &[u8]) -> bool {
+    #[cfg(test)]
+    tests::VERIFIED.with(|verified| verified.set(verified.get() + 1));
     let Ok(key) = ed25519_dalek::VerifyingKey::from_bytes(signing) else {
         return false;
     };
