@@ -279,6 +279,9 @@ taken unproven.
   is answered all the same, as proved against the kept head, never the head
   the push names alone: those it holds as held, the rest read again
   (`read_log`). Whoever follows the log drops those it holds by their place.
+  `Peer::redacted` takes an `Event::Redacted`: the kept entry loses its
+  payload (its leaf stays, so the log still proves it) and comes back as it
+  is now.
 - **Cut and forked logs.** A head the server serves that does not extend the
   kept one (shorter, or with other entries) is `ClientError::LogForked`, and
   nothing of that answer is kept; so is a push of a head no longer than the

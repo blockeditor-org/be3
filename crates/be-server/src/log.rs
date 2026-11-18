@@ -569,12 +569,13 @@ impl ServerStore {
     }
 
     /// Redacts the entry at `seq` of `block`'s log: by its author, or with Manage on the block.
+    /// Whether it held a payload to redact, which its followers are told of.
     pub(crate) async fn redact_log(
         &self,
         identity: Identity,
         block: Uuid,
         seq: u64,
-    ) -> Result<(), ServerError> {
+    ) -> Result<bool, ServerError> {
         self.with_graph(identity.organization, move |store, graph, database| {
             let seen = visibility(identity);
             crate::blocks::require(
@@ -593,13 +594,13 @@ impl ServerStore {
                 ));
             }
             let Some(length) = length else {
-                return Ok(());
+                return Ok(false);
             };
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             redact(&transaction, organization, block, seq, length)?;
             store.charge_log(graph, &transaction, organization, block, length, false)?;
             transaction.commit()?;
-            Ok(())
+            Ok(true)
         })
         .await
     }

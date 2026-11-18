@@ -119,6 +119,9 @@ pub enum Event {
     /// Entries were appended to a block's signed log the connection follows
     /// (`Peer::read_log`): `Peer::logged` takes them as they verify.
     Appended(be_block_protocol::Appended),
+    /// An entry of a block's signed log the connection follows was redacted: `Peer::redacted`
+    /// drops what this device kept of it.
+    Redacted(be_block_protocol::Redacted),
     /// Keys this account may open were stored through another connection (`topic.keys`), or
     /// opened here by any path (`KeyBook::on_opened`: a fetch, a contact verified since, escrow):
     /// `Peer::keys_changed`, then reading again what was locked, opens what they unlock.
@@ -360,6 +363,7 @@ impl Connection {
             },
             Told::Paired(message) => Event::Paired(message),
             Told::Appended(appended) => Event::Appended(appended),
+            Told::Redacted(redacted) => Event::Redacted(redacted),
             Told::Session { block, event, .. } => {
                 let event = match event {
                     SessionEvent::Membership(entry) => Event::Membership { block, entry },
