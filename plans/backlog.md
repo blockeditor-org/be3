@@ -45,13 +45,6 @@ Fixed items are removed as they land.
   Likely `carry_pending` carrying an absorbed run by its visible splices. Done when that test
   passes with the settle removed.
 
-- **A Join channel test that once heard more than Closed.** be-host-stack's
-  `a_joined_channel_opens_to_its_host_and_again_to_the_next` once failed where the first
-  host leaves: it heard something other than (or before) `Closed`, maybe a second `Closed`
-  or an `Open` from a handshake racing the leave. It now waits for the server's word that
-  the lease moved and prints the events it heard. Done: the next failure's events read,
-  and the ordering they show fixed or explained.
-
 - **Hosted channel races without tests.** Three fixes in hosted blocks 4b
   close races that land between two awaits, which no test forces yet: an
   admit a recheck ran beside asks for another check (`Member::Answering`'s

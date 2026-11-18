@@ -1992,6 +1992,60 @@ pub fn take_updates_or_wait(what: &str, done: impl Fn() -> bool) {
     take_updates();
 }
 
+/// Waits until what `block`'s host component has yet to take holds `ready`, then takes it. It
+/// reads the page's own record, which drops what was taken at once, not the worker's, which
+/// drops it only once the take reaches it: news taken a moment before would otherwise still
+/// count there.
+#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+#[track_caller]
+pub fn take_member_events_until(
+    what: &str,
+    block: Uuid,
+    ready: impl Fn(&[be_sdk_api::blocks::MemberEvent]) -> bool,
+) -> Vec<be_sdk_api::blocks::MemberEvent> {
+    let held = || {
+        with_seen(|seen| {
+            let events: Vec<_> = seen
+                .member_news
+                .of(block)
+                .map(|(news, _)| news.into_iter().map(hosting::event_of).collect())
+                .unwrap_or_default();
+            ready(&events)
+        })
+        .unwrap_or(false)
+    };
+    while !held() {
+        take_updates_or_wait(what, held);
+    }
+    take_member_events(block)
+}
+
+/// Waits until what `block`'s Join editors have yet to hear holds `ready`, then takes it, read
+/// from the page's own record as `take_member_events_until` reads.
+#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+#[track_caller]
+pub fn take_channel_events_until(
+    what: &str,
+    block: Uuid,
+    ready: impl Fn(&[be_sdk_api::blocks::ChannelEvent]) -> bool,
+) -> Vec<be_sdk_api::blocks::ChannelEvent> {
+    let held = || {
+        with_seen(|seen| {
+            let events: Vec<_> = seen
+                .channel_news
+                .of(block)
+                .map(|(news, _)| news.into_iter().map(joining::event_of).collect())
+                .unwrap_or_default();
+            ready(&events)
+        })
+        .unwrap_or(false)
+    };
+    while !held() {
+        take_updates_or_wait(what, held);
+    }
+    take_channel_events(block)
+}
+
 /// Flushes, then waits until the server holds what the flush kept: `flush` returns once the device
 /// keeps it, and the outbox sends it after. For a test that reads the server next.
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
