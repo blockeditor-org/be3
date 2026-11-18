@@ -101,7 +101,7 @@ fn shown_from() -> Option<u32> {
 }
 
 fn retained() -> Vec<u32> {
-    with(APP, |runtime| runtime.retained_surfaces()).expect("the runtime is running")
+    with(APP, |runtime| runtime.shown.retained_surfaces(&runtime.layout)).expect("the runtime is running")
 }
 
 /// Why a dock bar (the text editor's format bar) went blank for a frame on a tab switch: hidden

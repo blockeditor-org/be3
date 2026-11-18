@@ -172,7 +172,7 @@ pub(super) fn shown_part(rect: Rect, clip: Rect) -> Option<Rect> {
 #[derive(Default)]
 pub(super) struct Shared {
     pub(super) layout: ScreenLayout,
-    /// The last frames the runtime keeps of views the app's layout left out (`runtime::Kept`).
+    /// The last frames the runtime keeps of views the app's layout left out (`be_sdk_app_host::holds::Shown`).
     pub(super) kept: Vec<ScreenPlacement>,
     pub(super) frames: Vec<Frame>,
     pub(super) paintings: be_lib_stable_hash::HashMap<ScreenId, Painting>,

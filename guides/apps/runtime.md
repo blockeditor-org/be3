@@ -287,14 +287,15 @@ children while none comes or goes) is applied at once; the rest (children coming
 requests) waits for the next `be_host_runtime::poll`, where the browser takes
 every answer, so host state changes at the same point on both. It also waits
 until the app has sent the `PresentCommit` that follows that layout
-(`Laid::presented_by`), so a child leaves or arrives in the frame whose
+(`Laid::presented_by`; the holds are be-sdk-app-host's `holds`, which
+be-host-runtime drives: `Holds`, `Shown` and `Presents`), so a child leaves or arrives in the frame whose
 painting fills or punches its space: a closed child never shows its hole in
 the placer's old painting. The commit's dock messages wait with its children
 (`Laid::docks`): which tabs a root shows decides which of the tab bodies it
 places are drawn (`docks::resolve`), so the body of a tab switched away from
 and the body of the tab switched to change in the same frame. Answers held
 after it wait with it, in order. The frame drawn after that layout waits too
-(`Runtime::received`, from the sequence of the last painted present heard
+(`Runtime::received`, `Holds::waits_for_children`, from the sequence of the last painted present heard
 before it, so also when it arrives ahead of its `PresentCommit`): shown at
 once, its painting (a stacked dock's bar showing the document opened from the
 files) would sit a frame over the children it replaces. It is shown at the
@@ -315,7 +316,7 @@ while its app draws it.
 
 A view the host stops showing (a dock tab, or a dock bar hidden with its tab)
 is left out of the app's next layout, which lets its surface go. The host keeps
-that view's last frame (`Kept` in `runtime.rs`: its placement, textures and
+that view's last frame (`Shown::keep_left_out` in be-sdk-app-host's `holds`: its placement, textures and
 painting) while it still holds the view, and draws it if the view is shown
 again, until the app's new frame of it has been drawn; so a text's format bar
 never blanks for a frame when a tab switch brings it back before its app
@@ -324,7 +325,7 @@ the app restarts, and only the eight views of an app hidden last keep theirs
 (`MOST_KEPT`): one hidden longer may show empty for a frame when shown again.
 The web keeps none: its surfaces are the app worker's canvases.
 
-An anchored view the app closes leaves the same way (`Runtime::place`, `Closing`): the app sends
+An anchored view the app closes leaves the same way (`Runtime::place`, `Shown::place`): the app sends
 its screens ahead of the frame's commits, and the host keeps the closed view, showing its last
 frame, until the present that follows and, where it composites the app's surfaces, that present's
 pixels have arrived. What the view showed may have moved into another of the app's surfaces (a
