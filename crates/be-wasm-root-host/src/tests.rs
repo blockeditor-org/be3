@@ -17,6 +17,7 @@ mod a_root_built_on_the_library_shows_the_editor_it_embeds;
 mod a_root_draws_its_own_surface_on_the_hosts_device;
 mod a_root_names_what_its_child_presented_only_by_handle;
 mod a_root_paints_its_own_surface_with_beui_in_the_hosts_fonts;
+mod a_roots_document_draws_again_when_the_frame_it_asked_for_comes;
 mod a_root_that_keeps_waking_itself_without_answering_stops_at_its_patience;
 mod a_root_wants_frames_until_its_app_presents_and_wakes_its_host_for_them;
 mod input_reaches_the_child_under_it_by_the_layers_drawn_last;
@@ -99,7 +100,7 @@ fn start(module: &[u8]) -> Root {
 }
 
 /// The embedding root, linked against the base and beui libraries and loaded as be-host loads
-/// a root, as an app is, started on this thread with the fonts beui bundles, it and its
+/// a root, as an app is, started on this thread with beui's text face, it and its
 /// children drawing on a stand-in for the host's device.
 fn embedding() -> Root {
     let (device, queue) = wgpu::Device::noop(&wgpu::DeviceDescriptor::default());
@@ -116,39 +117,57 @@ fn embedding() -> Root {
         .expect("the root loads, linked against its libraries");
     Root::start(app, Box::new(staged), device, queue)
         .expect("the root starts")
-        .with_fonts(bundled_fonts())
+        .with_fonts(fonts())
 }
 
-/// The fonts beui bundles, as be-host hands them to its root.
-fn bundled_fonts() -> Vec<be_wasm_root_api::FontFace> {
-    use be_wasm_root_api::{FontFace, FontRole};
-    let sources = beui_font_freetype::FontSources::bundled();
-    [
-        (FontRole::Text, &sources.proportional),
-        (FontRole::Monospace, &sources.monospace),
-        (FontRole::Fallback, &sources.fallback),
-        (FontRole::Icons, &sources.icons),
-    ]
-    .into_iter()
-    .flat_map(|(role, fonts)| {
-        fonts.iter().map(move |font| FontFace {
-            role,
-            index: font.index,
-            data: font.bytes.to_vec(),
-        })
+/// The fonts the tests' host gives its root: beui's text face alone, as be-host hands its
+/// bundled fonts (be-sdk-api's `Fonts`, encoded).
+fn fonts() -> Vec<u8> {
+    be_wasm_ops::encode(&be_sdk_api::Fonts {
+        replace: true,
+        faces: vec![be_sdk_api::FontFace {
+            role: be_sdk_api::FontRole::Text,
+            index: 0,
+            data: beui_fonts::INTER_REGULAR.to_vec(),
+        }],
     })
-    .collect()
 }
 
-/// The ids of the layers a frame shows, bottom first.
-fn shown(done: &FrameDone) -> Vec<LayerId> {
-    LayerList::decode(&done.layers)
-        .expect("the frame is a layer list")
-        .windows
+/// What the root painted of its own surface (`ROOT_SURFACE` of be-sdk-root-testing), asked with
+/// a frame for `time`, the time of the last.
+fn own_painting(root: &mut Root, time: u64) -> beui_paint_format::Painting {
+    root.ask_paintings().expect("the root runs");
+    root.frame(
+        FrameRequest {
+            time,
+            wall_clock: 0,
+        },
+        Instant::now() + PATIENT,
+    )
+    .expect("the root draws");
+    let painted = root
+        .take_paintings()
+        .expect("the root answered with the frame it stepped through");
+    let painted =
+        beui_paint_format::ScreenPaintings::decode(&painted).expect("the root's paintings decode");
+    let [(surface, painting)] = &painted.screens[..] else {
+        panic!(
+            "the root paints its one surface of its own, not {}",
+            painted.screens.len()
+        );
+    };
+    assert_eq!(*surface, u64::from(be_sdk_root_testing::ROOT_SURFACE));
+    painting.clone()
+}
+
+/// Every glyph `primitives` paint, in groups too, by its rect.
+fn glyphs(primitives: &[beui_paint_format::Primitive]) -> Vec<[f32; 4]> {
+    primitives
         .iter()
-        .flat_map(|window| window.layers.iter().map(|layer| layer.id))
+        .flat_map(|primitive| match &primitive.content {
+            beui_paint_format::Content::Glyph(glyph) => vec![glyph.rect],
+            beui_paint_format::Content::Group(group) => glyphs(&group.primitives),
+            _ => Vec::new(),
+        })
         .collect()
 }
-
-/// Far enough off that a child that answers at all answers before it.
-const PATIENT: Duration = Duration::from_secs(60);

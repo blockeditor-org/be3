@@ -118,6 +118,9 @@ pub(crate) struct Spawner {
     next: AtomicI32,
     stopped: AtomicBool,
     halted: AtomicBool,
+    /// Whether the app may start no threads (`refuse`): a root guest, which runs on its host's
+    /// frame thread and must never wait on a lock another thread holds.
+    refused: AtomicBool,
     alive: Mutex<usize>,
     ended: Condvar,
     failures: Mutex<Vec<String>>,
@@ -144,6 +147,7 @@ impl Spawner {
             next: AtomicI32::new(1),
             stopped: AtomicBool::new(false),
             halted: AtomicBool::new(false),
+            refused: AtomicBool::new(false),
             alive: Mutex::new(1),
             ended: Condvar::new(),
             failures: Mutex::new(Vec::new()),
@@ -155,6 +159,11 @@ impl Spawner {
 
     pub(crate) fn linked(&self, linked: Arc<Linked>) {
         let _ = self.linked.set(linked);
+    }
+
+    /// Refuses every thread the app asks to start from now on.
+    pub(crate) fn refuse(&self) {
+        self.refused.store(true, Ordering::Release);
     }
 
     pub(crate) fn stop(&self) {
@@ -229,6 +238,10 @@ impl Spawner {
         grow: &mut dyn FnMut(u32) -> Result<u32, String>,
     ) -> i32 {
         if self.stopped.load(Ordering::Acquire) || self.halts(false) {
+            return REFUSED;
+        }
+        if self.refused.load(Ordering::Acquire) {
+            self.fail("this guest may start no threads".to_owned());
             return REFUSED;
         }
         let Some(memory) = &self.memory else {

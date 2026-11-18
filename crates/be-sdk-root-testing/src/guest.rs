@@ -16,7 +16,7 @@ use be_sdk_api::{
     ScreenRequest, SurfaceFormat, SurfaceSpec, Vec2 as ViewVec2, ViewId, ViewPlacement,
     ViewportMetrics,
 };
-use be_sdk_beui_root::BeuiSurface;
+use be_sdk_beui_root::{BeuiRoot, BeuiSurface};
 use be_sdk_root::{Delivery, Embedded, Embedding, OwnSurface, Spawn};
 use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
@@ -33,8 +33,9 @@ use beui::reactive::*;
 use beui::{Align2, Color32, FontId, Sides};
 
 use crate::{
-    APP, APP_ENTRY, CLOSES, LATE_LAYER, ORIGIN, RASTER, RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER,
-    ROOT_SURFACE, SCREEN, SCREEN_SIZE, SIZE, TEXT, TEXT_ORIGIN, TEXT_SIZE, UNPRESENTED_SURFACE,
+    APP, APP_ENTRY, CLOSES, LATE_LAYER, LATER, LATER_TEXT, ORIGIN, RASTER, RESIZED, RESIZES,
+    ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE, SIZE, TEXT, TEXT_ORIGIN, TEXT_SIZE,
+    UNPRESENTED_SURFACE,
 };
 
 /// The triangle's editor, by its manifest's id.
@@ -51,6 +52,8 @@ const BLOCK_TYPE: [u8; 16] = [
 struct Root {
     embedding: Rc<RefCell<Embedding>>,
     app: Rc<RefCell<Option<Embedded>>>,
+    /// What its surfaces drawn with beui share, made on its first frame.
+    beui: Rc<RefCell<Option<BeuiRoot>>>,
     /// Its own surface, which beui draws, made on its first frame.
     own: Rc<RefCell<Option<BeuiSurface>>>,
     /// The surface a `RESIZES` frame configures and never presents.
@@ -64,28 +67,33 @@ impl Root {
         Self {
             embedding: Rc::new(RefCell::new(Embedding::new(ROOT_LAYER))),
             app: Rc::default(),
+            beui: Rc::default(),
             own: Rc::default(),
             unpresented: Rc::default(),
             waker,
         }
     }
 
-    /// Its own surface, made the first time with the host's fonts.
-    async fn own(&self) -> Result<(), String> {
-        if self.own.borrow().is_some() {
+    /// Hands beui the host's clocks for the frame, and makes its own surface the first time,
+    /// with the host's fonts.
+    async fn own(&self, time: Duration, wall_clock: Duration) -> Result<(), String> {
+        if let Some(beui) = &*self.beui.borrow() {
+            beui.set_clock(time, wall_clock);
             return Ok(());
         }
         let fonts = host::fonts()
             .await
             .map_err(|error| format!("the host gave no fonts: {error:?}"))?;
+        let beui = BeuiRoot::new(&fonts, time, wall_clock)?;
         let waker = self.waker.clone();
         let surface = BeuiSurface::new(
+            &beui,
             OwnSurface::new(ROOT_SURFACE, SIZE),
             1.0,
-            &fonts,
             move || waker.wake(),
             document,
         )?;
+        *self.beui.borrow_mut() = Some(beui);
         *self.own.borrow_mut() = Some(surface);
         Ok(())
     }
@@ -121,14 +129,25 @@ impl Root {
     }
 }
 
-/// What the root's own surface shows: `ROOT_COLOR` everywhere, and `TEXT` at `TEXT_ORIGIN`.
+/// What the root's own surface shows: `ROOT_COLOR` everywhere, and `TEXT` at `TEXT_ORIGIN`,
+/// `LATER_TEXT` from `LATER` on.
 fn document() -> beui::primitives::Root {
     let [red, green, blue, _] = ROOT_COLOR.map(|channel| (channel * 255.0).round() as u8);
     let (left, top) = TEXT_ORIGIN;
+    let later = create_signal(false);
+    let timer = create_timer(move || {
+        later.set(true);
+        None
+    });
+    timer.start(LATER);
+    let shown = create_memo(move || match later.get() {
+        true => LATER_TEXT.to_owned(),
+        false => TEXT.to_owned(),
+    });
     view! {
         <beui::primitives::Root clear_color={Color32::from_rgb(red, green, blue)}>
             <Frame align=Align2::START padding={Sides::new(left, top, 0.0, 0.0)}>
-                <Text font={FontId::proportional(TEXT_SIZE)} color={Color32::WHITE}>{TEXT}</Text>
+                <Text font={FontId::proportional(TEXT_SIZE)} color={Color32::WHITE}>{shown}</Text>
             </Frame>
         </beui::primitives::Root>
     }
@@ -138,7 +157,8 @@ impl frames::Guest for Root {
     fn frame(&self, request: FrameRequest) -> LocalFuture<FrameDone> {
         let root = self.clone();
         Box::pin(async move {
-            root.own()
+            let time = Duration::from_nanos(request.time);
+            root.own(time, Duration::from_nanos(request.wall_clock))
                 .await
                 .expect("the root's host gives it fonts and a device to draw its own surface on");
             if request.time == RESIZES {
@@ -146,9 +166,7 @@ impl frames::Guest for Root {
                     own.resize(RESIZED, 1.0);
                 }
                 *root.unpresented.borrow_mut() = Some(OwnSurface::new(UNPRESENTED_SURFACE, SIZE));
-            } else if let Some(own) = &mut *root.own.borrow_mut()
-                && own.wants_frame()
-            {
+            } else if let Some(own) = &mut *root.own.borrow_mut() {
                 own.frame().expect("the root draws its own surface with beui");
             }
             let own = root
@@ -163,10 +181,9 @@ impl frames::Guest for Root {
                     root.embedding.borrow_mut().remove(app.instance());
                 }
             } else if request.time != RESIZES {
-                let now = Duration::from_nanos(request.time);
-                let app = root.app(now);
+                let app = root.app(time);
                 let deadline = pin!(host::deadline());
-                let drawn = pin!(app.frame(now));
+                let drawn = pin!(app.frame(time));
                 let late = !first(drawn, deadline).await;
                 layers.extend(app.layer(SCREEN, pos2(ORIGIN.0, ORIGIN.1)));
                 if late {
@@ -187,10 +204,9 @@ impl frames::Guest for Root {
             let drawn = embedding.drew(list);
             root.heard(&drawn.own);
             let requests = embedding.requests(None);
-            // Its document wants a frame at once (it heard input) or after a while.
-            let document = root.own.borrow().as_ref().and_then(BeuiSurface::wait);
-            let time = Duration::from_nanos(request.time);
-            let next = match (wants.next, document.map(|wait| time + wait)) {
+            // Its document wants a frame at once (it heard input or was woken) or later.
+            let document = root.own.borrow().as_ref().and_then(BeuiSurface::next);
+            let next = match (wants.next, document) {
                 (Some(left), Some(right)) => Some(left.min(right)),
                 (left, right) => left.or(right),
             };

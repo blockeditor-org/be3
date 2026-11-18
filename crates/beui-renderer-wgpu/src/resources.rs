@@ -174,6 +174,28 @@ impl Resources {
         })))
     }
 
+    /// The resources this thread last made for `device` and `format`, or new ones: what every
+    /// target a guest draws on one device shares (an app module's screens, a root's own
+    /// surfaces), so each glyph is uploaded once.
+    pub fn shared(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
+        thread_local! {
+            static HELD: RefCell<Option<(wgpu::Device, Resources)>> = const { RefCell::new(None) };
+        }
+        HELD.with(|held| {
+            let mut held = held.borrow_mut();
+            match &*held {
+                Some((made_on, resources)) if made_on == device && resources.format() == format => {
+                    resources.clone()
+                }
+                _ => {
+                    let resources = Self::new(device, format);
+                    *held = Some((device.clone(), resources.clone()));
+                    resources
+                }
+            }
+        })
+    }
+
     pub fn format(&self) -> wgpu::TextureFormat {
         self.0.borrow().format
     }

@@ -159,8 +159,10 @@ impl Root {
         self
     }
 
-    /// The fonts the host bundles, which the root's `host.fonts` answers: none unless set.
-    pub fn with_fonts(self, fonts: Vec<be_wasm_root_api::FontFace>) -> Self {
+    /// The fonts the host bundles, which the root's `host.fonts` answers: be-sdk-api's `Fonts`
+    /// in be-wasm-ops' encoding (`be_wasm_ops::encode`), as be-wasm crates use only be-wasm ones;
+    /// none unless set.
+    pub fn with_fonts(self, fonts: Vec<u8>) -> Self {
         self.shared.core.borrow_mut().fonts = fonts;
         self
     }
