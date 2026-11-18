@@ -258,7 +258,7 @@ pub(crate) fn make_account(
 /// session opens: ends every session and pending email change, and the sessions of every agent
 /// it made (which `delete_agents_created_by` then deletes), and removes every way to sign in
 /// but `proven`, the email the recovery just proved, since any of them may be an intruder's
-/// (plans/crypto_audit.md, 9). With none proven, as for an operator's link to an account, the
+/// (guides/blocks/server.md, "Accounts"). With none proven, as for an operator's link to an account, the
 /// account's email goes too, and its owner sets one again. Answers the ways it removed, for the
 /// notice. The caller then calls `sessions_changed`.
 pub(crate) fn recover_account(
