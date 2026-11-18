@@ -253,7 +253,21 @@ within one page: step 4's fold takes the first occurrence of an id.
    not searchable; both land on the integration branch before it merges, so
    that gap never reaches main.
 
-   Design (being built on `claude/signed-logs-5`):
+   5a is built (guides/chat.md). Where it differs from the design below:
+   - **Search** comes in 5b.
+   - **Others' edits and deletions** show nothing.
+   - **Deleted messages** show no row, unless the deletion's key is worth
+     saying ("deleted with an old key").
+   - **Unread counts** come from the log's latest 100 entries, by the host
+     and the test store alike.
+   - **Sending** comes from what each log read names of the device's outbox
+     (`LogPage::kept`), so it survives a restart.
+   - **Reconnecting:** logs are followed again, read on from the kept head
+     (`Replicas::follow_logs`).
+   - **Content:** a message's attachments are listed in `carried` once the
+     host answers its entry's id.
+
+   Design:
    - **Entries.** `ChatEntry` (postcard) is `Message { time, body, reply_to,
      attachments }`, `Edit { message, time, body }`, `React { message,
      reaction, kept, time }`, `Delete { message, time }`. A message is named
