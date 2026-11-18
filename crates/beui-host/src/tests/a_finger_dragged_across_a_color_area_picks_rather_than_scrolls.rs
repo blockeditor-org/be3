@@ -42,8 +42,8 @@ fn a_finger_dragged_across_a_color_area_picks_rather_than_scrolls() {
         "the scroll stayed put"
     );
     let changes = changes.get_untracked();
-    assert_eq!(changes.len(), 1);
-    let picked = Hsva::from_color(changes[0]);
+    assert!(!changes.is_empty(), "the drag writes the value as it goes");
+    let picked = Hsva::from_color(*changes.last().expect("the drag wrote"));
     assert!((picked.hue - 120.0).abs() < 1.0);
     assert!((picked.saturation - 0.25).abs() < 0.02);
     assert!((picked.value - 0.25).abs() < 0.02);

@@ -19,17 +19,28 @@ fn a_typed_transform_value_is_one_edit() {
     let drawn = format!("infinite-canvas.entity.{}", rectangle.id);
     editor.click(&drawn);
     editor.click("infinite-canvas.transform.x");
+    editor.store().take_written(None);
     for digit in ["1", "2", "5"] {
         editor.type_text(digit);
     }
+    assert_eq!(
+        entities(&editor)[0].transform.center.x,
+        125.0,
+        "each digit previews in the block"
+    );
+    assert!(
+        editor.store().take_written(None).is_empty(),
+        "a number half typed is not one anyone chose, so Enter writes it"
+    );
     editor.key(Key::Enter, Modifiers::NONE);
 
     assert_eq!(entities(&editor)[0].transform.center.x, 125.0);
+    assert!(!editor.store().take_written(None).is_empty());
     undo(&mut editor);
     assert_eq!(
         entities(&editor)[0].transform.center.x,
         0.0,
-        "every digit is written as it is typed, and one undo takes the value back"
+        "one undo takes the value back"
     );
     editor.click("infinite-canvas.transform.x");
     editor.type_text("125");

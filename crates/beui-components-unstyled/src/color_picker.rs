@@ -48,14 +48,14 @@ pub struct ColorPickerState<Model: ColorModel = Hsva> {
     value: Binding<Color32>,
     dragging: Signal<bool>,
     disabled: Memo<bool>,
-    on_preview: Callback<Option<Color32>>,
+    on_drag_change: Callback<bool>,
 }
 
 impl<Model: ColorModel> ColorPickerState<Model> {
     pub fn new(
         value: Binding<Color32>,
         disabled: Prop<bool>,
-        on_preview: Callback<Option<Color32>>,
+        on_drag_change: Callback<bool>,
     ) -> Self {
         let color = create_linked_signal(move |held: Option<&Model>| {
             Model::from_color_keeping(value.get(), held.copied().unwrap_or_default())
@@ -66,7 +66,7 @@ impl<Model: ColorModel> ColorPickerState<Model> {
             value,
             dragging,
             disabled: create_memo(move || disabled.get()),
-            on_preview,
+            on_drag_change,
         }
     }
 
@@ -88,19 +88,16 @@ impl<Model: ColorModel> ColorPickerState<Model> {
             return;
         }
         self.color.set(next);
-        let color = next.to_color();
-        if self.dragging.get_untracked() {
-            self.on_preview.call(Some(color));
-        } else {
-            self.value.set(color);
-        }
+        self.value.set(next.to_color());
     }
 
+    /// Starts or ends a drag through one of the picker's areas or sliders, telling
+    /// `on_drag_change`: `value` is written on every move, so an owner holding a drag's writes
+    /// until release (a tentative gesture) opens and commits it here.
     pub fn drag(&self, dragging: bool) {
-        self.dragging.set(dragging);
-        if !dragging {
-            self.value.set(self.color.get_untracked().to_color());
-            self.on_preview.call(None);
+        if self.dragging.get_untracked() != dragging {
+            self.dragging.set(dragging);
+            self.on_drag_change.call(dragging);
         }
     }
 

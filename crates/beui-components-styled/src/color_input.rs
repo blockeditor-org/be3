@@ -28,7 +28,7 @@ pub fn ColorInput(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = true)] alpha: bool,
-    on_preview: Callback<Option<Color32>>,
+    on_drag_change: Callback<bool>,
 ) -> NodeId {
     view! {
         <unstyled::ColorInput
@@ -36,7 +36,7 @@ pub fn ColorInput(
             label
             disabled
             alpha
-            on_preview
+            on_drag_change
             swatch={move |handle: ColorInputSwatchHandle| view! {
                 <SwatchTrigger handle />
             }}
@@ -46,7 +46,7 @@ pub fn ColorInput(
                     value={handle.value}
                     alpha={handle.alpha}
                     focused={handle.shown}
-                    on_preview={handle.on_preview}
+                    on_drag_change={handle.on_drag_change}
                 />
             }}
             field={move |handle: ColorInputFieldHandle| {
