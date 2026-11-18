@@ -28,7 +28,7 @@ interface server {
     use account.{account-storage, message, authenticated, browser-login, browser-login-state, pairing-message};
     use objects.{hold, object-length, upload-url};
     use blocks.{
-        access-list, change-cursor, changed-page, contents, history-entry, listed, object-change,
+        access-list, account-name, change-cursor, changed-page, contents, history-entry, listed, object-change,
         publish-outcome, reference-change,
     };
     use sessions.{session-event};
@@ -107,6 +107,12 @@ interface server {
         block-log(block-log-query),
         /// Who may do what to a block, for its managers.
         access(block-id),
+        /// The accounts that may view a block, and its author, each with the
+        /// name it gave the server, for anyone who may view it: what an editor
+        /// names a block's members by when they are not the caller's contacts
+        /// (be-host's `block-subject.members`). Nothing else of them: no
+        /// email, role or grant, which only `access` tells, a manager.
+        names(block-id),
         /// One page of the keys of `blocks`, or of every key the caller holds
         /// with none: the keys after `after` in the order of their ids, as
         /// many as fit in half a frame with the wraps of each, and at least
@@ -236,6 +242,7 @@ interface server {
         log(list<list<u8>>),
         block-log(log-page),
         access(access-list),
+        names(list<account-name>),
         keys(key-page),
         key-work(key-work),
         revocations(list<revocation>),

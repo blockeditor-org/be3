@@ -205,6 +205,13 @@ impl Link {
         self.set(Subject::Version, BlockValue::Version(status.clone()));
     }
 
+    pub(crate) fn offer_members(
+        &mut self,
+        members: Result<Vec<be_sdk_api::BlockMember>, be_sdk_api::Failure>,
+    ) {
+        self.set(Subject::Members, BlockValue::Members(members));
+    }
+
     fn set(&mut self, subject: Subject, value: BlockValue) {
         self.held.offer(subject, &value);
         self.values.retain(|(set, _)| *set != subject);

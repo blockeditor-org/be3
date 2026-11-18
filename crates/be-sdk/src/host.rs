@@ -209,6 +209,26 @@ pub struct RevisionPreview {
 
 pub type HeadRead = Result<Option<StoredHead>, Failure>;
 
+/// An account that may view the editor's own block, named (`EditorHost::watch_members`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BlockMember {
+    pub account: Uuid,
+    pub name: String,
+    /// The name is on the account's contact card, which this device verified, or is the
+    /// signed-in account's own; otherwise the server gave it, and could have changed it.
+    pub verified: bool,
+}
+
+impl BlockMember {
+    pub fn decode(member: be_sdk_api::BlockMember) -> Self {
+        Self {
+            account: Uuid::from_bytes(member.account),
+            name: member.name,
+            verified: member.verified,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ArtifactState {
     pub block_id: Uuid,
@@ -473,6 +493,7 @@ pub enum Pushed {
     WebView,
     Shows,
     Version,
+    Members,
     Watches,
     PeerMessages,
     Heads,
@@ -483,7 +504,7 @@ pub enum Pushed {
 }
 
 impl Pushed {
-    pub const ALL: [Self; 15] = [
+    pub const ALL: [Self; 16] = [
         Self::Peers,
         Self::Histories,
         Self::Artifacts,
@@ -493,6 +514,7 @@ impl Pushed {
         Self::WebView,
         Self::Shows,
         Self::Version,
+        Self::Members,
         Self::Watches,
         Self::PeerMessages,
         Self::Heads,
@@ -558,6 +580,8 @@ pub struct EditorHost {
     simulated_access: Rc<RefCell<Vec<(Uuid, AccessLevel)>>>,
     version_status: Rc<RefCell<Option<be_sdk_api::VersionStatus>>>,
     version_watched: Rc<Cell<bool>>,
+    members: Rc<RefCell<Option<Result<Vec<BlockMember>, Failure>>>>,
+    members_watched: Rc<Cell<bool>>,
     shows_watched: Rc<Cell<bool>>,
     block_types: Rc<RefCell<Rc<BlockCatalog>>>,
     block_types_known: Rc<Cell<bool>>,
@@ -1279,6 +1303,23 @@ impl EditorHost {
         }
     }
 
+    pub fn set_members(&self, members: Result<Vec<BlockMember>, Failure>) {
+        *self.members.borrow_mut() = Some(members);
+        self.push(Pushed::Members);
+    }
+
+    /// Asks for the accounts that may view the editor's own block, named (`members`).
+    pub fn watch_members(&self) {
+        if !self.members_watched.replace(true) {
+            self.subjects_changed.set(true);
+        }
+    }
+
+    /// The members of the editor's own block, none until the host answers.
+    pub fn members(&self) -> Option<Result<Vec<BlockMember>, Failure>> {
+        self.members.borrow().clone()
+    }
+
     /// Everything the editor watches through `block-watch`, once it changed since the last
     /// call.
     pub(crate) fn take_block_subjects(
@@ -1318,6 +1359,9 @@ impl EditorHost {
         );
         if self.version_watched.get() {
             subjects.insert(Subject::Version);
+        }
+        if self.members_watched.get() {
+            subjects.insert(Subject::Members);
         }
         Some(subjects)
     }

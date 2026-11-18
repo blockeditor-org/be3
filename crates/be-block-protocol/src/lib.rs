@@ -568,6 +568,7 @@ answers!(FromPage, from_page, Page {
     Log => Vec<Vec<u8>>,
     BlockLog => LogPage,
     Access => AccessList,
+    Names => Vec<AccountName>,
     Keys => KeyPage,
     KeyWork => KeyWork,
     Revocations => Vec<Revocation>,
