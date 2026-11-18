@@ -64,6 +64,7 @@ async fn a_contact_the_log_never_names_hands_over_a_key_only_with_edit_from_abov
     let seal = |sender: &Peer<MemoryStore>, key: Uuid, head: EntryHash| {
         let carried = CarriedKey {
             key: [7; 32],
+            label: crate::tests::planted(key, "scope", 90),
             block: note.into_bytes(),
             root: None,
             heads: Heads {
@@ -79,7 +80,7 @@ async fn a_contact_the_log_never_names_hands_over_a_key_only_with_edit_from_abov
             },
             key.as_bytes(),
             &carried.encode(),
-        )
+        ).unwrap()
     };
     let mut planted = Vec::new();
     let mut seals = Vec::new();
@@ -87,6 +88,7 @@ async fn a_contact_the_log_never_names_hands_over_a_key_only_with_edit_from_abov
         let key = Uuid::new_v4();
         let carried = CarriedKey {
             key: [7; 32],
+            label: crate::tests::planted(key, "scope", 90),
             block: note.into_bytes(),
             root: None,
             heads: Heads {
@@ -102,7 +104,7 @@ async fn a_contact_the_log_never_names_hands_over_a_key_only_with_edit_from_abov
             },
             key.as_bytes(),
             &carried.encode(),
-        );
+        ).unwrap();
         plant(
             &harness,
             organization,
@@ -173,6 +175,7 @@ async fn a_contact_the_log_never_names_hands_over_a_key_only_with_edit_from_abov
     let swapped = {
         let carried = CarriedKey {
             key: [9; 32],
+            label: crate::tests::planted(planted[0], "scope", 90),
             block: note.into_bytes(),
             root: None,
             heads: Heads {
@@ -188,7 +191,7 @@ async fn a_contact_the_log_never_names_hands_over_a_key_only_with_edit_from_abov
             },
             planted[0].as_bytes(),
             &carried.encode(),
-        )
+        ).unwrap()
     };
     harness
         .database()

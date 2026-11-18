@@ -582,7 +582,6 @@ impl TestClient {
                     id: other,
                     epoch: 1,
                     public: [1; 32],
-                    signing: [2; 32],
                     head: [0; 32],
                     maker: Uuid::nil(),
                     signature: Vec::new(),

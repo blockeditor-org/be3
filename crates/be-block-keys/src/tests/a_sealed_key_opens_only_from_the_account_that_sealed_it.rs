@@ -15,8 +15,8 @@ fn a_sealed_key_opens_only_from_the_account_that_sealed_it() {
     let key = [7u8; 32];
     let to = party(2, &recipient);
 
-    let sealed = sender.seal_for([1; 16], &to, b"key", &key);
-    assert_ne!(sealed, sender.seal_for([1; 16], &to, b"key", &key));
+    let sealed = sender.seal_for([1; 16], &to, b"key", &key).unwrap();
+    assert_ne!(sealed, sender.seal_for([1; 16], &to, b"key", &key).unwrap());
     assert_eq!(
         recipient
             .open_from(&party(1, &sender), [2; 16], b"key", &sealed)
@@ -46,13 +46,7 @@ fn a_sealed_key_opens_only_from_the_account_that_sealed_it() {
         Err(KeyError::Sender)
     );
 
-    let forged = recipient.public().seal_anonymous(&key);
-    assert_eq!(
-        recipient.open_from(&party(1, &sender), [2; 16], b"key", &forged),
-        Err(KeyError::Sender),
-        "a key anyone could seal to the public key opened as if the sender had sealed it"
-    );
-    let impostor = server.seal_for([1; 16], &to, b"key", &key);
+    let impostor = server.seal_for([1; 16], &to, b"key", &key).unwrap();
     assert_eq!(
         recipient.open_from(&party(1, &sender), [2; 16], b"key", &impostor),
         Err(KeyError::Sender)
@@ -67,6 +61,6 @@ fn a_sealed_key_opens_only_from_the_account_that_sealed_it() {
     );
 
     let mine = party(1, &sender);
-    let own = sender.seal_for([1; 16], &mine, b"key", &key);
+    let own = sender.seal_for([1; 16], &mine, b"key", &key).unwrap();
     assert_eq!(sender.open_from(&mine, [1; 16], b"key", &own).unwrap(), key);
 }

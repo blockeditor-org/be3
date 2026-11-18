@@ -51,6 +51,7 @@ async fn upload(peer: &Peer<MemoryStore>, objects: Vec<Vec<u8>>) -> Result<(), C
     Ok(())
 }
 
+mod a_debug_print_shows_no_key;
 mod a_block_a_shared_one_links_to_shows_only_that_it_exists;
 mod a_block_deleted_after_its_folder_was_listed_is_listed_only_as_deleted_offline;
 mod a_block_made_offline_keeps_its_edits_when_read_before_it_is_sent;
@@ -123,6 +124,7 @@ mod a_key_the_server_labels_as_the_organizations_settings_never_seals_another_bl
 mod a_key_the_server_or_a_stranger_seals_to_a_member_is_never_used;
 mod a_key_the_server_wraps_under_the_settings_key_and_names_current_seals_nothing;
 mod a_key_wrapped_under_the_settings_key_seals_no_other_block;
+mod an_old_key_the_server_relabels_as_a_new_epoch_opens_nothing;
 mod a_kind_opened_on_authority_from_above_is_offered_to_contacts_inside;
 mod a_kind_opened_then_closed_is_sealed_to_no_contact;
 mod a_large_block_saved_after_a_small_change_uploads_only_what_changed;
@@ -689,14 +691,13 @@ fn put_escrow(harness: &Harness, organization: Uuid, escrow: &be_block_protocol:
         .database()
         .execute(
             "INSERT INTO keys
-                (organization_id, id, block_id, kind, epoch, created, public, signing, maker, signature, head)
-             VALUES (?1, ?2, ?1, 'escrow', ?3, 0, ?4, ?5, ?6, ?7, ?8)",
+                (organization_id, id, block_id, kind, epoch, created, public, maker, signature, head)
+             VALUES (?1, ?2, ?1, 'escrow', ?3, 0, ?4, ?5, ?6, ?7)",
             rusqlite::params![
                 organization.to_string(),
                 escrow.id.to_string(),
                 i64::try_from(escrow.epoch).unwrap(),
                 escrow.public.to_vec(),
-                escrow.signing.to_vec(),
                 escrow.maker.to_string(),
                 escrow.signature,
                 escrow.head.to_vec()
@@ -886,6 +887,7 @@ fn plant(harness: &Harness, revoked: &Revoked, named: Option<EntryHash>) -> Uuid
     let made_up = Uuid::new_v4();
     let carried = CarriedKey {
         key: [5; 32],
+        label: planted(made_up, "data", 90),
         block: revoked.note.into_bytes(),
         root: None,
         heads: Heads {
@@ -954,6 +956,21 @@ async fn saves_past(revoked: &Revoked, device: &Peer<MemoryStore>, made_up: Uuid
     revoked.bob.refresh_keys(None).await.unwrap();
     assert!(!revoked.bob.keys().has(written));
 }
+/// The label a key a test plants carries: its id, `kind` as the server's database spells it,
+/// and `epoch`, matching the row the test puts beside it.
+pub(crate) fn planted(id: Uuid, kind: &str, epoch: u64) -> be_block_keys::Label {
+    be_block_keys::Label {
+        id: id.into_bytes(),
+        kind: match kind {
+            "data" => be_block_keys::KeyRole::Data,
+            "scope" => be_block_keys::KeyRole::Scope,
+            "escrow" => be_block_keys::KeyRole::Escrow,
+            other => panic!("no key kind {other}"),
+        },
+        epoch,
+    }
+}
+
 /// Puts a key of `block` with id `key` and `kind`, sealed by Bob as `sealed`, in the server's
 /// database, wrapped by `wrapped_by` (an account or a key, as the server writes it).
 fn plant_sealed(

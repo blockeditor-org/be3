@@ -71961,6 +71961,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "zeroize_derive",
                 ],
             },
@@ -71970,6 +71971,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "zeroize_derive",
                 ],
             },

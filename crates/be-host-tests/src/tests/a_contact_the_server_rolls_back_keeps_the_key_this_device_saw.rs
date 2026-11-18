@@ -2,7 +2,7 @@ use super::*;
 
 /// Once two accounts are contacts, the server serves one a record of the other that does not
 /// open, as a server tampering with it would; the device keeps the record it pinned and says so
-/// in the contacts (plans/crypto_audit.md, 4).
+/// in the contacts (guides/blocks/keys.md, "Contacts").
 #[test]
 fn a_contact_the_server_rolls_back_keeps_the_key_this_device_saw() {
     let server = Server::start();

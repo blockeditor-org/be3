@@ -345,6 +345,9 @@ commands; on the server, run them as `be-server` with the binary in `/srv/be-ser
 
 - `be-server backup-key > backup.key` makes the key. Keep a copy off the VPS: without it nothing
   can be restored.
+  Keep it as close as the data: the server's own account secret is plain in its database, so a
+  backup with this key opens the organization settings' keys sealed to the server, the storage
+  credentials and every push `auth` secret.
 - `be-server backup --data-dir DATA --to bunny:ZONE --key-file backup.key`, with
   `BUNNY_STORAGE_KEY` and `BUNNY_STORAGE_ENDPOINT` (such as `https://ny.storage.bunnycdn.com`).
   That password can delete what it wrote, so replicate the zone and copy backups somewhere the

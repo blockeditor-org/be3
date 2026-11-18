@@ -73,7 +73,7 @@ fn a_new_device_gets_the_identity_secret_by_typing_its_code_on_an_open_one() {
         ))
         .expect("the keys load");
     let mut state = crate::keys::KeyState::default();
-    state.loaded(keys);
+    state.loaded(keys, None);
     assert!(state.needs_unlock(None));
     assert!(
         !state.needs_unlock(Some(secret)),

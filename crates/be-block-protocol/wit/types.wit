@@ -172,7 +172,6 @@ interface types {
         id: key-id,
         epoch: u64,
         public: public-key,
-        signing: public-key,
         head: entry-hash,
         maker: account-id,
         signature: list<u8>,

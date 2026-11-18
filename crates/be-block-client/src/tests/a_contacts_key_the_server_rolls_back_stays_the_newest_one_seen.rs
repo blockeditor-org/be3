@@ -2,7 +2,7 @@ use super::*;
 
 /// The server, with whoever holds a contact's old phrase, serves the account's block holding
 /// the old record of the contact again and hides the key change; the device keeps the newest key
-/// it saw, so it never seals to the old one again (plans/crypto_audit.md, 4).
+/// it saw, so it never seals to the old one again (guides/blocks/keys.md, "Contacts").
 #[tokio::test]
 async fn a_contacts_key_the_server_rolls_back_stays_the_newest_one_seen() {
     let harness = Harness::start().await;

@@ -1319,6 +1319,7 @@ dependencies = [
  "sha2 0.10.9",
  "spake2",
  "x25519-dalek",
+ "zeroize",
 ]
 
 [[package]]

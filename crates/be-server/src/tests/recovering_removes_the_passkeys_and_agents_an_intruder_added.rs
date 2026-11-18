@@ -1,7 +1,7 @@
 use super::*;
 
 /// An intruder who held the account for a while adds a passkey and an agent; once the owner
-/// recovers it by email, neither is a way back in (plans/crypto_audit.md, 9).
+/// recovers it by email, neither is a way back in (guides/blocks/server.md, "Accounts").
 #[tokio::test]
 async fn recovering_removes_the_passkeys_and_agents_an_intruder_added() {
     let harness = Harness::start().await;

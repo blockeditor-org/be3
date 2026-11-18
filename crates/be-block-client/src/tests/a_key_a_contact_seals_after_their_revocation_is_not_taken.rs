@@ -21,7 +21,7 @@ fn plant(
         },
         key.as_bytes(),
         &carried.encode(),
-    );
+    ).unwrap();
     let database = harness.database();
     database
         .execute(
@@ -80,8 +80,9 @@ async fn a_key_a_contact_seals_after_their_revocation_is_not_taken() {
     let (entries, _) = carol.checked_access(team).await.unwrap();
     let revoked = entries.last().unwrap().hash();
 
-    let made_up = |head| be_block_keys::CarriedKey {
+    let made_up = |key, head| be_block_keys::CarriedKey {
         key: [7; 32],
+        label: crate::tests::planted(key, "scope", 9),
         block: team.into_bytes(),
         root: carol.keys().root(team),
         heads: be_block_keys::Heads {
@@ -97,7 +98,7 @@ async fn a_key_a_contact_seals_after_their_revocation_is_not_taken() {
         (&vera, Some(editing)),
     ] {
         let key = Uuid::new_v4();
-        plant(&harness, sender, &carol, key, team, &made_up(head));
+        plant(&harness, sender, &carol, key, team, &made_up(key, head));
         refused.push(key);
     }
     let before = Uuid::new_v4();
@@ -107,7 +108,7 @@ async fn a_key_a_contact_seals_after_their_revocation_is_not_taken() {
         &carol,
         before,
         team,
-        &made_up(Some(editing)),
+        &made_up(before, Some(editing)),
     );
     carol.refresh_keys(None).await.unwrap();
     for key in refused {

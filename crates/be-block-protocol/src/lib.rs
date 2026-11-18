@@ -347,7 +347,6 @@ pub struct EscrowKey {
     pub id: Uuid,
     pub epoch: u64,
     pub public: [u8; 32],
-    pub signing: [u8; 32],
     /// The head of the organization's access log it was made under (guides/blocks/keys.md,
     /// "Epochs name their heads"): a device takes it, and seals it, only once it holds the log that
     /// far.
@@ -367,18 +366,17 @@ impl EscrowKey {
         postcard::from_bytes(bytes).ok()
     }
 
-    /// What its maker signs: the key and the log head it was made under, chained to the epoch
-    /// before (`previous`, nil for the first).
+    /// What its maker signs (`RecoverySecret::sign_escrow`, which adds the domain): the key and
+    /// the log head it was made under, chained to the epoch before (`previous`, nil for the
+    /// first).
     pub fn chained(&self, organization: Uuid, previous: Uuid) -> Vec<u8> {
         [
-            b"be3.escrow.chain.v3".as_slice(),
-            organization.as_bytes(),
+            organization.as_bytes().as_slice(),
             self.maker.as_bytes(),
             previous.as_bytes(),
             self.id.as_bytes(),
             &self.epoch.to_be_bytes(),
             &self.public,
-            &self.signing,
             &self.head,
         ]
         .concat()

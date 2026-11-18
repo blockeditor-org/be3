@@ -141,8 +141,12 @@ impl ServerKey {
                     }
                 }
             };
-            if let Some(carried) =
-                plain.and_then(|plain| be_block_keys::CarriedKey::decode(&plain).ok())
+            // A wrap opens only to the key its row names: one the server's own table relabels
+            // (as an older key served as the newest) opens nothing.
+            let row = crate::keys::key_row(connection, organization, key)?;
+            if let Some(carried) = plain
+                .and_then(|plain| be_block_keys::CarriedKey::decode(&plain).ok())
+                .filter(|carried| row.is_some_and(|row| carried.label == label(row)))
             {
                 ring.insert(
                     key,
@@ -216,9 +220,10 @@ impl ServerKey {
             else {
                 continue;
             };
-            let sealed =
-                self.secret
-                    .seal_for(self.account.into_bytes(), &me, id.as_bytes(), &plain);
+            let sealed = self
+                .secret
+                .seal_for(self.account.into_bytes(), &me, id.as_bytes(), &plain)
+                .map_err(|_| ServerError::Corrupt)?;
             connection.execute(
                 "UPDATE wrapped_keys SET sender = ?4, sealed = ?5
                  WHERE organization_id = ?1 AND key_id = ?2 AND wrapped_by = ?3",
@@ -264,6 +269,7 @@ impl ServerKey {
             // nor head, so it carries none: its seal is never sealed on by a log.
             let carried = be_block_keys::CarriedKey {
                 key: *plain.as_bytes(),
+                label: label(row),
                 block: settings.into_bytes(),
                 root: None,
                 heads: be_block_keys::Heads::default(),
@@ -274,6 +280,10 @@ impl ServerKey {
                 row.id.as_bytes(),
                 &carried.encode(),
             );
+            // An account whose key nothing can be sealed to is sealed nothing.
+            let Ok(sealed) = sealed else {
+                continue;
+            };
             connection.execute(
                 "INSERT OR REPLACE INTO wrapped_keys
                     (organization_id, key_id, wrapped_by, sender, sealed)
@@ -511,5 +521,18 @@ impl ServerStore {
             )),
             WhoMay::Everyone => Ok(()),
         }
+    }
+}
+
+/// The label a key carries of its own row (`be_block_keys::Label`).
+fn label(row: be_block_protocol::KeyRow) -> be_block_keys::Label {
+    be_block_keys::Label {
+        id: row.id.into_bytes(),
+        kind: match row.kind {
+            KeyKind::Data => be_block_keys::KeyRole::Data,
+            KeyKind::Scope => be_block_keys::KeyRole::Scope,
+            KeyKind::Escrow => be_block_keys::KeyRole::Escrow,
+        },
+        epoch: row.epoch,
     }
 }

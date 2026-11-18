@@ -65,8 +65,10 @@ async fn a_wrap_the_server_seals_to_the_escrow_carries_no_root_anyone_trusts() {
         be_block_keys::LogKind::Block,
         team.into_bytes(),
     );
+    // Each wrap below carries the label of the row it is planted as.
     let carried = CarriedKey {
         key: [9; 32],
+        label: crate::tests::planted(Uuid::nil(), "scope", 0),
         block: team.into_bytes(),
         root: Some(forged.hash()),
         heads: be_block_keys::Heads::default(),
@@ -76,7 +78,9 @@ async fn a_wrap_the_server_seals_to_the_escrow_carries_no_root_anyone_trusts() {
         ..carried
     };
 
-    // The server seals a key of the workspace carrying a root of its making, as from the member.
+    // The server seals a key of the workspace carrying a root of its making, as from the member,
+    // by a key it made up.
+    let made_up = Uuid::new_v4();
     let anonymous = plant(
         &harness,
         organization,
@@ -84,8 +88,23 @@ async fn a_wrap_the_server_seals_to_the_escrow_carries_no_root_anyone_trusts() {
         9,
         escrow.id,
         member.account(),
-        RecoveryPublic(escrow.public).seal_anonymous(&carried.encode()),
-        Uuid::new_v4(),
+        be_block_keys::RecoveryPhrase::generate()
+            .secret()
+            .seal_for(
+                member.account().into_bytes(),
+                &Party {
+                    account: escrow.id.into_bytes(),
+                    public: RecoveryPublic(escrow.public),
+                },
+                made_up.as_bytes(),
+                &CarriedKey {
+                    label: crate::tests::planted(made_up, "scope", 9),
+                    ..carried
+                }
+                .encode(),
+            )
+            .unwrap(),
+        made_up,
     );
     // A member who cannot edit the workspace seals one, truly from themselves, carrying its real
     // root.
@@ -105,8 +124,12 @@ async fn a_wrap_the_server_seals_to_the_escrow_carries_no_root_anyone_trusts() {
             stranger.account().into_bytes(),
             &to,
             key.as_bytes(),
-            &carrying_real.encode(),
-        ),
+            &CarriedKey {
+                label: crate::tests::planted(key, "scope", 10),
+                ..carrying_real
+            }
+            .encode(),
+        ).unwrap(),
         key,
     );
 
@@ -131,8 +154,12 @@ async fn a_wrap_the_server_seals_to_the_escrow_carries_no_root_anyone_trusts() {
             added.account().into_bytes(),
             &to,
             key.as_bytes(),
-            &carried.encode(),
-        ),
+            &CarriedKey {
+                label: crate::tests::planted(key, "scope", 11),
+                ..carried
+            }
+            .encode(),
+        ).unwrap(),
         key,
     );
 
@@ -175,8 +202,12 @@ async fn a_wrap_the_server_seals_to_the_escrow_carries_no_root_anyone_trusts() {
             stranger.account().into_bytes(),
             &to,
             key.as_bytes(),
-            &carried.encode(),
-        ),
+            &CarriedKey {
+                label: crate::tests::planted(key, "scope", 12),
+                ..carried
+            }
+            .encode(),
+        ).unwrap(),
         key,
     );
     let again = harness.second(&admin).await;

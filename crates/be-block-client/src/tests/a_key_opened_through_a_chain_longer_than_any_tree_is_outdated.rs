@@ -45,6 +45,7 @@ fn a_key_opened_through_a_chain_longer_than_any_tree_is_outdated() {
         let key = Uuid::new_v4();
         let carried = CarriedKey {
             key: [at as u8; 32],
+            label: crate::tests::planted(key, "data", at as u64 + 2),
             block: block.into_bytes(),
             root: Some(root.hash()),
             heads: Heads {
@@ -94,6 +95,7 @@ fn a_key_opened_through_a_chain_longer_than_any_tree_is_outdated() {
     );
     let carried = CarriedKey {
         key: [1; 32],
+        label: crate::tests::planted(opened, "data", 2),
         block: unread.into_bytes(),
         root: None,
         heads: Heads::default(),
