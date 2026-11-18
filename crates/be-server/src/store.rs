@@ -129,6 +129,10 @@ pub struct Shared {
     limits: StorageLimits,
     /// Each payer whose `account_usage` row changes, for the connections following it.
     pub(crate) usage_changes: tokio::sync::broadcast::Sender<Uuid>,
+    /// Objects a job freed inside a transaction it does not end (`forget_blocks`, from inside
+    /// a grant), deleted from the object store once a job ends outside any transaction and the
+    /// database agrees nothing holds them (`remove_freed_later`).
+    freed_later: std::sync::Mutex<Vec<be_block_store::Hash>>,
 }
 
 /// Agents one account may have created and not yet removed, not counting blocks' agents.
@@ -183,6 +187,7 @@ impl ServerStore {
             policies: std::sync::Mutex::new(HashMap::new()),
             limits,
             usage_changes: tokio::sync::broadcast::channel(USAGE_CHANGES_QUEUED).0,
+            freed_later: std::sync::Mutex::new(Vec::new()),
         })))
     }
 
@@ -486,7 +491,7 @@ impl ServerStore {
             ));
         }
         let email = be_block_protocol::agent_email(account);
-        self.with_graph(organization, move |_, graph, database| {
+        self.with_graph(organization, move |store, graph, database| {
             let mut before = std::collections::BTreeSet::new();
             if let Some(block) = bound_to {
                 let seen = crate::blocks::visibility(Identity {
@@ -602,7 +607,7 @@ impl ServerStore {
                     Access::Edit,
                     &bound.signed,
                 )?;
-                crate::blocks::revoke_or_grant(
+                crate::blocks::revoke_or_grant(store, 
                     graph,
                     &transaction,
                     organization,
@@ -837,7 +842,7 @@ impl ServerStore {
                 crate::keys::rotate_escrow_later(&transaction, organization, account)?;
                 crate::contacts::revoke_invitations_of(&transaction, account, organization)?;
             }
-            let forgotten = forget_orphaned_block_agents(graph, &transaction, organization)?;
+            let forgotten = forget_orphaned_block_agents(store, graph, &transaction, organization)?;
             transaction.commit()?;
             if !forgotten.is_empty() {
                 store.sessions_changed();
@@ -1027,9 +1032,9 @@ impl ServerStore {
             self.with_graph(organization, move |store, graph, database| {
                 let transaction = be_block_sqlite_schema::write_transaction(database)?;
                 for agent in agents {
-                    delete_agent(graph, &transaction, organization, agent)?;
+                    delete_agent(store, graph, &transaction, organization, agent)?;
                 }
-                forget_orphaned_block_agents(graph, &transaction, organization)?;
+                forget_orphaned_block_agents(store, graph, &transaction, organization)?;
                 transaction.commit()?;
                 store.sessions_changed();
                 Ok(())
@@ -1550,7 +1555,9 @@ impl ServerStore {
         let database = Arc::clone(&self.database).lock_owned().await;
         blocking(move || {
             outside_any_transaction(&store, &database);
-            job(&store, &database)
+            let done = job(&store, &database);
+            store.remove_freed_later(&database);
+            done
         })
         .await
     }
@@ -1739,6 +1746,45 @@ impl ServerStore {
         result
     }
 
+    /// Frees `hashes` from the object store once what freed them is kept (`freed_later`).
+    pub(crate) fn free_later(&self, hashes: Vec<be_block_store::Hash>) {
+        self.freed_later
+            .lock()
+            .expect("the freed objects are never poisoned")
+            .extend(hashes);
+    }
+
+    /// Deletes the objects `free_later` queued, outside any transaction, each only while the
+    /// database still says nothing holds it: a job rolled back after queueing one keeps it.
+    fn remove_freed_later(&self, database: &Connection) {
+        if !database.is_autocommit() {
+            return;
+        }
+        let queued = std::mem::take(
+            &mut *self
+                .freed_later
+                .lock()
+                .expect("the freed objects are never poisoned"),
+        );
+        if queued.is_empty() {
+            return;
+        }
+        let unheld: Vec<be_block_store::Hash> = queued
+            .into_iter()
+            .filter(|hash| {
+                database
+                    .query_row(
+                        "SELECT NOT EXISTS(SELECT 1 FROM object_refs WHERE hash = ?1)
+                            AND NOT EXISTS(SELECT 1 FROM object_sizes WHERE hash = ?1)",
+                        [hash.to_hex()],
+                        |row| row.get::<_, bool>(0),
+                    )
+                    .unwrap_or(false)
+            })
+            .collect();
+        self.objects().remove_freed(&unheld);
+    }
+
     pub(crate) fn object_refs(&self) -> std::sync::MutexGuard<'_, ObjectRefs> {
         self.object_refs
             .lock()
@@ -1869,8 +1915,8 @@ fn remove_account(
         (false, None) => {}
     }
     let revoked = match agent {
-        true => delete_agent(graph, &transaction, organization, account)?,
-        false => remove_from(graph, &transaction, organization, account)?,
+        true => delete_agent(store, graph, &transaction, organization, account)?,
+        false => remove_from(store, graph, &transaction, organization, account)?,
     };
     for ((block, grantee), record) in &revoking {
         crate::access::append_grant(
@@ -1883,7 +1929,7 @@ fn remove_account(
             record,
         )?;
     }
-    let forgotten = forget_orphaned_block_agents(graph, &transaction, organization)?;
+    let forgotten = forget_orphaned_block_agents(store, graph, &transaction, organization)?;
     transaction.commit()?;
     if agent || !forgotten.is_empty() {
         store.sessions_changed();
@@ -1910,6 +1956,7 @@ fn refuse_last_administrator(
 }
 
 fn remove_from(
+    store: &ServerStore,
     graph: &mut BlockGraph,
     connection: &Connection,
     organization: Uuid,
@@ -1935,7 +1982,7 @@ fn remove_from(
         let shared = node.grants.keys().any(|other| *other != account);
         let before = graph.audience(block);
         if held {
-            crate::blocks::write_grant(
+            crate::blocks::write_grant(store, 
                 graph,
                 connection,
                 organization,
@@ -2044,12 +2091,13 @@ fn is_agent(connection: &Connection, account: Uuid) -> Result<bool, ServerError>
 
 /// Deletes an agent's account, with what it was granted and what was sealed to it.
 fn delete_agent(
+    store: &ServerStore,
     graph: &mut BlockGraph,
     connection: &Connection,
     organization: Uuid,
     agent: Uuid,
 ) -> Result<Vec<crate::contacts::Granted>, ServerError> {
-    let revoked = remove_from(graph, connection, organization, agent)?;
+    let revoked = remove_from(store, graph, connection, organization, agent)?;
     connection.execute("DELETE FROM accounts WHERE id = ?1", [agent.to_string()])?;
     connection.execute(
         "DELETE FROM wrapped_keys WHERE wrapped_by = ?1",
@@ -2088,6 +2136,7 @@ pub(crate) fn trashes_block_agents(
 }
 
 pub(crate) fn forget_orphaned_block_agents(
+    store: &ServerStore,
     graph: &mut BlockGraph,
     connection: &Connection,
     organization: Uuid,
@@ -2126,7 +2175,7 @@ pub(crate) fn forget_orphaned_block_agents(
         let orphaned =
             graph.is_live(block) && !manages(graph, connection, creator, organization, block)?;
         if !granted || orphaned {
-            delete_agent(graph, connection, organization, agent)?;
+            delete_agent(store, graph, connection, organization, agent)?;
             forgotten.push(agent);
         }
     }
