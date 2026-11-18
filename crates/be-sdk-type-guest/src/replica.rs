@@ -339,7 +339,7 @@ struct Sent<C: LiveEdit> {
 }
 
 /// An edit of the tentative layer: made in an open tentative gesture, or one that committed and
-/// waits for the rest, shown but not sent (plans/tentative_gestures.md).
+/// waits for the rest, shown but not sent (guides/type_modules.md, Tentative gestures).
 struct Held<Op> {
     gesture: GestureId,
     /// The serial its message is held under (`Holds`), which numbers it once the layer commits.
