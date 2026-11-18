@@ -25,23 +25,17 @@ fn edits_typed_offline_while_a_reload_of_the_replicas_own_is_on_its_way_reach_th
                 .expect("the device is connected again");
             replicas.reconnect((&peer, &shared));
             let owed_none = std::cell::Cell::new(false);
-            step_until_replicas(
-                &peer,
-                &shared,
-                &mut replicas,
-                "joined",
-                |replicas, _| {
-                    let status = replicas.status(block);
-                    if replicas.joining()
-                        && let Some(status) = &status
-                        && status.journaled_taken > status.sealed_taken
-                        && !status.owes_seal
-                    {
-                        owed_none.set(true);
-                    }
-                    !replicas.joining() && status.is_some()
-                },
-            )
+            step_until_replicas(&peer, &shared, &mut replicas, "joined", |replicas, _| {
+                let status = replicas.status(block);
+                if replicas.joining()
+                    && let Some(status) = &status
+                    && status.journaled_taken > status.sealed_taken
+                    && !status.owes_seal
+                {
+                    owed_none.set(true);
+                }
+                !replicas.joining() && status.is_some()
+            })
             .await;
             assert!(
                 owed_none.get(),
@@ -55,10 +49,7 @@ fn edits_typed_offline_while_a_reload_of_the_replicas_own_is_on_its_way_reach_th
                 1,
                 "the server's head holds the three edits once: {text:?}"
             );
-            assert!(
-                text.contains("base!"),
-                "and the kept commit: {text:?}"
-            );
+            assert!(text.contains("base!"), "and the kept commit: {text:?}");
             let errors = std::mem::take(&mut shared.lock().unwrap().errors);
             assert!(errors.is_empty(), "{errors:?}");
         },
