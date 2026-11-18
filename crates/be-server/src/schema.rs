@@ -565,6 +565,7 @@ const SCHEMA: &str = "
         size            INTEGER NOT NULL,
         root            BLOB NOT NULL,
         bytes           INTEGER NOT NULL,
+        redactions      INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (organization_id, block_id)
     );
 
@@ -578,6 +579,7 @@ const SCHEMA: &str = "
         payload_hash    BLOB NOT NULL,
         signature       BLOB NOT NULL,
         payload         BLOB,
+        redaction       INTEGER,
         PRIMARY KEY (organization_id, block_id, seq)
     );
 

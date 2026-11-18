@@ -65,6 +65,8 @@ async fn a_log_numbers_stamps_and_tells_appends_and_takes_an_entry_once() {
             entries: told.entries.clone(),
             proof: told.proof.clone(),
             consistency: told.consistency.clone(),
+            redactions: 0,
+            redacted: Vec::new(),
         },
         0
     ));

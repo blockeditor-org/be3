@@ -438,6 +438,7 @@ impl<S: ObjectStore> Peer<S> {
         // checked against the head that moved is read again against the one kept now.
         for _ in 0..READS_WHILE_MOVING {
             let kept = self.refs.log_head(block);
+            let caught_up = self.refs.log_redactions(block);
             let page = crate::ask(be_block_protocol::ask::<LogPage, _>(
                 &self.connection(),
                 Some(self.organization),
@@ -446,10 +447,23 @@ impl<S: ObjectStore> Peer<S> {
                     from,
                     limit,
                     known: kept.as_ref().map(|kept| kept.size),
+                    redactions_after: caught_up,
                 },
                 true,
             ))
             .await?;
+            // Redactions since this device last caught up, as when it was away for their
+            // pushes: told to whoever listens as the pushes would have been (`Peer::redacted`).
+            if caught_up.is_some() {
+                for &seq in &page.redacted {
+                    self.connection().redaction_read(be_block_protocol::Redacted {
+                        organization: self.organization,
+                        block,
+                        seq,
+                    });
+                }
+            }
+            self.refs.set_log_redactions(block, page.redactions)?;
             let proof_hashes = page.proof.len() + page.consistency.len();
             // A page from past the log's end is answered from its end, empty.
             let from = from.min(page.head.size);
@@ -718,6 +732,22 @@ impl<S: ObjectStore> Peer<S> {
             .find(|logged| logged.entry.seq == seq))
     }
 
+    /// Catches up with the redactions of every log this device kept a head of, as it connects:
+    /// one read of each from its kept head, which tells those it missed as `Event::Redacted`
+    /// (`read_log`), so search and open replicas drop what a redaction took while it was away.
+    pub async fn catch_up_redactions(&self) {
+        for block in self.refs.logs_kept() {
+            let Some(size) = self.refs.log_head(block).map(|head| head.size) else {
+                continue;
+            };
+            if let Err(error) = self.read_log(block, size, 0).await
+                && error.is_unreachable()
+            {
+                return;
+            }
+        }
+    }
+
     /// The latest `count` entries of `block`'s signed log, read as `read_log` reads (and
     /// following the log): a page from past its end names its length, then the page before it.
     pub async fn read_log_tail(&self, block: Uuid, count: u32) -> Result<LogRead, ClientError> {
@@ -791,10 +821,13 @@ impl<S: ObjectStore> Peer<S> {
                 return Ok(exported);
             }
             from += read.entries.len() as u64;
-            // An entry an import brought in goes as it was written in its own block.
-            exported.extend(read.entries.into_iter().map(|logged| match logged.imported {
-                Some(original) => original,
-                None => ExportedEntry {
+            // A file carries a block's own entries alone, each written there (`transfer::decode`
+            // takes no other): history an import brought stays with the block it came into.
+            exported.extend(read.entries.into_iter().filter_map(|logged| {
+                if logged.imported.is_some() {
+                    return None;
+                }
+                Some(ExportedEntry {
                     block,
                     seq: logged.entry.seq,
                     id: logged.entry.id,
@@ -802,7 +835,7 @@ impl<S: ObjectStore> Peer<S> {
                     arrival: logged.entry.arrival,
                     said: logged.opened,
                     signature: logged.entry.signature,
-                },
+                })
             }));
             if from >= read.head.size {
                 return Ok(exported);
@@ -812,7 +845,9 @@ impl<S: ObjectStore> Peer<S> {
 
     /// Who signed `entry` of an export as the app `app`'s, in the block it was written in
     /// (`ExportedEntry::block`): an export's entries verify against it wherever the file went,
-    /// with no key of the block. None for a redacted entry, which says nothing to verify.
+    /// with no key of the block. Its arrival is the file's word, so no verdict rests on it: a
+    /// key its author replaced is not told apart by when. None for a redacted entry, which
+    /// says nothing to verify.
     pub async fn verify_exported(
         &self,
         app: &str,
@@ -821,17 +856,73 @@ impl<S: ObjectStore> Peer<S> {
         let Some(said) = &entry.said else {
             return Ok(None);
         };
-        self.verify_entry(
-            entry.block,
-            app,
-            entry.author,
-            entry.id,
-            entry.arrival,
-            said,
-            &entry.signature,
-        )
-        .await
-        .map(Some)
+        let signed = be_block_protocol::log_signed(entry.id, said.hash(app));
+        self.verify_authored(entry.author, entry.block, &signed, &entry.signature, None)
+            .await
+            .map(Some)
+    }
+
+    /// Who signed an imported entry of `block`'s log (`LoggedEntry::imported`) as the app
+    /// `app`'s, in the block it was written in: none for one whose original was redacted, and
+    /// `Bad` for one that may not be history here. History is only the log's leading run
+    /// (redacted entries aside), appended by the block's creator, each signed by them as
+    /// importing it, so no member can replay another block's signed entries into this one.
+    pub async fn verify_imported(
+        &self,
+        block: Uuid,
+        app: &str,
+        logged: &LoggedEntry,
+    ) -> Result<Option<Signer>, ClientError> {
+        let Some(original) = &logged.imported else {
+            return Ok(None);
+        };
+        let entry = &logged.entry;
+        let creator = match self.refs.summary(block).and_then(|summary| summary.author) {
+            Some(creator) => Some(creator),
+            None => self.summary(block).await?.author,
+        };
+        if creator != Some(entry.author) || self.imported_run(block).await? <= entry.seq {
+            return Ok(Some(Signer::Bad));
+        }
+        let signed = be_block_protocol::log_signed(entry.id, Hash::of(&original.sealed()));
+        let importer = self
+            .verify_authored(
+                entry.author,
+                block,
+                &signed,
+                &entry.signature,
+                Some(entry.arrival),
+            )
+            .await?;
+        if importer == Signer::Bad {
+            return Ok(Some(Signer::Bad));
+        }
+        self.verify_exported(app, original).await
+    }
+
+    /// How many entries from the start of `block`'s log are imported history, redacted ones
+    /// among them: read from the start up to the first entry of the block's own, and kept once
+    /// one ends it.
+    async fn imported_run(&self, block: Uuid) -> Result<u64, ClientError> {
+        if let Some(run) = self.imported_runs.lock().unwrap().get(&block) {
+            return Ok(*run);
+        }
+        let mut from = 0;
+        loop {
+            let read = self.read_log(block, from, u32::MAX).await?;
+            if read.entries.is_empty() {
+                return Ok(from);
+            }
+            for logged in &read.entries {
+                let own = logged.imported.is_none() && logged.entry.payload.is_some();
+                if own {
+                    let run = logged.entry.seq;
+                    self.imported_runs.lock().unwrap().insert(block, run);
+                    return Ok(run);
+                }
+            }
+            from += read.entries.len() as u64;
+        }
     }
 
     /// Drops the payload of the entry at `seq` of `block`'s log on the server, for everyone: its

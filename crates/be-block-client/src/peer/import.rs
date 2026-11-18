@@ -96,27 +96,37 @@ impl<S: ObjectStore> Peer<S> {
         // Its log's history from the block it was written in goes after it, each entry as it
         // was written there, which it still verifies against; its new entries follow.
         for original in &ready.log {
-            let id = Uuid::new_v4();
-            let plain = original.sealed();
-            let payload = self.commits.vault().seal(ready.creation.key, &plain)?;
-            let signature = self.sign_authored(
-                ready.id,
-                &be_block_protocol::log_signed(id, Hash::of(&plain)),
-            );
-            self.refs.push(Op::Append(crate::refs::Appending {
-                block: ready.id,
-                id,
-                payload,
-                signature,
-                announces: None,
-                redacts: None,
-            }))?;
+            self.push_imported(ready.id, ready.creation.key, original)?;
         }
         // The outbox keeps the creation: so does the device the log made with it.
         self.keep_made_log(&ready.creation)?;
         if let Some(pending) = &ready.publish {
             self.refs.set_head(ready.id, pending.commit)?;
         }
+        Ok(())
+    }
+
+    /// Puts `original`, an entry an export carried, in `block`'s outbox as imported history,
+    /// sealed under `key` and signed by this account as importing it (`verify_imported`).
+    pub(crate) fn push_imported(
+        &self,
+        block: Uuid,
+        key: Uuid,
+        original: &crate::ExportedEntry,
+    ) -> Result<(), ClientError> {
+        let id = Uuid::new_v4();
+        let plain = original.sealed();
+        let payload = self.commits.vault().seal(key, &plain)?;
+        let signature =
+            self.sign_authored(block, &be_block_protocol::log_signed(id, Hash::of(&plain)));
+        self.refs.push(Op::Append(crate::refs::Appending {
+            block,
+            id,
+            payload,
+            signature,
+            announces: None,
+            redacts: None,
+        }))?;
         Ok(())
     }
 

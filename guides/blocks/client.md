@@ -309,11 +309,24 @@ taken unproven.
   goes in the new block's outbox behind its creation (`peer/import.rs`), its
   payload the entry as it was written (`ExportedEntry::sealed`, told apart
   from what an author says by its first byte), so it reads back as
-  `LoggedEntry::imported` and still verifies against its own block; an
-  export of the new block carries it as it was. New entries append after it.
-- **Redactions.** A device keeps a payload it already holds until it reads
-  that page again; what tells it to is a later entry naming the redacted one
-  (chat's deletion entry, plans/signed_logs.md step 5).
+  `LoggedEntry::imported` and still verifies against its own block. Its
+  verdict (`Peer::verify_imported`) is `Bad` unless it is in the log's
+  leading run (`imported_run`, redacted entries aside), appended by the
+  block's creator, and signed by them as importing it: no member can replay
+  another block's signed entries into this one. No verdict rests on the
+  file's arrival (`verify_exported` passes none). New entries append after
+  it. A file carries a block's own entries alone (an export of the new block
+  leaves its history out), and `transfer::decode` refuses an entry written in
+  another block than the one it is saved with.
+- **Redactions.** The server tells a log's followers of each redaction
+  (`event.redacted`). `Peer::redacted` takes the server's word for it, as the
+  server holds the payloads and may drop any anyway; the entry's leaf stays,
+  so the log still proves the entry and who wrote it. The server numbers a
+  log's redactions (`log-page.redactions`), and each read names those since
+  the count this device caught up with (`redactions-after`,
+  `Refs::log_redactions`), told again as `Event::Redacted`; as it connects a
+  device reads each log it kept from its head (`catch_up_redactions`), so one
+  pushed while it was away still reaches it.
 - **Who wrote an entry.** `Peer::verify_entry(block, app, ..., said, signature)`
   is `verify_authored` over what the app said and its salt, with the entry's arrival,
   which only the server sets, so a contact's replaced key that

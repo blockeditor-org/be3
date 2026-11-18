@@ -64,28 +64,32 @@ struct Kept {
     size: u64,
     root: TreeHash,
     bytes: u64,
+    /// How many of its entries were redacted, which numbers each redaction.
+    redactions: u64,
 }
 
 fn kept(database: &Connection, organization: &str, block: &str) -> Result<Kept, ServerError> {
-    let row: Option<(i64, Vec<u8>, i64)> = database
+    let row: Option<(i64, Vec<u8>, i64, i64)> = database
         .prepare_cached(
-            "SELECT size, root, bytes FROM block_log_heads
+            "SELECT size, root, bytes, redactions FROM block_log_heads
              WHERE organization_id = ?1 AND block_id = ?2",
         )?
         .query_row(params![organization, block], |row| {
-            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
         })
         .optional()?;
     Ok(match row {
-        Some((size, root, bytes)) => Kept {
+        Some((size, root, bytes, redactions)) => Kept {
             size: size as u64,
             root: hash_of(root)?,
             bytes: bytes as u64,
+            redactions: redactions as u64,
         },
         None => Kept {
             size: 0,
             root: merkle::empty_root(),
             bytes: 0,
+            redactions: 0,
         },
     })
 }
@@ -276,6 +280,7 @@ pub fn append(
         size: frontier.size(),
         root: frontier.root(),
         bytes: before.bytes + grew,
+        redactions: before.redactions,
     };
     if !appended.is_empty() {
         write_kept(database, &org, &id, &after)?;
@@ -297,17 +302,20 @@ fn write_kept(
 ) -> Result<(), ServerError> {
     database
         .prepare_cached(
-            "INSERT INTO block_log_heads (organization_id, block_id, size, root, bytes)
-             VALUES (?1, ?2, ?3, ?4, ?5)
+            "INSERT INTO block_log_heads
+                 (organization_id, block_id, size, root, bytes, redactions)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
              ON CONFLICT (organization_id, block_id)
-             DO UPDATE SET size = excluded.size, root = excluded.root, bytes = excluded.bytes",
+             DO UPDATE SET size = excluded.size, root = excluded.root, bytes = excluded.bytes,
+                 redactions = excluded.redactions",
         )?
         .execute(params![
             organization,
             block,
             kept.size as i64,
             kept.root.as_slice(),
-            kept.bytes as i64
+            kept.bytes as i64,
+            kept.redactions as i64
         ])?;
     Ok(())
 }
@@ -372,7 +380,8 @@ fn hashes(proof: Vec<TreeHash>) -> Vec<Hash> {
 /// A page of the block's log from `from`: at most `limit` entries (and `MAX_PAGE_ENTRIES`, and
 /// `PAGE_BYTES`, at least one), the head, the proof tying them to it, and with `known`, a size
 /// the caller holds a head of, the proof the head extends that one. A `known` past the log's
-/// size gets none: the caller finds the log shorter than what it holds.
+/// size gets none: the caller finds the log shorter than what it holds. With
+/// `redactions_after`, the places of the entries redacted after that many redactions.
 pub fn page(
     database: &Connection,
     organization: Uuid,
@@ -380,6 +389,7 @@ pub fn page(
     from: u64,
     limit: u32,
     known: Option<u64>,
+    redactions_after: Option<u64>,
 ) -> Result<LogPage, ServerError> {
     let (org, id) = (organization.to_string(), block.to_string());
     let kept = kept(database, &org, &id)?;
@@ -413,11 +423,25 @@ pub fn page(
         }
         _ => Vec::new(),
     };
+    let redacted = match redactions_after {
+        Some(after) if after < kept.redactions => database
+            .prepare_cached(
+                "SELECT seq FROM block_logs
+                 WHERE organization_id = ?1 AND block_id = ?2 AND redaction > ?3
+                 ORDER BY redaction",
+            )?
+            .query_map(params![org, id, after as i64], |row| row.get::<_, i64>(0))?
+            .map(|seq| seq.map(|seq| seq as u64))
+            .collect::<Result<Vec<u64>, _>>()?,
+        _ => Vec::new(),
+    };
     Ok(LogPage {
         head: head_of(&kept),
         entries,
         proof: hashes(proof),
         consistency: hashes(consistency),
+        redactions: kept.redactions,
+        redacted,
     })
 }
 
@@ -456,14 +480,15 @@ pub fn redact(
     freed: u64,
 ) -> Result<(), ServerError> {
     let (org, id) = (organization.to_string(), block.to_string());
-    database
-        .prepare_cached(
-            "UPDATE block_logs SET payload = NULL
-             WHERE organization_id = ?1 AND block_id = ?2 AND seq = ?3",
-        )?
-        .execute(params![org, id, seq as i64])?;
     let mut kept = kept(database, &org, &id)?;
     kept.bytes = kept.bytes.saturating_sub(freed);
+    kept.redactions += 1;
+    database
+        .prepare_cached(
+            "UPDATE block_logs SET payload = NULL, redaction = ?4
+             WHERE organization_id = ?1 AND block_id = ?2 AND seq = ?3",
+        )?
+        .execute(params![org, id, seq as i64, kept.redactions as i64])?;
     write_kept(database, &org, &id, &kept)
 }
 
@@ -554,6 +579,7 @@ impl ServerStore {
         from: u64,
         limit: u32,
         known: Option<u64>,
+        redactions_after: Option<u64>,
     ) -> Result<LogPage, ServerError> {
         self.with_graph(identity.organization, move |_, graph, database| {
             crate::blocks::require(
@@ -563,7 +589,15 @@ impl ServerStore {
                 be_block_graph::Access::View,
                 "viewable",
             )?;
-            page(database, identity.organization, block, from, limit, known)
+            page(
+                database,
+                identity.organization,
+                block,
+                from,
+                limit,
+                known,
+                redactions_after,
+            )
         })
         .await
     }
