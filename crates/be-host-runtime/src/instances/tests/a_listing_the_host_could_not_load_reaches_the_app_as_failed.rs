@@ -24,6 +24,19 @@ fn sent(instances: &mut Instances, watch: OpId) -> Vec<Sent> {
         .collect()
 }
 
+/// What the app is sent once the stack hands over a listing: the worker's graph is ready before
+/// the frame that takes its update sends the app the answer, so this takes updates until one is
+/// sent.
+fn sent_once_listed(instances: &mut Instances, watch: OpId) -> Vec<Sent> {
+    loop {
+        let sent = sent(instances, watch);
+        if !sent.is_empty() {
+            return sent;
+        }
+        be_host_stack::take_updates_or_wait("the refetched listing", || false);
+    }
+}
+
 fn loaded(query: be_host_stack::Query) {
     be_host_stack::wait_until("loaded the listing", |shared| {
         shared.graph.ready(query).then_some(())
@@ -67,9 +80,8 @@ fn a_listing_the_host_could_not_load_reaches_the_app_as_failed() {
     );
 
     be_host_stack::refetch(children);
-    loaded(children);
     assert_eq!(
-        sent(&mut instances, watch),
+        sent_once_listed(&mut instances, watch),
         [Sent::Blocks],
         "once a retry loads it, the answer is sent again"
     );
