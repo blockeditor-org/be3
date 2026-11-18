@@ -36,7 +36,7 @@ fn a_folder_lists_a_new_child_before_its_edit_is_sealed() {
         shared
             .graph
             .get(folder)
-            .filter(|node| node.references.contains(&child))
+            .filter(|node| node.refers_to(child) == Some(true))
             .map(|_| shared.unsealed())
     });
     assert!(

@@ -1148,36 +1148,11 @@ impl Refs {
     }
 
     /// A listing as this device last knew it, for answering offline, as its summaries say now:
-    /// what a block references is its summary's references (one pushed or revised after the
-    /// listing was fetched names them then), children and deleted blocks are placed by their
-    /// summaries (`placed_in`), and backrefs are the summaries that reference the block.
+    /// children and deleted blocks are placed by their summaries (`placed_in`), and the rest are
+    /// as fetched (what a block references the peer reads from the content it kept first,
+    /// `Peer::listing`, as no summary names it).
     pub fn cached_listing(&self, listing: Listing) -> Option<Vec<BlockSummary>> {
         match listing {
-            Listing::References(block) => {
-                let Some(referrer) = self.summary(block) else {
-                    return self.listing(&listing);
-                };
-                Some(
-                    referrer
-                        .references
-                        .iter()
-                        .filter_map(|reference| self.summary(*reference))
-                        .filter(|summary| summary.access.can_know_exists())
-                        .collect(),
-                )
-            }
-            Listing::Backrefs(block) => {
-                let state = self.state.lock().unwrap();
-                state.listings.get(&listing)?;
-                Some(
-                    state
-                        .summaries
-                        .values()
-                        .filter(|summary| summary.references.contains(&block))
-                        .cloned()
-                        .collect(),
-                )
-            }
             Listing::Children(parent) => self.placed_in(listing, parent),
             Listing::Deleted => self.placed_in(listing, BlockParent::Detached),
             _ => self.listing(&listing),
@@ -1240,23 +1215,8 @@ impl Refs {
         let mut found = match listing {
             Listing::Children(parent) => placed(parent),
             Listing::Deleted => placed(BlockParent::Detached),
-            Listing::References(block) => state
-                .summaries
-                .get(&block)
-                .map(|summary| {
-                    summary
-                        .references
-                        .iter()
-                        .filter_map(|reference| state.summaries.get(reference).cloned())
-                        .collect()
-                })
-                .unwrap_or_default(),
-            Listing::Backrefs(block) => state
-                .summaries
-                .values()
-                .filter(|summary| summary.references.contains(&block))
-                .cloned()
-                .collect(),
+            // From the blocks' content, which the peer reads (`Peer::listing`).
+            Listing::References(_) | Listing::Backrefs(_) => Vec::new(),
             Listing::Shared | Listing::OpenSettings(_) => Vec::new(),
         };
         found.sort_by_key(|summary| summary.id);

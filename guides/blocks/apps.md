@@ -249,7 +249,7 @@ a referenced block one way to show these states.
 
 **Deleted blocks.** `deleted` is set when the mirror's walk up the parent
 chain meets a link that does not hold (`Graph::deleted_root`; where it cannot
-read a parent's references it takes `BlockSummary::held`, and a chain into an
+read a parent's references, not read yet or locked, it takes `BlockSummary::held`, and a chain into an
 invisible block counts as live). Links to it still resolve; places that list
 references mute it or list it last, and pickers never offer it.
 `EditorHost::restore_block` (`block-command::restore`) lists it in its parent

@@ -45,7 +45,7 @@ async fn a_publish_adding_a_reference_the_block_already_holds_moves_it() {
     let harness = Harness::start().await;
     let mut client = harness.member("linker@example.com").await;
     let account = client.id();
-    client.organization("links").await;
+    let organization = client.organization("links").await;
     let author = Author::new(account);
     let view = client.create_block(BlockParent::Root).await;
     let [a, b, c] = [
@@ -67,7 +67,7 @@ async fn a_publish_adding_a_reference_the_block_already_holds_moves_it() {
     let Ok(be_block_protocol::PublishOutcome::Published(head)) = first else {
         panic!("{first:?}");
     };
-    assert_eq!(client.read_block(view).await.references, vec![a, b]);
+    assert_eq!(harness.kept_references(organization, view).await, vec![a, b]);
 
     // `b` is added at the front though the block holds it, and `c` at the end.
     let readding = ReferenceChange {
@@ -91,7 +91,10 @@ async fn a_publish_adding_a_reference_the_block_already_holds_moves_it() {
         matches!(second, Ok(be_block_protocol::PublishOutcome::Published(_))),
         "{second:?}"
     );
-    assert_eq!(client.read_block(view).await.references, vec![b, a, c]);
+    assert_eq!(
+        harness.kept_references(organization, view).await,
+        vec![b, a, c]
+    );
 
     harness.stop().await;
 }

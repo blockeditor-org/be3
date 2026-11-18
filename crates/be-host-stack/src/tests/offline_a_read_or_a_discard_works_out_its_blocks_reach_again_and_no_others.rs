@@ -31,7 +31,7 @@ fn offline_a_read_or_a_discard_works_out_its_blocks_reach_again_and_no_others() 
             author: None,
             parent: Some(be_block_graph::BlockParent::Block(parent)),
             access: be_block_graph::Access::Edit,
-            references: Vec::new(),
+            references: None,
             metadata: be_block_content::BlockMetadata::default(),
             head: None,
             locked: false,

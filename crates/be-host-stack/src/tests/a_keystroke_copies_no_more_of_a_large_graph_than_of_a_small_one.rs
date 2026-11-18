@@ -32,7 +32,7 @@ fn a_keystroke_copies_no_more_of_a_large_graph_than_of_a_small_one() {
                 author: None,
                 parent: Some(be_block_graph::BlockParent::Block(parent)),
                 access: be_block_graph::Access::Edit,
-                references: Vec::new(),
+                references: None,
                 metadata: be_block_content::BlockMetadata::default(),
                 head: None,
                 locked: false,

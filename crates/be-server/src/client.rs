@@ -1540,6 +1540,8 @@ impl Client {
             } => {
                 let identity = admitted.identity()?;
                 let made = block;
+                // The blocks it references are known to exist by whoever views it: they changed.
+                let referenced = references.clone();
                 let block = connection
                     .store
                     .create_block(
@@ -1559,7 +1561,7 @@ impl Client {
                     .whole
                     .push((identity, crate::keys::Whole::Made { block: made, key }));
                 let mut changed = vec![block.id];
-                changed.extend(block.references.iter().copied());
+                changed.extend(referenced);
                 connection
                     .after(After::Advance {
                         organization: identity.organization,

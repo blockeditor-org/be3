@@ -1744,6 +1744,65 @@ impl<S: ObjectStore> Peer<S> {
         Ok(deduplicated(references))
     }
 
+    /// What `summary`'s block references, in its order, as its content says: no summary names
+    /// it. Read from the newest commit this device has of the block (one waiting in the outbox
+    /// first, else the head the summary names) by `references_of`, fetching what it does not
+    /// hold, so offline it answers only for content this device kept; for a block with no
+    /// content yet, from its metadata.
+    pub async fn content_references(
+        &self,
+        summary: &BlockSummary,
+    ) -> Result<Vec<Uuid>, ClientError> {
+        let block = summary.id;
+        match self.local_head(block).or_else(|| self.head_of(summary)) {
+            Some(head) => {
+                let commit = self.load_head(block, head).await?;
+                self.references_of(block, &commit).await
+            }
+            None => {
+                let metadata = self.metadata_of_summary(summary).await?;
+                Ok(deduplicated(self.resolve(block, metadata.references())))
+            }
+        }
+    }
+
+    /// The blocks `block`'s content references that this device knows of, from what it holds:
+    /// a local account's answer to `Listing::References`, and an offline one's when it kept the
+    /// block's content.
+    async fn references_here(&self, block: Uuid) -> Result<Vec<BlockSummary>, ClientError> {
+        let Some(summary) = self.refs.summary(block) else {
+            return Ok(Vec::new());
+        };
+        if !summary.access.can_view() {
+            return Ok(Vec::new());
+        }
+        Ok(self
+            .content_references(&summary)
+            .await?
+            .into_iter()
+            .filter_map(|reference| self.refs.summary(reference))
+            .filter(|summary| summary.access.can_know_exists())
+            .collect())
+    }
+
+    /// The blocks this device holds whose content references `block`: a local account's answer
+    /// to `Listing::Backrefs`, which has no server keeping references. One whose content cannot
+    /// be read is left out.
+    async fn backrefs_here(&self, block: Uuid) -> Vec<BlockSummary> {
+        let mut found = Vec::new();
+        for summary in self.refs.summaries() {
+            if summary.access.can_view()
+                && self
+                    .content_references(&summary)
+                    .await
+                    .is_ok_and(|references| references.contains(&block))
+            {
+                found.push(summary);
+            }
+        }
+        found
+    }
+
     /// The objects the server holds for a commit besides the commit itself: its manifest
     /// tree's, and for a merge each other parent and its tree's, as `seal` lists them.
     async fn held_by(&self, commit: &Commit) -> Result<Vec<Hash>, ClientError> {
@@ -2916,7 +2975,14 @@ impl<S: ObjectStore> Peer<S> {
             blocks,
         };
         if self.local {
-            return Ok(here(self.refs.local_listing(listing)));
+            let mut blocks = match listing {
+                Listing::References(block) => self.references_here(block).await?,
+                Listing::Backrefs(block) => self.backrefs_here(block).await,
+                _ => self.refs.local_listing(listing),
+            };
+            blocks.sort_by_key(|summary| summary.id);
+            blocks.dedup_by_key(|summary| summary.id);
+            return Ok(here(blocks));
         }
         if let Some(block) = about(listing)
             && self.refs.creating(block)
@@ -2934,10 +3000,20 @@ impl<S: ObjectStore> Peer<S> {
                 let _ = self.refs.listed(listing, &blocks, sequence);
                 Ok(Listed { sequence, blocks })
             }
-            Err(error) if error.is_unreachable() => match self.refs.cached_listing(listing) {
-                Some(blocks) => Ok(here(blocks)),
-                None => Err(error),
-            },
+            Err(error) if error.is_unreachable() => {
+                // What a block references, from the content this device kept of it.
+                if let Listing::References(block) = listing
+                    && let Ok(mut blocks) = self.references_here(block).await
+                {
+                    blocks.sort_by_key(|summary| summary.id);
+                    blocks.dedup_by_key(|summary| summary.id);
+                    return Ok(here(blocks));
+                }
+                match self.refs.cached_listing(listing) {
+                    Some(blocks) => Ok(here(blocks)),
+                    None => Err(error),
+                }
+            }
             Err(error) => Err(error),
         }
     }
@@ -2945,8 +3021,8 @@ impl<S: ObjectStore> Peer<S> {
     /// The server's answer to `listing`, every page of it (in the order of block ids, each
     /// after the last), with the summaries of each page's `rest` read after it, and the sequence
     /// of the first page. Summaries read after the first page may be newer, so one the listing
-    /// would no longer hold is left out (`still_in`). A block's references are put in its own
-    /// order.
+    /// would no longer hold is left out (`still_in`). A block's references come in the order
+    /// of their ids too: their own order is in the block's content (`content_references`).
     async fn list_online(&self, listing: Listing) -> Result<(u64, Vec<BlockSummary>), ClientError> {
         let mut first_sequence = None;
         let mut after = None;
@@ -2990,7 +3066,7 @@ impl<S: ObjectStore> Peer<S> {
             .map(|summary| (summary.id, summary))
             .collect();
         let mut seen = HashSet::new();
-        let mut blocks: Vec<BlockSummary> = entries
+        let blocks: Vec<BlockSummary> = entries
             .into_iter()
             .filter_map(|entry| match entry {
                 Ok(summary) => Some(summary),
@@ -2998,22 +3074,6 @@ impl<S: ObjectStore> Peer<S> {
             })
             .filter(|summary| seen.insert(summary.id))
             .collect();
-        // A block's references come in the order of their ids; the block's own summary, read
-        // after the pages, gives their order, and as new as any of them, so a block it no longer
-        // references has left the listing.
-        if let Listing::References(referrer) = listing
-            && blocks.len() > 1
-            && let Some(summary) = self.read_summaries(&[referrer]).await?.pop()
-        {
-            let order: HashMap<Uuid, usize> = summary
-                .references
-                .iter()
-                .enumerate()
-                .map(|(index, reference)| (*reference, index))
-                .collect();
-            blocks.retain(|block| order.contains_key(&block.id));
-            blocks.sort_by_key(|block| order.get(&block.id).copied().unwrap_or(usize::MAX));
-        }
         Ok((first_sequence.unwrap_or_default(), blocks))
     }
 
@@ -3556,7 +3616,7 @@ impl<S: ObjectStore> Peer<S> {
             chunks,
             time,
             pinned,
-            references: listed.clone(),
+            references: listed,
             metadata: sealed.clone(),
             journal,
         })?;
@@ -3571,7 +3631,6 @@ impl<S: ObjectStore> Peer<S> {
             && let Some(mut summary) = self.refs.summary(block)
         {
             summary.metadata = sealed;
-            summary.references = listed;
             self.refs.revise(summary)?;
         }
         Ok(Sealed::Sealed(id))
@@ -4486,16 +4545,15 @@ fn deduplicated(references: Vec<Uuid>) -> Vec<Uuid> {
 
 /// The block a listing is about, which the server must know to answer it.
 /// Whether a summary read after its listing's first page still belongs to it, as far as the
-/// summary tells: a block the reader may only know exists carries no parent or references, so
-/// it is kept.
+/// summary tells: a block the reader may only know exists carries no parent, so it is kept, and
+/// no summary names what a block references, so a backref or a reference is kept too.
 fn still_in(listing: Listing, summary: &BlockSummary) -> bool {
     let viewed = summary.access.can_view();
     match listing {
         Listing::Children(parent) => !viewed || summary.parent == Some(parent),
         Listing::Deleted => !viewed || (summary.parent.is_some() && !summary.held),
-        Listing::Backrefs(target) => !viewed || summary.references.contains(&target),
         Listing::Shared | Listing::OpenSettings(_) => viewed,
-        Listing::References(_) => true,
+        Listing::Backrefs(_) | Listing::References(_) => true,
     }
 }
 

@@ -48,7 +48,7 @@ fn a_database_view_given_content_references_its_database() {
     be_host_stack::flush_and_send();
     be_host_stack::wait_until("the view references its database", |shared| {
         let node = shared.graph.get(view)?;
-        (node.references == [database]).then_some(())
+        (node.references.as_deref() == Some(&[database][..])).then_some(())
     });
 
     seed(&mut instances, view, other);

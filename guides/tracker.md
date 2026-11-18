@@ -122,8 +122,8 @@ rows.
   answer is limited to them, and `client::bound_may` refuses the calls that reach past one block
   (agents, contacts but listing them, organizations, members, pairing, access, trashing, making a
   block outside it, moving the block itself). It never administers, and its role never changes.
-  A block summary still names its parent and references, so their ids reach it. It is listed in
-  the block's access list, not the Agents menu; a block has at most `MAX_AGENTS_PER_BLOCK` and a
+  A block summary still names its parent, and its content its references, so their ids reach it.
+  It is listed in the block's access list, not the Agents menu; a block has at most `MAX_AGENTS_PER_BLOCK` and a
   creator `MAX_BLOCK_AGENTS_PER_CREATOR`, apart from the creator's own agents. It reaches no
   further than its creator: once the creator no longer manages the block, or the agent loses
   its grant, or the block is collected, it is deleted (`forget_orphaned_block_agents`, after

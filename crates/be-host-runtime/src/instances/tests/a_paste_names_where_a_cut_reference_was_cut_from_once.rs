@@ -91,7 +91,7 @@ fn a_paste_names_where_a_cut_reference_was_cut_from_once() {
     be_host_stack::flush_and_send();
     be_host_stack::wait_until("the holder references the linked block", |shared| {
         let node = shared.graph.get(holder)?;
-        (node.references == [linked]).then_some(())
+        (node.references.as_deref() == Some(&[linked][..])).then_some(())
     });
     be_host_stack::set_parent(holder, BlockParent::Root);
 

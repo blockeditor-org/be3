@@ -448,7 +448,6 @@ fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<Bl
         author: Some(node.author),
         parent: Some(node.parent),
         head: node.head,
-        references: node.references.clone(),
         metadata: node.metadata.clone(),
         version: Some(node.version),
         key: node.key,

@@ -495,6 +495,22 @@ access, references, unsealed `BlockMetadata`, `locked` (no key opens it), the
 server's `size` and `tree_size`, and its `changed` and `entry`. The host never
 lists the whole organization.
 
+No summary names what a block references, so the tree's shape comes from
+parents and a node's `references` (in its content's order: a folder's order,
+its links) from its content: its open replica's report (`Graph::refer`), or
+else read from its head by the worker (`read_references` in worker.rs,
+`Peer::references_of`) and kept per head (`Graph::read`, which a replica's last
+report joins as it closes), or for a block with no content yet its metadata's.
+They are `None` until read. The worker reads them only for a block shown with
+what it holds (its `References` or `Children` asked for, or a child of it
+held: `Graph::take_to_read`), so a folder's order is read without opening it,
+and `ready(Query::References)` waits for the read. Until then a child is held
+as the server says (`block-summary.held`, `Graph::holds_in`), and backrefs are
+the server's listing. Offline the read answers from content this device kept
+(the vault holds the commits it read); a head it cannot read is not tried
+again until a new connection (`Graph::read_failed`, `unread`), and its
+`References` query answers the server's listing meanwhile, in the order of ids.
+
 The stack tells the host what changed rather than being polled: it pushes a
 `Changes` notice (the graph, contacts, storage, stale blocks, search answers,
 notification modes, and the blocks whose content changed) into every

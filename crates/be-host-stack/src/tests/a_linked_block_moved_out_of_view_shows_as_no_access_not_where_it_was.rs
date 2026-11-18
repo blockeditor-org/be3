@@ -79,7 +79,7 @@ fn a_linked_block_moved_out_of_view_shows_as_no_access_not_where_it_was() {
         }) && held
             .graph
             .get(linking)
-            .is_some_and(|node| node.references.contains(&linked))
+            .is_some_and(|node| node.refers_to(linked) == Some(true))
     });
 
     runtime

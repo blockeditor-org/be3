@@ -651,7 +651,7 @@ impl Edit {
             Edit::Create(node) => {
                 if let Some(BlockParent::Block(above)) = node.parent
                     && seen.graph.get(above).is_some_and(|above| {
-                        !above.unfiled() && !above.references.contains(&node.id)
+                        !above.unfiled() && above.refers_to(node.id) != Some(true)
                     })
                 {
                     seen.graph.placing(node.id, true);
@@ -666,7 +666,7 @@ impl Edit {
                     BlockParent::Block(above) => seen
                         .graph
                         .get(*above)
-                        .is_some_and(|above| !above.unfiled() && !above.references.contains(block)),
+                        .is_some_and(|above| !above.unfiled() && above.refers_to(*block) != Some(true)),
                     BlockParent::Root | BlockParent::Detached => false,
                 };
                 seen.graph.placing(*block, placing);

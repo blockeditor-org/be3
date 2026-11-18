@@ -504,7 +504,6 @@ impl<S: ObjectStore> Peer<S> {
             author: Some(self.account),
             parent: Some(creation.parent),
             head: None,
-            references: creation.references.clone(),
             metadata: creation.metadata.clone(),
             version: None,
             key: Some(creation.key),

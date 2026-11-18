@@ -15,7 +15,7 @@ fn a_workspace_made_here_gets_its_index_once_the_peer_kept_its_creation() {
         author: None,
         parent: Some(be_block_graph::BlockParent::Root),
         access: be_block_graph::Access::Manage,
-        references: Vec::new(),
+        references: None,
         metadata: be_block_content::BlockMetadata::default(),
         head: None,
         locked: false,

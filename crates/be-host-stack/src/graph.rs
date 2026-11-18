@@ -50,7 +50,11 @@ pub struct Node {
     pub author: Option<Uuid>,
     pub parent: Option<BlockParent>,
     pub access: Access,
-    pub references: Vec<Uuid>,
+    /// What the block's content references, in its order: its open replica's report, or read
+    /// from the head (`Graph::read_references`), or for a block with no content yet its
+    /// metadata's. None until read, and for a block this account may not read: no summary
+    /// names them.
+    pub references: Option<Vec<Uuid>>,
     pub metadata: BlockMetadata,
     pub head: Option<CommitId>,
     pub locked: bool,
@@ -103,13 +107,23 @@ impl Node {
         self.content_type == be_block_graph::UNFILED_TYPE
     }
 
+    /// What the block's content holds, its metadata's references aside: none while its
+    /// references are not read.
     pub fn contents(&self) -> Vec<Uuid> {
         let described = self.metadata.references();
         self.references
             .iter()
+            .flatten()
             .filter(|reference| !described.contains(reference))
             .copied()
             .collect()
+    }
+
+    /// Whether the block's content references `block`: none while its references are not read.
+    pub fn refers_to(&self, block: Uuid) -> Option<bool> {
+        self.references
+            .as_ref()
+            .map(|references| references.contains(&block))
     }
 }
 
@@ -223,6 +237,17 @@ pub struct Graph {
     pub(crate) copied_on_write: u64,
     derived: imbl::OrdMap<Uuid, Entries>,
     referenced: imbl::OrdMap<Uuid, Vec<Uuid>>,
+    /// What a block's content references, read from a head (`read_references`) for a block no
+    /// replica has open, or kept from its replica's last report as it closed: a node at that
+    /// head takes them, since no summary names them.
+    read: imbl::OrdMap<Uuid, (CommitId, Vec<Uuid>)>,
+    /// Blocks whose head's references the worker is reading (`take_to_read`).
+    #[serde(skip)]
+    reading: imbl::OrdSet<Uuid>,
+    /// Heads whose references could not be read (offline, and not kept on this device): not
+    /// read again until a new connection (`relist_all`). A query answers what the server's
+    /// listing holds meanwhile.
+    unread: imbl::OrdMap<Uuid, CommitId>,
     /// The head an open block's replica last reported, which what the server lists of it does not
     /// outrun: a listing or an event made before the commit reached the server says the head
     /// it had, and the replica says nothing more until the head changes again.
@@ -257,6 +282,8 @@ pub(crate) struct GraphDelta {
     unpublished: Option<<imbl::OrdSet<Uuid> as Diff>::Delta>,
     derived: Option<<imbl::OrdMap<Uuid, Entries> as Diff>::Delta>,
     referenced: Option<<imbl::OrdMap<Uuid, Vec<Uuid>> as Diff>::Delta>,
+    read: Option<<imbl::OrdMap<Uuid, (CommitId, Vec<Uuid>)> as Diff>::Delta>,
+    unread: Option<<imbl::OrdMap<Uuid, CommitId> as Diff>::Delta>,
     reported: Option<<imbl::OrdMap<Uuid, CommitId> as Diff>::Delta>,
     placing: Option<std::collections::HashSet<Uuid>>,
 }
@@ -286,6 +313,9 @@ impl Diff for Graph {
                 copied_on_write: _,
             derived,
             referenced,
+            read,
+            reading: _,
+            unread,
             reported,
             placing,
             placed_recently: _,
@@ -302,6 +332,8 @@ impl Diff for Graph {
             unpublished: Diff::diff(&old.unpublished, unpublished),
             derived: Diff::diff(&old.derived, derived),
             referenced: Diff::diff(&old.referenced, referenced),
+            read: Diff::diff(&old.read, read),
+            unread: Diff::diff(&old.unread, unread),
             reported: Diff::diff(&old.reported, reported),
             placing: changed(&old.placing, placing),
         };
@@ -315,6 +347,8 @@ impl Diff for Graph {
             unpublished,
             derived,
             referenced,
+            read,
+            unread,
             reported,
             placing,
         } = &delta;
@@ -327,6 +361,8 @@ impl Diff for Graph {
             || unpublished.is_some()
             || derived.is_some()
             || referenced.is_some()
+            || read.is_some()
+            || unread.is_some()
             || reported.is_some()
             || placing.is_some();
         changed.then_some(delta)
@@ -343,6 +379,8 @@ impl Diff for Graph {
             unpublished,
             derived,
             referenced,
+            read,
+            unread,
             reported,
             placing,
         } = delta;
@@ -373,6 +411,12 @@ impl Diff for Graph {
         if let Some(referenced) = referenced {
             self.referenced.apply(referenced);
         }
+        if let Some(read) = read {
+            self.read.apply(read);
+        }
+        if let Some(unread) = unread {
+            self.unread.apply(unread);
+        }
         if let Some(reported) = reported {
             self.reported.apply(reported);
         }
@@ -401,6 +445,9 @@ impl PartialEq for Graph {
                 copied_on_write: _,
             derived,
             referenced,
+            read,
+            reading: _,
+            unread,
             reported,
             placing,
             placed_recently: _,
@@ -416,6 +463,8 @@ impl PartialEq for Graph {
             && *unpublished == other.unpublished
             && *derived == other.derived
             && *referenced == other.referenced
+            && *read == other.read
+            && *unread == other.unread
             && *reported == other.reported
             && *placing == other.placing
     }
@@ -624,7 +673,9 @@ impl Graph {
                 }),
         );
         let described = match listing {
-            Listing::References(block) => self.referenced.contains_key(&block),
+            Listing::References(block) => {
+                self.referenced.contains_key(&block) || self.read.contains_key(&block)
+            }
             _ => false,
         };
         listed.members.extend(
@@ -743,6 +794,8 @@ impl Graph {
     /// where it was read to, since the server follows nothing for it yet.
     pub fn relist_all(&mut self) {
         self.heard.clear();
+        // Content that could not be read offline may be read now.
+        self.unread.clear();
         let entries: Vec<Uuid> = self.follows.keys().copied().collect();
         for entry in entries {
             if let Some(follow) = self.follows.get_mut(&entry) {
@@ -764,6 +817,15 @@ impl Graph {
     }
 
     pub fn ready(&self, query: Query) -> bool {
+        // A block's references come from its content, which orders what it holds: ready once
+        // read, or once its content could not be read (answered from the server's listing then).
+        if let Query::References(block) | Query::Children(block) = query
+            && self.nodes.get(&block).is_some_and(|node| {
+                node.references.is_none() && (self.wants_read(node) || self.reading.contains(&block))
+            })
+        {
+            return false;
+        }
         let mut needed = HashSet::new();
         self.listings_for(query, &mut needed);
         needed.iter().all(|listing| {
@@ -918,6 +980,7 @@ impl Graph {
             || node
                 .references
                 .iter()
+                .flatten()
                 .any(|target| self.listings.contains_key(&Listing::Backrefs(*target)))
             || self.listings.keys().any(|listing| {
                 matches!(listing, Listing::References(_))
@@ -1149,6 +1212,8 @@ impl Graph {
         let Some(removed) = self.nodes.remove(&block) else {
             return false;
         };
+        self.read.remove(&block);
+        self.unread.remove(&block);
         self.nodes_moved.insert(block);
         self.count_entry(removed.entry, 0, false);
         true
@@ -1239,7 +1304,7 @@ impl Graph {
     pub fn refers(&self, block: Uuid, references: &[Uuid]) -> bool {
         self.referenced.get(&block).map(Vec::as_slice) == Some(references)
             && self.nodes.get(&block).is_none_or(|node| {
-                node.references == with_described(references.to_vec(), &node.metadata)
+                node.references.as_ref() == Some(&with_described(references.to_vec(), &node.metadata))
             })
             && self
                 .listings
@@ -1262,12 +1327,12 @@ impl Graph {
             .filter(|all| {
                 self.nodes
                     .get(&block)
-                    .is_some_and(|node| node.references != *all)
+                    .is_some_and(|node| node.references.as_ref() != Some(all))
             });
         if let Some(all) = all
             && let Some(node) = self.node_mut(block)
         {
-            node.references = all;
+            node.references = Some(all);
             self.moved();
             self.relist(Listing::References(block));
             self.check_dropped(block, "its open replica's report");
@@ -1308,12 +1373,17 @@ impl Graph {
     /// Notes the children placed in `parent` that its references, just set `by` something, no
     /// longer hold though they still name it. Children that moved elsewhere are forgotten.
     fn check_dropped(&mut self, parent: Uuid, by: &'static str) {
-        let Some(references) = self.nodes.get(&parent).map(|node| {
-            node.references
-                .iter()
-                .copied()
-                .collect::<std::collections::HashSet<Uuid>>()
-        }) else {
+        let Some(references) = self
+            .nodes
+            .get(&parent)
+            .and_then(|node| node.references.as_ref())
+            .map(|references| {
+                references
+                    .iter()
+                    .copied()
+                    .collect::<std::collections::HashSet<Uuid>>()
+            })
+        else {
             return;
         };
         let nodes = &self.nodes;
@@ -1355,8 +1425,95 @@ impl Graph {
         std::mem::take(&mut self.dropped)
     }
 
+    /// An open block's replica closed: what it reported last stays what the block references
+    /// at the head it reported, as if read from it (`read`).
     pub fn forget_references(&mut self, block: Uuid) {
-        self.referenced.remove(&block);
+        if self.referenced.remove(&block).is_some()
+            && let Some(node) = self.nodes.get(&block)
+            && let (Some(head), Some(references)) = (node.head, node.references.clone())
+        {
+            self.read.insert(block, (head, references));
+        }
+    }
+
+    /// Whether a block's references wait to be read from its head (`take_to_read`).
+    pub fn has_to_read(&self) -> bool {
+        !self.to_read().is_empty()
+    }
+
+    /// The blocks whose references to read from their head, with that head, marked as being read
+    /// until `read_references` or `read_failed`.
+    pub fn take_to_read(&mut self) -> Vec<(Uuid, CommitId)> {
+        let found = self.to_read();
+        for (block, _) in &found {
+            self.reading.insert(*block);
+        }
+        found
+    }
+
+    /// Those shown with what they hold (their references or children asked for, or a child of
+    /// theirs held) that this account may read, no replica reports and no read so far covers.
+    fn to_read(&self) -> Vec<(Uuid, CommitId)> {
+        let parents: HashSet<Uuid> = self
+            .nodes
+            .values()
+            .filter_map(|node| node.parent.and_then(BlockParent::block))
+            .collect();
+        self.nodes
+            .values()
+            .filter(|node| self.wants_read(node))
+            .filter(|node| {
+                parents.contains(&node.id)
+                    || self.listings.contains_key(&Listing::References(node.id))
+                    || self
+                        .listings
+                        .contains_key(&Listing::Children(BlockParent::Block(node.id)))
+            })
+            .filter_map(|node| Some((node.id, node.head?)))
+            .collect()
+    }
+
+    /// Whether `node`'s references at its head are still to be read: no replica reports them,
+    /// nothing read them at that head, and no read of that head failed or is under way.
+    fn wants_read(&self, node: &Node) -> bool {
+        let Some(head) = node.head else {
+            return false;
+        };
+        node.access.can_view()
+            && !node.locked
+            && !self.referenced.contains_key(&node.id)
+            && !self.reading.contains(&node.id)
+            && self.read.get(&node.id).is_none_or(|(at, _)| *at != head)
+            && self.unread.get(&node.id) != Some(&head)
+    }
+
+    /// What `block`'s content references at `head`, read by the worker: its node takes them while
+    /// it is at that head and no replica reports them.
+    pub fn read_references(&mut self, block: Uuid, head: CommitId, references: Vec<Uuid>) {
+        self.reading.remove(&block);
+        self.unread.remove(&block);
+        self.read.insert(block, (head, references.clone()));
+        if self.referenced.contains_key(&block) {
+            return;
+        }
+        let at_head = self.nodes.get(&block).is_some_and(|node| {
+            node.head == Some(head) && node.references.as_ref() != Some(&references)
+        });
+        if at_head && let Some(node) = self.node_mut(block) {
+            node.references = Some(references.clone());
+            self.placed(block, &references);
+            self.relist(Listing::References(block));
+            self.moved();
+            self.check_dropped(block, "its content");
+        }
+    }
+
+    /// `block`'s content at `head` could not be read: it is not tried again until a new
+    /// connection, and what shows it answers from the server's listings meanwhile.
+    pub fn read_failed(&mut self, block: Uuid, head: CommitId) {
+        self.reading.remove(&block);
+        self.unread.insert(block, head);
+        self.moved();
     }
 
     /// Puts `node` in the mirror, heard as of `at`, where it is covered, and counts it in its
@@ -1369,7 +1526,22 @@ impl Graph {
             node.head = Some(*head);
         }
         if let Some(references) = self.referenced.get(&node.id) {
-            node.references = with_described(references.clone(), &node.metadata);
+            node.references = Some(with_described(references.clone(), &node.metadata));
+        } else if node.references.is_none() {
+            // No summary names them: what was read at this head, or for a block with no
+            // content yet, its metadata's; at a head not read yet, what was known before, until
+            // the read lands (`wants_read`).
+            let known = || self.nodes.get(&node.id).and_then(|known| known.references.clone());
+            node.references = match node.head {
+                _ if !node.access.can_view() || node.locked => None,
+                Some(head) => self
+                    .read
+                    .get(&node.id)
+                    .filter(|(at, _)| *at == head)
+                    .map(|(_, references)| references.clone())
+                    .or_else(known),
+                None => Some(node.metadata.references()),
+            };
         }
         let changed_references = self
             .nodes
@@ -1378,8 +1550,9 @@ impl Graph {
         if changed_references {
             self.relist(Listing::References(node.id));
         }
-        let references = node.references.clone();
-        self.placed(node.id, &references);
+        if let Some(references) = node.references.clone() {
+            self.placed(node.id, &references);
+        }
         // Only the listings whose membership changes are written: a persistent map copies what
         // it writes while a `Seen` handed over shares it.
         let moved: Vec<(Listing, bool)> = self
@@ -1406,7 +1579,7 @@ impl Graph {
         }
         let by = match self.referenced.contains_key(&node.id) {
             true => "its open replica's report",
-            false => "a listing",
+            false => "its content",
         };
         let id = node.id;
         if self.nodes.get(&node.id).map(|known| &**known) != Some(&node) {
@@ -1542,22 +1715,33 @@ impl Graph {
                 .map(|node| Node::clone(node))
                 .collect(),
             Query::Children(parent) => self.with_parent(BlockParent::Block(parent)),
-            Query::References(block) => {
-                return self.nodes.get(&block).map_or_else(Vec::new, |node| {
-                    node.contents()
+            // In the content's order; while it cannot be read, what the server lists.
+            Query::References(block) => match self.nodes.get(&block) {
+                Some(node) if node.references.is_some() => {
+                    return node
+                        .contents()
                         .iter()
                         .filter_map(|reference| {
                             self.nodes.get(reference).map(|node| Node::clone(node))
                         })
-                        .collect()
-                });
+                        .collect();
+                }
+                Some(_) => self.listed_nodes(Listing::References(block)),
+                None => return Vec::new(),
+            },
+            // Those whose content is read and references it, and those the server lists whose
+            // content is not read.
+            Query::Backrefs(block) => {
+                let listed = self.listings.get(&Listing::Backrefs(block));
+                self.nodes
+                    .values()
+                    .filter(|node| match node.refers_to(block) {
+                        Some(refers) => refers,
+                        None => listed.is_some_and(|listed| listed.members.contains(&node.id)),
+                    })
+                    .map(|node| Node::clone(node))
+                    .collect()
             }
-            Query::Backrefs(block) => self
-                .nodes
-                .values()
-                .filter(|node| node.references.contains(&block))
-                .map(|node| Node::clone(node))
-                .collect(),
             Query::Parents(block) => return self.ancestors(block),
             Query::Block(block) => {
                 return self
@@ -1584,6 +1768,16 @@ impl Graph {
         };
         found.sort_by_key(|node| node.id);
         found
+    }
+
+    fn listed_nodes(&self, listing: Listing) -> Vec<Node> {
+        self.listings
+            .get(&listing)
+            .into_iter()
+            .flat_map(|listed| listed.members.iter())
+            .filter_map(|block| self.nodes.get(block))
+            .map(|node| Node::clone(node))
+            .collect()
     }
 
     pub fn scope_of(&self, block: Uuid) -> Option<Scope> {
@@ -1664,8 +1858,9 @@ impl Graph {
         self.holds_in(node, &mut HashMap::new())
     }
 
-    /// Whether `node`'s parent holds it, with each parent's references made a set once in
-    /// `sets`, so asking of every child of a folder of many is not quadratic.
+    /// Whether `node`'s parent holds it: its parent's content references it, with each parent's
+    /// references made a set once in `sets`, so asking of every child of a folder of many is not
+    /// quadratic; or, while the parent's content is not read, as the server says (`held`).
     fn holds_in(
         &self,
         node: &Node,
@@ -1678,13 +1873,14 @@ impl Graph {
             Some(BlockParent::Root) | None => true,
             Some(BlockParent::Detached) => false,
             Some(BlockParent::Block(parent)) => match self.nodes.get(&parent) {
-                Some(parent) if parent.access.can_view() => {
-                    parent.unfiled()
-                        || sets
-                            .entry(parent.id)
-                            .or_insert_with(|| parent.references.iter().copied().collect())
-                            .contains(&node.id)
-                }
+                Some(parent) if parent.access.can_view() => match &parent.references {
+                    _ if parent.unfiled() => true,
+                    Some(references) => sets
+                        .entry(parent.id)
+                        .or_insert_with(|| references.iter().copied().collect())
+                        .contains(&node.id),
+                    None => node.held,
+                },
                 _ => node.held,
             },
         }
@@ -1760,10 +1956,10 @@ fn member(listing: Listing, node: &Node, nodes: &imbl::OrdMap<Uuid, Arc<Node>>) 
         Listing::Children(parent) => Some(node.parent == Some(parent)),
         Listing::Deleted => Some(node.parent.is_some() && !node.held),
         Listing::Block(block) => Some(block == node.id),
-        Listing::Backrefs(block) => Some(node.references.contains(&block)),
+        Listing::Backrefs(block) => node.refers_to(block),
         Listing::References(block) => nodes
             .get(&block)
-            .map(|referrer| referrer.references.contains(&node.id)),
+            .and_then(|referrer| referrer.refers_to(node.id)),
         Listing::Shared | Listing::OpenSettings(_) => None,
     }
 }

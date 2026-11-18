@@ -89,9 +89,9 @@ pub const MAX_SUMMARIES_ASKED: usize = 4096;
 /// fixed fields around them. An answer sized to fit leaves this much of a frame spare.
 pub const FRAME_ENVELOPE_BYTES: usize = 64 * 1024;
 /// The blocks one block references, which its server refuses past (`create-block`,
-/// `publish`) and a client before it sends them. Every summary lists them, so
-/// with a block's largest metadata (64 KiB on the server) a summary still fits a frame on its
-/// own, which every answer of many summaries sends alone if it must.
+/// `publish`) and a client before it sends them. A publish adding as many still fits a frame:
+/// each is a length byte and 16 bytes. No summary lists them (a reader takes them from the
+/// block's content).
 pub const MAX_REFERENCES: usize = 250_000;
 /// The bytes `value` takes in a frame, whose values are postcard: what a server measures an
 /// answer by so that it fits.
@@ -324,7 +324,6 @@ impl BlockSummary {
             author: None,
             parent: None,
             head: None,
-            references: Vec::new(),
             metadata: Vec::new(),
             version: None,
             key: None,

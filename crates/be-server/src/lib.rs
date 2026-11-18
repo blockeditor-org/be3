@@ -341,10 +341,9 @@ fn contents_room(summaries: usize) -> (usize, usize) {
     let journals = (CONTENTS_BYTES / 2).min(left / 3);
     (CONTENTS_BYTES.min(left - journals), journals)
 }
-// One summary, with the most metadata and references a block may have, fits a frame on its own:
-// each reference is a length byte and 16 bytes, and the rest of a summary is well under 1 KiB.
-pub(crate) const LARGEST_SUMMARY_BYTES: usize =
-    limits::MAX_METADATA_BYTES + limits::MAX_REFERENCES * 17 + 1024;
+// One summary, with the most metadata a block may have, fits a frame on its own: the rest of a
+// summary is well under 1 KiB, and it names none of the block's references (its content does).
+pub(crate) const LARGEST_SUMMARY_BYTES: usize = limits::MAX_METADATA_BYTES + 1024;
 const _: () =
     assert!(LARGEST_SUMMARY_BYTES + be_block_protocol::FRAME_ENVELOPE_BYTES <= MAX_FRAME_BYTES);
 const _: () = assert!(

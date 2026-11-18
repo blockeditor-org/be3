@@ -5,7 +5,7 @@ fn a_blocks_references_are_listed_in_one_request() {
     let view = Uuid::from_u128(1);
     let rows: Vec<Uuid> = (2..200).map(Uuid::from_u128).collect();
     let linking = |references: Vec<Uuid>| Node {
-        references,
+        references: Some(references),
         ..node(view)
     };
     let mut graph = Graph::default();

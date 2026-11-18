@@ -43,7 +43,7 @@ fn offline_a_block_is_out_of_reach_while_this_device_lacks_every_head() {
             author: None,
             parent: Some(be_block_graph::BlockParent::Block(parent)),
             access: be_block_graph::Access::Edit,
-            references: Vec::new(),
+            references: None,
             metadata: be_block_content::BlockMetadata::default(),
             head: Some(lacked),
             locked: false,
