@@ -2,10 +2,7 @@ use super::*;
 
 /// Whether `client` lists `account` among its contacts.
 async fn knows(client: &mut TestClient, account: Uuid) -> bool {
-    client
-        .contacts()
-        .await
-        .contains(&account)
+    client.contacts().await.contains(&account)
 }
 
 #[tokio::test]

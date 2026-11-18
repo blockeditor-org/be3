@@ -45,7 +45,12 @@ async fn a_new_phrase_leaves_the_old_one_unable_to_read_the_accounts_next_commit
         "the new phrase reads what the old one wrote"
     );
     renewed
-        .update(|_| vec![be_block::AccountBlock::set_contact(Uuid::new_v4(), Some(vec![1]))])
+        .update(|_| {
+            vec![be_block::AccountBlock::set_contact(
+                Uuid::new_v4(),
+                Some(vec![1]),
+            )]
+        })
         .await
         .unwrap();
 

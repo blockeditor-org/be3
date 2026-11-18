@@ -23,15 +23,14 @@ async fn a_grantee_who_never_signed_retires_its_old_key_too() {
     let old = member.keys().identity().clone();
 
     let fresh = be_block_keys::RecoveryPhrase::generate().secret();
-    let RecoveryKey {
-        logs, ..
-    } = crate::ask(
-        be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
-            &member.connection(),
-            None,
-            be_block_protocol::Query::RecoveryKey,
-        ),
-    )
+    let RecoveryKey { logs, .. } = crate::ask(be_block_protocol::read::<
+        be_block_protocol::RecoveryKey,
+        _,
+    >(
+        &member.connection(),
+        None,
+        be_block_protocol::Query::RecoveryKey,
+    ))
     .await
     .unwrap();
     assert!(

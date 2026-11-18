@@ -477,9 +477,9 @@ pub async fn set_recovery_key(
     be_block_client::contacts::set_recovery_key(&connection, account, old.as_ref(), &fresh, &pins)
         .await?
         .map_err(|_| AccountError {
-        message: CANNOT_RESEAL.to_owned(),
-        invalid_token: false,
-    })
+            message: CANNOT_RESEAL.to_owned(),
+            invalid_token: false,
+        })
 }
 
 /// Why a new phrase can't be taken on a device without the old one.

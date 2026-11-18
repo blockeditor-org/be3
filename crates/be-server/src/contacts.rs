@@ -2,8 +2,8 @@ use std::collections::BTreeSet;
 
 use be_block_graph::Access;
 use be_block_protocol::{
-    ErrorCode, Invitation, InvitationPreview, InvitationRow, InvitationState, KeyKind,
-    Letter, Link, LinkKind, OrganizationRole, PendingGrant, WrappedBy,
+    ErrorCode, Invitation, InvitationPreview, InvitationRow, InvitationState, KeyKind, Letter,
+    Link, LinkKind, OrganizationRole, PendingGrant, WrappedBy,
 };
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;

@@ -51,7 +51,11 @@ async fn an_older_pin_the_server_sends_again_is_not_taken() {
     .expect("the member pins the organization");
     assert_ne!(kept.root, older.root, "the block took the older pin");
     let laptop = harness.second(&member).await;
-    assert_eq!(laptop.keys().pins(), held, "a new device took the older pin");
+    assert_eq!(
+        laptop.keys().pins(),
+        held,
+        "a new device took the older pin"
+    );
 
     harness.stop().await;
 }

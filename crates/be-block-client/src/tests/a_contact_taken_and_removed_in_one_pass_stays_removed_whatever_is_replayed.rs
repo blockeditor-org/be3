@@ -15,9 +15,10 @@ async fn a_contact_taken_and_removed_in_one_pass_stays_removed_whatever_is_repla
         "Rosa",
         "rosa@example.com",
     );
-    let code = crate::contacts::make_link(&rosa.connection(), rosa.keys().identity(), &rosa_card, None)
-        .await
-        .unwrap();
+    let code =
+        crate::contacts::make_link(&rosa.connection(), rosa.keys().identity(), &rosa_card, None)
+            .await
+            .unwrap();
     crate::contacts::accept_link(
         &guest.connection(),
         guest.keys().identity(),
@@ -49,7 +50,10 @@ async fn a_contact_taken_and_removed_in_one_pass_stays_removed_whatever_is_repla
     assert!(listed.is_empty(), "the removal was not taken: {listed:?}");
 
     let older = crate::contacts::OwnContact::new(rosa_card, 0);
-    let older = crate::contacts::OwnContact { verified: 1, ..older };
+    let older = crate::contacts::OwnContact {
+        verified: 1,
+        ..older
+    };
     for replayed in [letter, older.seal(guest.keys().identity())] {
         harness
             .database()

@@ -696,8 +696,13 @@ impl<S: ObjectStore> Peer<S> {
         // What this account pinned for the organization, from its block in the personal
         // organization (an agent's from the letter its maker left).
         self.keys.set_pinned(
-            crate::contacts::pinned(&connection, self.account, self.keys.identity(), organization)
-                .await?,
+            crate::contacts::pinned(
+                &connection,
+                self.account,
+                self.keys.identity(),
+                organization,
+            )
+            .await?,
         );
         let made = escrows.is_empty();
         self.learn_administrators().await;

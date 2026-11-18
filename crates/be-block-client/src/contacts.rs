@@ -279,12 +279,10 @@ pub const MAX_KEPT_LINKS: usize = 1_000;
 pub const KEPT_INVITATION: u64 = 30 * 86_400_000;
 
 fn now_milliseconds() -> u64 {
-    Uuid::now_v7()
-        .get_timestamp()
-        .map_or(0, |time| {
-            let (seconds, nanos) = time.to_unix();
-            seconds * 1000 + u64::from(nanos) / 1_000_000
-        })
+    Uuid::now_v7().get_timestamp().map_or(0, |time| {
+        let (seconds, nanos) = time.to_unix();
+        seconds * 1000 + u64::from(nanos) / 1_000_000
+    })
 }
 
 impl KeptLink {
@@ -695,7 +693,9 @@ async fn contacts_once(
         let mismatch = match (pinned.get(&contact), readable) {
             (None, _) => None,
             (Some(_), false) => Some(Mismatch::Unreadable),
-            (Some(pin), true) => (records[&contact].verified < pin.verified).then_some(Mismatch::Older),
+            (Some(pin), true) => {
+                (records[&contact].verified < pin.verified).then_some(Mismatch::Older)
+            }
         };
         if mismatch == Some(Mismatch::Older) {
             records.insert(contact, pinned[&contact].clone());
@@ -1048,11 +1048,13 @@ pub async fn set_recovery_key(
             "be-block-client: a new phrase goes on without following the contacts' key changes: {error}"
         );
     }
-    let be_block_protocol::RecoveryKey { sealed, logs, .. } = crate::ask(be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
-        connection,
-        None,
-        be_block_protocol::Query::RecoveryKey,
-    ))
+    let be_block_protocol::RecoveryKey { sealed, logs, .. } = crate::ask(
+        be_block_protocol::read::<be_block_protocol::RecoveryKey, _>(
+            connection,
+            None,
+            be_block_protocol::Query::RecoveryKey,
+        ),
+    )
     .await?;
     let Some(old) = old else {
         if !(sealed.is_empty() && logs.is_empty()) {
@@ -1501,4 +1503,3 @@ pub async fn preview_invitation(
     };
     Ok((preview, card))
 }
-
