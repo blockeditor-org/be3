@@ -168,6 +168,12 @@ pub(super) enum Command {
         block: Uuid,
         editor: EditorId,
     },
+    /// A host component tells a member of its block's host channel something
+    /// (`crate::hosting::tell`).
+    TellMember {
+        block: Uuid,
+        said: be_sdk_api::blocks::MemberSaid,
+    },
     FromEditor {
         block: Uuid,
         editor: EditorId,
@@ -423,6 +429,7 @@ impl Command {
             Command::FromFile { .. } => "from file",
             Command::Attach { .. } => "attach",
             Command::Detach { .. } => "detach",
+            Command::TellMember { .. } => "tell member",
             Command::FromEditor { .. } => "from editor",
             Command::HoldClock(..) => "hold clock",
             Command::OfflineChoices(..) => "offline choices",
@@ -564,6 +571,7 @@ impl Command {
             | Command::FromFile { block, .. }
             | Command::Detach { block, .. }
             | Command::FromEditor { block, .. }
+            | Command::TellMember { block, .. }
             | Command::Create { block, .. }
             | Command::SetParent { block, .. }
             | Command::Define { block, .. }
@@ -742,6 +750,8 @@ pub struct Shared {
     pub presence: HashMap<Uuid, (u64, Vec<Presence>)>,
     pub presence_revision: u64,
     pub peer_messages: HashMap<Uuid, std::collections::VecDeque<(u64, PeerMessage)>>,
+    /// The host's side of the hosted blocks whose lease this device holds (`crate::hosting`).
+    pub(crate) hosting: crate::hosting::Hosting,
     pub peer_message_count: u64,
     /// Passes of the loop in a row whose wait was over before it began: a loop that keeps
     /// waking itself shows here.
@@ -1684,6 +1694,7 @@ impl Session<'_> {
                             Some(message) => self.replicas.heard((peer, shared), message),
                             None => self.replicas.resynchronize((peer, shared)),
                         }
+                        crate::hosting::heard(peer, shared, &self.tasks.0, event.as_ref());
                         heard(peer, shared, &self.tasks.0, event).await;
                         if keyed {
                             self.unlock(peer, shared).await;
@@ -3880,6 +3891,10 @@ async fn apply(
             if !wanted.wanted(block) {
                 replicas.close(block);
             }
+            false
+        }
+        Command::TellMember { block, said } => {
+            crate::hosting::tell(peer, shared, tasks, block, said);
             false
         }
         Command::FromEditor {

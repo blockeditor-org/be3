@@ -49,6 +49,7 @@ pub struct Admitting {
     block: Uuid,
     account: Uuid,
     level: Level,
+    public: be_block_keys::RecoveryPublic,
     channel: Channel,
 }
 
@@ -80,6 +81,7 @@ impl Admitting {
             Admitted {
                 account: self.account,
                 level: self.level,
+                public: self.public,
                 channel: self.channel,
             },
             said,
@@ -93,6 +95,8 @@ impl Admitting {
 pub struct Admitted {
     pub account: Uuid,
     pub level: Level,
+    /// The identity key it spoke with, which `Peer::still_admits` checks the logs name still.
+    pub public: be_block_keys::RecoveryPublic,
     pub channel: Channel,
 }
 
@@ -179,32 +183,56 @@ impl<S: ObjectStore> Peer<S> {
             .as_slice()
             .try_into()
             .map_err(|_| refused("it names no account"))?;
-        let joined = match checked.grants.get(&account) {
-            Some((level, identity)) if *level >= Level::Join => Some((*level, *identity)),
-            _ => None,
-        };
-        let level = match joined {
-            Some(joined) => Some(joined),
-            None => self.held_with_key(&checked, account, Level::View).await?,
-        };
-        let level = match level {
+        let level = match self.member_held(&checked, account).await? {
             Some((level, identity)) if identity.public == responder.joiner => level,
-            _ => return Err(refused("the logs grant it nothing with that key")),
+            _ => return Err(refused("the logs grant it nothing with that key, or bar it")),
         };
-        // A ban binds no editor: one may change the block directly anyway.
-        if level < Level::Edit && checked.banned.contains(&account) {
-            return Err(refused("the block's log bars it"));
-        }
+        let public = responder.joiner;
         let (channel, answer) = responder.accept(&[]);
         Ok((
             Admitting {
                 block,
                 account: Uuid::from_bytes(account),
                 level,
+                public,
                 channel,
             },
             answer,
         ))
+    }
+
+    /// Whether a member the host admitted to `block`'s channel as `account`, speaking with the
+    /// identity key `public`, may stay: the level the signed logs give it now, as `admit`
+    /// checks it, or none once a revocation, a ban or a new key ends it. What a host checks its
+    /// admitted members by again on each access change (plans/hosted_blocks.md, "Hosting").
+    pub async fn still_admits(
+        &self,
+        block: Uuid,
+        account: Uuid,
+        public: &be_block_keys::RecoveryPublic,
+    ) -> Result<Option<Level>, ClientError> {
+        let (_, checked) = self.checked_access(block).await?;
+        Ok(self
+            .member_held(&checked, account.into_bytes())
+            .await?
+            .filter(|(_, identity)| identity.public == *public)
+            .map(|(level, _)| level))
+    }
+
+    /// The level the signed logs give `account` as a member of the host channel of the block
+    /// `checked` is the log of, with the key the record giving it names: Join on the block
+    /// itself, or View or above from anywhere up its path (`held_with_key`); none for one below
+    /// Edit the log bans, since a ban binds no editor.
+    async fn member_held(
+        &self,
+        checked: &Checked,
+        account: [u8; 16],
+    ) -> Result<Option<(Level, PublicIdentity)>, ClientError> {
+        let held = match checked.grants.get(&account) {
+            Some((level, identity)) if *level >= Level::Join => Some((*level, *identity)),
+            _ => self.held_with_key(checked, account, Level::View).await?,
+        };
+        Ok(held.filter(|(level, _)| *level >= Level::Edit || !checked.banned.contains(&account)))
     }
 
     /// Bars `account` from joining `block`'s host (plans/hosted_blocks.md, "Hosting"): signs a

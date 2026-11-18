@@ -10,6 +10,7 @@ mod display;
 mod editors;
 mod frame;
 mod host_files;
+mod hosting;
 mod input;
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 mod instance;
@@ -705,6 +706,8 @@ struct HostCore {
     display_round: Option<u64>,
     block_types: HashMap<Uuid, Uuid>,
     registry: Rc<EditorRegistry>,
+    /// The host components this device runs (plans/hosted_blocks.md, "Hosting").
+    hosts: hosting::Hosts,
     editors: compositor::OwnedEditors,
 
     watched_artifacts: Vec<Uuid>,
@@ -1087,6 +1090,7 @@ impl HostCore {
             display_round: None,
             block_types: HashMap::new(),
             registry,
+            hosts: hosting::Hosts::default(),
             editors,
             watched_artifacts: Vec::new(),
             dynamic_artifact_sessions: HashMap::new(),
@@ -3538,6 +3542,8 @@ impl HostCore {
                 self.queue_reorder(id, Uuid::from_bytes(parent), after.map(Uuid::from_bytes))
             }
             BlockCommand::Restore => self.restore(id),
+            // The runtime answers it for a host component (`Instances::act_on`).
+            BlockCommand::TellMember(_) => {}
             BlockCommand::Place {
                 block_type,
                 parent,
@@ -3738,6 +3744,11 @@ impl HostCore {
             performance::end_frame();
             return;
         }
+        self.hosts.step(
+            self.registry.hosted(),
+            self.registry.app_block_types(),
+            self.client_id,
+        );
         self.process_pending_transfers();
         self.process_pending_reorders();
         self.process_pending_copies();

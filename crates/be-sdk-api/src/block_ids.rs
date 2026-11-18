@@ -235,7 +235,8 @@ impl BlockCommand {
             | Self::Share
             | Self::Leave
             | Self::CloseEditor
-            | Self::Define { .. } => {}
+            | Self::Define { .. }
+            | Self::TellMember(_) => {}
         }
     }
 }
@@ -254,7 +255,8 @@ impl BlockCommand {
             | Self::Reorder { .. }
             | Self::Place { .. }
             | Self::Restore
-            | Self::Define { .. } => true,
+            | Self::Define { .. }
+            | Self::TellMember(_) => true,
             Self::Delete { source, .. } | Self::Move { source, .. } => block(source),
             Self::SetParent(parent) => block(parent),
             Self::Version(command) => command.may_be_made_by_a_host(),

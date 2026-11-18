@@ -18,6 +18,7 @@ pub mod device_push;
 mod diff;
 pub mod discovery;
 mod graph;
+mod hosting;
 pub mod invite_link;
 pub mod keys;
 pub mod link;
@@ -1072,6 +1073,39 @@ pub fn attach(block: Uuid, content_type: Uuid, editor: u64, editable: bool) {
 
 pub fn detach(block: Uuid, editor: u64) {
     send(Command::Detach { block, editor });
+}
+
+/// What the host component running on `block` has yet to hear of its host channel's members
+/// (plans/hosted_blocks.md, "Hosting"), taken: the runtime passes it on as `member-event`s.
+pub fn take_member_events(block: Uuid) -> Vec<be_sdk_api::blocks::MemberEvent> {
+    let held = stack().lock().unwrap_or_else(PoisonError::into_inner);
+    let Some(stack) = held.as_ref() else {
+        return Vec::new();
+    };
+    hosting::take_events(&stack.shared, block)
+}
+
+/// Whether this device's replica holds `block`'s session's lease, so a host component may run
+/// on it here.
+pub fn holds_lease(block: Uuid) -> bool {
+    let held = stack().lock().unwrap_or_else(PoisonError::into_inner);
+    held.as_ref().is_some_and(|stack| {
+        stack
+            .shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .hosting
+            .holds(block)
+    })
+}
+
+/// A host component of `block` tells `member` of its host channel `payload`, sealed on the
+/// member's channel; nothing when it is no admitted member.
+pub fn tell_member(block: Uuid, member: u64, payload: Vec<u8>) {
+    send(Command::TellMember {
+        block,
+        said: be_sdk_api::blocks::MemberSaid { member, payload },
+    });
 }
 
 pub fn from_editor(block: Uuid, editor: u64, frame: &[u8]) {

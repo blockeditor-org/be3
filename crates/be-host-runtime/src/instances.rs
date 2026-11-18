@@ -884,6 +884,13 @@ impl Drop for Instances {
 }
 
 impl Instances {
+    /// Each instance with its role.
+    pub(crate) fn roles(&self) -> impl Iterator<Item = (EditorInstanceId, InstanceRole)> + '_ {
+        self.entries
+            .iter()
+            .map(|(instance, entry)| (*instance, entry.role))
+    }
+
     pub(super) fn translate(&self, message: &mut impl BlockIds, inward: bool) {
         let mut carries = false;
         message.visit_block_ids(&mut |_, _, _| carries = true);
@@ -2299,6 +2306,13 @@ impl Instances {
                         instance,
                         EditorEvent::SetEditable(editable),
                     ));
+                }
+            }
+            // A host component hears its block's host channel members come, speak and go
+            // (plans/hosted_blocks.md, "Hosting"), as the stack admits them.
+            if let InstanceRole::Host(_, block) = entry.role {
+                for event in be_host_stack::take_member_events(block.id) {
+                    opened.push(Outbound::Event(instance, EditorEvent::Member(event)));
                 }
             }
             entry.offer_blocks(scope);

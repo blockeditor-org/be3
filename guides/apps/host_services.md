@@ -309,8 +309,21 @@ app asks (`Instances::hosting`):
 - no shell message but a failure report, no web view, no `open-url`, and no
   gpu. A fetch is the manifest's `network` as for any instance. It is how a
 hosted block's host runs (plans/hosted_blocks.md), in be-host or headless in
-`be` (plans/headless_apps.md); members, the channel and the lease are
-hosted_blocks' to add.
+`be` (plans/headless_apps.md).
+
+be-host runs a block's host component while it hosts the block
+(`crates/be-host/src/hosting.rs`, every frame): an editor of the block is open
+on the device, the account may edit it, and the device's replica holds the
+block's session lease (`be_host_stack::holds_lease`); it stops it otherwise.
+Whoever holds the lease hosts and other editors stand by: the lease follows the
+session's order, so when the holder leaves the next editor's device starts its
+own. The component hears its block's host channel members as `editor-event.member`
+(`member-event`: `joined` with the member's number, account and level, `said`,
+`left`), which be-host-stack admits and checks (`crates/be-host-stack/src/hosting.rs`,
+guides/blocks/keys.md, "Hosted channels") and the runtime passes on
+(`be_host_stack::take_member_events`), and answers one with the block command
+`tell-member`, which only a host component of its own block may send. In
+be-sdk-beui, `Editor::on_member` and `Editor::tell_member`.
 
 ## Workers
 

@@ -316,6 +316,9 @@ impl OpenEditor {
             EditorEvent::Reveal(at) => {
                 wire.call(instance, move |session| session.reveal(at));
             }
+            EditorEvent::Member(event) => {
+                wire.call(instance, move |session| session.member(event));
+            }
         }
     }
 }
