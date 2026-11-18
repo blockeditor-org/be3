@@ -475,7 +475,8 @@ sends it. `Peer::write` does both.
   restores them. A publish refused as a change the server will never take
   (`InvalidRequest`, `ObjectTooLarge`, `CommitAhead`) is set aside the same way rather than
   sent again every round. A refused move or define puts back the summary the server has
-  (`unchanged`, `Drained::Refused` with `restored`).
+  at once, with what still waits of the block laid over it (`unchanged`,
+  `Drained::Refused` with `restored`).
 - `Peer::pending` counts outbox operations, local commits, their blocks and
   unsent blocks.
 

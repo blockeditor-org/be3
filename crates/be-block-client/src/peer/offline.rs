@@ -1151,10 +1151,9 @@ impl<S: ObjectStore> Peer<S> {
 
     /// After the server refused a move or a definition: this device shows the block as the
     /// server has it again, not with the change it refused (its name, its place in a listing).
+    /// What still waits in the outbox of it (a move or definition behind the refused one) is
+    /// laid over the server's summary (`server_summary`), so it is kept.
     async fn unchanged(&self, block: Uuid) {
-        if self.refs.has_structural(block) {
-            return;
-        }
         if let Ok(summary) = self.server_summary(block).await {
             let _ = self.refs.revise(summary);
         }
