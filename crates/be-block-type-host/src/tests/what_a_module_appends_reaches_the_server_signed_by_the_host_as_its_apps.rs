@@ -38,7 +38,7 @@ fn what_a_module_appends_reaches_the_server_signed_by_the_host_as_its_apps() {
         assert!(
             answered
                 .iter()
-                .all(|(_, result)| matches!(result, Ok(Some(_)))),
+                .all(|(_, result)| matches!(result, Ok(appended) if appended.place.is_some())),
             "{answered:?}"
         );
         let heard: Vec<_> = mirror.log().cloned().collect();
