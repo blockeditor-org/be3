@@ -854,10 +854,10 @@ fn stop_now() {
         drop(stack);
         taken.tell();
     }
-    drop(told);
     if stopped {
         changes::everything();
     }
+    drop(told);
 }
 
 /// Stops as a crash would: like `stop`, but the worker ends without keeping what open replicas
