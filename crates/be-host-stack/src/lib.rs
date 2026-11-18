@@ -1435,10 +1435,12 @@ pub fn preview_share_link(
 /// Opens the share link with `code` as the signed-in account.
 pub fn open_share_link(
     code: be_block_keys::InviteCode,
+    expected: (Uuid, be_block_graph::Access),
     reply: impl FnOnce(Result<worker::SharePreview, String>) + Send + 'static,
 ) {
     send(Command::Contact(worker::ContactCommand::OpenShare {
         code,
+        expected,
         reply: replies::expect(reply),
     }));
 }
