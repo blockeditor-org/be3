@@ -17,6 +17,7 @@ fn an_owed_seal_keeps_only_a_hurried_driver_waiting() {
                 journaled: true,
                 clean: false,
                 owes_seal: true,
+                holder: true,
                 diverged: false,
                 unjournaled: None,
                 now: 0,
