@@ -510,6 +510,7 @@ answers!(FromPage, from_page, Page {
     History => Vec<HistoryEntry>,
     Log => Vec<Vec<u8>>,
     Access => AccessList,
+    Names => Vec<AccountName>,
     Keys => KeyPage,
     KeyWork => KeyWork,
     Revocations => Vec<Revocation>,

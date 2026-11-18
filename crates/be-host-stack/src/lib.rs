@@ -47,6 +47,7 @@ use web as platform;
 #[cfg(target_arch = "wasm32")]
 pub use web::{Port, STACK_ENTRY, run_first, run_stack, start_in_worker};
 
+pub use be_block_protocol::AccountName;
 pub use changes::{ChangeWatch, Changes};
 pub use graph::{Graph, Node, Owner, Query, Scope};
 pub use search::{SearchAsk, SearchHit, Searched};
@@ -2375,6 +2376,18 @@ pub fn list_access(
     reply: impl FnOnce(Result<be_block_protocol::AccessList, String>) + Send + 'static,
 ) {
     send(Command::ListAccess {
+        block,
+        reply: replies::expect(reply),
+    });
+}
+
+/// The accounts that may view `block`, and its author, with the names they gave the server
+/// (`query.names`); an editor shows them through `app_graph::members_of`.
+pub fn list_names(
+    block: Uuid,
+    reply: impl FnOnce(Result<Vec<be_block_protocol::AccountName>, String>) + Send + 'static,
+) {
+    send(Command::ListNames {
         block,
         reply: replies::expect(reply),
     });

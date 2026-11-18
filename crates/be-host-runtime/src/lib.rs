@@ -21,6 +21,7 @@ pub use fonts::bundled as bundled_fonts;
 mod headless;
 mod heads;
 mod input;
+mod members;
 mod instances;
 mod layers;
 pub use headless::{Headless, begin_host_frame};

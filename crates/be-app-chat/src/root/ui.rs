@@ -40,7 +40,9 @@ pub const REACTIONS: [(&str, Glyph, &str); 5] = [
 /// updates only when what it shows changed.
 #[derive(Clone, Debug, PartialEq)]
 struct Row {
-    author: String,
+    /// Who wrote it, named as the row shows (`Names`); none for a missing message's row, which
+    /// names nobody.
+    author: Option<Uuid>,
     mine: bool,
     time: String,
     /// When the server took it, for a message that arrived well after its claimed time: it was
@@ -48,7 +50,7 @@ struct Row {
     arrived: Option<String>,
     body: String,
     edited: bool,
-    reply: Option<String>,
+    reply: Option<Quote>,
     reactions: Vec<Reacted>,
     /// The blocks sent with it.
     attachments: Vec<Uuid>,
@@ -61,6 +63,66 @@ struct Row {
     /// The row of a message removed outright, which a later message names
     /// (`ChatContent::gaps`): a line saying so, in its place.
     missing: bool,
+}
+
+/// What a reply quotes: its author and the start of what it said, or that it was deleted.
+#[derive(Clone, Debug, PartialEq)]
+enum Quote {
+    Message(Uuid, String),
+    Deleted,
+}
+
+/// What the chat calls each account: "You", or a member by the name the host gives
+/// (`Editor::members`): its contact card's, or the one the server gave, which the row marks as
+/// unverified. An account the host has not named (before it answers, offline, or one that may no
+/// longer view the chat) shows as "Member" and its account's first digits.
+#[derive(Clone, Copy)]
+struct Names {
+    me: Uuid,
+    members: Memo<HashMap<Uuid, (String, bool)>>,
+}
+
+impl Names {
+    fn new(editor: Editor, me: Uuid) -> Self {
+        let members = editor.members();
+        Self {
+            me,
+            members: create_memo(move || {
+                members
+                    .get()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter(|member| !member.name.is_empty())
+                    .map(|member| (member.account, (member.name, member.verified)))
+                    .collect()
+            }),
+        }
+    }
+
+    fn name(&self, account: Uuid) -> String {
+        if account == self.me {
+            return "You".to_owned();
+        }
+        self.members.with(|members| match members.get(&account) {
+            Some((name, _)) => name.clone(),
+            None => format!("Member {}", &account.simple().to_string()[..4]),
+        })
+    }
+
+    /// Whether `account` is named by what the server says rather than a contact card.
+    fn unverified(&self, account: Uuid) -> bool {
+        account != self.me
+            && self
+                .members
+                .with(|members| members.get(&account).is_some_and(|(_, verified)| !verified))
+    }
+
+    fn quote(&self, quote: &Quote) -> String {
+        match quote {
+            Quote::Message(author, excerpt) => format!("{}: {excerpt}", self.name(*author)),
+            Quote::Deleted => "A deleted message".to_owned(),
+        }
+    }
 }
 
 /// One record a member signed (plans/authorship.md), to ask the host who signed it.
@@ -335,6 +397,7 @@ fn PendingChip(editor: Editor, pending: Pending, link_id: String) -> NodeId {
 pub fn Chat(editor: Editor) -> NodeId {
     let chat: Chat = editor.block_content::<ChatContent>();
     let me = editor.blocks().account_id();
+    let names = Names::new(editor, me);
     let block = editor.block_id();
     // The block signatures bind to: this one, or in a revision preview the one it is of.
     let signing = create_signal(block);
@@ -500,7 +563,11 @@ pub fn Chat(editor: Editor) -> NodeId {
     let replying = create_memo(move || {
         let id = composer.replying.get()?;
         let quoted = rows.try_get(&id).or_else(|| older.rows.try_get(&id))?;
-        Some(quoted.with(|row| format!("Replying to {}: {}", row.author, excerpt(&row.body))))
+        let (author, body) = quoted.with(|row| (row.author, excerpt(&row.body)));
+        Some(format!(
+            "Replying to {}: {body}",
+            author.map(|author| names.name(author)).unwrap_or_default()
+        ))
     });
     let editing = create_memo(move || composer.editing.get().is_some());
 
@@ -560,6 +627,7 @@ pub fn Chat(editor: Editor) -> NodeId {
                     editor
                     chat={chat}
                     me
+                    names
                     id
                     row={shown}
                     composer
@@ -578,6 +646,7 @@ pub fn Chat(editor: Editor) -> NodeId {
                 editor
                 chat={chat}
                 me
+                names
                 id
                 row={shown}
                 composer
@@ -659,7 +728,9 @@ pub fn Chat(editor: Editor) -> NodeId {
                     <Show value={replying}>|reply_label: ReadSignal<String>|
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                             <ListItem grow=1.0>
-                                <Text style=TextStyle::CAPTION>{reply_label}</Text>
+                                <Text style=TextStyle::CAPTION @test_id={"chat.replying"}>
+                                    {reply_label}
+                                </Text>
                             </ListItem>
                             <Button
                                 label="Cancel the reply"
@@ -976,7 +1047,7 @@ fn row_list(
                 .map(|at| at + 1),
         };
         if let Some(at) = at {
-            rows.insert(at, (*message, deleted_row(deletion, me, today)));
+            rows.insert(at, (*message, deleted_row(deletion, today)));
         }
     }
     rows
@@ -1100,7 +1171,7 @@ fn missing_messages(
 /// The row of a message removed outright (`Row::missing`).
 fn missing_row() -> Row {
     Row {
-        author: String::new(),
+        author: None,
         mine: false,
         time: String::new(),
         arrived: None,
@@ -1184,12 +1255,8 @@ fn row(shown: &HashMap<ObjectId, &Shown>, message: &Shown, me: Uuid, today: i64)
         .message
         .reply_to
         .map(|quoted| match shown.get(&quoted) {
-            Some(quoted) => format!(
-                "{}: {}",
-                author(quoted.message.author, me),
-                excerpt(&quoted.body)
-            ),
-            None => "A deleted message".to_owned(),
+            Some(quoted) => Quote::Message(quoted.message.author, excerpt(&quoted.body)),
+            None => Quote::Deleted,
         });
     let reactions = message
         .reactions
@@ -1201,7 +1268,7 @@ fn row(shown: &HashMap<ObjectId, &Shown>, message: &Shown, me: Uuid, today: i64)
         })
         .collect();
     Row {
-        author: author(message.message.author, me),
+        author: Some(message.message.author),
         mine: message.message.author == me,
         proofs: Vec::new(),
         time: time(message.message.time, today),
@@ -1221,14 +1288,6 @@ fn row(shown: &HashMap<ObjectId, &Shown>, message: &Shown, me: Uuid, today: i64)
             .collect(),
         deleted: false,
         missing: false,
-    }
-}
-
-/// No host service names members yet, so others show by their account's first digits.
-fn author(account: Uuid, me: Uuid) -> String {
-    match account == me {
-        true => "You".to_owned(),
-        false => format!("Member {}", &account.simple().to_string()[..4]),
     }
 }
 
@@ -1324,9 +1383,9 @@ fn proofs(content: &ChatContent, message: &Shown) -> Vec<Proof> {
 /// The row of a message whose deletion is forged: only a forged one has a row, so its proof
 /// is forged whatever the deletion's own signature says (one someone else signed as themselves
 /// verifies as theirs).
-fn deleted_row(deletion: &Deletion, me: Uuid, today: i64) -> Row {
+fn deleted_row(deletion: &Deletion, today: i64) -> Row {
     Row {
-        author: author(deletion.author, me),
+        author: Some(deletion.author),
         mine: false,
         time: time(deletion.time, today),
         arrived: None,
@@ -1633,6 +1692,7 @@ fn MessageRow(
     editor: Editor,
     chat: Chat,
     me: Uuid,
+    names: Names,
     id: ObjectId,
     row: ReadSignal<Row>,
     composer: Composer,
@@ -1690,7 +1750,10 @@ fn MessageRow(
     let replaced = create_memo(move || signer.get() == Ok(Trust::Replaced));
     let altered = create_memo(move || signer.get() == Ok(Trust::Altered));
     let forged = create_memo(move || signer.get() == Ok(Trust::Forged));
-    let author = create_memo(move || row.with(|row| row.author.clone()));
+    let account = create_memo(move || row.with(|row| row.author));
+    let author = create_memo(move || account.get().map(|author| names.name(author)).unwrap_or_default());
+    let name_unverified =
+        create_memo(move || account.get().is_some_and(|author| names.unverified(author)));
     let time = create_memo(move || row.with(|row| row.time.clone()));
     let arrived = create_memo(move || row.with(|row| row.arrived.clone().unwrap_or_default()));
     let late = create_memo(move || row.with(|row| row.arrived.is_some()));
@@ -1699,7 +1762,9 @@ fn MessageRow(
     let mine = create_memo(move || row.with(|row| row.mine));
     let actionable = create_memo(move || row.with(|row| !row.deleted));
     let deleted = create_memo(move || !actionable.get());
-    let quote = create_memo(move || row.with(|row| row.reply.clone().unwrap_or_default()));
+    let quote = create_memo(move || {
+        row.with(|row| row.reply.as_ref().map(|quote| names.quote(quote)).unwrap_or_default())
+    });
     let replies = create_memo(move || row.with(|row| row.reply.is_some()));
     let reactions = create_memo(move || {
         row.with(|row| {
@@ -1832,6 +1897,14 @@ fn MessageRow(
                     <ListItem grow=1.0>
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                             <Text weight=Weight::Bold>{author}</Text>
+                            <Show value={name_unverified}>
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    @test_id={format!("chat.message.{id}.name_unverified")}
+                                >
+                                    "unverified name"
+                                </Text>
+                            </Show>
                             <Text style=TextStyle::CAPTION>{time}</Text>
                             <Show value={late}>
                                 <Text

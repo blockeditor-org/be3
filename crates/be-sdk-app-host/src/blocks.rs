@@ -23,6 +23,8 @@ pub enum Subject {
     Head(Uuid),
     Artifact(Uuid),
     Version,
+    /// The accounts that may view the editor's own block, named (`block-subject.members`).
+    Members,
     /// The blocks, histories and panels the host asks the editor to show, a queue the store
     /// hands over when the watch waits (`BlockStore::take_shows`).
     Shows,
@@ -39,6 +41,7 @@ impl From<BlockSubject> for Subject {
             BlockSubject::Head(block) => Self::Head(Uuid::from_bytes(block)),
             BlockSubject::Artifact(block) => Self::Artifact(Uuid::from_bytes(block)),
             BlockSubject::Version => Self::Version,
+            BlockSubject::Members => Self::Members,
         }
     }
 }
@@ -53,6 +56,7 @@ impl Subject {
                 | (Self::Head(_), BlockValue::Head(_))
                 | (Self::Artifact(_), BlockValue::Artifact(_))
                 | (Self::Version, BlockValue::Version(_))
+                | (Self::Members, BlockValue::Members(_))
         )
     }
 }

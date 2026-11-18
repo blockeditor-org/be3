@@ -325,7 +325,7 @@ impl crate::embed::blocks::Call {
                 crate::blocks::BlockSubject::History(block)
                 | crate::blocks::BlockSubject::Head(block)
                 | crate::blocks::BlockSubject::Artifact(block) => visit(existing, block),
-                crate::blocks::BlockSubject::Version => {}
+                crate::blocks::BlockSubject::Version | crate::blocks::BlockSubject::Members => {}
             },
             Self::SearchWatchNew { within, .. } => {
                 if let Some(within) = within {
@@ -367,6 +367,8 @@ impl crate::embed::blocks::Call {
                 | crate::blocks::BlockSubject::Head(_)
                 | crate::blocks::BlockSubject::Artifact(_)
                 | crate::blocks::BlockSubject::Version => true,
+                // Names are for a person to read, and a host has none before it.
+                crate::blocks::BlockSubject::Members => false,
             },
             Self::SearchWatchNew { within, .. } => within.is_some(),
             Self::WriteContent { .. }

@@ -957,6 +957,21 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
         self.link.offer_version(&status);
     }
 
+    /// Answers the editor's watch of who may view its block (`Editor::members`), as be-host
+    /// answers it from the contacts' cards and the server.
+    pub fn set_members(&mut self, members: Vec<be_sdk_beui::BlockMember>) {
+        self.block_id()
+            .expect("the members are of the editor's own block");
+        self.link.offer_members(Ok(members
+            .into_iter()
+            .map(|member| be_sdk_api::BlockMember {
+                account: member.account.into_bytes(),
+                name: member.name,
+                verified: member.verified,
+            })
+            .collect()));
+    }
+
     pub fn set_peers(&mut self, block: Option<Uuid>, peers: Vec<PeerPresence>) {
         self.store.set_presence(
             block,
