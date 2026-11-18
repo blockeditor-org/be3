@@ -51,6 +51,7 @@ pub(crate) enum Effect {
         replica: ReplicaId,
         token: Token,
         bytes: Vec<u8>,
+        along: be_block_content::Along,
     },
     ReadLog {
         replica: ReplicaId,

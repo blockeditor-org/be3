@@ -12,7 +12,7 @@ use uuid::Uuid;
 use super::{Drained, Peer, Signer};
 use crate::{
     ClientError,
-    refs::{Appending, KeptLogHead, Op},
+    refs::{Appending, KeptLogHead, Op, Until},
 };
 
 /// Where an entry `Peer::append` made went.
@@ -123,13 +123,16 @@ fn tree_hashes(hashes: &[Hash]) -> Vec<TreeHash> {
 impl<S: ObjectStore> Peer<S> {
     /// Appends `payload`, which the app `app` wrote, to `block`'s signed log: sealed under the
     /// block's key behind a random salt, signed by this account as that app's (`log_signed`
-    /// over `Said::hash`), and kept in the outbox until the server takes it. Online with nothing of the block
-    /// waiting ahead of it, it is sent at once, with any entries of the block that wait.
+    /// over `Said::hash`), and kept in the outbox, with what goes `along` with it, until the
+    /// server takes it. Online with nothing of the block waiting ahead of it, it is sent at
+    /// once, with any entries of the block that wait. A local account has no server to push
+    /// through or to redact on, so `along` is not kept for it.
     pub async fn append(
         &self,
         block: Uuid,
         app: &str,
         payload: &[u8],
+        along: be_block_content::Along,
     ) -> Result<Appended, ClientError> {
         let key = self.sealing_key(block).await?;
         let said = Said {
@@ -150,11 +153,17 @@ impl<S: ObjectStore> Peer<S> {
         let id = Uuid::new_v4();
         let signature =
             self.sign_authored(block, &be_block_protocol::log_signed(id, said.hash(app)));
+        let announces = match along.announcement {
+            Some(announcement) if !self.local => Some(self.made(key, announcement)?),
+            _ => None,
+        };
         self.refs.push(Op::Append(Appending {
             block,
             id,
             payload: sealed,
             signature,
+            announces,
+            redacts: along.redacts.filter(|_| !self.local),
         }))?;
         if self.local {
             self.settle_locally()?;
@@ -180,6 +189,13 @@ impl<S: ObjectStore> Peer<S> {
             Err(error) if error.is_unreachable() => return Ok(Appended::Kept { id }),
             Err(error) => return Err(error),
         };
+        // What the entries taken announce goes now, unless a drain is under way, which sends
+        // it at its end.
+        if let Err(error) = self.send_announcements().await
+            && !error.is_unreachable()
+        {
+            tracing::warn!("what an entry announces was not sent: {error}");
+        }
         for outcome in drained {
             match outcome {
                 Drained::Appended {
@@ -241,6 +257,25 @@ impl<S: ObjectStore> Peer<S> {
             let sequences: Vec<u64> = batch.iter().map(|(sequence, _)| *sequence).collect();
             match sent {
                 Ok(logged) if logged.len() == batch.len() => {
+                    // What the entries take back is redacted before they leave the outbox: one
+                    // the server cannot be reached for stays, and is sent again, which the
+                    // server answers by its id. A redaction the server refuses (not the
+                    // author's, nor a manager's) is dropped as the entry is kept.
+                    for seq in batch.iter().filter_map(|(_, appending)| appending.redacts) {
+                        match self.redact(block, seq).await {
+                            Ok(()) | Err(ClientError::Refused(..)) => {}
+                            Err(error) if outcomes.is_empty() => return Err(error),
+                            Err(_) => return Ok(outcomes),
+                        }
+                    }
+                    // What they announce is kept to send as they leave it.
+                    let announced: Vec<_> = batch
+                        .iter()
+                        .filter_map(|(_, appending)| appending.announces.clone())
+                        .collect();
+                    if !announced.is_empty() {
+                        self.refs.add_announcements(block, Until::Held, announced)?;
+                    }
                     self.refs.remove(&sequences)?;
                     outcomes.extend(batch.iter().zip(logged).map(|((_, appending), logged)| {
                         Drained::Appended {
