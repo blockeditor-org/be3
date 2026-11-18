@@ -443,13 +443,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   takes or refuses a create, and the exception holds only for one it took, with
   a test where the create names a block that already exists.
 
-- **A contact's name rolled back.** A device shows a contact by the name card
-  the server serves that the contact's key signs (guides/blocks/keys.md,
-  Contacts), so a server can serve an older card the contact signed and show
-  the name they replaced. Done: each device keeps the highest card date it
-  showed per contact in its refs and shows no card dated before it, with a
-  client test where a lying server serves the older card.
-
 ## 19. Local accounts
 
 - **Share and Access offered with no server.** A local account's block menus
