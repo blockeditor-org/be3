@@ -245,6 +245,38 @@ interface host {
     /// generation `seen`, as `notices` answers: at once for any other
     /// generation, such as 0.
     saving: async func(seen: u64) -> saving-state;
+
+    /// Display settings that just changed, which the person keeps or reverts:
+    /// the platform's, so a capability of its own.
+    record display-question {
+        /// Which change it is, which `answer-display` names, so an answer to an
+        /// earlier one changes nothing.
+        round: u64,
+        /// How long the person has to answer, in nanoseconds, counted from
+        /// when the root shows the question: the host reverts the settings
+        /// itself unless kept in time.
+        answer-within: u64,
+    }
+
+    /// Whether the host asks the person to keep display settings.
+    record display-state {
+        /// Which change of it this is, which the next `displays` call names
+        /// as `seen`: never 0.
+        generation: u64,
+        /// The question, while the host asks it.
+        asking: option<display-question>,
+    }
+
+    /// Whether the host asks the person to keep display settings, once it
+    /// differs from the generation `seen`, as `notices` answers: at once for
+    /// any other generation, such as 0.
+    displays: async func(seen: u64) -> display-state;
+
+    /// The person kept (`keep`) or reverted the display settings of `round`,
+    /// or the time to answer ran out (not kept), which the host does; an
+    /// answer to a round it no longer asks changes nothing. It answers at
+    /// once; the change reaches `displays`.
+    answer-display: async func(round: u64, keep: bool);
 }
 
 /// The window's input, which the host hands the root inline on its frame thread
