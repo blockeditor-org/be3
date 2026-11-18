@@ -128,7 +128,7 @@ Its rules:
 - It is be-host's own module, staged with it, never one from user bytes.
 - It never blocks its main thread: no waiting on atomics or on locks another thread may hold.
   These are the browser main thread's rules, which beui already follows.
-- Its own calls have no deadline; only waiting for children does (`Host::frame_deadline`). A slow
+- Its own calls have no deadline; only waiting for children does (`FrameClock::deadline`). A slow
   root frame is a slow frame, as a slow host frame is today.
 - While Space is on, Space is the root and drives the compositor within the same host frame and
   on the same thread (Space and headsets, below).
@@ -576,10 +576,21 @@ Each step lands on its own.
          two replicas' acknowledgements), and when it ends the earlier is started afresh from
          a snapshot (`replica_resumed`); a replica ends only once no replica holds its block. be-sdk-test's watches now drop a value they were
          answered already, as be-host's did.
-     - 4e4. be-host-runtime's orchestration in the library: pacing, settling against the
-       deadline, the layout and present holds (`Laid`, `Kept`), restarts and grafting the
-       accessibility trees, on be-lib-geometry rather than beui's geometry, with be-host-runtime
-       driving it. It may split again.
+     - 4e4. be-host-runtime's orchestration in the library, with be-host-runtime driving it, in
+       sub-steps:
+       - 4e4a. Built: pacing and settling, `be_sdk_app_host::pacing`. `Pacing` decides when an
+         app is asked for a frame (`ask`, which records the request and says whether to send
+         the `Draw` now, later, or once the app's input is taken in) and what its layouts and
+         presents count for (`laid_out`, `presented`, `answered`); `FrameClock` keeps the
+         display's presents and the host's composites, gives one deadline per host frame
+         (`deadline`) and settles against it (`settle`, over a `Settling` the host implements
+         with its runtimes and its bell), recording the time waited and the frames over
+         budget; `held_behind` orders placers before their children. be-host-runtime keeps
+         which runtimes are asked, their placers and its bell, and sends the `Draw`. Its pacing
+         tests moved with it. No geometry was involved.
+       - 4e4b. The layout and present holds (`Laid`, `Kept`, `Closing`), restarts and grafting
+         the accessibility trees, on be-lib-geometry rather than beui's geometry. It may split
+         again.
      - 4e5. A root built on the library embeds an editor without the host's compositor, shown by
        a host test, and the root gets its `input` export, routed by `Router` over its last
        list. be-host runs it through a run option that starts a root module in place of its

@@ -1,6 +1,6 @@
 [package]
 name = "be-sdk-app-host"
-description = "The host's half of the app protocol: an app's wire, what host and app say on it, docks across apps, sent states and the session, with no GUI framework or block stack"
+description = "The host's half of the app protocol: an app's wire, what host and app say on it, docks across apps, sent states, the session and frame pacing, with no GUI framework or block stack"
 edition.workspace = true
 version.workspace = true
 license.workspace = true

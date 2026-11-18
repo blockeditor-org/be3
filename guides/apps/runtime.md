@@ -229,10 +229,18 @@ left untimed since the clock costs more than they do and count in the step;
 The request leaves as soon as the frame's input is delivered when the host has
 nothing to lay out (so the editor draws while the host finishes), and
 otherwise after the host's layout, at `settle`. A runtime is asked at most
-once per host frame (`Pacing::asked_in`). A child whose placer draws in this
-frame is held until the placer's layout commit lands (`Host::request_frames`),
-so it is asked once, at its new place; `Host::held_behind` breaks a cycle of
-two apps placing each other. Input the host routes always brings a request.
+once per host frame (`Pacing::ask`). A child whose placer draws in this
+frame is held until the placer's layout commit lands (`request_frames` in
+be-host-runtime's `runtime.rs`), so it is asked once, at its new place;
+`pacing::held_behind` breaks a cycle of two apps placing each other. Input the
+host routes always brings a request.
+
+The pacing is be-sdk-app-host's (`be_sdk_app_host::pacing`), so any host of the
+protocol paces as be-host does: `Pacing` decides when one app is asked and what
+its answers count for, `FrameClock` keeps the deadline and settles against it,
+and `held_behind` orders placers before their children. be-host-runtime keeps
+what it decides from (which apps are asked, their placers, the bell) and sends
+the `Draw` itself.
 
 Input reaches an app on its own stream, apart from the screens it is given, so
 input aimed at a screen the host just took back can follow the screens that
@@ -249,7 +257,7 @@ placer resizing a child), beui lays out and runs the hook again
 (`Document::run_laid_out_again`, up to `LAYOUTS_PER_FRAME`), so the resized
 child is drawn in the frame its placer moved it.
 
-It waits until the frame's deadline (`Host::frame_deadline`): the display's
+It waits until the frame's deadline (`FrameClock::deadline`): the display's
 next present less the time the host's own work after settle has been taking.
 While a driven host's clock is stopped (guides/running/drive.md) it waits for
 every answer, up to `STOPPED_CLOCK_FRAME_BUDGET`, so a slow machine never
