@@ -75,6 +75,7 @@ impl HostContent {
             session: self.session,
             unsettled: self.unsettled,
             applied: self.applied,
+            reloads: 0,
         }
     }
 }
@@ -1590,7 +1591,9 @@ impl EditorHost {
                 channel,
                 payload,
             } => self.send_to_peers(block, to, channel, payload),
+            // In order with the operations: it says which were made before a reload.
             message @ (FromEditor::Operate { .. }
+            | FromEditor::Shown { .. }
             | FromEditor::Gesture { .. }
             | FromEditor::Break
             | FromEditor::Replace(_)) => {

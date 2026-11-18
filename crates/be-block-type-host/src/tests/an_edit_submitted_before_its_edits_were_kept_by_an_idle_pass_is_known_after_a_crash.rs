@@ -72,7 +72,7 @@ fn an_edit_submitted_before_its_edits_were_kept_by_an_idle_pass_is_known_after_a
         .await;
 
         replicas.hold_kept_edits = true;
-        receive_frames(&shared, editor, &mut mirror);
+        receive_frames(&shared, &mut replicas, block, editor, &mut mirror);
         for typed in ["b", "d"] {
             let before = heard_entries(&peer, block);
             type_at_start(&mut replicas, block, editor, &mut mirror, typed);
@@ -84,7 +84,7 @@ fn an_edit_submitted_before_its_edits_were_kept_by_an_idle_pass_is_known_after_a
                 |peer| heard_entries(peer, block) > before,
             )
             .await;
-            receive_frames(&shared, editor, &mut mirror);
+            receive_frames(&shared, &mut replicas, block, editor, &mut mirror);
         }
         drop(replicas);
 

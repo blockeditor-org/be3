@@ -32,7 +32,7 @@ fn what_a_module_appends_reaches_the_server_signed_by_the_host_as_its_apps() {
         let mut answered = Vec::new();
         while answered.len() < 2 || mirror.log().count() < 2 {
             step(&peer, &shared, &mut replicas).await;
-            receive_frames(&shared, editor, &mut mirror);
+            receive_frames(&shared, &mut replicas, block, editor, &mut mirror);
             answered.extend(mirror.take_appended());
         }
         assert!(
