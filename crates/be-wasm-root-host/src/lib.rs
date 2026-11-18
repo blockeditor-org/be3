@@ -469,7 +469,11 @@ impl<G: Inline> Core<G> {
     /// answered already, or the root stopped waiting) changes nothing, and the secret is
     /// dropped, which zeroes it.
     fn answer_secret(&mut self, id: u64, secret: Option<be_wasm_root_api::CoreSecret>) -> bool {
-        let Some(at) = self.secret_replies.iter().position(|(asked, _)| *asked == id) else {
+        let Some(at) = self
+            .secret_replies
+            .iter()
+            .position(|(asked, _)| *asked == id)
+        else {
             return false;
         };
         let (_, reply) = self.secret_replies.remove(at);

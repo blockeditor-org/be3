@@ -25,7 +25,9 @@ be_wasm_ops_bindgen::generate!({
 pub use frames::{FrameDone, FrameRequest};
 pub use host::{
     AccountRow, BrowserSignIn, CoreCommand, CoreSecret, CoreView, CoreWait, DiscardReason,
-    InvitationRow, InvitationState, InvitationsArea, Reauthenticating, SecretCommand, Invitation, OrganizationRow,
-    OrganizationsArea, OrganizationsListed, ProfileRow, SessionKind, SessionRow, SessionsArea, DisplayQuestion, DisplayState, HostStatistics, LockState, Notice, NoticeAction, PowerAction, SavingState, ShownNotices,
-    NewAccount, Refusal, ServerAccount, SetAside, SigningIn, StatisticRow, SyncState, UnsentEdit,
+    DisplayQuestion, DisplayState, HostStatistics, Invitation, InvitationRow, InvitationState,
+    InvitationsArea, LockState, NewAccount, Notice, NoticeAction, OrganizationRow,
+    OrganizationsArea, OrganizationsListed, PowerAction, ProfileRow, Reauthenticating, Refusal,
+    SavingState, SecretCommand, ServerAccount, SessionKind, SessionRow, SessionsArea, SetAside,
+    ShownNotices, SigningIn, StatisticRow, SyncState, UnsentEdit,
 };

@@ -23,10 +23,10 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    AccountRow, CoreCommand, CoreSecret, SecretCommand, CoreView, CoreWait, DiscardReason, InvitationRow,
-    InvitationState, OrganizationRow, OrganizationsListed, ProfileRow,
-    SessionRow, DisplayQuestion, FrameDone, FrameRequest, HostStatistics, LockState,
-    NewAccount, Notice, PowerAction, Refusal, SavingState, ServerAccount, SetAside, StatisticRow, SyncState, UnsentEdit,
+    AccountRow, CoreCommand, CoreSecret, CoreView, CoreWait, DiscardReason, DisplayQuestion,
+    FrameDone, FrameRequest, HostStatistics, InvitationRow, InvitationState, LockState, NewAccount,
+    Notice, OrganizationRow, OrganizationsListed, PowerAction, ProfileRow, Refusal, SavingState,
+    SecretCommand, ServerAccount, SessionRow, SetAside, StatisticRow, SyncState, UnsentEdit,
     guest::{
         exports::{frames, input, paintings},
         host,
@@ -41,15 +41,16 @@ use beui::{
 };
 
 use crate::{
-    DISCARD_TITLE, INVITATIONS_TITLE, OPENS_INVITATIONS, REAUTH_TITLE, ONBOARDING_LAYER,
-    ONBOARDING_SURFACE, ORGANIZATIONS_TITLE, SESSIONS_TITLE, ADD_ACCOUNT_TITLE, FORGET_ACCOUNT_TITLE, SIGN_IN_TITLE,
-    APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DISCARD_UNSENT_TITLE, OPENS_UNSENT, UNSENT_TITLE, DIALOG_ORIGIN, KEEP_DISPLAY_TITLE, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
-    LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG,
-    OPENS_STATISTICS, ORIGIN, RASTER, RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE,
-    SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE, SIZE, SLOW_SAVE, SLOW_SAVE_TITLE,
+    ADD_ACCOUNT_TITLE, APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DIALOG_ORIGIN, DIALOG_SIZE,
+    DIALOG_SURFACE, DIALOG_TITLE, DISCARD_TITLE, DISCARD_UNSENT_TITLE, FORGET_ACCOUNT_TITLE,
+    INVITATIONS_TITLE, KEEP_DISPLAY_TITLE, LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE,
+    LOCKS_SESSION, ONBOARDING_LAYER, ONBOARDING_SURFACE, OPENS_DIALOG, OPENS_INVITATIONS,
+    OPENS_STATISTICS, OPENS_UNSENT, ORGANIZATIONS_TITLE, ORIGIN, RASTER, REAUTH_TITLE, RESIZED,
+    RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER,
+    SCRIM_SURFACE, SESSIONS_TITLE, SIGN_IN_TITLE, SIZE, SLOW_SAVE, SLOW_SAVE_TITLE,
     SLOW_SAVE_TOAST, STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE,
     STATISTICS_TITLE, STRAY_PASSWORD, TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA,
-    TOAST_LAYER, TOAST_SURFACE, UNLOCKS_TWICE, UNPRESENTED_SURFACE,
+    TOAST_LAYER, TOAST_SURFACE, UNLOCKS_TWICE, UNPRESENTED_SURFACE, UNSENT_TITLE,
 };
 
 /// The triangle's editor, by its manifest's id.
@@ -710,7 +711,11 @@ impl Root {
             .as_ref()
             .is_some_and(|dialog| dialog.signs_in);
         let wanted = self.wanted.borrow_mut().take();
-        let open_host = self.dialog.borrow().as_ref().and_then(|dialog| dialog.host_asks);
+        let open_host = self
+            .dialog
+            .borrow()
+            .as_ref()
+            .and_then(|dialog| dialog.host_asks);
         let (reauthenticating, signing_in, discarding) = {
             let core = self.core.borrow();
             (
@@ -956,10 +961,14 @@ impl Root {
                     Asking::Host(HostAsks::Reauth) => {
                         let core = create_signal(core);
                         core_shown.set(Some(core));
-                        view! { <ReauthDialog core={core} done={done} /> }
+                        view! {
+                            <ReauthDialog core={core} done={done} />
+                        }
                     }
                     Asking::Host(HostAsks::Discard(reason)) => {
-                        view! { <DiscardDialog reason done={done} /> }
+                        view! {
+                            <DiscardDialog reason done={done} />
+                        }
                     }
                     Asking::Invitations => {
                         let core = create_signal(core);
@@ -981,7 +990,13 @@ impl Root {
                             });
                         });
                         view! {
-                            <InvitationsDialog core={core} link={link} pending={pending} ask={ask} done={done} />
+                            <InvitationsDialog
+                                core={core}
+                                link={link}
+                                pending={pending}
+                                ask={ask}
+                                done={done}
+                            />
                         }
                     }
                     Asking::ForgetAccount { key, name } => {
@@ -2201,7 +2216,10 @@ fn ReauthDialog(core: Signal<CoreView>, done: Callback<Closed>) -> NodeId {
     let asked = create_memo(move || core.with(|view| view.reauthenticating.clone()));
     let lead = create_memo(move || {
         asked.with(|asked| {
-            let name = asked.as_ref().map(|asked| asked.name.as_str()).unwrap_or_default();
+            let name = asked
+                .as_ref()
+                .map(|asked| asked.name.as_str())
+                .unwrap_or_default();
             format!("{name}'s sign-in ended. Sign in again to go on.")
         })
     });
@@ -2306,7 +2324,9 @@ fn InvitationsDialog(
     });
     let copy = move || {
         if let Some(text) = link.with_untracked(|link| {
-            link.as_ref().and_then(|link| link.0.as_str()).map(str::to_owned)
+            link.as_ref()
+                .and_then(|link| link.0.as_str())
+                .map(str::to_owned)
         }) {
             be_wasm_ops::guest::spawn(async move {
                 let item = be_lib_ui_types::ClipItem::text(text);
@@ -2350,7 +2370,11 @@ fn InvitationsDialog(
                             });
                             let has_link = create_memo(move || row.with(|row| row.has_link));
                             view! {
-                                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=Space::Sm
+                                >
                                     <ListItem grow=1.0>
                                         <Text style=TextStyle::CAPTION>{title}</Text>
                                     </ListItem>
@@ -2415,7 +2439,9 @@ fn invitation_title(row: &InvitationRow) -> String {
     };
     let made = format!("{state} · made by {} on {}", row.inviter, date(row.created));
     match (&row.state, &row.accepter, row.ended) {
-        (InvitationState::Accepted, Some(by), Some(on)) => format!("{made} · by {by} on {}", date(on)),
+        (InvitationState::Accepted, Some(by), Some(on)) => {
+            format!("{made} · by {by} on {}", date(on))
+        }
         (InvitationState::Revoked, _, Some(on)) => format!("{made} · revoked {}", date(on)),
         _ => format!("{made} · expires {}", date(row.expires)),
     }
@@ -2433,7 +2459,11 @@ fn date(milliseconds: i64) -> String {
     let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
     let shifted = (5 * day_of_year + 2) / 153;
     let day = day_of_year - (153 * shifted + 2) / 5 + 1;
-    let month = if shifted < 10 { shifted + 3 } else { shifted - 9 };
+    let month = if shifted < 10 {
+        shifted + 3
+    } else {
+        shifted - 9
+    };
     let year = year_of_era + era * 400 + i64::from(month <= 2);
     format!("{year}-{month:02}-{day:02}")
 }
