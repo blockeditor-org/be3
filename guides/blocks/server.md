@@ -842,8 +842,9 @@ needs code of its own for any method.
   transaction of the change it tells, so none is lost between the two, and
   tells the account's connections that follow the topic; a device deletes what
   it took, which tells the account's other devices that its block changed.
-  Removing a contact deletes what each left the other, with the links between
-  them, before leaving each its `letter.removed`. An account holds at most
+  Removing a contact deletes what each left the other but a record not yet
+  taken, with the links between them, before leaving each its
+  `letter.removed`. An account holds at most
   `MAX_LETTERS_FROM_ONE` letters of each kind from one sender (so at most that
   many times `MAX_CONTACTS_PER_ACCOUNT`). Past it, accepting another link is
   refused, but a key change never is, since a new phrase is what an account

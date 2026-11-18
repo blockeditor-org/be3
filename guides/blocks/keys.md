@@ -899,7 +899,9 @@ keys the granter verified that way, which every device then seals to.
   takes back a removal nor follows a change twice. A removal is kept as such
   (`contacts::KeptContact::Removed`, with the newest `verified` and `through`
   the record had reached), so a record letter the server replays afterwards is
-  taken only if newer, as a new link's always is. The server cannot read or
+  taken only if newer, as a new link's always is; `remove-contact` leaves a
+  record letter not yet taken ahead of the removal, so one pass that takes both
+  keeps the removal with that record. The server cannot read or
   make a record, but it could serve an older version of the block to bring
   back a key the contact replaced, so each device pins the newest record of
   each contact it has seen (refs' `Contacts`), refuses an older one, keeps
