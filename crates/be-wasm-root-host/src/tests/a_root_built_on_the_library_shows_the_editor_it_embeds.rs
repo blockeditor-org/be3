@@ -1,6 +1,8 @@
 use be_lib_geometry::pos2;
 use be_lib_layers::Layer;
-use be_sdk_root_testing::{CLOSES, ORIGIN, RASTER, ROOT_LAYER as EMBEDDING_ROOT_LAYER, SCREEN_SIZE};
+use be_sdk_root_testing::{
+    CLOSES, ORIGIN, RASTER, ROOT_LAYER as EMBEDDING_ROOT_LAYER, SCREEN_SIZE,
+};
 
 use super::*;
 
@@ -36,7 +38,10 @@ fn a_root_built_on_the_library_shows_the_editor_it_embeds() {
     let mut root = start(EMBEDDING_ROOT);
     let screen = shown_screen(&mut root, 1);
     let Surface::Screen { instance, surface } = screen.surface else {
-        panic!("the editor's layer shows a screen, not {:?}", screen.surface);
+        panic!(
+            "the editor's layer shows a screen, not {:?}",
+            screen.surface
+        );
     };
     let pixels = (SCREEN_SIZE.0 * RASTER, SCREEN_SIZE.1 * RASTER);
     assert_eq!(screen.size, pixels, "the screen is painted at its raster");
