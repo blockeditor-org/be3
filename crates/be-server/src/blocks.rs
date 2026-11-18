@@ -2214,7 +2214,7 @@ impl ServerStore {
         identity: Identity,
         block: Uuid,
     ) -> Result<AccessList, ServerError> {
-        self.with_graph(identity.organization, move |store, graph, database| {
+        self.with_graph(identity.organization, move |_, graph, database| {
             require_manage(graph, &visibility(identity), block)?;
             let company = crate::keys::organization_kind(database, identity.organization)?
                 == be_block_protocol::OrganizationKind::Company;
