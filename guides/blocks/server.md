@@ -427,7 +427,8 @@ counts and records nothing: `reserve-uploads` did before it signed.
   `MAX_HOST_MESSAGE_BYTES`. The payload is sealed end to end
   (guides/blocks/keys.md, "Hosted channels"). `query.log` proves, on a path
   to a reader below Edit, the account holding the lease of each session the
-  connection is in, for the block's log and the logs above it. Beside what
+  connection is in whose block is the log's block or lies below it, and on no
+  other block's log. Beside what
   the plan grants it, a Join member learns, as `KnowExists` and View members
   already do, its no-access summary's `changed` and the length of the log.
   `recheck_sessions` takes out a Join member that lost `Join`, and a

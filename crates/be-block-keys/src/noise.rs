@@ -38,11 +38,7 @@ pub fn hosted_prologue(block: [u8; 16], head: crate::EntryHash) -> Vec<u8> {
 
 /// Overwrites `bytes` with zeros in a way the compiler keeps, for a secret going out of use.
 fn wipe(bytes: &mut [u8]) {
-    for byte in bytes.iter_mut() {
-        // SAFETY: `byte` is a valid, aligned, exclusive reference to a `u8`.
-        unsafe { std::ptr::write_volatile(byte, 0) };
-    }
-    std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
+    zeroize::Zeroize::zeroize(bytes);
 }
 
 /// The cipher the protocol runs on. The channel always uses this crate's one seal; Noise's own
@@ -442,7 +438,10 @@ impl Channel {
         self.broken
     }
 
-    /// `plain`, sealed as the next message: its counter, then the ciphertext.
+    /// `plain`, sealed as the next message: its counter, then the ciphertext. The counter
+    /// advances now, so a send the server refuses (`SlowDown`) or that fails is sent again with
+    /// these same bytes, never sealed again: another seal would leave a gap that breaks the
+    /// channel.
     pub fn seal(&mut self, plain: &[u8]) -> Vec<u8> {
         let counter = self.sent;
         self.sent += 1;
