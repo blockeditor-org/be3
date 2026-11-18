@@ -58,7 +58,9 @@ struct Parts {
 /// A number shown as a face that a horizontal drag scrubs and a click or
 /// Space/Enter turns into a text field. In the field, Enter or losing the focus
 /// keeps the typed number, clamped to `min` and `max`; Escape reverts it and
-/// returns the focus to the face.
+/// returns the focus to the face. A scrub writes `value` on every move between
+/// `on_scrub(true)` and `on_scrub(false)`, so an owner can hold those writes until
+/// release; a cancelled scrub writes back the value it started from first.
 #[component]
 pub fn NumberInput(
     #[prop(default = ComponentRef::new())] api: ComponentRef<NumberInputApi>,
@@ -137,8 +139,18 @@ pub fn NumberInput(
         Some((_, _, true)) => on_scrub.call(false),
         None => {}
     };
+    // A scrub ends when the press does, whether or not the release counts as a click.
+    let press_change = move |pressed: bool| {
+        active.set(pressed);
+        if !pressed && let Some((_, _, true)) = held.get() {
+            held.set(None);
+            on_scrub.call(false);
+        }
+    };
     let cancelled = move || {
-        if let Some((_, _, true)) = held.take() {
+        if let Some((_, start, true)) = held.take() {
+            text.set(format_number(start, decimals.get_untracked()));
+            value.set(start);
             on_scrub.call(false);
         }
     };
@@ -244,7 +256,7 @@ pub fn NumberInput(
                                 on_click={clicked}
                                 on_cancel={cancelled}
                                 on_hover_change={hovered}
-                                on_active_change={active}
+                                on_active_change={press_change}
                                 children={Some(face)}
                             />
                         </Kept>

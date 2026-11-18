@@ -193,16 +193,31 @@ fn RenameBody(
             .blocks()
             .define(block, ICON_COLOR.definition(color.as_ref()));
     });
+    let write_color = move |color: Color32| {
+        let [r, g, b, _] = color.to_array();
+        set_color.call(Some([r, g, b]));
+    };
+    // A drag through the picker previews here and writes the block's colour once, on release.
+    let dragging = create_signal(false);
     let custom = Binding::new(
         create_memo(move || {
             let look = look.get();
-            rgb(look.color.or(look.type_color).unwrap_or(NEUTRAL))
+            previewed
+                .get()
+                .unwrap_or_else(|| rgb(look.color.or(look.type_color).unwrap_or(NEUTRAL)))
         }),
-        move |color: Color32| {
-            let [r, g, b, _] = color.to_array();
-            set_color.call(Some([r, g, b]));
+        move |color: Color32| match dragging.get_untracked() {
+            true => previewed.set(Some(color)),
+            false => write_color(color),
         },
     );
+    let drag_change = move |now: bool| {
+        dragging.set(now);
+        if !now && let Some(color) = previewed.get_untracked() {
+            write_color(color);
+            previewed.set(None);
+        }
+    };
     let search = create_signal(String::new());
     let rows = create_memo(move || {
         let search = search.get();
@@ -287,7 +302,7 @@ fn RenameBody(
                     value={custom}
                     label="Custom color"
                     alpha=false
-                    on_preview={move |preview: Option<Color32>| previewed.set(preview)}
+                    on_drag_change={drag_change}
                 />
                 <Text style=TextStyle::CAPTION>"Icon"</Text>
                 <TextInput

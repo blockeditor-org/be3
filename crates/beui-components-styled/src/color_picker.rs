@@ -60,9 +60,9 @@ pub fn ColorPicker(
     #[prop(default = DEFAULT_SWATCHES.to_vec())] swatches: Vec<Color32>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
-    on_preview: Callback<Option<Color32>>,
+    on_drag_change: Callback<bool>,
 ) -> NodeId {
-    let picker: ColorPickerState = ColorPickerState::new(value, disabled, on_preview);
+    let picker: ColorPickerState = ColorPickerState::new(value, disabled, on_drag_change);
     let color = picker.color();
     let has_swatches = !swatches.is_empty();
     let shown = picker.shown();

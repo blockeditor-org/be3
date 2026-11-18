@@ -60,14 +60,14 @@ pub fn ColorWheel(
     #[prop(default = WheelModel::default())] model: WheelModel,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
-    on_preview: Callback<Option<Color32>>,
+    on_drag_change: Callback<bool>,
 ) -> NodeId {
     match model {
         WheelModel::Hsv => view! {
-            <HsvWheel value focused disabled on_preview />
+            <HsvWheel value focused disabled on_drag_change />
         },
         WheelModel::Oklch => view! {
-            <OklchWheel value focused disabled on_preview />
+            <OklchWheel value focused disabled on_drag_change />
         },
     }
 }
@@ -77,9 +77,9 @@ fn HsvWheel(
     value: Binding<Color32>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
-    on_preview: Callback<Option<Color32>>,
+    on_drag_change: Callback<bool>,
 ) -> NodeId {
-    let picker: ColorPickerState<Hsva> = ColorPickerState::new(value, disabled, on_preview);
+    let picker: ColorPickerState<Hsva> = ColorPickerState::new(value, disabled, on_drag_change);
     let color = picker.color();
     let point = create_memo(move || WheelPoint::of_hsva(color.get()));
     view! {
@@ -106,9 +106,9 @@ fn OklchWheel(
     value: Binding<Color32>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
-    on_preview: Callback<Option<Color32>>,
+    on_drag_change: Callback<bool>,
 ) -> NodeId {
-    let picker: ColorPickerState<Oklch> = ColorPickerState::new(value, disabled, on_preview);
+    let picker: ColorPickerState<Oklch> = ColorPickerState::new(value, disabled, on_drag_change);
     let color = picker.color();
     let point = create_memo(move || WheelPoint::of_oklch(color.get()));
     let accessibility = create_memo(move || {

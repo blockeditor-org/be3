@@ -1,7 +1,6 @@
 # Declarative dragging: drags as the places they can lead to
 
-Depends on: plans/tentative_gestures.md, before a site previews by holding a tentative gesture;
-plans/host_as_platform_adapter.md, step 4f (the forwarding router, built in step 3, routing the
+Depends on: plans/host_as_platform_adapter.md, step 4f (the forwarding router, built in step 3, routing the
 host's input over the layer list), before step 6.
 
 Every drag in beui becomes a description of where the dragged thing can end up, adapted from
@@ -323,12 +322,15 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      carry cannot step into it yet (plans/backlog.md, Keyboard steps into a custom site).
    - **logic-grid's hotbar (done):** slots carry onto other slots and folders, each a place from
      `place_on`, which offers a node's whole area.
-   - **infinite canvas (waits for plans/tentative_gestures.md):** item moves become `free`.
-     A move writes the document as it goes, so peers and bound lines follow it
-     (guides/canvas.md, Gestures); on the board it previews from `over` in a tentative
-     gesture, which is not built. `free` also clamps the item into its area, which would
-     keep a selection from being moved past the viewport's edge; a canvas site wants its
-     area unbounded (the camera's world, scrolled by the edge band).
+   - **infinite canvas:** item moves become `free`. A move holds its writes in a tentative
+     gesture already (`CanvasState::open_hold`, guides/canvas.md, Gestures), so bound lines
+     and every view on the device follow it while peers see it only on drop; on the board it
+     applies the place it gets from `over` through that hold, and the board publishing the
+     carry gives peers the move back while it is dragged. The board cancels a carry whose
+     gesture the replica ended (`CanvasState::gesture_ended` lets go of the canvas's own
+     gesture today). `free` also clamps the item into its area, which would keep a selection
+     from being moved past the viewport's edge; a canvas site wants its area unbounded (the
+     camera's world, scrolled by the edge band).
    - **game editor (done):** each `Gesture::Drag { from, to }` is a place at `to`'s spot,
      zoned to it, with the item drawn there the size it was lifted at; `drag` answers
      `None` off a piece, so the same press pans. The site draws the lifted piece from the

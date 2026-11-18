@@ -24,7 +24,7 @@ pub struct ColorInputPickerHandle {
     pub value: Binding<Color32>,
     pub alpha: bool,
     pub shown: Memo<bool>,
-    pub on_preview: Callback<Option<Color32>>,
+    pub on_drag_change: Callback<bool>,
 }
 
 #[derive(Clone, Copy)]
@@ -40,22 +40,17 @@ pub fn ColorInput(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = true)] alpha: bool,
-    on_preview: Callback<Option<Color32>>,
+    on_drag_change: Callback<bool>,
     swatch: Render<ColorInputSwatchHandle, NodeId>,
     surface: AnchoredStyle,
     picker: RenderFn<ColorInputPickerHandle, NodeId>,
     field: Render<ColorInputFieldHandle, NodeId>,
     #[prop(children)] content: Render<ColorInputHandle, NodeId>,
 ) -> NodeId {
-    let previewed = create_signal(None::<Color32>);
-    let shown = create_memo(move || previewed.get().unwrap_or_else(|| value.get()));
+    let shown = create_memo(move || value.get());
     let hex = HexText::new(shown, alpha, Callback::from(value));
     let label = create_memo(move || label.get());
     let disabled = create_memo(move || disabled.get());
-    let preview = Callback::new(move |preview: Option<Color32>| {
-        previewed.set(preview);
-        on_preview.call(preview);
-    });
     let swatch_node = view! {
         <Popover
             label={move || match label.get() {
@@ -74,7 +69,7 @@ pub fn ColorInput(
                 value,
                 alpha,
                 shown: popover.shown,
-                on_preview: preview,
+                on_drag_change,
             })
         }</Popover>
     };

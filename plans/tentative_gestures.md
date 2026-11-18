@@ -14,8 +14,8 @@ they happen.
 - `be_block_content::history::History` keeps gestures by `GestureId { editor, id }`, undo groups
   and tentative gestures side by side (step 1); the replica keeps the tentative layer (step 2);
   and the app protocol names each gesture by an id of its editor's, so an editor opens
-  tentative gestures and holds several at once (step 3). No editor's gesture is tentative yet:
-  today's drags, scrubs and the colour picker still write as they go (step 4).
+  tentative gestures and holds several at once (step 3). The infinite canvas's choosing
+  gestures and its sidebar's value controls hold their edits in one (step 4).
 - An open gesture only groups undo. Each edit goes through `Replica::edit` (be-sdk-type-guest
   `replica.rs`) at once: applied to `visible`, told to the other attached editors with
   `journal(Journaled::Edited)` (despite its name, `journal` feeds the editors' projections,
@@ -232,14 +232,52 @@ a carry whose gesture ended, so the item glides home and the site stops previewi
      - An editor that detaches without the runtime's goodbye (cancels for its open gestures)
        leaves its undo groups open in `History` until an undo or redo commits them (`close_groups`); its tentative
        gestures are cancelled by the detach itself.
-4. Move today's choosing gestures off writing as they go, each judged by the decision's criterion:
-   - the infinite canvas's move, rotate and resize gestures;
-   - `NumberInput`'s scrub, which today writes `value` every frame between `on_scrub(true)` and
-     `on_scrub(false)` (the canvas sidebar's fields: `sidebar.rs` `on_scrub` →
-     `CanvasState::scrub` → `open_writes`/`commit_writes`, an undo group): a half-scrubbed number
-     is not one the person chose, so the scrub becomes a tentative gesture;
-   - the colour picker's drag, which today previews outside the block through `on_preview` and
-     writes once on release, so other views of the block do not follow it: it becomes a tentative
-     gesture, and `on_preview` goes;
-   - the rest found by `rg begin_gesture`, each kept as an undo group only if a half-finished one
-     is something the person would expect to keep (a stroke, the canvas's new text).
+4. Built. Today's choosing gestures moved off writing as they go, each judged by the decision's
+   criterion. The canvas was the one caller of `begin_gesture`. Tests in be-app-infinite-canvas
+   (`a_moved_shape_previews_here_and_reaches_a_peer_once_dropped`, with its painting of the
+   held move; `escape_puts_a_move_back_and_writes_nothing`;
+   `a_scrubbed_number_previews_and_is_written_once_released`;
+   `dragging_the_opacity_slider_previews_and_is_written_once_released`;
+   `a_typed_transform_value_is_one_edit` and
+   `typing_a_transform_value_and_pressing_escape_edits_nothing`) and beui-host
+   (`dragging_a_color_picker_writes_each_move_between_its_drag_changes`). As built:
+   - The canvas keeps its undo group (`writing`, `open_writes`) and a tentative gesture beside
+     it (`holding`, `open_hold`); an edit goes in the hold when one is open, else the group.
+     `Gesture::chooses` picks which a canvas gesture opens. `commit_writes` commits the hold
+     first, so a move made while new text is drafted commits on its own release;
+     `cancel_writes` drops both, as Escape, a second finger or another tool did.
+     `CanvasState::gesture_ended` follows `on_gesture_ended`: a canvas drag lets go of its
+     gesture, and a sidebar drag keeps its voided handle until the control ends it.
+   - Tentative, each a choice only the release settles: move (not duplicating), resize,
+     rotate, a line's end and a bend (the end's binding is a property of the line, so nothing
+     is created), and the eraser, whose dimming is held and dropped on release before the
+     removal is written alone, so Escape leaves nothing and the erase is one ordinary step.
+   - Kept as undo groups, written as they go: a shape drawn out (`Create`) and new text, since
+     a tentative edit creates nothing and the shape is made as it is drawn; a pen stroke and a
+     raster stroke, which are made as drawn; and a duplicating move, whose copies are created
+     as it starts and carried as it goes (holding the copies' move apart from their creation
+     would make two undo steps).
+   - The sidebar's value controls: `NumberInput`'s scrub, `Slider`s and the colour inputs open
+     the hold when their drag starts and commit it when it ends (`CanvasState::drag_value`),
+     and a number typed into a transform field previews in the hold until Enter commits it or
+     Escape drops it (`type_value`): a number half typed is not one anyone chose either.
+   - The colour picker's `on_preview` went: it writes `value` on every move and reports the
+     drag through `on_drag_change`, called before the first write, as `Slider` does
+     (`ColorPicker`, `ColorWheel`, `ColorInput`). The workspace's rename dialog, whose colour is
+     a graph definition with no tentative gesture, previews a drag itself and defines the colour
+     once on release.
+   - `NumberInput` ended a scrub only from `on_click`, which a drag's release does not fire, so
+     an undo group left open was committed later by chance. It now ends the scrub when the
+     press ends, and a cancelled scrub writes back the value it started from first.
+   - The test store (`be-sdk-test` `store.rs`) follows `Holds` as the host does, so
+     `take_written` and `applied` count a held edit only once its layer commits.
+   - Peers no longer see a canvas move, resize, rotation or erase until it is dropped: the
+     canvas's presence carries no held frames, and its drags are not on the drag board yet
+     (plans/declarative_dragging.md, step 5's canvas).
+   - Left as they are:
+     - Tagging the mirror's pending edits by gesture: a drag sends one edit per frame, but a
+       snapshot answers only an edit the replica drops in a gesture it ended (an undo mid-drag
+       or a replacement), once per frame still in flight, which did not show.
+     - Other apps' value controls still write every frame of a drag outside any gesture:
+       be-sdk-database's number and colour fields and be-app-video's clip fields. Each needs its
+       owner to pass the drag through (`on_scrub`, `on_drag_change`) and hold it.

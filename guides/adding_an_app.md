@@ -110,9 +110,11 @@ it with `commit_gesture` or `cancel_gesture`. Its edits show at once in every
 view of the block on this device and are sent and saved only when it commits;
 a cancel, the instance closing or a crash leaves no trace. A tentative edit only
 moves or changes what exists: anything a drop creates, create on commit.
-(Moving today's drags, scrubs and the colour picker onto it is
-plans/tentative_gestures.md, step 4.) That decision is about block content;
-view state is written on every change whatever the gesture.
+beui's value controls write `value` on every move of a drag and report the drag
+around it (`NumberInput`'s `on_scrub`, `on_drag_change` on `Slider` and the
+colour controls), so an editor opens a tentative gesture when the drag starts and
+commits it when it ends. That decision is about block content; view state is
+written on every change whatever the gesture.
 
 Bracket a gesture that writes as it goes with `begin_gesture` and
 `commit_gesture` so it undoes as one step; `cancel_gesture` puts back what it

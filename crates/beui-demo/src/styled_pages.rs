@@ -1756,14 +1756,12 @@ fn AccentInput() -> NodeId {
 #[component]
 fn PaintPicker() -> NodeId {
     let paint = create_signal(Color32::from_rgb(0x3E, 0x63, 0xDD));
-    let preview = create_signal(None::<Color32>);
-    let shown_paint = create_memo(move || preview.get().unwrap_or(paint.get()));
     let paint_text =
-        create_memo(move || format!("Painting in {}", beui::format_hex(shown_paint.get(), false)));
+        create_memo(move || format!("Painting in {}", beui::format_hex(paint.get(), false)));
     view! {
         <List spacing=SECTION_SPACING>
-            <ColorPicker value={paint} alpha=false on_preview={preview} />
-            <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
+            <ColorPicker value={paint} alpha=false />
+            <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(paint)} radius=Radius::Md />
             <Text style=TextStyle::CAPTION>{paint_text}</Text>
         </List>
     }
@@ -1803,14 +1801,12 @@ fn InkSwatches() -> NodeId {
 #[component]
 fn HueWheel() -> NodeId {
     let paint = create_signal(Color32::from_rgb(0x30, 0xA4, 0x6C));
-    let preview = create_signal(None::<Color32>);
-    let shown_paint = create_memo(move || preview.get().unwrap_or(paint.get()));
     let paint_text =
-        create_memo(move || format!("Painting in {}", beui::format_hex(shown_paint.get(), false)));
+        create_memo(move || format!("Painting in {}", beui::format_hex(paint.get(), false)));
     view! {
         <List spacing=SECTION_SPACING>
-            <ColorWheel value={paint} on_preview={preview} />
-            <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
+            <ColorWheel value={paint} />
+            <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(paint)} radius=Radius::Md />
             <Text style=TextStyle::CAPTION>{paint_text}</Text>
         </List>
     }
@@ -1820,10 +1816,8 @@ fn HueWheel() -> NodeId {
 #[component]
 fn PerceptualWheel() -> NodeId {
     let paint = create_signal(Color32::from_rgb(0xD6, 0x40, 0x9F));
-    let preview = create_signal(None::<Color32>);
-    let shown_paint = create_memo(move || preview.get().unwrap_or(paint.get()));
     let paint_text = create_memo(move || {
-        let color = beui::Oklch::from_color(shown_paint.get());
+        let color = beui::Oklch::from_color(paint.get());
         format!(
             "oklch({:.0}% {:.3} {:.0})",
             color.lightness * 100.0,
@@ -1834,8 +1828,8 @@ fn PerceptualWheel() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <Text style=TextStyle::CAPTION>"Turning the hue keeps lightness and chroma"</Text>
-            <ColorWheel model=WheelModel::Oklch value={paint} on_preview={preview} />
-            <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
+            <ColorWheel model=WheelModel::Oklch value={paint} />
+            <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(paint)} radius=Radius::Md />
             <Text style=TextStyle::CAPTION>{paint_text}</Text>
         </List>
     }
