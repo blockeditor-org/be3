@@ -27,13 +27,14 @@ use beui_components_styled::theme::{
 use beui_components_styled::tokens::{Movement, Padding, Size, Space, Stroke};
 use beui_components_styled::tool_pill::BAND_FILL;
 use beui_components_styled::tooltip::Tooltip;
-use beui_components_styled::{Length, List, Scroll, Separator};
+use beui_components_styled::{Length, List, MenuButton, MenuNodes, Scroll, Separator};
 use beui_components_unstyled::Container;
 use beui_components_unstyled::Picture;
 use beui_dock::{DockEdge, DockHostLink, DockMode, Entry};
 use beui_view::component_ref::ComponentRef;
 use beui_view::primitives::Interactive;
 use beui_view::types::Align2;
+use beui_view::types::ScrollPosition;
 use beui_view::types::PointerPress;
 use beui_view::types::Vec2;
 use beui_view::types::{Align, Direction, Justify};
@@ -46,7 +47,7 @@ use beui_view::types::Image;
 use beui_view::types::Modifiers;
 use beui_view::types::TextAlign;
 use beui_view::types::icons::{
-    ICON_APP_WINDOW, ICON_GRIP_VERTICAL, ICON_LOCK, ICON_MAXIMIZE, ICON_MINIMIZE, ICON_X,
+    ICON_APP_WINDOW, ICON_CHEVRON_DOWN, ICON_GRIP_VERTICAL, ICON_LOCK, ICON_MAXIMIZE, ICON_MINIMIZE, ICON_X,
 };
 use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
@@ -808,7 +809,12 @@ fn DockSideBar(
 
 #[component]
 fn DockStrip(handle: DockStripHandle) -> NodeId {
-    let DockStripHandle { direction, tabs } = handle;
+    let DockStripHandle {
+        direction,
+        tabs,
+        menu,
+        test_prefix,
+    } = handle;
     let strip = match direction {
         Direction::Horizontal => view! {
             <Frame
@@ -825,10 +831,40 @@ fn DockStrip(handle: DockStripHandle) -> NodeId {
             </Frame>
         },
     };
+    // The scroll fades the edge its hidden tabs lie past, and while any are hidden the
+    // strip ends in a menu of every tab.
+    let clipped = create_signal(false);
+    let all_tabs = format!("{test_prefix}.all-tabs");
     view! {
-        <Scroll direction>
-            <ListItem shrink=1.0>{strip}</ListItem>
-        </Scroll>
+        <List direction align=Align::Center spacing=Space::None>
+            <ListItem grow=1.0 shrink=1.0>
+                <Scroll
+                    direction
+                    on_change={move |position: ScrollPosition| {
+                        let hides = position.max_offset() > 0.0;
+                        if clipped.get_untracked() != hides {
+                            clipped.set(hides);
+                        }
+                    }}
+                >
+                    <ListItem shrink=1.0>{strip}</ListItem>
+                </Scroll>
+            </ListItem>
+            <Show value={clipped}>
+                <MenuButton
+                    icon_only=true
+                    variant=ButtonVariant::Ghost
+                    @test_id={all_tabs.clone()}
+                    label="All tabs"
+                    glyph=ICON_CHEVRON_DOWN
+                    size=ButtonSize::Toolbar
+                    capture_presses=true
+                    items={view! {
+                        <MenuNodes nodes={menu} test_prefix={all_tabs.clone()} />
+                    }}
+                />
+            </Show>
+        </List>
     }
 }
 

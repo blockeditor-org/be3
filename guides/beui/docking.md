@@ -160,6 +160,13 @@ stacked bar) leaves `Pin::Label` actions to More; an icons-only sidebar shows th
 it was sent (`ActionBuilder::detached`) and passes the pick back. `unstyled::ActionBar` does the
 split between bar and More for any toolbar.
 
+A pane's tab strip scrolls when its tabs do not fit. The face's `strip` gets the tabs and, as
+`DockStripHandle::menu`, a row for every tab that shows it (the shown one chosen); the styled strip
+fades the edge tabs lie past and, while any are hidden, ends in an All tabs button
+(`dock.<id>.all-tabs`, rows `dock.<id>.all-tabs.tab.<tab>`) with that menu, since a fade ending on
+the gap between two tabs shows nothing. Showing another tab, from that menu or a key, scrolls it into
+view.
+
 ## History and the switcher
 
 Every change of the focused tab is a `DockVisit` in `DockState::history`. Back undoes the last

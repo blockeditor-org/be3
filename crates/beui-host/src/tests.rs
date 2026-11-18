@@ -1786,28 +1786,17 @@ impl Harness {
             );
             self.settle();
         }
-        for _ in 0..4 {
-            let inspector = self.inspector();
-            let row = inspector.tab_node(tab);
-            let rect = inspector
-                .document
-                .node_rect(row)
-                .expect("the tab is laid out");
-            let shown = inspector
-                .document
-                .rects
-                .visible(&row)
-                .expect("the tab is laid out");
-            if shown.right() >= rect.right() && shown.left() <= rect.left() {
-                break;
-            }
-            let at = pos2(shown.right().min(rect.left()) - 4.0, rect.center().y);
-            self.scroll_at(
-                at,
-                Vec2::new(shown.right() - rect.right(), 0.0),
-                Modifiers::NONE,
-            );
+        let inspector = self.inspector();
+        let row = inspector.tab_node(tab);
+        let clipped = inspector.document.node_rect(row) != inspector.document.rects.visible(&row);
+        if clipped {
+            // A tab past the edge of the strip is chosen from the strip's menu of every tab.
+            self.click(self.inspector_center("dock.tools.all-tabs"));
             self.settle();
+            let choice = format!("dock.tools.all-tabs.tab.{tab:?}");
+            self.click(self.inspector_center(&choice));
+            self.settle();
+            return;
         }
         self.click(self.node_center(self.inspector().tab_node(tab)));
         self.settle();
