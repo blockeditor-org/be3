@@ -25,6 +25,8 @@ struct Prepared {
     publish: Option<Pending>,
     objects: Vec<Hash>,
     queued: Vec<u64>,
+    /// The block's signed log as the file carried it: history from the block it was written in.
+    log: Vec<crate::ExportedEntry>,
 }
 
 pub struct Queued {
@@ -91,6 +93,25 @@ impl<S: ObjectStore> Peer<S> {
             ops.push(Op::Publish(pending.clone()));
         }
         ready.queued = self.refs.push_all(ops)?;
+        // Its log's history from the block it was written in goes after it, each entry as it
+        // was written there, which it still verifies against; its new entries follow.
+        for original in &ready.log {
+            let id = Uuid::new_v4();
+            let plain = original.sealed();
+            let payload = self.commits.vault().seal(ready.creation.key, &plain)?;
+            let signature = self.sign_authored(
+                ready.id,
+                &be_block_protocol::log_signed(id, Hash::of(&plain)),
+            );
+            self.refs.push(Op::Append(crate::refs::Appending {
+                block: ready.id,
+                id,
+                payload,
+                signature,
+                announces: None,
+                redacts: None,
+            }))?;
+        }
         // The outbox keeps the creation: so does the device the log made with it.
         self.keep_made_log(&ready.creation)?;
         if let Some(pending) = &ready.publish {
@@ -225,6 +246,7 @@ impl<S: ObjectStore> Peer<S> {
                 publish: None,
                 objects: Vec::new(),
                 queued: Vec::new(),
+                log: block.log.clone(),
             });
         };
         let manifest = vault.write(key, block.block_type, content)?;
@@ -260,6 +282,7 @@ impl<S: ObjectStore> Peer<S> {
             }),
             objects,
             queued: Vec::new(),
+            log: block.log.clone(),
         })
     }
 

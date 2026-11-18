@@ -343,4 +343,4 @@ The user chose option A, and these answers (2026-11-18):
 - **Import** of a log type keeps the export's entries as read-only history
   from the original block: each is verified against the original block's id
   as it is imported and shown with its original author, and new entries
-  append after them. Built in step 5.
+  append after them. Built in step 5b.
