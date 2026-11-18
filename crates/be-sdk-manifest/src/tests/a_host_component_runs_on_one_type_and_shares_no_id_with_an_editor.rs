@@ -26,6 +26,14 @@ fn with_raw_hosts(hosts: &str) -> Result<AppManifest, ManifestError> {
                     "views": ["Main"]
                 }}
             }},
+            "block_types": {{
+                "world": {{
+                    "id": "8a7f3b5c-1d2e-4f60-9a1b-2c3d4e5f6000",
+                    "display_name": "World",
+                    "icon": "\ue0ef",
+                    "module": "hosted_types.wasm"
+                }}
+            }},
             "hosts": {hosts},
             "entry_point": "hosted.wasm"
         }}"#
@@ -112,4 +120,14 @@ fn a_host_component_runs_on_one_type_and_shares_no_id_with_an_editor() {
             "{why}"
         );
     }
+    assert_eq!(
+        with_hosts(
+            r#"{ "world-host": {
+                "id": "8a7f3b5c-1d2e-4f60-9a1b-2c3d4e5f6072",
+                "edits": "8a7f3b5c-1d2e-4f60-9a1b-2c3d4e5f6999", LEVELS
+            } }"#
+        ),
+        Err(ManifestError::HostOfAnotherType),
+        "a host on a type its app does not declare, which could relabel that type's levels"
+    );
 }

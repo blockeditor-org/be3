@@ -97,6 +97,20 @@ impl Apps {
             ));
             return;
         }
+        // One host per type across every app, so what a type's share dialog offers never
+        // depends on which app was found first.
+        if let Some(host) = manifest.hosts.iter().find(|host| {
+            self.manifests
+                .iter()
+                .flat_map(|existing| &existing.hosts)
+                .any(|existing| existing.edits == host.edits)
+        }) {
+            self.errors.push(format!(
+                "{source}: {} already has a host component in an app found first",
+                Uuid::from_bytes(host.edits)
+            ));
+            return;
+        }
         if let Some(existing) = self
             .manifests
             .iter()
