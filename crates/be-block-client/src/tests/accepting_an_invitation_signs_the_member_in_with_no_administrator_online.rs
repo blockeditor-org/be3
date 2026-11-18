@@ -91,9 +91,13 @@ async fn accepting_an_invitation_signs_the_member_in_with_no_administrator_onlin
     // caught by whoever reads the whole log, though the invitation is open and unused and the
     // keys it names endorse the record: only the code's key signs a person in.
     let admin = Peer::connect(
-        PeerConfig::new(&harness.url, admin_identity, Credentials::Token(admin_token))
-            .organization(Some(organization))
-            .chunker(ChunkerConfig::SMALL),
+        PeerConfig::new(
+            &harness.url,
+            admin_identity,
+            Credentials::Token(admin_token),
+        )
+        .organization(Some(organization))
+        .chunker(ChunkerConfig::SMALL),
         MemoryStore::new(),
     )
     .await

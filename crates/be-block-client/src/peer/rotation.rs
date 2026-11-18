@@ -644,7 +644,8 @@ impl<S: ObjectStore> Peer<S> {
                 })
             }
         };
-        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), op).await??;
+        be_block_protocol::write::<(), _>(&self.connection(), Some(self.organization), op)
+            .await??;
         Ok(())
     }
 
@@ -659,9 +660,11 @@ impl<S: ObjectStore> Peer<S> {
         )
         .await??;
         let checked = self.checked_organization().await?;
-        let administers = checked
-            .as_ref()
-            .is_some_and(|checked| checked.administrators.contains_key(&self.account.into_bytes()));
+        let administers = checked.as_ref().is_some_and(|checked| {
+            checked
+                .administrators
+                .contains_key(&self.account.into_bytes())
+        });
         let outstanding = rows.iter().find(|row| {
             row.id == link
                 && matches!(
@@ -990,9 +993,7 @@ impl<S: ObjectStore> Peer<S> {
                 continue;
             }
             let checked = self.checked_organization().await?;
-            if let Some(signed) =
-                self.member_record(checked.as_ref(), account, None, true)
-            {
+            if let Some(signed) = self.member_record(checked.as_ref(), account, None, true) {
                 be_block_protocol::write::<(), _>(
                     &self.connection(),
                     Some(self.organization),

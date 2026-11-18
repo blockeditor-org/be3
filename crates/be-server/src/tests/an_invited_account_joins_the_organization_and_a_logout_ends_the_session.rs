@@ -25,7 +25,10 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
     let signed = owner
         .invitation_record(code.invitation_key(organization.into_bytes()), true)
         .await;
-    CODES.lock().unwrap().insert((invitation, organization), code);
+    CODES
+        .lock()
+        .unwrap()
+        .insert((invitation, organization), code);
     let response = owner
         .call(|peer| {
             peer.write::<()>(be_block_protocol::Op::CreateLink {

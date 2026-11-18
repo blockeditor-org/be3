@@ -1785,7 +1785,8 @@ fn remove_account(
     let checked = crate::access::checked_organization_log(database, organization)?;
     // A person is always signed out, whether or not a record signed them in (one the server
     // added on its own); an agent, where the log names it.
-    let named = checked.is_some_and(|checked| !agent || checked.member(account.into_bytes()).is_some());
+    let named =
+        checked.is_some_and(|checked| !agent || checked.member(account.into_bytes()).is_some());
     let transaction = be_block_sqlite_schema::write_transaction(database)?;
     match (named, signed) {
         (true, Some(signed)) => crate::access::append_member(

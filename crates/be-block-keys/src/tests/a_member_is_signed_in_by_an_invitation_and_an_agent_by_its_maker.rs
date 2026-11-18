@@ -12,7 +12,13 @@ fn a_member_is_signed_in_by_an_invitation_and_an_agent_by_its_maker() {
     let none = |_: &Asked| None;
     let root = Entry::root(&admin, admin_id, LogKind::Organization, organization);
     let pinned = root.hash();
-    let member = |by: &RecoverySecret, signer, previous, account, identity: PublicIdentity, member: bool, agent: bool| {
+    let member = |by: &RecoverySecret,
+                  signer,
+                  previous,
+                  account,
+                  identity: PublicIdentity,
+                  member: bool,
+                  agent: bool| {
         Entry::sign(
             by,
             signer,
@@ -101,7 +107,13 @@ fn a_member_is_signed_in_by_an_invitation_and_an_agent_by_its_maker() {
     );
     let opened_by_member = invitation(&person, person_id, joined.hash(), &other, true);
     assert!(
-        check(&[root.clone(), invited.clone(), joined.clone(), opened_by_member]).is_err(),
+        check(&[
+            root.clone(),
+            invited.clone(),
+            joined.clone(),
+            opened_by_member
+        ])
+        .is_err(),
         "a member who does not administer invites no one"
     );
 
@@ -228,9 +240,7 @@ fn a_member_is_signed_in_by_an_invitation_and_an_agent_by_its_maker() {
         }),
     );
     let after = [root.clone(), promoted, by_deputy];
-    let accepting = |previous| {
-        Entry::accepted(&code, organization, previous, person_id, &person)
-    };
+    let accepting = |previous| Entry::accepted(&code, organization, previous, person_id, &person);
     let in_time = accepting(after[2].hash());
     assert!(check(&[after.as_slice(), &[in_time]].concat()).is_ok());
     let too_late = accepting(demoted.hash());

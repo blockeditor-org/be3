@@ -2446,7 +2446,9 @@ impl TestClient {
                 }
             }
             false => {
-                let me = self.account.expect("a client removes members once signed in");
+                let me = self
+                    .account
+                    .expect("a client removes members once signed in");
                 let Some((organization, checked)) = log else {
                     panic!("a person is removed from an organization with a log");
                 };
@@ -2514,7 +2516,6 @@ impl TestClient {
         }
         signed
     }
-
 
     /// The grant record a device sends with `set-access` (`Peer::grant`), signed with this
     /// client's test keys and naming the grantee's (for anyone inside, an opening): as the

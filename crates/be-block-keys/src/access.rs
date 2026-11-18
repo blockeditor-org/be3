@@ -461,7 +461,13 @@ impl Entry {
     ) -> Self {
         use ed25519_dalek::Signer;
         let signature = key
-            .sign(&signed(organization, Some(previous), false, &record, account))
+            .sign(&signed(
+                organization,
+                Some(previous),
+                false,
+                &record,
+                account,
+            ))
             .to_bytes()
             .to_vec();
         Self {
@@ -1279,10 +1285,9 @@ pub fn check_log(
                 if kind != LogKind::Organization || !administrator || !may {
                     return Err(KeyError::Record);
                 }
-                state.invitations.insert(
-                    invitation.key,
-                    invitation.open.then_some(entry.signer),
-                );
+                state
+                    .invitations
+                    .insert(invitation.key, invitation.open.then_some(entry.signer));
             }
             Record::Member(Member {
                 account,

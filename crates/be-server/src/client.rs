@@ -1786,14 +1786,14 @@ impl Client {
                         signed,
                         revocations,
                     } => {
-                        let account = be_block_keys::Entry::decode(&signed)
-                            .ok()
-                            .and_then(|entry| match entry.record {
+                        let account = be_block_keys::Entry::decode(&signed).ok().and_then(
+                            |entry| match entry.record {
                                 be_block_keys::Record::Member(named) => {
                                     Some(Uuid::from_bytes(named.account))
                                 }
                                 _ => None,
-                            });
+                            },
+                        );
                         match connection
                             .store
                             .append_member(identity, signed, revocations)
@@ -1801,7 +1801,9 @@ impl Client {
                         {
                             Some(revoked) => {
                                 let account = account.ok_or(ServerError::Corrupt)?;
-                                connection.removed(identity.organization, account, revoked).await;
+                                connection
+                                    .removed(identity.organization, account, revoked)
+                                    .await;
                             }
                             None => {
                                 connection
@@ -1826,7 +1828,9 @@ impl Client {
                     .store
                     .delete_agent(identity, account, signed, revocations)
                     .await?;
-                connection.removed(identity.organization, account, revoked).await;
+                connection
+                    .removed(identity.organization, account, revoked)
+                    .await;
                 Ok(Done::Nothing)
             }
             Op::PutKeys(keys) => {

@@ -747,7 +747,11 @@ impl ServerStore {
                     expires: seconds(invited.expires),
                     opened: seconds(invited.opened),
                     ended: seconds(invited.ended),
-                    key: stored.invitation_key.as_slice().try_into().unwrap_or_default(),
+                    key: stored
+                        .invitation_key
+                        .as_slice()
+                        .try_into()
+                        .unwrap_or_default(),
                 });
             }
             Ok(invitations)
@@ -820,8 +824,7 @@ impl ServerStore {
                                 "you are already a member of that organization".into(),
                             ));
                         }
-                        let stored =
-                            stored_link(&transaction, link)?.ok_or_else(link_not_found)?;
+                        let stored = stored_link(&transaction, link)?.ok_or_else(link_not_found)?;
                         mark_accepted(&transaction, link, owner, caller, card)?;
                         // Signed in by the invitation's key, which only the code's holder has:
                         // the log, not the server, says who joined.

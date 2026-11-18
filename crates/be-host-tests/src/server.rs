@@ -139,10 +139,17 @@ impl Server {
                  SELECT organizations.id, ?3, 'editor' FROM organizations
                  JOIN memberships ON memberships.organization_id = organizations.id
                  WHERE organizations.name = ?1 AND memberships.account_id = ?2",
-                [name, of.id.to_string().as_str(), joiner.id.to_string().as_str()],
+                [
+                    name,
+                    of.id.to_string().as_str(),
+                    joiner.id.to_string().as_str(),
+                ],
             )
             .unwrap_or_else(|error| panic!("the test server could not add the member: {error}"));
-        assert_eq!(added, 1, "the account belongs to one organization of that name");
+        assert_eq!(
+            added, 1,
+            "the account belongs to one organization of that name"
+        );
     }
 
     /// A network of its own for one device, carrying its connections to the server.

@@ -11,10 +11,17 @@ pub(super) async fn join(
     let mut member = harness.member(email).await;
     let account = member.id();
     let response = owner
-        .invite_with(Uuid::from_u128(invitation), organization, Vec::new(), Vec::new())
+        .invite_with(
+            Uuid::from_u128(invitation),
+            organization,
+            Vec::new(),
+            Vec::new(),
+        )
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
-    let _ = member.accept(Uuid::from_u128(invitation), &Vec::new()).await;
+    let _ = member
+        .accept(Uuid::from_u128(invitation), &Vec::new())
+        .await;
     member.open(organization).await;
     (member, account)
 }
