@@ -247,6 +247,39 @@ within one page: step 4's fold takes the first occurrence of an id.
    deletion signed with an old key shows "deleted with an old key"; a host
    test sends with the server cut and the message gets the server's arrival
    once it drains.
+   Design (being built on `claude/signed-logs-5`):
+   - **Entries.** `ChatEntry` (postcard) is `Message { time, body, reply_to,
+     attachments }`, `Edit { message, time, body }`, `React { message,
+     reaction, kept, time }`, `Delete { message, time }`. A message is named
+     by its entry id. Who wrote one, when the server took it and who signed it
+     are the log's (`LogItem`), so chat signs nothing itself: `EditorHost::sign`,
+     `verify` and `signing_block` lose their only user.
+   - **What a chat shows** is a fold of the entries the editor holds
+     (`ChatLog`): each message with its author's latest edit, its kept
+     reactions (each author's latest record of each reaction), and its
+     author's deletion. Others' edits and deletions count for nothing and
+     show nothing; a deletion redacts the message's payload. A row's verdict
+     is the least trusted of the entries that make it.
+   - **Content** keeps drafts and the blocks sent messages carry
+     (`ChatHeader { drafts, carried }`), so a chat's children come from its
+     content as any block's do, and its log never needs folding for them:
+     chat's `LogFold` folds nothing (`LogFold::FOLDS` false), and a replica of
+     a type that does fold reads its log on to the end, a page at a time, so
+     its description never stops at a gap.
+   - **Unread** places are seqs; a count reads the log after the place (at
+     most 100 entries: "99+") and counts others' messages after the account's
+     own last one (`Unread::count_unread` is handed those entries).
+   - **Notifications** ride with the append: `Peer::append` takes the push
+     the entry announces and keeps it in the outbox with the entry, and the
+     drain sends it once the server took the entry (several from one drain go
+     as one, "{count} new messages"); the announcements machinery's chat use
+     goes, the rest in step 6.
+   - **Search** indexes a chat's messages one document each, keyed by the
+     message's id: the type says what each entry changes
+     (`LogFold::search`), so an edit replaces one document and a deletion
+     drops it, and nothing is read again.
+   - **Sending** shows from `take_appended` (kept: "Sending"; refused: "Not
+     sent") instead of the lacking edits.
 6. **Remove what nothing uses.** Segments, `ChatOp::Close`, chat's
    `MergeParts`, ranked `LatestMap`, `LiveEdit::arrival` and
    `CLAIMED_ARRIVAL`, the `Trust::Altered` and gap rows, `seen` and
