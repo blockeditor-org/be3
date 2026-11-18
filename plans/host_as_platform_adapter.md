@@ -633,6 +633,11 @@ Each step lands on its own.
          the revision previews gave the old run. The library tests a restart over a `Run` and a
          stand-in for the host's views; be-host-runtime's restart tests stay, since they test
          what `Instances` sends again, and restart through `Run::restart` as `Runtime` does.
+         Left for 4e5, so a root built on the library does not copy them: `Runtime::layout`, the
+         last `ScreenLayout`, is per-run state that `Shown` reads and likely belongs in `Run`;
+         and the pattern of sending calls and asking for a frame if any were sent
+         (`pacing.need_if` beside `send`, at about ten places in be-host-runtime's
+         `runtime.rs`) should become a `Run` method.
      - 4e5. A root built on the library embeds an editor without the host's compositor, shown by
        a host test, and the root gets its `input` export, routed by `Router` over its last
        list. be-host runs it through a run option that starts a root module in place of its
