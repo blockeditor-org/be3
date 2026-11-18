@@ -698,7 +698,9 @@ interface host {
     record pairing-request {
         /// The host's number for the request.
         id: u64,
-        /// The device, as it names itself.
+        /// The device, as it names itself: its own untrusted words. Approving
+        /// rests on the code alone, so a root never presents the name as
+        /// verified.
         device: string,
         /// Why approving it was refused (it needs the server), in words.
         refused: option<string>,
@@ -935,9 +937,11 @@ interface host {
     }
 
     /// The person asked `command` of the block stack, which the host does. It
-    /// answers at once; what changes reaches `core`. A command naming a block
-    /// or an account the view no longer lists (it went while the person was
-    /// asked) changes nothing. A secret in it (`add-account`'s gateway token)
+    /// answers at once; what changes reaches `core`. A command naming what
+    /// the view no longer lists (it went while the person was asked) changes
+    /// nothing: a block, an account, a contact by its account, a pairing
+    /// request by its id, or a block to leave that `leaving` no longer
+    /// names. A secret in it (`add-account`'s gateway token)
     /// is zeroed once decoded, as `unlock`'s password is. It answers at once.
     ask-core: async func(command: core-command);
 
@@ -957,7 +961,9 @@ interface host {
         /// The recovery phrase being written down, which the host keeps until
         /// it is confirmed, so it may be had again.
         recovery-phrase,
-        /// A pairing code for this device, putting one out.
+        /// A pairing code for this device, putting one out: a new one
+        /// replaces any already out. One nobody waits for any more when the
+        /// host answers (`answer_secret` says so) the host withdraws.
         pairing-code,
     }
 
