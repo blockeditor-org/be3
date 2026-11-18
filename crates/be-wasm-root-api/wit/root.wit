@@ -15,8 +15,11 @@ interface host {
 /// (plans/host_as_platform_adapter.md, Input).
 interface input {
     /// The window's input since the last call, in order, in the window's
-    /// points: be-lib-ui-types' `Input`s, in its encoding (`input::encode`),
-    /// as the layer list is be-lib-layers'. `window` names the window as the
+    /// points: be-lib-ui-types' `Timed` inputs, each with the frame clock's
+    /// time it was sampled at when the platform said, in its encoding
+    /// (`input::encode`), as the layer list is be-lib-layers'. A pointer's
+    /// moves within a frame are merged to the last unless the root asked for
+    /// every sample (`frame-done`'s `every-sample`). `window` names the window as the
     /// layer list does: none for the host's one window. The root routes each
     /// event to the surface it is for, by the layers it drew last, and answers
     /// as soon as it has routed, not once its children heard: the host keeps
@@ -57,6 +60,19 @@ interface frames {
         /// (`ImeArea::encode`). None while no surface edits text; the host shows the
         /// platform's input method there.
         ime: option<list<u8>>,
+        /// Whether the host's one window hands the root every sample of a
+        /// pointer's moves, each with its time, rather than merging a frame's
+        /// moves into the last: while a surface it shows asks for them, as a
+        /// canvas drawing a pen stroke does.
+        every-sample: bool,
+        /// The cursor shape the host's one window shows, by its CSS name
+        /// (be-lib-ui-types' `CursorIcon::name`): the surface's under the
+        /// pointer. One the host does not know shows the default arrow.
+        cursor: string,
+        /// Whether the pointer is locked to the host's one window, hidden and
+        /// held in place with its moves reported as motion: while the focused
+        /// surface holds the lock.
+        pointer-locked: bool,
     }
 
     /// Draws a frame. The host steps the root until it answers: between

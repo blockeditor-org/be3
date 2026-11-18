@@ -3,15 +3,20 @@
 //! root (be-wasm-root-host's `Root`) on the window's device. Each host frame hands it the
 //! window's input since the last, asks it for a frame, and draws the frame's layer list: each
 //! screen it names by handle (`Surface::Screen`) is the texture `Root::surface` resolves, drawn
-//! as `beui::native::compose::quad` places it; the root's own surfaces are the window's plain
-//! background until it draws its own. The host draws on demand: when the root asks for its next
-//! frame (`frame-done`'s `next`) or has something to step for (`Root::on_wake`).
+//! as `beui::native::compose::quad` places it, and so is each surface of the root's own
+//! (`Surface::Root`), which the root draws on the window's device as an app draws
+//! (`Root::own_surface`); where it draws nothing the window shows its plain background. The host
+//! draws on demand: when the root asks for its next frame (`frame-done`'s `next`) or has
+//! something to step for (`Root::on_wake`).
 //!
 //! This is the path step 4g turns on and makes the default, so it runs on be-host's real
 //! startup path and window, through beui's runner; only what the window shows comes from the
 //! root. The root takes the window's input as the platform delivered it, before beui makes
 //! events of it (`Program::input`; step 4f1): beui's document hears none of it, so keys the root
-//! does not route reach nothing in be-host, and the root's IME area is the window's.
+//! does not route reach nothing in be-host. What the root asks of the window, its input method's
+//! area, cursor shape, pointer lock and every sample of the pointer's moves, are the window's
+//! requests (`frame-done`); each input it is handed carries the frame clock's time it was
+//! sampled at, when the platform said.
 //!
 //! It runs none of the host's core: no data directory or the lock that keeps a second be-host
 //! off it, no block stack, workspace or accounts, no screen lock, and none of the desktop's OS
@@ -30,6 +35,7 @@ use std::{
 };
 
 use be_lib_layers::{Layer, LayerList, Surface};
+use be_lib_ui_types::input::Timed;
 use be_sdk_app_host::pacing::FrameClock;
 use be_wasm_root_api::FrameRequest;
 use be_wasm_root_host::Root;
@@ -37,7 +43,7 @@ use beui::native::texture_quad::{Pipelines, Quad, Quads};
 use beui::native::{Draw, DrawAt, Drawing as GpuDrawing, compose, draw_gpu};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Input, WindowId};
+use beui::{CursorIcon, Input, WindowId};
 
 /// The id what the root shows has in the accessibility tree, `#root` to drive.
 pub(crate) const SHOWN: &str = "root";
@@ -61,8 +67,9 @@ struct RootShell {
     document: beui::native::Document,
     /// What the window shows of the root's last frame.
     shown: Signal<Option<GpuDrawing>>,
-    /// The windows' input since the root was last handed it, each in its window's points.
-    input: Vec<(WindowId, Input)>,
+    /// The windows' input since the root was last handed it, each in its window's points, with
+    /// when the platform sampled it, if it said.
+    input: Vec<(WindowId, Input, Option<Instant>)>,
     root: Option<Root>,
     /// Where the frame clock's time the root is asked for starts.
     time_origin: Option<Instant>,
@@ -82,6 +89,18 @@ struct RootShell {
     stopped: Rc<RefCell<Option<String>>>,
     /// What the last frame showed, so an unchanged frame keeps its drawing.
     drawn: Vec<(Layer, u64)>,
+    /// What the root's last frame asked of the window beside its input method's area, which
+    /// the window is asked again every frame.
+    requests: Requests,
+}
+
+/// What a root's frame asks of its window (`frame-done`'s `cursor`, `pointer-locked` and
+/// `every-sample`).
+#[derive(Clone, Copy, Default)]
+struct Requests {
+    cursor: CursorIcon,
+    pointer_locked: bool,
+    every_sample: bool,
 }
 
 impl RootShell {
@@ -110,6 +129,7 @@ impl RootShell {
             pass: 0,
             stopped,
             drawn: Vec::new(),
+            requests: Requests::default(),
         }
     }
 
@@ -122,20 +142,28 @@ impl RootShell {
         self.root = None;
         self.next = None;
         self.owed = false;
+        self.requests = Requests::default();
     }
 
     /// Hands the root its windows' input since it was last handed it, in order, a call for each
-    /// run of one window's. The main window is the one the layer list names as none; the host
-    /// opens no other for the root yet.
-    fn deliver_input(&mut self) {
+    /// run of one window's, each input with the frame clock's time it was sampled at, counted
+    /// from `origin` as the frames' are. The main window is the one the layer list names as none;
+    /// the host opens no other for the root yet.
+    fn deliver_input(&mut self, origin: Instant) {
         let input = std::mem::take(&mut self.input);
         let Some(root) = &mut self.root else {
             return;
         };
-        for run in input.chunk_by(|(left, _), (right, _)| left == right) {
+        for run in input.chunk_by(|(left, ..), (right, ..)| left == right) {
             let window = run[0].0;
             let window = (!window.is_main()).then(|| window.raw());
-            let events: Vec<Input> = run.iter().map(|(_, input)| input.clone()).collect();
+            let events: Vec<Timed> = run
+                .iter()
+                .map(|(_, input, time)| Timed {
+                    input: input.clone(),
+                    time: time.map(|at| nanos(at.saturating_duration_since(origin))),
+                })
+                .collect();
             if let Err(why) = root.input(window, be_lib_ui_types::input::encode(&events)) {
                 return self.stopped(&why);
             }
@@ -166,6 +194,11 @@ impl RootShell {
         };
         self.next = done.next.map(Duration::from_nanos);
         self.owed = done.owed;
+        self.requests = Requests {
+            cursor: CursorIcon::from_name(&done.cursor).unwrap_or_default(),
+            pointer_locked: done.pointer_locked,
+            every_sample: done.every_sample,
+        };
         let ime = match done.ime.as_deref().map(beui::ImeArea::decode).transpose() {
             Ok(ime) => ime,
             Err(why) => return self.stopped(&why),
@@ -185,15 +218,16 @@ impl RootShell {
             .flat_map(|window| window.layers)
             .filter(|layer| layer.shown)
         {
-            match layer.surface {
+            let shown = match layer.surface {
                 Surface::Screen { instance, surface } | Surface::Anchored { instance, surface } => {
-                    if let Some(shown) = root.surface(instance, surface) {
-                        layers.push((layer, shown.generation, shown.texture.clone()));
-                    }
+                    root.surface(instance, surface).cloned()
                 }
-                // The root's own surfaces are the window's background until it draws its own, and
-                // the host owns no surfaces of its own here.
-                Surface::Root(_) | Surface::Host(_) => {}
+                Surface::Root(surface) => root.own_surface(surface),
+                // The host owns no surfaces of its own here.
+                Surface::Host(_) => None,
+            };
+            if let Some(shown) = shown {
+                layers.push((layer, shown.generation, shown.texture));
             }
         }
         let drawn: Vec<(Layer, u64)> = layers
@@ -236,10 +270,23 @@ impl beui::native::Program for RootShell {
     fn update(&mut self, context: &beui::native::Context, rect: beui::Rect) {
         // The frame clock's time, which stands still while drive's clock is stopped.
         let now = context.now();
-        let time = now.saturating_duration_since(*self.time_origin.get_or_insert(now));
-        self.deliver_input();
+        let origin = *self.time_origin.get_or_insert(now);
+        let time = now.saturating_duration_since(origin);
+        self.deliver_input(origin);
         self.frame(context, time);
         self.document.show(context, rect);
+        // After the document, whose own requests (it hears no input, so the default cursor) the
+        // root's replace.
+        let Requests {
+            cursor,
+            pointer_locked,
+            every_sample,
+        } = self.requests;
+        context.set_cursor_icon(cursor);
+        context.set_pointer_locked(pointer_locked);
+        if every_sample {
+            context.want_every_sample(WindowId::MAIN);
+        }
         if self.stopped.borrow().is_some() {
             context.close_window();
             return;
@@ -253,8 +300,8 @@ impl beui::native::Program for RootShell {
 
     /// The root takes all of its windows' input, which it routes to its surfaces itself; beui's
     /// document, which only shows what the root drew, hears none of it.
-    fn input(&mut self, window: WindowId, input: &Input) -> bool {
-        self.input.push((window, input.clone()));
+    fn input(&mut self, window: WindowId, input: &Input, time: Option<Instant>) -> bool {
+        self.input.push((window, input.clone(), time));
         true
     }
 
@@ -273,8 +320,9 @@ impl beui::native::Program for RootShell {
     }
 }
 
-/// Starts `app`'s entry point as the root on the window's device, its staged apps found as
-/// be-host finds every app's, and waking the host whenever it has something to step for.
+/// Starts `app`'s entry point as the root on the window's device, which it and its staged apps,
+/// found as be-host finds every app's, draw on, waking the host whenever it has something to
+/// step for.
 fn start(app: &str, setup: &beui::native::Setup) -> Result<Root, String> {
     let gpu = setup
         .get::<beui_renderer_wgpu::present::GpuSetup>()
@@ -296,8 +344,8 @@ fn start(app: &str, setup: &beui::native::Setup) -> Result<Root, String> {
             "{app} is an app, not a root: its manifest does not say \"root\": true"
         ));
     }
-    let module = be_host_runtime::staged_app(app, &manifest.entry_point)?
-        .load(&be_wasm_host::Host::pure()?)?;
+    let host = be_wasm_host::Host::pure()?.with_display(gpu.device.clone(), gpu.queue.clone());
+    let module = be_host_runtime::staged_app(app, &manifest.entry_point)?.load(&host)?;
     let root = Root::start(
         module,
         Box::new(be_host_runtime::staged_app),

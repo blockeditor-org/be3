@@ -154,6 +154,19 @@ write_package_value("be3.cargo", {
             "test_deps": [],
             "test_features": [],
         },
+        "wasm32-bindgen": {
+            "binaries": {},
+            "deps": [
+                "//third-party/rust:futures-core-0.3.32",
+                "//third-party/rust:postcard-1.1.3",
+                "//third-party/rust:serde-1.0.228",
+                "//third-party/rust:serde_bytes-0.11.19",
+            ],
+            "examples": {},
+            "features": [],
+            "test_deps": [],
+            "test_features": [],
+        },
         "windows-arm64": {
             "binaries": {},
             "deps": [

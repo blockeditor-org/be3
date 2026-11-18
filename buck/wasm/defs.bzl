@@ -36,13 +36,17 @@ _program_flags = _guest_exports + [
 # Every role a WebAssembly module has in the build, which is the platform it is
 # built for (buck/platforms/BUCK) and how it is linked. Each has a transition
 # and a module rule below, made from its entry, and nothing else names these
-# platforms: wasm32_module, wasi_module (guest), wasi_program_module and
-# wasi_html_module. `link_flags` are what every module of the role is linked with,
+# platforms: wasm32_module, wasm32_bindgen_module, wasi_module (guest),
+# wasi_program_module and wasi_html_module. `link_flags` are what every module of the role is linked with,
 # which a crate's library takes as rustc flags in that configuration; a guest's
 # also depend on its libraries (app_module).
 #
 # - wasm32, wasm32-unknown-unknown with no WASI: block types, games, the input
-#   remaps and the browser's gpu shim, run in wasmi or by the page.
+#   remaps and root guests, pure guests run in wasmi or V8 that import no
+#   JavaScript.
+# - bindgen, the same triple with the `bindgen` constraint: the browser's gpu
+#   shim, which wasm-bindgen binds to the page, told apart so that its wgpu and
+#   web-sys stay out of the pure guests.
 # - guest, wasm32-wasip1-threads with the `guest` constraint: an app and its
 #   libraries (guides/app_libraries.md), linked by crates/be-wasm-link. The
 #   same triple as the next two, told apart so that each gets its own wgpu.
@@ -54,6 +58,7 @@ WASM_ROLES = {
     "html": struct(link_flags = _program_flags, platform = "root//buck/platforms:wasi_html", setting = "root//buck/platforms:wasi_html_setting"),
     "program": struct(link_flags = _program_flags, platform = "root//buck/platforms:wasi", setting = "root//buck/platforms:wasi_setting"),
     "wasm32": struct(link_flags = [], platform = "root//buck/platforms:wasm32", setting = "root//buck/platforms:wasm32_setting"),
+    "bindgen": struct(link_flags = [], platform = "root//buck/platforms:wasm32_bindgen", setting = "root//buck/platforms:wasm32_bindgen_setting"),
 }
 
 # WebAssembly modules, depended on from targets that are not WebAssembly: the
@@ -67,6 +72,8 @@ def _role_transition(role):
     return transition(impl = _role_transition_impl, refs = {"role": WASM_ROLES[role].platform} | PROFILE_REFS)
 
 wasm32_transition = _role_transition("wasm32")
+
+wasm32_bindgen_transition = _role_transition("bindgen")
 
 wasi_transition = _role_transition("guest")
 
@@ -147,6 +154,8 @@ def _module_rule(cfg):
     )
 
 wasm32_module = _module_rule(wasm32_transition)
+
+wasm32_bindgen_module = _module_rule(wasm32_bindgen_transition)
 
 wasi_module = _module_rule(wasi_transition)
 

@@ -113,14 +113,30 @@ impl TouchpadGesture {
     }
 }
 
+/// An input and when the platform sampled it, as a host hands a root guest its window's input.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Timed {
+    pub input: Input,
+    /// When it was sampled, in nanoseconds on the frame clock the host and its guest share
+    /// (be3:root's `frame-request` `time`), if the platform said: pens and touches mostly do,
+    /// so a stroke drawn from every sample keeps its pace.
+    pub time: Option<u64>,
+}
+
+impl From<Input> for Timed {
+    fn from(input: Input) -> Self {
+        Self { input, time: None }
+    }
+}
+
 /// `events` as bytes, as a host hands a root guest its window's input (be3:root's
 /// `input.deliver`, crates/be-wasm-root-api), which `decode` reads back.
-pub fn encode(events: &[Input]) -> Vec<u8> {
+pub fn encode(events: &[Timed]) -> Vec<u8> {
     postcard::to_allocvec(events).expect("input always serializes")
 }
 
 /// The events `encode` wrote.
-pub fn decode(bytes: &[u8]) -> Result<Vec<Input>, String> {
+pub fn decode(bytes: &[u8]) -> Result<Vec<Timed>, String> {
     postcard::from_bytes(bytes).map_err(|error| format!("the input could not be read: {error}"))
 }
 

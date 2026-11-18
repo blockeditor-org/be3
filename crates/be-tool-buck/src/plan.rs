@@ -143,8 +143,9 @@ pub(crate) const PLANS: &[Plan] = &[
         lib: false,
     },
     // The games, every app's type module (be-type-bundle runs them in process
-    // on the host), the gpu shim, the remap module, the pure guests and the
-    // root guests be-wasm-root-host's tests run.
+    // on the host), the remap module, the pure guests and the root guests
+    // be-wasm-root-host's tests run: pure guests all, which import no
+    // JavaScript.
     Plan {
         name: "wasm32",
         mode: Mode::Build,
@@ -152,12 +153,22 @@ pub(crate) const PLANS: &[Plan] = &[
         packages: Packages::Only(&[
             Prefix("tabletop-rules-", &[]),
             Prefix("be-type-", &["be-type-bundle"]),
-            Named("be-wasm-gpu-shim"),
             Named("be-lib-remap-module"),
             Named("be-wasm-guest-echo"),
             Named("be-wasm-root-testing"),
             Named("be-sdk-root-testing"),
         ]),
+        html: false,
+        lib: false,
+    },
+    // The browser's gpu shim, which wasm-bindgen binds to the page: a plan of
+    // its own, since its wgpu and web-sys must not reach the pure guests (a
+    // root guest drawing with the gpu would link them).
+    Plan {
+        name: "wasm32-bindgen",
+        mode: Mode::Build,
+        triple: "wasm32-unknown-unknown",
+        packages: Packages::Only(&[Named("be-wasm-gpu-shim")]),
         html: false,
         lib: false,
     },

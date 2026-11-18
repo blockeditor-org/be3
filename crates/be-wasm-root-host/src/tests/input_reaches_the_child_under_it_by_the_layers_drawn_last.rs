@@ -28,7 +28,7 @@ fn input_reaches_the_child_under_it_by_the_layers_drawn_last() {
         pos2(CHILD_ORIGIN.0, CHILD_ORIGIN.1)
     );
 
-    root.input(None, encode(&[Input::PointerMoved(pos2(50.0, 50.0))]))
+    root.input(None, encode(&[Input::PointerMoved(pos2(50.0, 50.0)).into()]))
         .expect("the root takes input");
     let done = frame(&mut root, 2);
     assert_eq!(
@@ -44,9 +44,10 @@ fn input_reaches_the_child_under_it_by_the_layers_drawn_last() {
                 pos: pos2(150.0, 50.0),
                 button: PointerButton::Primary,
                 pressed: true,
-            },
+            }
+            .into(),
             // Off the child's screen, and off the window: the press holds the pointer for it.
-            Input::PointerMoved(pos2(250.0, 60.0)),
+            Input::PointerMoved(pos2(250.0, 60.0)).into(),
         ]),
     )
     .expect("the root takes input");

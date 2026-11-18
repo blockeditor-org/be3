@@ -1,4 +1,4 @@
-use be_sdk_root_testing::{ORIGIN, SCREEN_SIZE};
+use be_sdk_root_testing::{ORIGIN, ROOT_COLOR, SCREEN_SIZE, SIZE};
 
 use super::*;
 
@@ -42,14 +42,27 @@ fn a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds() {
         )
     };
 
-    // The root's own surface is the window's plain background, and so is the screen where the
-    // triangle drew nothing.
-    let below = height as f32 / scale;
-    let background = at(left / 2.0, (top + screen_height + below) / 2.0);
+    // The root fills its own surface, `SIZE` points at the window's top left, with `ROOT_COLOR`,
+    // which shows through the screen where the triangle drew nothing; past it the window shows
+    // its plain background.
+    let own = ROOT_COLOR.map(|channel| (channel * 255.0).round() as u8);
+    let own = [own[0], own[1], own[2]];
+    let beside = at(left / 2.0, top + 5.0);
+    assert!(
+        near(beside, own),
+        "beside the screen, the root's own surface shows the colour it drew, {own:?}: {beside:?}"
+    );
     let corner = at(left + 5.0, top + 5.0);
     assert!(
-        near(corner, background),
-        "the screen's corner, which the triangle leaves clear, shows the background {background:?}: {corner:?}"
+        near(corner, own),
+        "the screen's corner, which the triangle leaves clear, shows the root's surface under it, \
+         {own:?}: {corner:?}"
+    );
+    let past = at((SIZE.0 as f32 + width as f32 / scale) / 2.0, top + 5.0);
+    assert!(
+        !near(past, own),
+        "past the root's surface the window shows its own background, not the root's colour: \
+         {past:?}"
     );
     // Below its top corner, which is red, the triangle is mostly red; beside its bottom left,
     // which is green, mostly green.

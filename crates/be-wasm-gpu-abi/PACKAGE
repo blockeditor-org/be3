@@ -132,6 +132,18 @@ write_package_value("be3.cargo", {
                 "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
                 "//crates/be-wasm-ops:be-wasm-ops",
                 "//third-party/rust:serde-1.0.228",
+            ],
+            "examples": {},
+            "features": [],
+            "test_deps": [],
+            "test_features": [],
+        },
+        "wasm32-bindgen": {
+            "binaries": {},
+            "deps": [
+                "//crates/be-wasm-ops-bindgen:be-wasm-ops-bindgen",
+                "//crates/be-wasm-ops:be-wasm-ops",
+                "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:wgpu-29.0.3",
             ],
             "examples": {},

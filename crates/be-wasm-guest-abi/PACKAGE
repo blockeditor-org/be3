@@ -78,6 +78,14 @@ write_package_value("be3.cargo", {
             "test_deps": [],
             "test_features": [],
         },
+        "wasm32-bindgen": {
+            "binaries": {},
+            "deps": [],
+            "examples": {},
+            "features": [],
+            "test_deps": [],
+            "test_features": [],
+        },
         "windows-arm64": {
             "binaries": {},
             "deps": [],

@@ -9,9 +9,13 @@
 //!   the host's device.
 //! - `Windows` routes each window's raw input with be-lib-input-router's `Router` over the
 //!   layers the root drew last, as the host's own UI routes today.
-//! - `Embedding` holds both: what is routed to an app's screen reaches the app as
-//!   `AppCall::Input`, in the screen's points; what lands on the root's own surfaces the root
-//!   gets back.
+//! - `OwnSurface` is a surface of the root's own, which it draws on the host's device as an app
+//!   draws its screens and names in its layer list as `Surface::Root`, below, between or above
+//!   the screens it embeds.
+//! - `Embedding` holds the `Embedded`s and `Windows`: what is routed to an app's screen reaches
+//!   the app as `AppCall::Input`, in the screen's points; what lands on the root's own surfaces
+//!   the root gets back. What its apps ask of their windows (a cursor shape, the pointer lock,
+//!   every sample) it answers as the window's (`Embedding::requests`).
 //!
 //! The root stays single-threaded and never blocks: each app's frames are heard by a task on
 //! the root's executor (`be_wasm_ops::guest::spawn`), and a frame awaits the present as ordinary
@@ -23,14 +27,16 @@
 //! (be-sdk-root-testing); both families may link be-sdk.
 
 mod embedded;
+mod own;
 mod windows;
 
 pub use embedded::{Embedded, Spawn, Wants};
+pub use own::OwnSurface;
 pub use windows::{Delivery, Windows};
 
 use be_lib_geometry::{Rect, pos2};
 use be_lib_layers::{Layer, LayerId, LayerList, Surface};
-use be_lib_ui_types::{ImeArea, input};
+use be_lib_ui_types::{CursorIcon, ImeArea, WindowRequests, input};
 
 /// The apps a root embeds and the routing of its windows' input to them.
 pub struct Embedding {
@@ -82,7 +88,8 @@ impl Embedding {
 
     /// Routes `window`'s input (`events`, be-lib-ui-types' `input::encode`, as `be3:root`'s
     /// `input.deliver` carries it) over the layers drawn last: what lands on an app's screen goes
-    /// to the app; what lands on the root's own surfaces is answered, for the root to take in.
+    /// to the app, at the time it was sampled; what lands on the root's own surfaces is
+    /// answered, for the root to take in.
     pub fn input(&mut self, window: Option<u64>, events: &[u8]) -> Result<Vec<Delivery>, String> {
         let events = input::decode(events)?;
         let routed = self.windows.route(window, events);
@@ -102,16 +109,42 @@ impl Embedding {
         Some(ime_in_window(area, raster, layer))
     }
 
+    /// What `window` asks of its host for the apps it shows, as `be3:root`'s `frame-done`
+    /// carries it: the cursor shape of the screen under the pointer, the pointer lock while the
+    /// focused screen holds it (`drew` grants it), and every sample of the pointer's moves while
+    /// a screen it shows asks for them. Over the root's own surfaces the cursor is the default
+    /// one: a root that draws its own controls sets its own.
+    pub fn requests(&self, window: Option<u64>) -> Requests {
+        requests(&self.windows, window, |surface| {
+            let Surface::Screen { instance, surface } = *surface else {
+                return None;
+            };
+            let app = self.apps.iter().find(|app| app.instance() == instance)?;
+            app.window(surface)
+        })
+    }
+
     /// Takes `list` as the layers drawn last, which input is routed by from now on, and answers
-    /// it as `be3:root`'s `frame-done` carries it (`LayerList::encode`). An app focused in a
-    /// window the list leaves out hears it lost the focus; the root's own surfaces are answered
-    /// what they hear of it.
+    /// it as `be3:root`'s `frame-done` carries it (`LayerList::encode`). The focused screen in
+    /// each window gets the pointer lock if it asks for it, and one that stopped asking or lost
+    /// the focus loses it. An app focused in a window the list leaves out hears it lost the
+    /// focus; the root's own surfaces are answered what they hear of these.
     pub fn drew(&mut self, list: LayerList) -> Drawn {
         let layers = list.encode();
-        let lost = self.windows.drew(list);
+        let mut told = self.windows.drew(list);
+        let apps = &self.apps;
+        told.extend(self.windows.lock(|layer| {
+            let Surface::Screen { instance, surface } = layer.surface else {
+                return false;
+            };
+            apps.iter()
+                .find(|app| app.instance() == instance)
+                .and_then(|app| app.window(surface))
+                .is_some_and(|window| window.pointer_locked)
+        }));
         Drawn {
             layers,
-            own: self.forward(lost),
+            own: self.forward(told),
         }
     }
 
@@ -124,10 +157,48 @@ impl Embedding {
                 continue;
             };
             if let Some(app) = self.apps.iter().find(|app| app.instance() == instance) {
-                app.input(surface, delivery.input);
+                app.input(surface, delivery.input, delivery.time);
             }
         }
         own
+    }
+}
+
+/// What a window asks of its host for the surfaces it shows (`Embedding::requests`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Requests {
+    /// The cursor shape the window shows.
+    pub cursor: CursorIcon,
+    /// Whether the pointer is locked to the window.
+    pub pointer_locked: bool,
+    /// Whether the window hands the root every sample of the pointer's moves, rather than
+    /// merging a frame's into its last.
+    pub every_sample: bool,
+}
+
+/// What `window` asks for its layers, given what the surface each shows asks of its window
+/// (`asks`; none for one that asks nothing, such as the root's own).
+pub(crate) fn requests(
+    windows: &Windows,
+    window: Option<u64>,
+    asks: impl Fn(&Surface) -> Option<WindowRequests>,
+) -> Requests {
+    let cursor = windows
+        .hovered(window)
+        .and_then(|layer| asks(&layer.surface))
+        .map_or(CursorIcon::Default, |asked| asked.cursor);
+    let pointer_locked = windows
+        .locked(window)
+        .is_some_and(|layer| asks(&layer.surface).is_some_and(|asked| asked.pointer_locked));
+    let every_sample = windows
+        .layers(window)
+        .iter()
+        .filter(|layer| layer.shown)
+        .any(|layer| asks(&layer.surface).is_some_and(|asked| asked.every_sample));
+    Requests {
+        cursor,
+        pointer_locked,
+        every_sample,
     }
 }
 

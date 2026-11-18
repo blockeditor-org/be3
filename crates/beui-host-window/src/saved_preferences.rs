@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 use beui::PreferenceLayer;
 use beui::PreferenceSource;
@@ -59,8 +60,8 @@ impl<A: Program> Program for SavedPreferences<A> {
         self.program.exiting();
     }
 
-    fn input(&mut self, window: WindowId, input: &Input) -> bool {
-        self.program.input(window, input)
+    fn input(&mut self, window: WindowId, input: &Input, time: Option<Instant>) -> bool {
+        self.program.input(window, input, time)
     }
 
     fn lifecycle(&mut self, change: Lifecycle) {
