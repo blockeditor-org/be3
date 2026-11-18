@@ -27,12 +27,23 @@ fn an_editors_edit_made_before_two_restarts_it_was_not_shown_lands() {
             sim.deafen(0, 1);
         }
         sim.advance(crate::QUIET_INTERVAL);
-        assert_eq!(sim.devices[0].status.restarts, restart, "the session restarted");
+        assert_eq!(
+            sim.devices[0].status.restarts, restart,
+            "the session restarted"
+        );
     }
-    assert_eq!(sim.typed(0, 1), "start\n", "editor 1 still shows the first content");
+    assert_eq!(
+        sim.typed(0, 1),
+        "start\n",
+        "editor 1 still shows the first content"
+    );
     sim.type_at(0, 1, 5, "X");
     sim.settle();
-    assert_eq!(prose(&sim.content(0)), "startX\n", "the edit lands where it was typed");
+    assert_eq!(
+        prose(&sim.content(0)),
+        "startX\n",
+        "the edit lands where it was typed"
+    );
 
     sim.hear(0, 1);
     assert!(

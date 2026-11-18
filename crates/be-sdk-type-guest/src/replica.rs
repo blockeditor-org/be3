@@ -1158,7 +1158,8 @@ where
     /// The parts an entry names that this replica has yet to read, unless one is longer than any
     /// part an entry may name: every replica passes that entry over unread.
     fn missing_parts(&self, op: &SessionOp) -> Vec<PartRef> {
-        let Some(part) = Submitted::decode(&op.payload).and_then(|submitted| submitted.entry.part())
+        let Some(part) =
+            Submitted::decode(&op.payload).and_then(|submitted| submitted.entry.part())
         else {
             return Vec::new();
         };
