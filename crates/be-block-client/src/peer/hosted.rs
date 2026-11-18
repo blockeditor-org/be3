@@ -284,7 +284,7 @@ impl<S: ObjectStore> Peer<S> {
             false => Around::default(),
         };
         around
-            .check(self.organization, block, root, &entries)
+            .check(self.organization, block, root, None, &entries)
             .ok_or(ClientError::Forged(block))?;
         let me = self.account.into_bytes();
         let vouched = entries.iter().filter_map(Step::entry).any(|entry| {

@@ -936,7 +936,7 @@ impl<S: ObjectStore> Peer<S> {
                 continue;
             };
             let checked = around
-                .check(self.organization, escrowed.block, pinned, &entries)
+                .check(self.organization, escrowed.block, pinned, None, &entries)
                 // A log short of what an earlier check kept is withheld: the key waits.
                 .and_then(|checked| match self.keys.served(escrowed.block, &checked) {
                     crate::keys::Served::Take => Some(checked),
@@ -2533,8 +2533,14 @@ impl<S: ObjectStore> Peer<S> {
             true => self.logs_around(block, &entries).await?,
             false => Around::default(),
         };
+        // Checked on from what this device kept, when the log still reaches it: only the
+        // entries after are checked. One cut short is checked whole, and found withheld below.
+        let kept = self
+            .keys
+            .kept_checked(block, pinned)
+            .filter(|kept| kept.positions.len() <= entries.len());
         let checked = around
-            .check(self.organization, block, pinned, &entries)
+            .check(self.organization, block, pinned, kept, &entries)
             .ok_or(ClientError::Forged(block))?;
         // A log short of what an earlier check kept is withheld: nothing acts on it, and what
         // waits on it (a seal to judge, an escrowed key to take) waits for a whole one.
@@ -4712,12 +4718,15 @@ impl Around {
         }
     }
 
-    /// `block`'s log checked from `pinned`, with the authority its records name read from here.
+    /// `block`'s log checked from `pinned`, or on from `kept`, what this device checked of it
+    /// before (whose prefix must be what it served then), with the authority its records name
+    /// read from here.
     fn check(
         &self,
         organization: Uuid,
         block: Uuid,
         pinned: be_block_keys::EntryHash,
+        kept: Option<be_block_keys::Checked>,
         entries: &[be_block_keys::Step],
     ) -> Option<be_block_keys::Checked> {
         let log = |kind, log| self.log(kind, log);
@@ -4728,14 +4737,14 @@ impl Around {
         );
         let outside =
             |asked: &be_block_keys::Asked| be_block_keys::answer(&logs, block.into_bytes(), asked);
-        be_block_keys::check_log(
-            be_block_keys::LogKind::Block,
-            block.into_bytes(),
-            pinned,
-            entries,
-            &outside,
-        )
-        .ok()
+        kept.unwrap_or_else(|| be_block_keys::Checked::unchecked(pinned))
+            .resume(
+                be_block_keys::LogKind::Block,
+                block.into_bytes(),
+                entries,
+                &outside,
+            )
+            .ok()
     }
 }
 

@@ -1139,6 +1139,7 @@ impl KeyBook {
                 .get(&block)
                 .map(|kept| kept.vouched.clone())
                 .unwrap_or_default(),
+            checked: (!checked.partial).then(|| checked.clone()),
         };
         match roots.kept.insert(block, kept.clone()) == Some(kept.clone()) {
             true => None,
@@ -1186,6 +1187,19 @@ impl KeyBook {
         found
     }
 
+    /// `block`'s whole log as this device last checked it from `root`, to check on from
+    /// (`Checked::resume`): none when it kept none, or kept it from another root.
+    pub fn kept_checked(&self, block: Uuid, root: EntryHash) -> Option<Checked> {
+        self.roots
+            .lock()
+            .unwrap()
+            .kept
+            .get(&block)?
+            .checked
+            .clone()
+            .filter(|checked| checked.root == root)
+    }
+
     /// How far this device checked logs in an earlier run (`note_log`), from the refs.
     pub fn set_kept_logs(&self, kept: impl IntoIterator<Item = (Uuid, crate::refs::KeptLog)>) {
         self.roots.lock().unwrap().kept.extend(kept);
@@ -1201,6 +1215,7 @@ impl KeyBook {
             current: vec![root],
             levels: vec![(self.account.into_bytes(), Level::Manage)],
             vouched: Vec::new(),
+            checked: None,
         };
         self.roots
             .lock()
