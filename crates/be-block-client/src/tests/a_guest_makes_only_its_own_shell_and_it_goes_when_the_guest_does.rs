@@ -9,10 +9,12 @@ use super::*;
 
 /// A guest makes only its own shell's blocks (decisions/a_guest_makes_only_its_own_shell.md):
 /// settings at the top that only it reads, and what lies in them. Nothing else, nothing a member
-/// could read, nothing in another's block, and no grant of its own; they go when it leaves.
+/// could read, nothing in another's block, and no grant of its own. They go when it leaves,
+/// with all they held: the guest is charged nothing, no object is kept for them, and the
+/// organization loads again after a restart.
 #[tokio::test]
 async fn a_guest_makes_only_its_own_shell_and_it_goes_when_the_guest_does() {
-    let harness = Harness::start().await;
+    let mut harness = Harness::start().await;
     let admin = harness.owner("admin@example.com").await;
     let member = harness.member(&admin, "member@example.com").await;
     let outsider = harness.owner("outsider@example.com").await;
@@ -71,13 +73,45 @@ async fn a_guest_makes_only_its_own_shell_and_it_goes_when_the_guest_does() {
         .await
         .expect("a guest makes its own settings, readable by it alone")
         .id;
-    make(
+    let object_refs = |harness: &Harness| -> i64 {
+        harness
+            .database()
+            .query_row("SELECT COUNT(*) FROM object_refs", [], |row| row.get(0))
+            .unwrap()
+    };
+    // What the account pays for, in every organization (its own account block among them).
+    let charged = |harness: &Harness| -> i64 {
+        harness
+            .database()
+            .query_row(
+                "SELECT COALESCE(SUM(held + pending), 0) FROM account_usage WHERE account_id = ?1",
+                [outsider.account().to_string()],
+                |row| row.get(0),
+            )
+            .unwrap()
+    };
+    let before = object_refs(&harness);
+    let charged_before = charged(&harness);
+    let profile = make(
         SettingsProfileContent::CONTENT_TYPE,
         BlockParent::Block(settings),
         false,
     )
     .await
-    .expect("and what its shell keeps in them");
+    .expect("and what its shell keeps in them")
+    .id;
+    guest
+        .save(profile, &SettingsProfileContent::default(), None)
+        .await
+        .unwrap();
+    let mut held = SettingsContent::default();
+    held.apply(&be_block::Settings::set_kind(
+        SettingsProfileContent::CONTENT_TYPE,
+        profile,
+    ));
+    guest.save(settings, &held, None).await.unwrap();
+    assert!(object_refs(&harness) > before, "its shell holds objects");
+    assert!(charged(&harness) > charged_before, "which its guest pays for");
     for (made, why) in [
         (
             make(TextContent::CONTENT_TYPE, BlockParent::Root, false).await,
@@ -122,6 +156,24 @@ async fn a_guest_makes_only_its_own_shell_and_it_goes_when_the_guest_does() {
         )
         .unwrap();
     assert_eq!(kept, 0, "a guest's shell goes with it");
+    assert_eq!(
+        charged(&harness),
+        charged_before,
+        "and nothing it held is charged to it"
+    );
+    assert_eq!(
+        object_refs(&harness),
+        before,
+        "and no object is kept for it"
+    );
+
+    harness.server.restart().await;
+    harness.url = format!("ws://{}", harness.server.address);
+    harness.reconnect(&admin, admin.token()).await;
+    assert!(
+        admin.summary(team).await.is_ok(),
+        "the organization loads again after its guest's shell went"
+    );
 
     harness.stop().await;
 }
