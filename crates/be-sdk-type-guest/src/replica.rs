@@ -2969,8 +2969,10 @@ where
                 if op.base < op.floor && !replace && !restart {
                     return self.passed(&op, mine);
                 }
-                // Read before the entry was let through (`missing_parts`); one too long to read
-                // reloads with none, as every replica does.
+                // Read before the entry was let through (`missing_parts`). One longer than
+                // `LARGEST_PART` (64 MiB) is passed through unread, so every replica reloads it
+                // with no state alike: its identities are new, and what was on its way names
+                // nothing in it.
                 let state = match state {
                     Payload::Inline(bytes) => bytes,
                     Payload::Part(part) => self.payloads.get(&part).cloned().unwrap_or_default(),
@@ -3764,12 +3766,13 @@ where
             self.reply(id, Answer::Changed(made));
         }
         // A reload that never reached the order would hold seals back for good (`reloading`):
-        // it is let go.
+        // it is let go. Should the server have numbered it after all, it lands as any reload
+        // does, `reloading` cleared already, and settles a merge failing meanwhile. A stash to
+        // keep goes the way an edit does, below.
         if matches!(outcome, Outcome::Failed(_) | Outcome::Refused(_))
-            && let Some(at) = self
-                .pending
-                .iter()
-                .position(|sent| sent.id.counter == counter && sent.operation.is_none())
+            && let Some(at) = self.pending.iter().position(|sent| {
+                sent.id.counter == counter && matches!(sent.entry, Entry::Reload { .. })
+            })
             && let Some(sent) = self.pending.remove(at)
         {
             let (Outcome::Failed(error) | Outcome::Refused(error)) = outcome else {
@@ -3778,7 +3781,8 @@ where
             self.reloading.retain(|id| *id != sent.id);
             let error = format!("a reload did not reach the session: {error}");
             match sent.entry {
-                // A merge's: it is made again on the merge's timer, as a merge that failed is.
+                // A head reload's: the reconcile makes it again on the merge's timer, as it
+                // makes a merge that failed again.
                 Entry::Reload { head: true, .. } => self.merge_failed(error),
                 _ => self.error(error),
             }
