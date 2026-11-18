@@ -372,7 +372,11 @@ impl<G: Inline> Core<G> {
 
     /// Shows the root the host's memory over time (`host.memory-history`), in place of what it
     /// showed. Answers whether a root's call waited for it, so the host steps the root.
-    fn show_memory_history(&mut self, points: Vec<be_wasm_root_api::MemoryPoint>, now: u64) -> bool {
+    fn show_memory_history(
+        &mut self,
+        points: Vec<be_wasm_root_api::MemoryPoint>,
+        now: u64,
+    ) -> bool {
         if self.memory_history.points == points && self.memory_history.now == now {
             return false;
         }
@@ -722,8 +726,10 @@ impl<G: Inline> Core<G> {
                         self.statistics_watchers
                             .remove(at)
                             .fail(&mut self.connection, OpError::Canceled);
-                    } else if let Some(at) =
-                        self.memory_watchers.iter().position(|reply| reply.op() == op)
+                    } else if let Some(at) = self
+                        .memory_watchers
+                        .iter()
+                        .position(|reply| reply.op() == op)
                     {
                         self.memory_watchers
                             .remove(at)
