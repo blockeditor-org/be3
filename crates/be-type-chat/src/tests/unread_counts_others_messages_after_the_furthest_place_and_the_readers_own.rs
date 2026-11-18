@@ -18,7 +18,14 @@ fn unread_counts_others_messages_after_the_furthest_place_and_the_readers_own() 
             },
         ),
         item(3, BO, &message("three")),
-        item(4, BO, &ChatEntry::Delete { message: 3, time: 0 }),
+        item(
+            4,
+            BO,
+            &ChatEntry::Delete {
+                message: 3,
+                time: 0,
+            },
+        ),
         item(5, BO, &message("four")),
     ];
     let log = ChatLog::of(&entries);

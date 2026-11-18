@@ -389,7 +389,6 @@ fn PendingChip(editor: Editor, pending: Pending, link_id: String) -> NodeId {
     }
 }
 
-
 #[component]
 pub fn Chat(editor: Editor) -> NodeId {
     let chat: Chat = editor.block_content::<ChatContent>();
@@ -647,8 +646,12 @@ pub fn Chat(editor: Editor) -> NodeId {
     let replying = create_memo(move || {
         let seq = composer.replying.get()?;
         let (author, body) = log.with(|log| {
-            log.message(seq)
-                .map(|shown| (shown.author, excerpt(shown.body.as_deref().unwrap_or_default())))
+            log.message(seq).map(|shown| {
+                (
+                    shown.author,
+                    excerpt(shown.body.as_deref().unwrap_or_default()),
+                )
+            })
         })?;
         Some(format!("Replying to {}: {body}", names.inline(author)))
     });
@@ -658,17 +661,7 @@ pub fn Chat(editor: Editor) -> NodeId {
         move |key: RowKey| {
             let shown = rows.get(&key);
             view! {
-                <MessageRow
-                    chat={chat}
-                    editor
-                    me
-                    names
-                    key
-                    row={shown}
-                    composer
-                    log
-                    attached
-                />
+                <MessageRow chat={chat} editor me names key row={shown} composer log attached />
             }
         }
     };
@@ -958,10 +951,7 @@ fn unsent_row(log: &ChatLog, bytes: &[u8], me: Uuid, state: State, today: i64) -
         edited: false,
         reply: reply_to.map(|quoted| quote(log, quoted)),
         reactions: Vec::new(),
-        attachments: attachments
-            .iter()
-            .map(|attachment| attachment.0)
-            .collect(),
+        attachments: attachments.iter().map(|attachment| attachment.0).collect(),
         state,
         undone: None,
     })
@@ -1038,14 +1028,11 @@ fn announcement_key(me: Uuid, time: i64) -> String {
 /// are away, and mentioning the author of the message it replies to. What it carries is listed
 /// as the message's once its entry has an id.
 fn send_message(chat: Chat, log: Memo<ChatLog>, me: Uuid, entry: ChatEntry) {
-    let ChatEntry::Message { time, reply_to, .. } = &entry
-    else {
+    let ChatEntry::Message { time, reply_to, .. } = &entry else {
         return;
     };
     let mentions: Vec<Uuid> = reply_to
-        .and_then(|quoted| {
-            log.with_untracked(|log| log.message(quoted).map(|shown| shown.author))
-        })
+        .and_then(|quoted| log.with_untracked(|log| log.message(quoted).map(|shown| shown.author)))
         .filter(|author| *author != me)
         .into_iter()
         .collect();
@@ -1057,13 +1044,7 @@ fn send_message(chat: Chat, log: Memo<ChatLog>, me: Uuid, entry: ChatEntry) {
 }
 
 /// Sends the draft, or saves the edit.
-fn submit(
-    chat: Chat,
-    log: Memo<ChatLog>,
-    me: Uuid,
-    composer: Composer,
-    attached: Attached,
-) {
+fn submit(chat: Chat, log: Memo<ChatLog>, me: Uuid, composer: Composer, attached: Attached) {
     let body = composer.draft.get_untracked().trim().to_owned();
     let editing = composer.editing.get_untracked();
     let pending = match editing {
@@ -1232,7 +1213,8 @@ fn MessageRow(
     let failed = create_memo(move || matches!(state.get(), State::NotSent(..)));
     let undone = create_memo(move || row.with(|row| row.undone.clone()));
     let has_undone = create_memo(move || undone.with(Option::is_some));
-    let undone_text = create_memo(move || undone.with(|undone| undone.clone().unwrap_or_default().0));
+    let undone_text =
+        create_memo(move || undone.with(|undone| undone.clone().unwrap_or_default().0));
     let dismiss_undone = move || {
         if let Some((_, token)) = undone.get_untracked() {
             chat.dismiss_refused(token);

@@ -3806,7 +3806,10 @@ where
                 },
             ),
             FromEditor::LetGoRefused { id } if editable && self.has_log => {
-                self.out.push(Effect::LetGoRefused { replica: self.id, id });
+                self.out.push(Effect::LetGoRefused {
+                    replica: self.id,
+                    id,
+                });
             }
             FromEditor::LetGoRefused { .. } => {}
             FromEditor::ReadLog { token, from, limit } if self.has_log => {
@@ -3881,11 +3884,7 @@ where
         }
     }
 
-    fn answer_log_read(
-        &mut self,
-        token: Token,
-        result: Result<be_block_content::LogPage, String>,
-    ) {
+    fn answer_log_read(&mut self, token: Token, result: Result<be_block_content::LogPage, String>) {
         let reader = self.log_reads.remove(&token).flatten();
         if let Ok(page) = &result {
             self.log_size = self.log_size.max(page.size);
@@ -3920,7 +3919,11 @@ where
         while self.signed_log.holds(from) {
             from += 1;
         }
-        let heard = self.signed_log.items.last_key_value().map_or(0, |(seq, _)| seq + 1);
+        let heard = self
+            .signed_log
+            .items
+            .last_key_value()
+            .map_or(0, |(seq, _)| seq + 1);
         // The first read is made whatever the log holds: it is what follows the log.
         if self.log_read && from >= self.log_size.max(heard) {
             return;

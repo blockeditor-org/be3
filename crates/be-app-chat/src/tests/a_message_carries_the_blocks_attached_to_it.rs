@@ -85,7 +85,9 @@ fn a_message_carries_the_blocks_attached_to_it() {
     chat.run();
     let sent = chat.seq(1);
     assert_eq!(
-        chat.log().message(sent).map(|shown| shown.attachments.clone()),
+        chat.log()
+            .message(sent)
+            .map(|shown| shown.attachments.clone()),
         Some(vec![BlockRef(plans), BlockRef(sketch)])
     );
     assert_eq!(

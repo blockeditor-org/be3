@@ -127,12 +127,7 @@ struct Inner {
     /// Whether the server holds appends to signed logs back (`hold_appends`), as one not
     /// reached yet, and those it holds: each block, entry id, bytes and what goes along.
     hold_appends: bool,
-    held_appends: Vec<(
-        Option<Uuid>,
-        Uuid,
-        Vec<u8>,
-        be_sdk_type_guest::api::Along,
-    )>,
+    held_appends: Vec<(Option<Uuid>, Uuid, Vec<u8>, be_sdk_type_guest::api::Along)>,
     /// Why the server refuses appends, while it does (`refuse_appends`).
     refuse_appends: Option<String>,
     /// The appends the server refused that the device keeps until let go: each block, entry
@@ -536,7 +531,10 @@ impl Inner {
                     }
                     false => self
                         .log_entry(block, id, self.account, bytes, along, None)
-                        .map(|(seq, arrival)| be_sdk_type_guest::api::host::LogPlace { seq, arrival }),
+                        .map(|(seq, arrival)| be_sdk_type_guest::api::host::LogPlace {
+                            seq,
+                            arrival,
+                        }),
                 };
                 reply.send(
                     &mut self.host,
@@ -726,9 +724,8 @@ impl Inner {
         let held = self.blocks.get_mut(&key)?;
         let seq = held.log.len() as u64;
         // The server's clock, as the test's wall clock reads it now.
-        let arrival = arrival.unwrap_or(
-            (beui_core::timer::TEST_WALL_CLOCK.as_millis() as u64 + self.now) as i64,
-        );
+        let arrival = arrival
+            .unwrap_or((beui_core::timer::TEST_WALL_CLOCK.as_millis() as u64 + self.now) as i64);
         let item = be_sdk_type_guest::api::LogItem {
             seq,
             id,
@@ -2011,7 +2008,10 @@ impl ContentStore {
         else {
             return 0;
         };
-        let log = inner.blocks.get(&block).map_or(&[][..], |held| &held.log[..]);
+        let log = inner
+            .blocks
+            .get(&block)
+            .map_or(&[][..], |held| &held.log[..]);
         let latest = &log[log
             .len()
             .saturating_sub(be_sdk_beui::be_block_content::UNREAD_ENTRIES as usize)..];

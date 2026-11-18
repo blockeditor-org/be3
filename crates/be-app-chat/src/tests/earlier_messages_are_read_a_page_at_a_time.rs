@@ -7,10 +7,7 @@ fn earlier_messages_are_read_a_page_at_a_time() {
     // More than an editor holds unless it pages back (`editor::LOG_HELD`, 1024).
     let count = 1100;
     let messages: Vec<String> = (0..count).map(|index| format!("Message {index}")).collect();
-    let said: Vec<(Uuid, &str)> = messages
-        .iter()
-        .map(|body| (ROSA, body.as_str()))
-        .collect();
+    let said: Vec<(Uuid, &str)> = messages.iter().map(|body| (ROSA, body.as_str())).collect();
     // Opened again, the editor holds only what it reads.
     let chat = Harness::new(&said);
     let mut chat = chat.reopened();

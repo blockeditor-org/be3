@@ -1567,7 +1567,8 @@ impl ChatRoom {
             attachments: Vec::new(),
         };
         let along = be_block_content::Along {
-            announcement: message.announcement(Uuid::new_v4().to_string(), to.into_iter().collect()),
+            announcement: message
+                .announcement(Uuid::new_v4().to_string(), to.into_iter().collect()),
             redacts: None,
         };
         let (_, append) = editor.mirror.append(message.encode(), along);

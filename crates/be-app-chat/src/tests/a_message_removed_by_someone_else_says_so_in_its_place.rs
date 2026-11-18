@@ -24,10 +24,7 @@ fn a_message_removed_by_someone_else_says_so_in_its_place() {
         !chat.editor.shown(&format!("chat.message.{gone}.reply")),
         "a removed message takes no reply"
     );
-    assert!(
-        !chat.editor.shown("chat.replying"),
-        "the reply to it ends"
-    );
+    assert!(!chat.editor.shown("chat.replying"), "the reply to it ends");
     assert!(chat.row(first).contains("Is the release still on"));
     assert!(chat.row(last).contains("Great, I'll check the installers"));
     chat.snapshot("a_message_removed_by_someone_else_says_so_in_its_place");

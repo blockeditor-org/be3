@@ -31,7 +31,10 @@ fn a_drafts_made_blocks_come_back_as_chips_when_the_chat_opens_again() {
     again.run();
     let sent = again.seq(1);
     assert_eq!(
-        again.log().message(sent).map(|shown| shown.attachments.clone()),
+        again
+            .log()
+            .message(sent)
+            .map(|shown| shown.attachments.clone()),
         Some(vec![
             be_sdk_beui::be_block_content::be_block_model::BlockRef(sketch)
         ])

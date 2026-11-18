@@ -21,7 +21,8 @@ fn two_replicas_append_to_one_log_and_fold_it_in_one_order() {
     let mut appended = Vec::new();
     for (device, text) in [(0, "one"), (1, "two"), (0, "three"), (1, "four")] {
         let mirror = sim.editors.get_mut(&(device, 1)).unwrap();
-        let (token, message) = mirror.append(text.as_bytes().to_vec(), be_block_content::Along::default());
+        let (token, message) =
+            mirror.append(text.as_bytes().to_vec(), be_block_content::Along::default());
         sim.send_from_editor(device, 1, message);
         appended.push((device, token));
     }
@@ -38,7 +39,8 @@ fn two_replicas_append_to_one_log_and_fold_it_in_one_order() {
         assert!(
             answers[&device]
                 .iter()
-                .any(|(answered, result)| *answered == token && matches!(result, Ok(appended) if appended.place.is_some())),
+                .any(|(answered, result)| *answered == token
+                    && matches!(result, Ok(appended) if appended.place.is_some())),
             "device {device}'s append was not answered with its place: {answers:?}"
         );
     }

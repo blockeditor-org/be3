@@ -13,22 +13,20 @@ fn a_message_sent_as_its_editor_closed_still_carries_its_blocks() {
 
     // The editor that sent it is gone before the answer: its entry reaches the log alone.
     chat.editor.store().close_replica(None);
-    chat.editor
-        .store()
-        .log_entry(
-            None,
-            ME,
-            ChatEntry::Message {
-                time: MORNING,
-                body: "The sketch".to_owned(),
-                reply_to: None,
-                attachments: vec![be_sdk_beui::be_block_content::be_block_model::BlockRef(
-                    sketch,
-                )],
-            }
-            .encode(),
-            None,
-        );
+    chat.editor.store().log_entry(
+        None,
+        ME,
+        ChatEntry::Message {
+            time: MORNING,
+            body: "The sketch".to_owned(),
+            reply_to: None,
+            attachments: vec![be_sdk_beui::be_block_content::be_block_model::BlockRef(
+                sketch,
+            )],
+        }
+        .encode(),
+        None,
+    );
     let again = chat.reopened();
     drop(chat);
     assert!(

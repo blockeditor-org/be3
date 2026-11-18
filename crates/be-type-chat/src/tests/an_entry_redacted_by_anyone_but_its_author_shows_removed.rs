@@ -44,7 +44,10 @@ fn an_entry_redacted_by_anyone_but_its_author_shows_removed() {
         .map(|shown| (shown.seq, shown.author))
         .collect();
     assert_eq!(removed, [(1, BO), (4, ADA)]);
-    assert!(log.message(2).is_none(), "a reaction taken back shows no row");
+    assert!(
+        log.message(2).is_none(),
+        "a reaction taken back shows no row"
+    );
 
     // A deletion naming the reaction its author took back adds no deleted message.
     let mut deleted = entries.to_vec();

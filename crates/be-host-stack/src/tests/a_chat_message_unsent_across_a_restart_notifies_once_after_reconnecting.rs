@@ -10,7 +10,9 @@ fn a_chat_message_unsent_across_a_restart_notifies_once_after_reconnecting() {
     wait_until("noticed the server was gone", |shared| !shared.connected);
     let mut editor = room.editor();
     room.send(&mut editor, "Running late", None);
-    editor.until("kept the message", |editor| editor.kept() == ["Running late"]);
+    editor.until("kept the message", |editor| {
+        editor.kept() == ["Running late"]
+    });
     drop(editor);
     stop();
 

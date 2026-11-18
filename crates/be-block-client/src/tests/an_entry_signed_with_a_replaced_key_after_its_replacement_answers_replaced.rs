@@ -18,7 +18,12 @@ async fn an_entry_signed_with_a_replaced_key_after_its_replacement_answers_repla
         .await
         .unwrap();
     let before = owner
-        .append(team, "test.app", b"before the new phrase", be_block_content::Along::default())
+        .append(
+            team,
+            "test.app",
+            b"before the new phrase",
+            be_block_content::Along::default(),
+        )
         .await
         .unwrap();
     assert!(matches!(before, Appended::Logged { seq: 0, .. }));
@@ -43,7 +48,12 @@ async fn an_entry_signed_with_a_replaced_key_after_its_replacement_answers_repla
     .await
     .unwrap();
     owner
-        .append(team, "test.app", b"after, with the new key", be_block_content::Along::default())
+        .append(
+            team,
+            "test.app",
+            b"after, with the new key",
+            be_block_content::Along::default(),
+        )
         .await
         .unwrap();
     // The owner's phone, never told of the new phrase, still signs with the old key, and the

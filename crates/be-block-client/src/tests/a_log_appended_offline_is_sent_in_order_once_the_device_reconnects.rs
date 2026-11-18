@@ -12,7 +12,12 @@ async fn a_log_appended_offline_is_sent_in_order_once_the_device_reconnects() {
     let laptop = harness.device(&owner, &refs, &store).await;
     let chat = workspace(&laptop, "Chat").await;
     let first = laptop
-        .append(chat, "test.app", b"sent online", be_block_content::Along::default())
+        .append(
+            chat,
+            "test.app",
+            b"sent online",
+            be_block_content::Along::default(),
+        )
         .await
         .unwrap();
     assert!(
@@ -25,7 +30,12 @@ async fn a_log_appended_offline_is_sent_in_order_once_the_device_reconnects() {
     let mut kept = Vec::new();
     for text in ["one", "two", "three"] {
         match offline
-            .append(chat, "test.app", text.as_bytes(), be_block_content::Along::default())
+            .append(
+                chat,
+                "test.app",
+                text.as_bytes(),
+                be_block_content::Along::default(),
+            )
             .await
             .unwrap()
         {
@@ -101,7 +111,15 @@ async fn a_log_appended_offline_is_sent_in_order_once_the_device_reconnects() {
     assert_eq!(page.head, read.head);
     assert_eq!(page.entries.len(), 1);
     assert_eq!(page.entries[0].bytes(), Some(&b"two"[..]));
-    offline.append(chat, "test.app", b"four", be_block_content::Along::default()).await.unwrap();
+    offline
+        .append(
+            chat,
+            "test.app",
+            b"four",
+            be_block_content::Along::default(),
+        )
+        .await
+        .unwrap();
     let appended = loop {
         if let Ok(crate::Event::Appended(appended)) = events.recv().await {
             break appended;

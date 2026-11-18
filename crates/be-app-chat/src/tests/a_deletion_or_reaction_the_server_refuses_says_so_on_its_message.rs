@@ -21,13 +21,17 @@ fn a_deletion_or_reaction_the_server_refuses_says_so_on_its_message() {
     chat.click(&format!("chat.message.{question}.react"));
     chat.click(&format!("chat.message.{question}.react.thumbs-up"));
     assert_eq!(
-        chat.editor.label(&format!("chat.message.{question}.undone")),
+        chat.editor
+            .label(&format!("chat.message.{question}.undone")),
         "Reaction not saved: no access"
     );
     chat.snapshot("a_deletion_or_reaction_the_server_refuses_says_so_on_its_message");
 
     chat.click(&format!("chat.message.{answer}.dismiss"));
     assert!(!chat.editor.shown(&format!("chat.message.{answer}.undone")));
-    assert!(chat.editor.shown(&format!("chat.message.{question}.undone")));
+    assert!(
+        chat.editor
+            .shown(&format!("chat.message.{question}.undone"))
+    );
     assert_eq!(chat.editor.store().refused_appends(None).len(), 1);
 }

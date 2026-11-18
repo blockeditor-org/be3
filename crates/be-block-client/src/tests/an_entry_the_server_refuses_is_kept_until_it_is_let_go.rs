@@ -47,7 +47,10 @@ async fn an_entry_the_server_refuses_is_kept_until_it_is_let_go() {
     assert_eq!(back.pending().operations, 0, "it is not sent again");
     let refused = back.refused_entries(revoked.note);
     assert_eq!(refused.len(), 1);
-    assert_eq!((refused[0].0, &refused[0].1[..]), (id, &b"written away"[..]));
+    assert_eq!(
+        (refused[0].0, &refused[0].1[..]),
+        (id, &b"written away"[..])
+    );
     assert!(!refused[0].2.is_empty(), "it says why");
     drop(back);
 

@@ -89,7 +89,9 @@ pub enum FromEditor {
     },
     /// Lets go of the entry `id` the server refused (`LogPage::refused`): sent again as a new
     /// one, or given up.
-    LetGoRefused { id: Uuid },
+    LetGoRefused {
+        id: Uuid,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -841,8 +843,7 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
                         }
                     }
                 }
-                self.appended
-                    .push((token, result.map_err(|not| not.why)));
+                self.appended.push((token, result.map_err(|not| not.why)));
                 self.revision += 1;
                 None
             }

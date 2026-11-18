@@ -3,10 +3,10 @@ use uuid::Uuid;
 
 use crate::{ChatEntry, ChatLog};
 
-mod a_message_shows_its_authors_latest_edit_and_no_one_elses;
 mod a_message_shows_as_trusted_as_the_least_trusted_entry_it_shows;
-mod an_entry_redacted_by_anyone_but_its_author_shows_removed;
+mod a_message_shows_its_authors_latest_edit_and_no_one_elses;
 mod a_sent_message_lists_what_it_carries_until_it_is_deleted;
+mod an_entry_redacted_by_anyone_but_its_author_shows_removed;
 mod each_persons_latest_record_of_a_reaction_counts;
 mod only_a_messages_author_deletes_it_and_its_redacted_entry_shows_deleted;
 mod unread_counts_others_messages_after_the_furthest_place_and_the_readers_own;

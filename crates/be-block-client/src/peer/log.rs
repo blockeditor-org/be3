@@ -24,7 +24,11 @@ pub enum Appended {
     /// the block (its creation, an earlier entry) waits ahead of it.
     Kept { id: Uuid },
     /// The server refused it, saying `why`: it is kept until let go (`refused_entries`).
-    Refused { id: Uuid, code: ErrorCode, why: String },
+    Refused {
+        id: Uuid,
+        code: ErrorCode,
+        why: String,
+    },
 }
 
 /// An entry of a block's signed log as this device verified it: as the log holds it (its

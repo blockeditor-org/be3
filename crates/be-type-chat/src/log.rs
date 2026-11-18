@@ -19,7 +19,11 @@ pub enum ChatEntry {
         attachments: Vec<BlockRef>,
     },
     /// What the message says now: only its author's count.
-    Edit { message: u64, time: i64, body: String },
+    Edit {
+        message: u64,
+        time: i64,
+        body: String,
+    },
     /// A reaction kept or taken back, `reaction` naming a Lucide icon: each person's latest
     /// record of each reaction counts. Taking one back names the record that kept it
     /// (`takes_back`), which is redacted, so the log says who took it out.

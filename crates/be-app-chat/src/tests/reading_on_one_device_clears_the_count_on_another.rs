@@ -53,10 +53,9 @@ fn reading_on_one_device_clears_the_count_on_another() {
 
     // The phone reads the chat: its edit syncs to the laptop as any edit does.
     let newest = laptop.seq(3);
-    laptop.editor.edit::<ChatReadsContent>(
-        Some(reads),
-        &ChatReads::set_read(CHAT, PHONE, newest),
-    );
+    laptop
+        .editor
+        .edit::<ChatReadsContent>(Some(reads), &ChatReads::set_read(CHAT, PHONE, newest));
     laptop.run();
     assert!(
         !laptop.editor.shown("chat.unread"),
