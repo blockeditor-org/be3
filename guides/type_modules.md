@@ -576,14 +576,13 @@ order: presence and channel messages. The rules an agent most needs:
   (1 MiB) and the content's size, with no gesture or tentative layer open,
   while alone or past
   `RESTART_CEILING` times the limit, the holder submits a restart `Reload` of
-  the seal, once a seal holds everything the order numbered (a restart applies
-  nothing again on top of its commit, so one on a seal the order has moved past
-  would lose what came after; it waits for the next, and meanwhile the holder
-  holds its own edits back and seals again once what it submitted is numbered,
-  which alone gives it one within a round trip), a barrier: every replica
-  reloads the commit, moves what it has not had numbered onto it with
-  `LiveEdit::carry_over` and submits it again, and undo stops there
-  (decisions/sessions_restart_when_their_state_outgrows_the_content.md). A
+  the seal, based at the seal's `through` and carrying the state at it, a
+  barrier: every replica reloads the commit, carries the entries the order
+  numbered after the seal from the commit with that state onto it, moves what
+  it has not had numbered onto the result with `LiveEdit::carry_over` and
+  submits it again, and undo stops there; journal replay does the same
+  (decisions/a_restart_carries_what_was_numbered_after_its_seal.md,
+  decisions/sessions_restart_when_their_state_outgrows_the_content.md). A
   replacement drops what was numbered after its base on purpose, and stashes
   it; a restart must drop nothing.
   The last holder to leave rebases the journal with no state, so the next

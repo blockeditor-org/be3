@@ -1,14 +1,14 @@
 use super::*;
 
 /// A holder with a peer in its session, whose state is past where a restart is due even with
-/// others, seals while the peer types: the seal falls short of what the order numbered, and the
-/// shortfall is the peer's. The holder does not hold its own edits back for the restart, which
-/// would leave them unsent for as long as the peer writes: what it types next reaches the peer
-/// while its next seal is still out.
+/// others, seals while the peer types: the seal falls short of what the order numbered. The
+/// restart goes on it all the same, carrying the peer's edit over it, and the holder's edits go
+/// on: what it types next reaches the peer, and nothing either typed is lost. A replica opening on
+/// the journal before the next seal replays the restart alike.
 #[test]
-fn a_holder_whose_restart_peers_put_off_keeps_sending_its_edits() {
+fn a_holder_whose_seal_a_peer_outpaces_restarts_and_loses_nothing() {
     crate::replica::RESTART_LIMIT.with(|limit| limit.set(8));
-    let mut sim = Sim::<ProseContent>::new(2, prose_module);
+    let mut sim = Sim::<ProseContent>::new(3, prose_module);
     sim.open(0);
     sim.open(1);
     sim.attach(0, 1, true);
@@ -42,8 +42,18 @@ fn a_holder_whose_restart_peers_put_off_keeps_sending_its_edits() {
         "the holder's edit reached the peer: {:?}",
         sim.typed(1, 1)
     );
-    assert_eq!(
-        sim.devices[0].status.restarts, 0,
-        "the restart is still put off"
+    assert!(sim.devices[0].status.restarts >= 1, "the restart did not wait");
+    assert!(
+        sim.typed(0, 1).starts_with("a b "),
+        "and the holder holds both: {:?}",
+        sim.typed(0, 1)
     );
+
+    // A replica opening on the journal before the next seal (it stays out) replays the restart
+    // as the participants applied it.
+    sim.open(2);
+    sim.attach(2, 1, true);
+    sim.settle();
+    assert_eq!(prose(&sim.content(2)), prose(&sim.content(0)));
+    assert_eq!(prose(&sim.content(1)), prose(&sim.content(0)));
 }
