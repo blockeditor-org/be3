@@ -371,11 +371,12 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   triangle's screen, its host's notices as styled `Toasts` over
   everything, on a layer listed only while one shows, hit only where they are
   and never taking the focus, a dialog F2 opens over a scrim, and a panel of
-  its host's statistics F3 opens and closes, and its host's lock screen while the
-  session is locked: a fixture, which be-wasm-root-host's tests run with the
+  its host's statistics F3 opens and closes, as lines of text, and a bare lock
+  screen while the session is locked: a fixture, nothing in it the product's, which be-wasm-root-host's tests run with the
   triangle on a stand-in device, and be-host's host test with `--root`. be-root
   (decisions/the_real_root_is_its_own_crate_not_the_testing_root.md) is the root be-host is to
-  run in place of its own UI: the same pieces as the product needs them, the slow save's toast,
+  run in place of its own UI: the lock card and the statistics panel with its memory graph as a
+  person sees them, the toasts and the slow save's toast,
   the question of keeping display settings, the block stack's onboarding and its dialogs, which
   a menu at the window's top right opens in place of the fixture's keys; its own tests run it
   as be-wasm-root-host's run the fixture. A root is

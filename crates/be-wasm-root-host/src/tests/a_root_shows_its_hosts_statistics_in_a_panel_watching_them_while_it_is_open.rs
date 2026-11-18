@@ -1,6 +1,6 @@
 use be_lib_ui_types::Modifiers;
 use be_sdk_root_testing::{OPENS_STATISTICS, STATISTICS_LAYER, STATISTICS_SURFACE};
-use be_wasm_root_api::{MemoryPoint, StatisticRow};
+use be_wasm_root_api::StatisticRow;
 
 use super::*;
 
@@ -55,27 +55,6 @@ fn a_root_shows_its_hosts_statistics_in_a_panel_watching_them_while_it_is_open()
             row("Resident", "182 MB", "180 MB", "190 MB"),
         ],
         None,
-    );
-    // And its memory over the last minutes, a point a minute, which the panel graphs: a gap of
-    // more than two minutes, while the computer slept, breaks the lines.
-    const MIB: u64 = 1 << 20;
-    let minute = |at: u64, resident: u64| MemoryPoint {
-        at,
-        resident: resident * MIB,
-        anonymous: resident * MIB * 2 / 3,
-        shared: 12 * MIB,
-        wasm: resident * MIB / 3,
-    };
-    let start = 1_763_000_000;
-    root.show_memory_history(
-        vec![
-            minute(start, 150),
-            minute(start + 60, 165),
-            minute(start + 120, 172),
-            minute(start + 600, 176),
-            minute(start + 660, 182),
-        ],
-        start + 660,
     );
     for _ in 0..4 {
         time += 1;
