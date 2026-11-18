@@ -309,11 +309,13 @@ taken unproven.
   goes in the new block's outbox behind its creation (`peer/import.rs`), its
   payload the entry as it was written (`ExportedEntry::sealed`, told apart
   from what an author says by its first byte), so it reads back as
-  `LoggedEntry::imported` and still verifies against its own block. Its
-  verdict (`Peer::verify_imported`) is `Bad` unless it is in the log's
-  leading run (`imported_run`, redacted entries aside), appended by the
-  block's creator, and signed by them as importing it: no member can replay
-  another block's signed entries into this one. No verdict rests on the
+  `LoggedEntry::imported` and still verifies against its own block. The
+  importer signs each with its place in the new log and the history's length
+  (`ExportedEntry::sealed`), and its verdict (`Peer::verify_imported`) is
+  `Bad` unless it landed at that place, within that length, appended by the
+  block's creator: no member can replay another block's signed entries into
+  this one, and the entry alone decides it, with nothing read, the same on
+  every device. No verdict rests on the
   file's arrival (`verify_exported` passes none). New entries append after
   it. A file carries a block's own entries alone (an export of the new block
   leaves its history out), and `transfer::decode` refuses an entry written in

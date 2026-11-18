@@ -144,9 +144,10 @@ async fn an_exported_log_verifies_elsewhere_against_the_block_it_was_written_in(
         None,
         "the block's own entry is no history"
     );
-    // Replayed into the log after an entry of the block's own, an exported entry is no one's.
+    // Replayed into the log after an entry of the block's own, an exported entry lands past
+    // the place its importer signed: no one's.
     let key = elsewhere.sealing_key(new).await.unwrap();
-    elsewhere.push_imported(new, key, &saved.log[0]).unwrap();
+    elsewhere.push_imported(new, key, (0, 3), &saved.log[0]).unwrap();
     elsewhere.drain(|_| false).await.unwrap();
     let after = elsewhere.read_log(new, 4, 10).await.unwrap();
     assert!(after.entries[0].imported.is_some());
