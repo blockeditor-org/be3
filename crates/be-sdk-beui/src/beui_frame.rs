@@ -407,7 +407,9 @@ struct FrameActions {
     rename: Action,
     share: Action,
     details: Action,
-    keep_hosting: Action,
+    /// Only while this device hosts the block (plans/hosted_blocks.md, "Hosting"), so the
+    /// palette lists it only then too.
+    keep_hosting: ReadSignal<Option<Action>>,
     close: Action,
 }
 
@@ -422,6 +424,23 @@ fn frame_actions(
     let id = editor.block_id();
     let can = |read: fn(&BarState) -> bool| create_memo(move || live.get() && state.with(read));
     let hosting = editor.hosting();
+    let hosted = create_memo(move || hosting.get() != HostingHere::No);
+    let keep_hosting = create_signal(None);
+    // Registered while this device hosts the block and gone with this effect's run when it no
+    // longer does, so neither the menu nor the palette offers it elsewhere.
+    create_effect(move || {
+        let action = hosted.get().then(|| {
+            untrack(|| {
+                Action::new("editor.keep-hosting", "Keep hosting", move || {
+                    editor.keep_hosting(hosting.get_untracked() != HostingHere::Kept);
+                })
+                .glyph(ICON_RADIO_TOWER)
+                .checked(create_memo(move || hosting.get() == HostingHere::Kept))
+                .register()
+            })
+        });
+        keep_hosting.set(action);
+    });
     FrameActions {
         undo: Action::new("editor.undo", "Undo", move || {
             watched.with(|watched| watched.try_step(false));
@@ -460,13 +479,7 @@ fn frame_actions(
         })
         .glyph(ICON_INFO)
         .register(),
-        // Shown only while this device hosts the block (plans/hosted_blocks.md, "Hosting").
-        keep_hosting: Action::new("editor.keep-hosting", "Keep hosting", move || {
-            editor.keep_hosting(hosting.get_untracked() != HostingHere::Kept);
-        })
-        .glyph(ICON_RADIO_TOWER)
-        .checked(create_memo(move || hosting.get() == HostingHere::Kept))
-        .register(),
+        keep_hosting: keep_hosting.read_only(),
         close: Action::new("editor.close", "Close", move || on_exit.call(()))
             .glyph(ICON_X)
             .enabled(closable)
@@ -543,7 +556,6 @@ pub(crate) fn FrameMenu(
         keep_hosting,
         close,
     } = actions;
-    let hosting = editor.hosting();
     let menu = create_memo(move || {
         if !live.get() {
             return Vec::new();
@@ -556,7 +568,7 @@ pub(crate) fn FrameMenu(
         listed.extend(items.get());
         listed.push(MenuNode::Separator);
         listed.push(MenuNode::action(&details));
-        if hosting.get() != HostingHere::No {
+        if let Some(keep_hosting) = keep_hosting.get() {
             listed.push(MenuNode::action(&keep_hosting));
         }
         if closable.get() {
