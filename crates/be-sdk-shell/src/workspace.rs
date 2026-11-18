@@ -587,9 +587,11 @@ impl Workspace {
                 share.error = None;
                 let ask = self.ask_number();
                 let workspace = *self;
-                let asked =
-                    self.host()
-                        .make_share_link(share.block, share.link_access, share.link_admits);
+                let listing = self.share_members.get_untracked().ok();
+                let access = share.link_access(listing.as_ref());
+                let asked = self
+                    .host()
+                    .make_share_link(share.block, access, share.link_admits);
                 let task = self.editor.then(asked, move |made| {
                     workspace.link_made(ask, made.map(|_| ()));
                 });
