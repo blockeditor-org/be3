@@ -90,6 +90,47 @@ interface host {
     /// ask `paste` for it, or it would paste twice. The same every call: a
     /// root asks once.
     paste-shortcut: async func() -> bool;
+
+    /// One row of the host's statistics, as its debug panels show them: a
+    /// heading naming the rows under it, or a measurement's latest value,
+    /// its average and its peak, each as the host words it ("4.2 ms",
+    /// "180 MB"), or empty or "-" where it has none.
+    record statistic-row {
+        heading: bool,
+        name: string,
+        current: string,
+        average: string,
+        peak: string,
+    }
+
+    /// The host's read-only statistics at one time (plans/host_as_platform_adapter.md,
+    /// What the host keeps).
+    record host-statistics {
+        /// Which change of the statistics they are, which the next
+        /// `statistics` call names as `seen`: never 0.
+        generation: u64,
+        /// Its frames and steps: the full frame, and each group the host
+        /// times (frame pacing, each app's steps), with how long each took.
+        performance: list<statistic-row>,
+        /// Its process's memory: resident, anonymous, file-backed and shared,
+        /// the heap, and wasm memory in all and by guest. Empty where the
+        /// host cannot measure it, or until it has.
+        memory: list<statistic-row>,
+        /// The file the host writes its memory statistics to, if it does.
+        memory-file: option<string>,
+    }
+
+    /// Whether the root shows the host's statistics now. The host measures
+    /// what only they need (its memory, sampled a few times a second) only
+    /// while the root watches, and draws frames often enough to keep them
+    /// fresh. It answers at once.
+    watch-statistics: async func(watching: bool);
+
+    /// The host's statistics, once they differ from those of the generation
+    /// `seen`, as `notices` answers: at once for any other generation, such
+    /// as 0. They change only while the root watches them
+    /// (`watch-statistics`).
+    statistics: async func(seen: u64) -> host-statistics;
 }
 
 /// The window's input, which the host hands the root inline on its frame thread

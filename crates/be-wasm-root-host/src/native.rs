@@ -9,7 +9,7 @@ use std::{
 };
 
 use be_wasm_host::{App, PresentedTexture};
-use be_wasm_root_api::{FrameDone, FrameRequest, host::Notice};
+use be_wasm_root_api::{FrameDone, FrameRequest, host::Notice, host::StatisticRow};
 use be_wasm_sandbox_host::{Loader, Server};
 
 use crate::{Core, Inline, Progress};
@@ -165,6 +165,28 @@ impl Root {
     /// rings, which wakes the host (`on_wake`) to step it.
     pub fn show_notices(&mut self, shown: Vec<Notice>) {
         if self.core.show_notices(shown) {
+            self.bell.ring();
+        }
+    }
+
+    /// Whether the root watches the host's statistics now (`host.watch-statistics`): while it
+    /// does, the host measures them and shows them to it (`show_statistics`) as they change.
+    pub fn watching_statistics(&self) -> bool {
+        self.core.watching_statistics
+    }
+
+    /// Shows the root the host's statistics (`host.statistics`), in place of those shown before:
+    /// its debug panels' rows of the host's frames and steps (`performance`) and memory
+    /// (`memory`), and the file the memory statistics are written to. If the root waits on them
+    /// and they changed, it is stepped for them.
+    pub fn show_statistics(
+        &mut self,
+        performance: Vec<StatisticRow>,
+        memory: Vec<StatisticRow>,
+        memory_file: Option<String>,
+    ) {
+        let answered = self.core.show_statistics(performance, memory, memory_file);
+        if answered {
             self.bell.ring();
         }
     }

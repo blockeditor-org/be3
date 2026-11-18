@@ -1012,8 +1012,39 @@ Each step lands on its own.
        - A clip of `be3/blocks` reaches the root, and the host from it, with its block refs
          untranslated: a root's own documents name no blocks before the block stack is the
          root's (4g6, step 5), which then translates them as be-host-runtime does an app's.
-     - 4g5. The debug panels, over the read-only statistics the host grants (What the host
-       keeps).
+     - 4g5. Built in part: the debug panels' Performance panel, over the read-only statistics
+       the host grants (What the host keeps). `be3:root` carries them as data, nothing beui's:
+       `host.watch-statistics` says whether the root shows them, and the host measures what
+       only they need (its memory) only while it does; `host.statistics` is a watch, as
+       `host.notices` is, answering the host's statistics once they change from the generation
+       the root saw: its performance rows (the full frame, and each group it times, with the
+       latest, average and peak of each) and memory rows, each a heading or a measurement as
+       the host words it (`statistic-row`, be-host-base's `PerformanceRow`), and the file its
+       memory statistics are written to (be-wasm-root-host's `Root::watching_statistics` and
+       `show_statistics`). be-host's `--root` starts and watches its memory sampling while the
+       root watches, whose samples wake the window, and hands the root be-host-base's
+       performance rows and its memory rows each frame, which the root hears only once they
+       changed. be-sdk-root-testing opens and closes a panel of them on F3, which it always
+       intercepts (`STATISTICS_LAYER`, drawn with beui on `STATISTICS_SURFACE` at the window's
+       right), watching them while it is open and never taking the focus.
+       be-wasm-root-host's
+       `a_root_shows_its_hosts_statistics_in_a_panel_watching_them_while_it_is_open` shows it
+       rows and snapshots the panel, and the host test
+       `a_root_in_place_of_the_hosts_ui_shows_the_hosts_statistics_in_a_panel` opens and closes
+       it in be-host.
+       Carried from 4g4's re-review: a key's release goes where its press went
+       (be-lib-input-router's `Router`), so the release of an Escape that closed a root's
+       dialog never reaches the layer the focus went back to.
+       Left for later:
+       - The memory graph (be-host's `MemoryGraph`): `be3:root` would carry the minutes'
+         points (resident, anonymous, shared and wasm, in bytes) beside the rows.
+       - The Block stack panel, whose lines are the block stack's: the root's once the block
+         stack is (step 5).
+       - The Running apps panel and its kill and crash commands: the apps a root embeds are
+         the root's own (`Embedding::apps`), so it lists them itself, once it runs the apps
+         be-host runs today (4g7).
+       - The panels as the shell's host panels (`HostPanel`), docked beside its editors: they
+         move with the compositor (4g7); until then a root shows them as it likes.
      - 4g6. The lock screen, onboarding, saving, keep changes, organization and
        be-host-accounts-ui, over the block stack's messages and the password check the host
        grants.

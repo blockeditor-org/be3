@@ -174,7 +174,13 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   says whether the host delivers Ctrl+V as a paste itself, as a web page does
   (`Root::with_paste_shortcut`), so the root does not ask again. The host
   trusts its root with the clipboard as it trusts no app, and a root never
-  relays these calls for an app it embeds. The input method
+  relays these calls for an app it embeds. `host.watch-statistics` says whether
+  the root shows the host's statistics (its debug panels), which the host
+  measures only then (`Root::watching_statistics`), and `host.statistics`
+  answers them once they change from the generation the root saw, as
+  `host.notices` does (`Root::show_statistics`): performance and memory rows,
+  each a heading or a measurement's latest, average and peak as the host words
+  them, and the file the memory statistics are written to. The input method
   needs nothing more: the platform's input-method events reach the root as
   input, which its router hands the focused surface, and the field that
   surface edits is `frame-done`'s `ime`. Choosing and saving files are the
@@ -213,7 +219,10 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   sees it and gives its own `Router` its chords (`Router::intercept`). It hands
   the root be-host-base's notices whenever they changed (`notices::generation`)
   and does what the root answers:
-  dismisses a notice, copies its report or opens its link. What the root
+  dismisses a notice, copies its report or opens its link. While the root
+  watches its statistics it samples its memory, which wakes the window, and
+  hands the root be-host-base's performance rows and its memory rows each
+  frame. What the root
   copies it puts on the window's clipboard (`Context::copy`), and each paste it
   asks for it reads there (`Context::read_clipboard`) and hands back with the
   next frame. `drive
@@ -298,7 +307,8 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   strip over it with beui, a line of text in styled components, under the
   triangle's screen, its host's notices as styled `Toasts` over
   everything, on a layer listed only while one shows, hit only where they are
-  and never taking the focus, and a dialog F2 opens over a scrim, and which be-wasm-root-host's tests run with the
+  and never taking the focus, a dialog F2 opens over a scrim, and a panel of
+  its host's statistics F3 opens and closes, and which be-wasm-root-host's tests run with the
   triangle on a stand-in device, and be-host's host test with `--root`. A root is
   built as an app is (`app_module`, in the `wasi-guest` plan, linked against
   base and beui; decisions/a_root_links_beui_as_an_app_does.md); only
