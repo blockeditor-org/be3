@@ -147,7 +147,9 @@ pub async fn open_share_link(
         account: account.into_bytes(),
         public: identity.public(),
     };
-    let sealed = identity.seal_for(account.into_bytes(), &mine, handed.key.as_bytes(), &handed.scope);
+    let sealed = identity
+        .seal_for(account.into_bytes(), &mine, handed.key.as_bytes(), &handed.scope)
+        .map_err(|_| tampered())?;
     if link.guest
         && let Some(root) = handed.organization_root
         && contacts::pinned(connection, account, identity, link.organization)
