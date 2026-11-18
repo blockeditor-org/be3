@@ -19,9 +19,15 @@ const CHECKED_LOGS: usize = 4096;
 /// The logs the server checked, at their heads, by kind, organization and log, each with when it
 /// was last used: at most `CHECKED_LOGS`, the one used longest ago let go first. Kept for the
 /// process, so every server in it shares them; a log another's data holds (a restore, a test's
-/// other server) does not reach a kept head by its hashes, and is checked from its root.
+/// other server) does not reach a kept head by its hashes, and is checked from its root. Each
+/// holds every entry's hash and place (`Checked::positions`) and each account's levels, so they
+/// cost about 100 bytes an entry of the logs kept.
+#[allow(clippy::type_complexity)]
 static CHECKED: std::sync::LazyLock<
-    std::sync::Mutex<(u64, std::collections::HashMap<(LogKind, Uuid, Uuid), (u64, Checked)>)>,
+    std::sync::Mutex<(
+        u64,
+        std::collections::HashMap<(LogKind, Uuid, Uuid), (u64, std::sync::Arc<Checked>)>,
+    )>,
 > = std::sync::LazyLock::new(Default::default);
 
 /// The `kind` log of `log` checked from `pinned` to its head, as devices check it
@@ -45,17 +51,19 @@ pub(crate) fn checked(
         let now = held.0;
         held.1.get_mut(&key).map(|(used, kept)| {
             *used = now;
-            kept.clone()
+            std::sync::Arc::clone(kept)
         })
     };
+    // Copied out of the shared map, never while holding it.
     let checked = kept
         .filter(|kept| kept.root == pinned && kept.reaches(entries))
-        .unwrap_or_else(|| Checked::unchecked(pinned))
+        .map_or_else(|| Checked::unchecked(pinned), |kept| (*kept).clone())
         .resume(kind, log.into_bytes(), entries, outside)?;
+    let kept = std::sync::Arc::new(checked.clone());
     let mut held = CHECKED.lock().unwrap();
     held.0 += 1;
     let now = held.0;
-    held.1.insert(key, (now, checked.clone()));
+    held.1.insert(key, (now, kept));
     if held.1.len() > CHECKED_LOGS
         && let Some(oldest) = held
             .1
@@ -66,6 +74,12 @@ pub(crate) fn checked(
         held.1.remove(&oldest);
     }
     Ok(checked)
+}
+
+/// Lets go of every log the server kept checked, so the next check of each is from its root.
+#[cfg(test)]
+pub(crate) fn forget_checked() {
+    CHECKED.lock().unwrap().1.clear();
 }
 
 fn refused(message: &str) -> ServerError {
@@ -640,8 +654,19 @@ pub(crate) fn append_retirements(
         }
         let position = entries.len();
         entries.push(entry.clone());
-        checked(kind, log.organization, log.log, pinned, &entries, &|_| None)
-            .map_err(|_| refused("the retirement does not follow the log it goes in"))?;
+        // A block's log is checked with the authority its records name, as every check of it is,
+        // so what it accepts never hangs on what was checked of it before.
+        let follows = match kind {
+            LogKind::Block => {
+                checked_block_log(connection, log.organization, log.log, &entries).is_ok()
+            }
+            LogKind::Organization => {
+                checked(kind, log.organization, log.log, pinned, &entries, &|_| None).is_ok()
+            }
+        };
+        if !follows {
+            return Err(refused("the retirement does not follow the log it goes in"));
+        }
         insert_entry(
             connection,
             kind,
