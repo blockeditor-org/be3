@@ -559,7 +559,8 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   when they are not the reader's contact (guides/apps/host_services.md,
   "Naming a block's members"). It reads `audience`, so a block open in a
   workspace lists every account that views anything inside the workspace
-  (`inside_viewers`) and may view the block. A block's agent may not ask it. Carrying an
+  (`inside_viewers`) and may view the block. A block's agent may not ask it, and a guest is named only
+  itself, so it learns no member. Carrying an
   owner record, it moves ownership (`transfer_owner`): only from the owner, to
   a member who is their contact, and the block counts against the new owner's
   bound on blocks (`OverQuota`), checked after the rest, so an owner learns

@@ -2174,6 +2174,11 @@ impl ServerStore {
                 .filter(|account| {
                     *account != ANYONE_INSIDE && graph.effective_access(block, *account).can_view()
                 })
+                // A guest learns no member of the organization (guides/blocks/server.md): it is
+                // named only itself.
+                .filter(|account| {
+                    identity.role != OrganizationRole::Guest || *account == identity.account
+                })
                 .collect();
             let mut statement = database.prepare_cached(
                 "SELECT accounts.display_name
