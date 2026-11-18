@@ -19,7 +19,12 @@ fn root_runs_a_staged_app_alone() {
         "the desktop is part of be-host's own UI, which a root replaces"
     );
     assert!(
-        parse(&words("--dev-workspace --root=be3.root-testing"), None, LINUX).is_err(),
+        parse(
+            &words("--dev-workspace --root=be3.root-testing"),
+            None,
+            LINUX
+        )
+        .is_err(),
         "so is the dev workspace"
     );
     assert!(

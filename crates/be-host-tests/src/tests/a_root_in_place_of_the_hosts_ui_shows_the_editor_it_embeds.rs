@@ -35,7 +35,12 @@ fn a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds() {
     let side = screen_width.min(screen_height);
     let square = left + (screen_width - side) / 2.0;
     // Where the triangle's clip space falls in the window.
-    let point = |x: f32, y: f32| (square + (x + 1.0) / 2.0 * side, top + (1.0 - y) / 2.0 * side);
+    let point = |x: f32, y: f32| {
+        (
+            square + (x + 1.0) / 2.0 * side,
+            top + (1.0 - y) / 2.0 * side,
+        )
+    };
 
     // The root's own surface is the window's plain background, and so is the screen where the
     // triangle drew nothing.
