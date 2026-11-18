@@ -430,14 +430,15 @@ impl<S: ObjectStore> Peer<S> {
             // A read since may have taken the head past these without their entries (a page
             // from the log's start, an export), so they are handed on all the same, but only
             // as proved against the head kept: the head this push names is the server's word
-            // alone. Those this device holds were; the rest it reads again. Whoever follows the
-            // log drops those it holds by their place.
-            let held = appended
+            // alone. Those this device holds were, and are handed on as it holds them; the rest
+            // it reads again. Whoever follows the log drops those it holds by their place.
+            let held: Option<Vec<LogEntry>> = appended
                 .entries
                 .iter()
-                .all(|entry| self.refs.log_entry(block, entry.seq).is_some());
-            if held {
-                return self.open_entries(block, appended.entries).await;
+                .map(|entry| self.refs.log_entry(block, entry.seq))
+                .collect();
+            if let Some(held) = held {
+                return self.open_entries(block, held).await;
             }
             let count = u32::try_from(appended.entries.len()).unwrap_or(u32::MAX);
             return Ok(self

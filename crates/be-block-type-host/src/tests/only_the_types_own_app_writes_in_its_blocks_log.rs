@@ -46,18 +46,8 @@ fn only_the_types_own_app_writes_in_its_blocks_log() {
         let mut refused = Vec::new();
         while refused.is_empty() || mirror.log().count() < 1 {
             step(&peer, &shared, &mut replicas).await;
-            // Each editor's frames, taken once for both.
-            let frames = std::mem::take(&mut shared.lock().unwrap().frames);
-            for (to, frame) in frames {
-                shared.lock().unwrap().frames.push((to, frame));
-                match to {
-                    to if to == other => receive_frames(&shared, other, &mut held),
-                    to if to == own => receive_frames(&shared, own, &mut mirror),
-                    _ => {
-                        shared.lock().unwrap().frames.clear();
-                    }
-                }
-            }
+            receive_frames(&shared, other, &mut held);
+            receive_frames(&shared, own, &mut mirror);
             refused.extend(held.take_appended());
         }
         assert!(

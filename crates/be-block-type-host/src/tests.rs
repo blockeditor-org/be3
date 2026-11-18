@@ -336,18 +336,21 @@ async fn step(
     replicas.pump((peer, shared)).await;
 }
 
-/// Gives `mirror` what the replica sent `editor` since the frames were last taken, as the
-/// editor would take it.
+/// Gives `mirror` what the replica sent `editor` since its frames were last taken, as the
+/// editor would take it. Frames for other editors stay for them.
 fn receive_frames<C: be_block_content::LiveEdit + Clone + Default>(
     shared: &Arc<Mutex<Quiet>>,
     editor: EditorId,
     mirror: &mut be_sdk_type_guest::editor::EditorMirror<C>,
 ) {
-    let frames: Vec<Vec<u8>> = std::mem::take(&mut shared.lock().unwrap().frames)
-        .into_iter()
-        .filter(|(to, _)| *to == editor)
-        .map(|(_, frame)| frame)
-        .collect();
+    let frames: Vec<Vec<u8>> = {
+        let mut held = shared.lock().unwrap();
+        let (mine, others) = std::mem::take(&mut held.frames)
+            .into_iter()
+            .partition(|(to, _)| *to == editor);
+        held.frames = others;
+        mine.into_iter().map(|(_, frame)| frame).collect()
+    };
     for frame in frames {
         let message = frame
             .split_first_chunk::<4>()
