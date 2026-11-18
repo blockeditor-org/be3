@@ -15,8 +15,7 @@ fn escape(pressed: bool) -> Timed {
 }
 
 #[test]
-fn the_release_of_an_escape_that_closed_a_dialog_never_reaches_the_layer_the_focus_went_back_to()
-{
+fn the_release_of_an_escape_that_closed_a_dialog_never_reaches_the_layer_the_focus_went_back_to() {
     let mut windows = Windows::new(ROOT);
     let mut list = drawn();
     list.windows[0]
