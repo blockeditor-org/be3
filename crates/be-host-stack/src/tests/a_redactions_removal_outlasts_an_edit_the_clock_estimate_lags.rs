@@ -1,5 +1,3 @@
-use super::*;
-
 /// A redacted log document's removal is as of the server's clock now, or just after what the
 /// index holds it at when that is later, as when the clock's estimate lags the arrival of the
 /// edit that put it: a removal at or before it would lose, and the text would stay found.
