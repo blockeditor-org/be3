@@ -498,10 +498,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   `is_carried` row) reruns on any lift or put-down anywhere in the tree. Done: a
   per-payload signal or keyed subscription, so a lift wakes only the readers of
   its own payload, shown by a test that counts the effects a lift runs.
-- **A sheet's detents from the keyboard.** A sheet chooses its detent with
-  `closest(detents).thrown()` only where its drag lets go, so no key steps it
-  between detents. Done: the sheet's handle steps between its detents with the
-  arrows, shown by a test.
 - **The display arrangement refits for a carried display.** The area's view
   fits the arrangement at the lift and clips what it draws, so a display
   carried to a place beyond that fit (below a display beside it) is cut off at

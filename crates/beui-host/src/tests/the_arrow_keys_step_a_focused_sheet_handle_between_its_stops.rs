@@ -53,9 +53,12 @@ fn the_arrow_keys_step_a_focused_sheet_handle_between_its_stops() {
     assert_eq!(height(&harness), Some(300.0), "Down takes it to the stop below");
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.settle();
+    assert_eq!(height(&harness), Some(180.0), "and to the lowest stop");
+    harness.key(Key::ArrowDown, Modifiers::NONE);
+    harness.settle();
     assert_eq!(
         (height(&harness), closed.get_untracked()),
-        (Some(300.0), 0),
+        (Some(180.0), 0),
         "the lowest stop is as far as a key takes it: it never closes"
     );
 }
