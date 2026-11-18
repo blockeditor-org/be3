@@ -33,6 +33,9 @@
 //! own keys then, only the F5 test fixture (`UNLOCKS_TWICE`).
 //! Its field hands what was typed to the host to check (`host.unlock`), cleared as it does, and
 //! shows why the host refused it. F4 (`LOCKS_SESSION`) asks the host to lock the session.
+//! It shows what its host's core shows (`host.core`): while its changes stay unsaved for
+//! `SLOW_SAVE`, the slow save's toast among its toasts, until they are saved or it is
+//! dismissed.
 //! A frame at `CLOSES` lets go of the app, which stops it. The window's input is routed by the
 //! library over the layers it drew last; what lands on `TEXT_SURFACE` its beui document hears,
 //! and what lands on its own surface beside the strip nothing does.
@@ -203,6 +206,16 @@ pub const LOCK_LAYER: LayerId = LayerId(7);
 
 /// A surface of the root's own the size of the window that beui draws its lock screen on.
 pub const LOCK_SURFACE: u32 = 8;
+
+/// How long its host's changes stay unsaved, by the host's frame clock, before the root shows
+/// the slow save's toast, as be-host's own UI does.
+pub const SLOW_SAVE: std::time::Duration = std::time::Duration::from_secs(4);
+
+/// The slow save's toast's id among the toasts, which no notice of the host's has.
+pub const SLOW_SAVE_TOAST: u64 = u64::MAX;
+
+/// The slow save's toast's title.
+pub const SLOW_SAVE_TITLE: &str = "Saving changes…";
 
 #[cfg(target_arch = "wasm32")]
 mod guest;
