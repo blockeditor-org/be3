@@ -489,13 +489,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
 
 ## 18. Keys
 
-- **Per-app capabilities on host calls that grant or reveal access.** Any app
-  may call host-services' `set-access`, `make-share-link` and
-  `list-share-links` on a block its editor shows, so an app the person opened
-  can share that block, or read its links' addresses, without their asking.
-  Done: the manifest names a capability these calls need, the host refuses
-  them to an app without it, and the workspace app holds it.
-
 - **A new phrase grows with the account.** `set-recovery-key` carries one
   retirement (about 300 to 400 bytes) per access log the account signed in,
   which is every block it ever made, beside the resealed keys that grow the

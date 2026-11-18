@@ -35,6 +35,8 @@ pub struct AppManifest {
     pub network: Vec<String>,
     pub extensions: Vec<String>,
     pub block_agents: bool,
+    /// Whether the app may grant or reveal access (guides/apps/host_services.md).
+    pub sharing: bool,
     /// The app's host components (guides/apps/host_services.md, "Host components").
     pub hosts: Vec<HostManifest>,
     /// The app's worker modules, by file name, which it may start through the sandbox API

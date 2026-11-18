@@ -34,6 +34,7 @@ fn app_editors_close_with_their_owner_rather_than_when_the_thread_ends() {
             network: Vec::new(),
             extensions: Vec::new(),
             block_agents: false,
+            sharing: false,
             hosts: Vec::new(),
             workers: Vec::new(),
             root: false,
