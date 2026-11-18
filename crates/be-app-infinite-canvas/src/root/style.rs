@@ -358,6 +358,7 @@ fn StyleControls(state: CanvasState) -> NodeId {
                 <StyleRow label="Opacity">
                     <ListItem grow=1.0>
                         <Slider
+                            on_drag_change={move |dragging| state.drag_value(dragging)}
                             label="Opacity"
                             value={Binding::new(opacity_value, opacity_set)}
                             @test_id={"infinite-canvas.style.opacity"}

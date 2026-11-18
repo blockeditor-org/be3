@@ -19,6 +19,7 @@ use be_sdk_type_guest::api::{
     },
 };
 use be_sdk_type_guest::editor::{EditorMirror, FromEditor, Gesture, ToEditor};
+use be_sdk_type_guest::holds::{Holds, This, Took};
 use be_sdk_type_guest::{Module, Registration};
 use uuid::Uuid;
 
@@ -51,11 +52,35 @@ struct Block {
     references: Option<Vec<Uuid>>,
     revision: u64,
     taken: u64,
+    /// The editors' tentative gestures, followed as the host follows them: their edits are
+    /// written only when the layer commits.
+    holds: Holds,
+    /// The held edits, by their serial in `holds`.
+    held: BTreeMap<u64, Vec<u8>>,
     /// The block's session's order, as the server would number it.
     order: be_block_session::Sequencer,
 }
 
 impl Block {
+    fn write(&mut self, operation: Vec<u8>) {
+        self.written.push(operation);
+        self.taken += 1;
+        self.revision += 1;
+    }
+
+    /// Writes the held edits `took` counts, in the order they arrived, and lets go of the rest
+    /// it released.
+    fn release(&mut self, took: &Took) {
+        for serial in &took.counted {
+            if let Some(operation) = self.held.remove(serial) {
+                self.write(operation);
+            }
+        }
+        for serial in &took.released {
+            self.held.remove(serial);
+        }
+    }
+
     fn new(content_type: Uuid, head: CommitId) -> Self {
         Self {
             content_type,
@@ -67,6 +92,8 @@ impl Block {
             references: None,
             revision: 1,
             taken: 0,
+            holds: Holds::default(),
+            held: BTreeMap::new(),
             order: be_block_session::Sequencer::starting(0),
         }
     }
@@ -786,6 +813,12 @@ impl Inner {
     }
 
     fn change(&mut self, block: Uuid, change: Change) {
+        if matches!(change, Change::Undo)
+            && let Some(held) = self.blocks.get_mut(&block)
+        {
+            let took = held.holds.undo();
+            held.release(&took);
+        }
         if let Some(replica) = self.blocks.get(&block).and_then(|held| held.replica) {
             self.ask(|host| replica.change(host, change));
         }
@@ -852,6 +885,10 @@ impl Inner {
 
     fn detach(&mut self, block: Uuid, editor: EditorId) {
         self.forwarded.remove(&(block, editor));
+        if let Some(held) = self.blocks.get_mut(&block) {
+            let took = held.holds.detach(editor);
+            held.release(&took);
+        }
         let removed = self
             .attached
             .get_mut(&block)
@@ -876,16 +913,26 @@ impl Inner {
             deferred.push((block, editor, message));
             return;
         }
-        if let FromEditor::Operate { operation, .. } = &message {
+        if let FromEditor::Operate { .. } | FromEditor::Gesture { .. } = &message {
             let Some(held) = self.blocks.get_mut(&block) else {
                 return;
             };
-            if held.replica.is_none() {
+            let operation = match &message {
+                FromEditor::Operate { operation, .. } => Some(operation.clone()),
+                _ => None,
+            };
+            if operation.is_some() && held.replica.is_none() {
                 return;
             }
-            held.written.push(operation.clone());
-            held.taken += 1;
-            held.revision += 1;
+            let took = held.holds.message(editor, Some(&message));
+            match (operation, took.this) {
+                (Some(operation), This::Held(serial)) => {
+                    held.held.insert(serial, operation);
+                }
+                (Some(operation), _) => held.write(operation),
+                (None, _) => {}
+            }
+            held.release(&took);
         }
         if self
             .blocks

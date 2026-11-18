@@ -22,6 +22,7 @@ fn typing_a_transform_value_and_pressing_escape_edits_nothing() {
     editor.type_text("150");
     editor.key(Key::Enter, Modifiers::NONE);
     let resting = editor.rect_of(&drawn);
+    editor.store().take_written(None);
     editor.click("infinite-canvas.transform.x");
     editor.type_text("4");
     editor.type_text("0");
@@ -36,6 +37,10 @@ fn typing_a_transform_value_and_pressing_escape_edits_nothing() {
 
     assert_eq!(editor.rect_of(&drawn), resting);
     assert_eq!(entities(&editor)[0].transform.center.x, 0.0);
+    assert!(
+        editor.store().take_written(None).is_empty(),
+        "what was typed and called off was never written"
+    );
     undo(&mut editor);
     assert_eq!(
         entities(&editor)[0].transform.size.x,

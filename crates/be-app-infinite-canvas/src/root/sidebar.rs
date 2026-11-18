@@ -244,6 +244,7 @@ fn FrameBackground(
                 }</ForEach>
             </List>
             <ColorInput
+                on_drag_change={move |dragging| state.drag_value(dragging)}
                 label="Background color"
                 value={Binding::new(custom, typed)}
                 disabled={locked}
@@ -365,7 +366,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                     <Text style=TextStyle::CAPTION>"X"</Text>
                 </Frame>
                 <NumberInput
-                    on_scrub={move |scrubbing| state.scrub(scrubbing)}
+                    on_scrub={move |scrubbing| state.drag_value(scrubbing)}
                     label="X"
                     value={Binding::new(center_x, x)}
                     disabled={locked}
@@ -377,7 +378,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                     <Text style=TextStyle::CAPTION>"Y"</Text>
                 </Frame>
                 <NumberInput
-                    on_scrub={move |scrubbing| state.scrub(scrubbing)}
+                    on_scrub={move |scrubbing| state.drag_value(scrubbing)}
                     label="Y"
                     value={Binding::new(center_y, y)}
                     disabled={locked}
@@ -389,7 +390,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                     <Text style=TextStyle::CAPTION>"W"</Text>
                 </Frame>
                 <NumberInput
-                    on_scrub={move |scrubbing| state.scrub(scrubbing)}
+                    on_scrub={move |scrubbing| state.drag_value(scrubbing)}
                     label="W"
                     min={MIN_SIZE as f64}
                     value={Binding::new(size_x, width)}
@@ -402,7 +403,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                     <Text style=TextStyle::CAPTION>"H"</Text>
                 </Frame>
                 <NumberInput
-                    on_scrub={move |scrubbing| state.scrub(scrubbing)}
+                    on_scrub={move |scrubbing| state.drag_value(scrubbing)}
                     label="H"
                     min={MIN_SIZE as f64}
                     value={Binding::new(size_y, height)}
@@ -416,7 +417,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                 <Text style=TextStyle::CAPTION>"Rotation"</Text>
                 <ListItem grow=1.0>
                     <NumberInput
-                        on_scrub={move |scrubbing| state.scrub(scrubbing)}
+                        on_scrub={move |scrubbing| state.drag_value(scrubbing)}
                         label="Rotation"
                         value={Binding::new(angle, rotation)}
                         disabled={no_rotation}
@@ -506,7 +507,7 @@ fn EditorScale(state: CanvasState) -> NodeId {
             <Text style=TextStyle::CAPTION>"Scale"</Text>
             <ListItem grow=1.0>
                 <NumberInput
-                    on_scrub={move |scrubbing| state.scrub(scrubbing)}
+                    on_scrub={move |scrubbing| state.drag_value(scrubbing)}
                     label="Scale"
                     min=10.0
                     max=800.0
@@ -742,6 +743,7 @@ fn ForegroundRow(state: CanvasState) -> NodeId {
                 <List spacing=Space::Sm>
                     <Text style=TextStyle::CAPTION>"Color"</Text>
                     <ColorInput
+                        on_drag_change={move |dragging| state.drag_value(dragging)}
                         label="Custom color"
                         value={Binding::new(custom, typed)}
                         @test_id={"infinite-canvas.color"}
@@ -779,6 +781,7 @@ fn LineWidthRow(state: CanvasState) -> NodeId {
                 <List spacing=Space::Xs>
                     <MixedLabel label="Line width" mixed={mixed} />
                     <Slider
+                        on_drag_change={move |dragging| state.drag_value(dragging)}
                         label="Line width"
                         min=0.5
                         max=20.0
@@ -983,12 +986,14 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
                         }</ForEach>
                     </List>
                     <ColorInput
+                        on_drag_change={move |dragging| state.drag_value(dragging)}
                         label="Fill color"
                         value={Binding::new(custom, typed)}
                         @test_id={"infinite-canvas.fill"}
                     />
                     <MixedLabel label="Corner radius" mixed={mixed} />
                     <Slider
+                        on_drag_change={move |dragging| state.drag_value(dragging)}
                         label="Corner radius"
                         min=0.0
                         max=100.0
@@ -1025,6 +1030,7 @@ pub(crate) fn OpacityRow(state: CanvasState) -> NodeId {
             <Separator />
             <MixedLabel label="Opacity" mixed={mixed} />
             <Slider
+                on_drag_change={move |dragging| state.drag_value(dragging)}
                 label="Opacity"
                 min=0.0
                 max=1.0
@@ -1136,7 +1142,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
                         <Text style=TextStyle::CAPTION>"Font size"</Text>
                         <ListItem grow=1.0>
                             <NumberInput
-                                on_scrub={move |scrubbing| state.scrub(scrubbing)}
+                                on_scrub={move |scrubbing| state.drag_value(scrubbing)}
                                 label="Font size"
                                 min=4.0
                                 max=256.0
@@ -1150,7 +1156,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
                         <Text style=TextStyle::CAPTION>"Line height"</Text>
                         <ListItem grow=1.0>
                             <NumberInput
-                                on_scrub={move |scrubbing| state.scrub(scrubbing)}
+                                on_scrub={move |scrubbing| state.drag_value(scrubbing)}
                                 label="Line height"
                                 min=0.5
                                 max=4.0

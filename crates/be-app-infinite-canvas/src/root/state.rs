@@ -289,6 +289,30 @@ pub(crate) enum Gesture {
     },
 }
 
+impl Gesture {
+    /// Whether the gesture chooses one result that only its release settles
+    /// (decisions/tentative_edits_wait_for_release.md), so its writes are held in a tentative
+    /// gesture: a half-finished move, resize, rotation, bend or erase is not one anyone made.
+    /// The rest make something as they go and write it as they go: a stroke, a shape drawn
+    /// out, and a copy carried off by a duplicating move, since a tentative edit creates
+    /// nothing.
+    pub(crate) fn chooses(&self) -> bool {
+        match self {
+            Gesture::Move { duplicate, .. } => !duplicate,
+            Gesture::Resize { .. }
+            | Gesture::Rotate { .. }
+            | Gesture::Endpoint { .. }
+            | Gesture::Bend { .. }
+            | Gesture::Erase { .. } => true,
+            Gesture::Create { .. }
+            | Gesture::Pen { .. }
+            | Gesture::Raster { .. }
+            | Gesture::SelectBox { .. }
+            | Gesture::Lasso { .. } => false,
+        }
+    }
+}
+
 pub(crate) const ERASER_TRAIL: usize = 24;
 const ERASED_OPACITY: f32 = 0.25;
 
@@ -500,9 +524,15 @@ struct CanvasCells {
     placeholders: RefCell<HashMap<Uuid, Placeholder>>,
     confirmed_editor: Cell<Option<Uuid>>,
     shown: RefCell<Option<CanvasCursor>>,
-    /// The undo group the canvas's writes go in while one is open (`open_writes`).
+    /// The undo group the canvas's writes go in while one is open (`open_writes`): what a
+    /// person makes as they go, a stroke, a shape drawn out, new text.
     writing: Cell<Option<ContentGesture>>,
-    scrubbing: Cell<bool>,
+    /// The tentative gesture the canvas's writes go in while one is open (`open_hold`), ahead
+    /// of `writing`: a drag choosing one result, which only its release writes.
+    holding: Cell<Option<ContentGesture>>,
+    /// A control in the sidebar is being dragged (`drag_value`): its hold outlives the
+    /// canvas's own gestures.
+    dragging_value: Cell<bool>,
     written_points: Cell<usize>,
     drafting: Cell<Option<Uuid>>,
     color: Cell<Option<PresenceColor>>,
@@ -641,7 +671,8 @@ impl CanvasState {
             confirmed_editor: Cell::new(None),
             shown: RefCell::new(None),
             writing: Cell::new(None),
-            scrubbing: Cell::new(false),
+            holding: Cell::new(None),
+            dragging_value: Cell::new(false),
             written_points: Cell::new(0),
             drafting: Cell::new(None),
             color: Cell::new(None),
@@ -664,7 +695,7 @@ impl CanvasState {
             });
             strokes
         });
-        Self {
+        let state = Self {
             cells,
             editor,
             preview,
@@ -693,7 +724,9 @@ impl CanvasState {
             peers,
             own_stroke,
             strokes,
-        }
+        };
+        content.on_gesture_ended(move |ended| state.gesture_ended(ended));
+        state
     }
 
     fn drawn_shape(&self, gesture: &Gesture) -> Option<CanvasEntity> {
@@ -790,7 +823,7 @@ impl CanvasState {
     }
 
     pub(crate) fn type_value(&self, before: CanvasEntity, after: CanvasEntity) {
-        self.open_writes();
+        self.open_hold();
         self.record_update(vec![before], vec![after]);
     }
 
@@ -957,8 +990,10 @@ impl CanvasState {
                 .collect::<Edit>()
         }) && !edit.0.is_empty()
         {
-            if self.gesture.with_untracked(Option::is_some) {
-                self.open_writes();
+            match self.gesture.with_untracked(|gesture| gesture.as_ref().map(Gesture::chooses)) {
+                Some(true) => self.open_hold(),
+                Some(false) => self.open_writes(),
+                None => {}
             }
             self.write(edit);
         }
@@ -976,10 +1011,12 @@ impl CanvasState {
         self.cells.value().drawing_tool.get()
     }
 
-    /// Makes `edit` in the open undo group (`open_writes`), or outside any.
+    /// Makes `edit` in the open tentative gesture (`open_hold`), else in the open undo group
+    /// (`open_writes`), or outside any.
     fn write(&self, edit: Edit) {
         let content = self.content();
-        match self.cells.value().writing.get() {
+        let cells = self.cells.value();
+        match cells.holding.get().or(cells.writing.get()) {
             Some(gesture) => content.operate_in(gesture, edit),
             None => content.operate(edit),
         }
@@ -992,17 +1029,45 @@ impl CanvasState {
         }
     }
 
-    pub(crate) fn scrub(&self, scrubbing: bool) {
-        self.cells.value().scrubbing.set(scrubbing);
-        match scrubbing {
-            true => self.open_writes(),
-            false => self.commit_writes(),
+    /// Opens the tentative gesture the canvas's writes go in until `commit_hold`: they show in
+    /// every view of the block on this device, and are sent and saved only on release.
+    pub(crate) fn open_hold(&self) {
+        let holding = &self.cells.value().holding;
+        if holding.get().is_none() {
+            holding.set(Some(self.content().begin_tentative()));
+        }
+    }
+
+    /// A sidebar control (a number scrubbed, a colour or slider dragged) starts or ends a
+    /// drag: what it writes between is held, and written once when it ends.
+    pub(crate) fn drag_value(&self, dragging: bool) {
+        self.cells.value().dragging_value.set(dragging);
+        match dragging {
+            true => self.open_hold(),
+            false => self.commit_hold(),
+        }
+    }
+
+    pub(crate) fn commit_hold(&self) {
+        let cells = self.cells.value();
+        if cells.dragging_value.get() {
+            return;
+        }
+        if let Some(gesture) = cells.holding.take() {
+            self.content().commit_gesture(gesture);
+        }
+    }
+
+    fn drop_hold(&self) {
+        if let Some(gesture) = self.cells.value().holding.take() {
+            self.content().cancel_gesture(gesture);
         }
     }
 
     pub(crate) fn commit_writes(&self) {
+        self.commit_hold();
         let cells = self.cells.value();
-        if cells.scrubbing.get() || cells.drafting.get().is_some() {
+        if cells.drafting.get().is_some() {
             return;
         }
         if let Some(gesture) = cells.writing.take() {
@@ -1011,8 +1076,25 @@ impl CanvasState {
     }
 
     pub(crate) fn cancel_writes(&self) {
+        if !self.cells.value().dragging_value.get() {
+            self.drop_hold();
+        }
         if self.cells.value().drafting.get().is_none() {
             self.drop_writes();
+        }
+    }
+
+    /// The replica ended a gesture the canvas holds open: an undo cancelled the tentative
+    /// layer, or what it moved was replaced. A drag on the canvas lets go of what it carried;
+    /// a sidebar drag keeps its handle, whose later writes are dropped, until it ends.
+    fn gesture_ended(&self, ended: ContentGesture) {
+        let cells = self.cells.value();
+        if cells.holding.get() == Some(ended) && !cells.dragging_value.get() {
+            cells.holding.set(None);
+            self.take_gesture();
+        }
+        if cells.writing.get() == Some(ended) {
+            cells.writing.set(None);
         }
     }
 
@@ -2812,6 +2894,8 @@ impl CanvasState {
                 self.selection.set(selection);
             }
             Gesture::Erase { erased, .. } => {
+                // The dimming was held: the removal alone is written.
+                self.drop_hold();
                 let ids: Vec<Uuid> = erased.iter().map(|entity| entity.id).collect();
                 if !ids.is_empty() {
                     let mut selection = self.selection.get_untracked();

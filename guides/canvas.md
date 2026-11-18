@@ -115,11 +115,19 @@ edited (`text::text_turn`).
 
 ## Gestures
 
-Every gesture writes the document as it goes (adding a shape, a stroke through
-`Extend`, moving, resizing, the eraser's dimming, a typed inspector value), so
-peers see it. `CanvasState::open_writes` and `commit_writes` bracket it as one
-undo step; Escape, a second finger or another tool calls it off with
-`cancel_writes`, leaving nothing to undo.
+A gesture that makes something writes it as it goes, so peers see it: a shape
+drawn out, a stroke through `Extend`, a raster stroke, a duplicating move's
+copies, new text. `CanvasState::open_writes` brackets it as one undo step. A
+gesture that chooses one result (`Gesture::chooses`: moving, resizing, rotating,
+dragging a line's end or bend, the eraser's dimming) holds its writes in a
+tentative gesture (`open_hold`), as do the sidebar's value controls while one is
+dragged or typed into (`drag_value`, `type_value`): every view of the block on
+this device previews them, and peers see nothing until the release writes them
+as one undo step. `commit_writes` commits both; Escape, a second finger or
+another tool calls it off with `cancel_writes`, leaving nothing written or to
+undo. The eraser drops its held dimming on release and writes the removal alone.
+When the replica ends the hold (an undo mid-drag), `gesture_ended` lets go of
+the drag.
 
 ## Input
 
