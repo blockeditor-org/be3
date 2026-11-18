@@ -211,17 +211,24 @@ impl Root {
     }
 
     /// What the root asked of the block stack since the last call (`host.ask-core`), oldest
-    /// first, which the host does: one making a secret waits for `answer_core`.
-    pub fn take_core_commands(&mut self) -> Vec<crate::AskedCore> {
+    /// first, which the host does.
+    pub fn take_core_commands(&mut self) -> Vec<be_wasm_root_api::CoreCommand> {
         self.core.take_core_commands()
     }
 
-    /// Answers the command of `id` that made a secret (`invite-member`, `invitation-link`) with
-    /// it, handed over once, or with nothing if making it failed; any other id changes nothing.
-    /// If the root waits on it, it is stepped for it.
-    pub fn answer_core(&mut self, id: u64, secret: Option<be_wasm_root_api::CoreSecret>) {
-        self.core.answer_core(id, secret);
-        self.bell.ring();
+    /// What the root asked to make a secret since the last call (`host.make-secret`), oldest
+    /// first, each by the id `answer_secret` answers it by.
+    pub fn take_secret_requests(&mut self) -> Vec<(u64, be_wasm_root_api::SecretCommand)> {
+        self.core.take_secret_requests()
+    }
+
+    /// Answers the request of `id` with the secret it made, handed over once, or with nothing
+    /// if making it failed; one the root no longer waits for drops the secret. If the root
+    /// waited for it, it is stepped for the answer.
+    pub fn answer_secret(&mut self, id: u64, secret: Option<be_wasm_root_api::CoreSecret>) {
+        if self.core.answer_secret(id, secret) {
+            self.bell.ring();
+        }
     }
 
     /// Shows the root whether the host asks the person to keep display settings that just

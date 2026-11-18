@@ -158,21 +158,15 @@ struct Core<G> {
     /// The root's `host.core` calls waiting for it to change from what they saw.
     core_watchers: Vec<Reply<be_wasm_root_api::CoreView>>,
     /// What the root asked of the block stack (`host.ask-core`), until the host takes it.
-    core_commands: Vec<AskedCore>,
-    /// The root's `host.ask-core` calls making a secret, by the id the host was handed, until
-    /// the host answers them (`answer_core`).
+    core_commands: Vec<be_wasm_root_api::CoreCommand>,
+    /// What the root asked to make a secret (`host.make-secret`), by the id the host answers it
+    /// by, until the host takes it.
+    secret_requests: Vec<(u64, be_wasm_root_api::SecretCommand)>,
+    /// The root's `host.make-secret` calls, by that id, until the host answers them
+    /// (`answer_secret`).
     secret_replies: Vec<(u64, Reply<Option<be_wasm_root_api::CoreSecret>>)>,
-    /// The id the next command the root asks is handed to the host with.
-    next_ask: u64,
-}
-
-/// A command the root asked of the block stack (`host.ask-core`), which the host does, and the
-/// id it answers it by: one making a secret (`invite-member`, `invitation-link`) waits for the
-/// host's `answer_core`; any other is answered, with nothing, as it is taken.
-#[derive(Debug)]
-pub struct AskedCore {
-    pub id: u64,
-    pub command: be_wasm_root_api::CoreCommand,
+    /// The id the next secret the root asks for is handed to the host with.
+    next_secret: u64,
 }
 
 impl<G: Inline> Core<G> {
@@ -244,8 +238,9 @@ impl<G: Inline> Core<G> {
             },
             core_watchers: Vec::new(),
             core_commands: Vec::new(),
+            secret_requests: Vec::new(),
             secret_replies: Vec::new(),
-            next_ask: 1,
+            next_secret: 1,
         };
         core.received()?;
         Ok(core)
@@ -459,18 +454,27 @@ impl<G: Inline> Core<G> {
     }
 
     /// What the root asked of the block stack since the last call, oldest first.
-    fn take_core_commands(&mut self) -> Vec<AskedCore> {
+    fn take_core_commands(&mut self) -> Vec<be_wasm_root_api::CoreCommand> {
         std::mem::take(&mut self.core_commands)
     }
 
-    /// Answers the command of `id` that made a secret with it, or with nothing if making it
-    /// failed. An id that waits for no answer (any other command, or one answered already, or
-    /// the root stopped waiting) changes nothing, and the secret is dropped, which zeroes it.
-    fn answer_core(&mut self, id: u64, secret: Option<be_wasm_root_api::CoreSecret>) {
-        if let Some(at) = self.secret_replies.iter().position(|(asked, _)| *asked == id) {
-            let (_, reply) = self.secret_replies.remove(at);
-            reply.send(&mut self.connection, &secret);
-        }
+    /// What the root asked to make a secret since the last call, oldest first, each by the id
+    /// `answer_secret` answers it by.
+    fn take_secret_requests(&mut self) -> Vec<(u64, be_wasm_root_api::SecretCommand)> {
+        std::mem::take(&mut self.secret_requests)
+    }
+
+    /// Answers the request of `id` with the secret it made, or with nothing if making it
+    /// failed, and answers whether the root waited for it. An id it no longer waits for (one
+    /// answered already, or the root stopped waiting) changes nothing, and the secret is
+    /// dropped, which zeroes it.
+    fn answer_secret(&mut self, id: u64, secret: Option<be_wasm_root_api::CoreSecret>) -> bool {
+        let Some(at) = self.secret_replies.iter().position(|(asked, _)| *asked == id) else {
+            return false;
+        };
+        let (_, reply) = self.secret_replies.remove(at);
+        reply.send(&mut self.connection, &secret);
+        true
     }
 
     /// How the root answered the display questions since the last call, oldest first.
@@ -774,18 +778,14 @@ impl<G: Inline> Core<G> {
                 }
             }
             embed::Call::Host(embed::host::Call::AskCore { command, reply }) => {
-                let id = self.next_ask;
-                self.next_ask += 1;
-                let makes_secret = matches!(
-                    command,
-                    be_wasm_root_api::CoreCommand::InviteMember
-                        | be_wasm_root_api::CoreCommand::InvitationLink(_)
-                );
-                match makes_secret {
-                    true => self.secret_replies.push((id, reply)),
-                    false => reply.send(&mut self.connection, &None::<be_wasm_root_api::CoreSecret>),
-                }
-                self.core_commands.push(AskedCore { id, command });
+                self.core_commands.push(command);
+                reply.send(&mut self.connection, &());
+            }
+            embed::Call::Host(embed::host::Call::MakeSecret { command, reply }) => {
+                let id = self.next_secret;
+                self.next_secret += 1;
+                self.secret_requests.push((id, command));
+                self.secret_replies.push((id, reply));
             }
             embed::Call::Host(embed::host::Call::AnswerDisplay { round, keep, reply }) => {
                 // An answer to a round no longer asked (answered, withdrawn, or one the root

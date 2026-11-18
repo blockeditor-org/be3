@@ -89,7 +89,7 @@ fn a_root_lists_its_hosts_unsent_edits_and_asks_before_discarding_one() {
     press(&mut root, &mut time, Key::Enter);
     assert!(
         matches!(
-            asked_core(&mut root).as_slice(),
+            root.take_core_commands().as_slice(),
             [CoreCommand::RestoreUnsent(NOTES)]
         ),
         "Restore asks the block stack to send the block's edits again"
@@ -103,14 +103,14 @@ fn a_root_lists_its_hosts_unsent_edits_and_asks_before_discarding_one() {
         dialog_painting(&mut root, &mut time),
     );
     assert!(
-        asked_core(&mut root).is_empty(),
+        root.take_core_commands().is_empty(),
         "asking discards nothing"
     );
 
     // Escape cancels the question, discarding nothing, and leaves the list open.
     press(&mut root, &mut time, Key::Escape);
     assert!(
-        asked_core(&mut root).is_empty(),
+        root.take_core_commands().is_empty(),
         "cancelled, nothing is discarded"
     );
     assert!(
@@ -127,7 +127,7 @@ fn a_root_lists_its_hosts_unsent_edits_and_asks_before_discarding_one() {
     press(&mut root, &mut time, Key::Enter);
     assert!(
         matches!(
-            asked_core(&mut root).as_slice(),
+            root.take_core_commands().as_slice(),
             [CoreCommand::DiscardUnsent(NOTES)]
         ),
         "confirming discards the block's edits"
@@ -149,7 +149,7 @@ fn a_root_lists_its_hosts_unsent_edits_and_asks_before_discarding_one() {
     );
     press(&mut root, &mut time, Key::Enter);
     assert!(
-        asked_core(&mut root).is_empty(),
+        root.take_core_commands().is_empty(),
         "a question whose block left the list discards nothing"
     );
 

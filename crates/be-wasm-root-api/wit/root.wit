@@ -638,11 +638,6 @@ interface host {
         cancel-discard,
         /// List the organization's invitations.
         list-invitations,
-        /// Make an invitation into the organization, answered with its link.
-        invite-member,
-        /// Hand over the link of the invitation of this id again, answered
-        /// with it while it is one of the person's own and still open.
-        invitation-link(uuid),
         /// Revoke the invitation of this id.
         revoke-invitation(uuid),
     }
@@ -651,11 +646,24 @@ interface host {
     /// answers at once; what changes reaches `core`. A command naming a block
     /// or an account the view no longer lists (it went while the person was
     /// asked) changes nothing. A secret in it (`add-account`'s gateway token)
-    /// is zeroed once decoded, as `unlock`'s password is. It answers once the
-    /// command is taken, with nothing, but for a command making a secret
-    /// (`invite-member`, `invitation-link`), which it answers once made: with
-    /// the secret, or nothing if it failed, why reaching `core`.
-    ask-core: async func(command: core-command) -> option<core-secret>;
+    /// is zeroed once decoded, as `unlock`'s password is. It answers at once.
+    ask-core: async func(command: core-command);
+
+    /// What the person asked of the block stack that makes a secret the host
+    /// hands them, which `make-secret` answers with.
+    variant secret-command {
+        /// Make an invitation into the organization: its link.
+        invite-member,
+        /// The link of the invitation of this id again, while it is one of
+        /// the person's own and still open.
+        invitation-link(uuid),
+    }
+
+    /// The person asked `command` of the block stack, which makes a secret:
+    /// answered once it is made, with the secret, handed over this once and
+    /// never in `core`, or with nothing if making it failed, why reaching
+    /// `core`.
+    make-secret: async func(command: secret-command) -> option<core-secret>;
 }
 
 /// The window's input, which the host hands the root inline on its frame thread

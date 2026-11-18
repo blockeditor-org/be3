@@ -23,7 +23,7 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    AccountRow, CoreCommand, CoreSecret, CoreView, CoreWait, DiscardReason, InvitationRow,
+    AccountRow, CoreCommand, CoreSecret, SecretCommand, CoreView, CoreWait, DiscardReason, InvitationRow,
     InvitationState, OrganizationRow, OrganizationsListed, ProfileRow,
     SessionRow, DisplayQuestion, FrameDone, FrameRequest, HostStatistics, LockState,
     NewAccount, Notice, PowerAction, Refusal, SavingState, ServerAccount, SetAside, StatisticRow, SyncState, UnsentEdit,
@@ -104,11 +104,12 @@ struct Root {
     /// Whether the host's question of keeping display settings replaced the dialog adding an
     /// account mid sign-in, which reopens once no dialog is open if the sign-in goes on.
     resuming: Rc<Cell<bool>>,
-    /// A secret the host answered a command with (an invitation's link), until the next frame
-    /// hands it to the dialog that asked, or drops it, zeroed, if that dialog closed.
+    /// A secret the host answered `make-secret` with (an invitation's link), until the next
+    /// frame hands it to the dialog that asked, or drops it, zeroed, if that dialog closed.
     secret: Rc<RefCell<Option<Option<CoreSecret>>>>,
-    /// The link its invitations show, while they are its open dialog.
-    link_shown: Rc<Cell<Option<Signal<Option<Held>>>>>,
+    /// The link its invitations show, and whether they wait for one, while they are its open
+    /// dialog: one request at a time, so an answer is the latest request's.
+    link_shown: Rc<Cell<Option<(Signal<Option<Held>>, Signal<bool>)>>>,
     /// The surface a `RESIZES` frame configures and never presents.
     unpresented: Rc<RefCell<Option<OwnSurface>>>,
     /// The scrim under its dialog, filled with `SCRIM_COLOR` on its first frame.
@@ -726,10 +727,13 @@ impl Root {
         if let Some(secret) = self.secret.borrow_mut().take()
             && let Some(dialog) = &mut *self.dialog.borrow_mut()
             && dialog.invitations
-            && let Some(shown) = self.link_shown.get()
+            && let Some((shown, pending)) = self.link_shown.get()
         {
             let link = secret.map(|CoreSecret::Link(link)| Held(Rc::new(link)));
-            dialog.surface.enter(|| shown.set(link));
+            dialog.surface.enter(|| {
+                shown.set(link);
+                pending.set(false);
+            });
         }
         match &closed {
             Some(Closed::Renamed(name)) => {
@@ -961,19 +965,24 @@ impl Root {
                         let core = create_signal(core);
                         core_shown.set(Some(core));
                         let link = create_signal(None::<Held>);
-                        link_shown.set(Some(link));
-                        // Asked of the host, answered with a secret the next frame hands over.
-                        let ask = Callback::new(move |command: CoreCommand| {
+                        let pending = create_signal(false);
+                        link_shown.set(Some((link, pending)));
+                        // Asked of the host, answered with a secret the next frame hands over;
+                        // the dialog asks nothing more until then.
+                        let ask = Callback::new(move |command: SecretCommand| {
+                            pending.set(true);
                             let answered = Rc::clone(&answered);
                             let wakes = wakes.clone();
                             be_wasm_ops::guest::spawn(async move {
-                                if let Ok(secret) = host::ask_core(command).await {
+                                if let Ok(secret) = host::make_secret(command).await {
                                     *answered.borrow_mut() = Some(secret);
                                     wakes.wake();
                                 }
                             });
                         });
-                        view! { <InvitationsDialog core={core} link={link} ask={ask} done={done} /> }
+                        view! {
+                            <InvitationsDialog core={core} link={link} pending={pending} ask={ask} done={done} />
+                        }
                     }
                     Asking::ForgetAccount { key, name } => {
                         view! {
@@ -2269,18 +2278,20 @@ fn DiscardDialog(reason: DiscardReason, done: Callback<Closed>) -> NodeId {
 
 /// The organization's invitations: each with how it stands, its link again for one of the
 /// person's own still open, and Revoke while open; and New link, which makes one. A link comes
-/// back once, as the answer to the command that made it (`ask`), and `link` holds it only while
-/// it shows: Done, or closing the dialog, drops it, zeroed.
+/// back once, as the answer to the request that made it (`ask`, `make-secret`), and `link`
+/// holds it only while it shows: Done, or closing the dialog, drops it, zeroed. While a request
+/// is `pending` it asks for no other, so the answer it shows is the latest request's.
 #[component]
 fn InvitationsDialog(
     core: Signal<CoreView>,
     link: Signal<Option<Held>>,
-    ask: Callback<CoreCommand>,
+    pending: Signal<bool>,
+    ask: Callback<SecretCommand>,
     done: Callback<Closed>,
 ) -> NodeId {
     let area = create_memo(move || core.with(|view| view.invitations.clone()));
     let rows = create_memo(move || area.with(|area| area.rows.clone()));
-    let busy = create_memo(move || area.with(|area| area.busy || !area.listed));
+    let busy = create_memo(move || pending.get() || area.with(|area| area.busy || !area.listed));
     let error = create_memo(move || area.with(|area| area.error.clone()));
     let showing = create_memo(move || link.with(Option::is_some));
     let listing = create_memo(move || !showing.get());
@@ -2318,8 +2329,9 @@ fn InvitationsDialog(
                         title=INVITATIONS_TITLE
                         actions={vec![
                             DialogAction::cancel("Close"),
-                            DialogAction::primary("New link", move || ask.call(CoreCommand::InviteMember))
-                                .busy(busy),
+                            DialogAction::primary("New link", move || ask.call(SecretCommand::InviteMember))
+                                .busy(busy)
+                                .disabled(move || pending.get()),
                         ]}
                         on_dismiss={move || done.call(Closed::Dismissed)}
                     >
@@ -2346,7 +2358,8 @@ fn InvitationsDialog(
                                         <Button
                                             label="Link"
                                             variant=ButtonVariant::Secondary
-                                            on_click={move || ask.call(CoreCommand::InvitationLink(id))}
+                                            disabled={pending}
+                                            on_click={move || ask.call(SecretCommand::InvitationLink(id))}
                                         />
                                     </Show>
                                     <Show value={open}>
