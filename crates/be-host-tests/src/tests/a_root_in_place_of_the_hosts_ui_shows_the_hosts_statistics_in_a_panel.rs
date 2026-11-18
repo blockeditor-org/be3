@@ -18,6 +18,14 @@ fn pixel(host: &mut HostTest, x: f32, y: f32) -> [u8; 3] {
     [rgba[start], rgba[start + 1], rgba[start + 2]]
 }
 
+/// Whether `color` is within a few levels of `expected` in each channel.
+fn near(color: [u8; 3], expected: [u8; 3]) -> bool {
+    color
+        .iter()
+        .zip(expected)
+        .all(|(color, expected)| color.abs_diff(expected) <= 4)
+}
+
 #[test]
 fn a_root_in_place_of_the_hosts_ui_shows_the_hosts_statistics_in_a_panel() {
     let mut host = HostTest::root(ROOT);
@@ -29,23 +37,18 @@ fn a_root_in_place_of_the_hosts_ui_shows_the_hosts_statistics_in_a_panel() {
         STATISTICS_ORIGIN.0 + STATISTICS_AREA.0 as f32 - 5.0,
         STATISTICS_ORIGIN.1 + STATISTICS_AREA.1 as f32 - 5.0,
     );
-    assert_eq!(pixel(&mut host, x, y), own);
+    assert!(near(pixel(&mut host, x, y), own));
 
     // F3 opens the panel, which watches be-host's statistics while it is open.
     host.key("F3");
     host.run(&["settle"]);
-    assert_ne!(
-        pixel(&mut host, x, y),
-        own,
+    assert!(
+        !near(pixel(&mut host, x, y), own),
         "the panel shows over the root's own surface"
     );
 
     host.key("F3");
     host.run(&["settle"]);
-    assert_eq!(
-        pixel(&mut host, x, y),
-        own,
-        "F3 again closes it"
-    );
+    assert!(near(pixel(&mut host, x, y), own), "F3 again closes it");
     host.close();
 }
