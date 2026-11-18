@@ -553,11 +553,14 @@ impl<S: ObjectStore> Peer<S> {
                 .and_then(|served| be_block_keys::NameCard::open(&served.name, &signing))
                 .filter(|card| card.account == contact.account.into_bytes());
             // The newest this device showed outranks an older one the server serves again.
-            let kept = self.refs.name_card(contact.account);
+            let kept = self.refs.name_card(contact.account, &signing);
             let card = match (card, kept) {
                 (Some(card), kept) if kept.as_ref().is_none_or(|kept| card.dated > kept.dated) => {
-                    if let Err(error) = self.refs.keep_name_card(contact.account, card.clone()) {
-                        eprintln!("be-block-client: a contact's name card was not kept: {error}");
+                    if let Err(error) =
+                        self.refs
+                            .keep_name_card(contact.account, &signing, card.clone())
+                    {
+                        tracing::warn!("a contact's name card was not kept: {error}");
                     }
                     Some(card)
                 }

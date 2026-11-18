@@ -429,10 +429,14 @@ Depends on #686 (session catch-ups replaced by server ordering).
 - **Keys a contact seals to a key the reader replaced.** A key a contact seals
   to this account while it still holds the account's old key (`reseal_from`,
   `ResealKeys`, and every seal between the two moves) opens only with the
-  current secret, so it stays sealed until the contact follows the change and
-  seals it again. Done: those opens try the retired secrets too
-  (`contacts::Secrets`), with a test where a contact seals a key to the old key
-  after the account's move.
+  current secret. Not shown yet: a direct share to an old key is refused by the
+  server ("a grant names the keys its grantee holds now"), contacts in two
+  personal organizations cannot share this way, and in an organization a folder
+  rotated while the owner held the guest's old key still reached the guest's new
+  phrase some other way, so the test written for it passes without the change.
+  The change (the `KeyBook` and `reseal_from` trying the retired secrets) waits
+  as wip on claude/backlog-keys-6 at c44edb62. Done: the path that seals to an
+  old key is found, and a test that fails without the change passes with it.
 
 - **An app opens only a block the server confirmed it made.** An app whose
   manifest does not set `sharing` may open a block it made in this run to
