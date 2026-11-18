@@ -124,6 +124,37 @@ interface host {
         memory-file: option<string>,
     }
 
+    /// The host's memory at one minute, at its peak, in bytes.
+    record memory-point {
+        /// When, in seconds since the Unix epoch.
+        at: u64,
+        resident: u64,
+        anonymous: u64,
+        shared: u64,
+        /// The memory of every wasm guest.
+        wasm: u64,
+    }
+
+    /// The host's memory over time, a point a minute: its own watch apart
+    /// from `statistics`, whose rows change every frame while these change
+    /// once a minute.
+    record memory-history {
+        /// Which change of it this is, which the next `memory-history` call
+        /// names as `seen`: never 0.
+        generation: u64,
+        /// The minutes measured, oldest first; a gap of more than two
+        /// minutes is a time the computer slept.
+        points: list<memory-point>,
+        /// When the latest sample was taken, in seconds since the Unix epoch.
+        now: u64,
+    }
+
+    /// The host's memory over time, once it differs from the generation
+    /// `seen`, as `statistics` answers; the host measures it only while the
+    /// root watches the statistics, and turning the watch off answers a call
+    /// still waiting with it as it is.
+    memory-history: async func(seen: u64) -> memory-history;
+
     /// Whether the root shows the host's statistics now. The host measures
     /// what only they need (its memory, sampled every few seconds) only while
     /// the root watches, and wakes the root for each sample. It answers at

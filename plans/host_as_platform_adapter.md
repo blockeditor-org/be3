@@ -1039,9 +1039,19 @@ Each step lands on its own.
        the window lost the keyboard goes nowhere; and be-sdk-root's `Windows::drew` forgets a
        layer its list leaves out, so the focus, a lock, a press or a key it held goes to no
        layer that later takes its id.
+       Built after 4g6: the memory graph (be-host's `MemoryGraph`). `host.memory-history` is a
+       watch of its own, apart from `host.statistics`, whose rows change every frame while the
+       graph's points change once a minute: `memory-history` carries the minutes measured, each
+       `memory-point` its time and resident, anonymous, shared and wasm bytes at the minute's
+       peak, and when the latest sample was taken (be-wasm-root-host's
+       `Root::show_memory_history`); turning `watch-statistics` off answers a call still
+       waiting, as for the rows. be-host's `--root` hands it the points of be-host's own
+       `memory::view` once a new sample came. be-sdk-root-testing's statistics panel graphs
+       them above its rows as be-host's own does (each line in a colour role, the top the peak
+       resident size rounded up to 64 MiB, a gap of more than two minutes breaking a line),
+       watching them while the panel is open; the statistics test shows it minutes with such
+       a gap and snapshots the graph.
        Left for later:
-       - The memory graph (be-host's `MemoryGraph`): `be3:root` would carry the minutes'
-         points (resident, anonymous, shared and wasm, in bytes) beside the rows.
        - The Block stack panel, whose lines are the block stack's: the root's once the block
          stack is (step 5).
        - The Running apps panel and its kill and crash commands: the apps a root embeds are
@@ -1431,8 +1441,8 @@ Each step lands on its own.
          once unlocked.
          Left for later in 4g6: onboarding, saving, keep changes, organization and
          be-host-accounts-ui, which need the block stack's messages through `be3:root`; the
-         recovery phrase (`UnlockWithPhrase`), which crosses as a password does; and 4g5's
-         memory graph.
+         recovery phrase (`UnlockWithPhrase`), which crosses as a password does (all since
+         built: 4g6b to 4g6g, and 4g5's memory graph).
      - 4g7. The compositor itself: app views (each declaring its layer's hit and gesture
        areas and placer), anchored views placed outside groups (The layer list, Built
        (step 4b)), editors, desktop windows, the camera and the palette, the chords along the
