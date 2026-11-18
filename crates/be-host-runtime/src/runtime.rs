@@ -609,13 +609,22 @@ impl Runtime {
     }
 
     fn busy(&mut self) -> Vec<&'static str> {
-        if self.error.is_some() || !self.instances.has_mounted() {
+        if self.error.is_some() {
             return Vec::new();
         }
         let starting = matches!(
             self.run.session.state(),
             SessionState::Idle | SessionState::Starting
         );
+        // An app with nothing mounted is settled, unless it is starting for a view the host
+        // asked it for: that view mounts once it has started, which a stopped clock must not
+        // be taken for having settled before.
+        if !self.instances.has_mounted() {
+            return match starting && self.instances.has_views() {
+                true => vec!["is starting for a view the host shows"],
+                false => Vec::new(),
+            };
+        }
         [
             (starting, "is starting"),
             (self.run.painting, "has yet to answer a paint"),
