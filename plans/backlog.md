@@ -792,3 +792,12 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   `changed`, or the stack asking again as the organization's members change),
   with a be-host-runtime test where removing the author of a block shared with
   this account drops them from an open editor's members.
+- **A revoke then a publish stalls the flush.** While writing be-host-runtime's
+  `an_editor_hears_a_member_go_when_their_access_is_revoked_with_a_publish`, a
+  variant that revoked a block agent's access to an open block and then
+  published to it hung in `flush_and_send` until its 60 s limit; publishing
+  first and then revoking (the committed test) does not. Not looked into: it may
+  be the reseal under the new key racing the publish, or the test's wait.
+  Done: the cause is found and fixed or explained, with a be-host-runtime or
+  be-host-stack test that revokes and then publishes on an open block and sees
+  the publish land without waiting out a limit.
