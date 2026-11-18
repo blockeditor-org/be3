@@ -407,7 +407,7 @@ fn rehandshake(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tas
 /// said on the channel. A resynchronized connection (`None`) joins every session again.
 pub fn heard(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks, event: Option<&Event>) {
     match event {
-        Some(Event::Host { block, host }) => {
+        Some(Event::Host { block, host, .. }) => {
             let restarted = {
                 let mut held = lock(shared);
                 match held.joining.blocks.get_mut(block) {

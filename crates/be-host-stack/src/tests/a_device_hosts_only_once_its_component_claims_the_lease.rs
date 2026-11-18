@@ -1,0 +1,75 @@
+use super::*;
+
+/// Who the server says hosts `block`, as `member` hears it on joining its session.
+fn host_heard_by(member: &Member, block: Uuid) -> Option<Uuid> {
+    let peer = &member.peer;
+    member.runtime.block_on(async {
+        peer.refresh_keys(None).await.expect("the keys arrive");
+        peer.connection()
+            .join(peer.organization(), block, be_block_store::Hash::from_bytes([3; 32]))
+            .await
+            .expect("the member joins")
+            .host
+            .map(|host| host.account)
+    })
+}
+
+/// A device whose replica of a hosted block is open (an editor, a child, a preview) holds the
+/// session's lease, and seals, but hosts it only once a host component starts and claims it
+/// (plans/hosted_blocks.md, step 4d2): until then the server tells members no one hosts. Once
+/// another editor's device claims after it, it hosts no longer.
+#[test]
+fn a_device_hosts_only_once_its_component_claims_the_lease() {
+    let harness = Harness::start();
+    let personal = harness.connect_personal();
+    let player = Member::join(&harness, personal, "player@example.com", "Player");
+    let other = Member::join(&harness, personal, "other@example.com", "Other");
+    let block = Uuid::new_v4();
+    create(
+        block,
+        CounterContent::CONTENT_TYPE,
+        be_block_graph::BlockParent::Root,
+        be_block_content::BlockMetadata::named("World"),
+        None,
+        false,
+    );
+    flush();
+    open(block, CounterContent::CONTENT_TYPE);
+    set_access(block, player.account(), be_block_graph::Access::Join, |_| {});
+    set_access(block, other.account(), be_block_graph::Access::Edit, |_| {});
+    flush_and_send();
+    assert_eq!(status().error, None);
+    wait_until("joined the world's session", |shared| {
+        shared.session_hosts.contains_key(&block)
+    });
+    assert!(may_host(block), "no one hosts, so a component may start here");
+    assert_eq!(
+        host_heard_by(&player, block),
+        None,
+        "an open replica alone hosts nothing"
+    );
+
+    restart_host(block);
+    wait_until("hosts the world", |shared| shared.hosted.contains(&block));
+    assert_eq!(
+        host_heard_by(&player, block),
+        Some(harness.account),
+        "the component's claim makes this device the host"
+    );
+
+    let peer = &other.peer;
+    other.runtime.block_on(async {
+        peer.refresh_keys(None).await.expect("the keys arrive");
+        let joined = peer
+            .connection()
+            .join(peer.organization(), block, be_block_store::Hash::from_bytes([3; 32]))
+            .await
+            .expect("the other editor joins");
+        assert_eq!(joined.host.map(|host| host.account), Some(harness.account));
+        peer.connection().claim(block).await.expect("it claims");
+    });
+    wait_until("hosts no longer", |shared| {
+        !shared.hosted.contains(&block) && shared.session_hosts.get(&block) == Some(&Some(false))
+    });
+    assert!(!may_host(block), "another device hosts");
+}
