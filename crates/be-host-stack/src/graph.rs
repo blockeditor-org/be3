@@ -1502,7 +1502,13 @@ impl Graph {
         if at_head && let Some(node) = self.node_mut(block) {
             node.references = Some(references.clone());
             self.placed(block, &references);
-            self.relist(Listing::References(block));
+            // The server's listing is read again only for a block it names that is not held.
+            if references
+                .iter()
+                .any(|reference| !self.nodes.contains_key(reference))
+            {
+                self.relist(Listing::References(block));
+            }
             self.moved();
             self.check_dropped(block, "its content");
         }
