@@ -16,16 +16,19 @@ configured_once(
 )
 
 # Ghostty's source, at the commit libghostty-vt is built from: GitHub's
-# archive of it. Bump this to pick up a newer terminal emulator.
+# archive of it (github.com/ghostty-org/ghostty/archive/COMMIT.tar.gz),
+# mirrored to lfs.pfg.pw because cloud sessions cannot fetch GitHub archives,
+# and http_file takes a single URL. Bump this, and upload the new archive to
+# the mirror, to pick up a newer terminal emulator.
 ghostty_commit = "7a8ff4d992edd2aad7537e5bef73ec911aa126bf"
 
 configured_once(
     http_file,
     name = "ghostty.tar.gz",
     out = "ghostty.tar.gz",
-    sha256 = "abeadd08aa8ceae1604d8af535b6f04b84dcd9ef83018f0c67dfabf9bfd64bbf",
-    size_bytes = 39554991,
-    urls = ["https://github.com/ghostty-org/ghostty/archive/{}.tar.gz".format(ghostty_commit)],
+    sha256 = "45fa2695920d1e513d4c070b7424c3de7e28e9d0d257d1ebb824c431866011ce",
+    size_bytes = 40275030,
+    urls = ["https://lfs.pfg.pw/by-name/be3/zig/ghostty-{}.tar.gz".format(ghostty_commit)],
 )
 
 # The Zig packages that build asks for, for every platform here, each pinned by
