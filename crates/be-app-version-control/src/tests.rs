@@ -25,7 +25,10 @@ mod checking_a_branch_out_asks_the_host;
 
 const TEXT: Uuid = Uuid::from_u128(0x7465_7874);
 
-fn editor<A: BeuiRoot + be_sdk_beui::AppEditor, C: LiveEdit + be_sdk_beui::be_block_content::Merge + Clone + Default>(
+fn editor<
+    A: BeuiRoot + be_sdk_beui::AppEditor,
+    C: LiveEdit + be_sdk_beui::be_block_content::Merge + Clone + Default,
+>(
     content: C,
     status: VersionStatus,
 ) -> BeuiTest<A> {
