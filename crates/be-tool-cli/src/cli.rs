@@ -82,6 +82,11 @@ A terminal block:
                                       it stays connected and keeps the shell running until
                                       stopped. Share the block with this agent first.
 
+A hosted block (one whose type an app hosts, such as a game world):
+  host                                Run its type's host component on this machine
+                                      while no other device hosts it, standing by
+                                      while one does, until stopped. Needs Edit.
+
 TEXT given as - is read from standard input. --json prints JSON.
 
 Environment:
@@ -475,6 +480,7 @@ async fn block_verb<S: ObjectStore>(
         ("terminal-host", _, _) => Err(
             "terminal-host needs a live connection; run it as `be TARGET terminal-host`".to_owned(),
         ),
+        ("host", _, _) => Err("host needs a live connection; run it as `be TARGET host`".to_owned()),
         ("sync", _, _) => sync(tracker, Some(entry.id), invocation).await,
         ("move", _, _) => {
             let to = arguments
