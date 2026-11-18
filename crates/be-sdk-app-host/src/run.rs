@@ -59,7 +59,8 @@ pub struct Telling<F> {
 }
 
 /// What a host keeps of what an app's views described, outside the `Run`: a graft for each
-/// screen and the actions each view offers.
+/// screen and the actions each view offers. The library says only that a restart forgets a
+/// view's actions, not how the host keeps them.
 pub trait Descriptions {
     /// Calls `each` with the graft of every screen of the app's views.
     fn grafts(&mut self, each: &mut dyn FnMut(&mut Graft));
@@ -68,7 +69,7 @@ pub trait Descriptions {
 }
 
 impl<A> Run<A> {
-    /// A first run, told `preferences` with its hello (`preferences`).
+    /// A first run, told `preferences` with its hello (`Run::preferences`).
     pub fn new(session: Session, holds_textures: bool, preferences: Preferences) -> Self {
         Self {
             session,

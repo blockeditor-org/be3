@@ -107,3 +107,27 @@ fn grafted_nodes(graft: &mut Graft) -> usize {
     };
     graft.grafted(placing, true, false).nodes.len()
 }
+
+fn screen_request(screen: ScreenId) -> ScreenRequest {
+    ScreenRequest {
+        screen,
+        instance: EditorInstanceId(1),
+        view: ViewId::MAIN,
+        placement: be_sdk_api::ViewPlacement::Parent(be_sdk_api::ParentView::Main),
+        frame: None,
+        metrics: be_sdk_api::ViewportMetrics {
+            logical: vec2(100.0, 100.0),
+            visible: pos2(0.0, 0.0),
+            pixel_width: 100,
+            pixel_height: 100,
+            scale_factor: 1.0,
+            raster: 1.0,
+        },
+        windows: false,
+        host_place: None,
+        origin: None,
+        docked: false,
+        anchor_space: None,
+        fit: false,
+    }
+}
