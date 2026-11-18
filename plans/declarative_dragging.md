@@ -449,9 +449,8 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      keys: `Interactive`'s new `lifts_by_keys=false` lifts nothing from the keyboard, offers no
      Move in the palette and builds no live region, as the control's own keys and value say
      everything. A scrollbar's press on its track still pages; its thumb gained Escape (back
-     to the offset at the press). Lines: `Slider` 263 to 243, `ColorArea` 219 to 201,
-     `ColorWheel` 404 to 386, `Scrollbar` 211 to 225 (Escape and its start are new), and
-     `ThumbCarry` 185, which took the controls' begin, cancel and report code. On the HTML
+     to the offset at the press). The slider and the colour controls are shorter than they
+     were, as `ThumbCarry` took their begin, cancel and report code. On the HTML
      core the wheel's round `border-radius` moved from its `Interactive` to the face inside
      it, so a press in the corners of its box reaches it there, as it already did natively.
    - **What stays outside:** the number input's scrub turns the distance moved into a value,
