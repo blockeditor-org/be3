@@ -1,6 +1,6 @@
 # Anonymous share links
 
-Depends on: plans/share_links.md.
+Depends on: none (share links are built: guides/blocks/keys.md, "Share links").
 
 Set aside until the user picks it up.
 
@@ -9,7 +9,7 @@ account. Opening one makes an account on the server on the spot (not a local
 account, which has no server; guides/hosting.md, Local accounts and the default server), kept on that device
 alone with no recovery phrase shown, which signs its grant like any other
 opener's and is a guest of the block's organization
-(plans/share_links.md, "Organization membership").
+(guides/blocks/keys.md, "Share links", Guests).
 
 Open questions before building it:
 
