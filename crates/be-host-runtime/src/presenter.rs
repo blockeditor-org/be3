@@ -465,8 +465,8 @@ impl Blit {
 /// One point of the result's quad always shows `density` pixels of the painting along both axes,
 /// so an app's frame is never stretched or squished into a view of another size, however late
 /// its app answers: a view that grew shows the painting at its size with the rest left to what
-/// is under it (the view's backdrop within its last placement, and beyond it what is behind the
-/// view, until the app reports the new size), and one that shrank shows its top left.
+/// is under it (the view's backdrop, which fills the view's laid box, until the app reports the
+/// new size), and one that shrank shows its top left.
 pub(super) fn unscaled(
     quad: Quad,
     source: Rect,
@@ -886,7 +886,7 @@ impl Paints for ViewDrawing {
             };
             // The view has a painting, so it is drawn even where the painting does not reach a
             // piece (a view grown before its app drew the new size): what is under the view shows
-            // there, its backdrop within its last placement and beyond it what is behind it.
+            // there, its backdrop, which fills the view's laid box.
             found = true;
             let size = (screen.frame.size[0], screen.frame.size[1]);
             let Some((quad, source)) = shared

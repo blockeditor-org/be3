@@ -30,22 +30,6 @@ Fixed items are removed as they land.
 
 ## 3. beui platforms
 
-- **The first frame after a page grows.** In headless Chromium the first frame after the page
-  grows shows the workspace's tabs and files at the old width with a plain background beyond.
-  be-host's own canvas is not behind it: the window's `resize` event schedules an animation
-  frame, which runs before the page's ResizeObserver in the same rendering update and draws the
-  host's canvas at the new size (`frame.pending`, presented; `resized`'s frame then has nothing
-  pending), and read with `preserveDrawingBuffer` in a later ResizeObserver its first frame is
-  the settled one's wherever the page was before. That chrome is the workspace app's canvas
-  (be-app-workspace), which shows its old frame at its old size until its frame of the new size
-  arrives, which in a browser is always a later page frame, since the page cannot wait on a
-  worker; beyond its last placement the host's canvas shows its surface (guides/apps/runtime.md,
-  Late answers). An app view's backdrop now fills its laid box (`Backdrop` in be-host's
-  `app_view.rs`), so beyond the workspace's last placement the gap should read as its
-  background rather than the host's. Done: a web test that grows the page shows the
-  workspace's backdrop beyond its old placement in the first frame, or this entry goes as
-  the one frame a browser cannot avoid.
-
 - **A live resize on macOS.** `CAMetalLayer`'s default `contentsGravity` (resize) may stretch
   the last frame while a window is resized live, before beui draws the new size. Check it, and
   set it to top left if so, as X11 keeps the last frame at the corner (beui-platform-winit's
