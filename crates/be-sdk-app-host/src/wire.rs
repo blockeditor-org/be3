@@ -402,6 +402,7 @@ impl Wire {
 
     pub fn answer(&mut self, op: OpId, outcome: Outcome) {
         self.serving.remove(&op);
+        self.held.sends.remove(&op);
         self.connection.complete(op, outcome);
     }
 

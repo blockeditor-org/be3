@@ -201,6 +201,10 @@ struct ContentLink {
     /// lacks it again (an app that starts, an editor out of step), until the answer is relayed.
     deliveries: u64,
     awaiting_preview: bool,
+    /// Whether an earlier replica was started afresh (`BlockStore::replica_resumed`): until a
+    /// snapshot reaches it, it is relayed nothing else, which the stack may have made for the
+    /// replica that ended before it heard the resend.
+    resuming: bool,
     /// The gestures the editor holds open in the block, undo groups and tentative ones, by id:
     /// a link that goes cancels each, so a tentative gesture's held edits leave no trace.
     gestures: std::collections::BTreeSet<u64>,
@@ -215,6 +219,7 @@ impl ContentLink {
             delivered: false,
             deliveries: 0,
             awaiting_preview: false,
+            resuming: false,
             gestures: std::collections::BTreeSet::new(),
             described: None,
         }
@@ -568,7 +573,13 @@ impl Instance {
         let Some(replica) = self.held.replica(block) else {
             return true;
         };
-        if self.link_mut(block).is_none() {
+        let Some(link) = self.link_mut(block) else {
+            return true;
+        };
+        let snapshot = be_host_stack::unframe(frame)
+            .and_then(|bytes| ToEditor::decode(&bytes))
+            .is_some_and(|message| matches!(message, ToEditor::Snapshot(_)));
+        if link.resuming && !snapshot {
             return true;
         }
         if !send(replica, frame) {
@@ -577,13 +588,13 @@ impl Instance {
         // Only a snapshot gives the editor its content: operations or presence the replica sent
         // before it heard the editor ask again reach an editor that ignores them until it has it.
         if let Some(link) = self.link_mut(block)
-            && !link.delivered
-            && be_host_stack::unframe(frame)
-                .and_then(|bytes| ToEditor::decode(&bytes))
-                .is_some_and(|message| matches!(message, ToEditor::Snapshot(_)))
+            && snapshot
         {
-            link.delivered = true;
-            link.deliveries += 1;
+            link.resuming = false;
+            if !link.delivered {
+                link.delivered = true;
+                link.deliveries += 1;
+            }
         }
         true
     }

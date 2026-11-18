@@ -9,12 +9,20 @@ fn frames_go_to_the_latest_replica_of_a_block_and_the_earlier_resumes() {
     open_replica_of(&mut store, 11, block, second);
     assert_eq!(store.blocks.replica(block), Some(11), "frames go to the latest");
     assert_eq!(
-        send(&mut store, 10, 20),
+        send(&mut store, 11, 20),
         Dispatched {
             reply: Some(Reply::Accepted(20)),
             changed: true,
         },
-        "a frame sent from either reaches the block"
+        "the latest sends for the editor"
+    );
+    assert_eq!(
+        send(&mut store, 10, 22),
+        Dispatched {
+            reply: Some(Reply::Answer(22, Outcome::Err(OpError::Denied))),
+            changed: false,
+        },
+        "an earlier replica may not send"
     );
 
     store.heard.clear();

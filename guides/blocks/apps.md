@@ -219,7 +219,11 @@ only to the latest; when it ends while an earlier one remains, the store drops w
 it queued for it and starts the earlier afresh with a snapshot
 (`BlockStore::replica_resumed`; be-host sends the replica a resend on its behalf,
 and relinks it first if it holds another content type). The store hears a replica
-end (`replica_ended`) once no replica holds the block. be-sdk holds one replica
+end (`replica_ended`) once no replica holds the block. The two live replicas share
+that one participant, so an editor edits through its latest replica: the dispatcher
+refuses a `send` through an earlier one (`Denied`), and be-host relays a resumed
+replica nothing but a snapshot until one reaches it. An earlier replica of a
+content type the host does not link resumes with no link. be-sdk holds one replica
 per block, and opens the new one before dropping the old when the content type
 changes, so the new one is the latest. The shows watch is a queue the store hands over (`take_shows`). The host's policy stays
 in its store: `admit` translates a call's ids through the checkout's scope and

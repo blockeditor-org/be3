@@ -356,9 +356,20 @@ pub fn call(store: &mut impl BlockStore, instance: EditorInstanceId, mut call: C
             changed(store.replica_opened(instance, op, block, content_type))
         }
         Call::ReplicaSend { reply, this, frame } => {
-            let block = store
-                .held(instance)
+            let held = store.held(instance);
+            let block = held
+                .as_ref()
                 .and_then(|held| held.replicas.get(&this.op()).map(|(block, _)| *block));
+            // The host holds one participant per editor and block, which the latest replica
+            // speaks for: an earlier one may not send.
+            if let Some(block) = block
+                && held.is_some_and(|held| held.replica(block) != Some(this.op()))
+            {
+                return Dispatched {
+                    reply: Some(Reply::Answer(reply.into_op(), Outcome::Err(OpError::Denied))),
+                    changed: false,
+                };
+            }
             Dispatched {
                 reply: Some(Reply::Accepted(reply.into_op())),
                 changed: block.is_some_and(|block| store.replica_sent(instance, block, frame)),

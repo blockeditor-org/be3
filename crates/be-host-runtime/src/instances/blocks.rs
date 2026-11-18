@@ -432,9 +432,23 @@ impl BlockStore for Instances {
             .link_mut(block)
             .is_some_and(|link| own || link.content_type == content_type);
         if !same {
+            if !(be_host_stack::provided(content_type) && be_host_stack::may_load(block)) {
+                // Its content type is not one the host links: the later replica's link goes, as
+                // it would have had the earlier one been alone, so nothing of another type
+                // reaches it.
+                self.replica_ended(instance, block);
+                return;
+            }
             // Linked for the later replica's content type: linked afresh for this one's, as a
             // replica opened anew is.
             self.replica_opened(instance, op, block, content_type);
+        }
+        if let Some(link) = self
+            .entries
+            .get_mut(&instance)
+            .and_then(|entry| entry.link_mut(block))
+        {
+            link.resuming = true;
         }
         // The replica answers a resend with a snapshot, as it does an editor that lacks its
         // content, and a link not attached yet is attached, which sends one.
