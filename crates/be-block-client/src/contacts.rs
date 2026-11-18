@@ -186,6 +186,64 @@ fn records_of(block: &be_block::AccountBlock) -> HashMap<Uuid, OwnContact> {
         .collect()
 }
 
+/// This account's identity secret and those it replaced with a new phrase
+/// (`AccountBlock::retired`): a contact that sealed its key change to a key this account
+/// replaced before it followed the new one (it took its own new phrase meanwhile, say) is
+/// followed all the same.
+struct Secrets<'a> {
+    current: &'a RecoverySecret,
+    retired: Vec<RecoverySecret>,
+}
+
+impl<'a> Secrets<'a> {
+    fn new(current: &'a RecoverySecret, block: Option<&be_block::AccountBlock>) -> Self {
+        let retired = block
+            .map(|block| {
+                block
+                    .retired_secrets()
+                    .filter_map(|bytes| Some(RecoverySecret::from_bytes(bytes.try_into().ok()?)))
+                    .collect()
+            })
+            .unwrap_or_default();
+        Self { current, retired }
+    }
+
+    /// The secrets of `account`'s block, as `identity` reads it: none retired when it has no
+    /// block or cannot read it.
+    async fn held(
+        connection: &Arc<Connection>,
+        account: Uuid,
+        identity: &'a RecoverySecret,
+    ) -> Result<Self, ClientError> {
+        let Some(block) = AccountRecords::open(connection, account, identity).await? else {
+            return Ok(Self::new(identity, None));
+        };
+        Ok(match block.read().await {
+            Ok(held) => Self::new(identity, Some(&held.content.root())),
+            Err(ClientError::Locked(_)) => Self::new(identity, None),
+            Err(error) => return Err(error),
+        })
+    }
+
+    fn open_key_change(
+        &self,
+        from: &Party,
+        to: [u8; 16],
+        sealed: &[u8],
+    ) -> Result<PublicIdentity, be_block_keys::KeyError> {
+        std::iter::once(self.current)
+            .chain(&self.retired)
+            .map(|secret| secret.open_key_change(from, to, sealed))
+            .find(Result::is_ok)
+            .unwrap_or(Err(be_block_keys::KeyError::Sender))
+    }
+}
+
+/// Where `public`'s secret is kept once retired (`AccountBlock::retired`).
+fn retired_key(public: &be_block_keys::RecoveryPublic) -> Uuid {
+    Uuid::from_slice(&public.0[..16]).expect("sixteen bytes make an id")
+}
+
 #[derive(Clone)]
 pub struct GrantOffer {
     pub organization: Uuid,
@@ -630,6 +688,8 @@ async fn contacts_once(
         .as_ref()
         .map(|held| kept_of(&held.content.root()))
         .unwrap_or_default();
+    let root = held.as_ref().map(|held| held.content.root());
+    let secrets = Secrets::new(identity, root.as_ref());
     let mut removed: HashMap<Uuid, (u64, u64)> = kept
         .iter()
         .filter_map(|(account, kept)| match kept {
@@ -736,7 +796,7 @@ async fn contacts_once(
             .partition(|(id, _)| *id <= record.through);
         taken.extend(already.iter().map(|(id, _)| *id));
         let sealed: Vec<Vec<u8>> = letters.iter().map(|(_, sealed)| sealed.clone()).collect();
-        let (changed, followed) = follow(account, identity, &record.card, &sealed);
+        let (changed, followed) = follow(account, &secrets, &record.card, &sealed);
         let broken = readable && followed < letters.len();
         if let Some(changed) = changed {
             if held_keys.is_none() {
@@ -841,7 +901,7 @@ async fn contacts_once(
 /// of them lie up to the last that opened, which the device may delete.
 fn follow(
     account: Uuid,
-    identity: &RecoverySecret,
+    secrets: &Secrets,
     card: &ContactCard,
     changes: &[Vec<u8>],
 ) -> (Option<PublicIdentity>, usize) {
@@ -856,7 +916,7 @@ fn follow(
             account: card.account,
             public: current.public,
         };
-        if let Ok(next) = identity.open_key_change(&from, account.into_bytes(), sealed) {
+        if let Ok(next) = secrets.open_key_change(&from, account.into_bytes(), sealed) {
             current = next;
             followed = index + 1;
         }
@@ -871,7 +931,7 @@ fn follow(
 fn outdated(
     mailbox: &[be_block_protocol::Message],
     account: Uuid,
-    identity: &RecoverySecret,
+    secrets: &Secrets,
     card: &ContactCard,
 ) -> Vec<be_block_protocol::Op> {
     let from = Party {
@@ -889,7 +949,7 @@ fn outdated(
             _ => None,
         })
         .take_while(|(_, sealed)| {
-            identity
+            secrets
                 .open_key_change(&from, account.into_bytes(), sealed)
                 .is_err()
         })
@@ -1124,6 +1184,19 @@ pub async fn set_recovery_key(
     let Some(resealed) = new_identity(account, old, fresh, sealed, &records, logs) else {
         return Ok(Err(CannotReseal::Unreadable));
     };
+    // The old secret, kept where only the new phrase reads it once the block's keys are sealed
+    // again: a contact's key change sealed to the old key before it follows this one opens.
+    if let Some(block) = &block {
+        let (key, secret) = (retired_key(&old.public()), old.to_bytes().to_vec());
+        block
+            .update(move |_| {
+                vec![be_block::AccountBlock::set_retired(
+                    key,
+                    Some(secret.clone()),
+                )]
+            })
+            .await?;
+    }
     let mut ops = vec![be_block_protocol::Op::SetRecoveryKey {
         public: fresh.public().0,
         signing: fresh.signing().0,
@@ -1337,7 +1410,7 @@ pub async fn accept_link(
     let changes = outdated(
         &mailbox(connection).await?,
         Uuid::from_bytes(me.account),
-        identity,
+        &Secrets::held(connection, Uuid::from_bytes(me.account), identity).await?,
         &card,
     );
     // The log may move between reading the link and accepting it: a few tries, each after the
@@ -1489,7 +1562,8 @@ pub(crate) async fn finish_links(
             Err(ClientError::Locked(_)) => continue,
             Err(error) => return Err(error),
         }
-        let ops = outdated(&held, account, identity, &card);
+        let secrets = Secrets::held(connection, account, identity).await?;
+        let ops = outdated(&held, account, &secrets, &card);
         if !ops.is_empty() {
             be_block_protocol::write_all::<(), _>(connection, None, ops).await??;
         }

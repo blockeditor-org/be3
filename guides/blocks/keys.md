@@ -796,7 +796,14 @@ in the account's block (`Peer::save_pin`); an unverifiable newer key is not used
   and deletes the changes it followed. Before sending, the device follows its own
   contacts' waiting changes, checked against its pins, so the changes seal to
   each contact's newest key; that step is best-effort, so a contact's mailbox
-  never holds up a new phrase (`accounts::set_recovery_key`). The server, in
+  never holds up a new phrase (`accounts::set_recovery_key`). A contact that
+  takes its own new phrase before it follows this one seals its change to this
+  account's old key, so the device keeps the secret it replaced in the
+  account's block (`AccountBlock::retired`, written before the new phrase, and
+  read only with it once the block's keys are sealed again), and every device
+  opens a key change with the current secret or a retired one
+  (`contacts::Secrets`). An agent has no block, and follows no change sealed to
+  a key it replaced. The server, in
   the same write, seals again from its own account each key the account sealed
   to it (the settings' keys, `ServerKey::reseal_from`): it opens such a wrap by
   its sender's current key, so it would otherwise stop reading the policies

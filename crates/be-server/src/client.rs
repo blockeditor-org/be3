@@ -1187,7 +1187,7 @@ impl Client {
     ) -> Result<Page, ServerError> {
         let bound = bound_may_read(&query, follow);
         let admitted = self.admit(organization, query_rule(&query), bound).await?;
-        let account = admitted.identity().ok().map(|identity| identity.account);
+        let account = admitted.account().ok();
         if !follow {
             let page = self.answer(admitted, query).await?;
             return Ok(self.lied(account, page));
