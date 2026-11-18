@@ -50,7 +50,11 @@ entry once. It need not see each again.
    `checked_organization` check on from it (be-block-keys
    `a_kept_log_checks_only_what_was_appended_and_refuses_a_rewritten_prefix`).
    The device still reads the whole log and hashes its prefix: step 2 drops
-   that. A proof path is checked whole each time until step 3.
+   that, and should keep the Merkle tree's size and frontier in place of
+   `Checked::positions`, which grows by an entry's hash for each entry. A proof
+   path is checked whole each time until step 3. Still checked from the root:
+   the organization's log a block's check reads (`Around::organization`), and
+   the escrow and hosted-block paths.
 2. **Access logs as Merkle trees, consistency proofs on read.** Done: a client
    test reads the organization's log twice and the second read fetches only
    the new entries and a proof; a server that served a rewritten prefix is

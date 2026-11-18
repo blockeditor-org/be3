@@ -218,7 +218,7 @@ pub(crate) async fn serve(
     };
     tokio::select! {
         served = connection => served.map_err(|error| ServerError::Socket(error.to_string())),
-        () = first => Err(ServerError::Socket("the request never finished its head".into())),
+        () = first => Err(crate::refused("the request never finished its head")),
         () = eviction.wait() => Ok(()),
     }
 }
@@ -333,19 +333,7 @@ fn failed(error: ServerError) -> Response {
         ServerError::Refused(..) => StatusCode::BAD_REQUEST,
         _ => StatusCode::INTERNAL_SERVER_ERROR,
     };
-    refuse(status, &said(error))
-}
-
-/// What a client is told of `error`: why it was refused, and nothing of the server's own
-/// failures, whose text may name its storage or build.
-fn said(error: ServerError) -> String {
-    match error {
-        ServerError::Refused(_, message) => message,
-        error => {
-            tracing::warn!(%error, "a request failed");
-            "the request failed".to_owned()
-        }
-    }
+    refuse(status, &error.told())
 }
 
 /// A body read whole, within `within` if given; its route's layers cap its size and how long
@@ -734,7 +722,7 @@ async fn answer(
         if let Some(client) = held.client.take() {
             client.close().await;
         }
-        return Ok(Answer::refused(400, &said(error), false));
+        return Ok(Answer::refused(400, &error.told(), false));
     }
     let signed_in = client.connection.account.is_some();
     let closing = client.connection.closing;

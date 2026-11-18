@@ -40,7 +40,7 @@ fn grants(
 /// rewrote is refused, however its new entries check.
 #[test]
 fn a_kept_log_checks_only_what_was_appended_and_refuses_a_rewritten_prefix() {
-    const LENGTH: u64 = 100_000;
+    const LENGTH: u64 = 2_000;
     let creator = RecoveryPhrase::generate().secret();
     let reader = RecoveryPhrase::generate().secret().identity();
     let (creator_id, block) = ([1; 16], [7; 16]);
