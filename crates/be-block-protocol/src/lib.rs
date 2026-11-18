@@ -502,7 +502,7 @@ pub fn log_signed(id: Uuid, payload_hash: be_block_store::Hash) -> Vec<u8> {
 const LOG_SIGNED_DOMAIN: &[u8] = b"be3.log.entry\0";
 
 impl LogEntry {
-    /// The entry's leaf in its log's Merkle tree (`be_block_keys::merkle::leaf_hash`): its
+    /// The entry's leaf in its log's Merkle tree (`be_block_keys::merkle::leaf_hash` of): its
     /// place, arrival, author, id, payload hash and signature, everything the server fixes or
     /// the author signed, and not the payload itself, so a redacted entry still verifies.
     pub fn leaf(&self) -> [u8; 32] {
@@ -513,7 +513,9 @@ impl LogEntry {
         data.extend_from_slice(self.id.as_bytes());
         data.extend_from_slice(self.payload_hash.as_bytes());
         data.extend_from_slice(&self.signature);
-        be_block_keys::merkle::leaf_hash(&data)
+        // RFC 6962's leaf hash, `be_block_keys::merkle::leaf_hash`, which this crate does not
+        // depend on so that apps' wasm need not build the key crate.
+        *be_block_store::Hash::of_parts(&[&[0], &data]).as_bytes()
     }
 
     /// What its author signed (`log_signed`).
