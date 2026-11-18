@@ -9,7 +9,7 @@ fn the_focus_is_the_layer_a_press_landed_on() {
         None,
         "nothing is focused before a press"
     );
-    windows.route(None, vec![button(150.0, true), button(150.0, false)]);
+    windows.route(None, vec![button(150.0, true).into(), button(150.0, false).into()]);
     assert_eq!(
         windows.focused(None).map(|layer| layer.id),
         Some(SCREEN),

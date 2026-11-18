@@ -11,8 +11,9 @@ pub(crate) enum Role {
     /// An app's main thread, whose gpu and transport calls are fast-API calls when its memory is
     /// shared.
     App { fast: bool },
-    /// A pure guest: its transport, waking and panicking, and nothing else.
-    Pure,
+    /// A pure guest: its transport, waking and panicking, and the gpu only when its host was
+    /// given a device for it (`Host::with_display`, the root guest's).
+    Pure { gpu: bool },
     /// A thread an app spawned: WASI, waking, panicking and spawning, and every other host call
     /// refused, since only the main thread may make them.
     Thread,
@@ -34,7 +35,11 @@ pub(crate) fn host_functions<'s>(
             .flat_map(|module| module.shape.imports.iter())
     };
     match role {
-        Role::Pure => crate::gpu::define_transport(scope, &mut defined, data, false)?,
+        Role::Pure { gpu: false } => {
+            crate::gpu::define_transport(scope, &mut defined, data, false)?
+        }
+        // A pure guest's memory is its own, never shared, so its calls are never fast ones.
+        Role::Pure { gpu: true } => crate::gpu::define_app(scope, &mut defined, data, false)?,
         Role::App { fast } => {
             crate::gpu::define_app(scope, &mut defined, data, fast)?;
             crate::wasi::define(

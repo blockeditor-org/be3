@@ -139,6 +139,14 @@ impl Host {
         })
     }
 
+    /// Gives the pure guests this host loads the host's `device` to draw on, as an app draws:
+    /// what they present stays on it, and the host reads it by surface (`App::surface`). Only
+    /// the root guest is given one (plans/host_as_platform_adapter.md, The layer list).
+    pub fn with_display(mut self, device: wgpu::Device, queue: wgpu::Queue) -> Self {
+        self.devices = Devices::Given(device, queue);
+        self
+    }
+
     pub fn with_memory_limit(mut self, bytes: usize) -> Self {
         self.memory_limit = Some(bytes);
         self
@@ -561,7 +569,9 @@ impl Running {
         // unsafe(memory)
         let fast = unsafe { state.as_ref() }.memory.shared().is_some();
         let role = match pure {
-            true => Role::Pure,
+            true => Role::Pure {
+                gpu: !matches!(host.devices, Devices::None),
+            },
             false => Role::App { fast },
         };
         let data = v8::External::new(scope, state.as_ptr().cast()).into();

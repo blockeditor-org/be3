@@ -7,7 +7,7 @@ fn input_for_a_window_never_drawn_is_routed_against_no_layers() {
     let elsewhere = Some(7);
     assert!(
         windows
-            .route(elsewhere, vec![button(150.0, true)])
+            .route(elsewhere, vec![button(150.0, true).into()])
             .is_empty(),
         "nothing is drawn in that window, so the press lands on nothing"
     );
@@ -17,7 +17,7 @@ fn input_for_a_window_never_drawn_is_routed_against_no_layers() {
     );
     assert!(
         windows
-            .route(elsewhere, vec![button(150.0, false)])
+            .route(elsewhere, vec![button(150.0, false).into()])
             .is_empty()
     );
     assert!(!windows.routes(elsewhere), "and then goes");

@@ -16,7 +16,7 @@ use be_lib_stable_hash::HashMap;
 use be_lib_ui_types::input::{Input, PenPhase, TouchPhase};
 use be_sdk_api::{
     ImeArea, InputBatch, Opening, Preferences, ScreenId, ScreenPlacement, ScreenRequest,
-    SurfaceSpec, WindowRequests, embed::shell::Call as ShellCall,
+    SurfaceSpec, TimedInput, WindowRequests, embed::shell::Call as ShellCall,
 };
 use be_sdk_app_host::{
     calls::{AppCall, Heard, Outbound},
@@ -257,11 +257,23 @@ impl Embedded {
         Some((area, raster(placement)))
     }
 
+    /// What the screen showing `surface` asks of its window (its cursor, the pointer lock,
+    /// every sample, its input method's area), as its last layout applied said.
+    pub(crate) fn window(&self, surface: u32) -> Option<WindowRequests> {
+        let state = self.state.borrow();
+        let placement = state
+            .painted
+            .values()
+            .find(|placement| placement.surface == surface)?;
+        state.windows.get(&placement.screen).cloned()
+    }
+
     /// Sends the app `input` routed to its surface `surface`, its positions in the surface's
-    /// pixels: the screen showing it hears it in its own points, and the app is asked for a
+    /// pixels, sampled at the frame clock's `time` in nanoseconds if the platform said: the
+    /// screen showing it hears it in its own points, at that time, and the app is asked for a
     /// frame. Once the screen went, only what ends a press or the focus still reaches it, so
     /// the app holds nothing pressed.
-    pub(crate) fn input(&self, surface: u32, input: Input) {
+    pub(crate) fn input(&self, surface: u32, input: Input, time: Option<u64>) {
         let mut state = self.state.borrow_mut();
         if state.failure.is_some() {
             return;
@@ -276,8 +288,17 @@ impl Embedded {
         let Some(placement) = state.surfaces.get(&surface) else {
             return;
         };
-        let mut batch = InputBatch::new(placement.screen, false);
-        batch.push(input.scaled(1.0 / raster(placement)));
+        let every_sample = state
+            .windows
+            .get(&placement.screen)
+            .is_some_and(|window| window.every_sample);
+        let mut batch = InputBatch::new(placement.screen, every_sample);
+        batch.push(TimedInput {
+            input: input.scaled(1.0 / raster(placement)),
+            // The app's clock is the root's frame clock, in microseconds.
+            time_micros: time.map(|nanos| nanos / 1000),
+            over: None,
+        });
         let send = state
             .run
             .send_for_frame(vec![AppCall::Input(batch).into()], Some);

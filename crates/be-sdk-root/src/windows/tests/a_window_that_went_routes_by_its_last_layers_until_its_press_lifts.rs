@@ -4,11 +4,12 @@ use super::*;
 fn a_window_that_went_routes_by_its_last_layers_until_its_press_lifts() {
     let mut windows = Windows::new(ROOT);
     windows.drew(drawn());
-    let pressed = windows.route(None, vec![button(150.0, true)]);
+    let pressed = windows.route(None, vec![button(150.0, true).into()]);
     let to_screen = |input| Delivery {
         target: SCREEN,
         surface: SCREEN_SURFACE,
         input,
+        time: None,
     };
     assert_eq!(
         pressed,
@@ -21,7 +22,7 @@ fn a_window_that_went_routes_by_its_last_layers_until_its_press_lifts() {
         windows.routes(None),
         "the window went, but its press has yet to lift"
     );
-    let released = windows.route(None, vec![button(150.0, false)]);
+    let released = windows.route(None, vec![button(150.0, false).into()]);
     assert_eq!(
         released,
         vec![

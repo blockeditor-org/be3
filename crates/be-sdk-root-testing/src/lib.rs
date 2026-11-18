@@ -4,6 +4,8 @@
 //! pixels per point; each frame it asks the app for a frame when one is due, races that against
 //! the frame's deadline, and shows its own surface with the triangle's screen over it at
 //! `ORIGIN`, by handle, once the app painted it, and `LATE_LAYER` when the deadline came first.
+//! Its own surface (`ROOT_SURFACE`) it draws itself, on the host's device, filled with
+//! `ROOT_COLOR` on its first frame.
 //! A frame at `CLOSES` lets go of the app, which stops it. The window's input is routed by the
 //! library over the layers it drew last.
 //!
@@ -19,14 +21,14 @@ use std::{
     time::Duration,
 };
 
-use be_lib_geometry::{Rect, pos2};
-use be_lib_layers::{Affine, Layer, LayerId, LayerInput, LayerList, Surface, WindowLayers};
+use be_lib_geometry::pos2;
+use be_lib_layers::{Layer, LayerId, LayerList, Surface, WindowLayers};
 use be_sdk_api::{
     EditorInstanceId, OpenBlock, Opening, OpeningKind, ParentView, Pos2 as ViewPos2, ScreenId,
     ScreenRequest, SurfaceFormat, SurfaceSpec, Vec2 as ViewVec2, ViewId, ViewPlacement,
     ViewportMetrics,
 };
-use be_sdk_root::{Embedded, Embedding, Spawn};
+use be_sdk_root::{Embedded, Embedding, OwnSurface, Spawn};
 use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_root_api::{
@@ -71,6 +73,14 @@ pub const SIZE: (u32, u32) = (400, 240);
 /// The root's own surface, under the screen.
 pub const ROOT_LAYER: LayerId = LayerId(0);
 
+/// The id of the root's own surface, which `ROOT_LAYER` shows: it fills the window, a pixel to
+/// a point.
+pub const ROOT_SURFACE: u32 = 0;
+
+/// What the root fills its own surface with, sRGB-encoded: a dull purple, unlike any window's
+/// background or the triangle's colours.
+pub const ROOT_COLOR: [f64; 4] = [0.3, 0.1, 0.4, 1.0];
+
 /// Shown over the rest when the frame's deadline passed before the app answered.
 pub const LATE_LAYER: LayerId = LayerId(1);
 
@@ -81,6 +91,8 @@ pub const CLOSES: u64 = u64::MAX;
 struct Root {
     embedding: Rc<RefCell<Embedding>>,
     app: Rc<RefCell<Option<Embedded>>>,
+    /// Its own surface, made and filled on its first frame.
+    own: Rc<RefCell<Option<OwnSurface>>>,
 }
 
 impl Default for Root {
@@ -88,11 +100,26 @@ impl Default for Root {
         Self {
             embedding: Rc::new(RefCell::new(Embedding::new(ROOT_LAYER))),
             app: Rc::default(),
+            own: Rc::default(),
         }
     }
 }
 
 impl Root {
+    /// The layer showing its own surface, which it fills the first time.
+    fn own_layer(&self) -> Result<Layer, String> {
+        let mut own = self.own.borrow_mut();
+        let own = match &mut *own {
+            Some(own) => own,
+            None => {
+                let made = OwnSurface::new(ROOT_SURFACE, SIZE);
+                made.fill(ROOT_COLOR)?;
+                own.insert(made)
+            }
+        };
+        Ok(own.layer(ROOT_LAYER, pos2(0.0, 0.0), 1.0))
+    }
+
     /// The triangle, spawned the first time.
     fn app(&self, now: Duration) -> Embedded {
         let mut app = self.app.borrow_mut();
@@ -121,7 +148,10 @@ impl frames::Guest for Root {
     fn frame(&self, request: FrameRequest) -> LocalFuture<FrameDone> {
         let root = self.clone();
         Box::pin(async move {
-            let mut layers = vec![own_layer()];
+            let own = root
+                .own_layer()
+                .expect("the root's host gives it a device to draw its own surface on");
+            let mut layers = vec![own.clone()];
             if request.time == CLOSES {
                 if let Some(app) = root.app.borrow_mut().take() {
                     root.embedding.borrow_mut().remove(app.instance());
@@ -134,7 +164,7 @@ impl frames::Guest for Root {
                 let late = !first(drawn, deadline).await;
                 layers.extend(app.layer(SCREEN, pos2(ORIGIN.0, ORIGIN.1)));
                 if late {
-                    let mut marker = own_layer();
+                    let mut marker = own;
                     marker.id = LATE_LAYER;
                     marker.surface = Surface::Root(1);
                     layers.push(marker);
@@ -148,13 +178,18 @@ impl frames::Guest for Root {
             };
             let mut embedding = root.embedding.borrow_mut();
             let wants = embedding.wants();
+            let layers = embedding.drew(list).layers;
+            let requests = embedding.requests(None);
             FrameDone {
-                layers: embedding.drew(list).layers,
+                layers,
                 next: wants
                     .next
                     .map(|at| u64::try_from(at.as_nanos()).unwrap_or(u64::MAX)),
                 owed: wants.owed,
                 ime: embedding.ime(None).map(|area| area.encode()),
+                every_sample: requests.every_sample,
+                cursor: requests.cursor.name().to_owned(),
+                pointer_locked: requests.pointer_locked,
             }
         })
     }
@@ -180,20 +215,6 @@ async fn first<A: Future, B: Future>(mut left: Pin<&mut A>, mut right: Pin<&mut 
         }
     })
     .await
-}
-
-fn own_layer() -> Layer {
-    Layer {
-        id: ROOT_LAYER,
-        surface: Surface::Root(0),
-        size: SIZE,
-        transform: Affine::IDENTITY,
-        clip: Rect::from_min_max(pos2(0.0, 0.0), pos2(SIZE.0 as f32, SIZE.1 as f32)),
-        corner_radius: 0.0,
-        opacity: 1.0,
-        shown: true,
-        input: LayerInput::default(),
-    }
 }
 
 fn opening() -> Opening {

@@ -85,7 +85,8 @@ impl Bell {
 
 impl Root {
     /// Starts `app`, the root guest, loaded on the calling thread, whose staged apps it spawns
-    /// by id are found by `apps` and draw on the host's `device`.
+    /// by id are found by `apps` and draw on the host's `device`. A root that draws surfaces of
+    /// its own is loaded on a host given that device too (`Host::with_display`).
     pub fn start(
         mut app: App,
         apps: Loader,
@@ -140,7 +141,13 @@ impl Root {
         loop {
             let since = self.bell.rung();
             match self.core.advance(None) {
-                Progress::Drawn(drawn) => return drawn,
+                Progress::Drawn(drawn) => {
+                    // What the root presented or let go of is read by surface (`own_surface`),
+                    // so the lists of them are not kept.
+                    self.core.guest.take_presented();
+                    self.core.guest.take_released();
+                    return drawn;
+                }
                 // Pending: wait until what the root waits on has something for it.
                 Progress::Pending { until } => self.bell.wait(since, until),
                 // Natively the frame thread is the root's alone: it never yields.
@@ -167,6 +174,22 @@ impl Root {
     /// The tests' root does exactly this (be-wasm-root-testing's `PAINTS`).
     pub fn surface(&self, instance: u64, surface: u32) -> Option<&PresentedTexture> {
         self.core.sandbox.surface(instance, surface)
+    }
+}
+
+impl Root {
+    /// What the root's own surface `surface` shows, as its layer list names it
+    /// (be-lib-layers' `Surface::Root`): the texture it presented last to that surface of its
+    /// gpu (`be3:gpu`'s `surface`), on the host's device, which the root drew on as an app
+    /// draws. None for a surface it never presented, or a root loaded with no device
+    /// (`be_wasm_host::Host::with_display`).
+    pub fn own_surface(&self, surface: u32) -> Option<PresentedTexture> {
+        let (texture, generation) = self.core.guest.surface(surface)?;
+        Some(PresentedTexture {
+            surface,
+            texture,
+            generation,
+        })
     }
 }
 

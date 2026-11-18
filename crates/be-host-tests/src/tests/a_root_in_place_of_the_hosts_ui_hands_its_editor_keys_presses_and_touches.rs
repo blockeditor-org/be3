@@ -10,8 +10,8 @@ const ROOT: &str = "be3.root-testing";
 const WIDTH: f32 = 1100.0;
 
 /// The colour of the corner of the triangle's screen, which it leaves clear until it hears input
-/// and then tints by what it heard (be-app-example-triangle's `Heard::tint`), and of the window's
-/// background left of the screen.
+/// and then tints by what it heard (be-app-example-triangle's `Heard::tint`), and of the root's
+/// own surface left of the screen, which shows through it while it is clear.
 fn corner(host: &mut HostTest) -> ([u8; 3], [u8; 3]) {
     let (width, _height, rgba) = host.shot();
     let scale = width as f32 / WIDTH;
@@ -39,8 +39,8 @@ fn a_root_in_place_of_the_hosts_ui_hands_its_editor_keys_presses_and_touches() {
             .iter()
             .zip(background)
             .all(|(clear, background)| clear.abs_diff(background) <= 4),
-        "before any input the triangle leaves its screen's corner clear, showing the background \
-         {background:?}: {clear:?}"
+        "before any input the triangle leaves its screen's corner clear, showing the root's \
+         surface {background:?}: {clear:?}"
     );
     // Inside the screen, away from the triangle: the root routes what lands there to it.
     let (left, top) = ORIGIN;

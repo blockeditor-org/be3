@@ -49,9 +49,10 @@ pub trait Program: std::any::Any {
 
     /// Whether the program takes `input` for `window` itself, before beui makes the document's
     /// events of it: the platform's input after the layers' (`Layer::input`), in the window's
-    /// points, each offered once, in order. It is the intake's queue, so a run of moves is
-    /// merged to its last within a frame (unless the window asks for every sample) and carries
-    /// no timestamp. What it takes no document hears, though the intake still follows the
+    /// points, each offered once, in order, with `time`, when the platform sampled it if it said
+    /// (pens and touches mostly do). It is the intake's queue, so a run of moves is merged to
+    /// its last within a frame unless the window asks for every sample
+    /// (`Context::want_every_sample`). What it takes no document hears, though the intake still follows the
     /// pointer, its buttons and the modifiers through it. A program that routes its windows'
     /// input itself (be-host's root) takes all of it: IME composition, touches and pens as the
     /// platform reported them, and every window's.
@@ -61,7 +62,7 @@ pub trait Program: std::any::Any {
     /// `PointersCancelled` the program took leaves the emulated finger down with no end or
     /// cancel; and a taken `Modifiers` or `Focus(false)` leaves the document's modifiers as
     /// they were until it next hears them change.
-    fn input(&mut self, _window: WindowId, _input: &Input) -> bool {
+    fn input(&mut self, _window: WindowId, _input: &Input, _time: Option<Instant>) -> bool {
         false
     }
 

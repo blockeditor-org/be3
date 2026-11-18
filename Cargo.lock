@@ -2231,6 +2231,7 @@ dependencies = [
  "be-lib-ui-types",
  "be-sdk-api",
  "be-sdk-app-host",
+ "be-wasm-gpu-abi",
  "be-wasm-ops",
  "be-wasm-sandbox-api",
 ]

@@ -92,7 +92,7 @@ write_package_value("be3.cargo", {
             "test_deps": [],
             "test_features": [],
         },
-        "wasm32": {
+        "wasm32-bindgen": {
             "binaries": {},
             "deps": [
                 "//third-party/rust:serde-1.0.228",

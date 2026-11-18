@@ -8,7 +8,10 @@
 //! `Windows` (a `Router` per window over the layers it drew last), and answers once it has: what
 //! lands on the child's screen goes to the child with the next frame, in the child's own
 //! coordinates, and the child echoes it back. A frame then shows `HEARD_LAYER`
-//! at the last point the child heard.
+//! at the last point the child heard, and `TIMED_LAYER` at the time of the last input routed to
+//! it that had one. Its frames ask the host for what an app on the child's screen would: the
+//! crosshair while the pointer is over it, the pointer lock while it has the focus, and every
+//! sample while it shows.
 //!
 //! A frame at `PAINTS` instead spawns a child that paints (`PAINTER`), asks it for a frame, and
 //! shows the surface it presented, named only by the instance's handle (its `instance` resource's
@@ -24,7 +27,7 @@ use std::{
 
 use be_lib_geometry::{Pos2, Rect, pos2, vec2};
 use be_lib_layers::{Affine, Layer, LayerId, LayerInput, LayerList, Surface, WindowLayers};
-use be_lib_ui_types::input::{self as ui_input, Input};
+use be_lib_ui_types::input::{self as ui_input, Input, Timed};
 use be_sdk_root::Windows;
 use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
@@ -83,6 +86,13 @@ pub const CHILD_LAYER: LayerId = LayerId(1);
 /// transform's origin is that point. A frame shows it once the child heard any.
 pub const HEARD_LAYER: LayerId = LayerId(3);
 
+/// Marks the time of the last input routed to the child that the host timed: its transform's
+/// origin's x is that time, in microseconds of the frame clock.
+pub const TIMED_LAYER: LayerId = LayerId(4);
+
+/// The cursor a frame asks for while the pointer is over the child's screen, by its CSS name.
+pub const CHILD_CURSOR: &str = "crosshair";
+
 /// The window's size, in points.
 pub const SIZE: (u32, u32) = (200, 100);
 
@@ -105,6 +115,10 @@ struct Frames {
     heard: Rc<Cell<Option<Pos2>>>,
     /// Input routed to the child, which it is sent ahead of the next frame's ask.
     routed: Rc<RefCell<Vec<Vec<u8>>>>,
+    /// The time of the last input routed to the child that the host timed, in nanoseconds.
+    timed: Rc<Cell<Option<u64>>>,
+    /// Whether the last frame showed the child.
+    shows_child: Rc<Cell<bool>>,
 }
 
 impl Default for Frames {
@@ -116,6 +130,8 @@ impl Default for Frames {
             windows: Rc::new(RefCell::new(Windows::new(ROOT_LAYER))),
             heard: Rc::default(),
             routed: Rc::default(),
+            timed: Rc::default(),
+            shows_child: Rc::default(),
         }
     }
 }
@@ -163,9 +179,13 @@ impl frames::Guest for Frames {
             let deadline = pin!(host::deadline());
             let exchange = pin!(frames.exchange(request.time));
             let echoed = matches!(first(exchange, deadline).await, First::Left(true));
+            frames.shows_child.set(echoed);
             let mut list = layers(echoed);
             if let Some(heard) = frames.heard.get() {
                 list.windows[0].layers.push(heard_layer(heard));
+            }
+            if let Some(timed) = frames.timed.get() {
+                list.windows[0].layers.push(timed_layer(timed));
             }
             frames.drew(list)
         })
@@ -187,13 +207,16 @@ impl input::Guest for Frames {
 impl Frames {
     /// Routes `events` by the layers drawn last for `window`, and answers the frames that send
     /// the child what is for it.
-    fn route(&self, window: Option<u64>, events: Vec<Input>) -> Vec<Vec<u8>> {
+    fn route(&self, window: Option<u64>, events: Vec<Timed>) -> Vec<Vec<u8>> {
         self.windows
             .borrow_mut()
             .route(window, events)
             .into_iter()
             .filter(|delivery| delivery.target == CHILD_LAYER)
             .map(|delivery| {
+                if let Some(time) = delivery.time {
+                    self.timed.set(Some(time));
+                }
                 let mut frame = ROUTED.to_vec();
                 frame.extend(postcard::to_allocvec(&delivery.input).expect("input serializes"));
                 frame
@@ -204,14 +227,26 @@ impl Frames {
     /// Keeps `list` as the layers drawn last, and answers it.
     fn drew(&self, list: LayerList) -> FrameDone {
         let layers = list.encode();
+        let mut windows = self.windows.borrow_mut();
         // The child hears nothing of a window that went: the root draws one window always.
-        let _lost = self.windows.borrow_mut().drew(list);
+        let _lost = windows.drew(list);
+        let _released = windows.lock(|layer| layer.id == CHILD_LAYER);
+        let over_child = windows
+            .hovered(None)
+            .is_some_and(|layer| layer.id == CHILD_LAYER);
         // Its host draws every frame it is asked for in its tests, so it asks for none.
         FrameDone {
             layers,
             next: None,
             owed: false,
             ime: None,
+            every_sample: self.shows_child.get(),
+            cursor: match over_child {
+                true => CHILD_CURSOR,
+                false => "default",
+            }
+            .to_owned(),
+            pointer_locked: windows.locked(None).is_some(),
         }
     }
 
@@ -348,6 +383,18 @@ fn layers(echoed: bool) -> LayerList {
 fn heard_layer(heard: Pos2) -> Layer {
     let mut marker = layer(HEARD_LAYER, Surface::Root(1), (1, 1));
     marker.transform = Affine::from_axes(vec2(1.0, 0.0), vec2(0.0, 1.0), heard);
+    marker.input.hit = be_lib_layers::Area::Nowhere;
+    marker
+}
+
+/// Marks `time`, in nanoseconds, with a layer whose origin's x is it in microseconds.
+fn timed_layer(time: u64) -> Layer {
+    let mut marker = layer(TIMED_LAYER, Surface::Root(2), (1, 1));
+    marker.transform = Affine::from_axes(
+        vec2(1.0, 0.0),
+        vec2(0.0, 1.0),
+        pos2((time / 1000) as f32, 0.0),
+    );
     marker.input.hit = be_lib_layers::Area::Nowhere;
     marker
 }

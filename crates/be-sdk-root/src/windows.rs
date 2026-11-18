@@ -2,7 +2,7 @@
 
 use be_lib_input_router::{Routed, Router};
 use be_lib_layers::{Layer, LayerId, LayerList, Surface, WindowLayers};
-use be_lib_ui_types::input::Input;
+use be_lib_ui_types::input::{Input, Timed};
 
 /// What the router delivers to one surface: `input`, its positions in the surface's own pixels.
 #[derive(Clone, Debug, PartialEq)]
@@ -10,6 +10,9 @@ pub struct Delivery {
     pub target: LayerId,
     pub surface: Surface,
     pub input: Input,
+    /// When the input it came of was sampled (`Timed::time`); none for what the router made
+    /// itself, such as a focus moving.
+    pub time: Option<u64>,
 }
 
 /// One window's routing: its router, and the layers it routes by.
@@ -48,12 +51,52 @@ impl Windows {
 
     /// The layer focused in `window`, as it was drawn last: the one keys go to.
     pub fn focused(&self, window: Option<u64>) -> Option<&Layer> {
-        let routing = self
-            .windows
-            .iter()
-            .find(|routing| routing.window == window)?;
-        let focused = routing.router.focused()?;
-        routing.layers.layer(focused)
+        let routing = self.routing(window)?;
+        routing.layers.layer(routing.router.focused()?)
+    }
+
+    /// The layer under the pointer in `window`, as it was drawn last: the one whose cursor
+    /// shape the window shows.
+    pub fn hovered(&self, window: Option<u64>) -> Option<&Layer> {
+        let routing = self.routing(window)?;
+        routing.layers.layer(routing.router.hovered()?)
+    }
+
+    /// The layer in `window` holding the pointer lock, which only the focused one may.
+    pub fn locked(&self, window: Option<u64>) -> Option<&Layer> {
+        let routing = self.routing(window)?;
+        routing.layers.layer(routing.router.locked()?)
+    }
+
+    /// Grants the pointer lock in each window to its focused layer if `wants` says it asks for
+    /// it, and releases it from a layer that no longer asks or lost the focus. Answers what
+    /// that tells the layer that lost it.
+    pub fn lock(&mut self, wants: impl Fn(&Layer) -> bool) -> Vec<Delivery> {
+        let mut deliveries = Vec::new();
+        for routing in &mut self.windows {
+            let asking = routing
+                .router
+                .focused()
+                .filter(|focused| routing.layers.layer(*focused).is_some_and(&wants));
+            if routing.router.locked().is_some() && routing.router.locked() != asking {
+                let released = routing.router.unlock();
+                deliveries.extend(delivered(&routing.layers, released, None));
+            }
+            if let Some(asking) = asking {
+                routing.router.lock(asking);
+            }
+        }
+        deliveries
+    }
+
+    /// The layers `window` was drawn with last, bottom first: none for a window never drawn.
+    pub fn layers(&self, window: Option<u64>) -> &[Layer] {
+        self.routing(window)
+            .map_or(&[], |routing| &routing.layers.layers)
+    }
+
+    fn routing(&self, window: Option<u64>) -> Option<&Window> {
+        self.windows.iter().find(|routing| routing.window == window)
     }
 
     /// Takes `list` as the layers drawn last. A window it leaves out has gone: its router goes
@@ -86,8 +129,8 @@ impl Windows {
     }
 
     /// Routes `window`'s `events` by its layers, and answers each delivery with the surface it
-    /// is for.
-    pub fn route(&mut self, window: Option<u64>, events: Vec<Input>) -> Vec<Delivery> {
+    /// is for and the time of the event it came of.
+    pub fn route(&mut self, window: Option<u64>, events: Vec<Timed>) -> Vec<Delivery> {
         let at = match self
             .windows
             .iter()
@@ -109,26 +152,9 @@ impl Windows {
         };
         let routing = &mut self.windows[at];
         let mut deliveries = Vec::new();
-        for event in events {
-            for routed in routing.router.route(&routing.layers, event) {
-                // The root starts no drag between surfaces, so only input is routed.
-                let Routed::Input { target, input } = routed else {
-                    continue;
-                };
-                let Some(layer) = routing
-                    .layers
-                    .layers
-                    .iter()
-                    .find(|layer| layer.id == target)
-                else {
-                    continue;
-                };
-                deliveries.push(Delivery {
-                    target,
-                    surface: layer.surface,
-                    input,
-                });
-            }
+        for Timed { input, time } in events {
+            let routed = routing.router.route(&routing.layers, input);
+            deliveries.extend(delivered(&routing.layers, routed, time));
         }
         deliveries.extend(self.prune());
         deliveries
@@ -151,12 +177,34 @@ impl Windows {
                     target,
                     surface: layer.surface,
                     input: Input::Focus(false),
+                    time: None,
                 });
             }
             keep
         });
         lost
     }
+}
+
+/// What `routed` delivers to the layers of `layers`, each at `time`.
+fn delivered(
+    layers: &WindowLayers,
+    routed: Vec<Routed<LayerId>>,
+    time: Option<u64>,
+) -> impl Iterator<Item = Delivery> + '_ {
+    routed.into_iter().filter_map(move |routed| {
+        // The root starts no drag between surfaces, so only input is routed.
+        let Routed::Input { target, input } = routed else {
+            return None;
+        };
+        let layer = layers.layer(target)?;
+        Some(Delivery {
+            target,
+            surface: layer.surface,
+            input,
+            time,
+        })
+    })
 }
 
 #[cfg(test)]

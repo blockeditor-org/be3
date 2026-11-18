@@ -170,8 +170,9 @@ pub(crate) struct Drain<'a> {
     pub touch_emulation: bool,
     pub window_size: &'a dyn Fn(WindowId) -> Option<Vec2>,
     pub layer_target: &'a dyn Fn(u64) -> Option<(WindowId, HostTransform)>,
-    /// Whether the program takes an input itself (`Program::input`), in its window's points.
-    pub take: &'a mut dyn FnMut(WindowId, &Input) -> bool,
+    /// Whether the program takes an input itself (`Program::input`), in its window's points,
+    /// with when the platform sampled it, if it said.
+    pub take: &'a mut dyn FnMut(WindowId, &Input, Option<Instant>) -> bool,
 }
 
 impl Intake {
@@ -259,7 +260,7 @@ impl Intake {
                         1.0 => input,
                         scale => input.scaled(1.0 / scale),
                     };
-                    if (drain.take)(window, &input) {
+                    if (drain.take)(window, &input, time) {
                         self.taken(&input, drain);
                         continue;
                     }
@@ -270,7 +271,7 @@ impl Intake {
                     self.input(input, drain, events);
                 }
                 Entry::Layer { window, input, .. } => {
-                    if (drain.take)(window, &input) {
+                    if (drain.take)(window, &input, time) {
                         self.taken(&input, drain);
                         continue;
                     }
@@ -297,7 +298,7 @@ impl Intake {
     fn taken(&mut self, input: &Input, drain: &Drain<'_>) {
         let mut unheard = Vec::new();
         // A press the program took is no emulated finger the document must later see lifted.
-        let mut take = |_: WindowId, _: &Input| false;
+        let mut take = |_: WindowId, _: &Input, _: Option<Instant>| false;
         let drain = Drain {
             touch_emulation: false,
             take: &mut take,

@@ -11,12 +11,15 @@ use super::*;
 
 mod a_child_that_lets_its_surface_go_names_nothing_there_any_more;
 mod a_frame_past_its_deadline_draws_without_the_child_it_waits_for;
+mod a_frame_asks_its_host_for_what_the_surface_under_the_pointer_and_the_focus_ask;
 mod a_frame_waits_for_its_child_and_shows_it;
 mod a_root_built_on_the_library_shows_the_editor_it_embeds;
+mod a_root_draws_its_own_surface_on_the_hosts_device;
 mod a_root_names_what_its_child_presented_only_by_handle;
 mod a_root_that_keeps_waking_itself_without_answering_stops_at_its_patience;
 mod a_root_wants_frames_until_its_app_presents_and_wakes_its_host_for_them;
 mod input_reaches_the_child_under_it_by_the_layers_drawn_last;
+mod input_reaches_the_root_with_the_time_it_was_sampled;
 
 const ROOT: &[u8] = include_bytes!(env!("ROOT_GUEST_WASM"));
 
@@ -78,13 +81,16 @@ fn root() -> Root {
     start(ROOT)
 }
 
-/// The root `module`, started on this thread, its children drawing on a stand-in for the host's
-/// device, which takes their work and draws nothing.
+/// The root `module`, started on this thread, it and its children drawing on a stand-in for the
+/// host's device, which takes their work and draws nothing.
 fn start(module: &[u8]) -> Root {
-    let app = Host::pure()
-        .and_then(|host| host.load_bytes(module))
-        .expect("the root loads");
     let (device, queue) = wgpu::Device::noop(&wgpu::DeviceDescriptor::default());
+    let app = Host::pure()
+        .and_then(|host| {
+            host.with_display(device.clone(), queue.clone())
+                .load_bytes(module)
+        })
+        .expect("the root loads");
     Root::start(app, Box::new(staged), device, queue).expect("the root starts")
 }
 

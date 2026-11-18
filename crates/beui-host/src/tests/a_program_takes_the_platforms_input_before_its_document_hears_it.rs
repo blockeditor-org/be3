@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::time::Instant;
 
 use super::*;
 use beui_core::program::SafeArea;
@@ -24,7 +25,7 @@ impl Program for Taking {
         self.heard.borrow_mut().extend(events);
     }
 
-    fn input(&mut self, window: WindowId, input: &Input) -> bool {
+    fn input(&mut self, window: WindowId, input: &Input, _time: Option<Instant>) -> bool {
         let takes = matches!(
             input,
             Input::Touch { .. } | Input::PointerButton { .. } | Input::Modifiers(_)
