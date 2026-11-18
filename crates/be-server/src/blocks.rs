@@ -406,6 +406,41 @@ fn require_own_settings(
     }
 }
 
+/// What a guest makes (decisions/a_guest_makes_only_its_own_shell.md): only its shell's own
+/// blocks, so it can run be-host in the organization: a `Settings` at the top that only it
+/// reads (`owner_only`), and below it whatever its shell keeps (its device profiles, sessions
+/// and their settings), which that block's scope seals to it alone. Nothing a member could
+/// see, nor anything in a block someone else made.
+fn require_guest_shell(
+    graph: &BlockGraph,
+    identity: Identity,
+    content_type: Uuid,
+    parent: BlockParent,
+    owner_only: bool,
+) -> Result<(), ServerError> {
+    let settings = <be_block::Settings as be_block_content::Root>::CONTENT_TYPE;
+    let allowed = match parent {
+        BlockParent::Root => owner_only && content_type == settings,
+        BlockParent::Block(parent) => graph
+            .owner_only_root(parent)
+            .and_then(|root| Some((root, graph.get(root)?)))
+            .is_some_and(|(_, root)| {
+                root.author == identity.account
+                    && root.content_type == settings
+                    && root.parent == BlockParent::Root
+            }),
+        _ => false,
+    };
+    match allowed {
+        true => Ok(()),
+        false => Err(ServerError::Refused(
+            ErrorCode::PermissionDenied,
+            "a guest makes only its own settings, readable by it alone, and what lies in them"
+                .into(),
+        )),
+    }
+}
+
 /// The account's own block (`be_block::account_block`) is made only at its id in the personal
 /// organization, owner-only and at the top, so it holds the account's records alone and no one
 /// else reads it (guides/blocks/keys.md, "Contacts").
@@ -529,7 +564,9 @@ impl ServerStore {
                 require_parent_of(graph, &visibility(identity), content_type, target)?;
             }
             let account_block = block == be_block::account_block(identity.organization, identity.account);
-            if account_block {
+            if identity.role == OrganizationRole::Guest {
+                require_guest_shell(graph, identity, content_type, parent, owner_only)?;
+            } else if account_block {
                 require_account_block(database, identity, content_type, parent, owner_only)?;
             } else if owner_only {
                 require_own_settings(graph, identity, parent)?;
@@ -2499,7 +2536,7 @@ pub(crate) fn write_grant(
             )?;
             // A guest is there only through what links granted it: with its last grant gone,
             // whatever took it, it leaves.
-            crate::share_links::drop_idle_guest(database, organization_id, account)?;
+            crate::share_links::drop_idle_guest(database, graph, organization_id, account)?;
         }
         Some(encoded) => {
             database.execute(
