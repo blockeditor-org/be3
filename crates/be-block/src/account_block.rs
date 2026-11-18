@@ -33,6 +33,10 @@ pub struct AccountBlock {
     /// The code of each share link the account made and the block it is on, by link, until it
     /// is revoked (guides/blocks/keys.md, "Share links").
     pub shares: Map<Uuid, Bytes>,
+    /// Each identity secret the account replaced with a new phrase, by the first 16 bytes of
+    /// its public key: a contact's key change sealed to an old key before the contact followed
+    /// the new one still opens (guides/blocks/keys.md, "Contacts").
+    pub retired: Map<Uuid, Bytes>,
 }
 
 impl AccountBlock {
@@ -63,6 +67,18 @@ impl AccountBlock {
     pub fn set_share(link: Uuid, kept: Option<Vec<u8>>) -> Edit {
         Self::SHARES
             .put(ObjectId::ROOT, &link, kept.map(Bytes::from).as_ref())
+            .into()
+    }
+
+    /// The identity secrets the account retired (`retired`).
+    pub fn retired_secrets(&self) -> impl Iterator<Item = &[u8]> {
+        self.retired.values().map(|bytes| &bytes[..])
+    }
+
+    /// Keeps `secret`, retired, under `key` (the first 16 bytes of its public key).
+    pub fn set_retired(key: Uuid, secret: Option<Vec<u8>>) -> Edit {
+        Self::RETIRED
+            .put(ObjectId::ROOT, &key, secret.map(Bytes::from).as_ref())
             .into()
     }
 
