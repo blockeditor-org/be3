@@ -201,6 +201,10 @@ pub struct ServerConfig {
 /// What a server that lies changes in the block summaries it answers one account (`query.blocks`,
 /// with or without contents, and listings), set by a test (`Running::lie`) to show a client
 /// refuses what "the server alone" could say: a block's parent, its current key, its history.
+/// It rewrites read answers only, not the summaries pushed to a client that follows a tree, so
+/// a test that lies reads what it checks. A plain field rather than a test-only one: no flag
+/// or configuration sets it, only `Running` does (`with_mail`), so a deployed server, which
+/// leaves it None, never lies, and the harness other crates' tests share needs no feature.
 #[derive(Clone, Default)]
 pub struct Lies(Arc<std::sync::Mutex<Vec<Lie>>>);
 

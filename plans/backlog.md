@@ -433,6 +433,15 @@ Depends on #686 (session catch-ups replaced by server ordering).
   organization only through Shared with me (no workspace, roots or files pane
   of its own), and a host test opens a link as a guest and reads the block.
 
+- **An app opens only a block the server confirmed it made.** An app whose
+  manifest does not set `sharing` may open a block it made in this run to
+  anyone inside (`refuses_sharing`), judged by the local graph, before the
+  server has the create. An app that names, as its new block's id, a block the
+  person manages that this device has not loaded opens that block in the window
+  before the server refuses the create. Done: the host hears when the server
+  takes or refuses a create, and the exception holds only for one it took, with
+  a test where the create names a block that already exists.
+
 - **A new phrase grows with the account.** `set-recovery-key` carries one
   retirement (about 300 to 400 bytes) per access log the account signed in,
   which is every block it ever made, beside the resealed keys that grow the
