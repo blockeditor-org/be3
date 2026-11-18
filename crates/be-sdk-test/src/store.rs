@@ -1327,6 +1327,26 @@ impl ContentStore {
             .unwrap_or_default()
     }
 
+    /// Redacts the entry at `seq` of `block`'s signed log as a manager or the server would,
+    /// with no entry of its author's naming it: its replica hears it at once.
+    pub fn redact_entry(&self, block: Option<Uuid>, seq: u64) {
+        let key = self.key(block);
+        let mut inner = self.0.borrow_mut();
+        let Some(held) = inner.blocks.get_mut(&key) else {
+            return;
+        };
+        let Some(taken) = held.log.get_mut(seq as usize) else {
+            return;
+        };
+        taken.payload = None;
+        taken.signer = be_sdk_type_guest::api::Signer::Redacted;
+        let taken = taken.clone();
+        if let Some(replica) = held.replica {
+            inner.logged.push((replica, vec![taken]));
+        }
+        inner.deliver_logged();
+    }
+
     /// The appends to `block`'s signed log the server holds back, each id and its bytes.
     pub fn held_appends(&self, block: Option<Uuid>) -> Vec<(Uuid, Vec<u8>)> {
         let key = self.key(block);

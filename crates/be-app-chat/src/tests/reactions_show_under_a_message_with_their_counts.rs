@@ -16,6 +16,7 @@ fn reactions_show_under_a_message_with_their_counts() {
                 message: release,
                 reaction: reaction.to_owned(),
                 kept: true,
+                takes_back: None,
                 time: MORNING,
             },
         );
