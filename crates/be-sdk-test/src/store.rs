@@ -485,7 +485,11 @@ impl Inner {
                     .map_err(|error| error.to_string());
                 reply.send(&mut self.host, &result);
             }
-            Call::Append { reply, bytes } => {
+            Call::Append {
+                reply,
+                bytes,
+                along,
+            } => {
                 let Some(held) = block.and_then(|block| self.blocks.get_mut(&block)) else {
                     return reply.send(&mut self.host, &Err("no such block".to_owned()));
                 };
@@ -500,15 +504,30 @@ impl Inner {
                     signer: be_sdk_type_guest::api::Signer::Verified,
                 };
                 held.log.push(item.clone());
+                // What it takes back loses its payload, as the server's redaction does; this
+                // device is every entry's author.
+                let redacted = along
+                    .redacts
+                    .and_then(|seq| held.log.get_mut(seq as usize))
+                    .map(|taken| {
+                        taken.payload = None;
+                        taken.signer = be_sdk_type_guest::api::Signer::Redacted;
+                        taken.clone()
+                    });
                 let replica = held.replica;
                 let place = be_sdk_type_guest::api::host::LogPlace { seq, arrival };
                 reply.send(
                     &mut self.host,
                     &Ok(be_sdk_type_guest::api::host::Appended::Logged(place)),
                 );
+                if let Some(announcement) = along.announcement {
+                    self.announcing
+                        .push((block, Announcing::Held(seq), announcement));
+                    self.send_announcements(block);
+                }
                 if let Some(replica) = replica {
                     self.on_replica(replica, |replica, host| {
-                        replica.logged(host, vec![item]);
+                        replica.logged(host, [item].into_iter().chain(redacted).collect());
                     });
                 }
             }

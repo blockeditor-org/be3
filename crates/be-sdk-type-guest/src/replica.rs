@@ -112,16 +112,19 @@ pub(crate) struct Opened {
     /// The type's merge by parts (`MergeParts`), as a `PartsMerge<C>` for its content, if it
     /// merges by parts.
     pub(crate) parts_merge: Option<std::rc::Rc<dyn std::any::Any>>,
-    /// The type's fold of its signed log (`LogFold`), as a `Fold<C>`, if it has a log.
+    /// The type's fold of its signed log (`LogFold`), as a `Fold<C>`, if it has a log that what
+    /// its content shows folds (`LogFold::FOLDS`).
     pub(crate) fold: Option<std::rc::Rc<dyn std::any::Any>>,
+    /// Whether the type has a signed log (`type-info.log`).
+    pub(crate) log: bool,
     pub(crate) now: u64,
 }
 
 /// How a type folds an entry of its signed log into what it shows (`LogFold::fold`).
 pub(crate) type Fold<C> = fn(&mut C, &be_block_content::LogItem);
 
-/// The entries of its log a replica reads as it opens: enough to describe a short log whole,
-/// and to follow what is appended after.
+/// The entries of its log a replica of a type whose content folds it reads at a time
+/// (`Replica::read_on`).
 const LOG_OPENED: u32 = 256;
 
 pub(crate) trait AnyReplica {
@@ -538,6 +541,8 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     from_file: Option<FromFileFn>,
     parts_merge: Option<PartsMerge<C>>,
     fold: Option<Fold<C>>,
+    /// Whether the type has a signed log, folded or not.
+    log: bool,
     /// The entries of the block's signed log this replica heard or read, by place, each id once
     /// at its first place, folded onto what it describes.
     signed_log: crate::editor::HeldLog,
@@ -547,6 +552,10 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     folded: Option<(C, u64)>,
     /// Entries of the log heard or read since it last described.
     log_grew: bool,
+    /// The log's length as last read.
+    log_size: u64,
+    /// Whether this replica read its log yet, which follows it.
+    log_read: bool,
     /// Appends an editor asked for, by the token of the call: the editor and its token.
     appends: BTreeMap<Token, (EditorId, u64)>,
     /// Reads of the log, by the token of the call: the editor and its token, or none for the
@@ -897,7 +906,10 @@ where
             }),
             signed_log: crate::editor::HeldLog::default(),
             folded: None,
+            log: opened.log,
             log_grew: false,
+            log_size: 0,
+            log_read: false,
             appends: BTreeMap::new(),
             log_reads: BTreeMap::new(),
             state: opened.session,
@@ -2713,17 +2725,8 @@ where
         self.projected = Settling::new(self.visible.clone(), Vec::new());
         self.loaded = true;
         self.described = true;
-        // A type with a log reads its first entries, which follows the log from now on.
-        if self.fold.is_some() && !self.log_reads.values().any(Option::is_none) {
-            let token = self.token();
-            self.out.push(Effect::ReadLog {
-                replica: self.id,
-                token,
-                from: 0,
-                limit: LOG_OPENED,
-            });
-            self.log_reads.insert(token, None);
-        }
+        // A type whose content folds its log reads it, which follows the log from now on.
+        self.read_on();
         self.check_build();
         // Edits of another build the journal held were lost: the holder starts the journal over
         // from its head, so the order takes this build's.
@@ -3766,12 +3769,17 @@ where
                 });
                 self.puts.insert(put, Putting::Editor { editor, token });
             }
-            FromEditor::Append { token, bytes } if editable && self.fold.is_some() => {
+            FromEditor::Append {
+                token,
+                bytes,
+                along,
+            } if editable && self.log => {
                 let call = self.token();
                 self.out.push(Effect::Append {
                     replica: self.id,
                     token: call,
                     bytes,
+                    along,
                 });
                 self.appends.insert(call, (editor, token));
             }
@@ -3779,13 +3787,13 @@ where
                 editor,
                 &ToEditor::Appended {
                     token,
-                    result: Err(match self.fold {
-                        Some(_) => "the editor is attached read-only".to_owned(),
-                        None => "this type keeps no log".to_owned(),
+                    result: Err(match self.log {
+                        true => "the editor is attached read-only".to_owned(),
+                        false => "this type keeps no log".to_owned(),
                     }),
                 },
             ),
-            FromEditor::ReadLog { token, from, limit } if self.fold.is_some() => {
+            FromEditor::ReadLog { token, from, limit } if self.log => {
                 let call = self.token();
                 self.out.push(Effect::ReadLog {
                     replica: self.id,
@@ -3814,11 +3822,15 @@ where
     }
 
     /// Keeps entries of the log heard or read, each id once at its first place, and has the
-    /// description fold them; answers those it had not, or now tells better.
+    /// description fold them; answers those it had not, or now tells better. A type whose
+    /// content folds nothing of its log keeps none of it: each editor keeps its own.
     fn take_log(
         &mut self,
         items: Vec<be_block_content::LogItem>,
     ) -> Vec<be_block_content::LogItem> {
+        if self.fold.is_none() {
+            return items;
+        }
         let mut fresh = Vec::new();
         for item in items {
             let seq = item.seq;
@@ -3843,6 +3855,7 @@ where
     /// Entries appended to the log, which every editor hears.
     fn logged(&mut self, items: Vec<be_block_content::LogItem>) {
         let fresh = self.take_log(items);
+        self.read_on();
         if fresh.is_empty() {
             return;
         }
@@ -3858,8 +3871,15 @@ where
         result: Result<(u64, Vec<be_block_content::LogItem>), String>,
     ) {
         let reader = self.log_reads.remove(&token).flatten();
-        if let Ok((_, items)) = &result {
+        if let Ok((size, items)) = &result {
+            self.log_size = self.log_size.max(*size);
             self.take_log(items.clone());
+            // The replica's own read goes on from where it held up to, a page at a time, while
+            // the server answers more; one that failed, or answered nothing, is not tried
+            // again until the replica hears an entry, or opens again.
+            if reader.is_none() && !items.is_empty() {
+                self.read_on();
+            }
         }
         match (reader, result) {
             (Some((editor, token)), result) => {
@@ -3870,6 +3890,34 @@ where
             // log until it hears entries, and reads again as it next opens.
             (None, _) => {}
         }
+    }
+
+    /// Has a type whose content folds its log read it on from the first place it lacks, a page
+    /// at a time, while the log is longer than what it holds from its start (it heard entries
+    /// past a gap, or has read only the first pages), so its description folds it whole. One
+    /// read at a time.
+    fn read_on(&mut self) {
+        if self.fold.is_none() || !self.loaded || self.log_reads.values().any(Option::is_none) {
+            return;
+        }
+        let mut from = self.folded.as_ref().map_or(0, |(_, through)| *through);
+        while self.signed_log.holds(from) {
+            from += 1;
+        }
+        let heard = self.signed_log.items.last_key_value().map_or(0, |(seq, _)| seq + 1);
+        // The first read is made whatever the log holds: it is what follows the log.
+        if self.log_read && from >= self.log_size.max(heard) {
+            return;
+        }
+        self.log_read = true;
+        let token = self.token();
+        self.out.push(Effect::ReadLog {
+            replica: self.id,
+            token,
+            from,
+            limit: LOG_OPENED,
+        });
+        self.log_reads.insert(token, None);
     }
 
     fn answer_part_put(&mut self, put: Token, result: Result<be_block_content::PartRef, String>) {

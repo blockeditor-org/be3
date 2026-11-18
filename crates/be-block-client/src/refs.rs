@@ -335,6 +335,12 @@ pub struct Appending {
     pub payload: Vec<u8>,
     #[serde(with = "serde_bytes")]
     pub signature: Vec<u8>,
+    /// What the server pushes to the block's members once it takes the entry
+    /// (`be_block_content::Along::announcement`), its text sealed.
+    pub(crate) announces: Option<announcements::Made>,
+    /// The entry of the block's log it takes back, redacted once the server takes it
+    /// (`be_block_content::Along::redacts`).
+    pub(crate) redacts: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

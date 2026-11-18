@@ -231,9 +231,10 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
 
     /// Appends `bytes` to the block's signed log (a type with a log): the host signs them as
     /// this app's, for the person. Where it went is taken with `take_appended` under the token
-    /// this answers; the entry joins `log` as it reaches the log, which moves the revision.
-    pub fn append(&self, bytes: Vec<u8>) -> u64 {
-        let (token, message) = self.0.mirror.borrow_mut().append(bytes);
+    /// this answers; the entry joins `with_log` as it reaches the log, which moves the
+    /// revision. What goes `along` with it is done once the server takes it.
+    pub fn append(&self, bytes: Vec<u8>, along: be_block_content::Along) -> u64 {
+        let (token, message) = self.0.mirror.borrow_mut().append(bytes, along);
         self.0.host.send_to_replica(self.0.block, message);
         token
     }

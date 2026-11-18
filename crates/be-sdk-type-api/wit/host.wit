@@ -6,7 +6,7 @@ package be3:block-type@0.1.0;
 /// request has that request as its parent (only `read-part`).
 interface host {
     use types.{
-        announcement, byte-range, commit-id, description, journal-base, loaded, log-page, merging,
+        along, announcement, byte-range, commit-id, description, journal-base, loaded, log-page, merging,
         submission, part-ref, recipients, resume, status, written,
     };
 
@@ -81,7 +81,9 @@ interface host {
     /// skip signing nor sign as anyone else or for another app, seals them and
     /// keeps them until the server takes them. Every replica of the block hears
     /// the entry through `replica.logged` once it is in the log, this one too.
-    append: async func(bytes: list<u8>) -> result<appended, string>;
+    /// What goes `along` with it is kept with it and done once the server takes
+    /// it.
+    append: async func(bytes: list<u8>, along: along) -> result<appended, string>;
 
     variant appended {
         /// The server took it: its place and arrival.

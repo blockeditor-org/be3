@@ -4811,11 +4811,19 @@ impl<H: Host> Replicas<H> {
                 });
                 false
             }
-            Call::Append { reply, bytes } => {
+            Call::Append {
+                reply,
+                bytes,
+                along,
+            } => {
+                let along = be_block_content::Along {
+                    announcement: along.announcement.map(announcement),
+                    redacts: along.redacts,
+                };
                 let peer = Arc::clone(peer);
                 let app = self.modules.name(module).to_owned();
                 self.answer_later(replica, module, async move {
-                    let appended = match peer.append(block, &app, &bytes).await {
+                    let appended = match peer.append(block, &app, &bytes, along).await {
                         Ok(be_block_client::Appended::Logged { seq, arrival, .. }) => {
                             Ok(be_sdk_type_api::host::Appended::Logged(
                                 be_sdk_type_api::host::LogPlace { seq, arrival },

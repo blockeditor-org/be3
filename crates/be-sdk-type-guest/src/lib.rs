@@ -92,7 +92,8 @@ pub struct Registration {
     merge_parts: Option<MergePartsFn>,
     /// The replica's merge by parts, a `replica::PartsMerge` of the type's content.
     replica_merge: Option<std::rc::Rc<dyn std::any::Any>>,
-    /// The type's fold of its signed log, a `replica::Fold` of its content, if it has a log.
+    /// The type's fold of its signed log, a `replica::Fold` of its content, if it has a log
+    /// that what its content shows folds (`LogFold::FOLDS`).
     fold: Option<std::rc::Rc<dyn std::any::Any>>,
     describe: fn(&[u8], Uuid) -> Result<Description, String>,
     search_text: SearchTextFn,
@@ -188,7 +189,9 @@ impl Registration {
     pub fn log<C: be_block_content::LogFold + LiveEdit>(mut self) -> Self {
         assert_eq!(self.info.content_type, C::CONTENT_TYPE);
         self.info.log = true;
-        self.fold = Some(std::rc::Rc::new(fold::<C> as replica::Fold<C>));
+        self.fold = C::FOLDS.then(|| {
+            std::rc::Rc::new(fold::<C> as replica::Fold<C>) as std::rc::Rc<dyn std::any::Any>
+        });
         self
     }
 
@@ -612,6 +615,7 @@ impl Module {
                 from_file: kind.from_file,
                 parts_merge: kind.replica_merge.clone(),
                 fold: kind.fold.clone(),
+                log: kind.info.log,
                 now,
             })
         });
@@ -897,8 +901,13 @@ impl Module {
                 replica,
                 token,
                 bytes,
+                along,
             } => {
-                let pending = ops::with_parent(replica, || host::append(bytes));
+                let along = be_sdk_type_api::Along {
+                    announcement: along.announcement.map(announcement),
+                    redacts: along.redacts,
+                };
+                let pending = ops::with_parent(replica, || host::append(bytes, along));
                 self.answer_later(replica, pending, move |result| Input::Appended {
                     token,
                     result: result

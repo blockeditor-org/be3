@@ -25,7 +25,7 @@ fn only_the_types_own_app_writes_in_its_blocks_log() {
         let mut held = attach_mirror::<Ledger>(&peer, &shared, &mut replicas, block, other).await;
         let own = 7;
         let mut mirror = attach_mirror::<Ledger>(&peer, &shared, &mut replicas, block, own).await;
-        let (_, message) = held.append(b"as ledger".to_vec());
+        let (_, message) = held.append(b"as ledger".to_vec(), be_block_content::Along::default());
         replicas.relay_from_app(
             &shared,
             block,
@@ -34,7 +34,7 @@ fn only_the_types_own_app_writes_in_its_blocks_log() {
             message.encode(),
             std::time::Instant::now(),
         );
-        let (_, message) = mirror.append(b"mine".to_vec());
+        let (_, message) = mirror.append(b"mine".to_vec(), be_block_content::Along::default());
         replicas.relay_from_app(
             &shared,
             block,
