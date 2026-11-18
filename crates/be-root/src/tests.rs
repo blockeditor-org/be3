@@ -245,13 +245,19 @@ fn menu(root: &mut Root, time: &mut u64, entry: Entry) -> Vec<be_wasm_root_api::
         hand(
             root,
             time,
-            chord(be_lib_ui_types::Key::ArrowDown, be_lib_ui_types::Modifiers::NONE),
+            chord(
+                be_lib_ui_types::Key::ArrowDown,
+                be_lib_ui_types::Modifiers::NONE,
+            ),
         );
     }
     hand(
         root,
         time,
-        chord(be_lib_ui_types::Key::Enter, be_lib_ui_types::Modifiers::NONE),
+        chord(
+            be_lib_ui_types::Key::Enter,
+            be_lib_ui_types::Modifiers::NONE,
+        ),
     );
     root.take_core_commands()
 }

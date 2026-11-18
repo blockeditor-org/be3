@@ -73,7 +73,10 @@ pub(super) fn LockCard(state: Signal<LockState>, shown_at: Signal<Duration>) -> 
 /// on the host's frame clock), counted down a second at a time by a timer on beui's clock, which
 /// the root pins to the host's: `shown_at` is the host's frame time when the state was shown.
 /// None once the wait is over.
-pub(super) fn retry_wait(state: Signal<LockState>, shown_at: Signal<Duration>) -> Memo<Option<String>> {
+pub(super) fn retry_wait(
+    state: Signal<LockState>,
+    shown_at: Signal<Duration>,
+) -> Memo<Option<String>> {
     let retry_at = create_memo(move || state.with(|state| state.retry_at));
     let left = create_signal(None::<u64>);
     // When the wait was last shown, on beui's clock and on the host's.

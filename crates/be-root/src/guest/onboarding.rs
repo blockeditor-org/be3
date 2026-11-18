@@ -627,7 +627,11 @@ pub(super) enum Keeping {
 /// browser's page asks for, with Open browser and Check now. It closes once an account it did
 /// not list when it opened (`known`) is added. Escape steps back to choosing where, or closes.
 #[component]
-pub(super) fn AddAccountDialog(core: Signal<CoreView>, known: Vec<String>, done: Callback<Closed>) -> NodeId {
+pub(super) fn AddAccountDialog(
+    core: Signal<CoreView>,
+    known: Vec<String>,
+    done: Callback<Closed>,
+) -> NodeId {
     let signing = create_memo(move || core.with(|view| view.signing_in.clone()));
     let error = create_memo(move || core.with(|view| view.account_error.clone()));
     let added = create_memo(move || {

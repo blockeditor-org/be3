@@ -1,6 +1,6 @@
+use crate::{DIALOG_LAYER, DIALOG_SURFACE};
 use be_lib_geometry::pos2;
 use be_lib_ui_types::{Key, Modifiers};
-use crate::{DIALOG_LAYER, DIALOG_SURFACE};
 use be_wasm_root_api::{
     BrowserSignIn, CoreCommand, CoreSecret, CoreView, DiscardReason, InvitationRow,
     InvitationState, InvitationsArea, Reauthenticating, SecretCommand, SigningIn,

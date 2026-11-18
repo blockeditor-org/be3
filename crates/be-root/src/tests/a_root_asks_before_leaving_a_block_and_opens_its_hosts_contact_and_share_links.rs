@@ -1,7 +1,7 @@
+use crate::{DIALOG_LAYER, DIALOG_SURFACE};
 use be_lib_geometry::pos2;
 use be_lib_ui_types::input::{ImeEvent, Input};
 use be_lib_ui_types::{Key, Modifiers};
-use crate::{DIALOG_LAYER, DIALOG_SURFACE};
 use be_wasm_root_api::{
     ContactCard, ContactMismatch, ContactRow, ContactsArea, CoreCommand, CoreSecret, CoreView,
     Leaving, SecretCommand, ShareAccess, ShareLinksArea, SharePreview,

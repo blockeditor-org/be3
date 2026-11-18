@@ -102,7 +102,10 @@ fn a_root_shows_its_hosts_lock_screen_and_statistics() {
     // Lock asks the host to lock the session, which shows the lock screen over everything,
     // its field taking the input method.
     let _ = menu(&mut root, &mut time, Entry::Lock);
-    assert!(root.take_lock_asked(), "Lock asks the host to lock the session");
+    assert!(
+        root.take_lock_asked(),
+        "Lock asks the host to lock the session"
+    );
     root.show_lock(locked(None, None));
     let locked_frame = until(
         &mut root,
@@ -111,7 +114,11 @@ fn a_root_shows_its_hosts_lock_screen_and_statistics() {
         "the lock screen shows, its password field taking the input method",
         |done| layer_of(done, LOCK_LAYER).is_some() && done.ime.is_some(),
     );
-    assert_eq!(shown(&locked_frame).last(), Some(&LOCK_LAYER), "over everything");
+    assert_eq!(
+        shown(&locked_frame).last(),
+        Some(&LOCK_LAYER),
+        "over everything"
+    );
 
     // What is typed is handed to the host as typed.
     let events: Vec<be_lib_ui_types::input::Timed> = [

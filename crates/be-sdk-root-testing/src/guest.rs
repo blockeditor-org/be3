@@ -666,7 +666,9 @@ fn StatisticRows(statistics: Signal<HostStatistics>) -> NodeId {
                     let line = create_memo(move || {
                         lines.with(|lines| lines.get(index).cloned().unwrap_or_default())
                     });
-                    view! { <Text>{line}</Text> }
+                    view! {
+                        <Text>{line}</Text>
+                    }
                 }</ForEach>
             </List>
         </Frame>

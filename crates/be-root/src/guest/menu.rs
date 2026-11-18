@@ -35,9 +35,18 @@ pub(super) fn HostMenu(want: Callback<Asking>, statistics: Callback<()>) -> Node
         <MenuItem label="Invitations" on_click={move || want.call(Asking::Invitations)} />
         <MenuItem label="Members" on_click={move || want.call(Asking::Members)} />
         <MenuItem label="Agents" on_click={move || want.call(Asking::Agents)} />
-        <MenuItem label="Sessions and profiles" on_click={|| ask_core(CoreCommand::ChooseSession)} />
-        <MenuItem label="Switch organization" on_click={|| ask_core(CoreCommand::SwitchOrganization)} />
-        <MenuItem label="New recovery phrase" on_click={|| ask_core(CoreCommand::NewRecoveryPhrase)} />
+        <MenuItem
+            label="Sessions and profiles"
+            on_click={|| ask_core(CoreCommand::ChooseSession)}
+        />
+        <MenuItem
+            label="Switch organization"
+            on_click={|| ask_core(CoreCommand::SwitchOrganization)}
+        />
+        <MenuItem
+            label="New recovery phrase"
+            on_click={|| ask_core(CoreCommand::NewRecoveryPhrase)}
+        />
         <MenuItem label="Manage accounts" on_click={|| ask_core(CoreCommand::SwitchAccount)} />
         <MenuItem label="Lock" on_click={lock} />
         <MenuItem label="Performance" on_click={move || statistics.call(())} />
@@ -45,13 +54,7 @@ pub(super) fn HostMenu(want: Callback<Asking>, statistics: Callback<()>) -> Node
     view! {
         <Frame width=Length::FILL padding=Space::Sm>
             <List direction=Direction::Horizontal spacing=Space::None justify=Justify::End>
-                <MenuButton
-                    label="Menu"
-                    glyph=ICON_MENU
-                    icon_only=true
-                    arrow=false
-                    items={items}
-                />
+                <MenuButton label="Menu" glyph=ICON_MENU icon_only=true arrow=false items={items} />
             </List>
         </Frame>
     }

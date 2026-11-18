@@ -29,13 +29,9 @@ fn a_root_opens_the_block_stacks_dialogs_from_its_menu() {
     // Once it has an organization open, its button shows at the window's top right, hit only
     // where it is.
     root.show_core(CoreView::default());
-    let open = until(
-        &mut root,
-        &mut time,
-        Vec::new(),
-        "the menu shows",
-        |done| layer_of(done, MENU_LAYER).is_some(),
-    );
+    let open = until(&mut root, &mut time, Vec::new(), "the menu shows", |done| {
+        layer_of(done, MENU_LAYER).is_some()
+    });
     let layer = layer_of(&open, MENU_LAYER).expect("the menu shows");
     assert!(
         matches!(layer.input.hit, be_lib_layers::Area::Region(_)),
@@ -56,7 +52,10 @@ fn a_root_opens_the_block_stacks_dialogs_from_its_menu() {
     hand(
         &mut root,
         &mut time,
-        chord(be_lib_ui_types::Key::Escape, be_lib_ui_types::Modifiers::NONE),
+        chord(
+            be_lib_ui_types::Key::Escape,
+            be_lib_ui_types::Modifiers::NONE,
+        ),
     );
 
     // Its entries open the block stack's dialogs, or ask the block stack.
@@ -72,7 +71,10 @@ fn a_root_opens_the_block_stacks_dialogs_from_its_menu() {
     hand(
         &mut root,
         &mut time,
-        chord(be_lib_ui_types::Key::Escape, be_lib_ui_types::Modifiers::NONE),
+        chord(
+            be_lib_ui_types::Key::Escape,
+            be_lib_ui_types::Modifiers::NONE,
+        ),
     );
     until(
         &mut root,

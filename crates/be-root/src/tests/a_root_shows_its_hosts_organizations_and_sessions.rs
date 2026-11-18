@@ -1,6 +1,6 @@
+use crate::{ONBOARDING_LAYER, ONBOARDING_SURFACE};
 use be_lib_geometry::pos2;
 use be_lib_ui_types::input::{ImeEvent, Input};
-use crate::{ONBOARDING_LAYER, ONBOARDING_SURFACE};
 use be_wasm_root_api::{
     CoreCommand, CoreView, CoreWait, Invitation, OrganizationRow, OrganizationsArea,
     OrganizationsListed, ProfileRow, SessionKind, SessionRow, SessionsArea,
