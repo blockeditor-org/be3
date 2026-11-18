@@ -487,6 +487,12 @@ Depends on #686 (session catch-ups replaced by server ordering).
   one, so a game cannot be played from the keyboard alone. Done: the arrows
   move a selection between the movable pieces while nothing is carried, shown
   by a test that plays a chess move with keys only.
+- **A lift wakes only the carries it concerns.** The board keeps every carried
+  payload in one `lifted` signal, so each `carries(&payload)` reader (every
+  slider, colour control and scrollbar thumb's `ThumbCarry`, every splitter, every
+  `is_carried` row) reruns on any lift or put-down anywhere in the tree. Done: a
+  per-payload signal or keyed subscription, so a lift wakes only the readers of
+  its own payload, shown by a test that counts the effects a lift runs.
 - **A sheet's detents from the keyboard.** A sheet chooses its detent with
   `closest(detents).thrown()` only where its drag lets go, so no key steps it
   between detents. Done: the sheet's handle steps between its detents with the
@@ -655,6 +661,13 @@ Depends on #686 (session catch-ups replaced by server ordering).
   is new, with a be-worker-pdf-render test that renders twice from one Open.
 
 ## 24. Build tooling
+
+- **`./scripts/test NAME` for a crate whose tests are not `:test`.** When NAME
+  matches a test in crates/beui, the script asks for `//crates/beui:test`, which
+  does not exist (its only test target is `:html-test`), and reports a build
+  failure beside the tests it ran (`./scripts/test scrollbar`). Done: the script
+  runs each crate's real test targets, so naming one of crates/beui's tests runs
+  `:html-test` and nothing fails to build.
 
 - **Restarting buck2's daemon after a lost blob.** buck2 keeps a 12-hour record
   of what `FindMissingBlobs` answered (its gRPC client's `FindMissingCache`,

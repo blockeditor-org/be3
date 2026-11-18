@@ -133,7 +133,15 @@ pub fn Slider(
     let carry = ThumbCarry::new(
         on_drag_change,
         move || disabled.get_untracked(),
-        (move || current.get_untracked(), set_value),
+        // A put-down writes back the value as it was, even one outside the range.
+        (
+            move || value.get_untracked(),
+            move |start: f32| {
+                if value.get_untracked() != start {
+                    value.set(start);
+                }
+            },
+        ),
         move |press: PointerPress| set_value(scale.value_at(dragged_to(press), min, max)),
     );
     // A press off the thumb jumps there, after the drag is reported begun.
