@@ -3203,6 +3203,7 @@ dependencies = [
  "be-wasm-guest-host",
  "be-wasm-ops",
  "getrandom 0.3.4",
+ "libc",
  "rustc-demangle",
  "uuid",
  "v8",
