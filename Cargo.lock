@@ -2175,9 +2175,7 @@ version = "0.1.0"
 dependencies = [
  "be-lib-geometry",
  "be-lib-layers",
- "be-sdk",
- "be-sdk-api",
- "be-sdk-beui-platform",
+ "be-lib-ui-types",
  "be-sdk-root",
  "be-wasm-gpu-guest",
  "be-wasm-ops",
@@ -3541,6 +3539,7 @@ name = "beui-font-freetype"
 version = "0.1.0"
 dependencies = [
  "be-lib-stable-hash",
+ "be-lib-ui-types",
  "beui-core",
  "beui-fonts",
  "beui-types",

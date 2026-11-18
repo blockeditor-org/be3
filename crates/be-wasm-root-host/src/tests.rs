@@ -133,9 +133,9 @@ fn fonts() -> Vec<u8> {
     })
 }
 
-/// What the root painted of its own surface (`ROOT_SURFACE` of be-sdk-root-testing), asked with
-/// a frame for `time`, the time of the last.
-fn own_painting(root: &mut Root, time: u64) -> beui_paint_format::Painting {
+/// What the root painted of each of its own surfaces, by id, asked with a frame for `time`, the
+/// time of the last.
+fn own_paintings(root: &mut Root, time: u64) -> Vec<(u64, beui_paint_format::Painting)> {
     root.ask_paintings().expect("the root runs");
     root.frame(
         FrameRequest {
@@ -150,14 +150,17 @@ fn own_painting(root: &mut Root, time: u64) -> beui_paint_format::Painting {
         .expect("the root answered with the frame it stepped through");
     let painted =
         beui_paint_format::ScreenPaintings::decode(&painted).expect("the root's paintings decode");
-    let [(surface, painting)] = &painted.screens[..] else {
-        panic!(
-            "the root paints its one surface of its own, not {}",
-            painted.screens.len()
-        );
-    };
-    assert_eq!(*surface, u64::from(be_sdk_root_testing::ROOT_SURFACE));
-    painting.clone()
+    painted.screens
+}
+
+/// What beui painted of be-sdk-root-testing's strip of text (`TEXT_SURFACE`), asked as
+/// `own_paintings` asks.
+fn text_painting(root: &mut Root, time: u64) -> beui_paint_format::Painting {
+    own_paintings(root, time)
+        .into_iter()
+        .find(|(surface, _)| *surface == u64::from(be_sdk_root_testing::TEXT_SURFACE))
+        .map(|(_, painting)| painting)
+        .expect("the root paints its strip of text")
 }
 
 /// Every glyph `primitives` paint, in groups too, by its rect.

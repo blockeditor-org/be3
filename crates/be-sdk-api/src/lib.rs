@@ -28,7 +28,7 @@ be_wasm_ops_bindgen::generate!({
         "uuid", "hash", "host-window-id", "editor-instance-id", "screen-id", "child-id", "web-view-id", "view-id",
     ],
     default: [
-        "frame-chrome", "top-bar", "frame-spec", "fonts", "screen-layout",
+        "frame-chrome", "top-bar", "frame-spec", "screen-layout",
         "block-metadata", "artifact-state", "version-status",
         "menu-command", "menu-check", "menu-pin", "menu-heading", "block-filter", "child-preview",
         "catalog", "audio-status", "child-layer", "child-mode", "host-preference-sources",
@@ -50,7 +50,6 @@ be_wasm_ops_bindgen::generate!({
         "program-list", "program-launch", "program-exec", "tray-scroll", "tray-menu-chosen",
     ],
     ordered: ["child-content", "dock-tab-path", "block-filter"],
-    own_debug: ["font-face"],
 });
 
 pub use accessibility::DescribedAction;
@@ -78,7 +77,7 @@ pub use shell_types::{
 };
 pub use types::{
     AnchorSpace, AnchoredPlacement, ChildContent, ChildLayer, ChildMode, ChildPlacement,
-    ChildPlacements, DialogFrame, Failure, FontFace, FontRole, Fonts, FrameChrome, FrameReport,
+    ChildPlacements, DialogFrame, Failure, FrameChrome, FrameReport,
     FrameSpec, Hello, HelloAccepted, HostPanel, HostTransform, HostView, InputBatch, Insets,
     LayoutCommit, MenuAsk, Occluder, OpenArtifact, OpenBlock, OpenCreation, OpenHost, Opening,
     OpeningKind, Picture, PresentCommit, PresentedFrame, PressClaim, ScreenDamage, ScreenLayout,
@@ -86,6 +85,8 @@ pub use types::{
     SurfaceSupport, TimedInput, TopBar, ViewAnchor, ViewEdge, ViewPlacement, ViewSize,
     ViewportMetrics,
 };
+/// The fonts a host tells an app, which beui shares (be3:ui).
+pub use be_lib_ui_types::{FontFace, FontRole, Fonts};
 pub use types::{BlockFilter, BlockLocation, BlockPick, OpenPicker, OpenRename, PickedBlock};
 pub use types::{
     DockAlign, DockBar, DockBarEdge, DockBarHide, DockBarMove, DockBarPlace, DockBarPlacement,
@@ -623,17 +624,6 @@ pub enum WebViewCommand {
     Reload,
     FocusHost,
     Close,
-}
-
-impl fmt::Debug for FontFace {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("FontFace")
-            .field("role", &self.role)
-            .field("index", &self.index)
-            .field("bytes", &self.data.len())
-            .finish()
-    }
 }
 
 impl Insets {

@@ -154,7 +154,8 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   method's area (`ime`), the cursor shape by its CSS name (`cursor`), the
   pointer lock (`pointer-locked`) and every sample of the pointer's moves
   (`every-sample`). `host.fonts` answers the fonts the host bundles as the
-  app protocol's `Fonts`, encoded (`Root::with_fonts`; be-host's
+  app protocol's `Fonts` (be3:ui's, which beui-font-freetype's
+  `FontSources::of_faces` reads), encoded (`Root::with_fonts`; be-host's
   `be_host_runtime::bundled_fonts`, which it tells its apps), which a root
   asks once and draws its text in. `frame-request` carries the frame clock's
   time and the host's wall clock (`wall-clock`), the only clocks a root reads.
@@ -249,8 +250,8 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   that runs and draws owes a frame due or in flight, and wants one at once
   while one is due or it animates, or when its pacing says; one with no
   surface or that closed wants and owes nothing. be-sdk-root-testing is a root built on it, which
-  draws its own surface with beui, `ROOT_COLOR` with a line of text, under the
-  triangle's screen, and which be-wasm-root-host's tests run with the triangle
+  fills its own surface with `ROOT_COLOR` and draws a strip over it with
+  beui, a line of text in styled components, under the triangle's screen, and which be-wasm-root-host's tests run with the triangle
   on a stand-in device, and be-host's host test with `--root`. A root is
   built as an app is (`app_module`, in the `wasi-guest` plan, linked against
   base and beui; decisions/a_root_links_beui_as_an_app_does.md); only
