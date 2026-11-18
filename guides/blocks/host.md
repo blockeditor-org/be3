@@ -502,7 +502,9 @@ server in the lane first, so the loop finds them on the device.
 in the host is looking at: a `Node` per block with type, author, parent,
 access, references, unsealed `BlockMetadata`, `locked` (no key opens it), the
 server's `size` and `tree_size`, and its `changed` and `entry`. The host never
-lists the whole organization.
+lists the whole organization. The organization's settings lie at the root but,
+as in the server's `Children(Root)`, are no root block: held when something
+asks for them, they are never in `Query::Roots` (`Graph::organized`).
 
 No summary names what a block references, so the tree's shape comes from
 parents and a node's `references` (in its content's order: a folder's order,

@@ -285,6 +285,10 @@ pub struct Graph {
     /// should.
     #[serde(skip)]
     unlisted_held: Vec<UnlistedHeld>,
+    /// The open organization's settings block (`be_block::organization_settings`), which lies
+    /// at the root but is no root block: the server's `Children(Root)` leaves it out, and so do
+    /// the mirror's listing and `Query::Roots` (`organized`).
+    organization_settings: Option<Uuid>,
 }
 
 /// What the page reads of the graph, by what changed (`diff::Diff`). What only the worker
@@ -304,6 +308,7 @@ pub(crate) struct GraphDelta {
     unreadable: Option<<imbl::OrdMap<Uuid, CommitId> as Diff>::Delta>,
     reported: Option<<imbl::OrdMap<Uuid, CommitId> as Diff>::Delta>,
     placing: Option<std::collections::HashSet<Uuid>>,
+    organization_settings: Option<Option<Uuid>>,
 }
 
 fn changed<T: Clone + PartialEq>(old: &T, new: &T) -> Option<T> {
@@ -342,6 +347,7 @@ impl Diff for Graph {
             placed_recently: _,
             dropped: _,
             unlisted_held: _,
+            organization_settings,
         } = new;
         let delta = GraphDelta {
             revision: changed(&old.revision, revision),
@@ -357,6 +363,7 @@ impl Diff for Graph {
             unreadable: Diff::diff(&old.unreadable, unreadable),
             reported: Diff::diff(&old.reported, reported),
             placing: changed(&old.placing, placing),
+            organization_settings: changed(&old.organization_settings, organization_settings),
         };
         let GraphDelta {
             revision,
@@ -372,6 +379,7 @@ impl Diff for Graph {
             unreadable,
             reported,
             placing,
+            organization_settings,
         } = &delta;
         let changed = revision.is_some()
             || nodes.is_some()
@@ -385,7 +393,8 @@ impl Diff for Graph {
             || read.is_some()
             || unreadable.is_some()
             || reported.is_some()
-            || placing.is_some();
+            || placing.is_some()
+            || organization_settings.is_some();
         changed.then_some(delta)
     }
 
@@ -404,6 +413,7 @@ impl Diff for Graph {
             unreadable,
             reported,
             placing,
+            organization_settings,
         } = delta;
         if let Some(revision) = revision {
             self.revision = revision;
@@ -444,6 +454,9 @@ impl Diff for Graph {
         if let Some(placing) = placing {
             self.placing = placing;
         }
+        if let Some(organization_settings) = organization_settings {
+            self.organization_settings = organization_settings;
+        }
     }
 }
 
@@ -477,6 +490,7 @@ impl PartialEq for Graph {
             placed_recently: _,
             dropped: _,
             unlisted_held: _,
+            organization_settings,
         } = self;
         *revision == other.revision
             && *nodes == other.nodes
@@ -491,6 +505,7 @@ impl PartialEq for Graph {
             && *unreadable == other.unreadable
             && *reported == other.reported
             && *placing == other.placing
+            && *organization_settings == other.organization_settings
     }
 }
 
@@ -578,7 +593,7 @@ impl Graph {
             let members = self
                 .nodes
                 .values()
-                .filter(|node| member(listing, node, &self.nodes) == Some(true))
+                .filter(|node| member(listing, node, &self.nodes, self.organization_settings) == Some(true))
                 .map(|node| node.id)
                 .collect();
             self.listings.insert(
@@ -711,7 +726,7 @@ impl Graph {
                 .filter(|block| {
                     self.nodes
                         .get(block)
-                        .is_some_and(|node| member(listing, node, &self.nodes) == Some(true))
+                        .is_some_and(|node| member(listing, node, &self.nodes, self.organization_settings) == Some(true))
                 }),
         );
         // Where this device knows a block's content (its open replica's report, or a read of its
@@ -736,7 +751,7 @@ impl Graph {
                             .get(&node.id)
                             .is_some_and(|heard| *heard > sequence)
                 })
-                .filter(|node| member(listing, node, &self.nodes) == Some(true))
+                .filter(|node| member(listing, node, &self.nodes, self.organization_settings) == Some(true))
                 .map(|node| node.id),
         );
         let unlisted: Vec<Uuid> = before
@@ -745,7 +760,7 @@ impl Graph {
             .filter(|block| {
                 self.nodes
                     .get(block)
-                    .is_some_and(|node| member(listing, node, &self.nodes) == Some(true))
+                    .is_some_and(|node| member(listing, node, &self.nodes, self.organization_settings) == Some(true))
             })
             .collect();
         if !unlisted.is_empty() {
@@ -1036,7 +1051,7 @@ impl Graph {
                 .any(|target| self.listings.contains_key(&Listing::Backrefs(*target)))
             || self.listings.keys().any(|listing| {
                 matches!(listing, Listing::References(_))
-                    && member(*listing, node, &self.nodes) == Some(true)
+                    && member(*listing, node, &self.nodes, self.organization_settings) == Some(true)
             })
     }
 
@@ -1248,6 +1263,15 @@ impl Graph {
 
     /// A block made here, kept until the drain sends it: what the server lists before then
     /// cannot hold it (`unpublished`).
+    /// The organization the mirror is of: its settings block is never a root block.
+    pub fn organized(&mut self, organization: Uuid) {
+        let settings = Some(be_block::organization_settings(organization));
+        if self.organization_settings != settings {
+            self.organization_settings = settings;
+            self.moved();
+        }
+    }
+
     pub fn made(&mut self, block: Uuid) {
         self.unpublished.insert(block);
     }
@@ -1743,7 +1767,7 @@ impl Graph {
             .listings
             .iter()
             .filter_map(|(listing, listed)| {
-                let member = member(*listing, &node, &self.nodes)?;
+                let member = member(*listing, &node, &self.nodes, self.organization_settings)?;
                 (member != listed.members.contains(&node.id)).then_some((*listing, member))
             })
             .collect();
@@ -1881,7 +1905,11 @@ impl Graph {
 
     pub fn query(&self, query: Query) -> Vec<Node> {
         let mut found: Vec<Node> = match query {
-            Query::Roots => self.with_parent(BlockParent::Root),
+            Query::Roots => {
+                let mut roots = self.with_parent(BlockParent::Root);
+                roots.retain(|node| self.organization_settings != Some(node.id));
+                roots
+            }
             Query::Detached => {
                 let mut sets = HashMap::new();
                 self.nodes
@@ -2140,8 +2168,18 @@ impl Graph {
     }
 }
 
-fn member(listing: Listing, node: &Node, nodes: &imbl::OrdMap<Uuid, Arc<Node>>) -> Option<bool> {
+/// Whether `node` belongs in `listing` as the server lists it, where this device can tell. The
+/// organization's settings lie at the root but are never among its children.
+fn member(
+    listing: Listing,
+    node: &Node,
+    nodes: &imbl::OrdMap<Uuid, Arc<Node>>,
+    organization_settings: Option<Uuid>,
+) -> Option<bool> {
     match listing {
+        Listing::Children(BlockParent::Root) if organization_settings == Some(node.id) => {
+            Some(false)
+        }
         Listing::Children(parent) => Some(node.parent == Some(parent)),
         Listing::Deleted => Some(node.parent.is_some() && !node.held),
         Listing::Block(block) => Some(block == node.id),
