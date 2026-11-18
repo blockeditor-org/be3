@@ -302,8 +302,8 @@ pub enum Answered {
         Result<be_sdk_type_api::PartRef, String>,
     ),
     Append(
-        Reply<Result<be_sdk_type_api::host::Appended, String>>,
-        Result<be_sdk_type_api::host::Appended, String>,
+        Reply<Result<be_sdk_type_api::host::Appended, be_sdk_type_api::host::NotAppended>>,
+        Result<be_sdk_type_api::host::Appended, be_sdk_type_api::host::NotAppended>,
     ),
     ReadLog(
         Reply<Result<be_sdk_type_api::LogPage, String>>,
@@ -546,6 +546,18 @@ impl Replayed {
         }
         None
     }
+}
+
+/// The entries this device appended to `block`'s log that the server refused and no app let
+/// go, as the protocol carries them.
+fn refused_entries<S: be_block_store::ObjectStore>(
+    peer: &Peer<S>,
+    block: Uuid,
+) -> Vec<be_sdk_type_api::RefusedEntry> {
+    peer.refused_entries(block)
+        .into_iter()
+        .map(|(id, payload, why)| be_sdk_type_api::RefusedEntry { id, payload, why })
+        .collect()
 }
 
 fn resend(
@@ -2355,10 +2367,13 @@ impl<H: Host> Replicas<H> {
         {
             let refused = be_sdk_type_guest::editor::ToEditor::Appended {
                 token: *token,
-                result: Err(format!(
-                    "only {} writes in this block's log",
-                    self.modules.name(open.module)
-                )),
+                result: Err(be_block_content::LogNotAppended {
+                    id: None,
+                    why: format!(
+                        "only {} writes in this block's log",
+                        self.modules.name(open.module)
+                    ),
+                }),
             };
             H::to_editor(shared, block, editor, refused.encode());
             return;
@@ -2766,6 +2781,17 @@ impl<H: Host> Replicas<H> {
         if let Some(replica) = self.blocks.get(&block).copied() {
             self.with_replica(replica, |handle, connection| {
                 handle.drained(connection, refused, commits);
+            });
+        }
+    }
+
+    /// The server refused entries this device appended to `block`'s log as the outbox drained:
+    /// its replica hears every refused entry the device keeps (`Peer::refused_entries`).
+    pub fn not_appended(&mut self, (peer, _): Ctx<'_, H>, block: Uuid) {
+        if let Some(replica) = self.blocks.get(&block).copied() {
+            let entries = refused_entries(peer, block);
+            self.with_replica(replica, |handle, connection| {
+                handle.refused(connection, entries);
             });
         }
     }
@@ -4892,10 +4918,22 @@ impl<H: Host> Replicas<H> {
                         Ok(be_block_client::Appended::Kept { id }) => {
                             Ok(be_sdk_type_api::host::Appended { id, place: None })
                         }
-                        Err(error) => Err(error.to_string()),
+                        Ok(be_block_client::Appended::Refused { id, why, .. }) => {
+                            Err(be_sdk_type_api::host::NotAppended { id: Some(id), why })
+                        }
+                        Err(error) => Err(be_sdk_type_api::host::NotAppended {
+                            id: None,
+                            why: error.to_string(),
+                        }),
                     };
                     (Answered::Append(reply, appended), None)
                 });
+                false
+            }
+            Call::LetGoRefused { reply, id } => {
+                // One the device could not let go of shows again when the block opens again.
+                let _ = peer.let_go_refused(block, id);
+                self.acknowledge(module, reply);
                 false
             }
             Call::ReadLog { reply, from, limit } => {
@@ -4912,6 +4950,7 @@ impl<H: Host> Replicas<H> {
                                 .into_iter()
                                 .map(|(id, payload)| be_sdk_type_api::KeptEntry { id, payload })
                                 .collect(),
+                            refused: refused_entries(&peer, block),
                         })
                     }
                     .await
