@@ -201,6 +201,24 @@ const SCHEMA: &str = "
     CREATE INDEX links_invitations
         ON links (invite_organization, invite_created);
 
+    -- Share links (guides/blocks/keys.md, Share links), by the id their code derives: whom
+    -- each admits, the key its record in the block's log names, and what it hands its opener,
+    -- sealed with the code. Revoking one deletes it.
+    CREATE TABLE share_links (
+        id              TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        block_id        TEXT NOT NULL,
+        maker_id        TEXT NOT NULL,
+        access          TEXT NOT NULL,
+        admits          TEXT NOT NULL,
+        link_key        BLOB NOT NULL,
+        sealed          BLOB NOT NULL,
+        created         INTEGER NOT NULL
+    );
+
+    CREATE INDEX share_links_block
+        ON share_links (organization_id, block_id);
+
     CREATE TABLE contacts (
         account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
         contact_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,

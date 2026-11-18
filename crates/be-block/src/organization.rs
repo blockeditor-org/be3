@@ -65,6 +65,20 @@ pub enum WhoMay {
     Administrators,
 }
 
+/// Who a share link on the organization's blocks may admit (guides/blocks/keys.md, "Share
+/// links"): the most its maker may choose.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub enum LinkSharing {
+    /// Its members alone.
+    #[default]
+    Members,
+    /// Any account on the server, which joins as a guest; only while the organization shares
+    /// outside it.
+    Anyone,
+    /// No one: no share link is made or opened.
+    Off,
+}
+
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct OrganizationPolicies {
     pub outside_sharing: Option<Allowance>,
@@ -72,11 +86,26 @@ pub struct OrganizationPolicies {
     pub history_days: Option<u32>,
     /// Bytes of encrypted objects the server keeps for the organization.
     pub storage_quota: Option<u64>,
+    /// Who share links may admit.
+    pub link_sharing: Option<LinkSharing>,
 }
 
 impl OrganizationPolicies {
     pub fn shares_outside(&self) -> bool {
         self.outside_sharing.unwrap_or_default() == Allowance::Allowed
+    }
+
+    /// Who share links may admit as the policies stand: no one from outside where nothing is
+    /// shared outside.
+    pub fn link_sharing(&self) -> LinkSharing {
+        match self.link_sharing.unwrap_or_default() {
+            LinkSharing::Anyone if !self.shares_outside() => LinkSharing::Members,
+            other => other,
+        }
+    }
+
+    pub fn set_link_sharing(value: Option<LinkSharing>) -> Edit {
+        Self::LINK_SHARING.set(ObjectId::ROOT, &value).into()
     }
 
     pub fn workspace_creation(&self) -> WhoMay {
@@ -122,6 +151,7 @@ impl Layered for OrganizationPolicies {
             workspace_creation: self.workspace_creation.or(lower.workspace_creation),
             history_days: self.history_days.or(lower.history_days),
             storage_quota: self.storage_quota.or(lower.storage_quota),
+            link_sharing: self.link_sharing.or(lower.link_sharing),
         }
     }
 }

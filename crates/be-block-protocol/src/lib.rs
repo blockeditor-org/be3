@@ -46,6 +46,9 @@ be_wasm_ops_bindgen::generate!({
         "member-record",
         "delete-agent",
         "delete-link",
+        "create-share-link",
+        "open-share-link",
+        "revoke-share-link",
         "rotation",
         "new-escrow",
         "hold-objects",
@@ -301,6 +304,7 @@ impl OrganizationRole {
         match self {
             Self::Administrator => "Administrator",
             Self::Editor => "Editor",
+            Self::Guest => "Guest",
         }
     }
 }

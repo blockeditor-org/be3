@@ -95,7 +95,9 @@ pub(crate) fn query_rule(query: &Query) -> Rule {
         | Query::Storage
         | Query::Mailbox
         | Query::Link(_)
+        | Query::ShareLink(_)
         | Query::ServerInfo => Rule::Account,
+        Query::ShareLinks(of) => block(*of, Access::Manage),
         // A bearer read of an invitation, before its holder signs in (a one-shot call).
         Query::Invitation(_) => Rule::OneShot,
         Query::Session { block: of, .. } => block(*of, Access::View),
@@ -141,13 +143,39 @@ pub(crate) fn op_rule(op: &Op) -> Rule {
         | Op::CreateOrganization { .. }
         | Op::AcceptLink { .. }
         | Op::DeleteLink { .. }
+        | Op::OpenShareLink { .. }
         | Op::DeleteMessage(_)
         | Op::RevokeToken(_) => Rule::Account,
+        Op::CreateShareLink { block: of, .. } => block(*of, Access::Manage),
+        // Its block is the link's, which the server reads from the link.
+        Op::RevokeShareLink { .. } => Rule::Member,
         // With an organization, the revocations of the grants in it go with the removal.
         Op::RemoveContact { .. } => Rule::Anywhere,
         // In the personal organization, the account's block's new epoch goes with it.
         Op::SetRecoveryKey { .. } => Rule::Anywhere,
         Op::SetMute { block: of, .. } => block(*of, Access::View),
+    }
+}
+
+/// Whether a guest of the organization (guides/blocks/keys.md, "Share links") may make `op`:
+/// it works in what links shared with it, and leaves, but makes no blocks, agents or links, and
+/// grants nothing, so nothing it made outlives it.
+fn guest_may_write(op: &Op, account: Uuid) -> bool {
+    match op {
+        Op::CreateBlock { .. }
+        | Op::CreateAgent { .. }
+        | Op::RotateAgentToken(_)
+        | Op::DeleteAgent { .. }
+        | Op::CreateShareLink { .. }
+        | Op::RevokeShareLink { .. }
+        | Op::Move { .. } => false,
+        Op::AppendLog(LogRecord::Grant {
+            account: granted,
+            access,
+            ..
+        }) => *granted == account && *access == Access::None,
+        Op::AppendLog(_) => false,
+        _ => true,
     }
 }
 
@@ -208,6 +236,8 @@ pub(crate) fn bound_may_read(query: &Query, follow: bool) -> bool {
         | Query::Storage
         | Query::Link(_)
         | Query::Invitation(_)
+        | Query::ShareLink(_)
+        | Query::ShareLinks(_)
         | Query::Mutes => false,
     }
 }
@@ -238,6 +268,9 @@ pub(crate) fn bound_may_write(op: &Op, root: Uuid) -> bool {
         | Op::CreateLink { .. }
         | Op::AcceptLink { .. }
         | Op::DeleteLink { .. }
+        | Op::CreateShareLink { .. }
+        | Op::OpenShareLink { .. }
+        | Op::RevokeShareLink { .. }
         | Op::RemoveContact { .. }
         | Op::SetRecoveryKey { .. }
         | Op::SetPushEndpoint(_)
@@ -1365,6 +1398,12 @@ impl Client {
             }
             Query::Mailbox => Page::Mailbox(store.mailbox(admitted.account()?).await?),
             Query::Link(link) => Page::Link(store.link(admitted.account()?, link).await?),
+            Query::ShareLink(link) => {
+                Page::ShareLink(store.share_link(admitted.account()?, link).await?)
+            }
+            Query::ShareLinks(block) => {
+                Page::ShareLinks(store.share_links(admitted.identity()?, block).await?)
+            }
             Query::Invitation(link) => Page::Invitation(store.read_invitation(link).await?),
             Query::DownloadUrls(hashes) => {
                 let identity = admitted.identity()?;
@@ -1523,6 +1562,15 @@ impl Client {
             .bound
             .is_none_or(|(_, root)| bound_may_write(&op, root));
         let admitted = self.admit(organization, op_rule(&op), bound).await?;
+        if let Some(identity) = admitted.identity
+            && identity.role == be_block_protocol::OrganizationRole::Guest
+            && !guest_may_write(&op, identity.account)
+        {
+            return Err(ServerError::Refused(
+                ErrorCode::PermissionDenied,
+                "a guest of this organization holds only what links shared with it: it makes no blocks and grants nothing".into(),
+            ));
+        }
         let connection = &mut self.connection;
         match op {
             Op::CreateBlock {
@@ -2053,6 +2101,78 @@ impl Client {
                     .await;
                 Ok(Done::Nothing)
             }
+            Op::CreateShareLink {
+                link,
+                block,
+                sealed,
+                signed,
+            } => {
+                connection
+                    .store
+                    .create_share_link(admitted.identity()?, link, block, sealed, signed)
+                    .await?;
+                Ok(Done::Nothing)
+            }
+            Op::OpenShareLink {
+                link,
+                signed,
+                key,
+                sealed,
+            } => {
+                let account = admitted.account()?;
+                let opened = connection
+                    .store
+                    .open_share_link(account, link, signed, key, sealed)
+                    .await?;
+                // As any grant: the block's audience hears it, and its editors' key work
+                // lists any scope key newer than the link's as unsealed to the opener.
+                connection
+                    .after(After::Revoked {
+                        revoked: vec![contacts::Granted {
+                            organization: opened.organization,
+                            block: opened.block,
+                            before: opened.before,
+                        }],
+                        accounts: vec![account],
+                    })
+                    .await;
+                connection
+                    .after(After::Recheck {
+                        organization: opened.organization,
+                        account: None,
+                        within: Some(opened.block),
+                    })
+                    .await;
+                Ok(Done::Nothing)
+            }
+            Op::RevokeShareLink { link, signed } => {
+                let identity = admitted.identity()?;
+                let (block, revoked) = connection
+                    .store
+                    .revoke_share_link(identity, link, signed)
+                    .await?;
+                if !revoked.fallen.is_empty() {
+                    connection
+                        .after(After::Revoked {
+                            revoked: vec![contacts::Granted {
+                                organization: identity.organization,
+                                block,
+                                before: revoked.before,
+                            }],
+                            accounts: revoked.fallen,
+                        })
+                        .await;
+                }
+                for account in revoked.left {
+                    connection
+                        .after(After::DropMember {
+                            organization: identity.organization,
+                            account,
+                        })
+                        .await;
+                }
+                Ok(Done::Nothing)
+            }
             Op::DeleteLink { link, signed } => {
                 connection
                     .store
@@ -2395,7 +2515,8 @@ impl Connection {
                     be_block_protocol::OrganizationRole::Administrator => {
                         self.key_work_changed(organization, BTreeSet::new()).await;
                     }
-                    be_block_protocol::OrganizationRole::Editor => {
+                    be_block_protocol::OrganizationRole::Editor
+                    | be_block_protocol::OrganizationRole::Guest => {
                         self.hub
                             .announce(organization, Push::KeyWorkChanged { organization })
                             .await;
