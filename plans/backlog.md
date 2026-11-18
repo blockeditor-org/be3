@@ -44,17 +44,6 @@ Fixed items are removed as they land.
   placement with its app's clear colour (the next entry), which makes the gap the app's
   background rather than the host's.
 
-- **An app view's backdrop beyond its last placement.** While a view grows before its app
-  reports the new size, the part beyond its last placement shows what is behind the view (its
-  placer's backdrop or the host's surface), not the app's clear colour, because `Backdrop` in
-  `app_view.rs` fills the placement's rect. Filling the laid box with a styled `Frame` instead
-  made `typing_right_after_adding_notes_reaches_the_notes` lose the typed text every time, even
-  with a transparent `Frame`. Suspect: `take_keyboard` reads its catcher `NodeRef` untracked, so
-  a view that wants the keyboard before the catcher exists loses it until `wants` changes, and
-  an extra node changes when that happens; moving `take_keyboard` after the view is built did
-  not fix it, so the cause is still open. Done when the backdrop fills the laid box, that test
-  passes, and the keyboard loss has a test of its own.
-
 - **A live resize on macOS.** `CAMetalLayer`'s default `contentsGravity` (resize) may stretch
   the last frame while a window is resized live, before beui draws the new size. Check it, and
   set it to top left if so, as X11 keeps the last frame at the corner (beui-platform-winit's

@@ -136,8 +136,9 @@ view they were typed into. It moves pending → given → ready → done, and
   and takes it with `be_host_runtime::take_gift`).
 - Given: the child's view took the keyboard. It has to be seen with it by the
   next host pass, or it lost it before it saw it and the gift ends, so keys
-  are never replayed into a view focused much later. Keys typed into it queue
-  behind the held ones.
+  are never replayed into a view focused much later. Until then an input it
+  hears without the keyboard (a resting pointer's move sent as it was laid out)
+  ends nothing. Keys typed into it queue behind the held ones.
 - Ready: a text field in it has the keyboard (its view asks for an input
   method in a frame its app answered after the focus, so an input method left
   from before does not count), or, for a child with none, its app drew two
