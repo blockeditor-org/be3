@@ -60,7 +60,7 @@ fn manifest_validation() {
     assert_eq!(root.validate(), Ok(()));
     let mut invalid = manifest.clone();
     invalid.root = true;
-    assert_eq!(invalid.validate(), Err(ManifestError::RootWithEditors));
+    assert_eq!(invalid.validate(), Err(ManifestError::RootWithComponents));
 
     let mut invalid = manifest.clone();
     invalid.editors.push(editor.clone());

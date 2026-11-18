@@ -16,5 +16,9 @@ be-tool-drive = { path = "../be-tool-drive" }
 beui-layer-drive = { path = "../beui-layer-drive" }
 beui-paint-snapshot = { path = "../beui-paint-snapshot" }
 
+[dev-dependencies]
+# The root its root test runs, for where it places the triangle's screen.
+be-sdk-root-testing = { path = "../be-sdk-root-testing" }
+
 [lints]
 workspace = true

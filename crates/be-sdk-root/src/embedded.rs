@@ -20,7 +20,7 @@ use be_sdk_api::{
 };
 use be_sdk_app_host::{
     calls::{AppCall, Heard, Outbound},
-    pacing::{Ask, Asking, FRAME_TIMEOUT},
+    pacing::{Ask, Asking, FRAME_TIMEOUT, Pacing},
     run::Run,
     session::{Session, SessionFailure, SessionState},
     wire::Wire,
@@ -201,27 +201,19 @@ impl Embedded {
         .await;
     }
 
-    /// The frame clock's time the app wants its next frame drawn for, as of the last frame: at
-    /// once while a frame it needs has not been asked for or it animates, its frame in flight's
-    /// timeout while it starts or draws (its hello or present wakes the root first), or when it
-    /// said to draw again. None once it wants nothing, or stopped.
-    pub fn next_frame(&self) -> Option<Duration> {
+    /// The frame clock's time the app wants its next frame drawn for, and whether it owes the
+    /// root something now (`Wants`), as of the last frame. None and nothing once it stopped.
+    pub fn wants(&self) -> Wants {
         let state = self.state.borrow();
         if state.failure.is_some() {
-            return None;
+            return Wants::default();
         }
-        let now = state.now;
-        if !state.run.session.running() {
-            return Some(now + FRAME_TIMEOUT);
-        }
-        let pacing = &state.run.pacing;
-        if (pacing.drawing() && !pacing.in_flight()) || pacing.animating() {
-            return Some(now);
-        }
-        let drawing = state.run.session.granted_surface().is_some();
-        pacing
-            .wake_after(now, drawing)
-            .map(|after| now.saturating_add(after))
+        wants(
+            state.run.session.state(),
+            state.run.session.granted_surface().is_some(),
+            &state.run.pacing,
+            state.now,
+        )
     }
 
     /// The layer showing `screen` with its top left at `origin` in its window's points, once
@@ -274,6 +266,53 @@ impl Embedded {
             .send_for_frame(vec![AppCall::Input(batch).into()], Some);
         state.wire.send(send);
         state.flush();
+    }
+}
+
+/// What an app wants of the frames its root draws (`Embedded::wants`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Wants {
+    /// The frame clock's time it wants its next frame drawn for: while it starts or shuts down,
+    /// by its frame's timeout (its hello or its going wakes the root first); once it runs and
+    /// draws, at once while a frame it needs has not been asked for or it animates, by the
+    /// timeout while one is in flight, or when it said to draw again. None for an app with no
+    /// surface, which is never asked for a frame, or one that closed.
+    pub next: Option<Duration>,
+    /// Whether it owes the root something now: it is starting or shutting down, or draws and has
+    /// a frame due or in flight. A frame it wants only later, or for an animation, is not owed,
+    /// so a host waiting for its root to settle does not wait for it.
+    pub owed: bool,
+}
+
+/// What an app in `session` wants at the frame clock's `now`, `drawing` when it was granted a
+/// surface, as its `pacing` says.
+pub(crate) fn wants(
+    session: &SessionState,
+    drawing: bool,
+    pacing: &Pacing,
+    now: Duration,
+) -> Wants {
+    match session {
+        SessionState::Idle | SessionState::Starting | SessionState::ShuttingDown => Wants {
+            next: Some(now.saturating_add(FRAME_TIMEOUT)),
+            owed: true,
+        },
+        SessionState::Closed | SessionState::Failed(_) => Wants::default(),
+        // Only an app with a surface is ever asked for a frame (`State::ask`).
+        SessionState::Running if !drawing => Wants::default(),
+        SessionState::Running => {
+            let due = pacing.drawing() && !pacing.in_flight();
+            let next = match due || pacing.animating() {
+                true => Some(now),
+                false => pacing
+                    .wake_after(now, drawing)
+                    .map(|after| now.saturating_add(after)),
+            };
+            Wants {
+                next,
+                owed: pacing.drawing(),
+            }
+        }
     }
 }
 
@@ -505,3 +544,6 @@ fn screen_layer(instance: u64, screen: ScreenId) -> LayerId {
 fn millis(now: Duration) -> u64 {
     u64::try_from(now.as_millis()).unwrap_or(u64::MAX)
 }
+
+#[cfg(test)]
+mod tests;

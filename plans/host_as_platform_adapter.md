@@ -711,31 +711,53 @@ Each step lands on its own.
          serves it no sandbox).
        - 4e5c. Built: be-host's run option that starts a staged root module in place of its
          own UI, `--root=APP` (`crates/be-host/src/root.rs`), on be-host's startup path and
-         window (`beui_host_window::run_with`, as its own UI runs) but with none of the host's
-         core: no data directory, block stack or workspace. `APP` is a staged app whose
+         window (`beui_host_window::run_with`, as its own UI runs). `APP` is a staged app whose
          manifest says `"root": true` (`AppManifest::root`: no editors, block types or host
-         components), whose entry point loads as a pure guest and starts as `Root` on the
-         window's device, spawning the apps it embeds as be-host finds every app
-         (`staged_app`). Each host frame hands it what beui's input catcher over the whole
-         window got since the last, replayed as the platform's `Input`s (`Replay`) and
-         encoded (`Root::input`), asks it for a frame, and draws each `Surface::Screen` or
-         `Anchored` of its list from the texture `Root::surface` resolves, with
-         `compose::quad` in a drawing filling the window; the root's own surfaces are the
-         window's plain background. The host draws on demand: `frame-done` gained `next`, the
-         frame clock's time the root wants its next frame for (none while it wants none),
-         which be-sdk-root answers from its apps' pacing (`Embedding::next_frame`), and
-         `Root::on_wake` tells the host whenever the root's bell rings between frames, so what
-         a child sends is stepped at once; be-host is busy while the root wants a frame, so
-         drive settles once it does not. The host test
-         `a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds` stages
+         components; decisions/a_root_is_a_staged_app_flagged_root.md), whose entry point
+         loads as a pure guest and starts as `Root` on the window's device, spawning the apps
+         it embeds as be-host finds every app (`staged_app`). Each host frame hands it what
+         beui's input catcher over the whole window got since the last (focused as it shows,
+         so keys reach it at once), replayed as the platform's `Input`s (`Replay`) and encoded
+         (`Root::input`), asks it for a frame by the deadline be-host's own UI keeps
+         (`FrameClock`, so with drive's clock stopped `STOPPED_CLOCK_FRAME_BUDGET`), and draws
+         each `Surface::Screen` or `Anchored` of its list from the texture `Root::surface`
+         resolves, with `compose::quad` in a drawing filling the window; the root's own
+         surfaces are the window's plain background. A root that fails to start or stops
+         closes the window, and be-host exits saying why.
+         The host draws on demand: `frame-done` gained `next`, the frame clock's time the root
+         wants its next frame for (none while it wants none), and `owed`, whether it owes work
+         now, which be-sdk-root answers from its apps (`Embedding::wants`: an app starting or
+         shutting down owes its hello or its going and wants a frame by `FRAME_TIMEOUT`; one
+         that runs and draws owes a frame due or in flight, wants one at once while one is
+         due or it animates, and otherwise when its pacing says; one with no surface, closed
+         or stopped wants and owes nothing). `Root::on_wake` tells the host whenever the
+         root's bell rings between frames, so what a child sends is stepped at once. be-host
+         asks for the repaints `next` says and is busy only while the root owes something, so
+         drive settles on an animating root as on an animating app.
+         The host test `a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds` stages
          be-sdk-root-testing as a root (an `APPS` entry may name a package's label) with the
          triangle, drawn through lavapipe, and reads the window's pixels (`HostTest::shot`):
          the background where the root drew nothing, and the triangle's colours where its
-         screen lies. Left for later: input still goes through beui's catcher rather than the
-         window's own events (4f); the root's own surfaces are not drawn; a painting of what
-         the root shows (Other moves, Paintings), so the test compares pixels rather than a
-         snapshot; a replaced device stops the root rather than moving it; and no host ships
-         a root.
+         screen lies.
+         `--root` runs none of the host's core: no data directory or its lock against a second
+         be-host, no block stack, workspace or accounts, no screen lock, no OS services
+         (be-host-wayland, be-host-services) and no drive commands beyond beui's own. 4g must
+         bring back under this program what the host keeps (What the host keeps) before it
+         makes the root the default; until then `--root` is refused as a login session
+         (`BEUI_PLATFORM=drm`), which would have no lock screen.
+         Left for later:
+         - Input through beui's catcher and `Replay` loses what beui takes for itself or turns
+           into something else: IME pre-edit and the keyboard's composition (beui's own IME
+           area, not the root's), beui-level shortcuts and its intercepted chords (the
+           inspector, the palette), raw touches and pens beui turns into pointer gestures,
+           hover and presses held outside the window, and every window but the main one.
+           4f routes the window's own events instead.
+         - The root's own surfaces are not drawn.
+         - A painting of what the root shows (Other moves, Paintings), so the test compares
+           pixels rather than a snapshot.
+         - The frame clock measures no composite time (`FrameClock::settle` is never called),
+           so its deadline assumes the default.
+         - A replaced device stops the root rather than moving it, and no host ships a root.
    - 4f. The router over the layer list: the `HitTest` moves from beui's catchers to the last
      committed `WindowLayers`. `AppView`, anchored views, scrims and popups declare each layer's
      `LayerInput` (hit and gesture areas, `captures`, `focuses`, `placer`), the host's UI its

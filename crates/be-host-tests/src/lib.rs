@@ -236,8 +236,8 @@ impl HostTest {
         device: Option<Device>,
     ) -> Self {
         let started = Instant::now();
-        let host =
-            Driven::start(start).unwrap_or_else(|error| panic!("be-host did not start: {error}"));
+        let host = Driven::start(start)
+            .unwrap_or_else(|error| panic!("be-host did not start: {error}{}", log_named(&error)));
         let mut test = Self {
             host: Some(host),
             steps: Vec::new(),
@@ -586,6 +586,22 @@ fn pairing_code(word: &str) -> bool {
 fn missing(error: &str) -> bool {
     error.starts_with("no line of the tree contains")
         || error.starts_with("no node on screen has the test id")
+}
+
+/// The end of the log an error from `Driven::start` names (`see PATH`), which says why the host
+/// stopped before it answered.
+fn log_named(error: &str) -> String {
+    let Some((_, path)) = error.rsplit_once("see ") else {
+        return String::new();
+    };
+    match std::fs::read_to_string(path.trim()) {
+        Ok(log) => {
+            let lines: Vec<&str> = log.lines().collect();
+            let tail = &lines[lines.len().saturating_sub(40)..];
+            format!("\n\nThe end of its log:\n{}", tail.join("\n"))
+        }
+        Err(_) => String::new(),
+    }
 }
 
 fn line(words: &[&str]) -> String {

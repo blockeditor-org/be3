@@ -22,4 +22,8 @@ fn root_runs_a_staged_app_alone() {
         parse(&words("--dev-workspace --root=be3.root-testing"), None, LINUX).is_err(),
         "so is the dev workspace"
     );
+    assert!(
+        parse(&words("--root=be3.root-testing"), Some(DRM), true).is_err(),
+        "a login session needs the lock screen, which a root does not have yet"
+    );
 }

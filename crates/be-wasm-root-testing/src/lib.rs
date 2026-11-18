@@ -207,7 +207,11 @@ impl Frames {
         // The child hears nothing of a window that went: the root draws one window always.
         let _lost = self.windows.borrow_mut().drew(list);
         // Its host draws every frame it is asked for in its tests, so it asks for none.
-        FrameDone { layers, next: None }
+        FrameDone {
+            layers,
+            next: None,
+            owed: false,
+        }
     }
 
     /// Notes where an echoed frame of input routed to the child says the child heard it.

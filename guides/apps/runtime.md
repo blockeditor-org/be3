@@ -145,15 +145,20 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   rendering. The frame goes to the callback `frame` was given, inline if the
   root answered at once. A frame says when the root wants the next
   (`frame-done`'s `next`, in the frame clock's time; none while it wants
-  none), and natively `Root::on_wake` tells the host whenever the bell rings,
-  so a host that draws on demand draws for both. be-host runs a root in place
+  none) and whether it owes work now (`owed`: a child starting, or a frame
+  due or in flight; not an animation or a frame wanted later), and natively
+  `Root::on_wake` tells the host whenever the bell rings, so a host that
+  draws on demand draws for both and counts as busy only while one is owed. be-host runs a root in place
   of its own UI with `--root=APP` (`crates/be-host/src/root.rs`): the staged
   app `APP`, whose manifest says `"root": true`, starts as a pure guest on the
   window's device; each host frame hands it the input beui's catcher over
   the whole window got (replayed as the platform's `Input`s), asks it for a
-  frame and draws each `Surface::Screen` of its list from the texture
-  `Root::surface` resolves, as `compose::quad` places it, with the root's own
-  surfaces the window's plain background. No host ships a root yet; the host
+  frame by the deadline its own UI keeps (`FrameClock`) and draws each
+  `Surface::Screen` of its list from the texture `Root::surface` resolves, as
+  `compose::quad` places it, with the root's own surfaces the window's plain
+  background. It runs none of the host's core (no data directory, block
+  stack, screen lock or OS services), so it is refused as a login session; a
+  root that stops closes the window and be-host exits saying why. No host ships a root yet; the host
   test `a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds` stages
   be-sdk-root-testing as one. Tests also run a root natively in
   be-wasm-root-host's, and in Chromium
@@ -182,10 +187,12 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   last `Embedded` of an app goes (`Embedding::remove`), its instance stops. It
   refuses what it serves no app yet (`Wire::refuse_unserved`: block calls,
   host services, the network, the shell but `tell`), and restarts nothing.
-  `Embedding::next_frame` is when its apps want their next frame (at once
-  while one is needed or animates, by `FRAME_TIMEOUT` while one starts or a
-  frame is in flight, or when an app said), which a root answers as
-  `frame-done`'s `next`. be-sdk-root-testing is a root built on it, which
+  `Embedding::wants` is what its apps want of the root's frames, which a root
+  answers as `frame-done`'s `next` and `owed`: an app starting or shutting
+  down owes its hello or its going and wants a frame by `FRAME_TIMEOUT`; one
+  that runs and draws owes a frame due or in flight, and wants one at once
+  while one is due or it animates, or when its pacing says; one with no
+  surface or that closed wants and owes nothing. be-sdk-root-testing is a root built on it, which
   be-wasm-root-host's tests run with the triangle on a stand-in device, and
   be-host's host test with `--root`.
 - **V8's heap.** No guest may declare garbage-collected types (structs,

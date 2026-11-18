@@ -11,6 +11,15 @@
 //! startup path and window, through beui's runner; only what the window shows comes from the
 //! root. beui still catches the window's input (an `Interactive` over the whole window, replayed
 //! as the platform's `Input`s with `Replay`), until the host routes by the layers itself (4f).
+//!
+//! It runs none of the host's core: no data directory or the lock that keeps a second be-host
+//! off it, no block stack, workspace or accounts, no screen lock, and none of the desktop's OS
+//! services. Step 4g brings back under this program what the host keeps (the plan's What the
+//! host keeps) before it becomes the default; until then `--root` is refused as a login session
+//! (`BEUI_PLATFORM=drm`), which would have no lock screen.
+//!
+//! The root is the app: one that fails to start or stops closes the window, and be-host exits
+//! saying why, as it would on a panic.
 
 use std::{
     cell::RefCell,
@@ -20,6 +29,7 @@ use std::{
 };
 
 use be_lib_layers::{Layer, LayerList, Surface};
+use be_sdk_app_host::pacing::FrameClock;
 use be_wasm_root_api::FrameRequest;
 use be_wasm_root_host::Root;
 use beui::native::texture_quad::{Pipelines, Quad, Quads};
@@ -31,13 +41,15 @@ use beui::{Aim, ForwardedInput, Replay};
 /// The id the window's input catcher has in the accessibility tree, `#root` to drive.
 pub(crate) const CATCHER: &str = "root";
 
-/// How long a frame waits for the root's children when the platform says nothing of when the
-/// display presents next.
-const UNPACED_DEADLINE: Duration = Duration::from_millis(16);
-
-/// Runs `app`'s entry point as the root in a window opened with `options`.
+/// Runs `app`'s entry point as the root in a window opened with `options`, until the window
+/// closes or the root stops, which is an error.
 pub(crate) fn run(app: String, options: beui_host::native::RunOptions) -> Result<(), Box<dyn Error>> {
-    beui_host_window::run_with(options, RootShell::new(app))
+    let stopped: Rc<RefCell<Option<String>>> = Rc::default();
+    beui_host_window::run_with(options, RootShell::new(app, Rc::clone(&stopped)))?;
+    match stopped.take() {
+        Some(why) => Err(why.into()),
+        None => Ok(()),
+    }
 }
 
 struct RootShell {
@@ -50,24 +62,43 @@ struct RootShell {
     replay: Replay,
     root: Option<Root>,
     /// Where the frame clock's time the root is asked for starts.
+    time_origin: Option<Instant>,
+    /// Where the real time the frame deadlines are kept in starts.
     origin: Option<Instant>,
     /// When the root wants its next frame, in its time, as its last frame said.
     next: Option<Duration>,
+    /// Whether the root owes work now, as its last frame said: be-host is busy while it does.
+    owed: bool,
+    /// The deadline each frame waits for the root's children until, as be-host's own UI
+    /// keeps it (`FrameClock`): with drive's clock stopped, a long one, so which frame shows
+    /// what a child drew does not depend on how fast the machine is.
+    clock: FrameClock,
+    /// The host's frames so far.
+    pass: u64,
+    /// The catcher, focused once it is shown, so keys reach the root without a press first.
+    catcher: NodeRef,
+    focused: bool,
+    /// Why the root stopped, once it did, for `run` to exit with.
+    stopped: Rc<RefCell<Option<String>>>,
     /// What the last frame showed, so an unchanged frame keeps its drawing.
     drawn: Vec<(Layer, u64)>,
 }
 
 impl RootShell {
-    fn new(app: String) -> Self {
+    fn new(app: String, stopped: Rc<RefCell<Option<String>>>) -> Self {
         let caught: Rc<RefCell<Vec<ForwardedInput>>> = Rc::default();
         let mut shown = None;
         let catching = Rc::clone(&caught);
+        let mut caught_by = None;
         let document = beui_host::native::build(|| {
             let drawing = create_signal(None::<GpuDrawing>);
             shown = Some(drawing);
+            let catcher = NodeRef::new();
+            caught_by = Some(catcher);
             view! {
                 <beui::styled::Root title="be-host">
                     <Interactive
+                        @node_ref=&catcher
                         focusable=true
                         @test_id={CATCHER}
                         on_forward={move |input: ForwardedInput| catching.borrow_mut().push(input)}
@@ -84,17 +115,28 @@ impl RootShell {
             caught,
             replay: Replay::default(),
             root: None,
+            time_origin: None,
             origin: None,
             next: None,
+            owed: false,
+            clock: FrameClock::default(),
+            pass: 0,
+            catcher: caught_by.expect("the catcher's ref is made while the document is built"),
+            focused: false,
+            stopped,
             drawn: Vec::new(),
         }
     }
 
-    /// Says why the root stopped, which then draws nothing again.
+    /// The root stopped, or never started, for `why`: it draws nothing again, and be-host exits
+    /// saying so once the window closes, which it asks for at the end of the frame.
     fn stopped(&mut self, why: &str) {
-        eprintln!("be-host: the root {} stopped: {why}", self.app);
+        let why = format!("the root {} stopped: {why}", self.app);
+        eprintln!("be-host: {why}");
+        self.stopped.borrow_mut().get_or_insert(why);
         self.root = None;
         self.next = None;
+        self.owed = false;
     }
 
     /// Hands the root the input caught since the last frame, in the window's points.
@@ -121,11 +163,18 @@ impl RootShell {
         let Some(root) = &mut self.root else {
             return;
         };
-        let now = Instant::now();
-        let deadline = context
-            .next_present()
-            .filter(|at| *at > now)
-            .unwrap_or(now + UNPACED_DEADLINE);
+        let origin = *self.origin.get_or_insert_with(Instant::now);
+        let since = |at: Instant| at.saturating_duration_since(origin);
+        self.clock.begin_frame(
+            context.next_present().map(since),
+            context.refresh_interval(),
+            context.last_prepared().map(since),
+        );
+        self.pass += 1;
+        let deadline = origin
+            + self
+                .clock
+                .deadline(self.pass, context.clock_stopped(), since(Instant::now()));
         let request = FrameRequest {
             time: nanos(time),
         };
@@ -134,6 +183,7 @@ impl RootShell {
             Err(why) => return self.stopped(&why),
         };
         self.next = done.next.map(Duration::from_nanos);
+        self.owed = done.owed;
         let list = match LayerList::decode(&done.layers) {
             Ok(list) => list,
             Err(why) => return self.stopped(&format!("its layer list cannot be read: {why}")),
@@ -184,7 +234,7 @@ impl beui::native::Program for RootShell {
     fn setup(&mut self, setup: &beui::native::Setup) {
         match start(&self.app, setup) {
             Ok(root) => self.root = Some(root),
-            Err(why) => eprintln!("be-host: the root {} did not start: {why}", self.app),
+            Err(why) => self.stopped(&format!("it did not start: {why}")),
         }
     }
 
@@ -196,11 +246,23 @@ impl beui::native::Program for RootShell {
     }
 
     fn update(&mut self, context: &beui::native::Context, rect: beui::Rect) {
+        // The frame clock's time, which stands still while drive's clock is stopped.
         let now = context.now();
-        let time = now.saturating_duration_since(*self.origin.get_or_insert(now));
+        let time = now.saturating_duration_since(*self.time_origin.get_or_insert(now));
         self.deliver_input();
         self.frame(context, time);
         self.document.show(context, rect);
+        if self.stopped.borrow().is_some() {
+            context.close_window();
+            return;
+        }
+        if !self.focused {
+            let catcher = self.catcher;
+            self.focused = beui::native::enter(&mut self.document, || {
+                catcher.try_get().map(|catcher| catcher.focus()).is_some()
+            });
+            context.request_repaint();
+        }
         // What the window caught this frame reaches the root with the next.
         if !self.caught.borrow().is_empty() {
             context.request_repaint();
@@ -212,10 +274,12 @@ impl beui::native::Program for RootShell {
         }
     }
 
+    /// Only what the root owes now: a frame it wants later, or for an animation, is the repaint
+    /// it asked for, which drive tells apart itself.
     fn busy(&self) -> Vec<String> {
-        match self.next {
-            Some(_) => vec![format!("the root {} wants another frame", self.app)],
-            None => Vec::new(),
+        match self.owed {
+            true => vec![format!("the root {} owes a frame", self.app)],
+            false => Vec::new(),
         }
     }
 
