@@ -660,7 +660,13 @@ sent) does not tell it again: the replica keeps the hash of the snapshot each ed
 until operations change what it shows, and carries it across the reopen, even when the
 editor is attached editable where it was read-only: editability is not in the snapshot, and
 the host tells an app editor that itself (`SetEditable`, guides/blocks/apps.md). A `Resend` is always
-answered. Detaching forgets the count. On the app protocol both directions travel
+answered. A reload other than a replacement (a merge's, a head's, a restart's)
+may rebuild what an editor's edits name: each snapshot carries how many the
+replica took (`Snapshot::reloads`), the mirror answers a new count with
+`FromEditor::Shown`, and an edit an editor sent before it said so, made on what
+it showed before the reload, goes as what it visibly did there
+(`LiveEdit::carry_over`) when it would otherwise apply as nothing; so do the
+replica's edits not yet submitted (`carry_unsent`). Detaching forgets the count. On the app protocol both directions travel
 through the editor's `replica` resource (guides/blocks/apps.md, Content on the app protocol); `editor::EditorMirror` is the editor's side,
 which `ContentProjection` is built on. Undo and redo are host `change`s, not
 editor messages, since a shortcut may undo a block no editor shows.
