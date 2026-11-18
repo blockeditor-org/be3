@@ -92,9 +92,9 @@ letting go), and `drop_target`/`switch_to_state_and_follow` handle what is not r
    gets the board's floating, Escape, edge scrolling, presence and inspector, and the board tells
    the site again as the drop changes under the pointer.
 
-Continuous drags (sliders, scrollbars, splitters, the colour area) move onto it in step 8, and
-only if they are as good there; the dock's splitters have, and the rest keep `on_drag` until then. Panning moves
-the camera, not an item, and stays outside the board.
+Continuous drags (sliders, scrollbars, splitters, the colour area and wheel) moved onto it in step 8,
+each as good there as on `on_drag` and with Escape besides. Panning moves the camera, not an item, and
+stays outside the board.
 
 ## Shape
 
@@ -413,7 +413,7 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
    planned. The canvas still carries one move: its `drag` declines a second while its gesture is
    a carried move, and several carries joining its one hold (counting the carries in it, each
    with its own `Gesture::Move`) waits for a need.
-8. **Continuous drags.** Sliders, scrollbars, splitters and the colour area as `free` along an axis,
+8. **Continuous drags (done).** Sliders, scrollbars, splitters and the colour area as `free` along an axis,
    quantised, each moved only if it is as good as today. The board can now do what they need:
    - **Lifting at the press (done).** `Interactive`'s `lifts_on_press` lifts the carry at a
      mouse's or pen's press, so the item follows the pointer from its first point; a finger
@@ -436,11 +436,24 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      would drop it); and the start, the kept flag and the effect that writes the start back on
      a put-down (a site handle that tells a drop from a put-down, which every site that
      previews by writing needs: the canvas tracks the same through its hold).
-   - **Next: sliders, the colour area and wheel, then the scrollbar's thumb**, in that order,
-     each replacing its `on_drag` and `ValueDrag` reporting only if it keeps its keys (Home,
-     End, Page Up and Down) and `Cancelled`. Owners that preview by writing need the drop's
-     commit to write its place: an effect on `over` may not see the last place when a press,
-     move and release fall in one frame (the splitter does both).
+   - **Sliders, the colour area and wheel, and the scrollbar's thumb (done).** Each is a
+     `ThumbCarry` (unstyled `value_drag.rs`), which owns the whole of a value control's drag:
+     a press `begin`s it (`Started` and the start recorded, before a jump writes), the thumb
+     is lifted at a mouse's press (a finger's past the threshold) as a `free(own node)`,
+     unbounded, place at the pointer, so the control reads it as the press moved there and
+     writes the value from an effect on `over`; the drop writes its place and is `Kept`; a
+     put-down (Escape, a cancelled press) writes back the start and is `Cancelled`; a press
+     that lifts nothing ends at `on_active_change(false)`. Its area is the control's own node,
+     which never moves under its thumb, so a place needs no offset found in an area (the
+     splitter's `home`), and the put-down is told by the carry ending undropped. They keep their
+     keys: `Interactive`'s new `lifts_by_keys=false` lifts nothing from the keyboard, offers no
+     Move in the palette and builds no live region, as the control's own keys and value say
+     everything. A scrollbar's press on its track still pages; its thumb gained Escape (back
+     to the offset at the press). Lines: `Slider` 263 to 243, `ColorArea` 219 to 201,
+     `ColorWheel` 404 to 386, `Scrollbar` 211 to 225 (Escape and its start are new), and
+     `ThumbCarry` 185, which took the controls' begin, cancel and report code. On the HTML
+     core the wheel's round `border-radius` moved from its `Interactive` to the face inside
+     it, so a press in the corners of its box reaches it there, as it already did natively.
    - **What stays outside:** the number input's scrub turns the distance moved into a value,
      with no track for a thumb to rest in, and its press that never moves edits the number; the bottom sheet's height and its content's scroll are one travel
      under the finger, choosing a detent only where it lets go (step 5); a scrollbar's press on

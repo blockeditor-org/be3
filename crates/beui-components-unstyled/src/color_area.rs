@@ -8,7 +8,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
-use crate::value_drag::{DragReport, ValueDrag};
+use crate::value_drag::{ThumbCarry, ValueDrag};
 use beui_view::types::Hsva;
 use beui_view::types::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_view::types::{Pos2, Vec2, pos2};
@@ -43,7 +43,6 @@ pub fn ColorArea(
     on_drag_change: Callback<ValueDrag>,
 ) -> NodeId {
     let color = value;
-    let dragging = create_signal(false);
     let hovered = create_signal(false);
     let has_focus = create_signal(false);
     let disabled = create_memo(move || disabled.get());
@@ -87,34 +86,6 @@ pub fn ColorArea(
     };
     let grab = Rc::new(Cell::new(Vec2::ZERO));
     let (press_grab, press_color) = (grab.clone(), color);
-    // A drag is reported before its first write, and a cancelled one writes back where it
-    // started.
-    let report = DragReport::new(on_drag_change);
-    let started_at = StoredCell::new(color.get_untracked());
-    let begin = move || {
-        if disabled.get_untracked() {
-            return;
-        }
-        if report.start() {
-            started_at.set(color.get_untracked());
-        }
-        dragging.set(true);
-    };
-    let cancelled = move || {
-        if report.dragging() {
-            let start = started_at.get();
-            color.set(start);
-        }
-        dragging.set(false);
-        report.end(false);
-    };
-    let grabbed = move |press: PointerPress| {
-        begin();
-        let color = press_color.get_untracked();
-        let offset = thumb_centre(press.size, color) - press.local;
-        let on_thumb = thumb > 0.0 && offset.length() <= thumb / 2.0;
-        press_grab.set(if on_thumb { offset } else { Vec2::ZERO });
-    };
     let dragged_to = move |press: PointerPress| {
         let size = press.size;
         let target = press.local + grab.get();
@@ -125,6 +96,23 @@ pub fn ColorArea(
             ),
             false => (press.fraction.x, press.fraction.y),
         }
+    };
+    let carry = ThumbCarry::new(
+        on_drag_change,
+        move || disabled.get_untracked(),
+        (move || color.get_untracked(), move |start| color.set(start)),
+        move |press: PointerPress| {
+            let (x, y) = dragged_to(press);
+            set(x, 1.0 - y)
+        },
+    );
+    let dragging = carry.dragging();
+    let grabbed = move |press: PointerPress| {
+        carry.begin();
+        let color = press_color.get_untracked();
+        let offset = thumb_centre(press.size, color) - press.local;
+        let on_thumb = thumb > 0.0 && offset.length() <= thumb / 2.0;
+        press_grab.set(if on_thumb { offset } else { Vec2::ZERO });
     };
     let pointer = create_signal(None::<PointerPress>);
     let cursor = create_memo(move || {
@@ -145,7 +133,7 @@ pub fn ColorArea(
         color,
         x,
         y,
-        dragging: dragging.read_only(),
+        dragging,
         hovered: hovered.read_only(),
         focused: has_focus.read_only(),
         disabled,
@@ -188,18 +176,12 @@ pub fn ColorArea(
             on_hover_change={hovered}
             on_hover_move={move |press: PointerPress| pointer.set(Some(press))}
             on_press={grabbed}
-            on_drag={move |press: PointerPress| {
-                let (x, y) = dragged_to(press);
-                set(x, 1.0 - y)
-            }}
-            on_cancel={cancelled}
-            on_active_change={move |active: bool| match active {
-                true => begin(),
-                false => {
-                    dragging.set(false);
-                    report.end(true);
-                }
-            }}
+            @node_ref={&carry.node}
+            lifts_on_press=true
+            lifts_by_keys=false
+            drag={carry.drag()}
+            on_cancel={move || carry.cancel()}
+            on_active_change={move |active: bool| carry.active(active)}
             children={content_node}
         />
     }

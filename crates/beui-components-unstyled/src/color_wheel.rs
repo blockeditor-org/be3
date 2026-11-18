@@ -7,7 +7,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
-use crate::value_drag::{DragReport, ValueDrag};
+use crate::value_drag::{ThumbCarry, ValueDrag};
 use beui_view::types::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_view::types::{Hsva, Oklch};
 use beui_view::types::{Pos2, Rect, Vec2, vec2};
@@ -208,7 +208,6 @@ pub fn ColorWheel(
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
     let point = value;
-    let dragging = create_signal(false);
     let hovered = create_signal(false);
     let has_focus = create_signal(false);
     let disabled = create_memo(move || disabled.get());
@@ -265,39 +264,6 @@ pub fn ColorWheel(
     };
     let part = StoredCell::new(Part::Triangle);
     let grab = StoredCell::new(Vec2::ZERO);
-    // A drag is reported before its first write, and a cancelled one writes back where it
-    // started.
-    let report = DragReport::new(on_drag_change);
-    let started_at = StoredCell::new(point.get_untracked());
-    let begin = move || {
-        if disabled.get_untracked() {
-            return;
-        }
-        if report.start() {
-            started_at.set(point.get_untracked());
-        }
-        dragging.set(true);
-    };
-    let cancelled = move || {
-        if report.dragging() {
-            let start = started_at.get();
-            point.set(start);
-        }
-        dragging.set(false);
-        report.end(false);
-    };
-    let grabbed = move |press: PointerPress| {
-        begin();
-        let (pressed, offset) = match over_thumb(press) {
-            Some((pressed, centre)) => (pressed, centre - press.local),
-            None => match geometry(press.size).on_ring(press.local) {
-                true => (Part::Ring, Vec2::ZERO),
-                false => (Part::Triangle, Vec2::ZERO),
-            },
-        };
-        part.set(pressed);
-        grab.set(offset);
-    };
     let dragged_to = move |press: PointerPress| {
         let wheel = geometry(press.size);
         let target = press.local + grab.get();
@@ -320,6 +286,25 @@ pub fn ColorWheel(
             },
         }
     };
+    let carry = ThumbCarry::new(
+        on_drag_change,
+        move || disabled.get_untracked(),
+        (move || point.get_untracked(), move |start| point.set(start)),
+        move |press: PointerPress| set(dragged_to(press)),
+    );
+    let dragging = carry.dragging();
+    let grabbed = move |press: PointerPress| {
+        carry.begin();
+        let (pressed, offset) = match over_thumb(press) {
+            Some((pressed, centre)) => (pressed, centre - press.local),
+            None => match geometry(press.size).on_ring(press.local) {
+                true => (Part::Ring, Vec2::ZERO),
+                false => (Part::Triangle, Vec2::ZERO),
+            },
+        };
+        part.set(pressed);
+        grab.set(offset);
+    };
     let pointer = create_signal(None::<PointerPress>);
     let cursor = create_memo(move || {
         if dragging.get() {
@@ -337,7 +322,7 @@ pub fn ColorWheel(
     });
     let content_node = content.call(ColorWheelHandle {
         point,
-        dragging: dragging.read_only(),
+        dragging,
         hovered: hovered.read_only(),
         focused: has_focus.read_only(),
         disabled,
@@ -380,15 +365,12 @@ pub fn ColorWheel(
             on_hover_change={hovered}
             on_hover_move={move |press: PointerPress| pointer.set(Some(press))}
             on_press={grabbed}
-            on_drag={move |press: PointerPress| set(dragged_to(press))}
-            on_cancel={cancelled}
-            on_active_change={move |active: bool| match active {
-                true => begin(),
-                false => {
-                    dragging.set(false);
-                    report.end(true);
-                }
-            }}
+            @node_ref={&carry.node}
+            lifts_on_press=true
+            lifts_by_keys=false
+            drag={carry.drag()}
+            on_cancel={move || carry.cancel()}
+            on_active_change={move |active: bool| carry.active(active)}
             children={content_node}
         />
     }
