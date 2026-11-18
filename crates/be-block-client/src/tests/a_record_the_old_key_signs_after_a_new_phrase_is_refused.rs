@@ -49,8 +49,8 @@ async fn a_record_the_old_key_signs_after_a_new_phrase_is_refused() {
     let organization_log = laptop.organization_log().await.unwrap();
     assert_eq!(
         organization_log.len(),
-        3,
-        "the root, the member signed in, the retirement"
+        4,
+        "the root, the invitation, the member it signed in, the retirement"
     );
 
     // Whoever holds the old phrase retires the account again, to keys of their own.
@@ -70,7 +70,7 @@ async fn a_record_the_old_key_signs_after_a_new_phrase_is_refused() {
             rusqlite::params![organization.to_string(), team.to_string(), again.encode()],
         )
         .unwrap();
-    let head = organization_log[2].hash();
+    let head = organization_log[3].hash();
     let again = Entry::retirement(
         &old,
         &thief,
@@ -81,7 +81,7 @@ async fn a_record_the_old_key_signs_after_a_new_phrase_is_refused() {
     database
         .execute(
             "INSERT INTO organization_log (organization_id, position, entry)
-             VALUES (?1, 3, ?2)",
+             VALUES (?1, 4, ?2)",
             rusqlite::params![organization.to_string(), again.encode()],
         )
         .unwrap();

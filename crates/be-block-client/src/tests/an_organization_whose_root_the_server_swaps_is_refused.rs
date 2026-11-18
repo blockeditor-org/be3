@@ -21,8 +21,8 @@ async fn an_organization_whose_root_the_server_swaps_is_refused() {
     let made = hashes(owner.organization_log().await.unwrap());
     assert_eq!(
         made.len(),
-        3,
-        "an organization's log is its root, then the members its administrator signed in"
+        5,
+        "an organization's log is its root, then each invitation and the member it signed in"
     );
     assert_eq!(
         hashes(member.organization_log().await.unwrap()),

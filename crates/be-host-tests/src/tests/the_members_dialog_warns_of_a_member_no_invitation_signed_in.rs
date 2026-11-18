@@ -19,7 +19,7 @@ fn the_members_dialog_warns_of_a_member_no_invitation_signed_in() {
     host.click("#file-tree.host-menu");
     host.click("#host.menu.members");
     host.wait("Dialog \"Members\"");
-    host.wait("Text \"No invitation signed them in: the server added them. Remove them unless you know why they are here.\"");
+    host.wait("Label value=\"No invitation signed them in: the server added them. Remove them unless you know why they are here.\"");
     host.crop("Dialog \"Members\"");
     host.snapshot("the_members_dialog_warns_of_a_member_no_invitation_signed_in");
     host.close();
