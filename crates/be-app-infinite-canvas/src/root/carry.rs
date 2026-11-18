@@ -158,9 +158,11 @@ pub(crate) fn use_move_site(state: CanvasState, surface: NodeRef) {
 /// as the world moves under the pointer.
 fn edge_scroll(state: CanvasState, surface: NodeRef) {
     let block = state.block_id();
-    let ours = move || carrying::<CanvasMove>()
+    let ours = move || {
+        carrying::<CanvasMove>()
             .iter()
-            .any(|carried| carried.block == block);
+            .any(|carried| carried.block == block)
+    };
     let board = state.board();
     let speed = StoredCell::new(Vec2::ZERO);
     let ticked = StoredCell::new(now());

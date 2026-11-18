@@ -522,10 +522,11 @@ impl Board {
             (placing.id, left, entered, placing.frame)
         };
         if self.frame_by_untracked(id) != Some(frame) {
-            self.shown.update(|shown| match shown.iter_mut().find(|(at, _)| *at == id) {
-                Some((_, was)) => *was = frame,
-                None => shown.push((id, frame)),
-            });
+            self.shown
+                .update(|shown| match shown.iter_mut().find(|(at, _)| *at == id) {
+                    Some((_, was)) => *was = frame,
+                    None => shown.push((id, frame)),
+                });
         }
         if let Some(left) = left.and_then(|id| self.site_over(id)) {
             left(None);

@@ -753,9 +753,7 @@ pub(super) fn DockHeldSize(dock: State, children: Child) -> NodeId {
     // comes a frame late.
     let measured = create_signal(None::<ReadSignal<Option<Measured>>>);
     // A carried tool bar only opens and closes bands, so the panels beside them resize then.
-    let carrying = create_memo(move || {
-        dock.carried().is_some()
-    });
+    let carrying = create_memo(move || dock.carried().is_some());
     create_effect_on(
         move || carrying.get(),
         move |&carrying, _| {
@@ -798,7 +796,9 @@ pub(super) fn DockGhost(
         if place.surface != Some(surface) {
             return None;
         }
-        let frame = board.frame_of(&dock.carry(dragged)).filter(|frame| !frame.floating)?;
+        let frame = board
+            .frame_of(&dock.carry(dragged))
+            .filter(|frame| !frame.floating)?;
         Some((dragged, frame.item, place))
     });
     // Where it was drawn last, for the glide on release; forgotten once the carry ends, so

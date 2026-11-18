@@ -491,7 +491,11 @@ impl Board {
             self.stop_edge_of(point.pointer);
             return;
         }
-        let scrolling = self.scrolling.borrow().as_ref().map(|(.., pointer)| *pointer);
+        let scrolling = self
+            .scrolling
+            .borrow()
+            .as_ref()
+            .map(|(.., pointer)| *pointer);
         if scrolling.is_some_and(|other| other != point.pointer && self.carried_by(other)) {
             return;
         }
@@ -531,8 +535,7 @@ impl Board {
             }
             (_, Some((id, depth, scroll))) => {
                 self.stop_edge();
-                *self.scrolling.borrow_mut() =
-                    Some((id, depth, Rc::clone(&scroll), point.pointer));
+                *self.scrolling.borrow_mut() = Some((id, depth, Rc::clone(&scroll), point.pointer));
                 scroll(Some(depth));
             }
             (_, None) => self.stop_edge(),

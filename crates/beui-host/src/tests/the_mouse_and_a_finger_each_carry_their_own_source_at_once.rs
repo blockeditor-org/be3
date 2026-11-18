@@ -10,7 +10,9 @@ fn Thumb(name: u32, over: Signal<Vec<(u32, f32)>>, dropped: Signal<Vec<(u32, f32
     let site = use_drop_site(
         Func::new(move |carried: u32| carried == name),
         Func::new(move |_: u32| free(track, |rect: Rect| rect.min.x).unbounded()),
-        Callback::new(move |(_, at): (u32, f32)| dropped.update(|dropped| dropped.push((name, at)))),
+        Callback::new(move |(_, at): (u32, f32)| {
+            dropped.update(|dropped| dropped.push((name, at)))
+        }),
     );
     create_effect(move || {
         if let Some(at) = site.over.get() {

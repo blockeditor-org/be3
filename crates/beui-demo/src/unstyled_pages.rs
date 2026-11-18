@@ -934,9 +934,10 @@ fn PlacesList() -> NodeId {
     );
     let order = create_memo(move || {
         let mut order = fruits.get();
-        if let (Some(fruit), Some(drag::After(after))) =
-            (unstyled::carrying::<usize>().first().copied(), site.over.get())
-        {
+        if let (Some(fruit), Some(drag::After(after))) = (
+            unstyled::carrying::<usize>().first().copied(),
+            site.over.get(),
+        ) {
             drag::move_after(&mut order, fruit, after);
         }
         order

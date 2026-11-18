@@ -48,7 +48,11 @@ fn a_mouse_press_lifts_a_source_that_lifts_on_press_and_a_finger_lifts_past_its_
     );
     harness.up(grab + vec2(1.0, 0.0), PointerButton::Primary);
     harness.settle();
-    assert_eq!(dropped.get_untracked(), Some(pos2(1.0, 0.0)), "it drops there");
+    assert_eq!(
+        dropped.get_untracked(),
+        Some(pos2(1.0, 0.0)),
+        "it drops there"
+    );
     assert_eq!(carried.get_untracked(), None);
 
     let grab = harness.center(harness.find("thumb"));
@@ -57,7 +61,11 @@ fn a_mouse_press_lifts_a_source_that_lifts_on_press_and_a_finger_lifts_past_its_
     assert_eq!(carried.get_untracked(), None, "a finger's press does not");
     harness.touch(TouchPhase::Move, grab + vec2(2.0, 0.0));
     harness.frame(Vec::new());
-    assert_eq!(carried.get_untracked(), None, "nor its move short of the threshold");
+    assert_eq!(
+        carried.get_untracked(),
+        None,
+        "nor its move short of the threshold"
+    );
     harness.touch(TouchPhase::Move, grab + vec2(40.0, 0.0));
     harness.frame(Vec::new());
     assert_eq!(carried.get_untracked(), Some(7), "a drag past it lifts it");

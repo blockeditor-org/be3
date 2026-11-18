@@ -32,9 +32,17 @@ fn each_pointer_carries_its_own_item_and_escape_puts_down_every_one() {
     });
     let order = |_| (Vec::new(), WindowId::MAIN);
 
-    assert!(fixture.board.lift(carry(1_u32), at(pos2(50.0, 50.0))).is_some());
     assert!(
-        fixture.board.lift(carry(3_u32), at(pos2(60.0, 60.0))).is_none(),
+        fixture
+            .board
+            .lift(carry(1_u32), at(pos2(50.0, 50.0)))
+            .is_some()
+    );
+    assert!(
+        fixture
+            .board
+            .lift(carry(3_u32), at(pos2(60.0, 60.0)))
+            .is_none(),
         "a pointer carries one item at a time"
     );
     assert!(
@@ -52,9 +60,18 @@ fn each_pointer_carries_its_own_item_and_escape_puts_down_every_one() {
         vec![(2, "right")],
         "the finger drops only its own"
     );
-    assert_eq!(fixture.carried(), Some(1), "and the mouse's is still carried");
+    assert_eq!(
+        fixture.carried(),
+        Some(1),
+        "and the mouse's is still carried"
+    );
 
-    assert!(fixture.board.lift(carry(2_u32), at(pos2(550.0, 50.0)).by(finger)).is_some());
+    assert!(
+        fixture
+            .board
+            .lift(carry(2_u32), at(pos2(550.0, 50.0)).by(finger))
+            .is_some()
+    );
     assert!(fixture.board.cancel(), "Escape");
     assert_eq!(fixture.carried(), None, "puts down every carry");
     assert_eq!(*dropped.borrow(), vec![(2, "right")], "dropping none");

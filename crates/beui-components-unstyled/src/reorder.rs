@@ -827,7 +827,11 @@ where
     let anchor = create_memo(move || {
         OverlayAnchor::Point(
             previewing
-                .with(|shown| shown.as_ref().and_then(|shown| drag_board().frame_of(shown)))
+                .with(|shown| {
+                    shown
+                        .as_ref()
+                        .and_then(|shown| drag_board().frame_of(shown))
+                })
                 .map_or(Pos2::ZERO, |frame| frame.item.min),
         )
     });
