@@ -385,6 +385,14 @@ interface types {
         mentions: list<account-id>,
     }
 
+    /// What goes with an entry appended to a block's signed log
+    /// (`be_block_content::Along`): the push the server sends once it takes the
+    /// entry, and the place of an entry the new one takes back, redacted then.
+    record along {
+        announcement: option<announcement>,
+        redacts: option<u64>,
+    }
+
     /// Where a journal starts: a commit (none for no content), the last
     /// sequence number it holds and the session state as of it.
     record journal-base {

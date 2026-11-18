@@ -26,7 +26,7 @@ fn what_a_module_appends_reaches_the_server_signed_by_the_host_as_its_apps() {
         let mut mirror =
             attach_mirror::<Ledger>(&peer, &shared, &mut replicas, block, editor).await;
         for said in [&b"hello"[..], b"forged"] {
-            let (_, message) = mirror.append(said.to_vec());
+            let (_, message) = mirror.append(said.to_vec(), be_block_content::Along::default());
             replicas.relay_from_editor(block, editor, message.encode(), std::time::Instant::now());
         }
         let mut answered = Vec::new();

@@ -24,7 +24,7 @@ async fn a_local_accounts_log_is_numbered_on_the_device() {
     let mut seqs = Vec::new();
     for text in ["one", "two", "three"] {
         match peer
-            .append(notes, "test.app", text.as_bytes())
+            .append(notes, "test.app", text.as_bytes(), be_block_content::Along::default())
             .await
             .unwrap()
         {
@@ -51,7 +51,7 @@ async fn a_local_accounts_log_is_numbered_on_the_device() {
             .collect::<Vec<_>>(),
         [&b"one"[..], b"two", b"three"]
     );
-    let four = peer.append(notes, "test.app", b"four").await.unwrap();
+    let four = peer.append(notes, "test.app", b"four", be_block_content::Along::default()).await.unwrap();
     assert!(matches!(four, Appended::Logged { seq: 3, .. }), "{four:?}");
     tree.push(
         peer.read_log(notes, 3, 1).await.unwrap().entries[0]
