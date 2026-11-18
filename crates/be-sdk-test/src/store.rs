@@ -1737,9 +1737,13 @@ impl ContentStore {
         else {
             return 0;
         };
+        let log = inner.blocks.get(&block).map_or(&[][..], |held| &held.log[..]);
+        let latest = &log[log
+            .len()
+            .saturating_sub(be_sdk_beui::be_block_content::UNREAD_ENTRIES as usize)..];
         inner
             .module
-            .unread_of_bytes(content_type, &bytes, &reads, block, inner.account)
+            .unread_of_bytes(content_type, &bytes, &reads, latest, block, inner.account)
             .unwrap_or_default()
     }
 
