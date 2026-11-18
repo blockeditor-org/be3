@@ -196,7 +196,13 @@ carries a consistency proof from the head before it, so a follower holding
 that head takes it with no round trip; the server checks no signature (a
 device not yet told of its account's new phrase signs with the old key, which
 devices judge by arrival); and the Merkle tree is `be_block_keys::merkle`,
-which access logs will use too (plans/access_logs_checked_once.md).
+which access logs will use too (plans/access_logs_checked_once.md). The log
+is not yet "deleted with the block": blocks are never deleted for good, so
+`log::forget` waits for that. The server answers an entry id it holds again
+only for the same author and payload, but an entry the server replays under a
+fresh id the author never made cannot carry the author's signature, while one
+it serves twice under the same id at two places is caught by a device only
+within one page: step 4's fold takes the first occurrence of an id.
 
 1. **Server log.** Built. `block_logs`, `append`, `redact`, `query.log`,
    `topic.log`, the Merkle tree (heads, inclusion and consistency proofs), arrival, quota and limits, rules in
@@ -256,7 +262,7 @@ The user chose option A, and these answers (2026-11-18):
 - **A taken-back reaction** redacts the earlier one, so the log keeps only
   that an entry existed and who wrote it.
 - **Verification cost**: a device verifies each entry it reads on its own,
-  and ties it to the head it holds with an inclusion proof, so a page anywhere
+  and ties it to the head it holds with a range proof, so a page anywhere
   in the log (a million-message chat's first page, from a search hit) costs
   that page plus about 20 hashes; a new head comes with a consistency proof
   from the kept one. No device ever reads a whole log to trust a part of it.

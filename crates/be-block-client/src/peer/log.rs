@@ -44,6 +44,10 @@ pub struct LogRead {
     pub proof_hashes: usize,
 }
 
+/// How many times `read_log` reads a page again because the kept head moved while it was on
+/// its way, before giving up as contended.
+const READS_WHILE_MOVING: usize = 4;
+
 /// The entries one drain sends of a block in one `append`.
 const ENTRIES_PER_SEND: usize = 64;
 /// The sealed bytes of entries one drain sends in one `append`, within the server's
@@ -220,8 +224,10 @@ impl<S: ObjectStore> Peer<S> {
         };
         frontier.push(entry.leaf());
         let (seq, id) = (entry.seq, entry.id);
+        // Settling runs one at a time, so the head is still the one it was read as.
         self.refs.keep_entries(
             block,
+            kept.as_ref(),
             KeptLogHead {
                 size: frontier.size(),
                 root: frontier.root(),
@@ -269,34 +275,45 @@ impl<S: ObjectStore> Peer<S> {
                 proof_hashes: 0,
             });
         }
-        let page = crate::ask(be_block_protocol::ask::<LogPage, _>(
-            &self.connection(),
-            Some(self.organization),
-            be_block_protocol::Query::BlockLog {
+        // Another read or a push may move the kept head while this page is on its way: a page
+        // checked against the head that moved is read again against the one kept now.
+        for _ in 0..READS_WHILE_MOVING {
+            let kept = self.refs.log_head(block);
+            let page = crate::ask(be_block_protocol::ask::<LogPage, _>(
+                &self.connection(),
+                Some(self.organization),
+                be_block_protocol::Query::BlockLog {
+                    block,
+                    from,
+                    limit,
+                    known: kept.as_ref().map(|kept| kept.size),
+                },
+                true,
+            ))
+            .await?;
+            let proof_hashes = page.proof.len() + page.consistency.len();
+            // A page from past the log's end is answered from its end, empty.
+            let from = from.min(page.head.size);
+            let Some(entries) = self.take_entries(
                 block,
+                kept.as_ref(),
                 from,
-                limit,
-                known: kept.as_ref().map(|kept| kept.size),
-            },
-            true,
-        ))
-        .await?;
-        let proof_hashes = page.proof.len() + page.consistency.len();
-        let entries = self.take_entries(
-            block,
-            kept.as_ref(),
-            from,
-            page.head,
-            page.entries,
-            &page.proof,
-            &page.consistency,
-        )?;
-        let entries = self.open_entries(block, entries).await?;
-        Ok(LogRead {
-            head: page.head,
-            entries,
-            proof_hashes,
-        })
+                page.head,
+                page.entries,
+                &page.proof,
+                &page.consistency,
+            )?
+            else {
+                continue;
+            };
+            let entries = self.open_entries(block, entries).await?;
+            return Ok(LogRead {
+                head: page.head,
+                entries,
+                proof_hashes,
+            });
+        }
+        Err(ClientError::Contended)
     }
 
     /// Takes an append the server told of a log this device follows: at once when it extends
@@ -311,28 +328,44 @@ impl<S: ObjectStore> Peer<S> {
         let kept = self.refs.log_head(block);
         let size = kept.as_ref().map_or(0, |kept| kept.size);
         if appended.head.size <= size {
-            // Told late, of what this device read since.
-            return Ok(Vec::new());
+            // Told late, of what this device read since: still, nothing it names may differ
+            // from what this device holds.
+            let forked = kept.as_ref().is_some_and(|kept| {
+                appended.head.size == kept.size && *appended.head.root.as_bytes() != kept.root
+            }) || appended.entries.iter().any(|entry| {
+                self.refs
+                    .log_entry(block, entry.seq)
+                    .is_some_and(|held| held.leaf() != entry.leaf())
+            });
+            return match forked {
+                true => Err(ClientError::LogForked(block)),
+                false => Ok(Vec::new()),
+            };
         }
-        if appended.previous != size {
-            return Ok(self.read_log(block, size, u32::MAX).await?.entries);
+        if appended.previous == size
+            && let Some(entries) = self.take_entries(
+                block,
+                kept.as_ref(),
+                appended.previous,
+                appended.head,
+                appended.entries,
+                &appended.proof,
+                &appended.consistency,
+            )?
+        {
+            return self.open_entries(block, entries).await;
         }
-        let entries = self.take_entries(
-            block,
-            kept.as_ref(),
-            appended.previous,
-            appended.head,
-            appended.entries,
-            &appended.proof,
-            &appended.consistency,
-        )?;
-        self.open_entries(block, entries).await
+        // It missed some, or the kept head moved meanwhile: read on from the kept head.
+        let size = self.refs.log_head(block).map_or(0, |kept| kept.size);
+        Ok(self.read_log(block, size, u32::MAX).await?.entries)
     }
 
     /// Verifies entries from `from` against `head` with `proof`, and `head` against `kept` with
     /// `consistency`, then keeps them and the head: a page that does not match the head it
-    /// names is tampered, and a head that does not extend the kept one is the server cutting
-    /// or forking the log (`ClientError::LogForked`), and nothing of it is kept.
+    /// names, names an id twice, or whose arrivals go back (within it, or against the entries
+    /// kept beside it) is tampered, and a head that does not extend the kept one is the server
+    /// cutting or forking the log (`ClientError::LogForked`), and nothing of it is kept. None,
+    /// keeping nothing, when the kept head moved from `kept` meanwhile (`Refs::keep_entries`).
     #[allow(clippy::too_many_arguments)]
     fn take_entries(
         &self,
@@ -343,8 +376,33 @@ impl<S: ObjectStore> Peer<S> {
         entries: Vec<LogEntry>,
         proof: &[Hash],
         consistency: &[Hash],
-    ) -> Result<Vec<LogEntry>, ClientError> {
+    ) -> Result<Option<Vec<LogEntry>>, ClientError> {
         let root = *head.root.as_bytes();
+        // The head first: a log cut or forked is that, whatever its entries say.
+        if let Some(kept) = kept
+            && !merkle::consistent(
+                kept.size,
+                &kept.root,
+                head.size,
+                &root,
+                &tree_hashes(consistency),
+            )
+        {
+            return Err(ClientError::LogForked(block));
+        }
+        let mut ids = std::collections::HashSet::with_capacity(entries.len());
+        let distinct = entries.iter().all(|entry| ids.insert(entry.id));
+        let before = from
+            .checked_sub(1)
+            .and_then(|seq| self.refs.log_entry(block, seq));
+        let after = self.refs.log_entry(block, from + entries.len() as u64);
+        let arrivals: Vec<i64> = before
+            .iter()
+            .chain(&entries)
+            .chain(after.iter())
+            .map(|entry| entry.arrival)
+            .collect();
+        let forward = arrivals.windows(2).all(|pair| pair[0] <= pair[1]);
         let in_order = entries
             .iter()
             .enumerate()
@@ -358,24 +416,16 @@ impl<S: ObjectStore> Peer<S> {
         let leaves: Vec<TreeHash> = entries.iter().map(LogEntry::leaf).collect();
         if !in_order
             || !whole
+            || !distinct
+            || !forward
             || merkle::range_root(head.size, from, &leaves, &tree_hashes(proof)) != Some(root)
         {
             return Err(ClientError::Tampered(head.root));
         }
-        if let Some(kept) = kept
-            && !merkle::consistent(
-                kept.size,
-                &kept.root,
-                head.size,
-                &root,
-                &tree_hashes(consistency),
-            )
-        {
-            return Err(ClientError::LogForked(block));
-        }
         // Consistent, the head is at least as long as the kept one.
-        self.refs.keep_entries(
+        let kept_now = self.refs.keep_entries(
             block,
+            kept,
             KeptLogHead {
                 size: head.size,
                 root,
@@ -383,7 +433,7 @@ impl<S: ObjectStore> Peer<S> {
             },
             entries.clone(),
         )?;
-        Ok(entries)
+        Ok(kept_now.then_some(entries))
     }
 
     /// `entries` opened, the block's keys asked for once when one of them is sealed under a key

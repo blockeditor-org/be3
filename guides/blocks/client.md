@@ -268,8 +268,17 @@ taken unproven.
   the kept head, else by reading from the kept head.
 - **Cut and forked logs.** A head the server serves that does not extend the
   kept one (shorter, or with other entries) is `ClientError::LogForked`, and
-  nothing of that answer is kept. `forget` drops a log's entries but keeps its
-  head.
+  nothing of that answer is kept; so is a push of a head no longer than the
+  kept one that differs from what is held. A page that names an id twice, or
+  whose arrivals go back (within it or against the entries kept beside it), is
+  `Tampered`. The kept head moves only by compare-and-set
+  (`Refs::keep_entries`): a page checked against a head that a push or another
+  read moved meanwhile is read again against the head kept now, so a head is
+  never replaced by an older one or a sibling. `forget` drops a log's entries
+  but keeps its head.
+- **Redactions.** A device keeps a payload it already holds until it reads
+  that page again; what tells it to is a later entry naming the redacted one
+  (chat's deletion entry, plans/signed_logs.md step 5).
 - **Who wrote an entry.** `Peer::verify_entry` is `verify_authored` with the
   entry's arrival, which only the server sets, so a contact's replaced key that
   signed an entry the server took after this device learned of the new key

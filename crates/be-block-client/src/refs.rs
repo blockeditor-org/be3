@@ -1490,14 +1490,21 @@ impl Refs {
     }
 
     /// Keeps `head` as the newest verified head of `block`'s signed log, with `entries` of it,
-    /// in one write.
+    /// in one write, only while the head kept is still `checked`, the one `head` was proved to
+    /// extend: answers false, keeping nothing, when another read or push moved it meanwhile, so
+    /// a head checked against a stale one never replaces a newer one, nor a sibling of it.
     pub fn keep_entries(
         &self,
         block: Uuid,
+        checked: Option<&KeptLogHead>,
         head: KeptLogHead,
         entries: Vec<be_block_protocol::LogEntry>,
-    ) -> Result<(), StoreError> {
+    ) -> Result<bool, StoreError> {
         let mut state = self.state.lock().unwrap();
+        let same = |kept: Option<&KeptLogHead>| kept.map(|kept| (kept.size, kept.root));
+        if same(state.log_heads.get(&block)) != same(checked) {
+            return Ok(false);
+        }
         let mut rows = vec![row(Table::LogHead, block.as_bytes().to_vec(), &head)];
         let kept = state.log_entries.entry(block).or_default();
         for entry in entries {
@@ -1505,7 +1512,14 @@ impl Refs {
             kept.insert(entry.seq, entry);
         }
         state.log_heads.insert(block, head);
-        self.write(rows)
+        self.write(rows)?;
+        Ok(true)
+    }
+
+    /// The entry of `block`'s log this device kept at `seq`.
+    pub fn log_entry(&self, block: Uuid, seq: u64) -> Option<be_block_protocol::LogEntry> {
+        let state = self.state.lock().unwrap();
+        state.log_entries.get(&block)?.get(&seq).cloned()
     }
 
     /// The entries of `block`'s log this device kept, from `from`, at most `limit`, in order,

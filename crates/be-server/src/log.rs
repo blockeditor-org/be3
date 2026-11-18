@@ -176,7 +176,8 @@ pub struct Appended {
 /// Appends `entries` by `author` to the block's log, numbering each next and stamping it with
 /// `now` (or the last entry's arrival, should the clock have stepped back, so arrivals never go
 /// back along the log). An entry whose id the log holds is answered where it went and not
-/// appended again. Runs in the caller's transaction.
+/// appended again when it is the same entry (its author and payload), and refused when it is
+/// not. Runs in the caller's transaction.
 pub fn append(
     database: &Connection,
     organization: Uuid,
@@ -207,16 +208,22 @@ pub fn append(
     let mut appended = Vec::new();
     let mut grew = 0;
     for entry in entries {
-        let held: Option<(i64, i64)> = database
+        let held: Option<(i64, i64, String, Vec<u8>)> = database
             .prepare_cached(
-                "SELECT seq, arrival FROM block_logs
+                "SELECT seq, arrival, author, payload_hash FROM block_logs
                  WHERE organization_id = ?1 AND block_id = ?2 AND id = ?3",
             )?
             .query_row(params![org, id, entry.id.as_bytes().as_slice()], |row| {
-                Ok((row.get(0)?, row.get(1)?))
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
             })
             .optional()?;
-        if let Some((seq, arrival)) = held {
+        if let Some((seq, arrival, held_author, held_hash)) = held {
+            // Only the same entry sent again is answered: another under its id is refused.
+            if held_author != author.to_string()
+                || held_hash.as_slice() != Hash::of(&entry.payload).as_bytes()
+            {
+                return Err(invalid("the log holds another entry under that id"));
+            }
             logged.push(Logged {
                 seq: seq as u64,
                 arrival,
@@ -453,7 +460,8 @@ pub fn redact(
     write_kept(database, &org, &id, &kept)
 }
 
-/// Forgets a deleted block's log.
+/// Forgets a deleted block's log: its entries, its tree and its head, so no row of it is left.
+/// Nothing calls it yet, since no block is deleted for good; a block's log goes with it then.
 pub fn forget(database: &Connection, organization: Uuid, block: Uuid) -> Result<(), ServerError> {
     let (org, id) = (organization.to_string(), block.to_string());
     for table in ["block_logs", "block_log_nodes", "block_log_heads"] {

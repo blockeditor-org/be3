@@ -361,7 +361,8 @@ pub fn rebase(
     }))
 }
 
-/// Forgets a deleted block's journal.
+/// Forgets a deleted block's journal: its entries and its head, so no row of it is left. Nothing
+/// calls it yet, since no block is deleted for good (decisions/garbage_collection_waits_for_trash_and_history.md).
 pub fn forget(database: &Connection, organization: Uuid, block: Uuid) -> Result<(), ServerError> {
     let (org, id) = (organization.to_string(), block.to_string());
     database.execute(

@@ -79,8 +79,21 @@ async fn a_log_numbers_stamps_and_tells_appends_and_takes_an_entry_once() {
     );
 
     // Sent again, an entry is answered where it went, and nothing is appended or told.
-    let again = owner.append(chat, vec![first]).await.unwrap();
+    let again = owner.append(chat, vec![first.clone()]).await.unwrap();
     assert_eq!(again, logged[..1]);
+    // Another entry under its id, or the same one from someone else, is refused.
+    let mut other = first.clone();
+    other.payload = b"something else".to_vec();
+    let refused = owner.append(chat, vec![other]).await;
+    assert!(
+        matches!(&refused, Err(error) if error.code == ErrorCode::InvalidRequest),
+        "{refused:?}"
+    );
+    let refused = guest.append(chat, vec![first]).await;
+    assert!(
+        matches!(&refused, Err(error) if error.code == ErrorCode::InvalidRequest),
+        "{refused:?}"
+    );
     let page = guest.log_page(chat, 1, Some(2), false).await.unwrap();
     assert_eq!(page.head.size, 3);
     assert_eq!(page.entries.len(), 2);

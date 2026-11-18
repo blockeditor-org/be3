@@ -748,7 +748,8 @@ is what its authors add, and only they (or a manager) may take back.
   server's clock, never earlier than the entry before, in one transaction
   that appends to the tree from its right edge (`merkle::Frontier`, read in
   O(log n)). An entry whose id the log holds is answered where it went
-  (`logged`), so an outbox resends until it hears the answer. Limits:
+  (`logged`), so an outbox resends until it hears the answer; another entry
+  (another author or payload) under that id is refused. Limits:
   `MAX_ENTRY_BYTES` each, `MAX_ENTRIES_PER_APPEND` and `MAX_APPEND_BYTES` an
   op, `MAX_ENTRIES_PER_MINUTE` per account (`Services::log_entries`). Entries
   are charged to the block's payer, in its size too (`charge_log`; a move
@@ -758,7 +759,8 @@ is what its authors add, and only they (or a manager) may take back.
   (guides/blocks/keys.md, "Verifying").
 - **`redact`** (View, then the entry's author or Manage on the block) drops
   the payload and uncharges it, keeping the leaf, so the head and every proof
-  stay as they were.
+  stay as they were. Dropped, not wiped: SQLite may keep the old bytes in its
+  WAL and free pages until they are reused.
 - **`query.block-log(block, from, limit, known)`** (View) answers a page from
   `from` (at most `MAX_PAGE_ENTRIES` and half a frame), the head, the range
   proof tying the page to it (`merkle::range_proof`), and with `known`, the
@@ -773,7 +775,8 @@ is what its authors add, and only they (or a manager) may take back.
   had (past its size, or another root for that prefix) is refused
   (`log::holds_prefix`). The server only checks it; what a commit says of the
   log is in its sealed content.
-- `log::forget` drops a block's log, for when blocks are deleted for good.
+- `log::forget` drops a block's log; nothing calls it until blocks are deleted
+  for good.
 
 **Answers that fit a frame.** A summary carries metadata of up to
 `MAX_METADATA_BYTES` and none of the block's references: a reader takes those

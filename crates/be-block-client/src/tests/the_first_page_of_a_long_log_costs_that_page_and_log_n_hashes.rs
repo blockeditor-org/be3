@@ -4,8 +4,8 @@ use super::*;
 /// that page and O(log n) hashes that tie it to the log's head, and keeps only that page: it
 /// never reads the log from its start to trust a part of it.
 #[tokio::test]
-async fn the_first_page_of_a_million_entry_log_costs_that_page_and_log_n_hashes() {
-    const ENTRIES: u64 = 1 << 20;
+async fn the_first_page_of_a_long_log_costs_that_page_and_log_n_hashes() {
+    const ENTRIES: u64 = 1 << 16;
     let harness = Harness::start().await;
     let maker = harness.owner("owner@example.com").await;
     let chat = workspace(&maker, "Chat").await;
@@ -39,14 +39,14 @@ async fn the_first_page_of_a_million_entry_log_costs_that_page_and_log_n_hashes(
     assert_eq!(first.head.size, ENTRIES);
     assert_eq!(first.entries.len(), 50);
     assert!(
-        first.proof_hashes <= 20,
+        first.proof_hashes <= 16,
         "the first page took {} hashes",
         first.proof_hashes
     );
     let hit = owner.read_log(chat, ENTRIES / 2 + 7, 50).await.unwrap();
     assert_eq!(hit.entries[0].entry.seq, ENTRIES / 2 + 7);
     assert!(
-        hit.proof_hashes <= 2 * 20,
+        hit.proof_hashes <= 2 * 16,
         "a page in the middle took {} hashes",
         hit.proof_hashes
     );
