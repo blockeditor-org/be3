@@ -210,6 +210,15 @@ impl Root {
         }
     }
 
+    /// Shows the root the host's memory over time (`host.memory-history`): the minutes'
+    /// points, oldest first, and when the latest sample was taken, in seconds since the Unix
+    /// epoch. If the root waits on it and it changed, it is stepped for it.
+    pub fn show_memory_history(&mut self, points: Vec<be_wasm_root_api::MemoryPoint>, now: u64) {
+        if self.core.show_memory_history(points, now) {
+            self.bell.ring();
+        }
+    }
+
     /// What the root asked of the block stack since the last call (`host.ask-core`), oldest
     /// first, which the host does.
     pub fn take_core_commands(&mut self) -> Vec<be_wasm_root_api::CoreCommand> {
