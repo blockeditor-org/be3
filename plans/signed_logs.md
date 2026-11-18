@@ -257,21 +257,30 @@ within one page: step 4's fold takes the first occurrence of an id.
    - **Search** comes in 5b.
    - **Others' edits and deletions** show nothing.
    - **Deleted messages** show no row, unless the deletion's key is worth
-     saying ("deleted with an old key").
-   - **Unread counts** come from the log's latest 100 entries, by the host
-     and the test store alike.
+     saying ("deleted with an old key"). An entry redacted by anyone but its
+     author (a manager, the server) shows in its place, "Removed, not by its
+     author": a take-back names what it takes back inside the signed entry
+     (`Delete::message`, `React::takes_back`), so the fold tells the two
+     apart.
+   - **Unread counts** come from the log's latest 100 entries, verified, by
+     the host and the test store alike; forged messages count for nothing.
    - **Sending** comes from what each log read names of the device's outbox
-     (`LogPage::kept`), so it survives a restart.
-   - **Reconnecting:** logs are followed again, read on from the kept head
-     (`Replicas::follow_logs`).
-   - **Content:** a message's attachments are listed in `carried` once the
-     host answers its entry's id.
+     (`LogPage::kept`), so it survives a restart. What the server refused the
+     device keeps, with why, until the editor dismisses it
+     (`LogPage::refused`, `replica.refused`, `host.let-go-refused`).
+   - **Scrollback:** an editor keeps every page it paged back to, past
+     `editor::LOG_HELD`.
+   - **Reconnecting:** logs are followed again, read on from the kept head to
+     the log's head (`Replicas::follow_logs`).
+   - **Content:** a message's attachments are listed in `carried` once its
+     entry has an id, from the log and what is sending, by whichever editor
+     is open.
 
    Design:
    - **Entries.** `ChatEntry` (postcard) is `Message { time, body, reply_to,
      attachments }`, `Edit { message, time, body }`, `React { message,
-     reaction, kept, time }`, `Delete { message, time }`. A message is named
-     by its entry id. Who wrote one, when the server took it and who signed it
+     reaction, kept, takes_back, time }`, `Delete { message, time }`. A message
+     is named by its entry id. Who wrote one, when the server took it and who signed it
      are the log's (`LogItem`), so chat signs nothing itself: `EditorHost::sign`,
      `verify` and `signing_block` lose their only user.
    - **What a chat shows** is a fold of the entries the editor holds
