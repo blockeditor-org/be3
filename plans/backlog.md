@@ -512,17 +512,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   device holding the old secret (or the reseal, which could carry an opened
   copy) follows it, with a test where both accounts take new phrases at once.
 
-- **Commits sealed before a rotation.** A commit made offline is sealed under
-  the key the device held when it wrote it. If the block's keys rotate
-  meanwhile (a member removed), the drain publishes it under the old key, which
-  the removed member still holds: neither `drain_publish` nor the server checks
-  the key's epoch. Offline writes report `Saved::Kept`, version control's
-  included, so this is the usual path. Done: the drain reseals such a commit
-  (and those built on it) under the current key before sending it, or the
-  server refuses one sealed under a superseded key (guides/blocks/keys.md,
-  "Epochs name their heads"), shown by a client test where a member is removed while another
-  device writes offline and the removed member cannot open what it sends.
-
 - **A contact's name as they rename.** A contact's name and email are the
   card's from when the two connected (guides/blocks/keys.md, Contacts), so a
   contact who renames keeps the old name on their contacts' devices until they
