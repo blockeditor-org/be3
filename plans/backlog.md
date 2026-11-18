@@ -489,6 +489,12 @@ Depends on #686 (session catch-ups replaced by server ordering).
 
 ## 18. Keys
 
+- **A guest's be-host.** A guest of an organization (guides/blocks/keys.md,
+  "Share links") sees it in be-host as any other organization, with an empty
+  files pane, though it may make nothing there. Done: be-host shows a guest's
+  organization only through Shared with me (no workspace, roots or files pane
+  of its own), and a host test opens a link as a guest and reads the block.
+
 - **Per-app capabilities on host calls that grant or reveal access.** Any app
   may call host-services' `set-access`, `make-share-link` and
   `list-share-links` on a block its editor shows, so an app the person opened
