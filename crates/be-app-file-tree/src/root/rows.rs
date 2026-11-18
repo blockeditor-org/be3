@@ -1193,6 +1193,7 @@ pub(crate) fn access_name(access: AccessLevel) -> &'static str {
         AccessLevel::Manage => "Can manage",
         AccessLevel::Edit => "Can edit",
         AccessLevel::View => "Can view",
+        AccessLevel::Join => "Can join",
         AccessLevel::KnowExists => "Can see that it exists",
         AccessLevel::None => "None",
     }
@@ -1202,6 +1203,7 @@ pub(crate) fn access_hint(access: AccessLevel) -> &'static str {
     match access {
         AccessLevel::Manage | AccessLevel::Edit => "",
         AccessLevel::View => "You can view this block, but not change it.",
+        AccessLevel::Join => "You can join whoever hosts this block, but not open it.",
         AccessLevel::KnowExists | AccessLevel::None => {
             "You can see that this block exists, but not open it."
         }
@@ -1212,7 +1214,9 @@ pub(crate) fn access_marker(access: AccessLevel) -> Option<Glyph> {
     match access {
         AccessLevel::Manage | AccessLevel::Edit => None,
         AccessLevel::View => Some(be_sdk_beui::beui::icons::ICON_EYE),
-        AccessLevel::KnowExists | AccessLevel::None => Some(be_sdk_beui::beui::icons::ICON_LOCK),
+        AccessLevel::Join | AccessLevel::KnowExists | AccessLevel::None => {
+            Some(be_sdk_beui::beui::icons::ICON_LOCK)
+        }
     }
 }
 

@@ -128,6 +128,8 @@ pub enum Level {
     #[default]
     None,
     KnowExists,
+    /// May connect to the block's host (plans/hosted_blocks.md); sealed nothing.
+    Join,
     View,
     Edit,
     Manage,

@@ -40,6 +40,9 @@ interface access {
     enum access-level {
         none,
         know-exists,
+        /// May connect to whoever hosts the block (plans/hosted_blocks.md),
+        /// and is served nothing of it.
+        join,
         view,
         edit,
         manage,

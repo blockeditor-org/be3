@@ -75,6 +75,47 @@ pub const MAX_PAIRING_BYTES: usize = 64 * 1024;
 /// be-sdk-type-guest); a catch-up snapshot carries the operations since the last seal, so this
 /// leaves room for both.
 pub const MAX_RELAY_BYTES: usize = MAX_FRAME_BYTES / 2;
+/// Messages one connection sends a lease holder on a session's host channel a second, on
+/// average (`session-send.host`; plans/hosted_blocks.md): a Join member admitted by a link is
+/// no contact of the host, so the server keeps it from flooding one. The holder's own sends
+/// are not limited.
+pub const HOST_MESSAGES_PER_SECOND: f64 = 30.0;
+/// The burst of host-channel messages a connection may send at once before
+/// `HOST_MESSAGES_PER_SECOND` holds it back.
+pub const HOST_MESSAGE_BURST: f64 = 120.0;
+/// The largest message on a session's host channel.
+pub const MAX_HOST_MESSAGE_BYTES: usize = 64 * 1024;
+
+/// A token bucket: `take` answers whether one more may go now, at `rate` a second over a burst
+/// of `burst`.
+pub(crate) struct Bucket {
+    tokens: f64,
+    filled: Option<std::time::Instant>,
+}
+
+impl Bucket {
+    pub(crate) fn full(burst: f64) -> Self {
+        Self {
+            tokens: burst,
+            filled: None,
+        }
+    }
+
+    pub(crate) fn take(&mut self, now: std::time::Instant, rate: f64, burst: f64) -> bool {
+        if let Some(filled) = self.filled {
+            let added = now.saturating_duration_since(filled).as_secs_f64() * rate;
+            self.tokens = (self.tokens + added).min(burst);
+        }
+        self.filled = Some(now);
+        match self.tokens >= 1.0 {
+            true => {
+                self.tokens -= 1.0;
+                true
+            }
+            false => false,
+        }
+    }
+}
 /// The objects one commit of a search index may hold. Every viewer's search reads the index,
 /// and any editor of its root may write it, so it is bounded well above an index of a gigabyte
 /// of text (plans/deferred/search.md, "Scale").

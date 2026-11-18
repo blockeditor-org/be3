@@ -23,7 +23,7 @@ interface server {
         access-level, account-id, block-id, block-parent, client-id, commit-id,
         content-type-id, error, escrow-key, hash, journal, journal-seal, key-id, key-set,
         link-id, listing, organization-id, organization-role, public-key, sealed-key,
-        key-change, block-summary, session-state,
+        key-change, block-summary, member-kind, session-host, session-state,
     };
     use account.{account-storage, message, authenticated, browser-login, browser-login-state, pairing-message};
     use objects.{hold, object-length, upload-url};
@@ -234,6 +234,8 @@ interface server {
     record joined-session {
         /// This connection, as the session's participants name it.
         client: client-id,
+        /// Empty to a Join member (`joined-as.join`), which hears only the
+        /// host channel and whether a host is online.
         state: session-state,
         /// The block's journal as of joining; what the order numbers after
         /// reaches this connection as `sequenced`.
@@ -241,6 +243,12 @@ interface server {
         /// Whether this account may edit the block as it joined: the
         /// server's word, which a device trusts over a listing it holds.
         may-edit: bool,
+        /// How the connection joined: as a participant (View or above), or
+        /// as a Join member.
+        joined-as: member-kind,
+        /// Who holds the lease as of joining: told again as
+        /// `session-event.host` whenever it changes.
+        host: option<session-host>,
     }
 
     /// What a connection follows: a read with `follow` starts it, and
@@ -655,6 +663,14 @@ interface server {
         /// into the session's order, and the caller holds the lease from it
         /// while it stays with edit access. Refused to a viewer.
         claim,
+        /// A message on the host channel (plans/hosted_blocks.md), sealed
+        /// end to end: from the lease holder, to the member it names (a Join
+        /// member or a participant); from any other member, naming none, to
+        /// the lease holder. Refused otherwise, and to a member that sends
+        /// more than `limits::HOST_MESSAGES_PER_SECOND` a second over a
+        /// burst of `limits::HOST_MESSAGE_BURST`; the one send a Join member
+        /// may make. Heard as `session-event.hosted`.
+        host(option<client-id>),
     }
 
     record submission {

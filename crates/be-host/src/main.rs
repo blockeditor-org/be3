@@ -3466,6 +3466,7 @@ impl HostCore {
         let access = match access {
             AccessLevel::None => Access::None,
             AccessLevel::KnowExists => Access::KnowExists,
+            AccessLevel::Join => Access::Join,
             AccessLevel::View => Access::View,
             AccessLevel::Edit => Access::Edit,
             AccessLevel::Manage => Access::Manage,
