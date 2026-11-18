@@ -387,12 +387,19 @@ pub struct Seen, delta SeenDelta {
     /// What each block's host component has yet to hear of its host channel's members
     /// (`crate::hosting`, `Edit::TookMemberNews`).
     pub member_news: NewsQueue<MemberNews>,
+    /// What the Join editors of each block have yet to hear of its host channel
+    /// (`crate::joining`, `Edit::TookChannelNews`).
+    pub channel_news: NewsQueue<ChannelNews>,
+    /// The account hosting each block a Join editor here joins, while its channel is open
+    /// (`crate::joining`).
+    pub channel_hosts: imbl::OrdMap<Uuid, Uuid>,
 }
 }
 
 /// News of hosted blocks' channels the worker queued, each numbered so the page can say which
-/// it took (`Edit::TookMemberNews`). Kept by block and number, so queuing and taking one costs
-/// a logarithm, and an update to the page carries only the news that changed.
+/// it took (`Edit::TookMemberNews`, `Edit::TookChannelNews`). Kept by block and number, so
+/// queuing and taking one costs a logarithm, and an update to the page carries only the news
+/// that changed.
 #[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct NewsQueue<T: Clone> {
     news: imbl::OrdMap<(Uuid, u64), T>,
@@ -510,6 +517,14 @@ pub enum MemberNews {
         payload: Vec<u8>,
     },
     Left(u64),
+}
+
+/// What a Join editor hears of its block's host channel (`channel-event`).
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+pub enum ChannelNews {
+    Open(Uuid),
+    Closed,
+    Said(#[serde(with = "serde_bytes")] Vec<u8>),
 }
 
 /// What the page reads of a block type a module described (`crate::kind_of`).
@@ -781,6 +796,12 @@ pub(crate) enum Edit {
         block: Uuid,
         upto: u64,
     },
+    /// The page took the news of a joined block's host channel up to and including `upto`
+    /// (`crate::take_channel_events`).
+    TookChannelNews {
+        block: Uuid,
+        upto: u64,
+    },
 }
 
 impl Edit {
@@ -944,6 +965,9 @@ impl Edit {
             }
             Edit::TookMemberNews { block, upto } => {
                 seen.member_news.took(*block, *upto);
+            }
+            Edit::TookChannelNews { block, upto } => {
+                seen.channel_news.took(*block, *upto);
             }
             Edit::TookFrames { editor, upto } => {
                 let Some(frames) = seen.editor_frames.get(editor) else {

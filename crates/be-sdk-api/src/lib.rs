@@ -81,7 +81,7 @@ pub use types::{
     AnchorSpace, AnchoredPlacement, ChildContent, ChildLayer, ChildMode, ChildPlacement,
     ChildPlacements, DialogFrame, Failure, FrameChrome, FrameReport, FrameSpec, Hello,
     HelloAccepted, HostPanel, HostTransform, HostView, InputBatch, Insets, LayoutCommit, MenuAsk,
-    Occluder, OpenArtifact, OpenBlock, OpenCreation, OpenHost, Opening, OpeningKind, Picture,
+    Occluder, OpenArtifact, OpenBlock, OpenCreation, OpenHost, OpenJoin, Opening, OpeningKind, Picture,
     PresentCommit, PresentedFrame, PressClaim, ScreenDamage, ScreenLayout, ScreenPlacement,
     ScreenRequest, ScreenWindow, Scrim, SurfaceFormat, SurfaceRect, SurfaceSpec, SurfaceSupport,
     TimedInput, TopBar, ViewAnchor, ViewEdge, ViewPlacement, ViewSize, ViewportMetrics,
