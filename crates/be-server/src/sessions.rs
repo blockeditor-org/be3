@@ -25,7 +25,14 @@ use crate::watch::{Place, Push, WatchHub};
 pub struct SessionRegistry {
     sessions: Arc<Mutex<Sessions>>,
     hub: Arc<WatchHub>,
+    /// Each block's order, held from numbering a submission until every participant was sent it
+    /// (`ordering`), so they hear entries in the order they were numbered. One per block, not
+    /// the registry's lock, which every session shares.
+    orders: std::sync::Mutex<HashMap<Place, std::sync::Weak<Mutex<()>>>>,
 }
+
+/// A block's order held (`SessionRegistry::ordering`).
+pub struct Ordering(#[allow(dead_code)] tokio::sync::OwnedMutexGuard<()>);
 
 /// The registry held while a trim with no new commit is written by the lease holder, so no
 /// membership entry moves the lease meanwhile (`SessionRegistry::holding`). It is held only
@@ -233,7 +240,33 @@ impl SessionRegistry {
         Self {
             sessions: Arc::new(Mutex::new(Sessions::default())),
             hub,
+            orders: std::sync::Mutex::default(),
         }
+    }
+
+    /// Holds `block`'s order: a submission is numbered (`journal::submit`) and sent to the
+    /// participants (`sequenced`) with it held, so two numbered at once go out in their order.
+    pub async fn ordering(&self, block: Place) -> Ordering {
+        let order = {
+            let mut orders = self
+                .orders
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            match orders.get(&block).and_then(std::sync::Weak::upgrade) {
+                Some(order) => order,
+                None => {
+                    // The orders of blocks nobody submits to any more are let go of as the map
+                    // doubles, so it holds about as many as are in use.
+                    if orders.len().is_power_of_two() {
+                        orders.retain(|_, order| order.strong_count() > 0);
+                    }
+                    let order = Arc::new(Mutex::new(()));
+                    orders.insert(block, Arc::downgrade(&order));
+                    order
+                }
+            }
+        };
+        Ordering(order.lock_owned().await)
     }
 
     /// `client`, signed in as `account` and running the build `tag`, joins `block`'s session:

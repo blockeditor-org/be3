@@ -2613,11 +2613,22 @@ impl Client {
                             barrier: submission.barrier,
                             payload,
                         };
+                        // Numbered and sent with the block's order held, so the participants hear
+                        // two submissions numbered at once in the order they were numbered.
+                        let _ordering = connection.registry.ordering(place).await;
                         let numbered = connection
                             .store
                             .submit_journal(place.organization, place.block, tag, submission)
                             .await?;
                         if let crate::journal::Submitted::Numbered(entry) = numbered {
+                            // In tests the first entry of each order is slow to go, so one numbered
+                            // after it would go first were the order not held.
+                            #[cfg(test)]
+                            if entry.sequence == 1 {
+                                for _ in 0..1_000 {
+                                    tokio::task::yield_now().await;
+                                }
+                            }
                             // Sent after the entry is kept, so a connection joining meanwhile
                             // either reads it in the journal or hears it here.
                             connection.registry.sequenced(place, entry).await;
