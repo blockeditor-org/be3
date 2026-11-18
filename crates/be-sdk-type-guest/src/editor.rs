@@ -81,7 +81,11 @@ pub enum FromEditor {
     },
     /// Asks for at most `limit` entries of the block's signed log from `from`; the replica
     /// answers `ToEditor::LogRead` with the same `token`.
-    ReadLog { token: u64, from: u64, limit: u32 },
+    ReadLog {
+        token: u64,
+        from: u64,
+        limit: u32,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

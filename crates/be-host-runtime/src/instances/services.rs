@@ -889,4 +889,3 @@ fn signer(signer: be_host_stack::authorship::Signer) -> Signer {
 
 /// The most an app may ask the host to sign at once (`sign`): a record's bytes, not a file.
 const MAX_SIGNED_BYTES: usize = 64 * 1024;
-

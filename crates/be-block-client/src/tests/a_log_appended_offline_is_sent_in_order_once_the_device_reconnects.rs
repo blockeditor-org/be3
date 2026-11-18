@@ -11,7 +11,10 @@ async fn a_log_appended_offline_is_sent_in_order_once_the_device_reconnects() {
     let store = MemoryStore::new();
     let laptop = harness.device(&owner, &refs, &store).await;
     let chat = workspace(&laptop, "Chat").await;
-    let first = laptop.append(chat, "test.app", b"sent online").await.unwrap();
+    let first = laptop
+        .append(chat, "test.app", b"sent online")
+        .await
+        .unwrap();
     assert!(
         matches!(first, Appended::Logged { seq: 0, .. }),
         "{first:?}"
@@ -21,7 +24,11 @@ async fn a_log_appended_offline_is_sent_in_order_once_the_device_reconnects() {
     let offline = harness.offline(&owner, &refs, &store);
     let mut kept = Vec::new();
     for text in ["one", "two", "three"] {
-        match offline.append(chat, "test.app", text.as_bytes()).await.unwrap() {
+        match offline
+            .append(chat, "test.app", text.as_bytes())
+            .await
+            .unwrap()
+        {
             Appended::Kept { id } => kept.push(id),
             logged => panic!("an entry made offline was logged: {logged:?}"),
         }

@@ -110,6 +110,7 @@ mod an_editor_joins_with_a_snapshot_and_follows_operations;
 mod an_editor_keeps_its_landed_edits_through_a_replica_reopened_under_it;
 mod an_editor_reads_content_its_replica_could_not_open_as_failed;
 mod an_entry_no_build_can_read_is_passed_over_by_every_replica;
+mod an_entry_told_better_replaces_the_one_held_and_unknown_never_does;
 mod an_external_publish_merges_into_a_live_replica;
 mod an_hour_of_steady_edits_makes_about_twelve_commits;
 mod an_operation_adds_a_part_by_its_hash;
@@ -137,7 +138,6 @@ mod two_drags_in_one_block_commit_as_one_step_when_the_second_ends;
 mod two_editors_typing_at_once_keep_their_own_undo_steps;
 mod two_edits_one_submission_held_go_again_as_it_once_both_are_given_again;
 mod two_oversized_edits_in_a_row_land_in_order;
-mod an_entry_told_better_replaces_the_one_held_and_unknown_never_does;
 mod two_replicas_append_to_one_log_and_fold_it_in_one_order;
 mod typing_behind_an_unconfirmed_edit_goes_out_as_one_edit;
 mod typing_while_a_seal_waits_for_the_server_shows_at_once;
@@ -1560,10 +1560,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     arrival: item.arrival,
                 };
                 self.to(device, |host| {
-                    reply.send(
-                        host,
-                        &Ok(be_sdk_type_api::host::Appended::Logged(place)),
-                    )
+                    reply.send(host, &Ok(be_sdk_type_api::host::Appended::Logged(place)))
                 });
                 self.log_item(item);
             }

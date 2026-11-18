@@ -11,7 +11,10 @@ async fn an_exported_log_verifies_elsewhere_against_the_block_it_was_written_in(
     let owner = harness.owner("owner@example.com").await;
     let chat = workspace(&owner, "Chat").await;
     for said in ["one", "two", "gone"] {
-        owner.append(chat, "test.app", said.as_bytes()).await.unwrap();
+        owner
+            .append(chat, "test.app", said.as_bytes())
+            .await
+            .unwrap();
     }
     owner.redact(chat, 2).await.unwrap();
     let log = owner.export_log(chat).await.unwrap();
