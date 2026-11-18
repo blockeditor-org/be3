@@ -21,7 +21,6 @@ be_wasm_ops_bindgen::generate!({
 
 pub use frames::{FrameDone, FrameRequest};
 pub use host::{
-    CoreCommand, CoreView, DisplayQuestion, DisplayState, HostStatistics, LockState, Notice,
-    NoticeAction, PowerAction, Refusal, SavingState, SetAside, ShownNotices, StatisticRow,
-    SyncState, UnsentEdit,
+    AccountRow, BrowserSignIn, CoreCommand, CoreView, DisplayQuestion, DisplayState, HostStatistics, LockState, Notice, NoticeAction, PowerAction, SavingState, ShownNotices,
+    NewAccount, Refusal, ServerAccount, SetAside, SigningIn, StatisticRow, SyncState, UnsentEdit,
 };

@@ -234,5 +234,25 @@ pub const UNSENT_TITLE: &str = "Unsent edits";
 /// The title of the question the list asks before discarding a block's unsent edits.
 pub const DISCARD_UNSENT_TITLE: &str = "Discard edits?";
 
+/// The layer showing `ACCOUNTS_SURFACE` while the block stack waits for the person to open or
+/// add an account (`core-view`'s `choosing-account`): over the app and the statistics panel,
+/// under the dialog, the lock screen and the toasts, taking every press and, once drawn, the
+/// focus.
+pub const ACCOUNTS_LAYER: LayerId = LayerId(8);
+
+/// A surface of the root's own the size of the window that beui draws the accounts on, as
+/// be-host-accounts-ui's `AccountsScreen`.
+pub const ACCOUNTS_SURFACE: u32 = 9;
+
+/// The title of the dialog that adds an account, before it knows where.
+pub const ADD_ACCOUNT_TITLE: &str = "Add account";
+
+/// The title of the dialog while the person signs in in their browser.
+pub const SIGN_IN_TITLE: &str = "Sign in with your browser";
+
+/// The title of the question the root asks before removing an account kept on this device
+/// alone, whose blocks go with it.
+pub const FORGET_ACCOUNT_TITLE: &str = "Remove account?";
+
 #[cfg(target_arch = "wasm32")]
 mod guest;

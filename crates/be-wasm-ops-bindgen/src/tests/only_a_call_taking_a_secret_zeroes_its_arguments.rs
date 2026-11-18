@@ -43,6 +43,10 @@ fn only_a_call_taking_a_secret_zeroes_its_arguments() {
          arguments, and the one taking none does not"
     );
     assert!(flat.contains("letmutstarted=started;"));
+    assert!(
+        flat.contains("#[derive(Debug,::serde::Serialize,::serde::Deserialize)]pubstructLogin"),
+        "a record holding a secret is neither copied nor compared"
+    );
 
     // With no secret named, no call pays for it.
     let mut resolve = Resolve::new();

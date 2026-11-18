@@ -23,8 +23,8 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    CoreCommand, CoreView, DisplayQuestion, FrameDone, FrameRequest, HostStatistics, LockState,
-    Notice, PowerAction, Refusal, SavingState, SetAside, StatisticRow, SyncState, UnsentEdit,
+    AccountRow, CoreCommand, CoreView, DisplayQuestion, FrameDone, FrameRequest, HostStatistics, LockState,
+    NewAccount, Notice, PowerAction, Refusal, SavingState, ServerAccount, SetAside, StatisticRow, SyncState, UnsentEdit,
     guest::{
         exports::{frames, input, paintings},
         host,
@@ -37,14 +37,14 @@ use beui::styled::*;
 use beui::{Align, Align2, Direction, KeyPhase, NodeId, Overflow, Pos2, Rect, TextAlign, vec2};
 
 use crate::{
-    APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DIALOG_ORIGIN, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
-    DISCARD_UNSENT_TITLE, KEEP_DISPLAY_TITLE, LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER,
-    LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG, OPENS_STATISTICS, OPENS_UNSENT, ORIGIN, RASTER,
-    RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE, SCRIM_COLOR,
-    SCRIM_LAYER, SCRIM_SURFACE, SIZE, SLOW_SAVE, SLOW_SAVE_TITLE, SLOW_SAVE_TOAST, STATISTICS_AREA,
-    STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE, STATISTICS_TITLE, STRAY_PASSWORD,
-    TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA, TOAST_LAYER, TOAST_SURFACE,
-    UNLOCKS_TWICE, UNPRESENTED_SURFACE, UNSENT_TITLE,
+    ACCOUNTS_LAYER, ACCOUNTS_SURFACE, ADD_ACCOUNT_TITLE, FORGET_ACCOUNT_TITLE, SIGN_IN_TITLE,
+    APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DISCARD_UNSENT_TITLE, OPENS_UNSENT, UNSENT_TITLE, DIALOG_ORIGIN, KEEP_DISPLAY_TITLE, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
+    LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG,
+    OPENS_STATISTICS, ORIGIN, RASTER, RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE,
+    SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE, SIZE, SLOW_SAVE, SLOW_SAVE_TITLE,
+    SLOW_SAVE_TOAST, STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE,
+    STATISTICS_TITLE, STRAY_PASSWORD, TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA,
+    TOAST_LAYER, TOAST_SURFACE, UNLOCKS_TWICE, UNPRESENTED_SURFACE,
 };
 
 /// The triangle's editor, by its manifest's id.
@@ -86,8 +86,16 @@ struct Root {
     /// memo of its own field, so it renders again only when that field changed; no area keeps
     /// a copy of its field apart from it.
     core: Rc<RefCell<CoreView>>,
-    /// The core's view its list of unsent edits shows, while that list is its open dialog.
+    /// The core's view its open dialog shows, while that dialog shows the core's (the unsent
+    /// edits, adding an account).
     core_shown: Rc<Cell<Option<Signal<CoreView>>>>,
+    /// Its accounts, while the block stack waits for the person to open or add one.
+    accounts: Rc<RefCell<Option<Accounts>>>,
+    /// The core's view its accounts show, while they show.
+    accounts_shown: Rc<Cell<Option<Signal<CoreView>>>>,
+    /// A dialog one of its documents asked for (the accounts' add or remove), opened with the
+    /// next frame unless another dialog is open.
+    wanted: Rc<RefCell<Option<Asking>>>,
     /// The surface a `RESIZES` frame configures and never presents.
     unpresented: Rc<RefCell<Option<OwnSurface>>>,
     /// The scrim under its dialog, filled with `SCRIM_COLOR` on its first frame.
@@ -121,6 +129,8 @@ struct Dialog {
     /// The round of display settings it asks to keep, if it is that question rather than the
     /// rename dialog.
     keep: Option<u64>,
+    /// Whether it adds an account: closing it, unless the account was added, stops adding.
+    signs_in: bool,
     /// The layer focused when it opened, which gets the focus back when it closes.
     had: Option<LayerId>,
     /// Whether it took the focus yet: once it has been drawn.
@@ -137,6 +147,8 @@ enum Closed {
     Kept(u64),
     /// Reverted the display settings of this round, or the time to answer ran out.
     Reverted(u64),
+    /// An account was added, which closed the dialog adding it.
+    Added,
 }
 
 /// Which dialog to open.
@@ -145,6 +157,20 @@ enum Asking {
     KeepDisplay(DisplayQuestion),
     /// The list of the block stack's unsent edits.
     Unsent,
+    /// Adding an account.
+    AddAccount,
+    /// The question before removing the account of `key`, named `name`, kept on this device
+    /// alone.
+    ForgetAccount { key: String, name: String },
+}
+
+/// The root's accounts while the block stack waits for the person to open or add one.
+struct Accounts {
+    surface: BeuiSurface,
+    /// The layer focused when they showed, which gets the focus back once they go.
+    had: Option<LayerId>,
+    /// Whether they took the focus yet: once drawn.
+    focused: bool,
 }
 
 /// The root's lock screen while the session is locked.
@@ -186,8 +212,15 @@ impl Root {
             core: Rc::new(RefCell::new(CoreView {
                 generation: 0,
                 unsent: Vec::new(),
+                choosing_account: false,
+                accounts: Vec::new(),
+                signing_in: None,
+                account_error: None,
             })),
             core_shown: Rc::default(),
+            accounts: Rc::default(),
+            accounts_shown: Rc::default(),
+            wanted: Rc::default(),
             unpresented: Rc::default(),
             scrim: Rc::default(),
             dialog: Rc::default(),
@@ -319,17 +352,25 @@ impl Root {
     }
 
     /// Keeps what the block stack shows the person as each change of it comes, until the host
-    /// stops answering, and shows it in the list of unsent edits while that is open.
+    /// stops answering, and shows it in its accounts and its dialog while they show it.
     async fn hear_core(self) {
         let mut seen = 0;
         while let Ok(view) = host::core(seen).await {
             seen = view.generation;
             *self.core.borrow_mut() = view.clone();
+            if let (Some(accounts), Some(shown)) =
+                (&mut *self.accounts.borrow_mut(), self.accounts_shown.get())
+            {
+                let view = view.clone();
+                accounts.surface.enter(|| shown.set(view));
+            }
             if let (Some(dialog), Some(shown)) =
                 (&mut *self.dialog.borrow_mut(), self.core_shown.get())
             {
                 dialog.surface.enter(|| shown.set(view));
             }
+            // Whether the accounts show is the next frame's.
+            self.waker.wake();
         }
     }
 
@@ -342,6 +383,59 @@ impl Root {
             *self.lock_state.borrow_mut() = Some(lock);
             self.waker.wake();
         }
+    }
+
+    /// Shows the accounts while the block stack waits for the person to open or add one, made
+    /// when it starts waiting and gone once it stops, giving the focus back to the layer that
+    /// had it.
+    fn settle_accounts(&self) -> Result<(), String> {
+        let choosing = self.core.borrow().choosing_account;
+        if choosing == self.accounts.borrow().is_some() {
+            return Ok(());
+        }
+        if !choosing {
+            self.accounts_shown.set(None);
+            let gone = self.accounts.borrow_mut().take();
+            if let Some(gone) = gone {
+                let told = self.embedding.borrow_mut().focus(None, gone.had);
+                self.heard(&told);
+            }
+            return Ok(());
+        }
+        let Some(beui) = self.beui.borrow().clone() else {
+            return Ok(());
+        };
+        let core = self.core.borrow().clone();
+        let shown = Rc::clone(&self.accounts_shown);
+        let wanted = Rc::clone(&self.wanted);
+        let waker = self.waker.clone();
+        let wakes = self.waker.clone();
+        let surface = BeuiSurface::new(
+            &beui,
+            OwnSurface::new(ACCOUNTS_SURFACE, SIZE),
+            1.0,
+            move || waker.wake(),
+            move || {
+                let core = create_signal(core);
+                shown.set(Some(core));
+                let want = Callback::new(move |asking: Asking| {
+                    *wanted.borrow_mut() = Some(asking);
+                    wakes.wake();
+                });
+                view! {
+                    <Root>
+                        <AccountsCard core={core} want={want} />
+                    </Root>
+                }
+            },
+        )?;
+        let had = self.embedding.borrow().focused(None).map(|layer| layer.id);
+        *self.accounts.borrow_mut() = Some(Accounts {
+            surface,
+            had,
+            focused: false,
+        });
+        Ok(())
     }
 
     /// Shows the lock as the host said last: the lock screen while the session is locked, made
@@ -489,6 +583,9 @@ impl Root {
         if let Some(locked) = &mut *self.lock.borrow_mut() {
             locked.surface.input(own);
         }
+        if let Some(accounts) = &mut *self.accounts.borrow_mut() {
+            accounts.surface.input(own);
+        }
     }
 
     /// Opens its panel of the host's statistics, watching them while it is open, or closes it,
@@ -569,6 +666,12 @@ impl Root {
             .and_then(|dialog| dialog.closed.borrow_mut().take());
         let asked = self.asked.take();
         let open_keep = self.dialog.borrow().as_ref().and_then(|dialog| dialog.keep);
+        let signs_in = self
+            .dialog
+            .borrow()
+            .as_ref()
+            .is_some_and(|dialog| dialog.signs_in);
+        let wanted = self.wanted.borrow_mut().take();
         match &closed {
             Some(Closed::Renamed(name)) => {
                 if let (Some(text), Some(shown)) = (&mut *self.text.borrow_mut(), self.named.get())
@@ -585,7 +688,7 @@ impl Root {
                     self.answer_display(round, false);
                 }
             }
-            None => {}
+            Some(Closed::Added) | None => {}
         }
         // Escape or a press on the scrim closes it, which for the question reverts at once.
         if closed.is_none()
@@ -620,9 +723,16 @@ impl Root {
             _ if !locked && asked == Some(Asked::OpenUnsent) && self.dialog.borrow().is_none() => {
                 Some(Asking::Unsent)
             }
+            _ if !locked && self.dialog.borrow().is_none() => wanted,
             _ => None,
         };
-        if closed.is_some() || asked == Some(Asked::Close) || withdrawn || opening.is_some() {
+        let closing =
+            closed.is_some() || asked == Some(Asked::Close) || withdrawn || opening.is_some();
+        // Closing the dialog adding an account, other than for the account added, stops adding.
+        if closing && signs_in && !matches!(closed, Some(Closed::Added)) {
+            ask_core(CoreCommand::CancelSignIn);
+        }
+        if closing {
             self.close_dialog();
         }
         match opening {
@@ -667,8 +777,15 @@ impl Root {
         let waker = self.waker.clone();
         let keep = match &opening {
             Asking::KeepDisplay(asked) => Some(asked.round),
-            Asking::Rename | Asking::Unsent => None,
+            Asking::Rename | Asking::Unsent | Asking::AddAccount | Asking::ForgetAccount { .. } => {
+                None
+            }
         };
+        let signs_in = matches!(opening, Asking::AddAccount);
+        // Adding an account starts afresh: whatever was being added, and why it failed, goes.
+        if signs_in {
+            ask_core(CoreCommand::CancelSignIn);
+        }
         let core = self.core.borrow().clone();
         let core_shown = Rc::clone(&self.core_shown);
         let surface = BeuiSurface::new(
@@ -696,6 +813,16 @@ impl Root {
                             <UnsentDialog core={core} done={done} />
                         }
                     }
+                    Asking::AddAccount => {
+                        let known: Vec<String> =
+                            core.accounts.iter().map(|row| row.key.clone()).collect();
+                        let core = create_signal(core);
+                        core_shown.set(Some(core));
+                        view! { <AddAccountDialog core={core} known done={done} /> }
+                    }
+                    Asking::ForgetAccount { key, name } => {
+                        view! { <ForgetAccountDialog key name done={done} /> }
+                    }
                 };
                 view! {
                     <Root clear_color=ColorRole::None>{shown}</Root>
@@ -711,6 +838,7 @@ impl Root {
             surface,
             closed,
             keep,
+            signs_in,
             had,
             focused: false,
         });
@@ -1298,6 +1426,298 @@ fn UnsentDialog(core: Signal<CoreView>, done: Callback<Closed>) -> NodeId {
     }
 }
 
+/// The accounts this device keeps, as be-host-accounts-ui shows them: opening one, choosing its
+/// organization, removing it (asking first for one kept on this device alone, whose blocks go
+/// with it), or adding one, which `want` opens a dialog for.
+#[component]
+fn AccountsCard(core: Signal<CoreView>, want: Callback<Asking>) -> NodeId {
+    // A memo per area of the core's view: these change only when the accounts do.
+    let shown = create_memo(move || core.with(|view| view.accounts.clone()));
+    let accounts = create_memo(move || {
+        shown.with(|accounts| accounts.iter().map(account_row).collect::<Vec<_>>())
+    });
+    let error = create_memo(move || core.with(|view| view.account_error.clone()));
+    let forget = move |key: String| {
+        let local = shown.with_untracked(|accounts| {
+            accounts
+                .iter()
+                .find(|account| account.key == key)
+                .filter(|account| account.server.is_none())
+                .map(|account| account.name.clone())
+        });
+        match local {
+            Some(name) => want.call(Asking::ForgetAccount { key, name }),
+            None => ask_core(CoreCommand::ForgetAccount(key)),
+        }
+    };
+    view! {
+        <Frame width=Length::FILL height=Length::FILL fill=ColorRole::Background>
+            <be_host_accounts_ui::AccountsScreen
+                accounts
+                error
+                on_add={move || want.call(Asking::AddAccount)}
+                on_open={|key: String| ask_core(CoreCommand::OpenAccount(key))}
+                on_choose_organization={|key: String| ask_core(CoreCommand::ChooseOrganization(key))}
+                on_log_out={forget}
+            />
+        </Frame>
+    }
+}
+
+/// An account as be-host-accounts-ui shows it.
+fn account_row(account: &AccountRow) -> be_host_accounts_ui::AccountRow {
+    be_host_accounts_ui::AccountRow {
+        key: account.key.clone(),
+        name: account.name.clone(),
+        email: account.email.clone(),
+        server: account
+            .server
+            .clone()
+            .unwrap_or_else(|| "On this device".to_owned()),
+        local: account.server.is_none(),
+        has_last_organization: account.has_last_organization,
+        current: account.current,
+        companies: account.companies.clone(),
+    }
+}
+
+/// Where the person chose to keep the account they add.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Keeping {
+    Server,
+    Device,
+}
+
+/// Adding an account: where to keep it, then a server's address and the gateway token it may
+/// need, or a name for one on this device; then, while the host signs in, the code the
+/// browser's page asks for, with Open browser and Check now. It closes once an account it did
+/// not list when it opened (`known`) is added. Escape steps back to choosing where, or closes.
+#[component]
+fn AddAccountDialog(core: Signal<CoreView>, known: Vec<String>, done: Callback<Closed>) -> NodeId {
+    let signing = create_memo(move || core.with(|view| view.signing_in.clone()));
+    let error = create_memo(move || core.with(|view| view.account_error.clone()));
+    let added = create_memo(move || {
+        core.with(|view| {
+            view.accounts
+                .iter()
+                .any(|account| !known.contains(&account.key))
+        })
+    });
+    create_effect(move || {
+        if added.get() {
+            done.call(Closed::Added);
+        }
+    });
+    let keeping = create_signal(None::<Keeping>);
+    let url = create_signal(String::new());
+    let gateway = create_signal(String::new());
+    let name = create_signal(String::new());
+    let waiting = create_memo(move || signing.with(Option::is_some));
+    let browser = create_memo(move || {
+        signing.with(|signing| signing.as_ref().and_then(|signing| signing.browser.clone()))
+    });
+    let has_browser = create_memo(move || browser.with(Option::is_some));
+    let connecting = create_memo(move || waiting.get() && !has_browser.get());
+    let choosing = create_memo(move || !waiting.get() && keeping.get().is_none());
+    let to_server = create_memo(move || !waiting.get() && keeping.get() == Some(Keeping::Server));
+    let on_device = create_memo(move || !waiting.get() && keeping.get() == Some(Keeping::Device));
+    let code = create_memo(move || {
+        browser.with(|browser| {
+            browser
+                .as_ref()
+                .map(|browser| format!("Enter {} on the page that opens.", browser.code))
+                .unwrap_or_default()
+        })
+    });
+    let connect = move || {
+        let address = url.get_untracked().trim().to_owned();
+        if address.is_empty() {
+            return;
+        }
+        // The token leaves the field as it is handed over, as the lock screen's password does.
+        let typed = gateway.get_untracked();
+        gateway.set(String::new());
+        let gateway = (!typed.trim().is_empty()).then(|| Password::from(typed));
+        ask_core(CoreCommand::AddAccount(NewAccount::Server(ServerAccount {
+            url: address,
+            gateway,
+        })));
+    };
+    let create = move || {
+        let name = name.get_untracked().trim().to_owned();
+        if !name.is_empty() {
+            ask_core(CoreCommand::AddAccount(NewAccount::Local(name)));
+        }
+    };
+    on_key(
+        KeyAt::Node(component_node()),
+        KeyPhase::Bubble,
+        KeyReveal::Focus,
+        move |event| {
+            let closes = event
+                .press()
+                .is_some_and(|press| press.pressed && !press.repeat && press.key == Key::Escape);
+            if closes {
+                match keeping.get_untracked().is_some() && !waiting.get_untracked() {
+                    true => keeping.set(None),
+                    false => done.call(Closed::Dismissed),
+                }
+            }
+            closes
+        },
+    );
+    let dismiss = move || done.call(Closed::Dismissed);
+    view! {
+        <Frame
+            width=Length::FILL
+            height=Length::FILL
+            fill=ColorRole::Surface
+            border={Border::DEFAULT}
+            radius=Radius::Lg
+        >
+            <List spacing=Space::None>
+                <Show value={choosing}>
+                    <DialogBody
+                        title=ADD_ACCOUNT_TITLE
+                        actions={vec![DialogAction::cancel("Cancel")]}
+                        on_dismiss={dismiss}
+                    >
+                        <be_host_accounts_ui::ErrorText text={error} />
+                        <List direction=Direction::Horizontal spacing=Space::Md>
+                            <Button
+                                label="Connect to a server"
+                                variant=ButtonVariant::Secondary
+                                on_click={move || keeping.set(Some(Keeping::Server))}
+                            />
+                            <Button
+                                label="On this device"
+                                variant=ButtonVariant::Secondary
+                                on_click={move || keeping.set(Some(Keeping::Device))}
+                            />
+                        </List>
+                    </DialogBody>
+                </Show>
+                <Show value={to_server}>
+                    <DialogBody
+                        title="Connect to server"
+                        actions={vec![
+                            DialogAction::secondary("Back", move || keeping.set(None)),
+                            DialogAction::cancel("Cancel"),
+                            DialogAction::primary("Continue", connect)
+                                .disabled(move || url.with(|url| url.trim().is_empty())),
+                        ]}
+                        on_dismiss={dismiss}
+                    >
+                        <be_host_accounts_ui::ErrorText text={error} />
+                        <TextInput
+                            value={url}
+                            label="Server address"
+                            focused=true
+                            on_submit={move |_: String| connect()}
+                        />
+                        <TextInput
+                            value={gateway}
+                            label="Gateway token (optional)"
+                            kind={InputKind::Password}
+                            on_submit={move |_: String| connect()}
+                        />
+                    </DialogBody>
+                </Show>
+                <Show value={on_device}>
+                    <DialogBody
+                        title="Create local account"
+                        actions={vec![
+                            DialogAction::secondary("Back", move || keeping.set(None)),
+                            DialogAction::cancel("Cancel"),
+                            DialogAction::primary("Create account", create)
+                                .disabled(move || name.with(|name| name.trim().is_empty())),
+                        ]}
+                        on_dismiss={dismiss}
+                    >
+                        <be_host_accounts_ui::ErrorText text={error} />
+                        <TextInput
+                            value={name}
+                            label="Your name"
+                            focused=true
+                            on_submit={move |_: String| create()}
+                        />
+                    </DialogBody>
+                </Show>
+                <Show value={has_browser}>
+                    <DialogBody
+                        title=SIGN_IN_TITLE
+                        actions={vec![
+                            DialogAction::cancel("Cancel"),
+                            DialogAction::secondary("Check now", || ask_core(CoreCommand::CheckSignIn)),
+                            DialogAction::primary("Open browser", || ask_core(CoreCommand::OpenSignInPage)),
+                        ]}
+                        on_dismiss={dismiss}
+                    >
+                        <Text style=TextStyle::PARAGRAPH>{code}</Text>
+                    </DialogBody>
+                </Show>
+                <Show value={connecting}>
+                    <DialogBody
+                        title=SIGN_IN_TITLE
+                        actions={vec![DialogAction::cancel("Cancel")]}
+                        on_dismiss={dismiss}
+                    >
+                        <Text style=TextStyle::PARAGRAPH>"Connecting…"</Text>
+                    </DialogBody>
+                </Show>
+            </List>
+        </Frame>
+    }
+}
+
+/// The question before removing an account kept on this device alone, `name`, whose blocks go
+/// with it: Remove, which asks the block stack to forget it, or Keep. Escape keeps it.
+#[component]
+fn ForgetAccountDialog(key: String, name: String, done: Callback<Closed>) -> NodeId {
+    let remove = move || {
+        ask_core(CoreCommand::ForgetAccount(key.clone()));
+        done.call(Closed::Dismissed);
+    };
+    on_key(
+        KeyAt::Node(component_node()),
+        KeyPhase::Bubble,
+        KeyReveal::Focus,
+        move |event| {
+            let closes = event
+                .press()
+                .is_some_and(|press| press.pressed && !press.repeat && press.key == Key::Escape);
+            if closes {
+                done.call(Closed::Dismissed);
+            }
+            closes
+        },
+    );
+    view! {
+        <Frame
+            width=Length::FILL
+            height=Length::FILL
+            fill=ColorRole::Surface
+            border={Border::DEFAULT}
+            radius=Radius::Lg
+        >
+            <DialogBody
+                kind=DialogKind::Alert
+                title=FORGET_ACCOUNT_TITLE
+                scrolls=false
+                actions={vec![
+                    DialogAction::destructive("Remove", remove),
+                    DialogAction::cancel("Keep"),
+                ]}
+                on_dismiss={move || done.call(Closed::Dismissed)}
+            >
+                <Text style=TextStyle::PARAGRAPH>
+                    {format!("Remove {name}? Its blocks are kept only on this device, and go with it.")}
+                </Text>
+            </DialogBody>
+        </Frame>
+    }
+}
+
 /// An unsent block's name, or what the root calls one with none.
 fn edit_name(edit: &UnsentEdit) -> String {
     edit.name.clone().unwrap_or_else(|| "Untitled".to_owned())
@@ -1373,6 +1793,8 @@ impl frames::Guest for Root {
                 .expect("the root draws its dialog with beui");
             root.settle_lock()
                 .expect("the root draws its lock screen with beui");
+            root.settle_accounts()
+                .expect("the root draws its accounts with beui");
             if request.time == RESIZES {
                 if let Some(own) = &mut *root.own.borrow_mut() {
                     own.resize(RESIZED);
@@ -1408,6 +1830,12 @@ impl frames::Guest for Root {
                     .frame()
                     .expect("the root draws its statistics with beui");
             }
+            if let Some(accounts) = &mut *root.accounts.borrow_mut() {
+                accounts
+                    .surface
+                    .frame()
+                    .expect("the root draws its accounts with beui");
+            }
             if let Some(locked) = &mut *root.lock.borrow_mut() {
                 locked
                     .surface
@@ -1434,6 +1862,17 @@ impl frames::Guest for Root {
                     marker.surface = Surface::Root(1);
                     layers.push(marker);
                 }
+            }
+            // Its accounts while the block stack waits for one, over the app, taking every press.
+            if let Some(accounts) = &*root.accounts.borrow() {
+                let mut layer = accounts.surface.layer(ACCOUNTS_LAYER, pos2(0.0, 0.0));
+                layer.input = LayerInput {
+                    hit: Area::Whole,
+                    captures: true,
+                    focuses: true,
+                    ..LayerInput::default()
+                };
+                layers.push(layer);
             }
             // Its statistics panel while it is open, over the app: it scrolls, so it takes
             // presses, but never the focus from what the person works in.
@@ -1502,15 +1941,24 @@ impl frames::Guest for Root {
             let mut embedding = root.embedding.borrow_mut();
             let wants = embedding.wants();
             let drawn = embedding.drew(list);
-            // The lock screen, or else the dialog, drawn for the first time takes the focus.
-            let focus = match (&mut *root.lock.borrow_mut(), &mut *root.dialog.borrow_mut()) {
-                (Some(locked), _) if !locked.focused => {
+            // The lock screen, or else the dialog, or else the accounts, drawn for the first time
+            // takes the focus.
+            let focus = match (
+                &mut *root.lock.borrow_mut(),
+                &mut *root.dialog.borrow_mut(),
+                &mut *root.accounts.borrow_mut(),
+            ) {
+                (Some(locked), _, _) if !locked.focused => {
                     locked.focused = true;
                     embedding.focus(None, Some(LOCK_LAYER))
                 }
-                (None, Some(dialog)) if !dialog.focused => {
+                (None, Some(dialog), _) if !dialog.focused => {
                     dialog.focused = true;
                     embedding.focus(None, Some(DIALOG_LAYER))
+                }
+                (None, None, Some(accounts)) if !accounts.focused => {
+                    accounts.focused = true;
+                    embedding.focus(None, Some(ACCOUNTS_LAYER))
                 }
                 _ => Vec::new(),
             };
@@ -1546,6 +1994,11 @@ impl frames::Guest for Root {
                 .borrow()
                 .as_ref()
                 .and_then(|locked| locked.surface.next());
+            let accounts = root
+                .accounts
+                .borrow()
+                .as_ref()
+                .and_then(|accounts| accounts.surface.next());
             let next = wants
                 .next
                 .into_iter()
@@ -1553,6 +2006,7 @@ impl frames::Guest for Root {
                 .chain(dialog)
                 .chain(statistics)
                 .chain(lock)
+                .chain(accounts)
                 .min();
             // The input method is where the focused surface edits: an app's screen, or the
             // field of its dialog.
@@ -1560,9 +2014,11 @@ impl frames::Guest for Root {
                 let focused = embedding.focused(None)?;
                 let dialog = root.dialog.borrow();
                 let lock = root.lock.borrow();
+                let accounts = root.accounts.borrow();
                 match focused.id {
                     DIALOG_LAYER => dialog.as_ref()?.surface.ime(focused),
                     LOCK_LAYER => lock.as_ref()?.surface.ime(focused),
+                    ACCOUNTS_LAYER => accounts.as_ref()?.surface.ime(focused),
                     _ => None,
                 }
             });
@@ -1645,8 +2101,14 @@ impl paintings::Guest for Root {
             };
             Some((u64::from(scrim.id()), painting))
         });
-        // Its statistics panel only while it is open, and its lock screen while locked.
+        // Its statistics panel only while it is open, its accounts while they show, and its
+        // lock screen while locked.
         let statistics = self.statistics.borrow().as_ref().and_then(painted);
+        let accounts = self
+            .accounts
+            .borrow()
+            .as_ref()
+            .and_then(|accounts| painted(&accounts.surface));
         let lock = self
             .lock
             .borrow()
@@ -1656,6 +2118,7 @@ impl paintings::Guest for Root {
             screens: own
                 .into_iter()
                 .chain(text)
+                .chain(accounts)
                 .chain(statistics)
                 .chain(scrim)
                 .chain(dialog)
