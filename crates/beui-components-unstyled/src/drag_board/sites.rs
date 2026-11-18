@@ -32,6 +32,7 @@ pub(crate) struct Site {
 /// The carry a lift starts: its payload, the places each accepting site gave at the lift,
 /// the last frame and how fast the pointer moves.
 pub(crate) struct Placing {
+    pub(crate) id: CarryId,
     pub(crate) carry: Carry,
     /// Each accepting site's places, kept apart so a site that goes takes its own with it.
     specs: Vec<(u64, DragSpec<Placed>)>,
@@ -45,7 +46,7 @@ pub(crate) struct Placing {
     velocity: Velocity,
     last: Option<DragPoint>,
     /// The pointer that lifted it: only it moves and releases the carry.
-    pointer: PointerId,
+    pub(crate) pointer: PointerId,
 }
 
 fn closest_of(specs: &[(u64, DragSpec<Placed>)]) -> DragSpec<Placed> {
@@ -65,59 +66,73 @@ impl Board {
         id
     }
 
-    /// Unregisters a site. Mid-carry its places leave the carry, which lets go of what it
-    /// chose and chooses again where the pointer last was, so a release never commits to a
-    /// site that is gone.
+    /// Unregisters a site. Mid-carry its places leave each carry it gave them to, which lets
+    /// go of what it chose and chooses again where its pointer last was, so a release never
+    /// commits to a site that is gone.
     pub(crate) fn remove_site(&self, id: u64) {
         self.sites.borrow_mut().retain(|site| site.id != id);
-        let again = {
-            let mut placing = self.placing.borrow_mut();
-            match placing.as_mut() {
-                Some(placing) if placing.specs.iter().any(|(site, _)| *site == id) => {
-                    placing.specs.retain(|(site, _)| *site != id);
-                    placing.spec = closest_of(&placing.specs);
-                    placing.frame = DragFrame {
-                        chosen: None,
-                        ..placing.frame
-                    };
-                    placing.chosen = None;
-                    if placing.told.is_some_and(|(site, _)| site == id) {
-                        placing.told = None;
-                    }
-                    placing.last
+        let again: Vec<DragPoint> = self
+            .placing
+            .borrow_mut()
+            .iter_mut()
+            .filter(|placing| placing.specs.iter().any(|(site, _)| *site == id))
+            .filter_map(|placing| {
+                placing.specs.retain(|(site, _)| *site != id);
+                placing.spec = closest_of(&placing.specs);
+                placing.frame = DragFrame {
+                    chosen: None,
+                    ..placing.frame
+                };
+                placing.chosen = None;
+                if placing.told.is_some_and(|(site, _)| site == id) {
+                    placing.told = None;
                 }
-                _ => None,
-            }
-        };
-        if let Some(last) = again {
+                placing.last
+            })
+            .collect();
+        for last in again {
             self.place(last, false);
         }
     }
 
     /// Lifts `carry` at `point`: every site that accepts its payload gives its places, read
-    /// from the layout now, and the carry chooses among them from here on.
+    /// from the layout now, and the carry chooses among them from here on. A pointer carries
+    /// one at a time, so a lift by one that carries already is refused. A site gives places
+    /// to one carry at a time: one already giving them to another carry gives none to this
+    /// one (two fingers each lifting a row of one list: the second floats over it).
     pub fn lift(&self, carry: Carry, point: DragPoint) -> Option<CarryId> {
-        if self.carrying() {
+        if !self.lifts(point.pointer) {
             return None;
         }
         let id = CarryId(self.next.get());
         self.next.set(id.0 + 1);
         let payload = Rc::clone(&carry.payload);
         self.lifting.set(Some(carry.item.unwrap_or(point.item)));
-        let specs: Vec<(u64, DragSpec<Placed>)> = self
+        let busy: Vec<u64> = self
+            .placing
+            .borrow()
+            .iter()
+            .flat_map(|placing| placing.specs.iter().map(|(site, _)| *site))
+            .collect();
+        let sites: Vec<(u64, Rc<dyn Fn(&dyn Any) -> DragSpec<Erased>>)> = self
             .sites
             .borrow()
             .iter()
-            .filter(|site| (site.accepts)(payload.as_ref()))
-            .map(|site| {
-                let id = site.id;
-                let spec =
-                    (site.spec)(payload.as_ref()).map(Rc::new(move |drop: Erased| (id, drop)));
-                (id, spec)
+            .filter(|site| !busy.contains(&site.id) && (site.accepts)(payload.as_ref()))
+            .map(|site| (site.id, Rc::clone(&site.spec)))
+            .collect();
+        // A site's spec may read the board (`carried_item`), so the sites are not borrowed
+        // while it runs.
+        let specs: Vec<(u64, DragSpec<Placed>)> = sites
+            .into_iter()
+            .map(|(site, spec)| {
+                let spec = spec(payload.as_ref()).map(Rc::new(move |drop: Erased| (site, drop)));
+                (site, spec)
             })
             .collect();
         self.lifting.set(None);
-        *self.placing.borrow_mut() = Some(Placing {
+        self.placing.borrow_mut().push(Placing {
+            id,
             carry,
             spec: closest_of(&specs),
             specs,
@@ -128,16 +143,24 @@ impl Board {
             velocity: Velocity::new(now(), point.pos),
             last: None,
         });
-        self.lifted.update(|lifted| *lifted = Some(payload));
-        self.current.set(Some(id));
+        self.lifted.update(|lifted| lifted.push((id, payload)));
         self.place(point, false);
-        let over = self.over_chosen();
-        let places = self.rests().len();
-        self.say(match over {
-            Some(over) => format!("Lifted, {over}"),
-            None => format!("Lifted, {places} places to drop it"),
-        });
+        let over = self.over_chosen(point.pointer);
+        let places = self.rests_of(point.pointer).len();
+        self.say(
+            id,
+            match over {
+                Some(over) => format!("Lifted, {over}"),
+                None => format!("Lifted, {places} places to drop it"),
+            },
+        );
         Some(id)
+    }
+
+    /// Whether `pointer` may lift a carry: it holds none, and no carry of the old API is
+    /// held.
+    pub(crate) fn lifts(&self, pointer: PointerId) -> bool {
+        self.carried.borrow().is_none() && !self.carried_by(pointer)
     }
 
     /// How many sites take `payload`: a site that is the only one has nowhere else to let
@@ -150,54 +173,83 @@ impl Board {
             .count()
     }
 
-    /// The rect of the item carried, or being lifted while the sites give their places,
-    /// relative to the pointer; untracked.
+    /// The rect of the item being lifted while the sites give their places, or else of the
+    /// carry lifted last, relative to the pointer; untracked.
     pub(crate) fn carried_item(&self) -> Option<Rect> {
         self.lifting.get().or_else(|| {
             let placing = self.placing.borrow();
-            let placing = placing.as_ref()?;
+            let placing = placing.last()?;
             Some(placing.carry.item.unwrap_or(placing.last?.item))
         })
     }
 
-    /// What the inspector draws of the carry: every fixed place it can land in, where each
-    /// is now, and the frame it shows (which place is chosen, where the item draws). None
-    /// when nothing is carried; untracked.
+    /// What the inspector draws of a carry (the keyboard's, or else the first lifted): every
+    /// fixed place it can land in, where each is now, and the frame it shows (which place is
+    /// chosen, where the item draws). None when nothing is carried; untracked.
     pub fn inspect(&self) -> Option<(Vec<beui_view::drag::Rest>, DragFrame)> {
-        let frame = self.placing.borrow().as_ref()?.frame;
-        Some((self.rests(), frame))
+        let (pointer, frame) = {
+            let placing = self.placing.borrow();
+            let placing = placing
+                .iter()
+                .find(|placing| placing.pointer == PointerId::Keyboard)
+                .or_else(|| placing.first())?;
+            (placing.pointer, placing.frame)
+        };
+        Some((self.rests_of(pointer), frame))
     }
 
-    /// Every fixed place of the carry, where it is now.
-    fn rests(&self) -> Vec<beui_view::drag::Rest> {
+    /// Every fixed place of `pointer`'s carry, where it is now.
+    fn rests_of(&self, pointer: PointerId) -> Vec<beui_view::drag::Rest> {
         let space = Rc::clone(&self.space);
         let placed = move |node: NodeId| space.placed(node);
         self.placing
             .borrow()
-            .as_ref()
+            .iter()
+            .find(|placing| placing.pointer == pointer)
             .map(|placing| beui_view::drag::rests(&placing.spec, &placed))
             .unwrap_or_default()
     }
 
-    fn say(&self, said: String) {
-        if let Some(id) = self.current.get_untracked() {
-            self.said.set(Some((id, said)));
-        }
+    fn say(&self, id: CarryId, said: String) {
+        self.said.set(Some((id, said)));
     }
 
-    /// Moves a carry the keyboard holds to the nearest place `toward` from the one it is
+    /// The id of `pointer`'s carry.
+    fn carry_of(&self, pointer: PointerId) -> Option<CarryId> {
+        self.placing
+            .borrow()
+            .iter()
+            .find(|placing| placing.pointer == pointer)
+            .map(|placing| placing.id)
+    }
+
+    /// Says where `pointer`'s carry is now, after a step.
+    fn say_over(&self, pointer: PointerId) {
+        let Some(id) = self.carry_of(pointer) else {
+            return;
+        };
+        let said = match self.over_chosen(pointer) {
+            Some(over) => format!("{}{}", over[..1].to_uppercase(), &over[1..]),
+            None => "Over no place".to_owned(),
+        };
+        self.say(id, said);
+    }
+
+    /// Moves the carry the keyboard holds to the nearest place `toward` from the one it is
     /// over, aiming at the place's zone when it has one, and says the place then chosen.
     pub fn step(&self, toward: beui_view::types::Vec2) -> bool {
-        let Some((item, chosen, drawn, last)) =
-            self.placing.borrow().as_ref().and_then(|placing| {
-                (placing.pointer == PointerId::Keyboard).then(|| {
-                    (
-                        placing.carry.item,
-                        placing.frame.chosen,
-                        placing.frame.item.center(),
-                        placing.last,
-                    )
-                })
+        let Some((item, chosen, drawn, last)) = self
+            .placing
+            .borrow()
+            .iter()
+            .find(|placing| placing.pointer == PointerId::Keyboard)
+            .map(|placing| {
+                (
+                    placing.carry.item,
+                    placing.frame.chosen,
+                    placing.frame.item.center(),
+                    placing.last,
+                )
             })
         else {
             return false;
@@ -205,7 +257,7 @@ impl Board {
         let Some(last) = last else {
             return false;
         };
-        let rests = self.rests();
+        let rests = self.rests_of(PointerId::Keyboard);
         let from = rests
             .iter()
             .find(|rest| Some(rest.id) == chosen)
@@ -236,22 +288,19 @@ impl Board {
             }
         };
         self.place(DragPoint { pos, ..last }, false);
-        let said = match self.over_chosen() {
-            Some(over) => format!("{}{}", over[..1].to_uppercase(), &over[1..]),
-            None => "Over no place".to_owned(),
-        };
-        self.say(said);
+        self.say_over(PointerId::Keyboard);
         true
     }
 
-    /// Moves a keyboard carry that has no fixed place `toward` that way by its `free` place's
-    /// step, where it has one to move in (a canvas, a display's arrangement); `toward`'s length
-    /// counts the steps (Shift steps ten).
+    /// Moves the keyboard's carry, with no fixed place `toward`, that way by its `free`
+    /// place's step, where it has one to move in (a canvas, a display's arrangement);
+    /// `toward`'s length counts the steps (Shift steps ten).
     fn step_free(&self, toward: beui_view::types::Vec2, last: DragPoint) -> bool {
         let Some(step) = self
             .placing
             .borrow()
-            .as_ref()
+            .iter()
+            .find(|placing| placing.pointer == PointerId::Keyboard)
             .and_then(|placing| beui_view::drag::free_step(&placing.spec))
         else {
             return false;
@@ -264,20 +313,22 @@ impl Board {
             },
             false,
         );
-        let said = match self.over_chosen() {
-            Some(over) => format!("{}{}", over[..1].to_uppercase(), &over[1..]),
-            None => "Over no place".to_owned(),
-        };
-        self.say(said);
+        self.say_over(PointerId::Keyboard);
         true
     }
 
-    /// "over the left basket, place 1 of 3": the place the carry has chosen, for a screen
-    /// reader; "over a place" for one that is not fixed (free or a nested site), none when it
-    /// chose nothing.
-    fn over_chosen(&self) -> Option<String> {
-        let chosen = self.placing.borrow().as_ref()?.frame.chosen?;
-        let rests = self.rests();
+    /// "over the left basket, place 1 of 3": the place `pointer`'s carry has chosen, for a
+    /// screen reader; "over a place" for one that is not fixed (free or a nested site), none
+    /// when it chose nothing.
+    fn over_chosen(&self, pointer: PointerId) -> Option<String> {
+        let chosen = self
+            .placing
+            .borrow()
+            .iter()
+            .find(|placing| placing.pointer == pointer)?
+            .frame
+            .chosen?;
+        let rests = self.rests_of(pointer);
         let Some(at) = rests.iter().position(|rest| rest.id == chosen) else {
             return Some("over a place".to_owned());
         };
@@ -288,42 +339,82 @@ impl Board {
         Some(format!("over {name}, place {} of {}", at + 1, rests.len()))
     }
 
-    /// Whether the carry is held by `pointer`; another pointer's moves and releases leave it.
+    /// Whether `pointer` holds a carry; another pointer's moves and releases leave it.
     pub(crate) fn carried_by(&self, pointer: PointerId) -> bool {
         self.placing
             .borrow()
-            .as_ref()
-            .is_some_and(|placing| placing.pointer == pointer)
+            .iter()
+            .any(|placing| placing.pointer == pointer)
     }
 
-    /// The nodes the carry's places are relative to, whose windows the board notes.
+    /// The nodes the carries' places are relative to, whose windows the board notes.
     pub(crate) fn placing_nodes(&self) -> Vec<beui_view::reactive::NodeRef> {
         self.placing
             .borrow()
-            .as_ref()
-            .map_or_else(Vec::new, |placing| beui_view::drag::nodes(&placing.spec))
+            .iter()
+            .flat_map(|placing| beui_view::drag::nodes(&placing.spec))
+            .collect()
     }
 
     pub(crate) fn placing(&self) -> bool {
-        self.placing.borrow().is_some()
+        !self.placing.borrow().is_empty()
     }
 
-    /// Where the carry was last placed, if one is held.
-    pub(crate) fn placing_last(&self) -> Option<DragPoint> {
-        self.placing.borrow().as_ref()?.last
+    /// Where each carry was last placed.
+    pub(crate) fn placing_last(&self) -> Vec<DragPoint> {
+        self.placing
+            .borrow()
+            .iter()
+            .filter_map(|placing| placing.last)
+            .collect()
     }
 
-    /// The payload carried, if any: tracked, so a site or row reading it follows the lift.
-    pub fn carried(&self) -> Option<Erased> {
-        self.lifted.get()
+    /// Whether `pointer`'s carry scrolls the edge scroller holding it (not `scrolls_nothing`).
+    pub(crate) fn placing_scrolls(&self, pointer: PointerId) -> bool {
+        self.placing
+            .borrow()
+            .iter()
+            .find(|placing| placing.pointer == pointer)
+            .is_none_or(|placing| placing.carry.scrolls)
     }
 
-    /// The frame the carry shows: where its item draws and whether it floats; tracked. Peers
-    /// are shown a carry by its site, which publishes the place chosen in it (its `over`) as
-    /// presence in its own terms, so their copy of the site draws it in their view (a
-    /// canvas's carried shapes at their world place).
-    pub fn frame(&self) -> Option<DragFrame> {
-        self.shown.get()
+    /// The payload of a carry that is a `P`, if one is carried: tracked, so a site or row
+    /// reading it follows the lift.
+    pub fn carried_of<P: Clone + 'static>(&self) -> Option<P> {
+        self.lifted.with(|lifted| {
+            lifted
+                .iter()
+                .find_map(|(_, payload)| payload.downcast_ref::<P>().cloned())
+        })
+    }
+
+    /// Whether anything is carried; tracked.
+    pub fn carries_any(&self) -> bool {
+        self.lifted.with(|lifted| !lifted.is_empty())
+    }
+
+    /// The frame of the carry whose payload is a `P`: where its item draws and whether it
+    /// floats; tracked. Peers are shown a carry by its site, which publishes the place
+    /// chosen in it (its `over`) as presence in its own terms, so their copy of the site
+    /// draws it in their view (a canvas's carried shapes at their world place).
+    pub fn frame_of<P: 'static>(&self) -> Option<DragFrame> {
+        let id = self.lifted.with(|lifted| {
+            lifted
+                .iter()
+                .find(|(_, payload)| payload.is::<P>())
+                .map(|(id, _)| *id)
+        })?;
+        self.frame_by(id)
+    }
+
+    /// The frame carry `id` shows; tracked.
+    pub(crate) fn frame_by(&self, id: CarryId) -> Option<DragFrame> {
+        self.shown.with(|shown| {
+            shown
+                .iter()
+                .find(|(shown, _)| *shown == id)
+                .map(|(_, frame)| *frame)
+        })
     }
 
     /// Chooses a place for `point`. Only a change is told: the site it left hears it is over
@@ -333,7 +424,8 @@ impl Board {
         let kept = self
             .placing
             .borrow()
-            .as_ref()
+            .iter()
+            .find(|placing| placing.pointer == point.pointer)
             .and_then(|placing| placing.carry.window);
         // One it cannot read there is over no place of it.
         let (point, unread) = match kept {
@@ -365,9 +457,12 @@ impl Board {
             }
             space.placed(node)
         };
-        let (left, entered, frame) = {
+        let (id, left, entered, frame) = {
             let mut placing = self.placing.borrow_mut();
-            let Some(placing) = placing.as_mut() else {
+            let Some(placing) = placing
+                .iter_mut()
+                .find(|placing| placing.pointer == point.pointer)
+            else {
                 return;
             };
             let point = DragPoint {
@@ -415,10 +510,13 @@ impl Board {
             let entered = (now != was || made)
                 .then(|| placing.chosen.clone())
                 .flatten();
-            (left, entered, placing.frame)
+            (placing.id, left, entered, placing.frame)
         };
-        if self.shown.get_untracked() != Some(frame) {
-            self.shown.set(Some(frame));
+        if self.frame_by_untracked(id) != Some(frame) {
+            self.shown.update(|shown| match shown.iter_mut().find(|(at, _)| *at == id) {
+                Some((_, was)) => *was = frame,
+                None => shown.push((id, frame)),
+            });
         }
         if let Some(left) = left.and_then(|id| self.site_over(id)) {
             left(None);
@@ -438,59 +536,91 @@ impl Board {
             .map(|site| Rc::clone(&site.over))
     }
 
-    /// Ends the carry: on a release with a place chosen, its site commits the drop; either
-    /// way every site hears it is over nothing.
-    pub(crate) fn put_down(&self, commit: bool) -> bool {
-        let last = self
+    fn frame_by_untracked(&self, id: CarryId) -> Option<DragFrame> {
+        self.shown.with_untracked(|shown| {
+            shown
+                .iter()
+                .find(|(shown, _)| *shown == id)
+                .map(|(_, frame)| *frame)
+        })
+    }
+
+    /// Puts down every carry, dropping nothing (Escape); whether there was one.
+    pub(crate) fn put_down_all(&self) -> bool {
+        let pointers: Vec<PointerId> = self
             .placing
             .borrow()
-            .as_ref()
-            .and_then(|placing| placing.last);
+            .iter()
+            .map(|placing| placing.pointer)
+            .collect();
+        for &pointer in &pointers {
+            self.put_down(pointer, false);
+        }
+        !pointers.is_empty()
+    }
+
+    /// Ends `pointer`'s carry: on a release with a place chosen, its site commits the drop;
+    /// either way the site it was over hears it is over nothing.
+    pub(crate) fn put_down(&self, pointer: PointerId, commit: bool) -> bool {
+        let Some(last) = self
+            .placing
+            .borrow()
+            .iter()
+            .find(|placing| placing.pointer == pointer)
+            .map(|placing| placing.last)
+        else {
+            return false;
+        };
         // A pointer's release places once more, as a release (a throw lands further on); a
         // keyboard drop commits the place its last step chose, as said.
         if commit
-            && !self.carried_by(PointerId::Keyboard)
+            && pointer != PointerId::Keyboard
             && let Some(last) = last
         {
             self.place(last, true);
         }
-        let committing = commit
-            && self
-                .placing
-                .borrow()
-                .as_ref()
-                .is_some_and(|placing| placing.chosen.is_some());
-        self.say(match committing {
-            true => "Dropped".to_owned(),
-            false => "Put down where it was".to_owned(),
-        });
-        self.stop_edge();
-        let Some(placing) = self.placing.borrow_mut().take() else {
+        let Some(placing) = ({
+            let mut placings = self.placing.borrow_mut();
+            placings
+                .iter()
+                .position(|placing| placing.pointer == pointer)
+                .map(|at| placings.remove(at))
+        }) else {
             return false;
         };
+        let committing = commit && placing.chosen.is_some();
+        self.say(
+            placing.id,
+            match committing {
+                true => "Dropped".to_owned(),
+                false => "Put down where it was".to_owned(),
+            },
+        );
+        self.stop_edge_of(pointer);
         // Let go outside every window, on no place: the source hears where.
         let outside = (commit && placing.chosen.is_none() && self.outside.get())
             .then(|| placing.carry.outside.clone().zip(placing.last))
             .flatten();
-        self.lifted.update(|lifted| *lifted = None);
-        self.shown.set(None);
-        self.current.set(None);
-        let sites: Vec<(u64, Rc<dyn Fn(Option<Erased>)>, Rc<dyn Fn(Erased, Erased)>)> = self
-            .sites
-            .borrow()
-            .iter()
-            .map(|site| (site.id, Rc::clone(&site.over), Rc::clone(&site.commit)))
-            .collect();
+        let id = placing.id;
+        self.lifted
+            .update(|lifted| lifted.retain(|(lifted, _)| *lifted != id));
+        self.shown
+            .update(|shown| shown.retain(|(shown, _)| *shown != id));
         let over_site = placing.told.map(|(site, _)| site);
+        let site = over_site.and_then(|over_site| {
+            self.sites
+                .borrow()
+                .iter()
+                .find(|site| site.id == over_site)
+                .map(|site| (Rc::clone(&site.over), Rc::clone(&site.commit)))
+        });
         // The site commits before it hears it is over nothing, so a site that previews by
         // writing (a canvas's held move) knows on hearing nothing chosen that no drop came.
-        for (id, over, commit_to) in sites {
-            if Some(id) == over_site {
-                if commit && let Some((_, drop)) = &placing.chosen {
-                    commit_to(Rc::clone(&placing.carry.payload), Rc::clone(drop));
-                }
-                over(None);
+        if let Some((over, commit_to)) = site {
+            if commit && let Some((_, drop)) = &placing.chosen {
+                commit_to(Rc::clone(&placing.carry.payload), Rc::clone(drop));
             }
+            over(None);
         }
         if let Some((outside, last)) = outside {
             outside(last);

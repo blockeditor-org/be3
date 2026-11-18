@@ -799,7 +799,7 @@ pub(super) fn DockGhost(
         if place.surface != Some(surface) {
             return None;
         }
-        let frame = board.frame().filter(|frame| !frame.floating)?;
+        let frame = board.frame_of::<super::DockCarry>().filter(|frame| !frame.floating)?;
         Some((dragged, frame.item, place))
     });
     // Where it was drawn last, for the glide on release; forgotten once the carry ends, so

@@ -73,6 +73,12 @@ pub fn Interactive(
     /// holding it first (a card on a board, a row in a list that scrolls the other way).
     #[prop(default = false)]
     lifts_on_long_press: bool,
+    /// Whether a mouse's or pen's press lifts `drag`'s carry at once, rather than past the
+    /// drag threshold: a control's thumb or a splitter, which follows the pointer from its
+    /// first point. A finger still lifts it past the threshold, which tells its drag from a
+    /// scroll (or with `lifts_on_long_press`). A press that lifts and never moves still clicks.
+    #[prop(default = false)]
+    lifts_on_press: bool,
     /// Whether Space lifts `drag`'s carry from the keyboard, on a source that does not
     /// activate. Off for a surface whose Space is another's: a canvas, where a held Space pans
     /// (guides/pan_and_zoom.md). Ctrl+Shift and an arrow, and Move in the palette, still move
@@ -107,7 +113,7 @@ pub fn Interactive(
                     on_drag,
                     on_long_press_drag,
                     (on_active_change, on_cancel),
-                    lifts_on_long_press,
+                    (lifts_on_long_press, lifts_on_press),
                 );
                 let Face {
                     raised,
@@ -242,7 +248,7 @@ fn carrying(
     on_drag: Callback<PointerPress>,
     on_long_press_drag: Callback<PointerPress>,
     (on_active_change, on_cancel): (Callback<bool>, Callback<()>),
-    lifts_on_long_press: bool,
+    (lifts_on_long_press, lifts_on_press): (bool, bool),
 ) -> Carrying {
     use crate::reactive::{Get, Set, create_memo, create_signal, on_cleanup};
     use crate::types::Rect;
@@ -267,21 +273,6 @@ fn carrying(
     let previewed = create_signal(false);
     // Whether this node floats the carry's own preview.
     let floats_here = create_signal(false);
-    let pressed = {
-        let (asked, held, lifted, origin) = (
-            Rc::clone(&asked),
-            Rc::clone(&held),
-            Rc::clone(&lifted),
-            Rc::clone(&origin),
-        );
-        Callback::new(move |press: PointerPress| {
-            asked.set(false);
-            held.borrow_mut().clear();
-            lifted.set(false);
-            origin.set(Some(press));
-            on_press.call(press);
-        })
-    };
     // Takes up what a lifted carry draws: its preview floats here, and the children are not
     // displaced unless the source is its face.
     let show_face = {
@@ -297,10 +288,17 @@ fn carrying(
             *preview.borrow_mut() = floats;
         })
     };
-    // Asks `drag` for a carry at `press`, while nothing is carried.
+    // Whether this node's own carry is held: a source is carried once at a time.
+    let held_here = move |driver: &std::rc::Rc<dyn crate::drag::Driver>| {
+        crate::reactive::untrack(|| {
+            mine.is_alive() && mine.get_untracked().is_some_and(|id| driver.holds(id))
+        })
+    };
+    // Asks `drag` for a carry at `press`, while its pointer carries nothing and this node's
+    // carry is not held.
     let ask = move |press: PointerPress| {
         crate::drag::driver()
-            .filter(|driver| !driver.carrying())
+            .filter(|driver| driver.lifts(press.pointer) && !held_here(driver))
             .and_then(|_| drag.call(press))
     };
     // Lifts `carry` at `press`.
@@ -311,7 +309,9 @@ fn carrying(
             Rc::clone(&lifted),
         );
         Rc::new(move |mut carry: crate::drag::Carry, press: PointerPress| {
-            let Some(driver) = crate::drag::driver().filter(|driver| !driver.carrying()) else {
+            let Some(driver) = crate::drag::driver()
+                .filter(|driver| driver.lifts(press.pointer) && !held_here(driver))
+            else {
                 return;
             };
             // Unless the carry says otherwise, the item is this node, held where it was
@@ -329,6 +329,30 @@ fn carrying(
                 show_face(face);
                 by_keys.set(false);
                 mine.set(Some(id));
+            }
+        })
+    };
+    // A press begins afresh; with `lifts_on_press`, a mouse's or pen's lifts the carry at
+    // once, after the source hears the press.
+    let pressed = {
+        let (asked, held, lifted, origin, lift) = (
+            Rc::clone(&asked),
+            Rc::clone(&held),
+            Rc::clone(&lifted),
+            Rc::clone(&origin),
+            Rc::clone(&lift),
+        );
+        Callback::new(move |press: PointerPress| {
+            asked.set(false);
+            held.borrow_mut().clear();
+            lifted.set(false);
+            origin.set(Some(press));
+            on_press.call(press);
+            if lifts_on_press && !press.touch {
+                asked.set(true);
+                if let Some(carry) = ask(press) {
+                    lift(carry, press);
+                }
             }
         })
     };
@@ -422,10 +446,7 @@ fn carrying(
     // The frame this node's carry shows, while it holds one.
     let frame = create_memo(move || {
         let id = mine.get()?;
-        let driver = crate::drag::driver()?;
-        (driver.carry() == Some(id))
-            .then(|| driver.frame())
-            .flatten()
+        crate::drag::driver()?.frame(id)
     });
     let floating = create_memo(move || frame.get().is_some_and(|frame| frame.floating));
     // The item is drawn where the frame says while it is carried: floating under the
@@ -636,7 +657,7 @@ fn held_keys(press: KeyPress, mine: crate::reactive::Signal<Option<crate::drag::
     let held = mine.is_alive()
         && mine
             .get_untracked()
-            .is_some_and(|id| driver.carry() == Some(id));
+            .is_some_and(|id| crate::reactive::untrack(|| driver.holds(id)));
     if !held {
         return false;
     }
@@ -670,7 +691,8 @@ fn lift_by_keys(
 ) -> bool {
     use crate::reactive::Get;
     use crate::types::{Rect, input::PointerId};
-    let Some(driver) = crate::drag::driver().filter(|driver| !driver.carrying()) else {
+    let Some(driver) = crate::drag::driver().filter(|driver| driver.lifts(PointerId::Keyboard))
+    else {
         return false;
     };
     let Some(rect) = laid_out.get_untracked().map(|measured| measured.rect) else {

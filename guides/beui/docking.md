@@ -234,6 +234,16 @@ the keyboard (`keyboard_after_move`, which lasts only for the drop's edit), as p
 would; so does a pointer's drop of a tab its press focused. Pane grips are not focusable, so a pane
 moves only by the pointer.
 
+**Splitters.** A splitter is a carry too (`SplitterCarry`), lifted at a mouse's or pen's press
+(`lifts_on_press`) and past the threshold along its axis by a finger, and the drop site of its own
+carry alone: a `free` place over its tree's canvas, unbounded, which turns the pointer's travel from
+the press into a `SplitSize` as `SplitSize::moved` does. Unlike a tab it previews by writing: each
+place chosen is written with `State::drag_edit`, and a drop writes its place too. Escape or a
+cancelled press puts it back to the size it had at the lift; a release
+outside every window keeps where it was. It scrolls nothing. Its arrows step it `SPLIT_STEP` of the
+space as before, and a keyboard carry (Move in the palette, Ctrl+Shift and an arrow) steps it the
+same; Space stays unbound.
+
 **The preview.** Nothing is written until the release. While a place is chosen (or a tab bar parts
 for a tab from another pane, `part_for_bar`), each tree canvas lays its panes and splitters out
 as the place's state would (`State::previewed`) and springs every rect from where it is drawn

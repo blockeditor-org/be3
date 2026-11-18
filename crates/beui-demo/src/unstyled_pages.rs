@@ -15,7 +15,7 @@ use beui::unstyled::{
     NumberFaceHandle, NumberFieldHandle, SheetCurves, SheetGripHandle, SlideCurves,
     TreeRevealHandle, TreeRowHandle, TreeToggleHandle, emoji_completer,
 };
-use beui::{PointerPress, Pos2, Vec2};
+use beui::{PointerPress, Pos2, TouchDrags, Vec2};
 
 const FACE_PADDING_HORIZONTAL: Space = Space::Xl;
 const FACE_PADDING_VERTICAL: Space = Space::Md;
@@ -836,6 +836,12 @@ pub(crate) fn DraggingPage() -> NodeId {
             <Sample title="A switch dragged between its states" code={vec![DragSwitch::SOURCE]}>
                 <DragSwitch />
             </Sample>
+            <Sample
+                title="Thumbs lifted at the press, two at once"
+                code={vec![PressedThumbs::SOURCE, PressedThumb::SOURCE]}
+            >
+                <PressedThumbs />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -1085,6 +1091,72 @@ fn DragSwitch() -> NodeId {
                             height=Size::Custom(28.0)
                             radius=Radius::Full
                             fill=ColorRole::Surface
+                        />
+                    </Interactive>
+                </Frame>
+            </List>
+        </Frame>
+    }
+}
+
+/// Two thumbs on tracks, each a `free` place lifted at a mouse's press (a finger lifts it
+/// past the threshold, telling it from a scroll), scrolling nothing however near the page's
+/// edge it is held; the mouse and a finger, or two controllers, carry one each at once.
+#[sample]
+#[component]
+fn PressedThumbs() -> NodeId {
+    view! {
+        <List spacing=Space::Md>
+            <PressedThumb thumb=0 />
+            <PressedThumb thumb=1 />
+        </List>
+    }
+}
+
+const THUMB: Vec2 = Vec2::new(24.0, 24.0);
+
+/// What a thumb's carry holds: its own type, so no other site takes it.
+#[derive(Clone, Copy, PartialEq)]
+struct CarriedThumb(usize);
+
+#[sample]
+#[component]
+fn PressedThumb(thumb: usize) -> NodeId {
+    let at = create_signal(0.0_f32);
+    let track = NodeRef::new();
+    let site = unstyled::use_drop_site(
+        Func::new(move |carried: CarriedThumb| carried == CarriedThumb(thumb)),
+        Func::new(move |_: CarriedThumb| drag::free(track, |rect: Rect| rect.min.x)),
+        Callback::new(move |(_, x): (CarriedThumb, f32)| at.set(x)),
+    );
+    // The thumb is drawn where the carry is over, and stays where it was if put down.
+    let shown = create_memo(move || site.over.get().unwrap_or(at.get()));
+    view! {
+        <Frame
+            @node_ref=&track
+            height=Size::Custom(THUMB.y)
+            fill=ColorRole::Control
+            radius=Radius::Full
+        >
+            <List spacing=Space::None align=Align::Start>
+                <Frame translate={move || Vec2::new(shown.get(), 0.0)}>
+                    <Interactive
+                        @test_id={format!("demo.thumb.{thumb}")}
+                        lifts_on_press=true
+                        touch_drags={TouchDrags::Along(Direction::Horizontal)}
+                        drag={Func::new(move |_: PointerPress| {
+                            Some(
+                                drag::Carry::new(CarriedThumb(thumb))
+                                    .drawn_by_site()
+                                    .scrolls_nothing(),
+                            )
+                        })}
+                    >
+                        <Frame
+                            width=Size::Custom(THUMB.x)
+                            height=Size::Custom(THUMB.y)
+                            radius=Radius::Full
+                            fill=ColorRole::Accent
                         />
                     </Interactive>
                 </Frame>

@@ -454,6 +454,8 @@ pub struct Carry {
     pub outside: Option<Rc<dyn Fn(DragPoint)>>,
     /// The window the carry is read in, whatever window the pointer is over (`kept_in`).
     pub window: Option<crate::window::WindowId>,
+    /// Whether the carry scrolls the edge scroller whose band holds it (`scrolls_nothing`).
+    pub scrolls: bool,
 }
 
 /// What is drawn for a carried item.
@@ -477,6 +479,16 @@ impl Carry {
             face: CarryFace::Source,
             outside: None,
             window: None,
+            scrolls: true,
+        }
+    }
+
+    /// Scrolls nothing while carried, wherever it is held: a control's thumb, whose drag moves
+    /// a value, not an item, so a form scrolling under it would move the value too.
+    pub fn scrolls_nothing(self) -> Self {
+        Self {
+            scrolls: false,
+            ..self
         }
     }
 

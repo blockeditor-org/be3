@@ -34,7 +34,9 @@ struct Carried {
     pointer: Option<PointerId>,
 }
 
-type Scrolling = (u64, Vec2, Rc<dyn Fn(Option<Vec2>)>);
+/// The scroller a carry is scrolling: its id, how deep into its band, how to tell it, and
+/// the pointer whose carry scrolls it (only that one moves or stops it).
+type Scrolling = (u64, Vec2, Rc<dyn Fn(Option<Vec2>)>, PointerId);
 
 struct Under {
     id: u64,
@@ -54,13 +56,14 @@ pub struct Board {
     scrolling: RefCell<Option<Scrolling>>,
     next: Cell<u64>,
     sites: RefCell<Vec<Site>>,
-    placing: RefCell<Option<sites::Placing>>,
+    /// The carries held, one per pointer, in the order they were lifted.
+    placing: RefCell<Vec<sites::Placing>>,
     /// The item a lift is lifting, while the sites give their places for it.
     lifting: Cell<Option<Rect>>,
-    lifted: OwnedSignal<Option<Erased>>,
-    shown: OwnedSignal<Option<DragFrame>>,
-    /// The carry held now, by the id its lift returned.
-    current: OwnedSignal<Option<CarryId>>,
+    /// Each carry's payload, by the id its lift returned.
+    lifted: OwnedSignal<Vec<(CarryId, Erased)>>,
+    /// The frame each carry shows.
+    shown: OwnedSignal<Vec<(CarryId, DragFrame)>>,
     /// What the last carry said for a screen reader, and which carry said it.
     said: OwnedSignal<Option<(CarryId, String)>>,
 }
@@ -80,9 +83,8 @@ impl Board {
             sites: RefCell::default(),
             placing: RefCell::default(),
             lifting: Cell::default(),
-            lifted: OwnedSignal::new(None),
-            shown: OwnedSignal::new(None),
-            current: OwnedSignal::new(None),
+            lifted: OwnedSignal::new(Vec::new()),
+            shown: OwnedSignal::new(Vec::new()),
             said: OwnedSignal::new(None),
         }
     }
@@ -236,7 +238,7 @@ impl Board {
     /// ended under the carry (a canvas whose move an undo took back). Whether anything was.
     pub fn cancel(&self) -> bool {
         if self.placing() {
-            return self.put_down(false);
+            return self.put_down_all();
         }
         if !self.carrying() {
             return false;
@@ -286,8 +288,11 @@ impl Board {
     /// Chooses again where the pointer last was: what is under it moved (a scroll, a
     /// canvas's camera), though the pointer did not.
     pub fn retrack(&self) {
-        if let Some(last) = self.placing_last() {
-            self.place(last, false);
+        let lasts = self.placing_last();
+        if !lasts.is_empty() {
+            for last in lasts {
+                self.place(last, false);
+            }
             return;
         }
         if let Some(last) = self.last() {
@@ -476,9 +481,18 @@ impl Board {
         }
     }
 
+    /// Scrolls the innermost scroller whose edge band holds `point`, for the carry of its
+    /// pointer, unless that carry scrolls nothing or another pointer's carry is scrolling.
     fn edge_scroll(&self, point: DragPoint) {
-        if !self.carrying() || self.outside.get() {
-            self.stop_edge();
+        if !self.carrying()
+            || self.outside.get()
+            || (self.placing() && !self.placing_scrolls(point.pointer))
+        {
+            self.stop_edge_of(point.pointer);
+            return;
+        }
+        let scrolling = self.scrolling.borrow().as_ref().map(|(.., pointer)| *pointer);
+        if scrolling.is_some_and(|other| other != point.pointer && self.carried_by(other)) {
             return;
         }
         let found = self
@@ -506,26 +520,40 @@ impl Board {
             .scrolling
             .borrow()
             .as_ref()
-            .map(|(id, depth, _)| (*id, *depth));
+            .map(|(id, depth, ..)| (*id, *depth));
         match (previous, found) {
             (Some((was, depth)), Some((id, now, scroll))) if was == id => {
                 if depth != now {
-                    *self.scrolling.borrow_mut() = Some((id, now, Rc::clone(&scroll)));
+                    *self.scrolling.borrow_mut() =
+                        Some((id, now, Rc::clone(&scroll), point.pointer));
                     scroll(Some(now));
                 }
             }
             (_, Some((id, depth, scroll))) => {
                 self.stop_edge();
-                *self.scrolling.borrow_mut() = Some((id, depth, Rc::clone(&scroll)));
+                *self.scrolling.borrow_mut() =
+                    Some((id, depth, Rc::clone(&scroll), point.pointer));
                 scroll(Some(depth));
             }
             (_, None) => self.stop_edge(),
         }
     }
 
+    /// Stops the edge scrolling `pointer`'s carry is doing, if any.
+    pub(crate) fn stop_edge_of(&self, pointer: PointerId) {
+        let ours = self
+            .scrolling
+            .borrow()
+            .as_ref()
+            .is_some_and(|(.., scrolling)| *scrolling == pointer);
+        if ours {
+            self.stop_edge();
+        }
+    }
+
     pub fn stop_edge(&self) {
         let stopped = self.scrolling.borrow_mut().take();
-        if let Some((_, _, scroll)) = stopped {
+        if let Some((_, _, scroll, _)) = stopped {
             scroll(None);
         }
     }
@@ -591,9 +619,7 @@ impl Driver for Board {
 
     fn release(&self, pointer: PointerId, cancelled: bool, order: Order) {
         if self.placing() {
-            if self.carried_by(pointer) {
-                self.put_down(!cancelled);
-            }
+            self.put_down(pointer, !cancelled);
             return;
         }
         self.order(order);
@@ -613,22 +639,33 @@ impl Driver for Board {
         Board::stop_edge(self);
     }
 
+    fn lifts(&self, pointer: PointerId) -> bool {
+        Board::lifts(self, pointer)
+    }
+
     fn lift(&self, carry: beui_view::drag::Carry, point: DragPoint) -> Option<CarryId> {
         Board::lift(self, carry, point)
     }
 
     fn put_down(&self, carry: CarryId) {
-        if self.current.get_untracked() == Some(carry) {
-            Board::put_down(self, false);
+        let pointer = self
+            .placing
+            .borrow()
+            .iter()
+            .find(|placing| placing.id == carry)
+            .map(|placing| placing.pointer);
+        if let Some(pointer) = pointer {
+            Board::put_down(self, pointer, false);
         }
     }
 
-    fn carry(&self) -> Option<CarryId> {
-        self.current.get()
+    fn holds(&self, carry: CarryId) -> bool {
+        self.lifted
+            .with(|lifted| lifted.iter().any(|(id, _)| *id == carry))
     }
 
-    fn frame(&self) -> Option<DragFrame> {
-        Board::frame(self)
+    fn frame(&self, carry: CarryId) -> Option<DragFrame> {
+        self.frame_by(carry)
     }
 
     fn step(&self, toward: beui_view::types::Vec2) -> bool {

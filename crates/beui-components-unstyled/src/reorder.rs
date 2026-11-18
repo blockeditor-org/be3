@@ -546,7 +546,7 @@ where
             .as_ref()
             .and_then(|own| keys.iter().position(|key| key == own));
         if own.is_none()
-            && let Some(frame) = untrack(|| drag_board().frame())
+            && let Some(frame) = untrack(|| drag_board().frame_of::<P>())
         {
             *state.arrival.borrow_mut() = Some(Arrival::New(keys.clone(), frame.item.min));
         }
@@ -711,7 +711,7 @@ where
     );
     // The carry ends when the board carries nothing: whatever it was dropped on has heard.
     create_effect(move || {
-        if drag_board().carried().is_none() && carried.with_untracked(Option::is_some) {
+        if carrying::<P>().is_none() && carried.with_untracked(Option::is_some) {
             carried.set(None);
             state.with(mark_move);
             on_drag_change.call(None);
@@ -783,14 +783,14 @@ where
     // this list's own row, floating off it, is drawn here too, under the pointer: the row
     // itself is collapsed then, and what a collapsed row holds is not shown.
     let floating = create_memo(move || {
-        carried.with(Option::is_some) && drag_board().frame().is_some_and(|frame| frame.floating)
+        carried.with(Option::is_some) && drag_board().frame_of::<P>().is_some_and(|frame| frame.floating)
     });
     let visiting =
         create_memo(move || (visited.get() || floating.get()) && carrying::<P>().is_some());
     let anchor = create_memo(move || {
         OverlayAnchor::Point(
             drag_board()
-                .frame()
+                .frame_of::<P>()
                 .map_or(Pos2::ZERO, |frame| frame.item.min),
         )
     });
@@ -983,7 +983,7 @@ where
     // to its slot.
     let holding = Cell::new(false);
     create_effect(move || {
-        let frame = held.get().then(|| drag_board().frame()).flatten();
+        let frame = held.get().then(|| drag_board().frame_of::<P>()).flatten();
         if frame.is_none() && !holding.get() {
             return;
         }
@@ -1003,7 +1003,7 @@ where
         let last = Rc::clone(&last);
         create_effect(move || {
             if away.get()
-                && let Some(frame) = drag_board().frame()
+                && let Some(frame) = drag_board().frame_of::<P>()
             {
                 last.set(Some(frame.item.min));
             }

@@ -165,26 +165,31 @@ pub trait Space {
 pub type Order<'a> = &'a dyn Fn(crate::node::NodeId) -> (Vec<usize>, WindowId);
 
 /// The drag board as a core drives it: pointer points, releases, Escape, and the pointer
-/// leaving the window.
+/// leaving the window. It holds a carry per pointer: each pointer's points move and release
+/// only its own.
 pub trait Driver {
+    /// Whether anything is carried.
     fn carrying(&self) -> bool;
     fn set_outside(&self, outside: bool);
     fn track(&self, point: DragPoint, order: Order);
     /// `pointer` let go (or lost its press); a carry held by another pointer goes on.
     fn release(&self, pointer: PointerId, cancelled: bool, order: Order);
+    /// Puts down every carry (Escape); whether there was one.
     fn cancel(&self) -> bool;
     fn stop_edge(&self);
+    /// Whether `pointer` may lift a carry now: it carries none already.
+    fn lifts(&self, pointer: PointerId) -> bool;
     /// Lifts `carry` at `point`, a drag an `Interactive`'s `drag` began: from here the
     /// carried item chooses among the places the drop sites that accept it give. `None`
-    /// when something is carried already.
+    /// when `point`'s pointer carries something already.
     fn lift(&self, carry: Carry, point: DragPoint) -> Option<CarryId>;
     /// Puts `carry` down without dropping it, if it is still carried: its source is gone.
     fn put_down(&self, carry: CarryId);
-    /// The carry held now; tracked.
-    fn carry(&self) -> Option<CarryId>;
-    /// The frame the carry shows; tracked.
-    fn frame(&self) -> Option<DragFrame>;
-    /// Moves a keyboard carry to the nearest place `toward` from where it is; whether one
+    /// Whether `carry` is still carried; tracked.
+    fn holds(&self, carry: CarryId) -> bool;
+    /// The frame `carry` shows, while it is carried; tracked.
+    fn frame(&self, carry: CarryId) -> Option<DragFrame>;
+    /// Moves the keyboard's carry to the nearest place `toward` from where it is; whether one
     /// was there.
     fn step(&self, toward: Vec2) -> bool;
     /// What the last carry said for a screen reader (lifted, each place a step chooses, put

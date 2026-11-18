@@ -192,6 +192,7 @@ fn rect(x: f32, y: f32, width: f32, height: f32) -> Rect {
 }
 
 mod a_carried_item_drops_on_the_topmost_target_under_the_pointer;
+mod a_carry_that_scrolls_nothing_leaves_the_scroller_under_it_still;
 mod a_drag_begun_at_a_mouse_point_follows_the_first_pointer_that_moves_it;
 mod a_lifted_carry_scrolls_the_scroller_whose_edge_holds_it;
 mod a_release_over_no_target_cancels_the_drag;

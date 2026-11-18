@@ -15,6 +15,7 @@ mod a_site_gone_mid_carry_is_never_dropped_on;
 mod a_site_hears_of_the_place_chosen_in_it_only_when_it_changes;
 mod an_item_from_another_list_gets_a_place_at_each_gap_its_size;
 mod another_pointer_neither_moves_nor_drops_a_carry;
+mod each_pointer_carries_its_own_item_and_escape_puts_down_every_one;
 mod two_sites_that_float_when_far_leave_the_item_to_the_near_ones_place;
 
 /// Nodes where tests put them, at scale 1.
@@ -65,9 +66,7 @@ impl Fixture {
     }
 
     fn carried(&self) -> Option<u32> {
-        self.board
-            .carried()
-            .and_then(|payload| payload.downcast_ref::<u32>().copied())
+        self.board.carried_of::<u32>()
     }
 
     fn release(&self) {

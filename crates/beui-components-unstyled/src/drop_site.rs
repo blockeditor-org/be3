@@ -93,9 +93,7 @@ where
 
 /// The payload carried on the tree's board, if it is a `P`; tracked.
 pub fn carrying<P: Clone + 'static>() -> Option<P> {
-    drag_board()
-        .carried()
-        .and_then(|payload| payload.downcast_ref::<P>().cloned())
+    drag_board().carried_of::<P>()
 }
 
 /// Whether `key` is what is carried; a row draws itself as the gap while it is.

@@ -134,6 +134,13 @@ struct DockCarry {
     dragged: DockDragged,
 }
 
+/// A splitter carried on the board, named with its dock (`State::id`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct SplitterCarry {
+    dock: u64,
+    split: SplitId,
+}
+
 /// What a carried tab or pane is drawn as: floating under the pointer, or, while the dock
 /// parts for it (`opening`), the size of the place it would open, naming the tab it would be
 /// grouped with if it would (`group_with`).
@@ -3340,17 +3347,89 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
         active: active.read_only(),
         focused: focused.read_only(),
     });
-    let held: Rc<Cell<Option<(SplitSize, Pos2)>>> = Rc::new(Cell::new(None));
-    let grabbed = held.clone();
-    let start = move || {
-        dock.splitter_of(tree, split)
-            .map_or_else(|| size.get_untracked(), |splitter| splitter.size)
-    };
+    let carried = SplitterCarry { dock: dock.id, split };
+    let handle = NodeRef::new();
+    // The size at the lift, written back unless the carry is kept: dropped, or let go
+    // outside every window.
+    let started = Rc::new(Cell::new(None::<SplitSize>));
+    let kept = Rc::new(Cell::new(false));
+    // The splitter is carried on the board, lifted at a mouse's press: a `free` place over
+    // its tree's canvas, the size the pointer moved it to, previewed by writing it.
+    let site = use_drop_site(
+        Func::new(move |carry: SplitterCarry| carry == carried),
+        Func::new({
+            let started = Rc::clone(&started);
+            move |_: SplitterCarry| {
+                let area = dock
+                    .panes
+                    .try_with(|panes| panes.borrow().get(&tree).copied())
+                    .flatten();
+                let space = beui_view::drag::space();
+                let placed = |node: Option<NodeRef>| {
+                    node?.try_get().and_then(|node| space.placed(node))
+                };
+                let (Some(area), Some((within, scale)), Some((at, _)), Some(splitter)) = (
+                    area,
+                    placed(area),
+                    placed(Some(handle)),
+                    dock.splitter_of(tree, split),
+                ) else {
+                    return beui_view::drag::floating();
+                };
+                // Where the splitter is in the canvas, which the item's rect is measured in.
+                let home = (at.min - within.min) / scale;
+                let (start, available) = (splitter.size, splitter.available(dock.thickness));
+                started.set(Some(start));
+                beui_view::drag::free(area, move |rect: Rect| {
+                    start.moved(available, direction.main(rect.min.to_vec2() - home))
+                })
+                .unbounded()
+                // A keyboard carry steps as the arrows do.
+                .stepped(SPLIT_STEP * available)
+            }
+        }),
+        // The drop writes the size it chose: the preview's effect may not have seen it yet.
+        Callback::new({
+            let kept = Rc::clone(&kept);
+            move |(_, next): (SplitterCarry, SplitSize)| {
+                kept.set(true);
+                dock.drag_edit(move |state| state.set_split_size(split, next));
+            }
+        }),
+    );
+    // Over nothing mid-carry (the pointer outside the window), the size holds.
+    create_effect_on(
+        move || site.over.get(),
+        move |over: &Option<SplitSize>, _| {
+            if let Some(next) = *over {
+                dock.drag_edit(move |state| state.set_split_size(split, next));
+            }
+        },
+    );
+    {
+        let kept = Rc::clone(&kept);
+        create_effect_on_change(
+            move || carrying::<SplitterCarry>() == Some(carried),
+            move |held: &bool, _| {
+                if *held {
+                    return;
+                }
+                if let Some(begun) = started.take()
+                    && !kept.replace(false)
+                {
+                    dock.drag_edit(move |state| state.set_split_size(split, begun));
+                }
+            },
+        );
+    }
     let node = view! {
         <Interactive
+            @node_ref=&handle
             @test_id={dock.splitter_test_id(split)}
             capture_presses=true
             focusable=true
+            lifts_on_space=false
+            lifts_on_press=true
             on_focus_change={focused}
             on_key={move |press: KeyPress| {
                 if !press.pressed {
@@ -3378,22 +3457,14 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
             touch_drags={TouchDrags::Along(direction)}
             on_hover_change={hovered}
             on_active_change={active}
-            on_press={move |press: PointerPress| {
-                grabbed.set(Some((start(), press.pos)));
-            }}
-            on_drag={move |press: PointerPress| {
-                let Some((start, from)) = held.get() else {
-                    return;
-                };
-                let moved = direction.main(press.pos - from);
-                if moved == 0.0 {
-                    return;
-                }
-                let Some(splitter) = dock.splitter_of(tree, split) else {
-                    return;
-                };
-                let next = start.moved(splitter.available(dock.thickness), moved);
-                dock.drag_edit(move |state| state.set_split_size(split, next));
+            drag={move |_: PointerPress| {
+                let kept = Rc::clone(&kept);
+                Some(
+                    Carry::new(carried)
+                        .drawn_by_site()
+                        .scrolls_nothing()
+                        .outside(move |_| kept.set(true)),
+                )
             }}
         >
             <Frame>{face}</Frame>

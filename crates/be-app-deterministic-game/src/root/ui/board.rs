@@ -206,7 +206,7 @@ pub(crate) fn Stage(
     let board = beui::unstyled::drag_board();
     let lifted = create_memo(move || {
         let Carried(from) = carrying::<Carried>()?;
-        let rect = board.frame()?.item;
+        let rect = board.frame_of::<Carried>()?.item;
         let held = hand.with(|hand| {
             hand.iter()
                 .find(|held| held.spot == from)

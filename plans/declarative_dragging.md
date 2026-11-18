@@ -93,7 +93,7 @@ letting go), and `drop_target`/`switch_to_state_and_follow` handle what is not r
    the site again as the drop changes under the pointer.
 
 Continuous drags (sliders, scrollbars, splitters, the colour area) move onto it in step 8, and
-only if they are as good there; until then they keep `on_drag`, and the step says why. Panning moves
+only if they are as good there; the dock's splitters have, and the rest keep `on_drag` until then. Panning moves
 the camera, not an item, and stays outside the board.
 
 ## Shape
@@ -343,7 +343,7 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      declines it, or as it ends short of the threshold (a pen stroke keeps its first
      points); and the source's face lays its child out as a plain `Interactive` does, so a
      canvas fills it (a video clip now fits its lane). The canvas holds one carry at a
-     time, as the board does until step 7 (below). Left as they are: of two peers carrying
+     time, which step 7 (below) leaves as it is. Left as they are: of two peers carrying
      the same entity, a viewer draws the one listed last; and a peer whose mover's presence
      clears before the drop's edit arrives draws the shape back where it was until the edit
      lands, since a cleared presence does not say whether the carry was dropped or put down. Lines: the hand-written move drag was
@@ -395,39 +395,46 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      insert-then-remove order needs. Both are what this step's drag-over and drop events carry:
      the payload as a clip, and the target's answer, which the host passes back to the source as
      its commit or put-down.
-7. **Several carries at once.** Allow more than one carry, one per pointer, when the VR layer's two
-   controllers (or touch) need it; steps 1 to 6 key carries by pointer but carry one at a time.
-   The canvas holds one move in one `holding` cell and one `Gesture`: several carries in one
-   canvas join one tentative gesture, committed when the last ends (the decision), so its hold
-   counts the carries in it and each carry keeps its own `Gesture::Move`.
+7. **Several carries at once (done).** The board holds one carry per pointer: a pointer that
+   carries lifts nothing more, a source already carried is not lifted again, each pointer's
+   points move and release only its own carry, and Escape puts down every one. `Driver` names
+   carries by id (`holds`, `frame(carry)`, `lifts(pointer)`), and a component reads the carry of
+   its payload type (`carrying::<P>()`, `Board::frame_of::<P>()`). A site gives places to one
+   carry at a time: a second carry lifted while a site gives them to another gets none from it,
+   so two fingers on one list's rows do not both reorder it. Of several carries, the first held
+   in an edge band scrolls it. The native core turns a second finger in one window into a
+   gesture and cancels the first finger's press, so two fingers never carry at once there: the
+   mouse and a finger, or the VR layer's two controllers, do. Moving two sliders with two
+   fingers waits for the core to let a second finger press a control of its own; it is not
+   planned. The canvas still carries one move: its `drag` declines a second while its gesture is
+   a carried move, and several carries joining its one hold (counting the carries in it, each
+   with its own `Gesture::Move`) waits for a need.
 8. **Continuous drags.** Sliders, scrollbars, splitters and the colour area as `free` along an axis,
-   quantised, each moved only if it is as good as today. Looked at after step 5, none is yet, so
-   all stay on `on_drag` with the tentative-gestures pieces (`ValueDrag`, `HeldValue`, a tentative
-   gesture in the owner) until the board can do these:
-   - **Lifting at the press.** A carry lifts only past the drag threshold, and a mouse's moves
-     short of it are held. A slider, the colour area and the colour wheel jump to a press off
-     their thumb and follow the pointer from the first point, and a splitter moves from the
-     first point too; on the board each would stand still for the threshold and then jump.
-     Needs a source that lifts at a mouse's or pen's press, keeping the threshold for a finger,
-     where it tells a drag from a scroll.
-   - **Carrying without edge scrolling.** Every carry scrolls the `Scroll` whose edge band
-     holds it. A slider or colour area in a scrolling form would scroll the form when its thumb
-     neared the form's edge, and a scrollbar's thumb at either end of its track lies in its own
-     scroll's band, so it would scroll its scroll twice. Needs a carry, or a `free` place, that scrolls nothing.
-   - **Several carries (step 7).** Each finger presses its own control today, so two sliders
-     move at once; the board carries one at a time, and a second finger's lift would fail.
+   quantised, each moved only if it is as good as today. The board can now do what they need:
+   - **Lifting at the press (done).** `Interactive`'s `lifts_on_press` lifts the carry at a
+     mouse's or pen's press, so the item follows the pointer from its first point; a finger
+     still lifts past the threshold (or on a long press), where it tells a drag from a scroll.
+   - **Carrying without edge scrolling (done).** `Carry::scrolls_nothing` keeps a carry from
+     scrolling the scroller whose band holds it: a slider in a scrolling form, a scrollbar's
+     thumb in its own scroll's band.
+   - **Several carries (done, step 7).**
+   - **The dock's splitters (done).** A splitter is `free(canvas, ..)`, unbounded, lifted at
+     the press and previewed by writing (`State::drag_edit`), its drop writing its place and a
+     put-down (Escape, a cancelled press) writing back the size at the lift; a release outside
+     every window keeps where it was. Its arrows step it as before, and a keyboard carry steps
+     `SPLIT_STEP` too. It gained Escape; it lost nothing the splitter tests pin.
+   - **Next: sliders, the colour area and wheel, then the scrollbar's thumb**, in that order,
+     each replacing its `on_drag` and `ValueDrag` reporting only if it keeps its keys (Home,
+     End, Page Up and Down) and `Cancelled`. Owners that preview by writing need the drop's
+     commit to write its place: an effect on `over` may not see the last place when a press,
+     move and release fall in one frame (the splitter does both).
    - **What stays outside:** the number input's scrub turns the distance moved into a value,
      with no track for a thumb to rest in, and its press that never moves edits the number; the bottom sheet's height and its content's scroll are one travel
      under the finger, choosing a detent only where it lets go (step 5); a scrollbar's press on
      its track pages rather than lifts.
-   What the board would give them is little: Escape cancelling (a `Cancelled` they already
-   report and undo), keyboard steps (each has its own, by its own step: Home, End, Page Up and
-   Down, a splitter's `SPLIT_STEP`), and peers seeing the drag, which their owners already show
-   by writing (`HeldValue` shows it only locally). Escape cancelling a value control's drag
-   could be given without the board, by the core cancelling the press it holds; it is not
-   planned. Revisit once the three above exist, starting with the dock's splitters, which no
-   scroll holds and whose drags would then be `free(dock, ..)` previewed by writing
-   (`State::drag_edit`), put down to the size they started at.
+   What the board gives them is little beyond Escape (keyboard steps each has its own, and
+   peers see their drags by what their owners write), so each moves only where it is no
+   longer than its `on_drag`.
 9. **Remove the rest.** Delete the old API. Rewrite components.md's Drag and drop, docking.md's
    Dragging, Dialogs and tool bars sections, and host_services.md, and replace `Draggable` and
    `DropTarget` in the list of behaviour-only pieces styled re-exports

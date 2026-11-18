@@ -1776,7 +1776,7 @@ pub(super) fn DockBarLifted(dock: State) -> NodeId {
     };
     let at = create_memo(move || {
         let lift = lifting.lifted.get()?;
-        let frame = board.frame()?;
+        let frame = board.frame_of::<super::DockCarry>()?;
         let pointer = frame.item.center();
         let over = lifting.over.get().and_then(|over| over.get());
         let long = |grab: Vec2| match lift.size.x >= lift.size.y {
