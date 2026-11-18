@@ -325,6 +325,8 @@ enum Piece {
 enum Slot<C> {
     Waiting(Token),
     Ready(C),
+    /// A read that may fail did (`Then::Load`'s refused commits): it is left out.
+    Missing,
 }
 
 /// What this replica submitted that has not come back numbered.
@@ -356,7 +358,11 @@ struct Logged<Op> {
 }
 
 enum Then {
-    Load,
+    /// The replica's base, then with `over_server` the server's head and the refused commits
+    /// read beside it, whose reads may fail (`Replica::refusals`).
+    Load {
+        over_server: bool,
+    },
     Reload {
         op: SessionOp,
         commit: CommitId,
@@ -699,9 +705,13 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     commits_kept: be_sdk_type_api::KeptCommits,
     /// The refused commits this device holds (`opening.refused-commits`).
     refused_commits: Vec<CommitId>,
-    /// The server's head as this device last heard it, read beside `base` on opening when
-    /// commits are kept (`opening.server-head`), until the content's own is loaded.
+    /// The server's head as this device last heard it (`opening.server-head`), when it is not
+    /// `base`: read beside it on opening when commits are kept or `refusals` is not empty.
     server_head: Option<Option<CommitId>>,
+    /// The refused commits this device holds whose refusal no earlier replica's carried state
+    /// applied (a host or module restarted, or the module dropped what it carried): what the
+    /// base adds over the server's head that they hold shows as failed on loading.
+    refusals: Vec<CommitId>,
     /// The account this device signs in as (`opening.account`): what it added is what a
     /// restart shows as still sending.
     account: Uuid,
@@ -714,10 +724,18 @@ where
     H: Recorder<C>,
 {
     fn start(&mut self, out: &mut Vec<Effect>) {
+        let kept = self.commits_kept == be_sdk_type_api::KeptCommits::Outbox;
         match (self.base, self.server_head) {
-            // What the commits kept add over the server's head is read with them.
-            (Some(head), Some(server)) => self.read(vec![Some(head), server], Then::Load),
-            (Some(head), None) => self.read(vec![Some(head)], Then::Load),
+            // What the commits kept or refused add over the server's head is read with them.
+            (Some(head), Some(server)) if kept || !self.refusals.is_empty() => {
+                let mut reads = vec![Some(head), server];
+                // Kept commits beside refused ones: the refused ones tell which edits failed.
+                if kept {
+                    reads.extend(self.refusals.iter().copied().map(Some));
+                }
+                self.read(reads, Then::Load { over_server: true });
+            }
+            (Some(head), _) => self.read(vec![Some(head)], Then::Load { over_server: false }),
             (None, _) => self.load(C::default()),
         }
         self.run(out);
@@ -821,6 +839,16 @@ where
 
     fn adopt(&mut self, mut carried: Carried) {
         self.snapshots_shown = std::mem::take(&mut carried.snapshots_shown);
+        // With no edits carried, nothing names what the refused commits not applied before
+        // hold: the base names them, read on loading.
+        if carried.entries.is_empty() {
+            self.refusals = self
+                .refused_commits
+                .iter()
+                .copied()
+                .filter(|commit| !carried.refused.contains(commit))
+                .collect();
+        }
         self.lacking.adopt(carried);
         self.lacking
             .opened_with(self.commits_kept, &self.refused_commits);
@@ -957,9 +985,8 @@ where
             journal_kept: opened.journal_kept,
             commits_kept: opened.commits_kept,
             refused_commits: opened.refused_commits,
-            server_head: (opened.commits_kept == be_sdk_type_api::KeptCommits::Outbox
-                && opened.server_head != opened.head)
-                .then_some(opened.server_head),
+            server_head: (opened.server_head != opened.head).then_some(opened.server_head),
+            refusals: Vec::new(),
             account: opened.account,
             out: Vec::new(),
         }
@@ -1924,20 +1951,28 @@ where
     }
 
     fn answer_read(&mut self, token: Token, result: Result<be_block_content::Stored, String>) {
-        let Some(Wait::Reads { slots, .. }) = &mut self.waiting else {
+        let Some(Wait::Reads { slots, then }) = &mut self.waiting else {
             return;
         };
-        let Some(slot) = slots
-            .iter_mut()
-            .find(|slot| matches!(slot, Slot::Waiting(waiting) if *waiting == token))
+        let Some(at) = slots
+            .iter()
+            .position(|slot| matches!(slot, Slot::Waiting(waiting) if *waiting == token))
         else {
             return;
         };
+        // The refused commits read on loading, after the base and the server's head.
+        let may_fail = at >= 2 && matches!(then, Then::Load { over_server: true });
         let decoded =
             result.and_then(|stored| C::from_stored(&stored).map_err(|error| error.to_string()));
         match decoded {
             Ok(content) => {
-                *slot = Slot::Ready(content);
+                slots[at] = Slot::Ready(content);
+                self.finish_reads();
+            }
+            // One that cannot be read names nothing that failed, rather than keeping the block
+            // from opening.
+            Err(_) if may_fail => {
+                slots[at] = Slot::Missing;
                 self.finish_reads();
             }
             Err(error) => {
@@ -1945,7 +1980,7 @@ where
                     return;
                 };
                 match then {
-                    Then::Load => {
+                    Then::Load { .. } => {
                         self.unreadable = Some(error);
                         // Its editors are told it will not open rather than left loading.
                         self.resnapshot = true;
@@ -1970,7 +2005,7 @@ where
             .into_iter()
             .filter_map(|slot| match slot {
                 Slot::Ready(content) => Some(content),
-                Slot::Waiting(_) => None,
+                Slot::Waiting(_) | Slot::Missing => None,
             })
             .collect();
         self.after_reads(then, contents);
@@ -1980,20 +2015,12 @@ where
         let mut contents = contents.into_iter();
         let mut next = || contents.next().unwrap_or_default();
         match then {
-            Then::Load => {
+            Then::Load { over_server } => {
                 let loaded = next();
-                if self.server_head.take().is_some() {
-                    // Opened after a restart with commits still in the outbox: what they add
-                    // over the server's head is still sending, unless an earlier replica's
-                    // edits were carried, which say so themselves.
-                    let unsent: Vec<Vec<u8>> = loaded
-                        .unsent_over(&next(), self.account)
-                        .iter()
-                        .map(C::encode_operation)
-                        .collect();
-                    if let Some(tip) = self.base {
-                        self.lacking.kept_unsent(unsent, tip);
-                    }
+                if over_server {
+                    let server = next();
+                    let refused: Vec<C> = contents.collect();
+                    self.unsent_on_opening(&loaded, &server, &refused);
                 }
                 self.load(loaded)
             }
@@ -2046,6 +2073,43 @@ where
                 );
             }
         }
+    }
+
+    /// Opened with no edits carried from an earlier replica on a base ahead of the server's
+    /// head: what this account added over it is still sending in the commits kept in the outbox,
+    /// or failed in the refused ones (`refusals`), which, beside kept ones, tell which failed
+    /// by what they add over the server's head themselves. A message discarded or sent again
+    /// since its refusal is deleted in the base, so it shows no more.
+    fn unsent_on_opening(&mut self, loaded: &C, server: &C, refused: &[C]) {
+        let Some(tip) = self.base else {
+            return;
+        };
+        let unsent: Vec<Vec<u8>> = loaded
+            .unsent_over(server, self.account)
+            .iter()
+            .map(C::encode_operation)
+            .collect();
+        if self.refusals.is_empty() {
+            return self.lacking.kept_unsent(unsent, tip);
+        }
+        let (failed, sending): (Vec<Vec<u8>>, Vec<Vec<u8>>) =
+            match self.commits_kept == be_sdk_type_api::KeptCommits::Outbox {
+                true => {
+                    let refused: HashSet<Vec<u8>> = refused
+                        .iter()
+                        .flat_map(|content| content.unsent_over(server, self.account))
+                        .map(|operation| C::encode_operation(&operation))
+                        .collect();
+                    unsent
+                        .into_iter()
+                        .partition(|operation| refused.contains(operation))
+                }
+                false => (unsent, Vec::new()),
+            };
+        if !sending.is_empty() {
+            self.lacking.kept_unsent(sending, tip);
+        }
+        self.lacking.refused_unsent(failed);
     }
 
     fn merging(&mut self, then: MergeThen<C>, base: C, ours: C, theirs: C) {

@@ -45,6 +45,9 @@ fn every_type() -> Vec<Registration> {
 struct Block {
     content_type: Uuid,
     head: Option<CommitId>,
+    /// The head the server holds: behind `head` while this device keeps commits in the outbox,
+    /// or holds ones the server refused.
+    server_head: Option<CommitId>,
     replica: Option<Replica>,
     written: Vec<Vec<u8>>,
     unapplied: Vec<Vec<u8>>,
@@ -85,6 +88,7 @@ impl Block {
         Self {
             content_type,
             head: Some(head),
+            server_head: Some(head),
             replica: None,
             written: Vec::new(),
             unapplied: Vec::new(),
@@ -155,11 +159,11 @@ struct Inner {
     left: BTreeSet<BlockQuery>,
     deferred: Option<Vec<(Uuid, EditorId, FromEditor)>>,
     offline: bool,
-    /// The blocks with commits kept in the outbox, with the last one kept.
-    kept: BTreeMap<Uuid, CommitId>,
-    /// The commits the server refused, by block: they stay on the device.
+    /// The blocks with commits kept in the outbox, with those commits, oldest first.
+    kept: BTreeMap<Uuid, Vec<CommitId>>,
+    /// The commits the server refused, by block: they stay on the device, and its head stays
+    /// on them, as be-block-client's unsent area keeps them.
     refused: BTreeMap<Uuid, Vec<CommitId>>,
-    refusals: u8,
     /// What edits announce until the server holds them, kept beside the journal or a kept
     /// commit: a simpler host than be-block-client's (one device, so every rebase is on its own
     /// commit; every key remembered; guides/type_modules.md, "Announcements").
@@ -219,7 +223,6 @@ impl Default for Inner {
             offline: false,
             kept: BTreeMap::new(),
             refused: BTreeMap::new(),
-            refusals: 0,
             announcing: Vec::new(),
             announced: BTreeSet::new(),
             notified: Vec::new(),
@@ -419,16 +422,22 @@ impl Inner {
                     (true, Some(head)) => head,
                     _ => self.write_written(content_type, content.bytes, &content.parts),
                 };
-                if let Some(held) = self.blocks.get_mut(&block) {
-                    held.head = Some(head);
-                }
                 let outcome = match self.offline {
                     true => {
-                        self.kept.insert(block, head);
+                        let kept = self.kept.entry(block).or_default();
+                        if !kept.contains(&head) {
+                            kept.push(head);
+                        }
                         PublishOutcome::Kept(head)
                     }
                     false => PublishOutcome::Published(head),
                 };
+                if let Some(held) = self.blocks.get_mut(&block) {
+                    held.head = Some(head);
+                    if !self.offline {
+                        held.server_head = Some(head);
+                    }
+                }
                 // A seal's publish starts the journal from it, as the host's does.
                 if let Some(through) = sealed_through {
                     self.rebased(Some(block), through);
@@ -619,7 +628,7 @@ impl Inner {
         if held.replica.is_some() || !self.module.knows(held.content_type) {
             return;
         }
-        let (content_type, head) = (held.content_type, held.head);
+        let (content_type, head, server_head) = (held.content_type, held.head, held.server_head);
         let unapplied = std::mem::take(&mut held.unapplied);
         let commits_kept = match self.kept.contains_key(&block) {
             true => be_sdk_type_guest::api::KeptCommits::Outbox,
@@ -652,9 +661,7 @@ impl Inner {
                 journal_kept: false,
                 commits_kept,
                 refused_commits,
-                // This store keeps no head of the server's apart from its own: a reopened
-                // replica follows what it carried, never more.
-                server_head: head,
+                server_head,
                 sealed_head: None,
                 epoch: 0,
             },
@@ -851,6 +858,7 @@ impl Inner {
             Some(held) => {
                 held.content_type = content_type;
                 held.head = Some(head);
+                held.server_head = Some(head);
                 held.unapplied.clear();
                 held.references = None;
                 held.revision += 1;
@@ -1285,19 +1293,24 @@ impl ContentStore {
 
     fn drain(&self, refused: bool) {
         let mut inner = self.0.borrow_mut();
-        let kept: Vec<(Uuid, CommitId)> = std::mem::take(&mut inner.kept).into_iter().collect();
-        for (block, head) in kept {
-            // A drain names the head it published; a refusal, the commits it refused.
-            let mut commits = match refused {
-                true => Vec::new(),
-                false => vec![head],
+        let kept: Vec<(Uuid, Vec<CommitId>)> =
+            std::mem::take(&mut inner.kept).into_iter().collect();
+        for (block, kept) in kept {
+            // A drain names the head it published, which the server then holds; a refusal, the
+            // commits it refused, which stay on the device with its head on them.
+            let commits = match refused {
+                true => {
+                    let held = inner.refused.entry(block).or_default();
+                    held.extend(kept.iter().copied());
+                    held.clone()
+                }
+                false => {
+                    if let Some(held) = inner.blocks.get_mut(&block) {
+                        held.server_head = kept.last().copied();
+                    }
+                    kept.last().copied().into_iter().collect()
+                }
             };
-            if refused {
-                inner.refusals += 1;
-                let commit = CommitId::from_hash(Hash::from_bytes([inner.refusals; 32]));
-                inner.refused.entry(block).or_default().push(commit);
-                commits.push(commit);
-            }
             for (at, until, _) in &mut inner.announcing {
                 if *at == Some(block) && *until == Announcing::Kept {
                     *until = match refused {

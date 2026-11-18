@@ -140,6 +140,18 @@ impl Lacking {
         }
     }
 
+    /// Edits refused while no replica of the block carried what it lacked (a host or module
+    /// restarted, or the module dropped what it carried), named by what the device's head adds
+    /// over the server's: failed until they are dismissed.
+    pub(crate) fn refused_unsent(&mut self, operations: Vec<Vec<u8>>) {
+        for mut operation in operations {
+            if operation.len() > LARGEST_KEPT {
+                operation = Vec::new();
+            }
+            self.push(operation, Until::Kept(None), true, None, Vec::new());
+        }
+    }
+
     /// Adds an edit replayed from this device's own journal, numbered offline, which the server
     /// lacks, whether an editor follows yet or not: it opens before they ask.
     pub(crate) fn add_replayed(&mut self, operation: Vec<u8>, sequence: u64) {
