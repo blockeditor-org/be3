@@ -157,10 +157,17 @@ fn a_root_asks_before_leaving_a_block_and_opens_its_hosts_contact_and_share_link
     root.show_core(contacts(None));
     let listed = painting(&mut root, &mut time);
     beui_paint_snapshot::assert_painting("a_root_lists_its_hosts_contacts", listed.clone());
-    let _ = asks(&mut root, &mut time, key(Key::Enter));
+    // While it is being made the contacts stay open: Escape waits, so the link is never left
+    // live and unheld.
+    root.input(None, be_lib_ui_types::input::encode(&key(Key::Enter)))
+        .expect("the root takes input");
+    root.input(None, be_lib_ui_types::input::encode(&key(Key::Escape)))
+        .expect("the root takes input");
+    let _ = asks(&mut root, &mut time, Vec::new());
+    assert!(shows_dialog(&mut root, &mut time), "the contacts stay while the link is made");
     let requests = root.take_secret_requests();
     let [(id, SecretCommand::ContactLink)] = requests.as_slice() else {
-        panic!("New link asks for one: {requests:?}");
+        panic!("New link asks for one, Escape cancelling nothing: {requests:?}");
     };
     root.answer_secret(
         *id,

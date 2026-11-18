@@ -1217,7 +1217,10 @@ Each step lands on its own.
            `CloseShareLinks` did: whether the dialogs are open is the root's, so it starts each
            afresh with them), `remove-contact` (its `ConfirmRemoveContact`; which contact is
            asked about is the root's), and `confirm-leave` and `cancel-leave`. A contact link
-           made is `make-secret`'s `contact-link`, answered with `core-secret`'s `link`.
+           made is `make-secret`'s `contact-link`, answered with `core-secret`'s `link`; the
+           contacts' dialog holds itself open while one is being made, as the agents' does, so
+           no live link is left unheld. A share preview's name is its maker's untrusted text,
+           shown as plain text only.
            be-sdk-root-testing asks before leaving in its dialog's place while the host asks,
            after the discard question and before signing in again (`LEAVE_TITLE`: Leave, which
            stays busy until the host stops asking, or Stay, Escape and closing it, which is
