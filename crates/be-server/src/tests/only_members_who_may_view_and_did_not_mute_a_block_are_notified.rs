@@ -25,9 +25,7 @@ async fn only_members_who_may_view_and_did_not_mute_a_block_are_notified() {
         member.set_mute(block, mode).await;
         let read = member
             .call(|peer| {
-                peer.read::<Vec<be_block_protocol::BlockMute>>(
-                    be_block_protocol::Query::Mutes,
-                )
+                peer.read::<Vec<be_block_protocol::BlockMute>>(be_block_protocol::Query::Mutes)
             })
             .await
             .unwrap();

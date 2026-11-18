@@ -18,7 +18,7 @@ use be_sdk_beui::beui::{NodeId, Rect};
 use be_sdk_beui::{
     AccessLevel, AccessListing, BlockFilter, ChildState, ContactsWatch, DisplaysWatch, Editor,
     EditorHost, Failure, FocusedBlock, HostPanel, HostProgram, HostWindow, HostWindowId,
-    NotifyMode, MutesWatch, PickAnchor, PickedBlock, ProgramsWatch, Pushed, ShellDialog,
+    MutesWatch, NotifyMode, PickAnchor, PickedBlock, ProgramsWatch, Pushed, ShellDialog,
     WindowsWatch,
 };
 use be_sdk_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, ChildTarget};

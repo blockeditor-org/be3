@@ -1387,9 +1387,7 @@ impl Client {
                 offers_fcm: connection.pusher.offers_fcm(),
                 time: be_block_commit::now_milliseconds(),
             }),
-            Query::Mutes => {
-                Page::Mutes(store.mutes(admitted.identity()?).await?)
-            }
+            Query::Mutes => Page::Mutes(store.mutes(admitted.identity()?).await?),
             Query::Session { .. } => {
                 return Err(invalid("a session is joined with a read that follows it"));
             }
@@ -2112,10 +2110,7 @@ impl Client {
             }
             Op::SetMute { block, mode } => {
                 let identity = admitted.identity()?;
-                connection
-                    .store
-                    .set_mute(identity, block, mode)
-                    .await?;
+                connection.store.set_mute(identity, block, mode).await?;
                 connection
                     .after(After::Tell {
                         account: identity.account,

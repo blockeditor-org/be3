@@ -4,9 +4,7 @@
 
 use be_block_commit::now_milliseconds;
 use be_block_content::Announcement;
-use be_block_protocol::{
-    BlockMute, MAX_NOTIFICATION_BYTES, NotifyMode, PushEndpoint, PushMessage,
-};
+use be_block_protocol::{BlockMute, MAX_NOTIFICATION_BYTES, NotifyMode, PushEndpoint, PushMessage};
 use be_block_store::ObjectStore;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

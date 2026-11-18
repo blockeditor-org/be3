@@ -288,10 +288,7 @@ impl ServerStore {
     }
 
     /// Every block in `identity`'s organization whose mode its account set to other than `all`.
-    pub(crate) async fn mutes(
-        &self,
-        identity: Identity,
-    ) -> Result<Vec<BlockMute>, ServerError> {
+    pub(crate) async fn mutes(&self, identity: Identity) -> Result<Vec<BlockMute>, ServerError> {
         self.with_database(move |_, database| {
             let mut statement = database.prepare_cached(
                 "SELECT block_id, mode FROM mutes

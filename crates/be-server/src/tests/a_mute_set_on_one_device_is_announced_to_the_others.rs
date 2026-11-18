@@ -19,9 +19,7 @@ async fn a_mute_set_on_one_device_is_announced_to_the_others() {
     laptop.heard_changed(Topic::Mutes).await;
     let modes = laptop
         .call(|peer| {
-            peer.read::<Vec<be_block_protocol::BlockMute>>(
-                be_block_protocol::Query::Mutes,
-            )
+            peer.read::<Vec<be_block_protocol::BlockMute>>(be_block_protocol::Query::Mutes)
         })
         .await
         .unwrap();

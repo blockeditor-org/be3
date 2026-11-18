@@ -1,6 +1,6 @@
 use super::*;
 
-use be_sdk_beui::{BlockMute, Failure, NotifyMode, MutesWatch};
+use be_sdk_beui::{BlockMute, Failure, MutesWatch, NotifyMode};
 use be_sdk_test::HostCall;
 
 fn choose(fixture: &mut Fixture, words: &str) {
@@ -43,9 +43,7 @@ fn a_block_tabs_menu_mutes_its_notifications() {
         !menu_says(&mut fixture, "Notifications"),
         "the menu offers no mode before the host has said what it is"
     );
-    fixture
-        .test
-        .set_watched::<MutesWatch>(&Some(Vec::new()));
+    fixture.test.set_watched::<MutesWatch>(&Some(Vec::new()));
     fixture.settle();
 
     fixture.test.click("dock.editors.menu");
