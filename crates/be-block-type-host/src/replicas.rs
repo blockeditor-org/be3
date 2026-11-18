@@ -163,6 +163,51 @@ fn announcement(sent: be_sdk_type_api::Announcement) -> be_block_content::Announ
 
 /// Sends what the edits the server now holds announce (`Peer::send_announcements`); an
 /// unreachable server leaves them for the next time.
+/// Entries of `block`'s signed log as a replica of the app `app` is handed them: opened, and
+/// who signed each as that app's, judged by its arrival (`Peer::verify_entry`); `unknown` where
+/// that cannot be told now (offline, or unopened).
+async fn log_items<S: be_block_store::ObjectStore>(
+    peer: &Peer<S>,
+    block: Uuid,
+    app: &str,
+    entries: Vec<be_block_client::LoggedEntry>,
+) -> Vec<be_sdk_type_api::LogItem> {
+    let mut items = Vec::with_capacity(entries.len());
+    for logged in entries {
+        let entry = logged.entry;
+        let signer = match &logged.opened {
+            Some(said) => peer
+                .verify_entry(
+                    block,
+                    app,
+                    entry.author,
+                    entry.id,
+                    entry.arrival,
+                    said,
+                    &entry.signature,
+                )
+                .await
+                .map_or(be_sdk_type_api::Signer::Unknown, |signer| match signer {
+                    be_block_client::Signer::Verified => be_sdk_type_api::Signer::Verified,
+                    be_block_client::Signer::Unverified => be_sdk_type_api::Signer::Unverified,
+                    be_block_client::Signer::Changed => be_sdk_type_api::Signer::Changed,
+                    be_block_client::Signer::Replaced => be_sdk_type_api::Signer::Replaced,
+                    be_block_client::Signer::Bad => be_sdk_type_api::Signer::Bad,
+                }),
+            None => be_sdk_type_api::Signer::Unknown,
+        };
+        items.push(be_sdk_type_api::LogItem {
+            seq: entry.seq,
+            id: entry.id,
+            author: entry.author,
+            arrival: entry.arrival,
+            payload: logged.opened,
+            signer,
+        });
+    }
+    items
+}
+
 pub async fn send_announcements<H: Host>(peer: &Peer<H::Store>, shared: &Arc<Mutex<H>>) {
     if let Err(error) = peer.send_announcements().await
         && !unreachable(&error)
@@ -247,6 +292,14 @@ pub enum Answered {
         Reply<Result<be_sdk_type_api::PartRef, String>>,
         Result<be_sdk_type_api::PartRef, String>,
     ),
+    Append(
+        Reply<Result<be_sdk_type_api::host::Appended, String>>,
+        Result<be_sdk_type_api::host::Appended, String>,
+    ),
+    ReadLog(
+        Reply<Result<be_sdk_type_api::LogPage, String>>,
+        Result<be_sdk_type_api::LogPage, String>,
+    ),
     Stash(Reply<Result<CommitId, String>>, Result<CommitId, String>),
     Resume(Reply<Result<Resume, String>>, Result<Resume, String>),
     Submit(
@@ -265,6 +318,8 @@ impl Answered {
             Answered::Load(reply, result) => reply.send(connection, &result),
             Answered::ReadPart(reply, result) => reply.send(connection, &result),
             Answered::PutPart(reply, result) => reply.send(connection, &result),
+            Answered::Append(reply, result) => reply.send(connection, &result),
+            Answered::ReadLog(reply, result) => reply.send(connection, &result),
             Answered::Stash(reply, result) => reply.send(connection, &result),
             Answered::Resume(reply, result) => reply.send(connection, &result),
             Answered::Submit(reply, submitted) => reply.send(connection, &submitted),
@@ -273,6 +328,11 @@ impl Answered {
 }
 
 pub enum Io {
+    /// Entries appended to an open block's signed log, verified (`Replicas::appended`).
+    Logged {
+        block: Uuid,
+        items: Vec<be_sdk_type_api::LogItem>,
+    },
     Answer {
         replica: ReplicaId,
         module: usize,
@@ -416,6 +476,11 @@ pub(crate) enum Replayed {
     Sequenced {
         entries: Vec<be_sdk_type_api::JournalEntry>,
     },
+    /// Entries appended to the block's signed log, verified. Like `Sequenced`, given only to the
+    /// replica that heard them: one opened again reads the log afresh.
+    Logged {
+        items: Vec<be_sdk_type_api::LogItem>,
+    },
     Change {
         change: Change,
         op: Option<OpId>,
@@ -465,6 +530,9 @@ impl Replayed {
             }
             Replayed::Sequenced { entries } => {
                 replica.sequenced(connection, entries);
+            }
+            Replayed::Logged { items } => {
+                replica.logged(connection, items);
             }
         }
         None
@@ -2164,7 +2232,10 @@ impl<H: Host> Replicas<H> {
         if let Replayed::Moved { .. } = replayed {
             self.heads_told += 1;
         }
-        if !matches!(replayed, Replayed::Sequenced { .. }) {
+        if !matches!(
+            replayed,
+            Replayed::Sequenced { .. } | Replayed::Logged { .. }
+        ) {
             open.edits_changed |= replayed.local_edit();
             open.replay.push(replayed.clone());
         }
@@ -3173,6 +3244,9 @@ impl<H: Host> Replicas<H> {
                 | Event::Sequenced { block, .. },
             )
             | Told::Head { block, .. } => block,
+            Told::Event(Event::Appended(appended)) => {
+                return self.appended(peer, appended.clone());
+            }
             Told::Event(_) => return,
         };
         if let Some(waiting) = self.unsealing.get_mut(block) {
@@ -3354,6 +3428,33 @@ impl<H: Host> Replicas<H> {
         }
     }
 
+    /// Takes an append to the signed log of an open block (`Peer::logged`, which proves it
+    /// extends the head this device holds) and hands the replica the entries it verified, as
+    /// the app that wrote them.
+    fn appended(&mut self, peer: &Arc<Peer<H::Store>>, appended: be_block_protocol::Appended) {
+        let block = appended.block;
+        let Some(module) = self
+            .blocks
+            .get(&block)
+            .and_then(|replica| self.open.get(replica))
+            .map(|open| open.module)
+        else {
+            return;
+        };
+        let app = self.modules.name(module).to_owned();
+        let (peer, io) = (Arc::clone(peer), self.io.clone());
+        H::spawn(async move {
+            let items = match peer.logged(appended).await {
+                Ok(taken) => log_items(&peer, block, &app, taken).await,
+                Err(_) => return,
+            };
+            if !items.is_empty() {
+                let _ = io.send(Io::Logged { block, items });
+                H::wake();
+            }
+        });
+    }
+
     fn moved_head(&mut self, block: Uuid, head: CommitId) {
         let Some(replica) = self.blocks.get(&block).copied() else {
             return;
@@ -3485,6 +3586,11 @@ impl<H: Host> Replicas<H> {
                     let scope = self.scopes.get_mut(&(module, request)).unwrap_or(&mut gone);
                     self.modules
                         .call(module, |connection| scope.answer(connection, *read, result));
+                }
+            }
+            Io::Logged { block, items } => {
+                if let Some(replica) = self.blocks.get(&block).copied() {
+                    self.replay(replica, Replayed::Logged { items });
                 }
             }
             Io::Relayed => self.relaying -= 1,
@@ -4624,6 +4730,43 @@ impl<H: Host> Replicas<H> {
                         None => Err(OUTSIDE_REACH.to_owned()),
                     };
                     (Answered::ReadPart(reply, result), None)
+                });
+                false
+            }
+            Call::Append { reply, bytes } => {
+                let peer = Arc::clone(peer);
+                let app = self.modules.name(module).to_owned();
+                self.answer_later(replica, module, async move {
+                    let appended = match peer.append(block, &app, &bytes).await {
+                        Ok(be_block_client::Appended::Logged { seq, arrival, .. }) => Ok(
+                            be_sdk_type_api::host::Appended::Logged(be_sdk_type_api::host::LogPlace {
+                                seq,
+                                arrival,
+                            }),
+                        ),
+                        Ok(be_block_client::Appended::Kept { .. }) => {
+                            Ok(be_sdk_type_api::host::Appended::Kept)
+                        }
+                        Err(error) => Err(error.to_string()),
+                    };
+                    (Answered::Append(reply, appended), None)
+                });
+                false
+            }
+            Call::ReadLog { reply, from, limit } => {
+                let peer = Arc::clone(peer);
+                let app = self.modules.name(module).to_owned();
+                self.answer_later(replica, module, async move {
+                    let read = async {
+                        let read = peer.read_log(block, from, limit).await?;
+                        Ok::<_, ClientError>(be_sdk_type_api::LogPage {
+                            size: read.head.size,
+                            items: log_items(&peer, block, &app, read.entries).await,
+                        })
+                    }
+                    .await
+                    .map_err(|error| error.to_string());
+                    (Answered::ReadLog(reply, read), None)
                 });
                 false
             }

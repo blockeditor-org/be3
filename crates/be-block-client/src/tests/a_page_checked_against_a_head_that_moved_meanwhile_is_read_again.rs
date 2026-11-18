@@ -9,14 +9,14 @@ async fn a_page_checked_against_a_head_that_moved_meanwhile_is_read_again() {
     let harness = Harness::start().await;
     let owner = harness.owner("owner@example.com").await;
     let chat = workspace(&owner, "Chat").await;
-    owner.append(chat, b"one").await.unwrap();
-    owner.append(chat, b"two").await.unwrap();
+    owner.append(chat, "test.app", b"one").await.unwrap();
+    owner.append(chat, "test.app", b"two").await.unwrap();
     let reader = harness.second(&owner).await;
     let mut events = reader.connection().subscribe();
     let first = reader.read_log(chat, 0, 10).await.unwrap();
     assert_eq!(first.head.size, 2);
 
-    owner.append(chat, b"three").await.unwrap();
+    owner.append(chat, "test.app", b"three").await.unwrap();
     let pushed = loop {
         if let Ok(crate::Event::Appended(appended)) = events.recv().await {
             break appended;

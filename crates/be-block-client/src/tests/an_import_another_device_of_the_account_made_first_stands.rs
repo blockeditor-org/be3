@@ -19,6 +19,7 @@ async fn an_import_another_device_of_the_account_made_first_stands() {
         metadata: be_block_content::BlockMetadata::named("Imported"),
         references: Vec::new(),
         content: None,
+        log: Vec::new(),
     };
     let block = saved.id;
     assert!(

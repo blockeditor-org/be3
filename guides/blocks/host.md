@@ -804,7 +804,11 @@ A block file (`be_block_client::transfer`, what `be download` writes) holds a
 tree. host-services' `export-block` lists the tree a level at a time and fills
 each block's bytes from its open session, or its head with the journal
 replayed (`Modules::readable`), so it works for types the host does not know
-(they read the head alone).
+(they read the head alone). A type with a signed log carries it too, opened
+with each entry's signature (`Peer::export_log`; guides/type_modules.md,
+"Signed logs"), which verifies against the original block wherever the file
+is imported; an import keeps the entries in the file and does not append them
+to the new block yet (plans/signed_logs.md, step 5).
 
 `import-blocks(parent)` takes any file: non-`.block` files go to
 `be_host_stack::import_file`, which picks a type the way `be sync` does

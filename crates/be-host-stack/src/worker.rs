@@ -4622,12 +4622,24 @@ async fn export(
             metadata: node_of(peer, &summary).metadata,
             references: peer.content_references(&summary).await?,
             content: None,
+            log: Vec::new(),
         });
     }
     let heads: HashMap<Uuid, Option<be_block_commit::CommitId>> = summaries
         .iter()
         .map(|summary| (summary.id, summary.head))
         .collect();
+    // A type with a signed log carries it, opened, each entry with its author's signature in
+    // the block it was written in (`Peer::verify_exported`).
+    for block in &mut blocks {
+        if replicas
+            .kind(block.block_type)
+            .await
+            .is_some_and(|kind| kind.log)
+        {
+            block.log = peer.export_log(block.id).await?;
+        }
+    }
     // A block file carries bytes, which drop the parts after the first of a type that loads
     // only its first part (chat's closed segments): refuse until a file carries parts.
     for block in &blocks {

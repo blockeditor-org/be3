@@ -241,11 +241,14 @@ A block's signed log (guides/blocks/server.md, "Signed logs"; `peer/log.rs`)
 is read and appended a page at a time, and nothing the server serves of it is
 taken unproven.
 
-- **Appending.** `Peer::append(block, payload)` seals the payload under the
-  block's key, signs its id and the hash of the sealed bytes
-  (`be_block_protocol::log_signed`, under `sign_authored`, so the signature
-  binds the block and survives a redaction), and keeps it in the outbox
-  (`refs::Op::Append`). Online, with nothing of the block waiting ahead of it,
+- **Appending.** `Peer::append(block, app, payload)` signs the entry's id
+  and the hash of the app's bytes framed by its id
+  (`be_block_protocol::log_signed` over `by_app(app, payload)`, under
+  `sign_authored`, so the signature binds the block and the app, and verifies
+  wherever the plaintext goes), seals the payload under the block's key and
+  keeps it in the outbox (`refs::Op::Append`). The leaf commits to the sealed
+  bytes, so after a redaction who wrote an entry is the log's word, its
+  signature no longer checkable. Online, with nothing of the block waiting ahead of it,
   it goes at once with any of the block's entries that wait
   (`send_appends`, batched), answering `Appended::Logged` with its place and
   arrival; otherwise `Appended::Kept`, and the drain sends it in order
@@ -274,13 +277,20 @@ taken unproven.
   `Tampered`. The kept head moves only by compare-and-set
   (`Refs::keep_entries`): a page checked against a head that a push or another
   read moved meanwhile is read again against the head kept now, so a head is
-  never replaced by an older one or a sibling. `forget` drops a log's entries
+  never replaced by an older one or a sibling; one that moved to the page's
+  own head takes the page as it is. A push told late is checked against its
+  own proof first: one that does not prove is `Tampered`, not a fork. `forget` drops a log's entries
   but keeps its head.
+- **Exports.** `Peer::export_log` reads a block's whole log, opened, as an
+  export carries it (`ExportedEntry`, `transfer::Saved::log`), and
+  `Peer::verify_exported` checks an entry against the block it was written in
+  (the file's id for it), wherever the file was imported.
 - **Redactions.** A device keeps a payload it already holds until it reads
   that page again; what tells it to is a later entry naming the redacted one
   (chat's deletion entry, plans/signed_logs.md step 5).
-- **Who wrote an entry.** `Peer::verify_entry` is `verify_authored` with the
-  entry's arrival, which only the server sets, so a contact's replaced key that
+- **Who wrote an entry.** `Peer::verify_entry(block, app, ..., said, signature)`
+  is `verify_authored` over what the app said, with the entry's arrival,
+  which only the server sets, so a contact's replaced key that
   signed an entry the server took after this device learned of the new key
   answers `Replaced` (guides/blocks/keys.md, "Verifying").
 
