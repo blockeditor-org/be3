@@ -3818,7 +3818,9 @@ impl<H: Host> Replicas<H> {
 
     /// Joins `block`'s session again, as a reconnect does for every replica: what it holds past
     /// its head is sealed first, and the join drops any claim it made (a host that stops hosting
-    /// gives the lease up so, plans/hosted_blocks.md, step 4d2). Nothing while it is joining.
+    /// gives the lease up so, plans/hosted_blocks.md, step 4d2). Nothing while it is joining, or
+    /// while it closes: leaving drops the claim too, and a join started on a replica that is
+    /// going would hold up its close, and so its block opening again.
     pub fn rejoin_block(&mut self, (peer, _): Ctx<'_, H>, block: Uuid) {
         let Some(replica) = self.blocks.get(&block).copied() else {
             return;
@@ -3826,7 +3828,7 @@ impl<H: Host> Replicas<H> {
         let Some(open) = self.open.get(&replica) else {
             return;
         };
-        if open.joining || self.uncreated.contains(&block) {
+        if open.joining || open.closing || self.uncreated.contains(&block) {
             return;
         }
         let unsealed = !open.status.clean || open.unreported();

@@ -1842,7 +1842,10 @@ impl Session<'_> {
                             Some(message) => self.replicas.heard((peer, shared), message),
                             None => self.replicas.resynchronize((peer, shared)),
                         }
-                        crate::hosting::heard(peer, shared, &self.tasks.0, event.as_ref());
+                        let replicas = &self.replicas;
+                        crate::hosting::heard(peer, shared, &self.tasks.0, event.as_ref(), |block| {
+                            replicas.is_open(block) && !replicas.is_leaving(block)
+                        });
                         crate::joining::heard(peer, shared, &self.tasks.0, event.as_ref());
                         heard(peer, shared, &self.tasks.0, event).await;
                         if keyed {

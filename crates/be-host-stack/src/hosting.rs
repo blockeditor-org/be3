@@ -274,12 +274,17 @@ pub fn tell(
 }
 
 /// Takes what the server told of a hosted block's session: a member's message on the channel,
-/// a member leaving, or an access change, after which every member is checked again.
+/// a member leaving, who hosts it, or an access change, after which every member is checked
+/// again. Who hosts counts only while this device's replica of the block is `in_session` (open
+/// and not leaving): the answer to a join the replica left before it came, such as the one that
+/// dropped a claim as the editor closed, would otherwise say no one hosts a block this device
+/// is no longer in, and let a component start there on that word as the block opens again.
 pub fn heard(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
     tasks: &Tasks,
     event: Option<&Event>,
+    in_session: impl Fn(Uuid) -> bool,
 ) {
     match event {
         Some(Event::Hosted {
@@ -297,7 +302,9 @@ pub fn heard(
             if *joined {
                 lock(shared).hosting.claimed.remove(block);
             }
-            host_heard(shared, *block, host.map(|_| *ours));
+            if in_session(*block) {
+                host_heard(shared, *block, host.map(|_| *ours));
+            }
         }
         Some(Event::Joiner {
             block,
