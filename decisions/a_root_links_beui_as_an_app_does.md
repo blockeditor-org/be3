@@ -1,12 +1,13 @@
 # A root links beui as an app does
 
 A root guest (plans/host_as_platform_adapter.md, The root guest) is built as an app is: a
-linked module in the apps' plan (`wasi-guest`, for single-threaded `wasm32-wasip1`, decisions/guests_are_single_threaded.md), linked against the
-app libraries (base and beui, `app_module` in buck/wasm/defs.bzl), and loaded by be-host as an
-app is (`be_wasm_host::Host::new` on the window's device, `Staged::load`), with app WASI. It
-draws its own surfaces with beui through crates/be-sdk-beui-root. Only the host runs it
-differently: `Root` (crates/be-wasm-root-host) steps that `App` inline on the frame thread rather
-than on a thread of its own.
+linked module in the apps' plan (`wasi-guest`, for single-threaded `wasm32-wasip1`,
+decisions/guests_are_single_threaded.md), linked against the app libraries (base and beui,
+`app_module` in buck/wasm/defs.bzl), and loaded by be-host as an app is
+(`be_wasm_host::Host::new` on the window's device, `Staged::load`), with app WASI. It draws its
+own surfaces with beui through crates/be-sdk-beui-root. Only the host runs it differently: `Root`
+(crates/be-wasm-root-host) steps that `App` inline on the frame thread rather than on a thread of
+its own.
 
 A root still never blocks its thread (plans/host_as_platform_adapter.md, The root guest, Its
 rules), which a linked module allows as a pure one does: nothing it runs waits, and as every
@@ -50,3 +51,7 @@ guest it is single-threaded, so it can start no threads.
 - On the web the page runs the root on its main thread (decisions/the_web_page_never_waits.md),
   so a linked root there needs the page to link its libraries into the root's unshared memory
   on that thread with `dylink.js` and serve it `wasi.js`, which today only an app's worker does.
+- Natively its gpu calls are ordinary V8 calls, slower than fast-API ones, as every
+  single-threaded guest's are (decisions/guests_are_single_threaded.md, What it costs). The root
+  pays that on the frame's critical path, since the host steps it inline, so it gains first from
+  winning the fast path back for an unshared memory (plans/single_threaded_guests.md, step 4).

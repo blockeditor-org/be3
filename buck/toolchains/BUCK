@@ -162,6 +162,8 @@ cxx_tools_info_toolchain(
 
 cxx_tools_info_toolchain(
     name = "wasm32_cxx",
+    c_flags = ["--target=wasm32-unknown-unknown"],
+    cxx_flags = ["--target=wasm32-unknown-unknown"],
     cxx_tools_info = ":wasm_cxx_tools",
     visibility = ["PUBLIC"],
 )

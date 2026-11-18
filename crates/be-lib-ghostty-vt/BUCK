@@ -134,6 +134,13 @@ genrule(
     """
     + " ".join(["$(location :zig-package-{})".format(name) for name in zig_package_names]),
     out = "libghostty-vt.a",
+    # On wasm only a guest may link it, single-threaded wasm32-wasip1
+    # (decisions/guests_are_single_threaded.md): the archive is built for no
+    # other wasm platform, so the rest are refused rather than handed a host one.
+    target_compatible_with = select({
+        "DEFAULT": [],
+        "prelude//cpu:wasm32": ["root//buck/constraints:guest"],
+    }),
 )
 
 prebuilt_cxx_library(
