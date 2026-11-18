@@ -14,7 +14,7 @@ fn zooming_in_draws_deeper_tiles_over_the_shallower_ones() {
     assert!(
         deeper
             .iter()
-            .all(|(_, url)| url.contains("/shortbread_v1/3/"))
+            .all(|(_, url)| url.contains(&format!("{TILES}/3/")))
     );
     assert!(
         deeper
@@ -26,5 +26,5 @@ fn zooming_in_draws_deeper_tiles_over_the_shallower_ones() {
     }
     let rest = serve_tiles(&mut editor);
 
-    assert!(rest.iter().all(|url| url.contains("/shortbread_v1/3/")));
+    assert!(rest.iter().all(|url| url.contains(&format!("{TILES}/3/"))));
 }

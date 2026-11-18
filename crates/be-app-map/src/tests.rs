@@ -11,6 +11,8 @@ use crate::root::MapRoot;
 mod a_map_on_a_phone_on_its_side_shows_its_inspector_beside_it;
 mod a_map_on_a_phone_shows_its_inspector_below_it;
 mod a_new_map_shows_the_whole_world;
+mod a_tile_source_that_cannot_be_read_says_why;
+mod a_town_is_drawn_from_its_openmaptiles_layers;
 mod a_tile_the_rasterizer_fails_on_fails_alone;
 mod labels_hold_still_between_frames;
 mod labels_stay_while_deeper_tiles_load;
@@ -72,12 +74,14 @@ fn ocean_tile() -> Vec<u8> {
     ocean_layer()
 }
 
+/// A tile of `water`, an ocean over all of it, and `place`, a point labelled `name` of `class` at
+/// each of `labels`.
 fn labelled_tile(labels: &[(&str, &str, i64, i64)]) -> Vec<u8> {
-    let mut layer = length_delimited(1, b"place_labels");
+    let mut layer = length_delimited(1, b"place");
     layer.extend(varint(5 << 3));
     layer.extend(varint(EXTENT as u64));
     layer.extend(length_delimited(3, b"name"));
-    layer.extend(length_delimited(3, b"kind"));
+    layer.extend(length_delimited(3, b"class"));
     for (index, (name, kind, x, y)) in labels.iter().enumerate() {
         layer.extend(length_delimited(4, &length_delimited(1, name.as_bytes())));
         layer.extend(length_delimited(4, &length_delimited(1, kind.as_bytes())));
@@ -118,19 +122,31 @@ fn ocean_layer() -> Vec<u8> {
     .into_iter()
     .flat_map(varint)
     .collect();
-    let mut feature = varint(3 << 3);
+    let mut feature = length_delimited(2, &[0, 0]);
+    feature.extend(varint(3 << 3));
     feature.extend(varint(3));
     feature.extend(length_delimited(4, &geometry));
-    let mut layer = length_delimited(1, b"ocean");
+    let mut layer = length_delimited(1, b"water");
+    layer.extend(length_delimited(2, &feature));
+    layer.extend(length_delimited(3, b"class"));
+    layer.extend(length_delimited(4, &length_delimited(1, b"ocean")));
     layer.extend(varint(5 << 3));
     layer.extend(varint(extent as u64));
-    layer.extend(length_delimited(2, &feature));
     length_delimited(3, &layer)
+}
+
+/// Where the test's tile source keeps its tiles, as its TileJSON says.
+const TILES: &str = "https://tiles.openfreemap.org/planet/20261115_080022_pt";
+
+/// The tile source's TileJSON, trimmed to what the map reads.
+fn tile_json() -> Vec<u8> {
+    format!(r#"{{"tilejson":"3.0.0","tiles":["{TILES}/{{z}}/{{x}}/{{y}}.pbf"],"maxzoom":14}}"#)
+        .into_bytes()
 }
 
 fn tile_test_id(url: &str) -> String {
     let path = url
-        .trim_end_matches(".mvt")
+        .trim_end_matches(".pbf")
         .rsplitn(4, '/')
         .take(3)
         .collect::<Vec<_>>();
@@ -149,16 +165,23 @@ fn serve_tiles(editor: &mut BeuiTest<MapRoot>) -> Vec<String> {
     serve_tiles_with(editor, ocean_tile)
 }
 
+/// The tiles the map asks for. If it asks for the tile source's TileJSON first, this answers it
+/// and returns the tiles it then asks for.
 fn requested_tiles(editor: &mut BeuiTest<MapRoot>) -> Vec<(Fetch, String)> {
-    editor
-        .take_fetches()
-        .into_iter()
-        .map(|fetch| {
-            assert_eq!(fetch.request.method, "GET");
-            let url = fetch.request.url.clone();
-            (fetch, url)
-        })
-        .collect()
+    let mut tiles = Vec::new();
+    for fetch in editor.take_fetches() {
+        assert_eq!(fetch.request.method, "GET");
+        if fetch.request.url == crate::tiles::TILE_JSON {
+            serve(editor, &fetch, tile_json());
+            editor.settle_until("the map to ask for tiles", |editor| editor.has_fetches());
+            tiles.extend(requested_tiles(editor));
+            continue;
+        }
+        let url = fetch.request.url.clone();
+        assert!(url.starts_with(TILES) && url.ends_with(".pbf"), "{url}");
+        tiles.push((fetch, url));
+    }
+    tiles
 }
 
 /// Answers `fetch` with `tile`, its body in two chunks as a network delivers it.
@@ -175,7 +198,6 @@ fn serve_tiles_with(editor: &mut BeuiTest<MapRoot>, tile: impl Fn() -> Vec<u8>) 
     let mut served = Vec::new();
     loop {
         for (fetch, url) in requested_tiles(editor) {
-            assert!(url.starts_with("https://vector.openstreetmap.org/") && url.ends_with(".mvt"));
             serve(editor, &fetch, tile());
             served.push(url);
         }

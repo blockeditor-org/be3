@@ -20,7 +20,7 @@ use beui::clipboard::formats;
 use beui::unstyled::gestures;
 
 pub(crate) const REGION_COLOR: Color32 = Color32::from_rgb(245, 180, 60);
-const ATTRIBUTION: &str = "© OpenStreetMap contributors";
+const ATTRIBUTION: &str = "OpenFreeMap © OpenMapTiles Data from OpenStreetMap";
 const HALO: Color32 = Color32::from_rgba_unmultiplied(255, 255, 255, 200);
 const ATTRIBUTION_HEIGHT: Size = Size::Xs;
 

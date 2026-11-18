@@ -9,10 +9,14 @@ const LAND: [u8; 4] = [242, 239, 233, 255];
 const WATER: [u8; 4] = [170, 211, 223, 255];
 const BUILDING: [u8; 4] = [217, 208, 201, 255];
 const SITE: [u8; 4] = [232, 229, 219, 255];
+const URBAN: [u8; 4] = [224, 222, 219, 255];
+const GRASS: [u8; 4] = [205, 235, 176, 255];
+const PARK: [u8; 4] = [200, 230, 170, 110];
 const PEDESTRIAN_AREA: [u8; 4] = [237, 237, 237, 255];
+const RUNWAY: [u8; 4] = [190, 190, 200, 255];
 const BOUNDARY: [u8; 4] = [140, 110, 150, 170];
 const PLACE_LABEL_COLOR: [u8; 3] = [60, 60, 60];
-const BOUNDARY_LABEL_COLOR: [u8; 3] = [110, 100, 125];
+const REGION_LABEL_COLOR: [u8; 3] = [110, 100, 125];
 const MAX_LABELS: usize = 80;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -37,43 +41,63 @@ impl Window {
     }
 }
 
+/// Draws a tile of the OpenMapTiles schema (openmaptiles.org/schema), the one OpenFreeMap serves:
+/// its areas, then its lines, then buildings and boundaries over them; place names become labels.
 pub(crate) fn rasterize(tile: &Tile, zoom: u8, window: Window) -> TileRaster {
     let mut canvas = Canvas::new(window);
     let line_scale = line_width_scale(zoom);
 
-    fill_layer(&mut canvas, tile.layer("ocean"), |_, _| Some(WATER));
-    fill_layer(&mut canvas, tile.layer("land"), land_color);
-    fill_layer(&mut canvas, tile.layer("sites"), |_, _| Some(SITE));
-    fill_layer(&mut canvas, tile.layer("water_polygons"), |_, _| {
-        Some(WATER)
+    fill_layer(&mut canvas, tile.layer("landuse"), |layer, feature| {
+        landuse_color(class(layer, feature))
     });
-    stroke_layer(&mut canvas, tile.layer("water_lines"), |layer, feature| {
-        let width = match kind(layer, feature) {
+    fill_layer(&mut canvas, tile.layer("landcover"), |layer, feature| {
+        landcover_color(class(layer, feature))
+    });
+    fill_layer(&mut canvas, tile.layer("park"), |_, _| Some(PARK));
+    fill_layer(&mut canvas, tile.layer("water"), |layer, feature| {
+        (!tunnel(layer, feature)).then_some(WATER)
+    });
+    stroke_layer(&mut canvas, tile.layer("waterway"), |layer, feature| {
+        if tunnel(layer, feature) {
+            return None;
+        }
+        let width = match class(layer, feature) {
             "river" => 3.5,
             "canal" => 2.5,
             _ => 1.2,
         };
         Some((WATER, width * line_scale))
     });
-    fill_layer(&mut canvas, tile.layer("pier_polygons"), |_, _| Some(LAND));
-    stroke_layer(&mut canvas, tile.layer("pier_lines"), |_, _| {
-        Some((LAND, 3.0))
+    fill_layer(&mut canvas, tile.layer("aeroway"), |layer, feature| {
+        match class(layer, feature) {
+            "runway" | "taxiway" => Some(RUNWAY),
+            "aerodrome" | "apron" => Some(SITE),
+            _ => None,
+        }
+    });
+    stroke_layer(&mut canvas, tile.layer("aeroway"), |layer, feature| {
+        match class(layer, feature) {
+            "runway" => Some((RUNWAY, 6.0 * line_scale)),
+            "taxiway" => Some((RUNWAY, 2.0 * line_scale)),
+            _ => None,
+        }
     });
     fill_layer(
         &mut canvas,
-        tile.layer("street_polygons"),
-        |layer, feature| match kind(layer, feature) {
-            "pedestrian" | "footway" => Some(PEDESTRIAN_AREA),
+        tile.layer("transportation"),
+        |layer, feature| match class(layer, feature) {
+            "pier" => Some(LAND),
+            "path" => Some(PEDESTRIAN_AREA),
             _ => Some([255, 255, 255, 255]),
         },
     );
-    streets(&mut canvas, tile.layer("streets"), line_scale);
-    fill_layer(&mut canvas, tile.layer("buildings"), |_, _| Some(BUILDING));
-    stroke_layer(&mut canvas, tile.layer("boundaries"), |layer, feature| {
-        let admin_level = layer
-            .tag(feature, "admin_level")
-            .and_then(TagValue::as_i64)
-            .unwrap_or(2);
+    roads(&mut canvas, tile.layer("transportation"), line_scale);
+    fill_layer(&mut canvas, tile.layer("building"), |_, _| Some(BUILDING));
+    stroke_layer(&mut canvas, tile.layer("boundary"), |layer, feature| {
+        if number(layer, feature, "maritime") == Some(1) {
+            return None;
+        }
+        let admin_level = number(layer, feature, "admin_level").unwrap_or(2);
         let width = if admin_level <= 2 { 2.2 } else { 1.2 };
         Some((BOUNDARY, width))
     });
@@ -84,34 +108,45 @@ pub(crate) fn rasterize(tile: &Tile, zoom: u8, window: Window) -> TileRaster {
     }
 }
 
-fn kind<'a>(layer: &'a Layer, feature: &Feature) -> &'a str {
+fn text<'a>(layer: &'a Layer, feature: &Feature, key: &str) -> &'a str {
     layer
-        .tag(feature, "kind")
+        .tag(feature, key)
         .and_then(TagValue::as_str)
         .unwrap_or("")
 }
 
-fn land_color(layer: &Layer, feature: &Feature) -> Option<[u8; 4]> {
-    match kind(layer, feature) {
-        "forest" | "wood" => Some([157, 202, 138, 255]),
-        "grass" | "grassland" | "meadow" | "garden" | "park" | "village_green"
-        | "recreation_ground" | "cemetery" | "golf_course" | "miniature_golf" | "playground" => {
-            Some([205, 235, 176, 255])
-        }
-        "heath" | "scrub" => Some([214, 217, 159, 255]),
-        "farmland"
-        | "orchard"
-        | "vineyard"
-        | "allotments"
-        | "greenhouse_horticulture"
-        | "plant_nursery"
-        | "greenfield" => Some([238, 240, 213, 255]),
-        "residential" | "commercial" | "retail" | "industrial" | "garages" | "railway"
-        | "landfill" | "brownfield" | "quarry" => Some([224, 222, 219, 255]),
-        "sand" | "beach" | "dune" => Some([245, 233, 198, 255]),
-        "rock" | "bare_rock" | "scree" | "shingle" => Some([219, 217, 214, 255]),
-        "glacier" => Some([221, 236, 240, 255]),
-        "swamp" | "bog" | "string_bog" | "wet_meadow" | "marsh" => Some([211, 230, 219, 255]),
+fn class<'a>(layer: &'a Layer, feature: &Feature) -> &'a str {
+    text(layer, feature, "class")
+}
+
+fn number(layer: &Layer, feature: &Feature, key: &str) -> Option<i64> {
+    layer.tag(feature, key).and_then(TagValue::as_i64)
+}
+
+fn tunnel(layer: &Layer, feature: &Feature) -> bool {
+    text(layer, feature, "brunnel") == "tunnel"
+}
+
+fn landuse_color(class: &str) -> Option<[u8; 4]> {
+    match class {
+        "residential" | "suburb" | "quarter" | "neighbourhood" | "commercial" | "retail"
+        | "industrial" | "garages" | "railway" | "quarry" | "dam" => Some(URBAN),
+        "cemetery" | "playground" | "pitch" | "zoo" | "theme_park" => Some(GRASS),
+        "school" | "university" | "college" | "kindergarten" | "hospital" | "military"
+        | "stadium" | "track" | "bus_station" | "library" => Some(SITE),
+        _ => None,
+    }
+}
+
+fn landcover_color(class: &str) -> Option<[u8; 4]> {
+    match class {
+        "wood" => Some([157, 202, 138, 255]),
+        "grass" => Some(GRASS),
+        "farmland" => Some([238, 240, 213, 255]),
+        "sand" => Some([245, 233, 198, 255]),
+        "rock" => Some([219, 217, 214, 255]),
+        "ice" => Some([221, 236, 240, 255]),
+        "wetland" => Some([211, 230, 219, 255]),
         _ => None,
     }
 }
@@ -129,30 +164,29 @@ fn line_width_scale(zoom: u8) -> f32 {
     }
 }
 
-fn street_style(kind: &str) -> Option<(u8, [u8; 4], f32)> {
-    match kind {
+/// A line of the `transportation` layer's rank (higher draws over lower), color and width.
+fn road_style(class: &str, subclass: &str) -> Option<(u8, [u8; 4], f32)> {
+    match class {
         "motorway" => Some((8, [233, 144, 161, 255], 6.0)),
         "trunk" => Some((7, [250, 163, 141, 255], 5.5)),
         "primary" => Some((5, [252, 214, 164, 255], 5.5)),
         "secondary" => Some((4, [247, 250, 191, 255], 4.5)),
         "tertiary" => Some((3, [255, 255, 255, 255], 4.0)),
-        "residential" | "unclassified" | "living_street" | "road" | "busway" => {
-            Some((2, [255, 255, 255, 255], 3.0))
-        }
+        "minor" | "busway" => Some((2, [255, 255, 255, 255], 3.0)),
         "service" => Some((1, [255, 255, 255, 255], 1.8)),
-        "pedestrian" => Some((1, [237, 237, 237, 255], 2.0)),
         "track" => Some((0, [172, 148, 109, 255], 1.6)),
-        "path" | "footway" | "steps" | "bridleway" => Some((0, [200, 140, 120, 255], 1.2)),
-        "cycleway" => Some((0, [130, 130, 220, 255], 1.2)),
+        "path" => match subclass {
+            "pedestrian" => Some((1, PEDESTRIAN_AREA, 2.0)),
+            "cycleway" => Some((0, [130, 130, 220, 255], 1.2)),
+            _ => Some((0, [200, 140, 120, 255], 1.2)),
+        },
         "rail" => Some((6, [140, 140, 140, 255], 1.6)),
-        "light_rail" | "subway" | "tram" | "narrow_gauge" | "funicular" | "monorail" => {
-            Some((6, [150, 150, 150, 255], 1.4))
-        }
+        "transit" => Some((6, [150, 150, 150, 255], 1.4)),
         _ => None,
     }
 }
 
-fn streets(canvas: &mut Canvas, layer: Option<&Layer>, line_scale: f32) {
+fn roads(canvas: &mut Canvas, layer: Option<&Layer>, line_scale: f32) {
     let Some(layer) = layer else {
         return;
     };
@@ -161,7 +195,8 @@ fn streets(canvas: &mut Canvas, layer: Option<&Layer>, line_scale: f32) {
         .iter()
         .filter(|feature| feature.kind == GeometryKind::Line)
         .filter_map(|feature| {
-            let (rank, color, width) = street_style(kind(layer, feature))?;
+            let subclass = text(layer, feature, "subclass");
+            let (rank, color, width) = road_style(class(layer, feature), subclass)?;
             Some((rank, color, width * line_scale, feature))
         })
         .collect();
@@ -214,48 +249,22 @@ fn stroke_layer(
 
 fn labels(tile: &Tile, window: Window) -> Vec<TileLabel> {
     let mut labels = Vec::new();
-    if let Some(layer) = tile.layer("place_labels") {
+    if let Some(layer) = tile.layer("place") {
         for feature in &layer.features {
             let Some(name) = layer.tag(feature, "name").and_then(TagValue::as_str) else {
                 continue;
             };
-            let font_size = match kind(layer, feature) {
-                "capital" | "state_capital" => 15.0,
-                "city" => 14.0,
-                "town" => 12.0,
-                "village" | "state" => 11.0,
-                _ => 10.0,
+            let capital = number(layer, feature, "capital");
+            let (font_size, color) = match class(layer, feature) {
+                "continent" | "country" => (13.0, REGION_LABEL_COLOR),
+                "state" => (11.0, REGION_LABEL_COLOR),
+                "city" | "town" if matches!(capital, Some(2..=4)) => (15.0, PLACE_LABEL_COLOR),
+                "city" => (14.0, PLACE_LABEL_COLOR),
+                "town" => (12.0, PLACE_LABEL_COLOR),
+                "village" => (11.0, PLACE_LABEL_COLOR),
+                _ => (10.0, PLACE_LABEL_COLOR),
             };
-            push_label(
-                &mut labels,
-                window,
-                layer,
-                feature,
-                name,
-                font_size,
-                PLACE_LABEL_COLOR,
-            );
-        }
-    }
-    if let Some(layer) = tile.layer("boundary_labels") {
-        for feature in &layer.features {
-            let Some(name) = layer.tag(feature, "name").and_then(TagValue::as_str) else {
-                continue;
-            };
-            let admin_level = layer
-                .tag(feature, "admin_level")
-                .and_then(TagValue::as_i64)
-                .unwrap_or(2);
-            let font_size = if admin_level <= 2 { 13.0 } else { 11.0 };
-            push_label(
-                &mut labels,
-                window,
-                layer,
-                feature,
-                name,
-                font_size,
-                BOUNDARY_LABEL_COLOR,
-            );
+            push_label(&mut labels, window, layer, feature, name, font_size, color);
         }
     }
     labels.sort_by(|a, b| b.font_size.total_cmp(&a.font_size));

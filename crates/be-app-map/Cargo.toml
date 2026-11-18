@@ -13,6 +13,7 @@ be-sdk-beui = { path = "../be-sdk-beui" }
 be-type-image = { path = "../be-type-image" }
 be-type-map = { path = "../be-type-map" }
 be-worker-map = { path = "../be-worker-map" }
+serde = { version = "1", features = ["derive"] }
 uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]

@@ -1026,6 +1026,7 @@ dependencies = [
  "be-worker-map",
  "be-worker-map-tiles",
  "beui",
+ "serde",
  "uuid",
 ]
 
