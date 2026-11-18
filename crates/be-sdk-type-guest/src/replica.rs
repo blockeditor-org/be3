@@ -542,7 +542,7 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     parts_merge: Option<PartsMerge<C>>,
     fold: Option<Fold<C>>,
     /// Whether the type has a signed log, folded or not.
-    log: bool,
+    has_log: bool,
     /// The entries of the block's signed log this replica heard or read, by place, each id once
     /// at its first place, folded onto what it describes.
     signed_log: crate::editor::HeldLog,
@@ -906,7 +906,7 @@ where
             }),
             signed_log: crate::editor::HeldLog::default(),
             folded: None,
-            log: opened.log,
+            has_log: opened.log,
             log_grew: false,
             log_size: 0,
             log_read: false,
@@ -3773,7 +3773,7 @@ where
                 token,
                 bytes,
                 along,
-            } if editable && self.log => {
+            } if editable && self.has_log => {
                 let call = self.token();
                 self.out.push(Effect::Append {
                     replica: self.id,
@@ -3787,13 +3787,13 @@ where
                 editor,
                 &ToEditor::Appended {
                     token,
-                    result: Err(match self.log {
+                    result: Err(match self.has_log {
                         true => "the editor is attached read-only".to_owned(),
                         false => "this type keeps no log".to_owned(),
                     }),
                 },
             ),
-            FromEditor::ReadLog { token, from, limit } if self.log => {
+            FromEditor::ReadLog { token, from, limit } if self.has_log => {
                 let call = self.token();
                 self.out.push(Effect::ReadLog {
                     replica: self.id,
