@@ -311,14 +311,19 @@ pub async fn open_share_link(
         };
     }
     // The log the grant went into must start at the root the link handed.
-    let served = be_block_protocol::read::<Vec<Vec<u8>>, _>(
+    let served = be_block_protocol::read::<be_block_protocol::AccessLogPage, _>(
         connection,
         Some(link.organization),
-        be_block_protocol::Query::Log(Some(link.block)),
+        be_block_protocol::Query::Log {
+            log: Some(link.block),
+            held: None,
+        },
     )
     .await??;
     let root = served
+        .entries
         .first()
+        .filter(|_| served.from == 0)
         .and_then(|bytes| be_block_keys::Step::decode(bytes).ok())
         .map(|step| step.hash());
     if root != Some(handed.block_root) {
