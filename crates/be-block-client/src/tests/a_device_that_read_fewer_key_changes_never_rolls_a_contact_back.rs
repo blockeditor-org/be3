@@ -44,7 +44,7 @@ async fn a_device_that_read_fewer_key_changes_never_rolls_a_contact_back() {
             read,
             &[be_block::AccountBlock::set_contact(
                 owner.account(),
-                Some(stale.encode()),
+                Some(stale.kept()),
             )],
         )
         .await;
