@@ -1461,8 +1461,8 @@ fn StatisticsPanel(statistics: Signal<HostStatistics>, history: Signal<MemoryMin
 
 /// The host's memory over time, as be-host's own panel graphs it: resident, anonymous,
 /// shared and wasm memory a point a minute, each line in its own colour role, against a top of
-/// the peak resident size rounded up to 64 MiB, a gap of more than two minutes breaking a line.
-/// Nothing shows until a minute is measured.
+/// the peak resident size rounded up to 64 MiB, a gap of more than two minutes breaking a line,
+/// each line's name below it in its colour. Nothing shows until a minute is measured.
 #[component]
 fn MemoryGraph(history: Signal<MemoryMinutes>) -> NodeId {
     let measured = create_memo(move || history.with(|history| !history.points.is_empty()));
@@ -1486,9 +1486,17 @@ fn MemoryDrawing(history: Signal<MemoryMinutes>) -> NodeId {
         }) as Draw
     });
     view! {
-        <Frame height={Size::Custom(MEMORY_GRAPH_HEIGHT)}>
-            <Drawing draw />
-        </Frame>
+        <List spacing=Space::Xs2>
+            <Frame height={Size::Custom(MEMORY_GRAPH_HEIGHT)}>
+                <Drawing draw />
+            </Frame>
+            <List direction=Direction::Horizontal spacing=Space::Md>
+                <Text size=TextSize::Xs color=TextColor::Accent>"Resident"</Text>
+                <Text size=TextSize::Xs color=TextColor::Success>"Anonymous"</Text>
+                <Text size=TextSize::Xs color=TextColor::Warning>"Shared"</Text>
+                <Text size=TextSize::Xs color=TextColor::Danger>"Wasm"</Text>
+            </List>
+        </List>
     }
 }
 
