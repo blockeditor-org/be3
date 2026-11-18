@@ -3,13 +3,17 @@
 //! to edit it, and this device's replica holding its session's lease. Whoever holds the lease
 //! hosts and the others stand by; when the holder leaves, the next editor's replica takes the
 //! lease by the session's order and starts its own. Closing the last editor of the block here
-//! stops it, so the lease goes on to another editor and a world left closed uses nothing.
+//! stops it, so the lease goes on to another editor and a world left closed uses nothing,
+//! unless the person chose Keep hosting in its frame menu (`block-command.keep-hosting`): a kept
+//! block's component runs on with no editor open, listed in the host menu with Stop, until
+//! Stop, the lease or the access goes, or be-host quits. Nothing keeps it across a restart.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use be_host_runtime::EditorBlock;
 use be_sdk_api::EditorInstanceId;
+use be_sdk_api::blocks::HostingHere;
 use be_sdk_manifest::AppManifest;
 use uuid::Uuid;
 
@@ -55,9 +59,41 @@ pub(crate) struct Hosts {
     /// The leases this device held and the instances the runtime ran as of the last look:
     /// looked at again only when either moved, or the graph changed (the account's access).
     seen: Option<(u64, u64)>,
+    /// The blocks kept hosting after their editors here close (Keep hosting), in memory only.
+    kept: HashMap<Uuid, EditorBlock>,
+    /// What the runtime was last told this device hosts (`be_host_runtime::set_hosting`).
+    told: HashMap<Uuid, HostingHere>,
 }
 
 impl Hosts {
+    /// Keeps hosting `block` after its editors here close, or no longer: only a block whose
+    /// component runs here may be kept.
+    pub(crate) fn keep(&mut self, block: Uuid, keep: bool) {
+        match keep {
+            true => {
+                let Some(running) = self.running.get(&block) else {
+                    return;
+                };
+                self.kept.insert(block, running.block);
+            }
+            false => {
+                self.kept.remove(&block);
+            }
+        }
+        self.seen = None;
+    }
+
+    /// The blocks kept hosting, by name, for the host menu's Stop.
+    pub(crate) fn kept(&self) -> Vec<(Uuid, String)> {
+        let mut kept: Vec<(Uuid, String)> = self
+            .kept
+            .keys()
+            .map(|block| (*block, crate::name_of(*block, "Untitled")))
+            .collect();
+        kept.sort_by(|left, right| left.1.cmp(&right.1).then(left.0.cmp(&right.0)));
+        kept
+    }
+
     /// Starts the host component of each block this device should host now and stops each one
     /// that should no longer run. Called every frame, it looks again only when a lease, the
     /// instances running or the graph changed, or a component it started is not open yet.
@@ -94,7 +130,9 @@ impl Hosts {
             self.failed.insert(block);
         }
         let mut wanted: HashMap<Uuid, EditorBlock> = HashMap::new();
-        for block in editing {
+        // A kept block counts as edited here, so its component runs on with no editor open.
+        let kept: Vec<EditorBlock> = self.kept.values().copied().collect();
+        for block in editing.into_iter().chain(kept) {
             if types.of_type(block.block_type).is_some()
                 && be_host_stack::access(block.id).can_edit()
                 && be_host_stack::holds_lease(block.id)
@@ -102,6 +140,8 @@ impl Hosts {
                 wanted.insert(block.id, block);
             }
         }
+        // One that may no longer run here (the lease or the access went) is kept no longer.
+        self.kept.retain(|block, _| wanted.contains_key(block));
         self.failed.retain(|block| wanted.contains_key(block));
         self.running.retain(|block, running| {
             let keep = wanted.contains_key(block);
@@ -155,9 +195,34 @@ impl Hosts {
             }
             self.failed.insert(id);
         }
+        self.tell_runtime();
         self.seen = Some((
             be_host_stack::lease_revision(),
             be_host_runtime::roles_revision(),
         ));
+    }
+
+    /// Tells the runtime which blocks this device hosts and keeps, so their editors show it.
+    fn tell_runtime(&mut self) {
+        let now: HashMap<Uuid, HostingHere> = self
+            .running
+            .keys()
+            .map(|block| {
+                let hosting = match self.kept.contains_key(block) {
+                    true => HostingHere::Kept,
+                    false => HostingHere::Yes,
+                };
+                (*block, hosting)
+            })
+            .collect();
+        for (block, _) in self.told.iter().filter(|(block, _)| !now.contains_key(block)) {
+            be_host_runtime::set_hosting(*block, HostingHere::No);
+        }
+        for (block, hosting) in &now {
+            if self.told.get(block) != Some(hosting) {
+                be_host_runtime::set_hosting(*block, *hosting);
+            }
+        }
+        self.told = now;
     }
 }

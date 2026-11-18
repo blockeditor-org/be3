@@ -248,6 +248,8 @@ pub(crate) struct StatusView {
     pub(crate) company: bool,
     pub(crate) administrator: bool,
     pub(crate) escrow_warning: Option<String>,
+    /// The blocks this device keeps hosting with no editor open (Keep hosting), by name.
+    pub(crate) hosting: Vec<(Uuid, String)>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -521,6 +523,8 @@ pub(crate) enum UiCommand {
     CloseInvitations,
     RevokeInvitation(Uuid),
     OpenAgents,
+    /// Stops hosting a block kept hosting (`hosting::Hosts::keep`).
+    StopHosting(Uuid),
     CloseAgents,
     OpenContacts,
     CloseContacts,

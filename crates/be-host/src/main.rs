@@ -3514,6 +3514,7 @@ impl HostCore {
     fn handle_block_command(&mut self, from: Option<Uuid>, id: Uuid, command: BlockCommand) {
         match command {
             BlockCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
+            BlockCommand::KeepHosting(keep) => self.hosts.keep(id, keep),
             BlockCommand::Leave => ask_to_leave(&mut self.leaving, id),
             BlockCommand::CloseEditor if from == Some(id) => self.close_itself(id),
             BlockCommand::CloseEditor => {
@@ -4211,6 +4212,7 @@ impl HostCore {
                     self.begin_organization_request(OrganizationOperation::ListAgents);
                 }
             }
+            UiCommand::StopHosting(block) => self.hosts.keep(block, false),
             UiCommand::OpenContacts => self.contacts.show(),
             UiCommand::OpenMembers => self.members.show(),
             UiCommand::CloseMembers => self.members.close(),
@@ -4429,6 +4431,7 @@ impl HostCore {
                 error: reauth.error.clone(),
             }),
             status: ui::StatusView {
+                hosting: self.hosts.kept(),
                 sync,
                 unsaved: be_status.unsaved > 0,
                 unsent: be_status.unsent,

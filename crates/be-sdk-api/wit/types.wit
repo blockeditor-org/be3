@@ -863,7 +863,10 @@ interface types {
     }
 
     /// An editor instance opening: which instance, which editor, who opens it
-    /// and how.
+    /// and how. An instance closed may be opened again under the same id: an
+    /// editor whose block's access crosses between Join and View is closed and
+    /// opened as the other kind (`open-join`). Each opening follows a close;
+    /// an instance is never opened twice without one.
     record opening {
         instance: editor-instance-id,
         editor: editor-id,

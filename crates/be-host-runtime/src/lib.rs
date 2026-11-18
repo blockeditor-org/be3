@@ -47,7 +47,7 @@ pub use description::describe;
 pub use events::{Heard, InstanceEvent, listen};
 pub use input::BlockDrag;
 pub use instances::gift::{GiftView, KeyProgress, is_press};
-pub use instances::{EditorView, Focus, roles_revision};
+pub use instances::{EditorView, Focus, roles_revision, set_hosting};
 pub(crate) use palette::host_draws_palette;
 pub use palette::{PaletteAsk, draw_palette, instance_actions, run_view_action, take_palette_asks};
 pub use pieces::uncovered as uncovered_pieces;

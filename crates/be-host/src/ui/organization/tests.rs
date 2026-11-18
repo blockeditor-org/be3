@@ -31,6 +31,15 @@ impl Shown {
         })
     }
 
+    fn status(status: StatusView) -> Self {
+        Self::start(move || {
+            let status = create_memo(move || status.clone());
+            view! {
+                <HostMenu status pick={Callback::new(send)} report={None} />
+            }
+        })
+    }
+
     fn dialogs(view: HostUi) -> Self {
         Self::start(move || {
             let store = HostUiStore::new(view);
@@ -123,5 +132,6 @@ mod approving_a_device_offline_says_it_needs_a_connection;
 mod leaving_offline_says_it_needs_a_connection;
 mod the_invite_dialog_ends_on_its_link_and_the_list_shows_each_invitation;
 mod the_leave_dialog_quotes_a_long_or_tricky_name_safely;
+mod the_menu_lists_what_this_device_keeps_hosting_with_stop;
 mod the_status_says_whether_changes_are_saved_syncing_offline_or_failed;
 mod unsent_edits_can_be_restored_or_discarded;

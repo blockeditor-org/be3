@@ -4,10 +4,11 @@ use beui::icons::Glyph;
 use beui::icons::{
     ICON_ARCHIVE_RESTORE, ICON_ARROW_LEFT_RIGHT, ICON_BOT, ICON_BUG, ICON_CLOUD_ALERT,
     ICON_CLOUD_CHECK, ICON_CLOUD_OFF, ICON_CLOUD_SYNC, ICON_CONTACT, ICON_INFO, ICON_KEY,
-    ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_MAIL, ICON_POWER, ICON_SHIELD_ALERT, ICON_USER_COG,
+    ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_MAIL, ICON_POWER, ICON_RADIO_TOWER, ICON_SHIELD_ALERT, ICON_USER_COG,
     ICON_USER_PLUS, ICON_USERS,
 };
 use beui::reactive::*;
+use uuid::Uuid;
 use beui::styled::*;
 
 use super::debug::DebugPanels;
@@ -124,6 +125,7 @@ fn HostMenu(
     let administrator = create_memo(move || status.get().administrator);
     let escrow_warning = create_memo(move || status.get().escrow_warning.unwrap_or_default());
     let warned = create_memo(move || !escrow_warning.with(String::is_empty));
+    let hosting = create_memo(move || status.get().hosting);
     let items = view! {
         <MenuItem
             @test_id={"host.menu.status".to_owned()}
@@ -150,6 +152,17 @@ fn HostMenu(
                 disabled=true
             />
         </Show>
+        // What this device keeps hosting with no editor open (plans/hosted_blocks.md,
+        // "Hosting"), each with Stop.
+        <ForEach value={hosting}>|kept: (Uuid, String)|
+            <MenuItem
+                @test_id={format!("host.menu.hosting.{}", kept.0)}
+                label={format!("Stop hosting {}", kept.1)}
+                glyph=ICON_RADIO_TOWER
+                detail="Hosted here with no editor open"
+                on_click={move || pick(UiCommand::StopHosting(kept.0))}
+            />
+        </ForEach>
         <MenuItem
             @test_id={"host.menu.contacts".to_owned()}
             label="Contacts"
