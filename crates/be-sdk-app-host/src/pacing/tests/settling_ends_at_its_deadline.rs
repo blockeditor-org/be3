@@ -6,6 +6,8 @@ struct Apps {
     relaid_at: Option<u32>,
     answered_at: Option<u32>,
     requests: u32,
+    /// Real time, which waiting moves on.
+    clock: Duration,
 }
 
 impl Settling for Apps {
@@ -22,18 +24,23 @@ impl Settling for Apps {
         self.answered_at.is_none_or(|at| self.pumps < at)
     }
 
-    fn wait(&mut self, _rung: u64, deadline: Instant) -> bool {
-        Instant::now() < deadline
+    fn wait(&mut self, _rung: u64, deadline: Duration) -> bool {
+        self.clock += Duration::from_millis(1);
+        self.clock < deadline
     }
 
     fn rung(&self) -> u64 {
         0
     }
+
+    fn now(&self) -> Duration {
+        self.clock
+    }
 }
 
 #[test]
 fn settling_ends_at_its_deadline() {
-    let soon = Instant::now() + Duration::from_secs(60);
+    let soon = Duration::from_secs(60);
     let mut apps = Apps {
         answered_at: Some(3),
         ..Apps::default()
@@ -53,6 +60,10 @@ fn settling_ends_at_its_deadline() {
 
     let mut clock = FrameClock::default();
     let mut apps = Apps::default();
-    assert!(!clock.settle(&mut apps, Instant::now()));
-    assert_eq!(clock.take_waited().1, 1, "the frame ran out of time");
+    assert!(!clock.settle(&mut apps, Duration::from_millis(3)));
+    assert_eq!(
+        clock.take_waited(),
+        (Duration::from_millis(3), 1),
+        "the frame ran out of time, having waited until its deadline"
+    );
 }

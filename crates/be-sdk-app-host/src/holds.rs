@@ -243,6 +243,15 @@ enum Back {
     Presented(Option<u64>),
 }
 
+/// What a present applied or a frame shown lets go (`Shown::presented`, `Shown::frame_shown`).
+#[must_use]
+pub struct Release {
+    /// The anchored views a layout closed may go: lay out these screens.
+    pub closed: Option<ScreenLayout>,
+    /// Kept frames may go: let go of those drawn anew (`Shown::release_kept`).
+    pub kept: bool,
+}
+
 /// What of an app's screens a host shows beyond its last layout: anchored views it closed, until
 /// the frame that closed them is drawn, and the last frames of views it left out while the host
 /// still holds them.
@@ -310,8 +319,9 @@ impl Shown {
         shown
     }
 
-    /// The app's present was applied, with the sequence of its frame if it painted.
-    pub fn presented(&mut self, painted: Option<u64>) {
+    /// The app's present was applied, with the sequence of its frame if it painted, while the
+    /// last present shown is `shown`: what may now be let go.
+    pub fn presented(&mut self, painted: Option<u64>, shown: u64) -> Release {
         self.presents_applied += 1;
         let holds_textures = self.holds_textures;
         if let Some(closing) = &mut self.closing
@@ -326,11 +336,24 @@ impl Shown {
                 kept.back = Some(Back::Presented(painted));
             }
         }
+        self.release(shown)
+    }
+
+    /// The host showed the frame of present `shown`: what may now be let go.
+    pub fn frame_shown(&mut self, shown: u64) -> Release {
+        self.release(shown)
+    }
+
+    fn release(&mut self, shown: u64) -> Release {
+        Release {
+            closed: self.closed(shown),
+            kept: !self.kept.is_empty(),
+        }
     }
 
     /// The screens to lay out once the frame that closed anchored views has been presented and,
     /// where the host holds its textures, drawn (`shown`, the last present shown).
-    pub fn closed(&mut self, shown: u64) -> Option<ScreenLayout> {
+    fn closed(&mut self, shown: u64) -> Option<ScreenLayout> {
         let closing = self.closing.as_ref()?;
         let presented = self.presents_applied >= closing.presented_by;
         let drawn = closing
@@ -407,10 +430,6 @@ impl Shown {
             };
             holds(*screen) && !drawn
         });
-    }
-
-    pub fn has_kept(&self) -> bool {
-        !self.kept.is_empty()
     }
 
     pub fn keeps(&self, screen: ScreenId) -> bool {

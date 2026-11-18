@@ -585,8 +585,11 @@ Each step lands on its own.
          display's presents and the host's composites, gives one deadline per host frame
          (`deadline`) and settles against it (`settle`, over a `Settling` the host implements
          with its runtimes and its bell), recording the time waited and the frames over
-         budget; `held_behind` orders placers before their children. be-host-runtime keeps
-         which runtimes are asked, their placers and its bell, and sends the `Draw`. Its pacing
+         budget; `held_behind` orders placers before their children, over any id. The library
+         reads no clock: real time comes from the host as a `Duration` since an origin it
+         chooses (`Settling::now`, and the deadline it hands back to `Settling::wait`), so
+         wasm32 hosts and tests drive it. be-host-runtime keeps which runtimes are asked, their
+         placers, its bell and its real-time origin, and sends the `Draw`. Its pacing
          tests moved with it. No geometry was involved.
        - 4e4b. Built: the layout and present holds, `be_sdk_app_host::holds`. `Holds` keeps
          what of a layout commit waits for the present that follows it (`heard_layout` splits
@@ -594,8 +597,9 @@ Each step lands on its own.
          after it, and the counts that release them (`release_presented`,
          `waits_for_children`); `Shown` keeps the anchored views a layout closed until the
          frame that closed them is drawn (`place`, `closed`) and the last frames of views left
-         out (`keep_left_out`, `release_kept`, `MOST_KEPT`), counting presents applied
-         (`presented`), for a host that holds the textures; `Presents` the damage of the
+         out (`keep_left_out`, `release_kept`, `MOST_KEPT`), for a host that holds the
+         textures; a present applied (`presented`) or a frame shown (`frame_shown`) says what
+         may go (`Release`), rather than the host asking; `Presents` the damage of the
          presents since the last frame shown. be-host-runtime drives them, and keeps the frame
          held for children, the presenter's state and the instances they consult. These use no
          geometry either, only be-sdk-api's placements.

@@ -64,6 +64,8 @@ pub fn take_steps() -> Vec<(String, beui::native::FrameTimes)> {
 struct Host {
     availability: Availability,
     clock: FrameClock,
+    /// What the frame clock's real times count from.
+    origin: Instant,
     runtimes: HashMap<String, Runtime>,
     warming: Option<Vec<AppManifest>>,
     focus: Focus,
@@ -77,6 +79,7 @@ impl Host {
         Self {
             availability: Availability::missing(),
             clock: FrameClock::default(),
+            origin: Instant::now(),
             runtimes: HashMap::default(),
             warming: Some(Vec::new()),
             focus: Focus::default(),
@@ -186,7 +189,7 @@ fn held_behind(
     runtimes: &HashMap<String, Runtime>,
     active: &be_lib_stable_hash::HashSet<String>,
 ) -> be_lib_stable_hash::HashSet<String> {
-    pacing::held_behind(
+    let held = pacing::held_behind(
         runtimes
             .iter()
             .filter(|(id, _)| active.contains(*id))
@@ -209,13 +212,15 @@ fn held_behind(
                     })
             })
             .collect(),
-    )
+    );
+    held.into_iter().map(str::to_owned).collect()
 }
 
 /// The runtimes a settle asked, as the library's settling steps and waits on them.
 struct Asked<'a> {
     runtimes: &'a mut HashMap<String, Runtime>,
     asked: &'a [String],
+    origin: Instant,
 }
 
 impl pacing::Settling for Asked<'_> {
@@ -242,12 +247,16 @@ impl pacing::Settling for Asked<'_> {
         })
     }
 
-    fn wait(&mut self, rung: u64, deadline: Instant) -> bool {
-        be_wasm_guest_host::bell::wait(rung, Deadline::at(deadline))
+    fn wait(&mut self, rung: u64, deadline: Duration) -> bool {
+        be_wasm_guest_host::bell::wait(rung, Deadline::at(self.origin + deadline))
     }
 
     fn rung(&self) -> u64 {
         be_wasm_guest_host::bell::rung()
+    }
+
+    fn now(&self) -> Duration {
+        self.origin.elapsed()
     }
 }
 
@@ -719,10 +728,14 @@ impl Runtime {
         let drawing = self.session.granted_surface().is_some();
         let seen = host::seen();
         let pass = host::pass();
-        let holds_input = self.backend.holds_input();
-        let ask = self
-            .pacing
-            .ask(drawing, seen, self.now(), pass, held, holds_input);
+        let ask = self.pacing.ask(pacing::Asking {
+            drawing,
+            seen,
+            now: self.now(),
+            pass,
+            held,
+            holds_input: self.backend.holds_input(),
+        });
         self.awaiting_input = ask == pacing::Ask::AfterInput;
         match ask {
             pacing::Ask::Nothing | pacing::Ask::AfterInput => {}
@@ -914,7 +927,8 @@ impl Runtime {
             frame.set_damage(damage);
             self.shared.borrow_mut().paint(&painted);
             changed = frame_changed(frame.damage());
-            if self.shown.has_kept() {
+            let release = self.shown.frame_shown(self.presents.shown());
+            if release.kept {
                 self.release_kept();
             }
             self.shared.borrow_mut().publish(
@@ -922,7 +936,7 @@ impl Runtime {
                 self.shown.kept_placements(),
                 Some(frame),
             );
-            self.close_anchored();
+            self.close_anchored(release.closed);
             self.frames += 1;
             be_host_base::performance::record_group_count(
                 PACING,
@@ -1049,10 +1063,11 @@ impl Runtime {
         self.laid_out(shown);
     }
 
-    /// Lets the anchored views a layout closed go once the frame that follows it has been
-    /// presented and, where the host composites the app's surfaces, its pixels have arrived.
-    fn close_anchored(&mut self) {
-        if let Some(layout) = self.shown.closed(self.presents.shown()) {
+    /// Lets the anchored views a layout closed go (`Release::closed`), once the frame that
+    /// follows it has been presented and, where the host composites the app's surfaces, its
+    /// pixels have arrived.
+    fn close_anchored(&mut self, closed: Option<ScreenLayout>) {
+        if let Some(layout) = closed {
             self.laid_out(layout);
             mark(&self.app.identity.id);
         }
@@ -1292,8 +1307,10 @@ impl Runtime {
         if let Some(delay) = delay {
             host::request_repaint_after(delay);
         }
-        self.shown
-            .presented(presented.as_ref().map(|presented| presented.sequence));
+        let release = self.shown.presented(
+            presented.as_ref().map(|presented| presented.sequence),
+            self.presents.shown(),
+        );
         if let Some(presented) = presented {
             // The browser's worker shows a present on its canvases as it makes it, so what each
             // surface holds changes now; natively it changes as the frame is shown (`show_frame`).
@@ -1301,8 +1318,8 @@ impl Runtime {
             self.shared.borrow_mut().paint(&presented.painted);
             self.presents.report(presented);
         }
-        self.close_anchored();
-        if self.shown.has_kept() {
+        self.close_anchored(release.closed);
+        if release.kept {
             self.release_kept();
         }
         self.drawn = self
@@ -1935,7 +1952,10 @@ pub fn settle() -> bool {
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         let host = &mut *host;
-        let deadline = host.clock.deadline(pass, host::clock_stopped());
+        let origin = host.origin;
+        let deadline = host
+            .clock
+            .deadline(pass, host::clock_stopped(), origin.elapsed());
         let asked: Vec<String> = host
             .runtimes
             .iter_mut()
@@ -1950,6 +1970,7 @@ pub fn settle() -> bool {
         let mut asked = Asked {
             runtimes: &mut host.runtimes,
             asked: &asked,
+            origin,
         };
         host.clock.settle(&mut asked, deadline)
     })
@@ -1961,9 +1982,11 @@ pub fn begin_frame(
     prepared: Option<Instant>,
 ) {
     HOST.with(|host| {
-        host.borrow_mut()
-            .clock
-            .begin_frame(next_present, refresh, prepared);
+        let mut host = host.borrow_mut();
+        let origin = host.origin;
+        let since = |at: Instant| at.saturating_duration_since(origin);
+        host.clock
+            .begin_frame(next_present.map(since), refresh, prepared.map(since));
     });
 }
 
