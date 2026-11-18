@@ -266,7 +266,7 @@ pub(crate) async fn handle(
         // The browser's attempt: the one it holds, or a new one it is given with the response.
         let attempt_for = |response: &mut Response| match attempt.is_empty() {
             true => {
-                let fresh = codes::new_attempt();
+                let fresh = crate::new_secret();
                 response.attempt = Some(fresh.clone());
                 fresh
             }
@@ -875,7 +875,7 @@ async fn provider_step(
             // Before the provider is called, so strangers can't make the server call it more.
             services.store.provider_room(address).await?;
             // A fresh attempt binds the provider's answer to this browser, and to this sign-in.
-            let attempt = codes::new_attempt();
+            let attempt = crate::new_secret();
             response.attempt = Some(attempt.clone());
             let started = services
                 .discovery

@@ -286,6 +286,23 @@ impl Outbound {
     }
 }
 
+/// A new random secret: 256 bits from the operating system's generator. Every token, link,
+/// cookie and key the server makes comes from here; ids, and codes people type, which have
+/// their own alphabets, do not.
+pub(crate) fn new_secret_bytes() -> [u8; 32] {
+    use rand::TryRngCore;
+    let mut bytes = [0u8; 32];
+    rand::rngs::OsRng
+        .try_fill_bytes(&mut bytes)
+        .expect("the operating system has entropy");
+    bytes
+}
+
+/// [`new_secret_bytes`] in lowercase hex, for tokens, links and cookies.
+pub(crate) fn new_secret() -> String {
+    be_block_store::Hash::from_bytes(new_secret_bytes()).to_hex()
+}
+
 fn not_reading() -> ServerError {
     ServerError::Socket("the client is not reading what it is sent".into())
 }

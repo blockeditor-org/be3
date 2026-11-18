@@ -143,7 +143,7 @@ Only GetObject (with Range), HeadObject and PutObject are served; PutObject
 requires `x-amz-checksum-sha256`, stores only a body whose hash is both the key
 and the checksum, and answers once the object is synced. Every request is
 SigV4-signed, in practice presigned, with one credential pair derived from
-the server's own secret: `ServerStore::s3_endpoint` gives an `S3Endpoint`,
+the server's own secret (HKDF-SHA256, `ServerKey::derived`): `ServerStore::s3_endpoint` gives an `S3Endpoint`,
 whose `bucket(server_url)` and `credentials()` feed `s3::presign_get` and
 `s3::presign_put` (which signs the length and checksum, so the URL takes only
 that object; `rusty-s3` signs). Bodies are read whole within
@@ -885,6 +885,11 @@ needs code of its own for any method.
   `__Host-be3-attempt` (Secure, `Path=/`, so no sibling subdomain can set or
   shadow them); over plain HTTP, which only a server on this machine serves,
   the bare names scoped to `/auth` (`http::PortalCookies`).
+- **Secrets.** Every token, cookie, link, form token and HTTP session id the
+  server hands out is `new_secret()`, 256 bits from the operating system in
+  hex; codes people type have their own alphabets. Of those in its database
+  it keeps only the hashes, each kind under its own domain (`store::hash_token`, `TokenKind`),
+  so a secret of one kind never matches a row kept for another.
 - **Operator login links** (`store/login_links.rs`, `be-server login-link`)
   sign in once within `LOGIN_LINK_LIFETIME` as recovering does, and for an
   email with no account make it, with no invite code. A link by `--email` is

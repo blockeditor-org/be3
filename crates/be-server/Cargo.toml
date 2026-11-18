@@ -23,6 +23,7 @@ bytes = "1"
 futures-util = "0.3"
 http = "1"
 httparse = "1"
+hkdf = "0.12"
 hyper-util = { version = "0.1", features = ["server-auto", "tokio"] }
 openidconnect = { version = "4", default-features = false, features = ["ureq"] }
 rand = "0.9"

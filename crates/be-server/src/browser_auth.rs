@@ -242,7 +242,7 @@ impl Sessions {
     pub(crate) fn begin(&self, address: IpAddr) -> (String, String, Duration, Duration) {
         let random = Uuid::new_v4().simple().to_string();
         let code = format!("{}-{}-{}", &random[..4], &random[4..8], &random[8..12]);
-        let secret = Uuid::new_v4().to_string();
+        let secret = crate::new_secret();
         self.pending.lock().unwrap().insert(
             code.clone(),
             Pending {
@@ -307,7 +307,7 @@ impl Sessions {
         ceremony: Option<crate::passkeys::Ceremony>,
     ) -> String {
         let mut forms = self.forms.lock().unwrap();
-        let token = Uuid::new_v4().to_string();
+        let token = crate::new_secret();
         forms.insert(
             token.clone(),
             Form {

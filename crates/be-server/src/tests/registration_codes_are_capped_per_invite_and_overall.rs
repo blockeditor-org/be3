@@ -17,7 +17,7 @@ async fn ask(
             display_name: "New",
             invite,
             device_code: "",
-            attempt: &codes::new_attempt(),
+            attempt: &crate::new_secret(),
             address,
         })
         .await
