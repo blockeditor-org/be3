@@ -53,6 +53,9 @@ interface blocks {
         /// The host is offline and holds no version of the block's content whole, so the block
         /// can be neither opened nor changed until it reconnects.
         out-of-reach: bool,
+        /// How many things in the block's content this account has not read, for a type
+        /// that counts them (a chat's new messages); zero otherwise.
+        unread: u32,
     }
 
     enum artifact-action {

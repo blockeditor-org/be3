@@ -41,6 +41,7 @@ fn offline_a_read_or_a_discard_works_out_its_blocks_reach_again_and_no_others() 
             tree_size: 0,
             changed: 0,
             entry: None,
+            unread: 0,
         })
         .collect();
     with_shared_mut(|shared| {

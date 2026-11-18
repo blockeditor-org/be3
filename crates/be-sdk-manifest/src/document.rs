@@ -131,6 +131,11 @@ pub struct BlockTypeDocument {
     /// run. A be-tool-cli test holds every manifest to its module.
     #[serde(default)]
     pub plain_file: bool,
+    /// The type counts what the account has not read (`be_block_content::Unread`), so the host
+    /// starts its module to count it for a row before anything else asks the module. A
+    /// be-tool-cli test holds every manifest to its module.
+    #[serde(default)]
+    pub counts_unread: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -305,6 +310,7 @@ impl BlockTypeDocument {
             },
             module: self.module,
             exported_whole: self.exported_whole,
+            counts_unread: self.counts_unread,
         })
     }
 }

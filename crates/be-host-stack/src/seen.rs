@@ -392,6 +392,8 @@ pub struct KnownKind {
     pub blank: Arc<Vec<u8>>,
     /// What `blank` derives as metadata.
     pub derived: Entries,
+    /// The settings kind the type counts what is unread from (`crate::unread`).
+    pub reads: Option<Uuid>,
 }
 
 impl KnownKind {
@@ -401,6 +403,7 @@ impl KnownKind {
             schema: kind.schema.clone(),
             blank: Arc::new(kind.blank.clone()),
             derived: kind.described.derived.clone(),
+            reads: kind.reads,
         }
     }
 }

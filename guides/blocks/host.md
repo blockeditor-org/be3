@@ -609,6 +609,37 @@ metadata, or a `publish` with no commit on a block with no content yet;
 `describe_implicitly` keeps an open block's derived metadata current until it
 is saved.
 
+## Unread counts
+
+A type that counts what the account has not read (`be_block_content::Unread`,
+guides/type_modules.md, "The protocol"; chat's new messages) gets its count on
+its node, `Node::unread`, and so on every `BlockInfo` an app is told
+(`unread`), without a replica opened per row. `be-host-stack/src/unread.rs`:
+
+- **Reads.** Where the account read up to lives in an owner-only settings kind
+  the type names (`type-info.reads`, `KnownKind::reads`). be-host resolves the
+  account's layers of each such kind (`unread::kinds`,
+  `RootSettings::layer_contents`), holds them, and sends their content's bytes
+  to the worker when they change (`unread::publish`, `Command::Reads`, and
+  `Start::reads` for a stack that starts), as it does the offline choices.
+- **Counting.** Each pass (`unread::step`) looks at the nodes once something
+  moved (the graph's revision, the reads, the known kinds): a node this
+  account reads whose type counts and whose count at its head with the reads
+  now is not known has its head loaded in a task, as the type loads it (a chat:
+  its header only), and its module asked (`Replicas::unread`). A node read
+  again from a listing keeps its count (`Graph::insert`) until it is counted
+  again. A type whose manifest says `counts_unread` has its module started
+  once a node of it is held. A head that fails is not tried again until it or
+  the reads move.
+- An open block is counted from its head too, so a message counts once its
+  session seals it (at a pause), not as it arrives.
+
+Tests: be-host-stack's
+`a_chats_unread_count_is_counted_from_its_head_and_the_accounts_reads`;
+be-sdk-test's store counts the same way (from the head, with every block of
+the reads kind it holds), which be-app-file-tree's
+`a_chat_row_counts_its_unread_messages_until_they_are_read` uses.
+
 ## Search
 
 Full-text search over names and content (`be-host-stack/src/search.rs`; what is

@@ -77,6 +77,9 @@ pub(crate) struct Row {
     pub(crate) detail: Option<String>,
     /// In Unfiled, a block nothing references.
     pub(crate) unused: bool,
+    /// How many things in the block the account has not read (`BlockInfo::unread`): a chat's
+    /// new messages, shown as a badge on the row.
+    pub(crate) unread: u32,
 }
 
 #[derive(Clone, PartialEq, Default)]
@@ -137,6 +140,7 @@ impl Row {
             tags: Vec::new(),
             detail: None,
             unused: false,
+            unread: 0,
         }
     }
 
@@ -1065,6 +1069,10 @@ pub(crate) fn describe(
         tags: Vec::new(),
         detail: None,
         unused: false,
+        unread: match ordinary {
+            true => reference.unread,
+            false => 0,
+        },
     }
 }
 

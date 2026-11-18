@@ -28,7 +28,9 @@ edit.
 The files pane (`crates/be-app-file-tree`) shows a section per visible
 workspace (My files first, never another account's), Unfiled below My files,
 Shared with me (`BlockQuery::Shared`), Recently Deleted, and System (the
-account's own `SYSTEM_TYPES` roots, for debugging). Pressing a folder,
+account's own `SYSTEM_TYPES` roots, for debugging). A row whose block has
+something unread (`BlockInfo::unread`, a chat's new messages) carries its count
+as a badge at its end, as a messaging app's conversation list does. Pressing a folder,
 workspace or section zooms into it rather than opening it. The folder editor
 is `crates/be-app-workspace-index`.
 

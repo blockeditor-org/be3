@@ -37,6 +37,7 @@ fn node(id: Uuid) -> Node {
         tree_size: 0,
         changed: 0,
         entry: None,
+        unread: 0,
     }
 }
 
