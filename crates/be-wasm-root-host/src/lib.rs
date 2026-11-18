@@ -226,11 +226,7 @@ impl<G: Inline> Core<G> {
             display_answers: Vec::new(),
             core: be_wasm_root_api::CoreView {
                 generation: 1,
-                unsent: Vec::new(),
-                choosing_account: false,
-                accounts: Vec::new(),
-                signing_in: None,
-                account_error: None,
+                ..be_wasm_root_api::CoreView::default()
             },
             core_watchers: Vec::new(),
             core_commands: Vec::new(),

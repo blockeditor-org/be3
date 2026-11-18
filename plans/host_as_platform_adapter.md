@@ -1144,8 +1144,9 @@ Each step lands on its own.
          cancels and confirms a discard, sees a question whose block left discard nothing,
          and snapshots the list and the question.
        - 4g6e. Built: accounts and adding one (onboarding), as fields of `core-view` and
-         cases of `core-command`. The view carries `choosing-account` (whether the block stack
-         waits for the person to open or add an account: be-host's `Screen::Accounts`), the
+         cases of `core-command`. The view carries whether the block stack waits for the
+         person to open or add an account (be-host's `Screen::Accounts`; 4g6f1 makes it
+         `waits-for`'s `account`), the
          `accounts` (each `account-row`: the host's key for it, its name, email, its server or
          none for one kept on this device alone, whether it remembers its organization,
          whether it is open, its `organizations`), `signing-in` (an account being added, with the
@@ -1165,8 +1166,8 @@ Each step lands on its own.
          arguments are zeroed once decoded as `unlock`'s are. Reauthenticating an account
          (be-host's `ReauthView`) waits for 4g6f, since it opens over the organizations.
          be-host's `--root` runs no block stack, so it waits for no account. be-sdk-root-testing
-         shows the accounts while the stack waits for one (`ACCOUNTS_LAYER` on
-         `ACCOUNTS_SURFACE`, be-host-accounts-ui's `AccountsScreen`, over the app and under its
+         shows the accounts while the stack waits for one (`ONBOARDING_LAYER` on
+         `ONBOARDING_SURFACE`, be-host-accounts-ui's `AccountsScreen`, over the app and under its
          dialog, taking every press and, once drawn, the focus, given back when they go), and
          adds an account in its dialog's place (`ADD_ACCOUNT_TITLE`: where to keep it, then the
          server's address and its gateway token, or a name; then `SIGN_IN_TITLE` with the code,
@@ -1186,6 +1187,46 @@ Each step lands on its own.
          local account and sees the dialog close for it stopping nothing, sees the
          accounts go once one is open, and snapshots the accounts, the removal question, the
          dialog and the browser sign-in.
+       - 4g6f. Organizations, sessions and their dialogs, in three slices: 4g6f1 what the block
+         stack waits for, the organizations and the sessions; 4g6f2 reauthenticating an
+         account, the question before discarding unsaved changes (be-host's
+         `PendingDestructiveAction`), and the organization's dialogs (inviting, the
+         invitations, members and agents, whose links and credentials are secrets the root
+         shows); 4g6f3 contacts, share links and leaving a block.
+         - 4g6f1. Built: `core-view`'s `waits-for`, a `core-wait` (`account`, `organization`,
+           `session`; none once an organization's blocks are open), in place of 4g6e's flag:
+           be-host's `Screen::Accounts`, `Organizations` and `Sessions` (its `Recovery`,
+           `Unlock` and `Error` join with 4g6g). `organizations`, an `organizations-area`:
+           `listed` (`loading`, `loaded` with each `organization-row`'s id and name, or
+           `failed`), the `invitation` opened (`joining`: its organization, inviter, the
+           `problem` in words and whether the account may join), and `busy` and `error`.
+           `sessions`, a `sessions-area`: whether `loaded`, the organization's sessions of
+           every type (each `session-row`: id, name, its `session-type` and whether used
+           last), the `session-types` a new session can be with their names, the type this
+           device opens, and the `profiles`. The commands: `switch-account` (be-host's
+           `SwitchAccount` and `ManageAccounts`; logging out of the account open is
+           `forget-account` with its key), `reload-organizations`, `open-organization`,
+           `choose-session-in` (its `ChooseSession`), `create-organization`,
+           `open-invitation` with the pasted link as a `password`, since it is a bearer
+           secret (its `OpenInvite`), `join-invited`, `cancel-join`, `choose-session` and
+           `close-sessions` (its `SwitchSession`, `CloseSessions`), `open-session`,
+           `new-session` (its `OpenNewSession`), `use-profile` and `new-profile`. Showing
+           sessions of every type is the root's own choice, so be-host's `EverySessionType`
+           and its filtering are the root's: the view lists them all. be-host's `created`
+           count, which cleared its form, is the root's too. `core-view`,
+           `organizations-area`, `organizations-listed` and `sessions-area` derive `Default`
+           (nothing waited for, nothing listed). be-sdk-root-testing's `ONBOARDING_LAYER` on
+           `ONBOARDING_SURFACE` (4g6e's accounts' layer, renamed) shows whichever the stack
+           waits for, a memo per area off the one view: the accounts, the organizations
+           (`ORGANIZATIONS_TITLE`: each with Sessions and Open, Try again when listing failed,
+           the invitation with Not now and Join, a name to create one, an invitation link
+           handed over as a secret and cleared, Switch account) or the sessions
+           (`SESSIONS_TITLE`: those of this device's type, or every type, each to open, a new
+           one, the profiles to use and a new one, Close). be-wasm-root-host's
+           `a_root_shows_its_hosts_organizations_and_sessions` clicks each and checks the
+           command, the link handed over as typed, the root's every-type choice asking
+           nothing, the onboarding gone once nothing waits, and snapshots the organizations,
+           the invitation, a failed listing and the sessions.
        - 4g6a. Built: the lock screen, over the screen lock and password check the host grants.
          The lock is the host's (the platform's, a login session's): `be3:root` carries it as
          data, nothing beui's. `host.lock` is a watch, as `host.notices` is, answering the lock
