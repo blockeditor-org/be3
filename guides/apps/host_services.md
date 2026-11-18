@@ -106,7 +106,8 @@ Notes on particular calls:
   link calls grant access or reveal who has it, so the host denies them unless
   the manifest sets `"sharing": true` (an app the person opened cannot share
   what it shows, or read its links, unasked). Any app may still open a block
-  it just made (one it created in this run) to anyone inside
+  it just made (one it created in this run, answered once the server took the
+  create and the block is still the app's) to anyone inside
   (`set_access(ANYONE_INSIDE, View)`), as the editor framework does when it
   makes a settings kind every member reads (`ensure_block_kind`,
   `ensure_edit_kind`): that names no one. It is not airtight: such an app can

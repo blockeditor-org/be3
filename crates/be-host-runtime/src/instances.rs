@@ -2303,6 +2303,9 @@ impl Instances {
         let changes = self.stack_changes.take();
         self.touch(&changes);
         let graph_moved = changes.graph;
+        if graph_moved {
+            self.settle_openings();
+        }
         let contacts_moved = changes.contacts;
         // What each joined block's host channel did, taken once in this pass for every editor
         // that joins it.
