@@ -76,6 +76,18 @@ pub enum Record {
     /// An account granted itself access through an open share link: signed with the link's key,
     /// which only a holder of the code has, and endorsed by the account's own keys.
     Opened(Opened),
+    /// An account may not join the hosted block's host (plans/hosted_blocks.md, "Hosting"), as a
+    /// member with Edit or above barred it: until a grant to it signed after this lifts the ban.
+    /// It takes no access away, so it lowers no one and never binds an editor.
+    Ban(Ban),
+}
+
+/// `account` barred from joining the block's host, by a signer whose Edit or above on it comes
+/// from `authority`.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Ban {
+    pub account: [u8; 16],
+    pub authority: Authority,
 }
 
 impl Record {
@@ -86,6 +98,7 @@ impl Record {
             Record::Opening(opening) => Some(&opening.authority),
             Record::Parent(parent) => Some(&parent.authority),
             Record::ShareLink(link) => Some(&link.authority),
+            Record::Ban(ban) => Some(&ban.authority),
             _ => None,
         }
     }
@@ -802,6 +815,7 @@ pub fn proof_path(
         Record::Retirement(retirement) => Some(retirement.account),
         Record::Owner(owner) => Some(owner.account),
         Record::Opened(opened) => Some(opened.grantee),
+        Record::Ban(ban) => Some(ban.account),
         Record::Opening(_) | Record::Parent(_) | Record::Invitation(_) | Record::ShareLink(_) => {
             None
         }
@@ -816,7 +830,7 @@ pub fn proof_path(
         | Record::ShareLink(_) => true,
         Record::Member(member) => administrators.contains(&member.account),
         Record::Retirement(retirement) => administrators.contains(&retirement.account),
-        Record::Grant(_) | Record::Opened(_) => false,
+        Record::Grant(_) | Record::Opened(_) | Record::Ban(_) => false,
     };
     let mut accounts: HashSet<[u8; 16]> = sealers.into_iter().collect();
     accounts.insert(reader);
@@ -1018,6 +1032,9 @@ pub struct Checked {
     /// an owner record moves it on. None for an organization's log, and on a proof path after
     /// an owner record served reduced, which hides whom it named.
     pub owner: Option<[u8; 16]>,
+    /// For a block's log: the accounts barred from joining its host (`Record::Ban`), each until
+    /// a grant to it after the ban.
+    pub banned: HashSet<[u8; 16]>,
     /// For a block's log: whether its last opening (`Record::Opening`) opened it to whoever
     /// views a block inside.
     pub open_inside: Level,
@@ -1116,7 +1133,8 @@ impl Checked {
             | Record::Retirement(_)
             | Record::Parent(_)
             | Record::Invitation(_)
-            | Record::Opened(_) => false,
+            | Record::Opened(_)
+            | Record::Ban(_) => false,
         }
     }
 
@@ -1382,6 +1400,18 @@ pub fn check_log(
                     .insert(grant.grantee, (grant.level, grant.identity));
                 state.set_level(grant.grantee, grant.level);
                 state.linked.remove(&grant.grantee);
+                // A grant signed after a ban lifts it, by a signer who may grant: a banned
+                // account revoking its own grant needs no Manage, so it lifts nothing.
+                if !own_revocation {
+                    state.banned.remove(&grant.grantee);
+                }
+            }
+            Record::Ban(ban) => {
+                if kind != LogKind::Block {
+                    return Err(KeyError::Record);
+                }
+                state.granting(entry, own, &ban.authority, Level::Edit, false, outside)?;
+                state.banned.insert(ban.account);
             }
             Record::Opening(opening) => {
                 // Open to view, or closed: no other level, so the record has one meaning.

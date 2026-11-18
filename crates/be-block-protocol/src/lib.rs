@@ -45,6 +45,7 @@ be_wasm_ops_bindgen::generate!({
         "append",
         "redact",
         "grant-record",
+        "ban-record",
         "role-record",
         "member-record",
         "delete-agent",

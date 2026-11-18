@@ -56,7 +56,7 @@ impl<T: 'static> Inbox<T> {
 
 static NEXT_INSTANCE: AtomicU64 = AtomicU64::new(1);
 
-fn next_instance() -> EditorInstanceId {
+pub(crate) fn next_instance() -> EditorInstanceId {
     EditorInstanceId(NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed))
 }
 
