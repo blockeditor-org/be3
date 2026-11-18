@@ -1,4 +1,4 @@
-use accesskit::{Tree, TreeId};
+use be_sdk_api::accesskit::{Tree, TreeId};
 use be_lib_geometry::{pos2, vec2};
 
 use super::*;

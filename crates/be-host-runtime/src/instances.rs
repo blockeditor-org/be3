@@ -2086,6 +2086,9 @@ impl Instances {
             for link in entry.content.iter_mut().chain(entry.watched.values_mut()) {
                 link.delivered = false;
             }
+            // What the old run described goes with it: each view's pane stays, empty, and offers
+            // no actions until the new run describes the view.
+            entry.actions.clear();
             let anchored = entry.anchored.iter_mut().map(|held| &mut held.screen);
             for screen in entry.screens.values_mut().chain(anchored) {
                 screen.accessibility.restarted();

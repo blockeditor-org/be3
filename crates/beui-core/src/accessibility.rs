@@ -1368,3 +1368,6 @@ fn attached(held: &HashMap<AccessNodeId, &Node>, root: AccessNodeId) -> Vec<(Acc
     }
     nodes
 }
+
+#[cfg(test)]
+mod tests;

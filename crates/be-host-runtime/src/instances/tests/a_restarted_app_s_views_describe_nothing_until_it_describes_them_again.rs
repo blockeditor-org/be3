@@ -11,16 +11,6 @@ fn describe(instances: &mut Instances) {
     let mut button = Node::new(Role::Button);
     button.set_label("Save");
     instances.set_frame_reports(vec![be_sdk_api::FrameReport {
-        screen,
-        content: None,
-        painted: Vec::new(),
-        floating: Vec::new(),
-        floating_painted: Vec::new(),
-        marks: Vec::new(),
-        marks_painted: Vec::new(),
-        scrims: Vec::new(),
-        drawing: Vec::new(),
-        claims: Vec::new(),
         description: Some(
             be_sdk_api::Description {
                 tree: Some(TreeUpdate {
@@ -32,17 +22,29 @@ fn describe(instances: &mut Instances) {
             }
             .into(),
         ),
-        actions: None,
-        anchored: None,
-        work_area: None,
-        backdrop: None,
+        actions: Some(vec![be_sdk_api::DescribedAction {
+            id: "save".to_owned(),
+            label: "Save".to_owned(),
+            glyph: None,
+            shortcut: None,
+            enabled: true,
+            checked: None,
+            live: true,
+        }]),
+        ..frame_report(screen)
     }]);
 }
 
-fn labels(instances: &mut Instances) -> Vec<String> {
+/// The labels of the view's tree as the host grafts it, and of the actions it offers.
+fn labels(instances: &mut Instances) -> (Vec<String>, Vec<String>) {
     let described = instances
         .described(INSTANCE, REGION)
         .expect("the view was described");
+    let actions = described
+        .actions
+        .iter()
+        .map(|action| action.label.clone())
+        .collect();
     let grafted = described.tree.grafted(
         Placing {
             title: Some("App"),
@@ -53,25 +55,27 @@ fn labels(instances: &mut Instances) -> Vec<String> {
         true,
         true,
     );
-    grafted
+    let tree = grafted
         .nodes
         .iter()
         .filter_map(|(_, node)| node.label().map(str::to_owned))
-        .collect()
+        .collect();
+    (tree, actions)
 }
 
-/// The tree an app described is of the run that drew the view: once it restarts, the view's
-/// pane is empty until the new run describes it.
+/// The tree and actions an app described are of the run that drew the view: once it restarts,
+/// the view's pane is empty and it offers no actions until the new run describes it.
 #[test]
 fn a_restarted_app_s_views_describe_nothing_until_it_describes_them_again() {
     let mut instances = placed();
     instances.next_screens(PASS);
     describe(&mut instances);
-    assert_eq!(labels(&mut instances), ["App", "Save"]);
+    let described = || (vec!["App".to_owned(), "Save".to_owned()], vec!["Save".to_owned()]);
+    assert_eq!(labels(&mut instances), described());
 
     instances.reopen();
-    assert_eq!(labels(&mut instances), ["App"]);
+    assert_eq!(labels(&mut instances), (vec!["App".to_owned()], Vec::new()));
 
     describe(&mut instances);
-    assert_eq!(labels(&mut instances), ["App", "Save"]);
+    assert_eq!(labels(&mut instances), described());
 }

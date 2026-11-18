@@ -8,21 +8,8 @@ fn report(instances: &mut Instances, view: ViewId, backdrop: Option<Color>) {
         .screen_id(INSTANCE, view)
         .expect("the view has a screen");
     instances.set_frame_reports(vec![be_sdk_api::FrameReport {
-        screen,
-        content: None,
-        painted: Vec::new(),
-        floating: Vec::new(),
-        floating_painted: Vec::new(),
-        marks: Vec::new(),
-        marks_painted: Vec::new(),
-        scrims: Vec::new(),
-        drawing: Vec::new(),
-        claims: Vec::new(),
-        description: None,
-        actions: None,
-        anchored: None,
-        work_area: None,
         backdrop,
+        ..frame_report(screen)
     }]);
 }
 

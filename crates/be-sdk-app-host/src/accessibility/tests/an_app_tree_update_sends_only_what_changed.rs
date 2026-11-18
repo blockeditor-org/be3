@@ -16,7 +16,7 @@ fn an_app_tree_update_sends_only_what_changed() {
     let (milk, _) = sent(&grafted, "Milk").unwrap();
 
     let mut checked = labelled(Role::CheckBox, "Milk");
-    checked.set_toggled(accesskit::Toggled::True);
+    checked.set_toggled(be_sdk_api::accesskit::Toggled::True);
     graft.update(update(vec![(2, checked)], None, 1));
     let grafted = graft.grafted(placing(Some("Tasks"), Vec2::ZERO), false, false);
     assert_eq!(grafted.nodes.len(), 1, "only the node that changed");

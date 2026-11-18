@@ -463,6 +463,27 @@ fn anchored_screen(id: u64) -> ScreenId {
     ScreenId::opened(id)
 }
 
+/// A frame report of `screen` that says nothing but that it was drawn.
+fn frame_report(screen: ScreenId) -> be_sdk_api::FrameReport {
+    be_sdk_api::FrameReport {
+        screen,
+        content: None,
+        painted: Vec::new(),
+        floating: Vec::new(),
+        floating_painted: Vec::new(),
+        marks: Vec::new(),
+        marks_painted: Vec::new(),
+        scrims: Vec::new(),
+        drawing: Vec::new(),
+        claims: Vec::new(),
+        description: None,
+        actions: None,
+        anchored: None,
+        work_area: None,
+        backdrop: None,
+    }
+}
+
 fn report_anchored(instances: &mut Instances, layers: Vec<Layer>) {
     let layout = be_sdk_api::ScreenLayout {
         screens: layers
@@ -484,21 +505,10 @@ fn report_anchored(instances: &mut Instances, layers: Vec<Layer>) {
         .map(|layer| {
             let own = Rect::from_min_size(Pos2::ZERO, layer.placement.rect.size());
             be_sdk_api::FrameReport {
-                screen: anchored_screen(layer.id),
-                content: None,
                 painted: vec![own],
                 floating: vec![own],
-                floating_painted: Vec::new(),
-                marks: Vec::new(),
-                marks_painted: Vec::new(),
-                scrims: Vec::new(),
-                drawing: Vec::new(),
-                claims: Vec::new(),
-                description: None,
-                actions: None,
                 anchored: Some(layer.placement),
-                work_area: None,
-                backdrop: None,
+                ..frame_report(anchored_screen(layer.id))
             }
         })
         .collect();

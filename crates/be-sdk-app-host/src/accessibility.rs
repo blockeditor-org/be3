@@ -1,11 +1,11 @@
 //! Grafting an app's accessibility tree into the host's: the app describes each screen as an
-//! accesskit tree in its own ids and coordinates (be-sdk-api's `ScreenDescription`); the host
+//! AccessKit tree in its own ids and coordinates (`FrameReport::description`); the host
 //! shows it as a pane under its own tree, in the host's ids and placed where the screen is
 //! drawn. `Graft` keeps one screen's tree and sends only what changed (`Graft::grafted`), and
 //! takes the host's ids back to the app's for the actions the host is asked for
 //! (`Graft::app_node`). It knows no GUI framework: the host puts the pane under its own tree.
 
-use accesskit::{Affine, Node, NodeId, Rect as AccessRect, Role, TreeUpdate};
+use be_sdk_api::accesskit::{Affine, Node, NodeId, Rect as AccessRect, Role, TreeUpdate};
 use be_lib_geometry::{Rect, Vec2};
 use be_lib_stable_hash::{HashMap, HashSet};
 
@@ -40,6 +40,8 @@ pub struct Placing<'a> {
     pub scale: f32,
 }
 
+/// One screen's tree, grafted into the host's: what the app has described of it, and the host
+/// ids its nodes were given.
 pub struct Graft {
     document: u32,
     nodes: HashMap<NodeId, Node>,
@@ -55,6 +57,8 @@ pub struct Graft {
 }
 
 impl Graft {
+    /// A graft that names its nodes in `document`, which the host's tree must reserve for it:
+    /// no other graft and none of the host's own nodes may use it.
     pub fn new(document: u32) -> Self {
         Self {
             document,
@@ -71,6 +75,7 @@ impl Graft {
         }
     }
 
+    /// The document its host ids are in, by which the host routes an action back to it.
     pub fn document(&self) -> u32 {
         self.document
     }

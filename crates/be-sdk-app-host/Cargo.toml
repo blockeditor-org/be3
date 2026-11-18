@@ -6,7 +6,6 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
-accesskit = "0.24.1"
 be-lib-geometry = { path = "../be-lib-geometry" }
 be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 be-sdk-api = { path = "../be-sdk-api" }
