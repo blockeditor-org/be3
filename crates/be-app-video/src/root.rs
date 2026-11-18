@@ -295,6 +295,7 @@ fn TimelineTools(state: VideoState) -> NodeId {
                 icon_only=true
                 glyph=ICON_ZOOM_IN
                 label="Zoom the timeline in"
+                @test_id={"video.zoom_in"}
                 on_click={move || state.zoom_timeline(ZOOM_STEP)}
             />
             <Button
