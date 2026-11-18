@@ -289,15 +289,6 @@ fn until(
     panic!("within a few frames, {what}");
 }
 
-/// The commands the root asked of the block stack since the last call, without the ids the
-/// host answers them by.
-fn asked_core(root: &mut Root) -> Vec<be_wasm_root_api::CoreCommand> {
-    root.take_core_commands()
-        .into_iter()
-        .map(|asked| asked.command)
-        .collect()
-}
-
 /// Opens the embedding root's dialog with the key it intercepts, from the frame clock's `*time`,
 /// and answers the first frame in which the dialog has the focus and its field the input method.
 fn open_dialog(root: &mut Root, time: &mut u64) -> FrameDone {

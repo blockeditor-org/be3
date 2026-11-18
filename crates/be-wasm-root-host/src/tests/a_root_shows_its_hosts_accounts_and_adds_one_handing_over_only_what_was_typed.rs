@@ -56,7 +56,7 @@ fn asks(
         *time += 1;
         step(root, *time);
     }
-    asked_core(root)
+    root.take_core_commands()
 }
 
 /// `text` committed through the input method into the focused field.
@@ -269,7 +269,7 @@ fn a_root_shows_its_hosts_accounts_and_adds_one_handing_over_only_what_was_typed
         |done| layer_of(done, DIALOG_LAYER).is_none(),
     );
     assert!(
-        asked_core(&mut root).is_empty(),
+        root.take_core_commands().is_empty(),
         "the dialog closed for the account added stops nothing"
     );
 

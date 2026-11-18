@@ -1,8 +1,9 @@
+use be_lib_geometry::pos2;
 use be_lib_ui_types::{Key, Modifiers};
 use be_sdk_root_testing::{DIALOG_LAYER, DIALOG_SURFACE, OPENS_INVITATIONS};
 use be_wasm_root_api::{
     BrowserSignIn, CoreCommand, CoreSecret, CoreView, DiscardReason, InvitationRow,
-    InvitationState, InvitationsArea, Reauthenticating, SigningIn,
+    InvitationState, InvitationsArea, Reauthenticating, SecretCommand, SigningIn,
 };
 
 use super::*;
@@ -23,7 +24,22 @@ fn settle(root: &mut Root, time: &mut u64) -> Vec<CoreCommand> {
         *time += 1;
         step(root, *time);
     }
-    asked_core(root)
+    root.take_core_commands()
+}
+
+/// Draws frames until the root asks for a secret, answering the one request.
+fn requested(root: &mut Root, time: &mut u64) -> (u64, SecretCommand) {
+    let asked: Vec<_> = (0..6)
+        .flat_map(|_| {
+            *time += 1;
+            step(root, *time);
+            root.take_secret_requests()
+        })
+        .collect();
+    match <[_; 1]>::try_from(asked) {
+        Ok([asked]) => asked,
+        Err(asked) => panic!("the root asks for one secret: {asked:?}"),
+    }
 }
 
 /// Whether the root shows its dialog now.
@@ -186,31 +202,53 @@ fn a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once() {
     let listed = dialog_painting(&mut root, &mut time);
     beui_paint_snapshot::assert_painting("a_root_lists_its_hosts_invitations", listed.clone());
 
-    // New link makes one, whose link comes back once, as the command's answer.
+    // New link asks for one, whose link comes back once, as the request's answer.
     root.input(None, be_lib_ui_types::input::encode(&chord(Key::Enter, Modifiers::NONE)))
         .expect("the root takes input");
-    let asked: Vec<_> = (0..6)
-        .flat_map(|_| {
-            time += 1;
-            step(&mut root, time);
-            root.take_core_commands()
-        })
-        .collect();
-    let [made] = asked.as_slice() else {
-        panic!("New link asks for one: {asked:?}");
-    };
-    assert!(matches!(made.command, CoreCommand::InviteMember));
-    root.answer_core(made.id, Some(CoreSecret::Link(Password::from(LINK.to_owned()))));
+    let made = requested(&mut root, &mut time);
+    assert!(matches!(made.1, SecretCommand::InviteMember), "{made:?}");
+    // While one is asked, it asks for no other.
+    let _ = press(&mut root, &mut time, Key::Enter);
+    let _ = settle(&mut root, &mut time);
+    assert!(root.take_secret_requests().is_empty(), "one request at a time");
+    root.answer_secret(made.0, Some(CoreSecret::Link(Password::from(LINK.to_owned()))));
     let shown = dialog_painting(&mut root, &mut time);
     beui_paint_snapshot::assert_painting("a_root_shows_an_invitations_link", shown.clone());
     // Answered again, an id waits for nothing: the root shows only what it asked for.
-    root.answer_core(made.id, Some(CoreSecret::Link(Password::from("stray".to_owned()))));
+    root.answer_secret(made.0, Some(CoreSecret::Link(Password::from("stray".to_owned()))));
     assert_eq!(dialog_painting(&mut root, &mut time), shown);
 
     // Copy puts it on the host's clipboard, as the person asked.
     let _ = press(&mut root, &mut time, Key::Enter);
     let copied = root.take_copies();
     assert_eq!(copied.len(), 1, "Copy copies the link once");
+
+    // Done drops it, back in the list. A row's Link asks for its link again; one the host
+    // could not make (answered with nothing) shows none, the list asking afresh.
+    root.input(None, be_lib_ui_types::input::encode(&click(pos2(91.0, 168.0))))
+        .expect("the root takes input");
+    assert_eq!(dialog_painting(&mut root, &mut time), listed, "Done drops the link");
+    let _ = root.take_core_commands();
+    let _ = settle(&mut root, &mut time);
+    root.input(None, be_lib_ui_types::input::encode(&click(pos2(222.0, 128.0))))
+        .expect("the root takes input");
+    let again = requested(&mut root, &mut time);
+    assert!(matches!(again.1, SecretCommand::InvitationLink(MINE)), "{again:?}");
+    root.answer_secret(again.0, None);
+    assert_eq!(
+        dialog_painting(&mut root, &mut time),
+        listed,
+        "a link not made shows none"
+    );
+    let commands = settle(&mut root, &mut time);
+    assert!(commands.is_empty(), "{commands:?}");
+    root.input(None, be_lib_ui_types::input::encode(&click(pos2(299.0, 128.0))))
+        .expect("the root takes input");
+    let commands = settle(&mut root, &mut time);
+    assert!(
+        matches!(commands.as_slice(), [CoreCommand::RevokeInvitation(MINE)]),
+        "Revoke revokes it: {commands:?}"
+    );
 
     // Closed, the link goes: opened again, the invitations show without it.
     let _ = press(&mut root, &mut time, Key::Escape);

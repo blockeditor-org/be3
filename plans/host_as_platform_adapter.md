@@ -1194,8 +1194,9 @@ Each step lands on its own.
          invitations, members and agents, whose links and credentials are secrets the root
          shows); 4g6f3 contacts, share links and leaving a block. Decided for 4g6f2: a secret
          the host hands the person (an invite link made, an agent's credentials) comes back
-         once, as the reply to the command that made it (`ask-core` answering an
-         `option<password>`, or a call of its own), never in `core-view`, which carries only
+         once, as the answer to a call of its own (`make-secret`, whose `secret-command`
+         names what to make, so the type says which requests wait for a secret), never in
+         `core-view`, which carries only
          what is not secret about it (that a link exists, whose, when it expires); the root
          holds it only while the dialog showing it is open, and drops it, zeroed, as it
          closes.
@@ -1212,14 +1213,14 @@ Each step lands on its own.
            `forget-account` with the key and its `ReauthClose` is `switch-account`),
            `switch-organization`, `confirm-discard` and `cancel-discard` (its `Discard`,
            `CancelDiscard`), `list-invitations` (its `OpenInvitations`, whose open state is the
-           root's), `invite-member`, `invitation-link` and `revoke-invitation`. `ask-core` now
-           answers an `option<core-secret>`: nothing at once for any command but one making a
-           secret (`invite-member`, `invitation-link`), which waits for the host's answer, the
-           secret (`core-secret`'s `link`, a `password`) or nothing if making it failed (why
-           reaching `invitations`' error). be-wasm-root-host's `Root::take_core_commands` hands
-           each command with an id (`AskedCore`), answered by `Root::answer_core`; one answered
-           already, or not waiting, drops the secret. be-host's `--root` answers each with
-           nothing (`refuse_unserved`). be-sdk-root-testing asks the host's questions in its
+           root's) and `revoke-invitation`. Making a link is `make-secret`, a call of its own
+           taking a `secret-command` (`invite-member`, `invitation-link`; 4g6f2b adds the
+           agent's), answered once made with an `option<core-secret>` (`link`, a `password`), or
+           nothing if making it failed, why reaching `invitations`' error; `ask-core` answers at
+           once, as before. be-wasm-root-host's `Root::take_secret_requests` hands each request
+           with the id `Root::answer_secret` answers it by; an id no longer waited for drops the
+           secret, and the root is stepped only when one was. be-host's `--root` answers each
+           with nothing (`refuse_unserved`). be-sdk-root-testing asks the host's questions in its
            dialog's place while the host asks them, once no dialog is open (the discard before
            the sign-in; the display question still replaces any): `DISCARD_TITLE` (Keep, Escape
            or closing it is `cancel-discard`, the destructive action `confirm-discard`, and one
@@ -1228,15 +1229,18 @@ Each step lands on its own.
            the dialog adding an account resumed, which now also closes once a sign-in it showed
            ends with no error. F9 (`OPENS_INVITATIONS`) lists the invitations
            (`INVITATIONS_TITLE`), asking `list-invitations` as it opens: each row worded from
-           its data, Link and Revoke while open, New link; a link answered shows in the
-           dialog's place with Copy (the host's clipboard) and Done, held as a `Password`
-           behind an `Rc` compared by identity, and dropped, zeroed, with Done or the dialog.
+           its data, Link and Revoke while open, New link, asking for one link at a time so an
+           answer is the latest request's; a link answered shows in the dialog's place with
+           Copy (the host's clipboard) and Done, held as a `Password` behind an `Rc` compared by
+           identity, and dropped, zeroed, with Done or the dialog.
            be-wasm-root-host's
            `a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once` keeps and
            discards changes, sees a withdrawn question answer nothing, signs in again through
            the sign-in and sees it close stopping nothing, closes the question to switch
-           account, lists the invitations, answers New link with a link, sees a second answer
-           to the same id change nothing, copies it, sees it gone once reopened, and snapshots
+           account, lists the invitations, answers New link with a link, sees no second request
+           while one waits and a second answer to the same id change nothing, copies it, drops
+           it with Done, asks a row's link again and sees a link not made show none, revokes
+           one, sees the link gone once reopened, and snapshots
            the discard question, the sign-in question, the invitations and the link.
          - 4g6f1. Built: `core-view`'s `waits-for`, a `core-wait` (`account`, `organization`,
            `session`; none once an organization's blocks are open), in place of 4g6e's flag:

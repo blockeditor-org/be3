@@ -553,13 +553,14 @@ fn statistic_row(row: be_host_base::performance::PerformanceRow) -> StatisticRow
 ///   is not locked, so none reaches here.
 /// - Displays (the desktop's): it asks to keep none, and an answer changes nothing.
 /// - The block stack: it shows nothing and waits for nothing, so a command changes nothing,
-///   and one making a secret is answered with none.
+///   and a secret asked for is answered with none.
 fn refuse_unserved(root: &mut Root) {
     root.take_lock_asked();
     root.take_lock_powers();
     root.take_display_answers();
-    for asked in root.take_core_commands() {
-        root.answer_core(asked.id, None);
+    root.take_core_commands();
+    for (id, _) in root.take_secret_requests() {
+        root.answer_secret(id, None);
     }
 }
 
