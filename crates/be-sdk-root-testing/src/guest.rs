@@ -37,13 +37,14 @@ use beui::styled::*;
 use beui::{Align, Align2, Direction, KeyPhase, NodeId, Overflow, Pos2, Rect, TextAlign, vec2};
 
 use crate::{
-    APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DISCARD_UNSENT_TITLE, OPENS_UNSENT, UNSENT_TITLE, DIALOG_ORIGIN, KEEP_DISPLAY_TITLE, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
-    LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG,
-    OPENS_STATISTICS, ORIGIN, RASTER, RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE,
-    SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE, SIZE, SLOW_SAVE, SLOW_SAVE_TITLE,
-    SLOW_SAVE_TOAST, STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE,
-    STATISTICS_TITLE, STRAY_PASSWORD, TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA,
-    TOAST_LAYER, TOAST_SURFACE, UNLOCKS_TWICE, UNPRESENTED_SURFACE,
+    APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DIALOG_ORIGIN, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
+    DISCARD_UNSENT_TITLE, KEEP_DISPLAY_TITLE, LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER,
+    LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG, OPENS_STATISTICS, OPENS_UNSENT, ORIGIN, RASTER,
+    RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE, SCRIM_COLOR,
+    SCRIM_LAYER, SCRIM_SURFACE, SIZE, SLOW_SAVE, SLOW_SAVE_TITLE, SLOW_SAVE_TOAST, STATISTICS_AREA,
+    STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE, STATISTICS_TITLE, STRAY_PASSWORD,
+    TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA, TOAST_LAYER, TOAST_SURFACE,
+    UNLOCKS_TWICE, UNPRESENTED_SURFACE, UNSENT_TITLE,
 };
 
 /// The triangle's editor, by its manifest's id.
@@ -612,9 +613,7 @@ impl Root {
                 .is_some_and(|state| state.locked);
         // A question not shown yet replaces whatever dialog is open, which closes unanswered.
         let opening = match keep {
-            Some(asking) if !locked && open_keep != keep_round => {
-                Some(Asking::KeepDisplay(asking))
-            }
+            Some(asking) if !locked && open_keep != keep_round => Some(Asking::KeepDisplay(asking)),
             _ if !locked && asked == Some(Asked::Open) && self.dialog.borrow().is_none() => {
                 Some(Asking::Rename)
             }
@@ -682,14 +681,20 @@ impl Root {
                     *closing.borrow_mut() = Some(how);
                 });
                 let shown = match opening {
-                    Asking::Rename => view! { <RenameDialog done={done} /> },
+                    Asking::Rename => view! {
+                        <RenameDialog done={done} />
+                    },
                     Asking::KeepDisplay(asked) => {
-                        view! { <KeepDisplayDialog asked shown_at done={done} /> }
+                        view! {
+                            <KeepDisplayDialog asked shown_at done={done} />
+                        }
                     }
                     Asking::Unsent => {
                         let core = create_signal(core);
                         core_shown.set(Some(core));
-                        view! { <UnsentDialog core={core} done={done} /> }
+                        view! {
+                            <UnsentDialog core={core} done={done} />
+                        }
                     }
                 };
                 view! {
@@ -1191,7 +1196,9 @@ fn UnsentDialog(core: Signal<CoreView>, done: Callback<Closed>) -> NodeId {
     let asks = create_memo(move || asked.with(Option::is_some));
     let question = create_memo(move || {
         let name = asked.with(|edit| edit.as_ref().map(edit_name).unwrap_or_default());
-        format!("Discard the edits to {name}? They are kept only on this device, and cannot be brought back.")
+        format!(
+            "Discard the edits to {name}? They are kept only on this device, and cannot be brought back."
+        )
     });
     let discard = move || {
         if let Some(edit) = asked.get() {
@@ -1244,7 +1251,11 @@ fn UnsentDialog(core: Signal<CoreView>, done: Callback<Closed>) -> NodeId {
                                 let name = create_memo(move || edit.with(edit_name));
                                 let detail = create_memo(move || edit.with(edit_detail));
                                 view! {
-                                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                                    <List
+                                        direction=Direction::Horizontal
+                                        align=Align::Center
+                                        spacing=Space::Md
+                                    >
                                         <ListItem grow=1.0>
                                             <List spacing=Space::Xs2>
                                                 <Text>{name}</Text>

@@ -107,7 +107,10 @@ fn a_root_lists_its_hosts_unsent_edits_and_asks_before_discarding_one() {
 
     // Escape cancels the question, discarding nothing, and leaves the list open.
     press(&mut root, &mut time, Key::Escape);
-    assert!(root.take_core_commands().is_empty(), "cancelled, nothing is discarded");
+    assert!(
+        root.take_core_commands().is_empty(),
+        "cancelled, nothing is discarded"
+    );
     assert!(
         layer_of(&step(&mut root, time), DIALOG_LAYER).is_some(),
         "the list stays open"

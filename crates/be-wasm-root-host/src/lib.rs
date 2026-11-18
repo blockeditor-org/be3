@@ -620,14 +620,18 @@ impl<G: Inline> Core<G> {
                         self.core_watchers
                             .remove(at)
                             .fail(&mut self.connection, OpError::Canceled);
-                    } else if let Some(at) =
-                        self.display_watchers.iter().position(|reply| reply.op() == op)
+                    } else if let Some(at) = self
+                        .display_watchers
+                        .iter()
+                        .position(|reply| reply.op() == op)
                     {
                         self.display_watchers
                             .remove(at)
                             .fail(&mut self.connection, OpError::Canceled);
-                    } else if let Some(at) =
-                        self.saving_watchers.iter().position(|reply| reply.op() == op)
+                    } else if let Some(at) = self
+                        .saving_watchers
+                        .iter()
+                        .position(|reply| reply.op() == op)
                     {
                         self.saving_watchers
                             .remove(at)

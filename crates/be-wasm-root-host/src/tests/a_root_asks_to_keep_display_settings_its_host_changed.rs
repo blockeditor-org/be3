@@ -252,7 +252,10 @@ fn a_root_asks_to_keep_display_settings_its_host_changed() {
         "the question replaces the rename dialog",
         |done| layer_of(done, DIALOG_LAYER).is_some() && done.ime.is_none(),
     );
-    assert!(asked.ime.is_none(), "the rename dialog's field went with it");
+    assert!(
+        asked.ime.is_none(),
+        "the rename dialog's field went with it"
+    );
     root.input(
         None,
         be_lib_ui_types::input::encode(&chord(Key::Escape, Modifiers::NONE)),
@@ -267,7 +270,10 @@ fn a_root_asks_to_keep_display_settings_its_host_changed() {
         "answered, the question goes",
         |done| layer_of(done, DIALOG_LAYER).is_none(),
     );
-    assert!(closed.ime.is_none(), "no field has the focus: the rename dialog is gone");
+    assert!(
+        closed.ime.is_none(),
+        "no field has the focus: the rename dialog is gone"
+    );
     assert_eq!(
         text_painting(&mut root, time),
         strip,
