@@ -138,7 +138,7 @@ pub fn want(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks,
             .collect();
         for block in joins {
             joining.blocks.insert(
-                *block,
+                block,
                 Joined {
                     attempt: 0,
                     host: None,

@@ -2253,7 +2253,7 @@ impl Instances {
                     }
                     let shown = entry.shown_on(block.id);
                     if let Some(link) = entry.content.as_mut() {
-                        link.detach(instance, block.id, &shown);
+                        link.detach(instance, &self.app_id, block.id, &shown);
                     }
                     entry.shown.retain(|(on, _)| *on != block.id);
                     entry.joined = joined;
