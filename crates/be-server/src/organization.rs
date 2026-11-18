@@ -216,9 +216,9 @@ impl ServerKey {
             else {
                 continue;
             };
-            let sealed = self
-                .secret
-                .seal_for(self.account.into_bytes(), &me, id.as_bytes(), &plain);
+            let sealed =
+                self.secret
+                    .seal_for(self.account.into_bytes(), &me, id.as_bytes(), &plain);
             connection.execute(
                 "UPDATE wrapped_keys SET sender = ?4, sealed = ?5
                  WHERE organization_id = ?1 AND key_id = ?2 AND wrapped_by = ?3",

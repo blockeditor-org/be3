@@ -27,11 +27,7 @@ async fn an_administrators_new_phrase_leaves_the_server_reading_the_policies() {
     .unwrap();
     let block = note(&device).await;
     device
-        .save(
-            block,
-            &TextBlock::of("after the new phrase"),
-            None,
-        )
+        .save(block, &TextBlock::of("after the new phrase"), None)
         .await
         .expect("the server reads the policies a save is kept by");
 
