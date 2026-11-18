@@ -1564,14 +1564,17 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.to(device, |host| {
                     reply.send(
                         host,
-                        &Ok(be_sdk_type_api::host::Appended {
-                            id,
-                            place: Some(place),
-                        }),
+                        &Ok::<_, be_sdk_type_api::host::NotAppended>(
+                            be_sdk_type_api::host::Appended {
+                                id,
+                                place: Some(place),
+                            },
+                        ),
                     )
                 });
                 self.log_item(item);
             }
+            Call::LetGoRefused { reply, .. } => self.to(device, |host| reply.send(host, &())),
             Call::ReadLog { reply, from, limit } => {
                 let page = be_sdk_type_api::LogPage {
                     size: self.log.len() as u64,
@@ -1583,6 +1586,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                         .cloned()
                         .collect(),
                     kept: Vec::new(),
+                    refused: Vec::new(),
                 };
                 self.to(device, |host| reply.send(host, &Ok(page)));
             }

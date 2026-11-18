@@ -57,7 +57,9 @@ replica neither reads nor keeps the log, and each editor reads what it shows.
   editor's own appends answered `kept`, and those a read of the log names
   (`LogPage::kept`), so it still shows after the chat or the host opens
   again. One the server refused shows "Not sent", with Send again (a new
-  append) and Discard (`dismiss_refused`); neither survives the editor.
+  append) and Discard (`dismiss_refused`), which let the device's copy go
+  too: the device keeps it until then, so one refused while the chat is
+  closed shows when it opens again.
 - **Who signed it.** Each row shows its verdict: "not verified" (a key no
   contact card vouches for), "key changed", "sent with an old key" (a key its
   author replaced before the server took it), "forged". A message its author

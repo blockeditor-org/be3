@@ -63,10 +63,13 @@ pub(crate) enum Table {
     LogHead,
     /// The entries of signed logs this device read and verified, by block and place.
     LogEntry,
+    /// The entries this device appended that the server refused, by block and id, until let go
+    /// (`Refs::not_appended`).
+    NotAppended,
 }
 
 impl Table {
-    pub const ALL: [Self; 26] = [
+    pub const ALL: [Self; 27] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -93,6 +96,7 @@ impl Table {
         Self::Unmade,
         Self::LogHead,
         Self::LogEntry,
+        Self::NotAppended,
     ];
 
     pub fn code(self) -> u8 {
@@ -123,6 +127,7 @@ impl Table {
             Self::Unmade => 24,
             Self::LogHead => 25,
             Self::LogEntry => 26,
+            Self::NotAppended => 27,
         }
     }
 
@@ -324,6 +329,19 @@ pub struct Holding {
     pub lasting: bool,
 }
 
+/// An entry for a block's signed log made here that the server refused, kept until let go
+/// (`Peer::refused_entries`), so what the app shows of it outlives the editor and the device
+/// starting again.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RefusedEntry {
+    pub id: Uuid,
+    /// Sealed under the block's key.
+    #[serde(with = "serde_bytes")]
+    pub payload: Vec<u8>,
+    /// Why the server refused it.
+    pub why: String,
+}
+
 /// An entry for a block's signed log made here, kept until the server takes it
 /// (`Peer::append`): sent in order with the block's other entries, behind its creation.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -492,6 +510,9 @@ struct State {
     log_entries: HashMap<Uuid, BTreeMap<u64, be_block_protocol::LogEntry>>,
     /// The keys minted with each block this device made that no server took (`Refs::unmade`).
     unmade: HashMap<Uuid, Vec<Uuid>>,
+    /// The entries this device appended that the server refused, by block, in the order they
+    /// were refused (`Refs::not_appended`).
+    not_appended: HashMap<Uuid, BTreeMap<u64, RefusedEntry>>,
     next: u64,
 }
 
@@ -754,6 +775,15 @@ impl State {
             }
             Table::LetGo => {
                 self.let_go.insert(uuid_key(&row.key)?, decode(value)?);
+            }
+            Table::NotAppended => {
+                let (block, order) = row.key.split_at_checked(16).ok_or(StoreError::Corrupt)?;
+                let order = sequence_key(order)?;
+                self.next = self.next.max(order + 1);
+                self.not_appended
+                    .entry(uuid_key(block)?)
+                    .or_default()
+                    .insert(order, decode(value)?);
             }
             Table::Announcement => {
                 let (block, key) = row.key.split_at_checked(16).ok_or(StoreError::Corrupt)?;
@@ -1530,6 +1560,79 @@ impl Refs {
         Ok(true)
     }
 
+    /// Takes the outbox's `sequences` out, keeping each of `refused` (entries of `block` the
+    /// server refused) until let go, in one write.
+    pub fn refuse_appends(
+        &self,
+        block: Uuid,
+        sequences: &[u64],
+        refused: Vec<RefusedEntry>,
+    ) -> Result<(), StoreError> {
+        let mut rows = Vec::new();
+        {
+            let mut state = self.state.lock().unwrap();
+            for sequence in sequences {
+                if state.outbox.remove(sequence).is_some() {
+                    rows.push(Row {
+                        table: Table::Outbox,
+                        key: sequence.to_be_bytes().to_vec(),
+                        value: None,
+                    });
+                }
+            }
+            for entry in refused {
+                let order = state.take();
+                rows.push(row(
+                    Table::NotAppended,
+                    journal_entry_key(block, order),
+                    &entry,
+                ));
+                state
+                    .not_appended
+                    .entry(block)
+                    .or_default()
+                    .insert(order, entry);
+            }
+        }
+        self.write(rows)
+    }
+
+    /// The entries of `block` this device appended that the server refused and the app has not
+    /// let go, in the order they were refused.
+    pub fn not_appended(&self, block: Uuid) -> Vec<RefusedEntry> {
+        let state = self.state.lock().unwrap();
+        state
+            .not_appended
+            .get(&block)
+            .map(|held| held.values().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    /// Lets go of the refused entry `id` of `block`.
+    pub fn let_go_refused(&self, block: Uuid, id: Uuid) -> Result<(), StoreError> {
+        let mut rows = Vec::new();
+        {
+            let mut state = self.state.lock().unwrap();
+            if let Some(held) = state.not_appended.get_mut(&block) {
+                held.retain(|order, entry| {
+                    let keep = entry.id != id;
+                    if !keep {
+                        rows.push(Row {
+                            table: Table::NotAppended,
+                            key: journal_entry_key(block, *order),
+                            value: None,
+                        });
+                    }
+                    keep
+                });
+                if held.is_empty() {
+                    state.not_appended.remove(&block);
+                }
+            }
+        }
+        self.write(rows)
+    }
+
     /// The entry of `block`'s log this device kept at `seq`.
     pub fn log_entry(&self, block: Uuid, seq: u64) -> Option<be_block_protocol::LogEntry> {
         let state = self.state.lock().unwrap();
@@ -2283,6 +2386,18 @@ impl Refs {
                     rows.push(Row {
                         table: Table::LogEntry,
                         key: journal_entry_key(*block, seq),
+                        value: None,
+                    });
+                }
+                for order in state
+                    .not_appended
+                    .remove(block)
+                    .unwrap_or_default()
+                    .into_keys()
+                {
+                    rows.push(Row {
+                        table: Table::NotAppended,
+                        key: journal_entry_key(*block, order),
                         value: None,
                     });
                 }

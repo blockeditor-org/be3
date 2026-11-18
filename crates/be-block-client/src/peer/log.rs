@@ -12,17 +12,19 @@ use uuid::Uuid;
 use super::{Drained, Peer, Signer};
 use crate::{
     ClientError,
-    refs::{Appending, KeptLogHead, Op, Until},
+    refs::{Appending, KeptLogHead, Op, RefusedEntry, Until},
 };
 
 /// Where an entry `Peer::append` made went.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Appended {
     /// The server took it: its place in the log and when it arrived.
     Logged { id: Uuid, seq: u64, arrival: i64 },
     /// It waits in the outbox, sent by the next drain: this device is offline, or something of
     /// the block (its creation, an earlier entry) waits ahead of it.
     Kept { id: Uuid },
+    /// The server refused it, saying `why`: it is kept until let go (`refused_entries`).
+    Refused { id: Uuid, code: ErrorCode, why: String },
 }
 
 /// An entry of a block's signed log as this device verified it: as the log holds it (its
@@ -205,10 +207,14 @@ impl<S: ObjectStore> Peer<S> {
                     ..
                 } if sent == id => return Ok(Appended::Logged { id, seq, arrival }),
                 Drained::NotAppended { id: sent, code, .. } if sent == id => {
-                    return Err(ClientError::Refused(
-                        code,
-                        "the server refused the entry".into(),
-                    ));
+                    let why = self
+                        .refs
+                        .not_appended(block)
+                        .into_iter()
+                        .find(|refused| refused.id == id)
+                        .map(|refused| refused.why)
+                        .unwrap_or_default();
+                    return Ok(Appended::Refused { id, code, why });
                 }
                 _ => {}
             }
@@ -217,7 +223,8 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// Sends the entries of `block` that wait in the outbox, in order, a batch per write: each
-    /// one taken leaves the outbox, and one refused does too, told as `NotAppended`. Stops at
+    /// one taken leaves the outbox, and one refused does too, told as `NotAppended` and kept
+    /// until let go (`refused_entries`). Stops at
     /// the first failure to reach the server, leaving the rest.
     pub(super) async fn send_appends(&self, block: Uuid) -> Result<Vec<Drained>, ClientError> {
         let mut outcomes = Vec::new();
@@ -287,8 +294,18 @@ impl<S: ObjectStore> Peer<S> {
                     }));
                 }
                 Ok(_) => return Err(ClientError::Unexpected),
-                Err(ClientError::Refused(code, _)) => {
-                    self.refs.remove(&sequences)?;
+                Err(ClientError::Refused(code, why)) => {
+                    // Kept until the app lets it go, so what it shows of the refusal outlives
+                    // the editor that appended it.
+                    let refused = batch
+                        .iter()
+                        .map(|(_, appending)| RefusedEntry {
+                            id: appending.id,
+                            payload: appending.payload.clone(),
+                            why: why.clone(),
+                        })
+                        .collect();
+                    self.refs.refuse_appends(block, &sequences, refused)?;
                     outcomes.extend(batch.iter().map(|(_, appending)| Drained::NotAppended {
                         block,
                         id: appending.id,
@@ -625,6 +642,26 @@ impl<S: ObjectStore> Peer<S> {
                 Some((appending.id, Said::opened(plain)?.bytes))
             })
             .collect()
+    }
+
+    /// The entries this device appended to `block`'s log that the server refused and the app
+    /// has not let go (`let_go_refused`), in the order they were refused: each id with the bytes
+    /// its app appended and why the server refused it. One no key this device holds opens is
+    /// left out.
+    pub fn refused_entries(&self, block: Uuid) -> Vec<(Uuid, Vec<u8>, String)> {
+        self.refs
+            .not_appended(block)
+            .into_iter()
+            .filter_map(|refused| {
+                let plain = self.open_for(block, &refused.payload).ok()?;
+                Some((refused.id, Said::opened(plain)?.bytes, refused.why))
+            })
+            .collect()
+    }
+
+    /// Lets go of the refused entry `id` of `block`'s log: sent again as a new one, or given up.
+    pub fn let_go_refused(&self, block: Uuid, id: Uuid) -> Result<(), ClientError> {
+        Ok(self.refs.let_go_refused(block, id)?)
     }
 
     /// The latest `count` entries of `block`'s signed log, read as `read_log` reads (and

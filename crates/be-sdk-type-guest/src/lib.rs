@@ -227,6 +227,10 @@ fn fold<C: be_block_content::LogFold>(content: &mut C, item: &be_block_content::
 }
 
 /// A log entry as the host interface carries it, as a type sees it.
+fn refused_entry(entry: be_sdk_type_api::RefusedEntry) -> (Uuid, Vec<u8>, String) {
+    (entry.id, entry.payload, entry.why)
+}
+
 fn log_item(item: be_sdk_type_api::LogItem) -> be_block_content::LogItem {
     use be_block_content::LogSigner;
     be_block_content::LogItem {
@@ -913,12 +917,17 @@ impl Module {
                 let pending = ops::with_parent(replica, || host::append(bytes, along));
                 self.answer_later(replica, pending, move |result| Input::Appended {
                     token,
-                    result: result
-                        .and_then(|appended| appended)
-                        .map(|appended| be_block_content::LogAppended {
+                    result: match result {
+                        Ok(Ok(appended)) => Ok(be_block_content::LogAppended {
                             id: appended.id,
                             place: appended.place.map(|place| (place.seq, place.arrival)),
                         }),
+                        Ok(Err(not)) => Err(be_block_content::LogNotAppended {
+                            id: not.id,
+                            why: not.why,
+                        }),
+                        Err(why) => Err(be_block_content::LogNotAppended { id: None, why }),
+                    },
                 });
             }
             Effect::ReadLog {
@@ -940,6 +949,7 @@ impl Module {
                                 .into_iter()
                                 .map(|kept| (kept.id, kept.payload))
                                 .collect(),
+                            refused: page.refused.into_iter().map(refused_entry).collect(),
                         }),
                 });
             }
@@ -955,6 +965,9 @@ impl Module {
                 });
             }
             Effect::Claim { replica } => ops::with_parent(replica, host::claim).detach(),
+            Effect::LetGoRefused { replica, id } => {
+                ops::with_parent(replica, || host::let_go_refused(id)).detach();
+            }
             Effect::Submit {
                 replica,
                 submission,
@@ -1331,6 +1344,14 @@ impl replicas::GuestReplica for OpenReplica {
         self.module.input(
             self.id,
             Input::Logged(items.into_iter().map(log_item).collect()),
+        );
+        Box::pin(ready(()))
+    }
+
+    fn refused(&self, entries: Vec<be_sdk_type_api::RefusedEntry>) -> LocalFuture<()> {
+        self.module.input(
+            self.id,
+            Input::Refused(entries.into_iter().map(refused_entry).collect()),
         );
         Box::pin(ready(()))
     }

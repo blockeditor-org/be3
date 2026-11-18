@@ -87,6 +87,9 @@ pub enum FromEditor {
         from: u64,
         limit: u32,
     },
+    /// Lets go of the entry `id` the server refused (`LogPage::refused`): sent again as a new
+    /// one, or given up.
+    LetGoRefused { id: Uuid },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -176,8 +179,11 @@ pub enum ToEditor {
     /// or none while it waits on this device for the server.
     Appended {
         token: u64,
-        result: Result<be_block_content::LogAppended, String>,
+        result: Result<be_block_content::LogAppended, be_block_content::LogNotAppended>,
     },
+    /// Every entry this device appended that the server refused and keeps until let go, each
+    /// id with its bytes and why, as a drain refused one.
+    Refused(Vec<(Uuid, Vec<u8>, String)>),
     /// Entries of the block's signed log, in order: what the replica heard appended, every
     /// editor's own too.
     Logged(Vec<be_block_content::LogItem>),
@@ -238,6 +244,16 @@ mod range_result {
             Read::Err(error) => Err(error),
         })
     }
+}
+
+/// An entry not appended to a block's signed log, as an editor holds it until dismissed.
+#[derive(Clone, Debug)]
+struct NotSent {
+    /// The id of one the server refused, which the device keeps until let go; none for one the
+    /// device never made.
+    id: Option<Uuid>,
+    bytes: Vec<u8>,
+    why: String,
 }
 
 /// How many entries of a block's signed log an editor holds at most, unless it paged back past
@@ -426,9 +442,10 @@ pub struct EditorMirror<C: LiveEdit> {
     /// editor appended, and those a read told of (`LogPage::kept`), which another editor, or
     /// this one before the editor opened again, appended.
     kept: Vec<(Uuid, Vec<u8>)>,
-    /// The entries the host refused to append, by the token of the `append`: the bytes and
-    /// why, until dismissed.
-    refused: BTreeMap<u64, (Vec<u8>, String)>,
+    /// The entries not appended, by the token of the `append` (or one this editor gave an entry
+    /// a read or the replica told of): the bytes, why, and the id of one the server refused,
+    /// which the device keeps until let go, until dismissed.
+    refused: BTreeMap<u64, NotSent>,
     lacking: BTreeMap<u64, (Vec<u8>, bool)>,
     lacking_revision: u64,
     failed: Option<String>,
@@ -626,18 +643,45 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         self.kept.iter().map(|(id, bytes)| (*id, bytes.as_slice()))
     }
 
-    /// The entries the host refused to append, by the token of the `append`: the bytes and why.
+    /// The entries not appended, by the token of the `append`, in the order they were refused:
+    /// the bytes and why. Those the server refused the device keeps until let go, so they are
+    /// here again after the editor or the host opens again, under tokens this editor gave them.
     pub fn refused(&self) -> impl Iterator<Item = (u64, &[u8], &str)> {
         self.refused
             .iter()
-            .map(|(token, (bytes, why))| (*token, bytes.as_slice(), why.as_str()))
+            .map(|(token, refused)| (*token, refused.bytes.as_slice(), refused.why.as_str()))
     }
 
-    /// Lets go of a refused entry: sent again as a new one, or given up.
-    pub fn dismiss_refused(&mut self, token: u64) {
-        if self.refused.remove(&token).is_some() {
-            self.revision += 1;
+    /// Lets go of a refused entry, sent again as a new one or given up: what to send the
+    /// replica so the device lets go of it too, for one the server refused.
+    pub fn dismiss_refused(&mut self, token: u64) -> Option<FromEditor> {
+        let refused = self.refused.remove(&token)?;
+        self.revision += 1;
+        refused.id.map(|id| FromEditor::LetGoRefused { id })
+    }
+
+    /// Takes the entries the device keeps as refused, all of them: one let go elsewhere goes,
+    /// one not held yet joins under a token of this editor's, and none is sending any more.
+    fn take_refused(&mut self, entries: Vec<(Uuid, Vec<u8>, String)>) {
+        let ids: BTreeSet<Uuid> = entries.iter().map(|(id, ..)| *id).collect();
+        self.refused
+            .retain(|_, refused| refused.id.is_none_or(|id| ids.contains(&id)));
+        self.kept.retain(|(id, _)| !ids.contains(id));
+        for (id, bytes, why) in entries {
+            if self.refused.values().any(|refused| refused.id == Some(id)) {
+                continue;
+            }
+            self.reads += 1;
+            self.refused.insert(
+                self.reads,
+                NotSent {
+                    id: Some(id),
+                    bytes,
+                    why,
+                },
+            );
         }
+        self.revision += 1;
     }
 
     fn take_log(&mut self, items: Vec<be_block_content::LogItem>) {
@@ -781,13 +825,29 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
                             }
                         }
                         Ok(_) => {}
-                        Err(why) => {
-                            self.refused.insert(token, (bytes, why.clone()));
+                        // One the replica told of as refused already is held once.
+                        Err(not)
+                            if not.id.is_some()
+                                && self.refused.values().any(|refused| refused.id == not.id) => {}
+                        Err(not) => {
+                            self.refused.insert(
+                                token,
+                                NotSent {
+                                    id: not.id,
+                                    bytes,
+                                    why: not.why.clone(),
+                                },
+                            );
                         }
                     }
                 }
-                self.appended.push((token, result));
+                self.appended
+                    .push((token, result.map_err(|not| not.why)));
                 self.revision += 1;
+                None
+            }
+            ToEditor::Refused(entries) => {
+                self.take_refused(entries);
                 None
             }
             ToEditor::Logged(items) => {
@@ -803,6 +863,7 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
                         .into_iter()
                         .filter(|(id, _)| !self.log.holds_id(*id))
                         .collect();
+                    self.take_refused(page.refused);
                     self.take_log(page.items);
                 }
                 None

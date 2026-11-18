@@ -316,7 +316,13 @@ who signed them, `LogSigner`) changes what the content shows.
   and hands on what was appended meanwhile. An editor hears each entry as
   `ToEditor::Logged` and reads more with `FromEditor::ReadLog`
   (`ToEditor::LogRead`, whose `LogPage::kept` also names the entries this
-  device appended that the server has not taken, read from its outbox).
+  device appended that the server has not taken, read from its outbox, and
+  `LogPage::refused` those the server refused, which the device keeps with
+  why until let go). An append the server refuses answers `not-appended`
+  naming it; one a drain refuses reaches each open replica as
+  `replica.refused` (every refused entry the device keeps, which it hands
+  its editors as `ToEditor::Refused`); an editor lets one go with
+  `FromEditor::LetGoRefused` (`host.let-go-refused`).
 - **Folding.** The replica and each `EditorMirror` keep the entries they
   heard or read by place, each id once at its first place
   (`editor::take_logged`), so an entry a server serves again under its id is

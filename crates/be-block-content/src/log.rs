@@ -69,12 +69,22 @@ pub struct LogAppended {
     pub place: Option<(u64, i64)>,
 }
 
+/// Why an entry was not appended to a block's signed log: `id` names one the server refused,
+/// which the device keeps until let go (`LogPage::refused`); none for one it never made.
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct LogNotAppended {
+    pub id: Option<Uuid>,
+    pub why: String,
+}
+
 /// A run of a block's signed log read: the log's length as the device verified it, the entries
-/// asked for, and the entries the device appended that the server has not taken yet, each with
-/// its id and the bytes the app appended.
+/// asked for, the entries the device appended that the server has not taken yet, each with its
+/// id and the bytes the app appended, and those the server refused that the device keeps until
+/// let go, each with why.
 #[derive(Clone, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct LogPage {
     pub size: u64,
     pub items: Vec<LogItem>,
     pub kept: Vec<(Uuid, Vec<u8>)>,
+    pub refused: Vec<(Uuid, Vec<u8>, String)>,
 }

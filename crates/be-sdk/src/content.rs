@@ -276,8 +276,9 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
         read(&mut self.0.mirror.borrow().kept())
     }
 
-    /// Reads the entries the host refused to append, by the token of the `append`: the bytes
-    /// and why (`EditorMirror::refused`).
+    /// Reads the entries not appended, by the token of the `append`: the bytes and why
+    /// (`EditorMirror::refused`). Those the server refused the device keeps until dismissed, so
+    /// they are here again when the editor opens again.
     pub fn with_refused<R>(
         &self,
         read: impl FnOnce(&mut dyn Iterator<Item = (u64, &[u8], &str)>) -> R,
@@ -285,9 +286,13 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
         read(&mut self.0.mirror.borrow().refused())
     }
 
-    /// Lets go of a refused entry: sent again as a new one, or given up.
+    /// Lets go of a refused entry, here and on the device: sent again as a new one, or given
+    /// up.
     pub fn dismiss_refused(&self, token: u64) {
-        self.0.mirror.borrow_mut().dismiss_refused(token);
+        let let_go = self.0.mirror.borrow_mut().dismiss_refused(token);
+        if let Some(message) = let_go {
+            self.0.host.send_to_replica(self.0.block, message);
+        }
         self.announce();
     }
 

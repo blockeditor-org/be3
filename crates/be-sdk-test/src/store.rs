@@ -135,6 +135,9 @@ struct Inner {
     )>,
     /// Why the server refuses appends, while it does (`refuse_appends`).
     refuse_appends: Option<String>,
+    /// The appends the server refused that the device keeps until let go: each block, entry
+    /// id, bytes and why.
+    not_appended: Vec<(Option<Uuid>, Uuid, Vec<u8>, String)>,
     /// How many appends were made, which numbers their ids.
     appends: u64,
     /// The entries logged since the replicas were last handed them, by replica.
@@ -212,6 +215,7 @@ impl Default for Inner {
             hold_appends: false,
             held_appends: Vec::new(),
             refuse_appends: None,
+            not_appended: Vec::new(),
             appends: 0,
             logged: Vec::new(),
             signers: HashMap::new(),
@@ -513,12 +517,18 @@ impl Inner {
                 bytes,
                 along,
             } => {
-                if let Some(why) = self.refuse_appends.clone() {
-                    return reply.send(&mut self.host, &Err(why));
-                }
                 self.appends += 1;
                 let id = uuid::Uuid::from_u64_pair(0xa99e_d000, self.appends);
                 let held = self.offline || self.hold_appends;
+                // Refused as the server takes it: the device keeps it until let go.
+                if let (false, Some(why)) = (held, self.refuse_appends.clone()) {
+                    self.not_appended.push((block, id, bytes, why.clone()));
+                    let not = be_sdk_type_guest::api::host::NotAppended { id: Some(id), why };
+                    return reply.send(
+                        &mut self.host,
+                        &Err::<be_sdk_type_guest::api::host::Appended, _>(not),
+                    );
+                }
                 let place = match held {
                     true => {
                         self.held_appends.push((block, id, bytes, along));
@@ -530,7 +540,9 @@ impl Inner {
                 };
                 reply.send(
                     &mut self.host,
-                    &Ok(be_sdk_type_guest::api::host::Appended { id, place }),
+                    &Ok::<_, be_sdk_type_guest::api::host::NotAppended>(
+                        be_sdk_type_guest::api::host::Appended { id, place },
+                    ),
                 );
                 self.deliver_logged();
             }
@@ -559,8 +571,14 @@ impl Inner {
                     size: log.len() as u64,
                     items,
                     kept,
+                    refused: self.refused_entries(block),
                 };
                 reply.send(&mut self.host, &Ok(page));
+            }
+            Call::LetGoRefused { reply, id } => {
+                self.not_appended
+                    .retain(|(at, refused, ..)| *at != block || *refused != id);
+                reply.send(&mut self.host, &());
             }
             Call::PutPart { reply, .. } => {
                 reply.send(
@@ -754,9 +772,47 @@ impl Inner {
         }
     }
 
-    /// The server takes the appends it held, in order.
+    /// The entries of `block` the server refused that the device keeps, as a read hands them.
+    fn refused_entries(&self, block: Option<Uuid>) -> Vec<be_sdk_type_guest::api::RefusedEntry> {
+        self.not_appended
+            .iter()
+            .filter(|(at, ..)| *at == block)
+            .map(|(_, id, bytes, why)| be_sdk_type_guest::api::RefusedEntry {
+                id: *id,
+                payload: bytes.clone(),
+                why: why.clone(),
+            })
+            .collect()
+    }
+
+    /// The server takes the appends it held, in order, or refuses them all while it refuses
+    /// appends (`refuse_appends`): the device keeps those, and the replica of each block open
+    /// hears every refused entry it keeps, as a drain tells.
     /// What they announce goes as one per block, as a drain sends it.
     fn release_appends(&mut self) {
+        if let Some(why) = self.refuse_appends.clone() {
+            let held = std::mem::take(&mut self.held_appends);
+            let mut blocks = Vec::new();
+            for (block, id, bytes, _) in held {
+                self.not_appended.push((block, id, bytes, why.clone()));
+                if !blocks.contains(&block) {
+                    blocks.push(block);
+                }
+            }
+            for block in blocks {
+                let entries = self.refused_entries(block);
+                if let Some(replica) = block
+                    .or(self.own)
+                    .and_then(|key| self.blocks.get(&key))
+                    .and_then(|held| held.replica)
+                {
+                    self.on_replica(replica, |replica, host| {
+                        replica.refused(host, entries);
+                    });
+                }
+            }
+            return;
+        }
         let held = std::mem::take(&mut self.held_appends);
         let mut blocks = Vec::new();
         for (index, (block, id, bytes, along)) in held.iter().cloned().enumerate() {
@@ -1356,6 +1412,18 @@ impl ContentStore {
             .iter()
             .filter(|(at, ..)| at.or(inner.own) == Some(key))
             .map(|(_, id, bytes, _)| (*id, bytes.clone()))
+            .collect()
+    }
+
+    /// The ids of the appends to `block`'s signed log the server refused that the device keeps
+    /// until let go.
+    pub fn refused_appends(&self, block: Option<Uuid>) -> Vec<Uuid> {
+        let inner = self.0.borrow();
+        inner
+            .not_appended
+            .iter()
+            .filter(|(at, ..)| at.or(inner.own) == Some(self.key(block)))
+            .map(|(_, id, ..)| *id)
             .collect()
     }
 
