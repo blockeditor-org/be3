@@ -1,9 +1,11 @@
 //! A root guest built on be-sdk-root, which be-wasm-root-host's tests run
 //! (plans/host_as_platform_adapter.md, step 4e5b). On its first frame it spawns the triangle as
-//! a staged app (`APP`) and opens its editor with one screen (`SCREEN`); each frame it asks the
-//! app for a frame when one is due, races that against the frame's deadline, and shows its own
-//! surface with the triangle's screen over it at `ORIGIN`, by handle, once the app painted it.
-//! The window's input is routed by the library over the layers it drew last.
+//! a staged app (`APP`) and opens its editor with one screen (`SCREEN`), painted at `RASTER`
+//! pixels per point; each frame it asks the app for a frame when one is due, races that against
+//! the frame's deadline, and shows its own surface with the triangle's screen over it at
+//! `ORIGIN`, by handle, once the app painted it, and `LATE_LAYER` when the deadline came first.
+//! A frame at `CLOSES` lets go of the app, which stops it. The window's input is routed by the
+//! library over the layers it drew last.
 //!
 //! The triangle needs no block content (its `connect` reads nothing), so the root serves it no
 //! block store: that waits for step 5.
@@ -54,8 +56,11 @@ const BLOCK_TYPE: [u8; 16] = [
 /// The one screen the root asks of the editor.
 pub const SCREEN: ScreenId = ScreenId(1);
 
-/// The screen's size, in points, painted at one pixel per point.
+/// The screen's size, in points.
 pub const SCREEN_SIZE: (u32, u32) = (320, 200);
+
+/// The pixels per point the screen is laid out and painted at.
+pub const RASTER: u32 = 2;
 
 /// Where the screen's top left sits in the window.
 pub const ORIGIN: (f32, f32) = (40.0, 20.0);
@@ -65,6 +70,12 @@ pub const SIZE: (u32, u32) = (400, 240);
 
 /// The root's own surface, under the screen.
 pub const ROOT_LAYER: LayerId = LayerId(0);
+
+/// Shown over the rest when the frame's deadline passed before the app answered.
+pub const LATE_LAYER: LayerId = LayerId(1);
+
+/// A frame at this time lets go of the app, which stops it, and shows the root's surface alone.
+pub const CLOSES: u64 = u64::MAX;
 
 #[derive(Clone)]
 struct Root {
@@ -110,13 +121,25 @@ impl frames::Guest for Root {
     fn frame(&self, request: FrameRequest) -> LocalFuture<FrameDone> {
         let root = self.clone();
         Box::pin(async move {
-            let now = Duration::from_nanos(request.time);
-            let app = root.app(now);
-            let deadline = pin!(host::deadline());
-            let drawn = pin!(app.frame(now));
-            either(drawn, deadline).await;
             let mut layers = vec![own_layer()];
-            layers.extend(app.layer(SCREEN, pos2(ORIGIN.0, ORIGIN.1)));
+            if request.time == CLOSES {
+                if let Some(app) = root.app.borrow_mut().take() {
+                    root.embedding.borrow_mut().remove(app.instance());
+                }
+            } else {
+                let now = Duration::from_nanos(request.time);
+                let app = root.app(now);
+                let deadline = pin!(host::deadline());
+                let drawn = pin!(app.frame(now));
+                let late = !first(drawn, deadline).await;
+                layers.extend(app.layer(SCREEN, pos2(ORIGIN.0, ORIGIN.1)));
+                if late {
+                    let mut marker = own_layer();
+                    marker.id = LATE_LAYER;
+                    marker.surface = Surface::Root(1);
+                    layers.push(marker);
+                }
+            }
             let list = LayerList {
                 windows: vec![WindowLayers {
                     window: None,
@@ -124,7 +147,7 @@ impl frames::Guest for Root {
                 }],
             };
             FrameDone {
-                layers: root.embedding.borrow_mut().drew(list),
+                layers: root.embedding.borrow_mut().drew(list).layers,
             }
         })
     }
@@ -138,15 +161,18 @@ impl input::Guest for Root {
     }
 }
 
-/// Waits for whichever of `left` and `right` finishes first.
-async fn either<A: Future, B: Future>(mut left: Pin<&mut A>, mut right: Pin<&mut B>) {
+/// Waits for whichever of `left` and `right` finishes first: answers whether `left` did.
+async fn first<A: Future, B: Future>(mut left: Pin<&mut A>, mut right: Pin<&mut B>) -> bool {
     std::future::poll_fn(|context| {
-        match left.as_mut().poll(context).is_ready() || right.as_mut().poll(context).is_ready() {
-            true => Poll::Ready(()),
+        if left.as_mut().poll(context).is_ready() {
+            return Poll::Ready(true);
+        }
+        match right.as_mut().poll(context).is_ready() {
+            true => Poll::Ready(false),
             false => Poll::Pending,
         }
     })
-    .await;
+    .await
 }
 
 fn own_layer() -> Layer {
@@ -195,10 +221,10 @@ fn screen() -> ScreenRequest {
                 y: height as f32,
             },
             visible: ViewPos2::ZERO,
-            pixel_width: width,
-            pixel_height: height,
-            scale_factor: 1.0,
-            raster: 1.0,
+            pixel_width: width * RASTER,
+            pixel_height: height * RASTER,
+            scale_factor: RASTER as f32,
+            raster: RASTER as f32,
         },
         windows: false,
         host_place: None,

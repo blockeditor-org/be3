@@ -118,6 +118,12 @@ impl Pacing {
         self.needed || self.requested_at.is_some()
     }
 
+    /// Whether a frame was asked for and not yet presented (until `FRAME_TIMEOUT`, past which
+    /// `ask` asks again).
+    pub fn in_flight(&self) -> bool {
+        self.requested_at.is_some()
+    }
+
     /// Whether a frame asked for has been laid out and not yet presented.
     pub fn painting(&self) -> bool {
         self.painting

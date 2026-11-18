@@ -414,6 +414,24 @@ impl Wire {
         }
     }
 
+    /// Refuses at once what `heard` asks of a host that serves none of it (block calls, host
+    /// services, the network, debug and published calls, the shell), so nothing the app asks
+    /// waits on it; answers anything else back, for the host to take in.
+    pub fn refuse_unserved(&mut self, heard: Heard) -> Option<Heard> {
+        let error = OpError::Unsupported;
+        let (op, outcome) = match heard {
+            Heard::Shell(call) => call.refuse(error),
+            Heard::Blocks(_, call) => call.refuse(error),
+            Heard::Service(Service { call, .. }) => call.refuse(error),
+            Heard::Network(_, call) => call.refuse(error),
+            Heard::Debug(_, call) => call.refuse(error),
+            Heard::Published(_, started) => (started.op, Outcome::Err(error)),
+            heard => return Some(heard),
+        };
+        self.answer(op, outcome);
+        None
+    }
+
     pub fn answer(&mut self, op: OpId, outcome: Outcome) {
         self.serving.remove(&op);
         self.held.sends.remove(&op);

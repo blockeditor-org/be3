@@ -131,11 +131,7 @@ layers it drew last, and answers once it has routed. be-wasm-root-testing's root
 window over that list (be-sdk-root's `Windows`, since 4e5b), and sends its child what lands on its
 screen, in the child's coordinates.
 
-Built (step 4e5b): `crates/be-sdk-root`, what a root links to embed apps. `Embedded` runs an app
-the root spawned as its host, with be-sdk-app-host's `Wire` over the instance's channel (heard by
-a task on the root's executor) and a `Run`; `Embedded::layer` names each screen it painted by
-handle; `Embedding` routes the windows' input (`Windows`) and forwards what lands on a screen as
-`AppCall::Input`. be-sdk-root-testing is a root on it, which embeds the triangle.
+Built (step 4e5b): `crates/be-sdk-root`, what a root links to embed apps (Steps, 4e5b).
 
 Its rules:
 
@@ -683,19 +679,29 @@ Each step lands on its own.
          editor's opening and `Screens` until the hello, asks for a frame when the pacing says
          one is due (`Embedded::frame`, which the root races against `host.deadline`; one still
          in flight is waited for), and names each screen it painted by handle in its layer
-         list (`Embedded::layer`, scaled from the surface's pixels to the screen's points).
+         list (`Embedded::layer`, scaled from the surface's pixels to the screen's points). The
+         pacing alone says whether a frame is in flight (`Pacing::in_flight`), so one unanswered
+         past `FRAME_TIMEOUT` is asked again. When the last `Embedded` of an app goes
+         (`Embedding::remove` lets go of the embedding's), the task hearing it lets go of the
+         instance, which stops it, even if the app sends nothing more.
          `Windows` keeps a `Router` per window over the last list; input for a window the list
          leaves out routes against the layers it had last, and one never drawn against none,
          never dropped, and a window's router goes once the list leaves it out and no press on
-         it is held (`Router::holding`). `Embedding` forwards what lands on a screen as
-         `AppCall::Input` in the screen's points, and answers what lands on the root's own
-         surfaces. It refuses at once what it serves no app yet (block calls, host services,
-         the network, debug, published calls and the shell but `tell`), and restarts nothing:
-         an app that stops reports why (`Embedded::failure`). `Wire::send` now sends
+         it is held (`Router::holding`), and the surface it had focused hears `Focus(false)`.
+         `Embedding` forwards what lands on a screen as `AppCall::Input` in the screen's points
+         (a screen that went still hears what ends a press or the focus, so its app holds
+         nothing pressed), and answers what lands on the root's own surfaces. It refuses at
+         once what it serves no app yet (block calls, host services, the network, debug,
+         published calls and the shell but `tell`; `Wire::refuse_unserved`), and restarts
+         nothing: an app that stops reports why (`Embedded::failure`). `Wire::send` now sends
          `Outbound`s for every host. be-sdk-root-testing is a root built on it; be-wasm-root-host's
          test spawns the triangle (whose `connect` reads nothing) on a stand-in device and shows
          its screen after the hello, `Screens`, `Draw` and the commits, by the handle
-         `Root::surface` resolves to the texture it presented, at the size asked for.
+         `Root::surface` resolves to the texture it presented, at the size asked for and at a
+         raster of 2 (the layer scaling it by half), answers the next frame at once with no
+         frame due, and stops the app once the root lets go of it. `Embedding::input` reaching
+         an app is tested only through `Windows` until step 5 gives an editor content that
+         answers input visibly.
          be-wasm-root-testing's root routes with `Windows` too. An editor that answers input
          visibly needs content, so a store in the root (be-sdk-app-host's `BlockStore` over type
          modules it spawns) waits for step 5; until then 4e5's "input routed by `Router`" is
@@ -710,7 +716,11 @@ Each step lands on its own.
          `Root::surface`; the root's own surfaces are a plain background until it draws its own.
          A host test runs it with 4e5b's root and an editor, and compares the window's shot, or
          a painting the root assembles from its children's (Other moves, Paintings), whichever
-         drive can take from a root by then.
+         drive can take from a root by then. `be3:root` has no way yet for a root to ask its host
+         for a frame: an embedded app's pacing knows when it wants the next (`wake_after`,
+         `animating`, `Ask::Later`), but the root cannot pass that on, so once the host draws only
+         on demand an animating app stalls. The root needs an import that asks for a frame at a
+         time, or a `frame-done` field saying when it wants the next.
    - 4f. The router over the layer list: the `HitTest` moves from beui's catchers to the last
      committed `WindowLayers`. `AppView`, anchored views, scrims and popups declare each layer's
      `LayerInput` (hit and gesture areas, `captures`, `focuses`, `placer`), the host's UI its

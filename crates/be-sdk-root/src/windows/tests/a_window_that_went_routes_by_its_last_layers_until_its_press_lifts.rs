@@ -24,8 +24,12 @@ fn a_window_that_went_routes_by_its_last_layers_until_its_press_lifts() {
     let released = windows.route(None, vec![button(150.0, false)]);
     assert_eq!(
         released,
-        vec![to_screen(button(50.0, false))],
-        "the release reaches what was pressed, by the layers the window had last"
+        vec![
+            to_screen(button(50.0, false)),
+            to_screen(Input::Focus(false))
+        ],
+        "the release reaches what was pressed, by the layers the window had last, and then the \
+         screen hears the window took its focus with it"
     );
     assert!(
         !windows.routes(None),
