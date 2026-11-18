@@ -385,7 +385,7 @@ impl ServerStore {
                 params![id.to_string(), account.to_string()],
             )?;
             crate::access::store_organization_root(&transaction, account, id, &root)?;
-            crate::keys::pin_escrow(&transaction, account, id, &pinned)?;
+            crate::keys::pin_escrow(&transaction, account, account, id, &pinned)?;
             transaction.commit()?;
             Ok(Organization {
                 id,
@@ -581,7 +581,7 @@ impl ServerStore {
                 params![account.to_string(), recovery.to_vec(), signing.to_vec()],
             )?;
             crate::contacts::befriend(&transaction, caller, &record, account, &contact)?;
-            crate::keys::pin_escrow(&transaction, account, organization, &escrow)?;
+            crate::keys::pin_escrow(&transaction, account, caller, organization, &escrow)?;
             // Its access comes only from the grant its creator signed.
             if let Some(bound) = &bound {
                 crate::access::append_grant(

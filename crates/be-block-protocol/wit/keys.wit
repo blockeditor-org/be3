@@ -5,7 +5,7 @@ package be3:server@0.1.0;
 interface keys {
     use types.{
         account-id, block-id, error, escrow-key, key-change, key-id, key-set, organization-id,
-        own-sealed, public-key, sealed-key,
+        public-key, sealed-key,
     };
 
     /// What an access log is the log of (guides/blocks/keys.md).
@@ -41,7 +41,6 @@ interface keys {
     record recovery-key {
         public: option<public-key>,
         sealed: list<sealed-key>,
-        %own: list<own-sealed>,
         /// Every access log the account signed a record in, which a new key
         /// must retire the old one in (`set-recovery-key`).
         logs: list<signed-log>,

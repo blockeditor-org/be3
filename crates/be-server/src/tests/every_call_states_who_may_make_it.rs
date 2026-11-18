@@ -60,7 +60,6 @@ fn query_case(query: &Query) -> &'static str {
         Query::Invitations => "invitations",
         Query::Storage => "storage",
         Query::Mailbox => "mailbox",
-        Query::Links => "links",
         Query::Link(_) => "link",
         Query::Invitation(_) => "invitation",
         Query::DownloadUrls(_) => "download-urls",
@@ -89,7 +88,6 @@ const QUERIES: &[&str] = &[
     "invitations",
     "storage",
     "mailbox",
-    "links",
     "link",
     "invitation",
     "download-urls",
@@ -132,7 +130,6 @@ fn op_case(op: &Op) -> &'static str {
         Op::DeleteLink(_) => "delete-link",
         Op::RemoveContact { .. } => "remove-contact",
         Op::SetRecoveryKey { .. } => "set-recovery-key",
-        Op::PinEscrow(_) => "pin-escrow",
         Op::SetPushEndpoint(PushEndpointChange::Register(_)) => "set-push-endpoint (register)",
         Op::SetPushEndpoint(PushEndpointChange::Forget(_)) => "set-push-endpoint (forget)",
         Op::SetNotifyMode { .. } => "set-notify-mode",
@@ -165,7 +162,6 @@ const OPS: &[&str] = &[
     "delete-link",
     "remove-contact",
     "set-recovery-key",
-    "pin-escrow",
     "set-push-endpoint (register)",
     "set-push-endpoint (forget)",
     "set-notify-mode",
@@ -340,7 +336,6 @@ impl TestClient {
             .write(Op::CreateLink {
                 link: other,
                 card: sealed(),
-                code: sealed(),
                 kind: LinkKind::Invitation(be_block_protocol::Invitation {
                     organization,
                     escrow: sealed(),
@@ -389,7 +384,6 @@ impl TestClient {
             .write(Op::CreateLink {
                 link: other,
                 card: sealed(),
-                code: sealed(),
                 kind: LinkKind::Contact(None),
             })
             .await;
@@ -404,7 +398,6 @@ impl TestClient {
                 key: sealed(),
             })
             .await;
-        calls.read(Query::Links).await;
         calls.write(Op::DeleteLink(other)).await;
         calls
             .write(Op::RemoveContact {
@@ -525,7 +518,6 @@ impl TestClient {
                 public: [7; 32],
                 signing: [7; 32],
                 sealed: Vec::new(),
-                own: Vec::new(),
                 changes: Vec::new(),
                 retirements: Vec::new(),
             })
@@ -538,7 +530,6 @@ impl TestClient {
                 keys: KeySet::default(),
             }))
             .await;
-        calls.write(Op::PinEscrow(sealed())).await;
         calls.read(Query::ServerInfo).await;
         calls.read(Query::Storage).await;
         let endpoint = "https://fcm.googleapis.com/fcm/send/endpoint";

@@ -336,13 +336,14 @@ impl<S: ObjectStore> Peer<S> {
             root: self.keys.organization_root(),
             escrow: Some(escrow),
         };
-        let sealed = crate::contacts::seal_pin(self.keys.identity(), self.organization, &pinned);
-        be_block_protocol::write::<(), _>(
+        crate::contacts::keep_pin(
             &self.connection(),
-            Some(self.organization),
-            be_block_protocol::Op::PinEscrow(sealed),
+            self.account,
+            self.keys.identity(),
+            self.organization,
+            &pinned,
         )
-        .await??;
+        .await?;
         self.adopt_pinned(pinned);
         Ok(())
     }
@@ -706,6 +707,21 @@ impl<S: ObjectStore> Peer<S> {
                 .map_err(ClientError::from)
                 .and_then(|deleted| deleted.map_err(ClientError::from))
             {
+                failed.get_or_insert(error);
+            }
+            let forgotten = async {
+                if let Some(block) = crate::AccountRecords::open(
+                    &self.connection(),
+                    self.account,
+                    self.keys.identity(),
+                )
+                .await?
+                {
+                    crate::contacts::forget_link(&block, done.link).await?;
+                }
+                Ok::<_, ClientError>(())
+            };
+            if let Err(error) = forgotten.await {
                 failed.get_or_insert(error);
             }
         }
