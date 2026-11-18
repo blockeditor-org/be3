@@ -22,13 +22,14 @@ fn children_that_move_wait_with_a_child_that_comes_in_the_same_layout() {
 
     runtime.hear(vec![placing(1, &[1])]);
     assert!(
-        runtime.held.is_empty(),
+        runtime.run.holds.is_empty(),
         "a child that only moves is applied at once"
     );
 
     runtime.hear(vec![placing(2, &[1, 2])]);
     let held: Vec<u64> = runtime
-        .held
+        .run
+        .holds
         .laid()
         .flat_map(|laid| laid.children.iter().map(|placed| placed.instance.0))
         .collect();

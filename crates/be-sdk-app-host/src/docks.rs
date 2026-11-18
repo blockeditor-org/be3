@@ -100,7 +100,8 @@ impl Docks {
         self.apps.remove(&instance);
     }
 
-    pub fn restarted(&mut self, app: &str) {
+    /// Forgets what `app`'s instances declared, as a restart does (`Run::restart`).
+    pub(crate) fn restarted(&mut self, app: &str) {
         let gone: Vec<EditorInstanceId> = self
             .apps
             .iter()

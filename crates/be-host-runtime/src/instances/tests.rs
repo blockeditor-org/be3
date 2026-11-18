@@ -715,3 +715,18 @@ mod the_latest_block_gift_replaces_the_one_before;
 mod the_placer_hears_whom_it_gives_the_keyboard_to;
 mod the_program_windows_reach_only_the_shell;
 mod the_view_a_screen_is_given_carries_its_scale;
+
+/// Restarts the instances' app as `Runtime::restart` does.
+fn restart(instances: &mut Instances) {
+    use be_sdk_app_host::{docks::Docks, run::Run, session::Session};
+    let session = || Session::new("Test", None);
+    let preferences = be_sdk_api::Preferences::default();
+    Run::<()>::new(session(), true, preferences).restart(
+        session(),
+        preferences,
+        "app",
+        &mut Docks::default(),
+        instances,
+    );
+    instances.reopen();
+}

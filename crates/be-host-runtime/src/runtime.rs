@@ -10,12 +10,13 @@ use std::{
 use be_sdk_api::{
     AnchorSpace, ArtifactDescription, BlockPick, ChildPreview, EditorInstanceId, FrameSpec,
     HostPanel, HostTransform, LayoutCommit, OpeningKind, PresentCommit, PreviewImage, ScreenDamage,
-    ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest, SurfaceFormat, SurfaceSpec, View,
+    ScreenId, ScreenLayout, ScreenPlacement, SurfaceFormat, SurfaceSpec, View,
     ViewId, WindowRequest,
 };
 use be_sdk_app_host::{
-    holds::{Held, Holds, Laid, Presents, Shown},
-    pacing::{self, FrameClock, Pacing},
+    holds::{Held, Laid},
+    pacing::{self, FrameClock},
+    run::{Run, Telling},
 };
 use be_sdk_manifest::AppManifest;
 use beui::native::EmbedPlacement;
@@ -171,7 +172,7 @@ fn request_frames(runtimes: &mut HashMap<String, Runtime>, asked: &[String]) {
     let active: be_lib_stable_hash::HashSet<String> = runtimes
         .iter()
         .filter(|(id, runtime)| {
-            runtime.pacing.laying_out(host::pass()) || (asked.contains(*id) && runtime.will_draw())
+            runtime.run.pacing.laying_out(host::pass()) || (asked.contains(*id) && runtime.will_draw())
         })
         .map(|(id, _)| id.clone())
         .collect();
@@ -262,18 +263,14 @@ impl pacing::Settling for Asked<'_> {
 pub(super) struct Runtime {
     app: AppManifest,
     pub(super) backend: Backend,
-    session: Session,
-    queued: Vec<Outbound>,
-    held: Holds<Answer>,
+    /// What the app's module said and was told since it last started.
+    run: Run<Answer>,
     /// The person asked to restart the app; the next `poll` does.
     restart_asked: bool,
     taking_in: bool,
     /// A frame held until the poll applies the children and docks its layout brought
     /// (`Runtime::received`), so both show in the same host frame.
     held_frame: Option<Frame>,
-    /// Anchored views the app closed and the last frames of views it left out, while still
-    /// shown (`Runtime::place`, `Runtime::laid_out`).
-    shown: Shown,
     pub(super) instances: Instances,
     pub(super) layout: ScreenLayout,
     pub(super) pass: u64,
@@ -283,18 +280,10 @@ pub(super) struct Runtime {
     status: PresenterStatus,
     shared: Rc<RefCell<Shared>>,
     presented: bool,
-    sent: Vec<ScreenRequest>,
     error: Option<String>,
-    pacing: Pacing,
-    preferences: be_sdk_api::Preferences,
-    utc_offset: Option<i32>,
-    fonts_sent: bool,
-    described: bool,
-    painting: bool,
     pub(super) placements: HashMap<(EditorInstanceId, ViewId), Placed>,
     offers: HashMap<(EditorInstanceId, ViewId), Vec<Offer>>,
     fallbacks: super::fonts::Fallbacks,
-    presents: Presents,
     frames: u64,
     steps: u64,
     relaid: bool,
@@ -377,16 +366,12 @@ impl Runtime {
         instances.allow_network(app.network.clone());
         instances.allow_block_agents(app.block_agents);
         instances.set_app_id(app.identity.id.clone());
-        let session = session();
         Self {
             app: app.clone(),
             backend,
-            session,
-            queued: Vec::new(),
-            held: Holds::default(),
+            run: Run::new(session(), HOLDS_TEXTURES, host::preferences()),
             taking_in: false,
             held_frame: None,
-            shown: Shown::new(HOLDS_TEXTURES),
             instances,
             layout: ScreenLayout::default(),
             pass: 0,
@@ -396,19 +381,11 @@ impl Runtime {
             status: PresenterStatus::waiting(),
             shared: Rc::new(RefCell::new(Shared::default())),
             presented: false,
-            sent: Vec::new(),
             error: None,
-            pacing: Pacing::default(),
-            preferences: host::preferences(),
-            utc_offset: None,
-            fonts_sent: false,
-            described: false,
-            painting: false,
             restart_asked: false,
             placements: HashMap::default(),
             offers: HashMap::default(),
             fallbacks: super::fonts::Fallbacks::new(),
-            presents: Presents::default(),
             frames: 0,
             steps: 0,
             relaid: false,
@@ -420,7 +397,7 @@ impl Runtime {
     }
 
     fn stop(&mut self) {
-        if self.session.shutdown(self.milliseconds()) {
+        if self.run.session.shutdown(self.milliseconds()) {
             self.backend.ask_to_shut_down();
         }
         self.backend.shutdown();
@@ -434,26 +411,23 @@ impl Runtime {
         self.stop();
         presenter::release(self.surface, &self.status);
         self.shared.borrow_mut().frames.clear();
-        self.session = session();
-        self.queued.clear();
-        self.held.clear();
         self.held_frame = None;
-        self.shown.clear();
         self.error = None;
         self.status = PresenterStatus::waiting();
         self.layout = ScreenLayout::default();
-        self.sent.clear();
-        self.pacing.reset();
-        self.preferences = host::preferences();
-        self.utc_offset = None;
-        self.fonts_sent = false;
-        self.described = false;
-        self.painting = false;
         self.fallbacks = super::fonts::Fallbacks::new();
-        self.presents = Presents::default();
         self.drawn.clear();
+        let (run, instances) = (&mut self.run, &mut self.instances);
+        super::docks::with(|docks| {
+            run.restart(
+                session(),
+                host::preferences(),
+                &app.identity.id,
+                docks,
+                instances,
+            );
+        });
         self.instances.reopen();
-        super::docks::restarted(&app.identity.id);
         self.backend.start(&app);
     }
 
@@ -464,27 +438,13 @@ impl Runtime {
         }
         self.since = self.pass;
         self.pass = pass;
-        let mut messages: Vec<Outbound> = Vec::new();
-        if !self.fonts_sent && self.session.running() {
-            self.fonts_sent = true;
-            messages.push(AppCall::Fonts(super::fonts::bundled()).into());
-        }
-        let describing = super::description::describing();
-        if self.session.running() && self.described != describing {
-            self.described = describing;
-            messages.push(Outbound::App(AppCall::Describe(describing)));
-        }
-        let preferences = host::preferences();
-        if self.preferences != preferences {
-            self.preferences = preferences;
-            messages.push(AppCall::Preferences(preferences).into());
-        }
-        let utc_offset = be_host_base::platform::utc_offset();
-        if self.session.running() && self.utc_offset != Some(utc_offset) {
-            self.utc_offset = Some(utc_offset);
-            messages.push(AppCall::UtcOffset(utc_offset).into());
-        }
-        self.update(messages);
+        let messages = self.run.tell(Telling {
+            fonts: super::fonts::bundled,
+            describing: super::description::describing(),
+            preferences: host::preferences(),
+            utc_offset: be_host_base::platform::utc_offset(),
+        });
+        self.update(messages.into_iter().map(Outbound::App).collect());
     }
 
     fn refresh_anchor_space(&mut self, instance: EditorInstanceId, region: ViewId) {
@@ -494,11 +454,11 @@ impl Runtime {
     }
 
     fn update(&mut self, mut messages: Vec<Outbound>) {
-        let drawing = self.session.granted_surface().is_some();
+        let drawing = self.run.session.granted_surface().is_some();
         let next = self.instances.next_screens(self.since);
         messages.extend(next.opened);
-        if drawing && self.sent != next.screens {
-            self.sent.clone_from(&next.screens);
+        if drawing && self.run.screens != next.screens {
+            self.run.screens.clone_from(&next.screens);
             messages.push(AppCall::Screens(self.instances.screen_set(next.screens)).into());
             messages.extend(self.instances.take_announced_input());
         }
@@ -533,7 +493,7 @@ impl Runtime {
                     if matches!(opening.kind, OpeningKind::Block(_) | OpeningKind::Artifact(_))
             )
         });
-        self.pacing.need_if(!messages.is_empty());
+        self.run.pacing.need_if(!messages.is_empty());
         self.send(messages);
         self.answer();
         if awaited {
@@ -550,7 +510,7 @@ impl Runtime {
             host::request_repaint_after(left);
         }
         let messages = self.instances.drive_web_views();
-        self.pacing.need_if(!messages.is_empty());
+        self.run.pacing.need_if(!messages.is_empty());
         self.send(messages);
     }
 
@@ -581,13 +541,13 @@ impl Runtime {
     fn will_draw(&self) -> bool {
         let pass = host::pass();
         self.error.is_none()
-            && self.session.granted_surface().is_some()
-            && self.pacing.will_draw(host::seen(), self.now(), pass)
+            && self.run.session.granted_surface().is_some()
+            && self.run.pacing.will_draw(host::seen(), self.now(), pass)
     }
 
     fn outstanding(&self) -> bool {
         self.error.is_none()
-            && (!self.backend.settled() || self.pacing.painting() || self.awaiting_input)
+            && (!self.backend.settled() || self.run.pacing.painting() || self.awaiting_input)
     }
 
     fn take_relaid(&mut self) -> bool {
@@ -607,7 +567,7 @@ impl Runtime {
         screen: ScreenId,
         request: beui::accesskit::ActionRequest,
     ) {
-        self.pacing.need();
+        self.run.pacing.need();
         self.send(vec![Outbound::App(AppCall::NodeAction {
             screen,
             request: request.into(),
@@ -616,7 +576,7 @@ impl Runtime {
     }
 
     pub(super) fn run_action(&mut self, screen: ScreenId, id: String) {
-        self.pacing.need();
+        self.run.pacing.need();
         self.send(vec![Outbound::App(AppCall::RunAction { screen, id })]);
         host::request_repaint();
     }
@@ -626,12 +586,12 @@ impl Runtime {
             return Vec::new();
         }
         let starting = matches!(
-            self.session.state(),
+            self.run.session.state(),
             SessionState::Idle | SessionState::Starting
         );
         [
             (starting, "is starting"),
-            (self.painting, "has yet to answer a paint"),
+            (self.run.painting, "has yet to answer a paint"),
             (self.drawing(), "is drawing a frame"),
             (
                 self.shows_undrawn_size(),
@@ -639,7 +599,7 @@ impl Runtime {
             ),
             (!self.backend.settled(), "has input or a step in flight"),
             (
-                !self.held.is_empty(),
+                !self.run.holds.is_empty(),
                 "has answers it sent mid-frame for the next frame to take in",
             ),
             (
@@ -687,18 +647,18 @@ impl Runtime {
     }
 
     fn request_painting(&mut self) {
-        if self.error.is_some() || !self.instances.has_mounted() || !self.session.running() {
+        if self.error.is_some() || !self.instances.has_mounted() || !self.run.session.running() {
             return;
         }
-        self.painting = true;
+        self.run.painting = true;
         self.send(vec![Outbound::App(AppCall::Paintings)]);
     }
 
     fn painted(&mut self, payload: &[u8]) {
-        self.painting = false;
+        self.run.painting = false;
         let mut shared = self.shared.borrow_mut();
         // A kept frame's painting stays with it: the app no longer paints a view it left out.
-        let kept = &self.shown;
+        let kept = &self.run.shown;
         shared.paintings.retain(|screen, _| kept.keeps(*screen));
         shared.overflows.clear();
         let Ok(paintings) = beui::native::painting::ScreenPaintings::decode(payload) else {
@@ -716,18 +676,18 @@ impl Runtime {
         if self.error.is_some() || !self.instances.has_mounted() {
             return false;
         }
-        let drawing = self.session.granted_surface().is_some();
-        drawing && self.pacing.drawing()
+        let drawing = self.run.session.granted_surface().is_some();
+        drawing && self.run.pacing.drawing()
     }
 
     fn request_frame(&mut self, held: bool) {
         if self.error.is_some() {
             return;
         }
-        let drawing = self.session.granted_surface().is_some();
+        let drawing = self.run.session.granted_surface().is_some();
         let seen = host::seen();
         let pass = host::pass();
-        let ask = self.pacing.ask(pacing::Asking {
+        let ask = self.run.pacing.ask(pacing::Asking {
             drawing,
             seen,
             now: self.now(),
@@ -745,10 +705,10 @@ impl Runtime {
                 seen,
             }]),
         }
-        if let Some(delay) = self.pacing.wake_after(self.now(), drawing) {
+        if let Some(delay) = self.run.pacing.wake_after(self.now(), drawing) {
             host::request_repaint_after(delay);
         }
-        if drawing && self.pacing.animating() {
+        if drawing && self.run.pacing.animating() {
             host::note_animating();
         }
     }
@@ -826,33 +786,33 @@ impl Runtime {
             return;
         }
         let now = self.milliseconds();
-        let before = self.session.state().clone();
+        let before = self.run.session.state().clone();
         let received = self.backend.receive();
-        if *self.session.state() == SessionState::Idle && self.backend.ready() {
-            self.session.start(now);
+        if *self.run.session.state() == SessionState::Idle && self.backend.ready() {
+            self.run.session.start(now);
         }
         let mut forwarded = Vec::with_capacity(received.len());
         for heard in received {
             match heard {
                 Heard::Hello(hello) => {
-                    let accepted = self.session.connect(&hello, self.preferences);
+                    let accepted = self.run.session.connect(&hello, self.run.preferences());
                     self.backend.accept(&accepted);
                 }
-                Heard::ShutDown => self.session.shut_down(),
-                Heard::Unanswered(error) => self.session.fail(SessionFailure::Protocol(error)),
+                Heard::ShutDown => self.run.session.shut_down(),
+                Heard::Unanswered(error) => self.run.session.fail(SessionFailure::Protocol(error)),
                 heard => forwarded.push(heard),
             }
         }
         self.deliver();
-        self.session.tick(now);
-        if *self.session.state() != before {
+        self.run.session.tick(now);
+        if *self.run.session.state() != before {
             mark(&self.app.identity.id);
             host::request_repaint();
         }
-        if let Some(deadline) = self.session.next_deadline() {
+        if let Some(deadline) = self.run.session.next_deadline() {
             host::request_repaint_after(Duration::from_millis(deadline.saturating_sub(now)));
         }
-        match self.session.state() {
+        match self.run.session.state() {
             SessionState::Idle | SessionState::Starting | SessionState::Running => {}
             SessionState::Failed(failure) => {
                 let error = format!("The app session stopped: {failure:?}");
@@ -915,24 +875,24 @@ impl Runtime {
 
     /// Whether the frame of present `sequence` comes after the layout of children still held.
     fn waits_for_children(&self, sequence: u64) -> bool {
-        self.held.waits_for_children(sequence)
+        self.run.holds.waits_for_children(sequence)
     }
 
     fn show_frame(&mut self, mut frame: Frame) {
         let previewed = self.export_previews(&frame);
         let mut changed = true;
         if frame.composited() {
-            let (damage, painted) = self.presents.damage_through(frame.presents());
+            let (damage, painted) = self.run.presents.damage_through(frame.presents());
             frame.set_damage(damage);
             self.shared.borrow_mut().paint(&painted);
             changed = frame_changed(frame.damage());
-            let release = self.shown.frame_shown(self.presents.shown());
+            let release = self.run.shown.frame_shown(self.run.presents.shown());
             if release.kept {
                 self.release_kept();
             }
             self.shared.borrow_mut().publish(
                 &self.layout,
-                self.shown.kept_placements(),
+                self.run.shown.kept_placements(),
                 Some(frame),
             );
             self.close_anchored(release.closed);
@@ -953,7 +913,7 @@ impl Runtime {
             .iter()
             .filter(|heard| matches!(heard, Heard::Presented(_)))
             .count() as u64;
-        self.held.heard_presents(presents);
+        self.run.holds.heard_presents(presents);
         let mut answers = Vec::with_capacity(forwarded.len());
         if self.taking_in {
             self.release_presented(&mut answers);
@@ -966,32 +926,33 @@ impl Runtime {
                     self.instances.translate(&mut commit, true);
                     let instances = &self.instances;
                     held |= self
-                        .held
+                        .run
+                        .holds
                         .heard_layout(&mut commit, |placements| instances.only_moves(placements));
                     answers.push(Answer::LaidOut(commit));
                 }
                 Heard::Presented(commit) => {
                     if let Some(presented) = &commit.presented {
-                        self.held.heard_painted(presented.sequence);
+                        self.run.holds.heard_painted(presented.sequence);
                     }
                     answers.push(Answer::Presented(commit));
                 }
                 heard @ (Heard::Paintings(_) | Heard::Layout(_) | Heard::FrameNeeded) => {
                     answers.push(Answer::from(heard));
                 }
-                heard if self.taking_in && self.held.is_empty() => {
+                heard if self.taking_in && self.run.holds.is_empty() => {
                     answers.push(Answer::from(heard));
                 }
                 heard => {
                     held = true;
-                    self.held.hold(Answer::from(heard));
+                    self.run.holds.hold(Answer::from(heard));
                 }
             }
         }
         if self.taking_in {
             self.release_presented(&mut answers);
         }
-        if (held || presents > 0) && !self.held.is_empty() {
+        if (held || presents > 0) && !self.run.holds.is_empty() {
             host::request_repaint();
         }
         self.apply(answers);
@@ -1008,7 +969,7 @@ impl Runtime {
     /// the frame they came with.
     fn release_presented(&mut self, answers: &mut Vec<Answer>) {
         answers.extend(
-            self.held
+            self.run.holds
                 .release_presented()
                 .into_iter()
                 .map(|held| match held {
@@ -1056,7 +1017,7 @@ impl Runtime {
     /// with the frame that fills their space. The app sends a layout ahead of the frame's commits.
     fn place(&mut self, layout: ScreenLayout) {
         let instances = &self.instances;
-        let shown = self.shown.place(&self.layout, layout, |screen| {
+        let shown = self.run.shown.place(&self.layout, layout, |screen| {
             instances.is_anchored_screen(screen)
         });
         self.laid_out(shown);
@@ -1088,7 +1049,7 @@ impl Runtime {
             .export(shown.iter().map(|placement| placement.surface).collect());
         self.instances.keep_anchored(&layout);
         let instances = &self.instances;
-        self.shown
+        self.run.shown
             .keep_left_out(&self.layout, &layout, |placement| {
                 placement.view != ViewId::PREVIEW
                     && instances.view_request_of(placement.screen).is_some()
@@ -1101,17 +1062,17 @@ impl Runtime {
     /// every texture neither the app's layout nor a kept frame holds.
     fn release_kept(&mut self) {
         let instances = &self.instances;
-        self.shown.release_kept(self.presents.shown(), |screen| {
+        self.run.shown.release_kept(self.run.presents.shown(), |screen| {
             instances.view_request_of(screen).is_some()
         });
-        self.shared.borrow_mut().kept = self.shown.kept_placements();
-        presenter::keep(self.surface, &self.shown.retained_surfaces(&self.layout));
+        self.shared.borrow_mut().kept = self.run.shown.kept_placements();
+        presenter::keep(self.surface, &self.run.shown.retained_surfaces(&self.layout));
     }
 
     /// The placement a screen is drawn from: its kept last frame while it has one, else the
     /// app's layout's.
     fn shown_placement(&self, screen: ScreenId) -> Option<&ScreenPlacement> {
-        self.shown.placement(&self.layout, screen)
+        self.run.shown.placement(&self.layout, screen)
     }
 
     fn offer_previews(&mut self, messages: &[Outbound]) {
@@ -1131,7 +1092,7 @@ impl Runtime {
     }
 
     fn held_screens(&self) -> be_lib_stable_hash::HashSet<ScreenId> {
-        self.held
+        self.run.holds
             .laid()
             .flat_map(|laid| self.laid_screens(laid))
             .collect()
@@ -1190,7 +1151,7 @@ impl Runtime {
                     true
                 }
                 Answer::FrameNeeded => {
-                    self.pacing.need();
+                    self.run.pacing.need();
                     true
                 }
                 Answer::MissingCharacters(missing) => {
@@ -1302,21 +1263,21 @@ impl Runtime {
             input_waiting,
         } = presented;
         let delay = repaint_after_micros.map(Duration::from_micros);
-        self.pacing
+        self.run.pacing
             .presented(self.now(), animating, delay, input_waiting);
         if let Some(delay) = delay {
             host::request_repaint_after(delay);
         }
-        let release = self.shown.presented(
+        let release = self.run.shown.presented(
             presented.as_ref().map(|presented| presented.sequence),
-            self.presents.shown(),
+            self.run.presents.shown(),
         );
         if let Some(presented) = presented {
             // The browser's worker shows a present on its canvases as it makes it, so what each
             // surface holds changes now; natively it changes as the frame is shown (`show_frame`).
             #[cfg(target_arch = "wasm32")]
             self.shared.borrow_mut().paint(&presented.painted);
-            self.presents.report(presented);
+            self.run.presents.report(presented);
         }
         self.close_anchored(release.closed);
         if release.kept {
@@ -1341,7 +1302,7 @@ impl Runtime {
             window_requests,
             docks,
         } = commit;
-        self.pacing.laid_out();
+        self.run.pacing.laid_out();
         for request in &window_requests {
             if let WindowRequest::Open(open) = request {
                 self.instances.adopt_window(open, &self.layout);
@@ -1371,7 +1332,7 @@ impl Runtime {
             self.instances.translate_pastes(message);
             self.instances.translate(message, false);
         }
-        self.queued.extend(self.instances.gate(messages));
+        self.run.queued.extend(self.instances.gate(messages));
         self.deliver();
     }
 
@@ -1381,10 +1342,10 @@ impl Runtime {
     }
 
     fn deliver(&mut self) {
-        if !self.session.running() {
+        if !self.run.session.running() {
             return;
         }
-        let queued = std::mem::take(&mut self.queued);
+        let queued = std::mem::take(&mut self.run.queued);
         if !queued.is_empty() {
             self.backend.send(queued);
         }
@@ -1398,7 +1359,7 @@ impl Runtime {
         }
         self.shared
             .borrow_mut()
-            .publish(&self.layout, self.shown.kept_placements(), None);
+            .publish(&self.layout, self.run.shown.kept_placements(), None);
     }
 
     fn template(&self, screen: ScreenId) -> Blit {
@@ -1548,7 +1509,7 @@ pub fn report_children(
             .instances
             .set_child_statuses(instance, region, statuses);
         if !messages.is_empty() {
-            runtime.pacing.need();
+            runtime.run.pacing.need();
             host::request_repaint();
         }
         runtime.send(messages);
@@ -1738,7 +1699,7 @@ pub fn content_delivered(app_id: &str, instance: EditorInstanceId) -> Option<u64
 /// The frames asked of the app and the frames it answered: input sent while `asked` was `n`
 /// has been drawn once `answered` exceeds `n`.
 pub fn frames_answered(app_id: &str) -> (u64, u64) {
-    with(app_id, |runtime| runtime.pacing.answered()).unwrap_or_default()
+    with(app_id, |runtime| runtime.run.pacing.answered()).unwrap_or_default()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -2070,7 +2031,7 @@ pub fn set_focus(block: Option<(Uuid, Uuid)>, editor: Option<Uuid>, via: Vec<Uui
         host.focus = focus.clone();
         for runtime in host.runtimes.values_mut() {
             if runtime.instances.set_focus(focus.clone()) {
-                runtime.pacing.need();
+                runtime.run.pacing.need();
             }
         }
     });
@@ -2084,7 +2045,7 @@ impl be_host_base::watches::WatchHost for Watches {
             let mut host = host.borrow_mut();
             for (app_id, runtime) in &mut host.runtimes {
                 if runtime.instances.publish(open, Arc::clone(&value)) {
-                    runtime.pacing.need();
+                    runtime.run.pacing.need();
                     mark(app_id);
                     host::request_repaint();
                 }
@@ -2131,7 +2092,7 @@ pub fn set_shell(shell: Option<(&str, EditorInstanceId)>) {
                 .filter(|(shell, _)| shell == app_id)
                 .map(|(_, instance)| *instance);
             if runtime.instances.set_shell(instance) {
-                runtime.pacing.need();
+                runtime.run.pacing.need();
                 mark(app_id);
                 host::request_repaint();
             }
@@ -2350,7 +2311,7 @@ pub fn present(app_id: &str, instance: EditorInstanceId, presenting: bool) {
 pub fn set_presented(app_id: &str, instance: EditorInstanceId, presented: bool) {
     with(app_id, |runtime| {
         if runtime.instances.set_presented(instance, presented) {
-            runtime.pacing.need();
+            runtime.run.pacing.need();
             mark(app_id);
             host::request_repaint();
         }
@@ -2814,7 +2775,7 @@ pub fn forward_anchored(
         let messages = runtime
             .instances
             .forward_anchored(instance, region, layer, input);
-        runtime.pacing.need_if(!messages.is_empty());
+        runtime.run.pacing.need_if(!messages.is_empty());
         runtime.send(messages);
     });
     host::request_repaint();
@@ -2830,7 +2791,7 @@ pub fn dismiss_anchored_views(
         let messages = runtime
             .instances
             .dismiss_anchored_views(instance, region, dismissed);
-        runtime.pacing.need_if(!messages.is_empty());
+        runtime.run.pacing.need_if(!messages.is_empty());
         runtime.send(messages);
     });
     host::request_repaint();
@@ -2852,7 +2813,7 @@ pub fn forward_view(
             .instances
             .forward(instance, region, input, aim, target);
         let sent = !messages.is_empty();
-        runtime.pacing.need_if(sent);
+        runtime.run.pacing.need_if(sent);
         runtime.send(messages);
         if revoked {
             mark(app_id);
@@ -2878,7 +2839,7 @@ pub fn back_view(
 ) {
     with(app_id, |runtime| {
         let messages = runtime.instances.back(instance, region, gesture);
-        runtime.pacing.need_if(!messages.is_empty());
+        runtime.run.pacing.need_if(!messages.is_empty());
         runtime.send(messages);
     });
     host::request_repaint();
@@ -2895,7 +2856,7 @@ pub fn intercept_view(
         let messages = runtime
             .instances
             .intercepted(instance, region, press, modifiers);
-        runtime.pacing.need_if(!messages.is_empty());
+        runtime.run.pacing.need_if(!messages.is_empty());
         runtime.send(messages);
     });
     host::request_repaint();
@@ -2911,7 +2872,7 @@ pub fn view_has_keyboard(app_id: &str, instance: EditorInstanceId, region: ViewI
 pub fn intercept_tap(app_id: &str, instance: EditorInstanceId, region: ViewId, key: beui::Key) {
     with(app_id, |runtime| {
         let messages = runtime.instances.intercepted_tap(instance, region, key);
-        runtime.pacing.need_if(!messages.is_empty());
+        runtime.run.pacing.need_if(!messages.is_empty());
         runtime.send(messages);
     });
     host::request_repaint();
@@ -3312,7 +3273,7 @@ pub fn drag_over_view(
         let messages = runtime
             .instances
             .drag(instance, region, DragKind::Block, event);
-        runtime.pacing.need_if(!messages.is_empty());
+        runtime.run.pacing.need_if(!messages.is_empty());
         runtime.send(messages);
         if was != runtime.instances.dragging(instance, region) {
             mark(app_id);

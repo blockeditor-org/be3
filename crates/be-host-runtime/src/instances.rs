@@ -16,7 +16,7 @@ use be_sdk_api::{
         ChildCreation, ChildMenuChoice, ClipOffer, DragStart, MenuSet, ShellMessage, ViewEnd,
     },
 };
-use be_sdk_app_host::accessibility::Graft;
+use be_sdk_app_host::{accessibility::Graft, run::Descriptions};
 use be_sdk_type_guest::editor::{FromEditor, Gesture, ToEditor};
 use beui::{ImeArea, Pos2, Rect, Vec2, pos2, vec2};
 use std::{
@@ -2043,6 +2043,9 @@ impl Instances {
         self.app_id = app_id;
     }
 
+    /// Forgets what the old run had of its instances when the app restarts (`Runtime::restart`),
+    /// so the new run is sent their content, blocks, keyboard focus and children's statuses
+    /// again. What they described goes in `Run::restart` (`Descriptions`).
     pub(super) fn reopen(&mut self) {
         self.heard.forget();
         self.sent_block_types = None;
@@ -2085,13 +2088,6 @@ impl Instances {
             entry.version_sent = None;
             for link in entry.content.iter_mut().chain(entry.watched.values_mut()) {
                 link.delivered = false;
-            }
-            // What the old run described goes with it: each view's pane stays, empty, and offers
-            // no actions until the new run describes the view.
-            entry.actions.clear();
-            let anchored = entry.anchored.iter_mut().map(|held| &mut held.screen);
-            for screen in entry.screens.values_mut().chain(anchored) {
-                screen.accessibility.restarted();
             }
             for screen in entry.screens.values_mut() {
                 screen.stopped = None;
@@ -4172,6 +4168,24 @@ fn offers_actions(entry: &Instance, view: ViewId) -> bool {
             .get(&view)
             .is_some_and(|screen| screen.mounted > 0)
         || entry.anchored.iter().any(|held| held.view == view)
+}
+
+/// What the app's views described, which a restart forgets (`Run::restart`).
+impl Descriptions for Instances {
+    fn grafts(&mut self, each: &mut dyn FnMut(&mut Graft)) {
+        for entry in self.entries.values_mut() {
+            let anchored = entry.anchored.iter_mut().map(|held| &mut held.screen);
+            for screen in entry.screens.values_mut().chain(anchored) {
+                each(&mut screen.accessibility);
+            }
+        }
+    }
+
+    fn forget_actions(&mut self) {
+        for entry in self.entries.values_mut() {
+            entry.actions.clear();
+        }
+    }
 }
 
 fn shown_block(content: &ChildContent) -> Option<Uuid> {

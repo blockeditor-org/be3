@@ -123,8 +123,8 @@ impl<A> Holds<A> {
         })
     }
 
-    /// Forgets everything held and heard, as when the app restarts.
-    pub fn clear(&mut self) {
+    /// Forgets everything held and heard, as a restart does (`Run::restart`).
+    pub(crate) fn clear(&mut self) {
         *self = Self::default();
     }
 
@@ -272,8 +272,8 @@ impl Shown {
         }
     }
 
-    /// Forgets what the app showed, as when it restarts.
-    pub fn clear(&mut self) {
+    /// Forgets what the app showed, as a restart does (`Run::restart`).
+    pub(crate) fn clear(&mut self) {
         self.presents_taken = 0;
         self.closing = None;
         self.kept.clear();

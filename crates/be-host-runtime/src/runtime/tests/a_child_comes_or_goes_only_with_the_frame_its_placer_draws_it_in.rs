@@ -53,26 +53,26 @@ fn a_child_comes_or_goes_only_with_the_frame_its_placer_draws_it_in() {
 
     runtime.hear(vec![closing_a_child(1)]);
     assert_eq!(
-        runtime.held.laid().count(),
+        runtime.run.holds.laid().count(),
         1,
         "a child leaving waits while its placer's frame still has its hole"
     );
     runtime.hear(vec![Heard::FrameNeeded]);
     assert_eq!(
-        runtime.held.laid().count(),
+        runtime.run.holds.laid().count(),
         1,
         "it waits until that frame is presented"
     );
 
     runtime.hear(vec![presented(1)]);
     assert!(
-        runtime.held.is_empty(),
+        runtime.run.holds.is_empty(),
         "with the frame that fills its space, the child goes"
     );
 
     runtime.hear(vec![closing_a_child(2), presented(2)]);
     assert!(
-        runtime.held.is_empty(),
+        runtime.run.holds.is_empty(),
         "heard with its frame, it goes at once"
     );
 }

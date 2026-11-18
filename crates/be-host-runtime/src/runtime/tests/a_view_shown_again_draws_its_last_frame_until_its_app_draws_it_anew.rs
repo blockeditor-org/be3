@@ -102,7 +102,7 @@ fn shown_from() -> Option<u32> {
 
 fn retained() -> Vec<u32> {
     with(APP, |runtime| {
-        runtime.shown.retained_surfaces(&runtime.layout)
+        runtime.run.shown.retained_surfaces(&runtime.layout)
     })
     .expect("the runtime is running")
 }

@@ -13,7 +13,7 @@ thread_local! {
     static DOCKS: RefCell<Docks> = RefCell::new(Docks::default());
 }
 
-fn with<R>(act: impl FnOnce(&mut Docks) -> R) -> R {
+pub(super) fn with<R>(act: impl FnOnce(&mut Docks) -> R) -> R {
     with_changed(act).0
 }
 
@@ -39,10 +39,6 @@ pub(super) fn register(instance: EditorInstanceId, app: &str, block: Option<Uuid
 
 pub(super) fn forget(instance: EditorInstanceId) {
     with(|docks| docks.forget(instance));
-}
-
-pub(super) fn restarted(app: &str) {
-    with(|docks| docks.restarted(app));
 }
 
 pub(super) fn placed(

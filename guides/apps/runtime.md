@@ -462,8 +462,11 @@ failed with the panic); the host shows the error in its place with a restart.
 A restart (the Reload button, `restart_app`, or a new gpu) stops the app and
 starts its module afresh in the same `Runtime` (`Runtime::restart`): its
 instances and their views stay, and the new run is sent their content, blocks,
-keyboard focus and children's statuses again (`Instances::reopen`). What the old
-run sent or held goes: its session, held answers and frame, kept frames
-(`Holds::clear`, `Shown::clear`), what its docks declared (`Docks::restarted`)
-and each view's accessibility tree, whose pane stays, empty, until the new run
-describes the view (`Graft::restarted`).
+keyboard focus and children's statuses again (`Instances::reopen`). The host
+keeps what one run said and was told in a `Run` (be-sdk-app-host) per app, and
+`Run::restart` says what goes: the old run's session, queued calls, held
+answers, kept frames, presents and frames in flight, what its docks declared,
+and each view's accessibility tree and actions, whose pane stays, empty, until
+the new run describes the view. The new run is told the fonts, whether to
+describe and the UTC offset again once it runs (`Run::tell`). The frame held
+for children and the presenter's textures go with the host's own state.
