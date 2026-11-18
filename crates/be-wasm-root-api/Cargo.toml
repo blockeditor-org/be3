@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 be-wasm-ops = { path = "../be-wasm-ops" }
+be-wasm-password = { path = "../be-wasm-password" }
 be-wasm-ops-bindgen = { path = "../be-wasm-ops-bindgen" }
 serde = { version = "1", features = ["derive"] }
 

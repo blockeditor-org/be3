@@ -26,9 +26,10 @@ use std::time::{Duration, Instant};
 
 use be_wasm_guest_host::STEP_TIMEOUT;
 use be_wasm_ops::{Connection, Incoming, OpError, OpId, Outcome, Reply, Side, Ticket};
+pub use be_wasm_password::Password;
 use be_wasm_root_api::{
-    FrameDone, FrameRequest, embed, host::HostStatistics, host::Notice, host::ShownNotices,
-    host::StatisticRow,
+    FrameDone, FrameRequest, embed, host::HostStatistics, host::LockState, host::Notice,
+    host::PowerAction, host::ShownNotices, host::StatisticRow,
 };
 use be_wasm_sandbox_host::Server;
 pub use be_wasm_sandbox_host::{Loader, Staged};
@@ -124,7 +125,23 @@ struct Core<G> {
     statistics: HostStatistics,
     /// The root's `host.statistics` calls waiting for them to change from those it saw.
     statistics_watchers: Vec<Reply<HostStatistics>>,
+    /// The session's screen lock, which `host.lock` answers: the generation counts each change.
+    lock: LockState,
+    /// The root's `host.lock` calls waiting for it to change from what they saw.
+    lock_watchers: Vec<Reply<LockState>>,
+    /// Whether the root asked to lock the session (`host.lock-session`) since the host last took
+    /// it.
+    lock_asked: bool,
+    /// The password the root handed over (`host.unlock`), until the host takes it to check.
+    unlock: Option<Password>,
+    /// Whether the host took a password to check and has not shown the lock since: until it
+    /// does, it says nothing of `checking`, so another is dropped meanwhile.
+    taken: bool,
+    /// What the root chose on its lock screen besides unlocking (`host.lock-power`), until the
+    /// host takes it.
+    lock_powers: Vec<PowerAction>,
 }
+
 
 impl<G: Inline> Core<G> {
     /// Takes over `guest`, the root, which has started, and what it sent while it started.
@@ -160,6 +177,21 @@ impl<G: Inline> Core<G> {
                 memory_file: None,
             },
             statistics_watchers: Vec::new(),
+            lock: LockState {
+                generation: 1,
+                available: false,
+                locked: false,
+                checking: false,
+                refused: None,
+                user: String::new(),
+                power: Vec::new(),
+                retry_at: None,
+            },
+            lock_watchers: Vec::new(),
+            lock_asked: false,
+            unlock: None,
+            taken: false,
+            lock_powers: Vec::new(),
         };
         core.received()?;
         Ok(core)
@@ -280,6 +312,50 @@ impl<G: Inline> Core<G> {
         answered
     }
 
+    /// Shows the root the session's screen lock (`host.lock`), in place of what it showed:
+    /// `shown`'s generation is the host's own counting. Answers whether a root's call waited for
+    /// it, so the host steps the root.
+    fn show_lock(&mut self, shown: LockState) -> bool {
+        let LockState { generation, .. } = self.lock;
+        let changed = LockState {
+            generation,
+            ..shown.clone()
+        } != self.lock;
+        // The host has said how the password it took stands.
+        self.taken = false;
+        if !changed {
+            return false;
+        }
+        self.lock = LockState {
+            generation: generation + 1,
+            ..shown
+        };
+        let watching = std::mem::take(&mut self.lock_watchers);
+        let answered = !watching.is_empty();
+        for reply in watching {
+            reply.send(&mut self.connection, &self.lock);
+        }
+        answered
+    }
+
+    /// Whether the root asked to lock the session since the last call.
+    fn take_lock_asked(&mut self) -> bool {
+        std::mem::take(&mut self.lock_asked)
+    }
+
+    /// The password the root handed over since the last call, if it did, which the host checks
+    /// and then shows the lock as it stands (`show_lock`).
+    fn take_unlock(&mut self) -> Option<Password> {
+        let unlock = self.unlock.take();
+        self.taken |= unlock.is_some();
+        unlock
+    }
+
+    /// What the root chose on its lock screen besides unlocking since the last call.
+    fn take_lock_powers(&mut self) -> Vec<PowerAction> {
+        std::mem::take(&mut self.lock_powers)
+    }
+
     /// Asks the root for a frame for `request`, drawn by `deadline`, or says why the root drew
     /// nothing since it stopped.
     fn begin(&mut self, request: FrameRequest, deadline: Instant) -> Result<(), String> {
@@ -385,10 +461,12 @@ impl<G: Inline> Core<G> {
 
     /// Takes the frames the root sent.
     fn received(&mut self) -> Result<(), String> {
-        for frame in self.guest.take_outbound() {
+        for mut frame in self.guest.take_outbound() {
             self.connection
                 .receive(&frame)
                 .map_err(|error| format!("the root sent a frame the host cannot read: {error}"))?;
+            // What it carried (a password) lives on only in what it was decoded into.
+            be_wasm_ops::scrub(&mut frame);
         }
         Ok(())
     }
@@ -420,6 +498,12 @@ impl<G: Inline> Core<G> {
                     } else if let Some(at) = self.watching.iter().position(|reply| reply.op() == op)
                     {
                         self.watching
+                            .remove(at)
+                            .fail(&mut self.connection, OpError::Canceled);
+                    } else if let Some(at) =
+                        self.lock_watchers.iter().position(|reply| reply.op() == op)
+                    {
+                        self.lock_watchers
                             .remove(at)
                             .fail(&mut self.connection, OpError::Canceled);
                     } else if let Some(at) = self
@@ -501,6 +585,30 @@ impl<G: Inline> Core<G> {
                     true => self.statistics_watchers.push(reply),
                     false => reply.send(&mut self.connection, &self.statistics),
                 }
+            }
+            embed::Call::Host(embed::host::Call::Lock { seen, reply }) => {
+                match seen == self.lock.generation {
+                    true => self.lock_watchers.push(reply),
+                    false => reply.send(&mut self.connection, &self.lock),
+                }
+            }
+            embed::Call::Host(embed::host::Call::LockSession { reply }) => {
+                self.lock_asked = true;
+                reply.send(&mut self.connection, &());
+            }
+            embed::Call::Host(embed::host::Call::Unlock { password, reply }) => {
+                reply.send(&mut self.connection, &());
+                // One at a time, and only into a locked session the host is not making wait: any
+                // other is dropped unchecked, which zeroes it. The host's wait after failed
+                // checks (`retry-at`) it keeps itself.
+                let busy = self.unlock.is_some() || self.taken || self.lock.checking;
+                if self.lock.locked && !busy && self.lock.retry_at.is_none() {
+                    self.unlock = Some(password);
+                }
+            }
+            embed::Call::Host(embed::host::Call::LockPower { action, reply }) => {
+                self.lock_powers.push(action);
+                reply.send(&mut self.connection, &());
             }
             embed::Call::Host(embed::host::Call::PasteShortcut { reply }) => {
                 reply.send(&mut self.connection, &self.paste_shortcut);

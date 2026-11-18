@@ -215,6 +215,10 @@ as lines of KiB, each wasm guest's memory too, for plotting elsewhere.
 - A leak shows as a line that keeps rising while the computer is idle, or that steps up at each
   screen lock or terminal switch and never comes back down.
 
+A root guest's host zeroes every frame the root sent once it has read it
+(be-wasm-root-host's `Core::received`), so a password handed over (`host.unlock`) lives on
+nowhere in the host's copy: a memset over bytes it has just decoded, small next to the decode.
+
 ## Size
 
 What ships is `./scripts/deploy`'s `//crates/be-host:native`, as `-m release` builds it:

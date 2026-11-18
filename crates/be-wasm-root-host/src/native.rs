@@ -9,10 +9,12 @@ use std::{
 };
 
 use be_wasm_host::{App, PresentedTexture};
-use be_wasm_root_api::{FrameDone, FrameRequest, host::Notice, host::StatisticRow};
+use be_wasm_root_api::{
+    FrameDone, FrameRequest, host::LockState, host::Notice, host::PowerAction, host::StatisticRow,
+};
 use be_wasm_sandbox_host::{Loader, Server};
 
-use crate::{Core, Inline, Progress};
+use crate::{Core, Inline, Password, Progress};
 
 /// The root guest, run inline on the thread that holds it. Dropping it stops the root and every
 /// instance it spawned.
@@ -187,6 +189,38 @@ impl Root {
         if answered {
             self.bell.ring();
         }
+    }
+
+    /// Shows the root the session's screen lock (`host.lock`), in place of what it showed (its
+    /// `generation` is ignored: the root counts the changes). If the root waits on it and it
+    /// changed, it is stepped for it.
+    pub fn show_lock(&mut self, shown: LockState) {
+        let answered = self.core.show_lock(shown);
+        if answered {
+            self.bell.ring();
+        }
+    }
+
+    /// Whether the root asked to lock the session (`host.lock-session`) since the last call,
+    /// which the host does if it can.
+    pub fn take_lock_asked(&mut self) -> bool {
+        self.core.take_lock_asked()
+    }
+
+    /// The password the root handed over to unlock the session (`host.unlock`) since the last
+    /// call, if it did: one at a time, only while the session is locked, nothing is being
+    /// checked and the host makes no one wait (`retry-at`). The host checks it against the
+    /// platform, drops it, which zeroes it, and shows the lock as it then stands
+    /// (`show_lock`): unlocked, or refused with why, and the wait it imposes after a failure.
+    /// That is all the root hears of it.
+    pub fn take_unlock(&mut self) -> Option<Password> {
+        self.core.take_unlock()
+    }
+
+    /// What the root chose on its lock screen besides unlocking (`host.lock-power`) since the
+    /// last call, which the host does if the session is locked and offers it.
+    pub fn take_lock_powers(&mut self) -> Vec<PowerAction> {
+        self.core.take_lock_powers()
     }
 
     /// How the root answered the host's notices since the last call (`host.answer-notice`), in

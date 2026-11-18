@@ -1052,12 +1052,59 @@ Each step lands on its own.
      - 4g6. The lock screen, onboarding, saving, keep changes, organization and
        be-host-accounts-ui, over the block stack's messages and the password check the host
        grants.
+       - 4g6a. Built: the lock screen, over the screen lock and password check the host grants.
+         The lock is the host's (the platform's, a login session's): `be3:root` carries it as
+         data, nothing beui's. `host.lock` is a watch, as `host.notices` is, answering the lock
+         (`lock-state`: whether the host can lock, whether it is locked, whether a password is
+         being checked, why the last was refused, whose session it is, the power actions the
+         lock screen offers, and `retry-at`, the frame clock's time the host's wait after failed
+         checks ends at, which the root counts down itself; until the host shows the lock again
+         with none, once the wait is over, a password is dropped unchecked) once it changes; `host.lock-session` asks the
+         host to lock it; `host.lock-power` is a power action chosen on it; and `host.unlock`
+         hands the host what the person typed, answering nothing: how the check went reaches
+         the root only through `lock`. The host takes one password at a time: while one is
+         handed over and not taken, being checked, or while the lock has a `retry-at`, or while
+         the session is not locked, `be3:root` drops one unchecked. 4g7's host shows the lock
+         again with no `retry-at` when its wait expires. The host rate-limits failed
+         checks with a growing wait, as the login session's lock does (`login_session::lock`'s
+         `FREE_ATTEMPTS` and penalty), which is the guard against guessing, since a root can
+         always lock the session itself. The password is be-wasm-password's `Password`, the one
+         type be3:root's `password`, the login session's lock and PAM share: zeroed when
+         dropped and never printed, so the generated call's `Debug` shows nothing of it. What
+         holds of the secret: the host zeroes its decoded copy once checked and nothing of it
+         crosses back; be-wasm-ops zeroes the arguments of an accepted call taking a
+         secret once decoded (be-wasm-ops-bindgen's `secret` option, `be_wasm_ops::scrub`; no
+         other call pays for it) and the root host each frame it received; the guest's own
+         buffers (its text field and what encoded the call) and, on the web, the page's copy
+         are not scrubbed, so a root clears its field as it hands it over and keeps no copy
+         (be-wasm-root-host's `Root::show_lock`, `take_lock_asked`, `take_unlock`,
+         `take_lock_powers`). be-host's `--root` runs no screen lock, being refused as a login
+         session, so the lock stays unavailable and no password reaches it; the login session's
+         lock (`login_session`'s `ScreenLock`, PAM) reaches the root once `--root` runs as one
+         (4g7). be-sdk-root-testing shows a lock screen while locked (`LOCK_LAYER`, beui on
+         `LOCK_SURFACE`, hit everywhere, capturing and focusing): over everything, toasts
+         hidden, taking the focus for its password field once drawn and giving it back once
+         unlocked, the root intercepting none of its own keys meanwhile, only the F5 test
+         fixture, and opening no dialog;
+         F4 (`LOCKS_SESSION`) asks the host to lock, and F5 (`UNLOCKS_TWICE`), a fixture,
+         hands over a stray password twice as a root gone wrong might. be-wasm-root-host's
+         `a_root_shows_its_hosts_lock_screen_and_hands_over_only_what_was_typed` checks a
+         password dropped while unlocked, while one is checked and while the host makes the
+         person wait, the toasts hidden, a press over the app landing on the lock screen, the
+         input method on its field, the password handed over as typed and the field cleared,
+         the countdown (snapshotted with the refusal), and the focus back in the dialog's field
+         once unlocked.
+         Left for later in 4g6: onboarding, saving, keep changes, organization and
+         be-host-accounts-ui, which need the block stack's messages through `be3:root`; the
+         recovery phrase (`UnlockWithPhrase`), which crosses as a password does; and 4g5's
+         memory graph.
      - 4g7. The compositor itself: app views (each declaring its layer's hit and gesture
        areas and placer), anchored views placed outside groups (The layer list, Built
        (step 4b)), editors, desktop windows, the camera and the palette, the chords along the
        focus (Tab and F6 between surfaces, the palette's), and drive's commands split as The
        root guest says. Then be-host brings back under `--root` what the host keeps, and the
-       root becomes the default.
+       root becomes the default. A real root shows a lock layer per window or display,
+       each the size of it, as be-host's lock screen does per display today.
 5. The block stack as an instance the root guest spawns, behind capabilities, building on the
    web's stack worker with a memory of its own, and sending smaller updates.
 6. Space as a guest, offscreen windows, and the host's OpenXR part, with late latching.

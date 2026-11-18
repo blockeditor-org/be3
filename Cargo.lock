@@ -1574,6 +1574,7 @@ dependencies = [
  "be-type-text",
  "be-type-workspace",
  "be-wasm-host",
+ "be-wasm-password",
  "be-wasm-root-api",
  "be-wasm-root-host",
  "be-wasm-threads",
@@ -2316,6 +2317,7 @@ dependencies = [
  "be-wasm-gpu-guest",
  "be-wasm-guest-abi",
  "be-wasm-ops",
+ "be-wasm-password",
  "be-wasm-root-api",
  "beui",
 ]
@@ -3243,11 +3245,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-wasm-password"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_bytes",
+]
+
+[[package]]
 name = "be-wasm-root-api"
 version = "0.1.0"
 dependencies = [
  "be-wasm-ops",
  "be-wasm-ops-bindgen",
+ "be-wasm-password",
  "serde",
 ]
 
@@ -3265,6 +3276,7 @@ dependencies = [
  "be-wasm-guest-host",
  "be-wasm-host",
  "be-wasm-ops",
+ "be-wasm-password",
  "be-wasm-root-api",
  "be-wasm-root-testing",
  "be-wasm-sandbox-api",
