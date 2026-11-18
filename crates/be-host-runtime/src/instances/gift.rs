@@ -504,12 +504,16 @@ impl Instances {
                 pass: given,
                 focused: seen @ None,
                 ..
-            } => {
-                if focused && pass <= *given + 1 {
-                    *seen = Some(app.frames.0);
-                    return true;
+            } if pass <= *given + 1 => {
+                // Till the pass after the gift, an input heard without the keyboard may have been
+                // sent before the view had it (a resting pointer's move as it was laid out).
+                if !focused {
+                    return false;
                 }
+                *seen = Some(app.frames.0);
+                return true;
             }
+            Stage::Given { focused: None, .. } => {}
             Stage::Given { .. } | Stage::Ready => return true,
             _ => return false,
         }
