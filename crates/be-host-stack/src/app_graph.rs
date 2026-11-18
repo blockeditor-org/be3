@@ -122,8 +122,8 @@ pub fn link_admits(admits: be_sdk_api::LinkAdmits) -> be_block_keys::Admits {
 
 /// Names a block's members for an editor (`block-subject.members`) from what the server named
 /// (`list_names`): a contact by the name on the card this device verified (`Contact::verified`)
-/// and pinned with no mismatch since, the signed-in account by its own (`own_name`, the name on
-/// the card it hands out), and anyone else by the name the server gave, which the server could
+/// and pinned with no mismatch since, the signed-in account by its own (`own_name`, its name as
+/// of sign-in, which its cards carry), and anyone else by the name the server gave, which the server could
 /// have changed, so unverified. Read again as the contacts change, without asking the server.
 pub fn members_of(named: &[be_block_protocol::AccountName]) -> Vec<be_sdk_api::BlockMember> {
     let contacts = crate::contacts();

@@ -321,8 +321,8 @@ pub fn try_anyway(block: Uuid) {
 struct Stack {
     account: Uuid,
     organization: Uuid,
-    /// The account's own name, the one this device puts on the card it hands its contacts
-    /// (`Config::display_name`).
+    /// The account's own name as the server gave it at sign-in, which this device puts on the
+    /// cards it hands its contacts (`Config::display_name`).
     name: String,
     commands: Option<worker::CommandPost>,
     nudges: Option<nudge::Nudges>,
@@ -1992,7 +1992,10 @@ pub fn account() -> Option<Uuid> {
         .map(|stack| stack.account)
 }
 
-/// The signed-in account and its own name, the one on the card this device hands its contacts.
+/// The signed-in account and its own name: the display name the server gave as this device
+/// signed in (`Config::display_name`), kept as it was then, which this device also puts on the
+/// cards it hands its contacts. A name changed on another device since reaches it at the next
+/// sign-in.
 pub fn own_name() -> Option<(Uuid, String)> {
     stack()
         .lock()
