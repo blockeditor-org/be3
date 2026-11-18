@@ -718,7 +718,11 @@ async fn text_whose_rejoin_is_held(
     replicas.relay_from_editor(
         block,
         editor,
-        FromEditor::Operate { gesture: None, operation: TextContent::encode_operation(&typed) }.encode(),
+        FromEditor::Operate {
+            gesture: None,
+            operation: TextContent::encode_operation(&typed),
+        }
+        .encode(),
         std::time::Instant::now(),
     );
     replicas.pump((peer, shared)).await;
