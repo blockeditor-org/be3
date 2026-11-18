@@ -915,11 +915,9 @@ impl Module {
                     token,
                     result: result
                         .and_then(|appended| appended)
-                        .map(|appended| match appended {
-                            be_sdk_type_api::host::Appended::Logged(place) => {
-                                Some((place.seq, place.arrival))
-                            }
-                            be_sdk_type_api::host::Appended::Kept => None,
+                        .map(|appended| be_block_content::LogAppended {
+                            id: appended.id,
+                            place: appended.place.map(|place| (place.seq, place.arrival)),
                         }),
                 });
             }
@@ -934,7 +932,15 @@ impl Module {
                     token,
                     result: result
                         .and_then(|read| read)
-                        .map(|page| (page.size, page.items.into_iter().map(log_item).collect())),
+                        .map(|page| be_block_content::LogPage {
+                            size: page.size,
+                            items: page.items.into_iter().map(log_item).collect(),
+                            kept: page
+                                .kept
+                                .into_iter()
+                                .map(|kept| (kept.id, kept.payload))
+                                .collect(),
+                        }),
                 });
             }
             Effect::Resume {

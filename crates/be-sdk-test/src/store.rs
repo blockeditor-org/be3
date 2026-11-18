@@ -518,7 +518,10 @@ impl Inner {
                 let place = be_sdk_type_guest::api::host::LogPlace { seq, arrival };
                 reply.send(
                     &mut self.host,
-                    &Ok(be_sdk_type_guest::api::host::Appended::Logged(place)),
+                    &Ok(be_sdk_type_guest::api::host::Appended {
+                        id: item.id,
+                        place: Some(place),
+                    }),
                 );
                 if let Some(announcement) = along.announcement {
                     self.announcing
@@ -545,6 +548,7 @@ impl Inner {
                 let page = be_sdk_type_guest::api::LogPage {
                     size: log.len() as u64,
                     items,
+                    kept: Vec::new(),
                 };
                 reply.send(&mut self.host, &Ok(page));
             }

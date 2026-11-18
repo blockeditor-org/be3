@@ -9,6 +9,7 @@ interface host {
         along, announcement, byte-range, commit-id, description, journal-base, loaded, log-page, merging,
         submission, part-ref, recipients, resume, status, written,
     };
+    use be3:shared/ids@0.1.0.{uuid};
 
     /// The frame clock in milliseconds. The module starts it once; the host
     /// yields the time whenever it moved, ahead of any other frame. The module
@@ -85,11 +86,11 @@ interface host {
     /// it.
     append: async func(bytes: list<u8>, along: along) -> result<appended, string>;
 
-    variant appended {
-        /// The server took it: its place and arrival.
-        logged(log-place),
-        /// It waits on this device for the server.
-        kept,
+    /// Where an entry went: its id, and its place and arrival once the server
+    /// took it, none while it waits on this device for the server.
+    record appended {
+        id: uuid,
+        place: option<log-place>,
     }
 
     record log-place {

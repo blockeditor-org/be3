@@ -26,7 +26,7 @@ fn two_replicas_append_to_one_log_and_fold_it_in_one_order() {
         appended.push((device, token));
     }
     sim.settle();
-    let mut answers: BTreeMap<usize, Vec<(u64, Result<Option<(u64, i64)>, String>)>> =
+    let mut answers: BTreeMap<usize, Vec<(u64, Result<be_block_content::LogAppended, String>)>> =
         BTreeMap::new();
     for device in 0..2 {
         answers.insert(
@@ -38,7 +38,7 @@ fn two_replicas_append_to_one_log_and_fold_it_in_one_order() {
         assert!(
             answers[&device]
                 .iter()
-                .any(|(answered, result)| *answered == token && matches!(result, Ok(Some(_)))),
+                .any(|(answered, result)| *answered == token && matches!(result, Ok(appended) if appended.place.is_some())),
             "device {device}'s append was not answered with its place: {answers:?}"
         );
     }

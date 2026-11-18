@@ -204,12 +204,12 @@ pub(crate) enum Input {
     /// Where an entry appended to the block's signed log went (`host.append`).
     Appended {
         token: Token,
-        result: Result<Option<(u64, i64)>, String>,
+        result: Result<be_block_content::LogAppended, String>,
     },
     /// A run of the block's signed log read (`host.read-log`): its length and the entries.
     LogRead {
         token: Token,
-        result: Result<(u64, Vec<be_block_content::LogItem>), String>,
+        result: Result<be_block_content::LogPage, String>,
     },
     /// Entries appended to the block's signed log (`replica.logged`).
     Logged(Vec<be_block_content::LogItem>),
@@ -3868,16 +3868,16 @@ where
     fn answer_log_read(
         &mut self,
         token: Token,
-        result: Result<(u64, Vec<be_block_content::LogItem>), String>,
+        result: Result<be_block_content::LogPage, String>,
     ) {
         let reader = self.log_reads.remove(&token).flatten();
-        if let Ok((size, items)) = &result {
-            self.log_size = self.log_size.max(*size);
-            self.take_log(items.clone());
+        if let Ok(page) = &result {
+            self.log_size = self.log_size.max(page.size);
+            self.take_log(page.items.clone());
             // The replica's own read goes on from where it held up to, a page at a time, while
             // the server answers more; one that failed, or answered nothing, is not tried
             // again until the replica hears an entry, or opens again.
-            if reader.is_none() && !items.is_empty() {
+            if reader.is_none() && !page.items.is_empty() {
                 self.read_on();
             }
         }
