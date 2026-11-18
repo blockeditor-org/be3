@@ -96,7 +96,13 @@ entry once. It need not see each again.
    serve now; and epochs keep naming heads by hash, which the reader learns
    only for the entries it is sent and the head, so `holds` on another head
    needs that head's place too.
-4. **The server keeps checked state.** Done: an append to a log of 100,000
-   entries checks one entry on the server.
+4. Landed: the server keeps each log checked at its head (`access::checked`,
+   at most `CHECKED_LOGS` for the process, the one used longest ago let go),
+   and checks an append, or a read of a log that did not change, only past
+   it; a kept head the stored log does not reach is set aside and the log
+   checked from its root (be-server
+   `an_append_checks_only_the_appended_entry_on_the_server`). It still loads
+   and hashes every entry; keeping the head's place and hash in the database
+   would drop that.
 5. **Guides.** guides/blocks/keys.md "Access logs" and "Proof paths",
    decisions/editors_are_served_whole_access_logs.md updated.

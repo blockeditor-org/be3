@@ -13,6 +13,61 @@ use uuid::Uuid;
 
 use crate::ServerError;
 
+/// How many logs the server keeps checked (`checked`).
+const CHECKED_LOGS: usize = 4096;
+
+/// The logs the server checked, at their heads, by kind, organization and log, each with when it
+/// was last used: at most `CHECKED_LOGS`, the one used longest ago let go first. Kept for the
+/// process, so every server in it shares them; a log another's data holds (a restore, a test's
+/// other server) does not reach a kept head by its hashes, and is checked from its root.
+static CHECKED: std::sync::LazyLock<
+    std::sync::Mutex<(u64, std::collections::HashMap<(LogKind, Uuid, Uuid), (u64, Checked)>)>,
+> = std::sync::LazyLock::new(Default::default);
+
+/// The `kind` log of `log` checked from `pinned` to its head, as devices check it
+/// (`be_block_keys::check_log`), checking only the entries after what the server checked of it
+/// before (`Checked::resume`): an append checks the appended entry, not the whole log. A kept
+/// state the log does not reach (another server's data, or an append that was not stored) is
+/// set aside and the log checked from its root; an entry after a state the log reaches is
+/// checked against it alone, so a record refused costs no check from the root.
+pub(crate) fn checked(
+    kind: LogKind,
+    organization: Uuid,
+    log: Uuid,
+    pinned: be_block_keys::EntryHash,
+    entries: &[Entry],
+    outside: &dyn Fn(&Asked) -> Option<be_block_keys::SigningPublic>,
+) -> Result<Checked, be_block_keys::KeyError> {
+    let key = (kind, organization, log);
+    let kept = {
+        let mut held = CHECKED.lock().unwrap();
+        held.0 += 1;
+        let now = held.0;
+        held.1.get_mut(&key).map(|(used, kept)| {
+            *used = now;
+            kept.clone()
+        })
+    };
+    let checked = kept
+        .filter(|kept| kept.root == pinned && kept.reaches(entries))
+        .unwrap_or_else(|| Checked::unchecked(pinned))
+        .resume(kind, log.into_bytes(), entries, outside)?;
+    let mut held = CHECKED.lock().unwrap();
+    held.0 += 1;
+    let now = held.0;
+    held.1.insert(key, (now, checked.clone()));
+    if held.1.len() > CHECKED_LOGS
+        && let Some(oldest) = held
+            .1
+            .iter()
+            .min_by_key(|(_, (used, _))| *used)
+            .map(|(key, _)| *key)
+    {
+        held.1.remove(&oldest);
+    }
+    Ok(checked)
+}
+
 fn refused(message: &str) -> ServerError {
     ServerError::Refused(ErrorCode::InvalidRequest, message.into())
 }
@@ -585,7 +640,7 @@ pub(crate) fn append_retirements(
         }
         let position = entries.len();
         entries.push(entry.clone());
-        be_block_keys::check_log(kind, log.log.into_bytes(), pinned, &entries, &|_| None)
+        checked(kind, log.organization, log.log, pinned, &entries, &|_| None)
             .map_err(|_| refused("the retirement does not follow the log it goes in"))?;
         insert_entry(
             connection,
@@ -649,9 +704,10 @@ pub(crate) fn checked_block_log(
         .map(Entry::hash)
         .ok_or(ServerError::Corrupt)?;
     let outside = |asked: &Asked| be_block_keys::answer(&logs, block.into_bytes(), asked);
-    be_block_keys::check_log(
+    checked(
         LogKind::Block,
-        block.into_bytes(),
+        organization,
+        block,
         pinned,
         entries,
         &outside,
@@ -895,9 +951,10 @@ pub(crate) fn administrator_signing(
     let Some(pinned) = entries.first().map(Entry::hash) else {
         return Ok(None);
     };
-    let checked = be_block_keys::check_log(
+    let checked = checked(
         LogKind::Organization,
-        organization.into_bytes(),
+        organization,
+        organization,
         pinned,
         &entries,
         &|_| None,
@@ -921,9 +978,10 @@ pub(crate) fn checked_organization_log(
     let Some(pinned) = entries.first().map(Entry::hash) else {
         return Ok(None);
     };
-    be_block_keys::check_log(
+    checked(
         LogKind::Organization,
-        organization.into_bytes(),
+        organization,
+        organization,
         pinned,
         &entries,
         &|_| None,
@@ -979,9 +1037,10 @@ fn append_organization(
         .ok_or_else(|| refused("the organization has no access log"))?;
     let position = entries.len();
     entries.push(entry.clone());
-    be_block_keys::check_log(
+    checked(
         LogKind::Organization,
-        organization.into_bytes(),
+        organization,
+        organization,
         pinned,
         &entries,
         &|_| None,

@@ -573,7 +573,11 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   keys `recovery_keys` holds for it now, so a good server and a device never
   disagree (guides/blocks/keys.md, "Access logs"). The server checks a record's
   authority from the logs alone, which block is above which by their parent
-  records (`access::checked_block_log`), never its own tree. A company
+  records (`access::checked_block_log`), never its own tree. It checks each
+  log once: it keeps every log it checked at its head (`access::checked`, the
+  `CHECKED_LOGS` used last), and checks an append or a read again only past
+  it, unless the stored log no longer reaches that head, when it checks it from
+  its root. A company
   organization's log (`organization_log`) is rooted the same way by
   `create-organization`, whose caller picks the organization's id, and served
   to its members by `query.log(none)`. Each is served whole to a caller
