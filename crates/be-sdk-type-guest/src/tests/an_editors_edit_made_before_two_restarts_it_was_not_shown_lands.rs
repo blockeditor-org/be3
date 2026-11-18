@@ -1,12 +1,16 @@
 use super::*;
 
-/// An editor that has not heard of two restarts (each reloads the content afresh, so nothing in
-/// it keeps the identities its edits name) types on what it still shows: the replica carries the
-/// edit from what the editor showed before the first, so it lands where it was typed. Once the
+/// An editor deaf from before another's churn and the two restarts it brings on (each reloads
+/// the content afresh, so nothing in it keeps the identities its edits name) types on what it
+/// still shows, which is from before both: the replica carries the edit from what the editor
+/// showed before the first, so it lands where it was typed. Once the
 /// editor says it was shown the reloads (`FromEditor::Shown`), an edit of its that applies as
 /// nothing (it erases what another editor erased first) is not carried: it erases nothing else.
 #[test]
 fn an_editors_edit_made_before_two_restarts_it_was_not_shown_lands() {
+    // Past what the churn's 20 rounds leave in the session state (their fragments, under
+    // 10-byte editor clients), so a seal restarts; below it, a seal right after a restart would
+    // restart again.
     crate::replica::RESTART_LIMIT.with(|limit| limit.set(64));
     let mut sim = Sim::<ProseContent>::new(1, prose_module);
     sim.open(0);

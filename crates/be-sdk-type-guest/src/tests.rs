@@ -1846,8 +1846,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
 
 impl Sim<ProseContent> {
     /// The client `editor` on `device` makes what it inserts under: its own, as each editor's
-    /// `LiveText` mints one (be-sdk-text's live_text.rs), never the replica's session client, so
-    /// two editors of one block on one device never name what they insert alike.
+    /// `LiveText` has (be-sdk-text's live_text.rs), never the replica's session client, so two
+    /// editors of one block on one device never name what they insert alike. Unlike LiveText's,
+    /// which are random, these are derived from the device and the editor, so tests repeat.
     fn editor_client(device: usize, editor: EditorId) -> u64 {
         1 << 63 | (device as u64) << 32 | editor
     }
