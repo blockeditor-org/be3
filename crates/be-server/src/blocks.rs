@@ -210,7 +210,7 @@ pub(crate) fn require_edit(
     require(graph, seen, block, Access::Edit, "editable")
 }
 
-fn require_manage(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Result<(), ServerError> {
+pub(crate) fn require_manage(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Result<(), ServerError> {
     require(graph, seen, block, Access::Manage, "managed")
 }
 
@@ -2012,6 +2012,11 @@ impl ServerStore {
                     &record,
                 )?;
             }
+            // A guest is there only through what links granted it: with its last grant gone, it
+            // leaves.
+            if access == Access::None {
+                crate::share_links::drop_idle_guest(&transaction, identity.organization, account)?;
+            }
             let forgotten = crate::store::forget_orphaned_block_agents(
                 graph,
                 &transaction,
@@ -2155,6 +2160,11 @@ impl ServerStore {
                     .filter(|account| graph.effective_access(block, *account).can_view()),
             );
             listed.extend(contacts.iter().copied());
+            let linked: BTreeSet<Uuid> =
+                crate::access::linked(database, identity.organization, block)?
+                    .into_iter()
+                    .map(|(account, _)| account)
+                    .collect();
             let mut statement = database.prepare_cached(
                 "SELECT COALESCE(accounts.email, ''), accounts.display_name, memberships.role
                  FROM memberships
@@ -2188,6 +2198,7 @@ impl ServerStore {
                         source: node.grants.contains_key(&account).then_some(block),
                         contact: false,
                         waiting: false,
+                        through_link: false,
                     });
                     continue;
                 }
@@ -2202,14 +2213,18 @@ impl ServerStore {
                 let granted = node.grants.get(&account).copied();
                 let (effective, source) = match role {
                     OrganizationRole::Administrator => (Access::Manage, None),
-                    OrganizationRole::Editor => match graph.inherited_from(block, account) {
+                    OrganizationRole::Editor | OrganizationRole::Guest => match graph
+                        .inherited_from(block, account)
+                    {
                         (level, source) if level.can_know_exists() => (level, source),
                         _ => (graph.effective_access(block, account), None),
                     },
                 };
                 let inherited = match (role, granted) {
                     (OrganizationRole::Administrator, _) | (_, None) => effective,
-                    (OrganizationRole::Editor, Some(_)) => graph.inherited_above(block, account),
+                    (OrganizationRole::Editor | OrganizationRole::Guest, Some(_)) => {
+                        graph.inherited_above(block, account)
+                    }
                 };
                 entries.push(AccessEntry {
                     account,
@@ -2232,6 +2247,7 @@ impl ServerStore {
                             block,
                             account,
                         )?,
+                    through_link: linked.contains(&account),
                 });
             }
             Ok(AccessList {

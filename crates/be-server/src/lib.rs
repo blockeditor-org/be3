@@ -54,6 +54,7 @@ pub mod push;
 pub mod retention;
 pub mod s3;
 pub mod schema;
+pub mod share_links;
 pub mod sessions;
 pub mod store;
 pub mod watch;

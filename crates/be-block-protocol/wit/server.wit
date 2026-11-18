@@ -33,7 +33,7 @@ interface server {
     };
     use sessions.{session-event};
     use logs.{entry-id, log-head, log-entry, log-page, logged, new-entry};
-    use contacts.{invitation-preview, invitation-row, link, link-kind};
+    use contacts.{invitation-preview, invitation-row, link, link-kind, share-link, share-link-row};
     use keys.{key-page, key-work, recovery-key, retirement, revocation, signing-key};
     use members.{bound-agent, created-agent, member};
     use organizations.{organization, server-info};
@@ -178,6 +178,13 @@ interface server {
         /// `unfollow` leaves it. Joining a session the connection is in leaves
         /// it and joins again.
         session(session-query),
+        /// A share link, by the id its code derives, as an account about to
+        /// open it reads it: refused once revoked, or to an account it does
+        /// not admit, or where the organization's policy no longer allows it.
+        /// The account's own: the read names no organization.
+        share-link(link-id),
+        /// The share links open on a block, for its managers.
+        share-links(block-id),
     }
 
     record blocks-query {
@@ -241,6 +248,8 @@ interface server {
         mailbox(list<message>),
         link(link),
         invitation(invitation-preview),
+        share-link(share-link),
+        share-links(list<share-link-row>),
         download-urls(list<option<string>>),
         server-info(server-info),
         mutes(list<block-mute>),
@@ -394,6 +403,24 @@ interface server {
         /// administrator; an inviter who no longer administers revokes theirs
         /// without, since the log ended it with their role.
         delete-link(delete-link),
+        /// Makes a share link on `block`, which needs Manage there and a
+        /// policy that admits whom it admits (guides/blocks/keys.md, "Share
+        /// links"): `signed` is the share link record
+        /// (be_block_keys::ShareLink) opening it in the block's log, naming
+        /// the key its code derives; `sealed`, what it hands its opener,
+        /// sealed with the code.
+        create-share-link(create-share-link),
+        /// Opens a share link: `signed` is the record
+        /// (be_block_keys::Opened) granting the caller the link's level,
+        /// signed with the key the code derives after the head
+        /// `share-link` named, which the server appends; `sealed` is the
+        /// block's scope key `key` sealed by the caller to itself. A caller from
+        /// outside the organization joins it as a guest. The account's own.
+        open-share-link(open-share-link),
+        /// Revokes a share link, by a manager of its block: `signed` is the
+        /// share link record closing it. Every grant made through it falls,
+        /// and a guest with none left leaves the organization.
+        revoke-share-link(revoke-share-link),
         /// Removes a contact, revoking each one's grants on blocks the other
         /// manages, and leaving each a `letter.removed` from the other.
         /// `revocations` are the signed revocations of those grants
@@ -609,6 +636,27 @@ interface server {
     record delete-link {
         link: link-id,
         signed: option<list<u8>>,
+    }
+
+    record create-share-link {
+        link: link-id,
+        block: block-id,
+        sealed: list<u8>,
+        signed: list<u8>,
+    }
+
+    record open-share-link {
+        link: link-id,
+        signed: list<u8>,
+        /// The block's scope key the link carries, and its seal by the caller
+        /// to itself.
+        key: key-id,
+        sealed: list<u8>,
+    }
+
+    record revoke-share-link {
+        link: link-id,
+        signed: list<u8>,
     }
 
     record remove-contact {
