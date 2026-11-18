@@ -63,11 +63,14 @@ impl Windows {
 
     /// Moves the keyboard in `window` to `target`, or takes it from every layer there: a dialog
     /// that opens takes it, and gives it back to the layer that had it once it closes. Answers
-    /// what that tells the layer that had it and the one that gets it; a layer the window was not
-    /// drawn with last hears nothing of it, so a layer is focused once it has been drawn.
+    /// what that tells the layer that had it and the one that gets it. A layer the window was not
+    /// drawn with last cannot take it, so the keyboard goes to no layer: a layer is focused
+    /// once it has been drawn, and the focus given back to one that went meanwhile is lost.
     pub fn focus(&mut self, window: Option<u64>, target: Option<LayerId>) -> Vec<Delivery> {
         let at = self.at(window);
         let routing = &mut self.windows[at];
+        // A layer that went while the focus was elsewhere cannot take it: it goes nowhere.
+        let target = target.filter(|target| routing.layers.layer(*target).is_some());
         let routed = routing.router.focus(target);
         delivered(&routing.layers, routed, None).collect()
     }
@@ -134,7 +137,8 @@ impl Windows {
     }
 
     /// Takes `list` as the layers drawn last. A window it leaves out has gone: its router goes
-    /// once nothing is pressed on it. Answers what that tells the surfaces those windows
+    /// once nothing is pressed on it. A focused layer a window's list leaves out loses the
+    /// focus, which goes to no layer; a press it holds still ends there. Answers what that tells the surfaces those windows
     /// focused.
     pub fn drew(&mut self, list: LayerList) -> Vec<Delivery> {
         for routing in &mut self.windows {
@@ -151,6 +155,13 @@ impl Windows {
                 Some(routing) => {
                     routing.layers = layers;
                     routing.gone = false;
+                    // A focused layer the list leaves out went: the keyboard goes to no layer,
+                    // rather than to whatever later takes its id without hearing it was focused.
+                    if let Some(focused) = routing.router.focused()
+                        && routing.layers.layer(focused).is_none()
+                    {
+                        routing.router.focus(None);
+                    }
                 }
                 None => self.windows.push(Window {
                     window,

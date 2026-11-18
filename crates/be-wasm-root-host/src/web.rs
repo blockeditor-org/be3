@@ -167,6 +167,13 @@ impl Root {
         self
     }
 
+    /// Whether the page delivers the paste shortcut as a paste itself, as input, from the
+    /// browser's paste event (`host.paste-shortcut`), which a page does: false unless set.
+    pub fn with_paste_shortcut(self, delivers: bool) -> Self {
+        self.shared.core.borrow_mut().paste_shortcut = delivers;
+        self
+    }
+
     /// Asks the root what its own surfaces painted, which it answers as it steps through the
     /// next frame (`take_paintings`). A root that stopped says why.
     pub fn ask_paintings(&self) -> Result<(), String> {

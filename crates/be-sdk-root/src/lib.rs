@@ -17,6 +17,12 @@
 //!   the root gets back. What its apps ask of their windows (a cursor shape, the pointer lock,
 //!   every sample) it answers as the window's (`Embedding::requests`).
 //!
+//! The clipboard is not relayed: an app it embeds copies and pastes only as the app protocol
+//! lets it (a copy as a host service, which this does not serve yet, and a paste as the input
+//! its host delivers), never through the root's own `be3:root` `host.copy` and `host.paste`,
+//! which the host trusts the root alone with. A root never hands an app those calls or their
+//! answers.
+//!
 //! The root stays single-threaded and never blocks: each app's frames are heard by a task on
 //! the root's executor (`be_wasm_ops::guest::spawn`), and a frame awaits the present as ordinary
 //! async code, so the root races it against its deadline (`be3:root`'s `host.deadline`).

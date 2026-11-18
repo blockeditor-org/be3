@@ -64,6 +64,8 @@ struct Shared {
     epoch: Instant,
     /// The frame clock's time and the wall clock at it, as the host handed them last.
     clock: Cell<(Duration, Duration)>,
+    /// Whether the host delivers the paste shortcut as a paste itself (`host.paste-shortcut`).
+    paste_shortcut: Cell<bool>,
 }
 
 impl BeuiRoot {
@@ -94,7 +96,15 @@ impl BeuiRoot {
             fonts,
             epoch: real.checked_sub(time).unwrap_or(real),
             clock: Cell::new((time, wall_clock)),
+            paste_shortcut: Cell::new(false),
         })))
+    }
+
+    /// Whether the host delivers the paste shortcut (Ctrl+V) as a paste itself, as its
+    /// `host.paste-shortcut` answers: then a document does not also ask the host to paste for
+    /// it. False until set.
+    pub fn set_paste_shortcut(&self, delivers: bool) {
+        self.0.paste_shortcut.set(delivers);
     }
 
     /// The host's clocks for the frame being drawn: the frame clock's `time` and the wall
@@ -146,9 +156,16 @@ struct Drawn {
 /// input method and keyboard where the root says the focused field is (`frame-done`'s `ime`,
 /// from `BeuiSurface::ime`). Choosing and saving files are the platform's own dialogs, which
 /// `be3:root` does not carry yet, so the default answers that they are unavailable.
-struct Window;
+struct Window {
+    /// Whether the host delivers the paste shortcut as a paste itself.
+    paste_shortcut: bool,
+}
 
 impl PlatformServices for Window {
+    fn delivers_paste_shortcut(&self) -> bool {
+        self.paste_shortcut
+    }
+
     /// Copies what the clip has rendered: the host never asks the root back for a lazy
     /// representation, so one is left off.
     fn copy(&mut self, clip: Clip) {
@@ -313,7 +330,10 @@ impl BeuiSurface {
         }
         self.woken.store(false, Ordering::Release);
         self.root.pin(self.runner.context());
-        let frame = self.runner.frame(&mut Window, SafeArea::default());
+        let mut window = Window {
+            paste_shortcut: self.root.0.paste_shortcut.get(),
+        };
+        let frame = self.runner.frame(&mut window, SafeArea::default());
         self.runner.present();
         if let Some(failure) = self.runner.failure() {
             return Err(failure.to_owned());

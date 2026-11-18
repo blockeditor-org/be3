@@ -18,8 +18,9 @@
 //! hit nowhere and capturing presses for the root's own layer, and over it the dialog
 //! (`DIALOG_LAYER`), drawn with beui on `DIALOG_SURFACE`: a title, a name field it focuses and
 //! Cancel and Rename. Once drawn, the dialog takes the focus, and the root hands its host the
-//! field's input method area; it closes on a press on the scrim, on Escape, which the root
-//! intercepts while it is open, or on its own actions, and gives the focus back to the layer that
+//! field's input method area; it closes on a press on the scrim, on Escape (its document's while
+//! it has the focus, the root's, which intercepts it, while it is open and the focus is elsewhere),
+//! or on its own actions, and gives the focus back to the layer that
 //! had it. Rename shows the name in the strip of text in place of `TEXT`. Its documents copy to
 //! and paste from their host's clipboard (`be3:root`'s `host.copy` and `host.paste`).
 //! A frame at `CLOSES` lets go of the app, which stops it. The window's input is routed by the
@@ -140,8 +141,8 @@ pub const DIALOG_LAYER: LayerId = LayerId(5);
 /// A surface of the root's own that beui draws its dialog on, filling it, a pixel to a point.
 pub const DIALOG_SURFACE: u32 = 6;
 
-/// `DIALOG_SURFACE`'s size, a pixel to a point.
-pub const DIALOG_SIZE: (u32, u32) = (320, 200);
+/// `DIALOG_SURFACE`'s size, a pixel to a point: as tall as its title, field and actions need.
+pub const DIALOG_SIZE: (u32, u32) = (320, 152);
 
 /// Where the dialog's top left sits in the window: centred in it.
 pub const DIALOG_ORIGIN: (f32, f32) = (

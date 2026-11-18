@@ -31,7 +31,7 @@ use be_wasm_root_api::{
 use beui::native::painting::{Frame as PaintFrame, Painting, ScreenPaintings};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Align2, NodeId, Pos2, Rect, vec2};
+use beui::{Align2, KeyPhase, NodeId, Pos2, Rect, vec2};
 
 use crate::{
     APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DIALOG_ORIGIN, DIALOG_SIZE, DIALOG_SURFACE,
@@ -133,6 +133,8 @@ impl Root {
             .await
             .map_err(|error| format!("the host gave no fonts: {error:?}"))?;
         let beui = BeuiRoot::new(&fonts, time, wall_clock)?;
+        // A host that cannot answer it delivers no paste of its own, so its documents ask.
+        beui.set_paste_shortcut(host::paste_shortcut().await.unwrap_or(false));
         let fonts: Fonts = be_wasm_ops::decode(&fonts).ok_or("the host's fonts cannot be read")?;
         *self.fonts.borrow_mut() = Some(Rc::new(fonts));
         let waker = self.waker.clone();
@@ -172,7 +174,7 @@ impl Root {
         let scrim = OwnSurface::new(SCRIM_SURFACE, SIZE);
         scrim.fill(SCRIM_COLOR)?;
         // F2 opens the dialog, wherever the focus is.
-        self.embedding.borrow_mut().intercept(vec![opens()]);
+        self.embedding.borrow_mut().intercept(chords(false));
         *self.own.borrow_mut() = Some(own);
         *self.scrim.borrow_mut() = Some(scrim);
         *self.beui.borrow_mut() = Some(beui);
@@ -276,7 +278,7 @@ impl Root {
                 return Ok(());
             };
             let mut embedding = self.embedding.borrow_mut();
-            embedding.intercept(vec![opens()]);
+            embedding.intercept(chords(false));
             let told = embedding.focus(None, dialog.had);
             drop(embedding);
             self.heard(&told);
@@ -309,7 +311,8 @@ impl Root {
         )?;
         let mut embedding = self.embedding.borrow_mut();
         let had = embedding.focused(None).map(|layer| layer.id);
-        embedding.intercept(vec![opens(), KeyChord::new(Key::Escape, Modifiers::NONE)]);
+        // Until the dialog has the focus, Escape is the root's, wherever the focus is.
+        embedding.intercept(chords(true));
         drop(embedding);
         *self.dialog.borrow_mut() = Some(Dialog {
             surface,
@@ -321,9 +324,15 @@ impl Root {
     }
 }
 
-/// The chord that opens the dialog.
-fn opens() -> KeyChord {
-    KeyChord::new(OPENS_DIALOG, Modifiers::NONE)
+/// The chords the root takes ahead of the focus: F2, which opens the dialog, and Escape while
+/// the dialog is open but the focus is outside it. With the focus in the dialog, Escape is its
+/// document's, which closes it once nothing in it (a popup) took the key first.
+fn chords(escape: bool) -> Vec<KeyChord> {
+    let mut chords = vec![KeyChord::new(OPENS_DIALOG, Modifiers::NONE)];
+    if escape {
+        chords.push(KeyChord::new(Key::Escape, Modifiers::NONE));
+    }
+    chords
 }
 
 /// The dialog: a name, which it focuses, and Cancel and Rename, filling its surface. `done`
@@ -332,6 +341,21 @@ fn opens() -> KeyChord {
 fn RenameDialog(done: Callback<Option<String>>) -> NodeId {
     let name = create_signal(String::new());
     let rename = move || done.call(Some(name.get()));
+    // Escape closes it once nothing inside it, such as a popup, took the key first.
+    on_key(
+        KeyAt::Node(component_node()),
+        KeyPhase::Bubble,
+        KeyReveal::Focus,
+        move |event| {
+            let closes = event
+                .press()
+                .is_some_and(|press| press.pressed && press.key == Key::Escape);
+            if closes {
+                done.call(None);
+            }
+            closes
+        },
+    );
     view! {
         <Frame
             width=Length::FILL
@@ -538,6 +562,10 @@ impl frames::Guest for Root {
                 }
                 _ => Vec::new(),
             };
+            // Escape is the root's while its dialog is open and the focus is outside it.
+            let outside = root.dialog.borrow().is_some()
+                && embedding.focused(None).map(|layer| layer.id) != Some(DIALOG_LAYER);
+            embedding.intercept(chords(outside));
             drop(embedding);
             root.heard(&drawn.own);
             root.heard(&focus);

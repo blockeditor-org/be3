@@ -947,12 +947,18 @@ Each step lands on its own.
      - 4g4. Built: dialogs, a scrim layer that `captures` presses and dismisses, the dialog's
        layer above it, Escape among the chords the root intercepts while one is open, and the
        platform's own dialogs (files) still the host's. With them, of 4g2's leftovers, the
-       host's half of the clipboard and the input method for a root's own documents.
+       host's half of the clipboard and the input method for a root's own documents. Escape is
+       the dialog's own while it has the focus, so a popup inside it takes the key first, and
+       the root's, intercepted, while the dialog is open and the focus is elsewhere.
        `be3:root` carries the clipboard as data, nothing beui's: `host.copy` puts a copy's
        items on the host's clipboard (each the app protocol's `ClipItem`, encoded, as `fonts`
        is), and `host.paste` asks for the first of some formats it holds, which the host
        answers once its platform read it, in a later frame if need be
-       (be-wasm-root-host's `Root::take_copies`, `take_pastes` and `answer_paste`). The
+       (be-wasm-root-host's `Root::take_copies`, `take_pastes` and `answer_paste`); the host
+       trusts its root with the clipboard as it trusts no app, and a root never relays these
+       calls for an app it embeds. `host.paste-shortcut` says whether the host delivers Ctrl+V
+       as a paste itself (a web page does), so a root's document does not ask again
+       (`Root::with_paste_shortcut`, `BeuiRoot::set_paste_shortcut`). The
        input method needed nothing new in `be3:root`: its events already reach the root as
        input, which the root's router hands its focused layer, and `frame-done`'s `ime` names
        the focused field's area. be-host's `--root` puts what the root copies on the window's
@@ -961,12 +967,15 @@ Each step lands on its own.
        host shows the keyboard, and answers its focused field's input method area in the
        window's points (`BeuiSurface::ime`). be-sdk-root's `Embedding` gained `intercept`
        (the chords its own layer takes ahead of the focus, in every window, new ones too),
-       `focus` (moving the keyboard to a layer, or from all, telling both) and `focused`.
+       `focus` (moving the keyboard to a layer, or from all, telling both; a layer not drawn
+       last cannot take it) and `focused`; a focused layer a list leaves out loses the focus,
+       so a later layer with its id never takes keys it was not told it has.
        be-sdk-root-testing opens a dialog on F2, which it always intercepts: a scrim
        (`SCRIM_LAYER`, its own surface filled with `SCRIM_COLOR`) hit nowhere, capturing
        every press for `ROOT_LAYER`, its placer, and never focusing, and over it the dialog
        (`DIALOG_LAYER`), a styled `DialogBody` with a name field in a card that fills its
-       surface; Escape is intercepted while it is open; once drawn it takes the focus and
+       surface, which closes on Escape; Escape is intercepted while it is open and the focus
+       is outside it; once drawn it takes the focus and
        hands its host the field's input method area, and closing (the scrim, Escape, Cancel
        or Rename, which shows the name in its strip) gives the focus back to the layer that
        had it. be-wasm-root-host's
@@ -985,11 +994,22 @@ Each step lands on its own.
        - Files: a root's document cannot choose or save one yet, since `be3:root` carries
          no file dialogs; the platform's stay the host's, so they want a host call each, as
          be-sdk-beui-platform's `pick_file` and `save_file` are for an app.
-       - `drive paint` places a root's surfaces without their layer's opacity, which the
-         root's scrim does not use (its fill carries its alpha).
-       - be-sdk-root-testing's scrim covers its fixed `SIZE`, as its own surface does, not
-         be-host's whole window: a press past it lands on no layer and closes nothing. A root
-         that follows its window's size (4g7) sizes its scrim with it.
+       - be-sdk-root-testing's scrim layer captures presses across the whole window (it is
+         hit nowhere and captures, so any press that misses the dialog goes to its placer),
+         but dims only its fixed `SIZE`, as its own surface does. A root that follows its
+         window's size (4g7) sizes its scrim's surface with it.
+       - The dialog's surface has a fixed size its content fits (`DIALOG_SIZE`), not its
+         content's own height: `BeuiSurface` cannot measure its document yet, which a
+         surface sized to a card would need.
+       - Intercepted chords are the same in every window (`Embedding::intercept`): a dialog
+         in one window takes Escape in all of them while the focus is outside it. Chords per
+         window come with the compositor's own windows (4g7).
+       - `drive paint` must place a root's surfaces with their layer's opacity before any root
+         fades a layer; until then a root draws transparency into its surface, as the scrim's
+         fill does.
+       - A clip of `be3/blocks` reaches the root, and the host from it, with its block refs
+         untranslated: a root's own documents name no blocks before the block stack is the
+         root's (4g6, step 5), which then translates them as be-host-runtime does an app's.
      - 4g5. The debug panels, over the read-only statistics the host grants (What the host
        keeps).
      - 4g6. The lock screen, onboarding, saving, keep changes, organization and
