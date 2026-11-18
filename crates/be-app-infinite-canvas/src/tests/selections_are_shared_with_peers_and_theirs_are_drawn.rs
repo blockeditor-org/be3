@@ -36,7 +36,7 @@ fn selections_are_shared_with_peers_and_theirs_are_drawn() {
         selection: vec![rectangle.id],
         caret: None,
         drawing: None,
-        carried: Vec::new(),
+        carried: None,
         color: PresenceColor::Purple,
     };
     editor.set_peers(

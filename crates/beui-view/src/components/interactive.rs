@@ -387,7 +387,8 @@ fn carrying(
         false => on_long_press_drag,
     };
     // A press that ends short of the threshold was the source's own: it hears the moves it
-    // made before it hears the press end. One called off hears none of them.
+    // made as it ends, after its click (which a source that pans on its drags, the game's
+    // stage, reads as a click only while it has not panned). One called off hears none.
     let active = {
         let held = Rc::clone(&held);
         Callback::new(move |active: bool| {

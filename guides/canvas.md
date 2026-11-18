@@ -139,9 +139,10 @@ a put-down (Escape, a cancelled press) drops it. While the board carries a move
 the release leaves it to the board, and `gesture_ended` puts the carry down. The
 surface is an edge scroller: a carry held in its band pans the camera, and the
 site chooses again as the camera moves. A move held in the hold reaches peers as
-presence instead: `CanvasCursor::carried` names each carried entity's centre,
-and a peer's `Entities` draws it there (`carry_for_peers`, the `drawn` memo the
-stage reads; edits read `stored`), with lines bound to it following.
+presence instead: `CanvasCursor::carried` gives the offset of the selection
+it carries (and whether it snaps), and a peer's `Entities` draws what of that
+selection is unlocked there (`carry_for_peers`, the `drawn` memo the stage
+reads; edits read `stored`), with lines bound to it following.
 
 ## Input
 

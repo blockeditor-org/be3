@@ -5,7 +5,7 @@ use be_type_database::DatabaseSchemaContent;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use crate::presence::{CanvasCaret, CanvasCursor};
+use crate::presence::{CanvasCaret, CanvasCarry, CanvasCursor};
 use be_sdk_beui::be_block_content::presence::{PresenceColor, pick_free_color};
 use be_sdk_beui::be_block_content::{Edit, ObjectId};
 use be_sdk_beui::be_sdk_ui::BlockLabel;
@@ -578,7 +578,7 @@ pub(crate) struct CanvasState {
     peers: ReadSignal<Vec<(u64, CanvasCursor)>>,
     own_stroke: Memo<Option<Uuid>>,
     /// What this viewer carries mid-move, as its presence shows it to peers.
-    carried: Memo<Vec<(Uuid, CanvasPoint)>>,
+    carried: Memo<Option<CanvasCarry>>,
     strokes: Memo<Vec<Uuid>>,
 }
 
@@ -700,17 +700,18 @@ impl CanvasState {
         });
         let carried = create_memo(move || {
             gesture.with(|gesture| match gesture {
-                Some(
-                    moved @ Gesture::Move {
-                        carried: true,
-                        duplicate: false,
-                        ..
-                    },
-                ) => gesture_entities(moved)
-                    .into_iter()
-                    .map(|entity| (entity.id, entity.transform.center))
-                    .collect(),
-                _ => Vec::new(),
+                Some(Gesture::Move {
+                    start,
+                    current,
+                    snapped,
+                    carried: true,
+                    duplicate: false,
+                    ..
+                }) => Some(CanvasCarry {
+                    by: CanvasPoint::new(current.x - start.x, current.y - start.y),
+                    snapped: *snapped,
+                }),
+                _ => None,
             })
         });
         let strokes = create_memo(move || {
@@ -3282,10 +3283,28 @@ impl CanvasState {
     fn read_presence(&self) {
         let mut presence = Presence::default();
         let peers = self.peers.get_untracked();
-        let carried: HashMap<Uuid, CanvasPoint> = peers
-            .iter()
-            .flat_map(|(_, cursor)| cursor.carried.iter().copied())
-            .collect();
+        // Where each peer's carried move puts what of its selection can move; of two peers
+        // carrying the same entity, the one listed last.
+        let mut carried: HashMap<Uuid, CanvasPoint> = HashMap::new();
+        for (_, cursor) in &peers {
+            let Some(carry) = cursor.carried else {
+                continue;
+            };
+            for id in &cursor.selection {
+                let Some(mut entity) = self.entities.get_untracked(*id) else {
+                    continue;
+                };
+                if entity.locked {
+                    continue;
+                }
+                entity.transform.center.x += carry.by.x;
+                entity.transform.center.y += carry.by.y;
+                if carry.snapped {
+                    entity = moved_to_whole_units(entity);
+                }
+                carried.insert(*id, entity.transform.center);
+            }
+        }
         self.entities.carry_for_peers(&carried);
         for (_, cursor) in peers {
             let color = cursor.color;
