@@ -60,4 +60,6 @@ graphics. One runtime, not a second one for `be`.
    while it holds the lease, standing by otherwise. Done: plans/hosted_blocks.md
    step 4's headless test.
 3. **Guides.** guides/apps/runtime.md and guides/common_commands.md say how
-   `be` runs apps.
+   `be` runs apps: done for what step 1 built (guides/apps/runtime.md,
+   "Headless"; `be-tool-cli:dev` in guides/common_commands.md). Step 2's
+   command joins them when it lands.
