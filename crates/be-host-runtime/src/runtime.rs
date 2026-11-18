@@ -399,6 +399,7 @@ impl Runtime {
         let mut instances = Instances::default();
         instances.allow_network(app.network.clone());
         instances.allow_block_agents(app.block_agents);
+        instances.allow_sharing(app.sharing);
         instances.set_app_id(app.identity.id.clone());
         Self {
             app: app.clone(),

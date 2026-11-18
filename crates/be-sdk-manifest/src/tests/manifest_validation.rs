@@ -36,6 +36,7 @@ fn manifest_validation() {
         network: vec!["api.github.com".into()],
         extensions: Vec::new(),
         block_agents: false,
+        sharing: false,
         hosts: Vec::new(),
         workers: Vec::new(),
         root: false,

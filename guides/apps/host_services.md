@@ -102,6 +102,14 @@ Notes on particular calls:
   refuses to rotate or remove anything but a block's agent the person made
   (`member.bound-to` and `created-by`); removing one no longer listed answers
   success without asking the server.
+- `list_access`, `set_access`, `transfer_ownership` and the share and contact
+  link calls grant access or reveal who has it, so the host denies them unless
+  the manifest sets `"sharing": true` (an app the person opened cannot share
+  what it shows, or read its links, unasked). Any app may still open a
+  settings kind of the block it shows, or one below it, to anyone inside
+  (`set_access(ANYONE_INSIDE, View)` or none), as the editor framework does when
+  it makes a kind every member reads (`ensure_edit_kind`): that
+  names no one.
 - `sign(bytes)` signs as the person and `verify(account, bytes, signature,
   arrived)` answers a `Signer` (verified, unverified, changed, replaced or
   bad), both in
