@@ -858,17 +858,23 @@ Each step lands on its own.
        `OwnSurface`s: beui's runner runs it as a program whose one window is the surface, beui's
        wgpu renderer draws it over `be3:gpu`'s `custom` backend into the surface's texture
        (`be_wasm_gpu_guest::texture`), and it hears what the router lands on the surface
-       (`Embedding::input` and `drew`'s `own`) in its points. `be3:root` gained what any
-       framework needs, nothing beui's: `host.fonts`, the fonts the host bundles (be-host's
-       `be_host_runtime::bundled_fonts`, which it tells its apps; `Root::with_fonts`), which the
-       root asks once and draws its text in; and the export `paintings`, what its own surfaces
+       (`Embedding::input` and `drew`'s `own`) in its points. `BeuiRoot` is what a root's surfaces share: the device, the
+       fonts and the host's clocks, pinned as beui's now each frame, so a document reads no
+       clock of its own; a surface draws when it heard input, was woken or a frame it asked for
+       is due (`BeuiSurface::next`). `be3:root` gained what any framework needs, nothing beui's:
+       `host.fonts`, the fonts the host bundles as the app protocol's own `Fonts`, encoded
+       (be-host's `be_host_runtime::bundled_fonts`, which it tells its apps; `Root::with_fonts`),
+       which the root asks once and draws its text in; `frame-request`'s `wall-clock`, the
+       host's wall clock (drive pins it); a root may start no threads (`App::refuse_threads`); and the export `paintings`, what its own surfaces
        painted in beui-paint-format's `ScreenPaintings` keyed by surface id, as `be3:debug`'s
        `paintings` is for an app, which `drive paint` under `--root` asks for
        (`Root::ask_paintings`, `take_paintings`; be-host is busy until it is answered) and places
        where the layers show those surfaces. be-sdk-root-testing draws its own surface with
        beui, `ROOT_COLOR` and `TEXT` in the host's fonts above the triangle's screen;
        be-wasm-root-host's `a_root_paints_its_own_surface_with_beui_in_the_hosts_fonts` reads its
-       glyphs from its painting, and the host test
+       glyphs from its painting, and
+       `a_roots_document_draws_again_when_the_frame_it_asked_for_comes` that a timer on the host's
+       frame clock redraws it when the frame it asked for comes, and the host test
        `a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds` reads the text's pixels and
        snapshots the painting.
        Left for later, and what it changes for 4g3 onward:

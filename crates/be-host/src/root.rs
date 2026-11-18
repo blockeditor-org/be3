@@ -209,26 +209,29 @@ impl RootShell {
             + self
                 .clock
                 .deadline(self.pass, context.clock_stopped(), since(Instant::now()));
-        let request = FrameRequest { time: nanos(time) };
+        let request = FrameRequest {
+            time: nanos(time),
+            wall_clock: nanos(be_host_base::host::wall_clock()),
+        };
         let done = match root.frame(request, deadline) {
             Ok(done) => done,
             Err(why) => return self.stopped(&why),
         };
         if let Some(painted) = root.take_paintings() {
             self.painting = false;
-            *self.paintings.borrow_mut() = match painted.is_empty() {
-                true => BTreeMap::new(),
-                false => match ScreenPaintings::decode(&painted) {
-                    Ok(painted) => painted
-                        .screens
-                        .into_iter()
-                        .filter_map(|(id, painting)| Some((u32::try_from(id).ok()?, painting)))
-                        .collect(),
-                    Err(why) => {
-                        return self.stopped(&format!("its paintings cannot be read: {why}"));
-                    }
-                },
+            // A painting that cannot be read paints nothing: it is for the tests, not the user.
+            let painted = match painted.is_empty() {
+                true => ScreenPaintings::default(),
+                false => ScreenPaintings::decode(&painted).unwrap_or_else(|why| {
+                    eprintln!("be-host: the root {}'s paintings cannot be read: {why}", self.app);
+                    ScreenPaintings::default()
+                }),
             };
+            *self.paintings.borrow_mut() = painted
+                .screens
+                .into_iter()
+                .filter_map(|(id, painting)| Some((u32::try_from(id).ok()?, painting)))
+                .collect();
         }
         self.next = done.next.map(Duration::from_nanos);
         self.owed = done.owed;
@@ -415,24 +418,9 @@ fn start(app: &str, setup: &beui::native::Setup) -> Result<Root, String> {
     Ok(root)
 }
 
-/// The fonts be-host bundles, which it tells its apps (be-host-runtime's `fonts::bundled`), as
-/// `be3:root` hands them to its root.
-fn fonts() -> Vec<be_wasm_root_api::FontFace> {
-    use be_wasm_root_api::{FontFace, FontRole};
-    be_host_runtime::bundled_fonts()
-        .faces
-        .into_iter()
-        .map(|face| FontFace {
-            role: match face.role {
-                be_sdk_api::FontRole::Text => FontRole::Text,
-                be_sdk_api::FontRole::Monospace => FontRole::Monospace,
-                be_sdk_api::FontRole::Fallback => FontRole::Fallback,
-                be_sdk_api::FontRole::Icons => FontRole::Icons,
-            },
-            index: face.index,
-            data: face.data,
-        })
-        .collect()
+/// The fonts be-host bundles, which it tells its apps, as `be3:root` hands them to its root.
+fn fonts() -> Vec<u8> {
+    be_sdk_api::ops::encode(&be_host_runtime::bundled_fonts())
 }
 
 fn nanos(time: Duration) -> u64 {

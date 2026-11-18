@@ -2111,6 +2111,31 @@ impl Renderer {
         }
     }
 
+    /// Draws `output` onto `target`, `size` pixels showing `screen` points at
+    /// `pixels_per_point`, over what it holds: prepares `repaint`, or `whole` if the renderer
+    /// finds it must repaint everything, then renders and submits. How a guest draws a
+    /// document into a surface's texture (be-sdk-beui-platform's screens, be-sdk-beui-root's
+    /// surfaces).
+    #[allow(clippy::too_many_arguments)]
+    pub fn draw_onto(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        output: &WindowOutput,
+        (screen, pixels_per_point): (Vec2, f32),
+        (repaint, whole): (Repaint, Repaint),
+        target: &wgpu::TextureView,
+        size: (u32, u32),
+    ) {
+        let prepared = self.prepare(device, queue, output, screen, pixels_per_point, repaint);
+        if matches!(repaint, Repaint::Region { .. }) && matches!(prepared, Repaint::Everything) {
+            self.prepare(device, queue, output, screen, pixels_per_point, whole);
+        }
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+        self.render(device, queue, &mut encoder, target, size, wgpu::LoadOp::Load);
+        queue.submit([encoder.finish()]);
+    }
+
     pub fn render(
         &mut self,
         device: &wgpu::Device,

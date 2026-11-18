@@ -1,6 +1,8 @@
 mod escaped;
 mod fonts;
 mod input;
+
+pub use fonts::sources as font_sources;
 mod platform;
 mod surface;
 

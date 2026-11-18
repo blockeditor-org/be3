@@ -3,13 +3,23 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use be_sdk_api::{FontRole, Fonts};
+use be_sdk_api::{FontFace, FontRole, Fonts};
 
 #[derive(Clone)]
 pub struct HostFont {
     pub role: FontRole,
     pub index: u32,
     pub data: Arc<[u8]>,
+}
+
+impl From<&FontFace> for HostFont {
+    fn from(face: &FontFace) -> Self {
+        Self {
+            role: face.role,
+            index: face.index,
+            data: face.data.as_slice().into(),
+        }
+    }
 }
 
 type Listener = Rc<dyn Fn(&[HostFont], bool)>;
@@ -49,15 +59,7 @@ pub fn report_missing(characters: impl IntoIterator<Item = char>) {
 }
 
 pub(crate) fn receive(fonts: &Fonts) {
-    let added: Vec<HostFont> = fonts
-        .faces
-        .iter()
-        .map(|face| HostFont {
-            role: face.role,
-            index: face.index,
-            data: face.data.as_slice().into(),
-        })
-        .collect();
+    let added: Vec<HostFont> = fonts.faces.iter().map(HostFont::from).collect();
     let listeners = STATE.with(|state| {
         let mut state = state.borrow_mut();
         if fonts.replace {
