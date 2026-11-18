@@ -20,7 +20,12 @@ The per-address and not-yet-signed-in limits stay in the accept loop and the fro
 they apply before a body is read. Routes are chosen by the end of the path, not by axum's
 router, since a proxy may mount the server below any path. A request with a
 `Transfer-Encoding` is still refused, so no proxy in front can frame a body otherwise than the
-server.
+server. Two `Content-Length`s with the same value, which the old parser refused, are now
+accepted as hyper and RFC 9112 accept them: every reader frames that body the same way.
+
+A trusted proxy pools its connections, so the front service takes a connection's places for
+the client each request forwards, and gives them back when the next request is another
+client's.
 
 ## Rejected
 

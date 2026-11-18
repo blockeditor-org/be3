@@ -724,3 +724,10 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   such a block is told when it changes, with a be-block-client test where a
   reader that knows a block only through a reference sees its new summary
   without reconnecting.
+
+- **A deadline on writing an answer.** hyper writes an answer for as long as
+  the client takes to read it, so a client that never reads a large S3 object
+  (up to `MAX_OBJECT_BYTES`) or a long-poll answer holds its connection and
+  place until the client goes. Done: `http::serve` gives up on a connection
+  whose answer has made no progress for `IDLE_TIMEOUT`, with a be-server test
+  where a client that stops reading a GetObject answer is disconnected.

@@ -323,8 +323,10 @@ counts and records nothing: `reserve-uploads` did before it signed.
     oldest of whichever is full instead of being refused, so one network
     never pushes out everyone else's.
   - Places are taken before a request's body is read: a connection's by its
-    peer in the accept loop, a trusted proxy's by the address its first
-    request forwards, in `http::front`, which also admits a request that is
+    peer in the accept loop, a trusted proxy's by the address each request
+    forwards, in `http::front` (a pooled connection that carries another
+    client's request gives the last client's places back and takes the new
+    one's, or answers 429 and closes), which also admits a request that is
     not signed in among `Unsigned` (an S3 request, signed by its URL, is not
     counted there). A connection that is let go of to make room closes.
   - hyper parses every head: one with more than `MAX_HEADERS` headers or
