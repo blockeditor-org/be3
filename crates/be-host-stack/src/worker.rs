@@ -1834,13 +1834,12 @@ impl Session<'_> {
                         if keyed {
                             peer.keys_changed();
                         }
-                        // An unread count made from a block's log is made again.
+                        // An unread count made from a block's log is made again, and the log's
+                        // searchable text is indexed on.
                         if let Some(Event::Appended(appended)) = &event {
-                            shared
-                                .lock()
-                                .unwrap_or_else(PoisonError::into_inner)
-                                .counting
-                                .appended(appended.block);
+                            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                            held.counting.appended(appended.block);
+                            held.search.sealed(appended.block);
                         }
                         match &event {
                             Some(message) => self.replicas.heard((peer, shared), message),
