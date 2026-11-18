@@ -145,15 +145,6 @@ Fixed items are removed as they land.
   test where many connections submit at once and every participant hears the
   entries in sequence.
 
-- **A silent holder keeps the lease for 90 seconds.** A holder whose
-  connection goes silent without closing stays the holder until be-server
-  drops the connection at `IDLE_TIMEOUT` (90 s), longer than the 30 s the
-  heartbeat lease took before leases came from the session order. The client
-  pings every `PING_INTERVAL` (15 s) and gives up after `PONG_WAIT` (20 s), so
-  a server limit of about 2 × `PING_INTERVAL` + `PONG_WAIT` (about 45 s) still
-  keeps every live client. Done: the server's limit derived from the client's
-  ping constants, with a be-server test that a silent connection's leave is
-  written within it.
 - **A terminal host stands by on a timer.** Since a claim takes the lease at
   once, a second terminal host waits `CLAIM_INTERVAL` (3 s) after it first sees
   a new holder before claiming, so the holder's presence can reach it first

@@ -512,7 +512,8 @@ struct Session {
     /// than `OUTBOUND_BYTES`.
     waiting: VecDeque<Vec<u8>>,
     waiting_bytes: usize,
-    heard: Instant,
+    /// When it last posted, or a piece of an answer to it was written (`noting_writes`).
+    heard: Arc<std::sync::Mutex<Instant>>,
     _place: Held,
 }
 
@@ -520,8 +521,32 @@ impl Session {
     /// Whether the session should end: unheard from for too long, or holding more than it may
     /// for a client that does not collect it.
     fn lapsed(&self) -> bool {
-        self.heard.elapsed() > IDLE_TIMEOUT || self.queued.overflowed()
+        self.heard.lock().unwrap().elapsed() > IDLE_TIMEOUT || self.queued.overflowed()
     }
+}
+
+/// The bytes of an answer one piece at a time, noting in `heard` as each is taken: hyper takes
+/// the next only once the one before was written, so a client reading a large answer on a slow
+/// link is not taken for silent while it reads, and the last note is when it was all written.
+fn noting_writes(body: Vec<u8>, heard: Arc<std::sync::Mutex<Instant>>) -> Body {
+    use futures_util::StreamExt;
+    const PIECE: usize = 64 * 1024;
+    let bytes = Bytes::from(body);
+    let pieces: Vec<Bytes> = (0..bytes.len())
+        .step_by(PIECE)
+        .map(|at| bytes.slice(at..(at + PIECE).min(bytes.len())))
+        .collect();
+    let end = Arc::clone(&heard);
+    let written = futures_util::stream::once(async move {
+        *end.lock().unwrap() = Instant::now();
+        None
+    })
+    .filter_map(|nothing: Option<Bytes>| async move { nothing.map(Ok) });
+    let pieces = futures_util::stream::iter(pieces).map(move |piece| {
+        *heard.lock().unwrap() = Instant::now();
+        Ok::<_, std::convert::Infallible>(piece)
+    });
+    Body::from_stream(pieces.chain(written))
 }
 
 impl Sessions {
@@ -552,7 +577,7 @@ impl Sessions {
             outbound,
             waiting: VecDeque::new(),
             waiting_bytes: 0,
-            heard: Instant::now(),
+            heard: Arc::new(std::sync::Mutex::new(Instant::now())),
             _place: place,
         };
         sessions.insert(id.clone(), Arc::new(Mutex::new(session)));
@@ -624,6 +649,8 @@ struct Answer {
     more: bool,
     /// Whether the post's session is signed in.
     signed_in: bool,
+    /// The session's, noted as the answer is written (`noting_writes`).
+    heard: Option<Arc<std::sync::Mutex<Instant>>>,
 }
 
 impl Answer {
@@ -635,6 +662,7 @@ impl Answer {
             keep,
             more: false,
             signed_in: false,
+            heard: None,
         }
     }
 }
@@ -667,7 +695,8 @@ async fn answer(
         }
         return Ok(gone);
     }
-    held.heard = Instant::now();
+    *held.heard.lock().unwrap() = Instant::now();
+    let heard = Arc::clone(&held.heard);
     let Session {
         client,
         queued,
@@ -747,6 +776,7 @@ async fn answer(
             keep: false,
             more: false,
             signed_in: false,
+            heard: None,
         });
     }
     Ok(Answer {
@@ -756,6 +786,7 @@ async fn answer(
         keep: true,
         more: !waiting.is_empty() || !outbound.is_empty(),
         signed_in,
+        heard: Some(heard),
     })
 }
 
@@ -776,6 +807,7 @@ async fn open_session(
         session,
         body: framed(&[hello(ours, welcome)]),
         more: false,
+        heard: None,
     };
     let Some(greeting) = greeting else {
         return Ok(Answer {
@@ -785,6 +817,7 @@ async fn open_session(
             keep: false,
             more: false,
             signed_in: false,
+            heard: None,
         });
     };
     let Some(place) = services.http.reserve(address) else {
@@ -827,15 +860,24 @@ async fn open_session(
 impl IntoResponse for Answer {
     fn into_response(self) -> Response {
         let status = StatusCode::from_u16(self.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+        let length = self.body.len();
+        let body = match self.heard {
+            Some(heard) => noting_writes(self.body, heard),
+            None => Body::from(self.body),
+        };
         let mut response = (
             status,
             [
                 (header::CONTENT_TYPE, "application/octet-stream"),
                 (header::CACHE_CONTROL, "no-store"),
             ],
-            self.body,
+            body,
         )
             .into_response();
+        // Its length, which a body in pieces does not say itself, so it is not sent chunked.
+        response
+            .headers_mut()
+            .insert(header::CONTENT_LENGTH, HeaderValue::from(length));
         let headers = response.headers_mut();
         if let Some(session) = self.session.and_then(|session| session.parse().ok()) {
             headers.insert(SESSION_HEADER, session);
@@ -933,6 +975,7 @@ fn framed_answer(frames: &[Vec<u8>]) -> Response {
         keep: false,
         more: false,
         signed_in: false,
+        heard: None,
     }
     .into_response()
 }

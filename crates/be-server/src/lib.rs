@@ -242,7 +242,10 @@ const MAX_UNSIGNED_CONNECTIONS: usize = MAX_CONNECTIONS / 4;
 pub(crate) const MAX_UNSIGNED_CONNECTIONS_PER_ADDRESS: usize = 8;
 pub(crate) const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const PING_INTERVAL: Duration = Duration::from_secs(30);
-pub(crate) const IDLE_TIMEOUT: Duration = Duration::from_secs(90);
+/// A connection silent this long is given up on, and leaves every session it was in: as long as a
+/// live client ever goes without sending (be-block-protocol's `CLIENT_SILENCE`), and no longer,
+/// so a holder that went silent gives up its lease soon.
+pub(crate) const IDLE_TIMEOUT: Duration = be_block_protocol::CLIENT_SILENCE;
 const DRAIN_TIMEOUT: Duration = Duration::from_secs(30);
 /// How often idle, unauthenticated and overflowing HTTP sessions are swept away.
 const SWEEP_INTERVAL: Duration = Duration::from_secs(10);
@@ -649,7 +652,9 @@ impl Services {
     }
 }
 
-/// When a connection last read any bytes, so a message still arriving is not taken for silence.
+/// When a connection last read any bytes, or wrote some: a message still arriving is not taken
+/// for silence, nor is a client still reading what the server sends, which on a slow link may be
+/// all it does for a while (its automatic Pong waits behind what is queued).
 #[derive(Clone)]
 pub(crate) struct Heard(Arc<std::sync::Mutex<tokio::time::Instant>>);
 
@@ -659,7 +664,7 @@ impl Heard {
     }
 }
 
-/// A stream that notes in its `Heard` each time it reads.
+/// A stream that notes in its `Heard` each time it reads or a write goes out.
 pub(crate) struct Watched<S> {
     inner: S,
     heard: Heard,
@@ -699,7 +704,11 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for Watched<S> {
         context: &mut std::task::Context<'_>,
         buffer: &[u8],
     ) -> std::task::Poll<io::Result<usize>> {
-        std::pin::Pin::new(&mut self.inner).poll_write(context, buffer)
+        let polled = std::pin::Pin::new(&mut self.inner).poll_write(context, buffer);
+        if matches!(polled, std::task::Poll::Ready(Ok(written)) if written > 0) {
+            *self.heard.0.lock().unwrap() = tokio::time::Instant::now();
+        }
+        polled
     }
 
     fn poll_flush(
@@ -717,7 +726,7 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for Watched<S> {
     }
 }
 
-/// The next message, or none once nothing at all has been read for `IDLE_TIMEOUT`. A large
+/// The next message, or none once nothing at all has been read or written for `IDLE_TIMEOUT`. A large
 /// message on a slow link takes as long as it takes, as long as its bytes keep coming.
 pub(crate) async fn next_heard<M>(
     source: &mut (impl futures_util::Stream<Item = M> + Unpin),
