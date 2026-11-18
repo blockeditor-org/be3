@@ -480,7 +480,9 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
    Left for step 6, which needs the host adapter's cross-app session:
    - **`Editor::drag` and `accept_drag` as the handoff.** Each app view is a `custom` site
      that only forwards points; it becomes an `Into` candidate whose app runs the engine over
-     its own places and answers the rect it chose, so the host glides the item there.
+     its own places and answers the rect it chose, so the host glides the item there. The
+     host lifts at the first pointer pressing (`PointerSample`); with two pressing, the
+     cross-app session should name the pointer that pressed in the sending view.
    - **`Reorder`'s tree-only `hover`, `part`, `shut` and `resting`, with `visit` and
      `slot_at`**, which only the files pane's tree uses; its rows' drag is the host's block
      drag, so it moves with the handoff.
