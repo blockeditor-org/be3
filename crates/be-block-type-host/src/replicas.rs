@@ -3764,20 +3764,20 @@ impl<H: Host> Replicas<H> {
     /// hears the entry as it is now, so its editors show it redacted.
     fn redacted(&mut self, peer: &Arc<Peer<H::Store>>, redacted: &be_block_protocol::Redacted) {
         let block = redacted.block;
-        let Ok(Some(entry)) = peer.redacted(redacted) else {
-            return;
-        };
-        let Some(module) = self
+        let module = self
             .blocks
             .get(&block)
             .and_then(|replica| self.open.get(replica))
-            .map(|open| open.module)
-        else {
-            return;
-        };
-        let app = self.modules.name(module).to_owned();
-        let (peer, io) = (Arc::clone(peer), self.io.clone());
+            .map(|open| open.module);
+        let app = module.map(|module| self.modules.name(module).to_owned());
+        let (peer, io, redacted) = (Arc::clone(peer), self.io.clone(), redacted.clone());
         H::spawn(async move {
+            let Ok(Some(entry)) = peer.redacted(&redacted).await else {
+                return;
+            };
+            let Some(app) = app else {
+                return;
+            };
             let items = log_items(&peer, block, &app, vec![entry]).await;
             if !items.is_empty() {
                 let _ = io.send(Io::Logged { block, items });
