@@ -66,11 +66,8 @@ fn presented(serial: u64) -> Heard {
 fn held_docks(runtime: &Runtime) -> usize {
     runtime
         .held
-        .iter()
-        .map(|held| match held {
-            Answer::Laid(laid) => laid.docks.len(),
-            _ => 0,
-        })
+        .laid()
+        .map(|laid| laid.docks.len())
         .sum()
 }
 

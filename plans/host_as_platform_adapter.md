@@ -588,9 +588,19 @@ Each step lands on its own.
          budget; `held_behind` orders placers before their children. be-host-runtime keeps
          which runtimes are asked, their placers and its bell, and sends the `Draw`. Its pacing
          tests moved with it. No geometry was involved.
-       - 4e4b. The layout and present holds (`Laid`, `Kept`, `Closing`), restarts and grafting
-         the accessibility trees, on be-lib-geometry rather than beui's geometry. It may split
-         again.
+       - 4e4b. Built: the layout and present holds, `be_sdk_app_host::holds`. `Holds` keeps
+         what of a layout commit waits for the present that follows it (`heard_layout` splits
+         the commit, with the host saying which children only move; `Laid`), the answers heard
+         after it, and the counts that release them (`release_presented`,
+         `waits_for_children`); `Shown` keeps the anchored views a layout closed until the
+         frame that closed them is drawn (`place`, `closed`) and the last frames of views left
+         out (`keep_left_out`, `release_kept`, `MOST_KEPT`), counting presents applied
+         (`presented`), for a host that holds the textures; `Presents` the damage of the
+         presents since the last frame shown. be-host-runtime drives them, and keeps the frame
+         held for children, the presenter's state and the instances they consult. These use no
+         geometry either, only be-sdk-api's placements.
+       - 4e4c. Restarts and grafting the accessibility trees, on be-lib-geometry rather than
+         beui's geometry. It may split again.
      - 4e5. A root built on the library embeds an editor without the host's compositor, shown by
        a host test, and the root gets its `input` export, routed by `Router` over its last
        list. be-host runs it through a run option that starts a root module in place of its
