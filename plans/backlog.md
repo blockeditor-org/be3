@@ -37,6 +37,14 @@ Fixed items are removed as they land.
 
 ## 7. Sessions
 
+- **Edits on their way at a restart.** A replica whose editor typed and erased in a run of
+  edits not yet numbered (one in flight, the rest absorbed into one waiting in `unsent`) when a
+  restart lands comes out with some of them wrong: in be-sdk-type-guest's
+  `an_editors_edit_made_before_two_restarts_it_was_not_shown_lands` without its `sim.settle()`
+  before each restart, "scratch 0 " survives each restart and a later insert lands inside it.
+  Likely `carry_pending` carrying an absorbed run by its visible splices. Done when that test
+  passes with the settle removed.
+
 - **A Join channel test that once heard more than Closed.** be-host-stack's
   `a_joined_channel_opens_to_its_host_and_again_to_the_next` once failed where the first
   host leaves: it heard something other than (or before) `Closed`, maybe a second `Closed`
