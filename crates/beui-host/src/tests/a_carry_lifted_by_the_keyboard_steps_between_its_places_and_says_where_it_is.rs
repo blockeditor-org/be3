@@ -36,7 +36,7 @@ fn a_carry_lifted_by_the_keyboard_steps_between_its_places_and_says_where_it_is(
                 dropped.update(|dropped| dropped.push(name))
             }),
         );
-        create_effect(move || carried.set(carrying::<u32>()));
+        create_effect(move || carried.set(carrying::<u32>().first().copied()));
         view! {
             <List spacing=20.0 align=Align::Start>
                 <Interactive

@@ -205,8 +205,10 @@ pub(crate) fn Stage(
     };
     let board = beui::unstyled::drag_board();
     let lifted = create_memo(move || {
-        let Carried(from) = carrying::<Carried>()?;
-        let rect = board.frame_of::<Carried>()?.item;
+        // The board's site serves one carry at a time: the first lifted.
+        let carried = carrying::<Carried>().into_iter().next()?;
+        let rect = board.frame_of(&carried)?.item;
+        let Carried(from) = carried;
         let held = hand.with(|hand| {
             hand.iter()
                 .find(|held| held.spot == from)

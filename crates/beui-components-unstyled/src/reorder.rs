@@ -12,7 +12,7 @@ use std::rc::Rc;
 use be_lib_stable_hash::HashMap;
 
 use crate::drag_board::drag_board;
-use crate::drop_site::{carrying, slots_in, use_drop_site};
+use crate::drop_site::{slots_in, use_drop_site};
 use accesskit::{Live, Node, Role};
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
@@ -71,6 +71,8 @@ struct State<K: 'static, P: 'static> {
     on_outside: Callback<(P, DragPoint)>,
     /// The row of this list that is carried.
     carried: Signal<Option<K>>,
+    /// The payload of that row's carry, which names it on the board.
+    own: Signal<Option<P>>,
     /// Whether the carry is on a place in this list.
     over_here: Signal<bool>,
     /// This list's row carried off it, collapsed while its slot closes, or while the slot
@@ -546,7 +548,7 @@ where
             .as_ref()
             .and_then(|own| keys.iter().position(|key| key == own));
         if own.is_none()
-            && let Some(frame) = untrack(|| drag_board().frame_of::<P>())
+            && let Some(frame) = untrack(|| drag_board().frame_of(&payload))
         {
             *state.arrival.borrow_mut() = Some(Arrival::New(keys.clone(), frame.item.min));
         }
@@ -620,6 +622,7 @@ where
         }
         let payload = state.payload.call(key.clone())?;
         state.carried.set(Some(key.clone()));
+        state.own.set(Some(payload.clone()));
         state.raised.set(Some(key.clone()));
         state.on_drag_change.call(Some(key.clone()));
         // The list draws the row's preview itself, at its root, while it floats: the row is
@@ -662,6 +665,10 @@ where
 {
     let keys = create_memo(move || value.get());
     let carried = create_signal(None::<K>);
+    let own = create_signal(None::<P>);
+    // The payload of the carry this list's site gives places to (its own row's, or one from
+    // elsewhere): a site serves one carry at a time.
+    let serving = create_signal(None::<P>);
     let over_here = create_signal(false);
     let gap = create_signal(None::<ReorderGap<K>>);
     let visited = create_signal(false);
@@ -681,6 +688,7 @@ where
         on_drag_change,
         on_outside,
         carried,
+        own,
         over_here,
         folded: create_signal(None),
         returning: Cell::new(false),
@@ -704,17 +712,36 @@ where
                 || (!disabled.get_untracked()
                     && accepts.is_some_and(|accepts| accepts.call(payload)))
         }),
-        Func::new(move |payload: P| spec(state, payload)),
+        Func::new(move |payload: P| {
+            serving.set(Some(payload.clone()));
+            spec(state, payload)
+        }),
         Callback::new(move |(payload, After(after)): (P, After<K>)| {
             commit(state, payload, after);
         }),
     );
-    // The carry ends when the board carries nothing: whatever it was dropped on has heard.
+    // This list's row's carry ends when the board no longer carries its payload: whatever
+    // it was dropped on has heard.
     create_effect(move || {
-        if carrying::<P>().is_none() && carried.with_untracked(Option::is_some) {
-            carried.set(None);
-            state.with(mark_move);
-            on_drag_change.call(None);
+        let ended = own.with(|own| own.as_ref().is_some_and(|own| !drag_board().carries(own)));
+        if ended {
+            own.set(None);
+            if carried.with_untracked(Option::is_some) {
+                carried.set(None);
+                state.with(mark_move);
+                on_drag_change.call(None);
+            }
+        }
+    });
+    // The site serves no carry once the one it served ends.
+    create_effect(move || {
+        let ended = serving.with(|served| {
+            served
+                .as_ref()
+                .is_some_and(|served| !drag_board().carries(served))
+        });
+        if ended {
+            serving.set(None);
         }
     });
     // A carry from elsewhere parts the rows where it would land; this list's own row is
@@ -783,14 +810,24 @@ where
     // this list's own row, floating off it, is drawn here too, under the pointer: the row
     // itself is collapsed then, and what a collapsed row holds is not shown.
     let floating = create_memo(move || {
-        carried.with(Option::is_some) && drag_board().frame_of::<P>().is_some_and(|frame| frame.floating)
+        carried.with(Option::is_some)
+            && own.with(|own| {
+                own.as_ref()
+                    .and_then(|own| drag_board().frame_of(own))
+                    .is_some_and(|frame| frame.floating)
+            })
     });
-    let visiting =
-        create_memo(move || (visited.get() || floating.get()) && carrying::<P>().is_some());
+    // What the overlay draws: this list's own row while it floats, else the carry from
+    // elsewhere that visits it.
+    let previewing = create_memo(move || match floating.get() {
+        true => own.get(),
+        false => visited.get().then(|| serving.get()).flatten(),
+    });
+    let visiting = create_memo(move || previewing.with(Option::is_some));
     let anchor = create_memo(move || {
         OverlayAnchor::Point(
-            drag_board()
-                .frame_of::<P>()
+            previewing
+                .with(|shown| shown.as_ref().and_then(|shown| drag_board().frame_of(shown)))
                 .map_or(Pos2::ZERO, |frame| frame.item.min),
         )
     });
@@ -807,7 +844,7 @@ where
                 open={visiting}
             >
                 <Dynamic
-                    value={move || carrying::<P>()}
+                    value={move || previewing.get()}
                     fallback={|| view! {
                         <Frame />
                     }}
@@ -856,6 +893,7 @@ where
     let key = create_memo(move || item.get());
     let (carried, over_here, raised_key, gap) =
         state.with(|state| (state.carried, state.over_here, state.raised, state.gap));
+    let own = state.with(|state| state.own);
     let mine =
         create_memo(move || carried.with(|carried| key.with(|key| carried.as_ref() == Some(key))));
     let fixed = state.with(|state| state.fixed);
@@ -983,7 +1021,10 @@ where
     // to its slot.
     let holding = Cell::new(false);
     create_effect(move || {
-        let frame = held.get().then(|| drag_board().frame_of::<P>()).flatten();
+        let frame = held
+            .get()
+            .then(|| own.with(|own| own.as_ref().and_then(|own| drag_board().frame_of(own))))
+            .flatten();
         if frame.is_none() && !holding.get() {
             return;
         }
@@ -1003,7 +1044,8 @@ where
         let last = Rc::clone(&last);
         create_effect(move || {
             if away.get()
-                && let Some(frame) = drag_board().frame_of::<P>()
+                && let Some(frame) =
+                    own.with(|own| own.as_ref().and_then(|own| drag_board().frame_of(own)))
             {
                 last.set(Some(frame.item.min));
             }

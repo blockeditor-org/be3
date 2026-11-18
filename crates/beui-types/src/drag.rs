@@ -176,6 +176,7 @@ pub trait Driver {
     fn release(&self, pointer: PointerId, cancelled: bool, order: Order);
     /// Puts down every carry (Escape); whether there was one.
     fn cancel(&self) -> bool;
+    /// Stops every carry's edge scrolling: the core has lost the pointer's position.
     fn stop_edge(&self);
     /// Whether `pointer` may lift a carry now: it carries none already.
     fn lifts(&self, pointer: PointerId) -> bool;

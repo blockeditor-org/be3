@@ -33,7 +33,7 @@ fn a_source_that_activates_keeps_its_keys_and_moves_with_ctrl_shift_or_the_palet
                 dropped.update(|dropped| dropped.push(name))
             }),
         );
-        create_effect(move || carried.set(carrying::<u32>()));
+        create_effect(move || carried.set(carrying::<u32>().first().copied()));
         let open = create_signal(false);
         on_key(
             KeyAt::Root,

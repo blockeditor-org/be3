@@ -18,7 +18,7 @@ fn a_mouse_press_lifts_a_source_that_lifts_on_press_and_a_finger_lifts_past_its_
             Callback::new(move |(_, at): (u32, Pos2)| dropped.set(Some(at))),
         );
         create_effect(move || over.set(site.over.get()));
-        create_effect(move || carried.set(carrying::<u32>()));
+        create_effect(move || carried.set(carrying::<u32>().first().copied()));
         view! {
             <Frame @node_ref=&track width=300.0 height=40.0>
                 <Interactive

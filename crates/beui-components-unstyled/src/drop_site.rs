@@ -91,14 +91,15 @@ where
     }
 }
 
-/// The payload carried on the tree's board, if it is a `P`; tracked.
-pub fn carrying<P: Clone + 'static>() -> Option<P> {
-    drag_board().carried_of::<P>()
+/// Every payload carried on the tree's board that is a `P`, in the order they were lifted;
+/// tracked. A component that knows its own payload asks `Board::carries` instead.
+pub fn carrying<P: Clone + 'static>() -> Vec<P> {
+    drag_board().carried::<P>()
 }
 
-/// Whether `key` is what is carried; a row draws itself as the gap while it is.
+/// Whether `key` is carried, by any pointer; a row draws itself as the gap while it is.
 pub fn is_carried<K: Clone + PartialEq + 'static>(key: K) -> Memo<bool> {
-    create_memo(move || carrying::<K>().is_some_and(|carried| carried == key))
+    create_memo(move || drag_board().carries(&key))
 }
 
 /// A place that is the whole of `node`, chosen while the pointer is on it (a slot, a folder,

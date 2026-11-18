@@ -22,7 +22,7 @@ fn a_finger_held_on_a_source_lifts_its_carry_and_drops_it_where_it_moves() {
             }),
             Callback::new(move |_: (u32, ())| dropped.update(|dropped| *dropped += 1)),
         );
-        create_effect(move || carried.set(carrying::<u32>()));
+        create_effect(move || carried.set(carrying::<u32>().first().copied()));
         view! {
             <List spacing=60.0 align=Align::Start>
                 <Interactive

@@ -66,7 +66,7 @@ impl Fixture {
     }
 
     fn carried(&self) -> Option<u32> {
-        self.board.carried_of::<u32>()
+        self.board.carried::<u32>().first().copied()
     }
 
     fn release(&self) {

@@ -29,7 +29,7 @@ fn a_finger_pressed_while_the_mouse_carries_neither_moves_nor_drops_its_carry() 
         let on_left = site(left, "left");
         let on_right = site(right, "right");
         create_effect(move || over.set((on_left.over.get(), on_right.over.get())));
-        create_effect(move || carried.set(carrying::<u32>()));
+        create_effect(move || carried.set(carrying::<u32>().first().copied()));
         view! {
             <List spacing=10.0>
                 <Interactive drag={Func::new(|_: PointerPress| Some(Carry::new(7_u32)))}>

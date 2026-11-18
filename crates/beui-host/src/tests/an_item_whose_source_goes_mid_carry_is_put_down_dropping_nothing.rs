@@ -23,7 +23,7 @@ fn an_item_whose_source_goes_mid_carry_is_put_down_dropping_nothing() {
             }),
             Callback::new(move |_: (u32, ())| dropped.update(|dropped| *dropped += 1)),
         );
-        create_effect(move || carried.set(carrying::<u32>()));
+        create_effect(move || carried.set(carrying::<u32>().first().copied()));
         view! {
             <List spacing=10.0>
                 <Show value={shown}>

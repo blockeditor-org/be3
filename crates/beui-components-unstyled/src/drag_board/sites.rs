@@ -378,33 +378,40 @@ impl Board {
             .is_none_or(|placing| placing.carry.scrolls)
     }
 
-    /// The payload of a carry that is a `P`, if one is carried: tracked, so a site or row
-    /// reading it follows the lift.
-    pub fn carried_of<P: Clone + 'static>(&self) -> Option<P> {
+    /// Every carried payload that is a `P`, in the order they were lifted: tracked, so a
+    /// site or row reading it follows each lift and put-down.
+    pub fn carried<P: Clone + 'static>(&self) -> Vec<P> {
         self.lifted.with(|lifted| {
             lifted
                 .iter()
-                .find_map(|(_, payload)| payload.downcast_ref::<P>().cloned())
+                .filter_map(|(_, payload)| payload.downcast_ref::<P>().cloned())
+                .collect()
         })
     }
 
-    /// Whether anything is carried; tracked.
-    pub fn carries_any(&self) -> bool {
-        self.lifted.with(|lifted| !lifted.is_empty())
+    /// Whether `payload` is carried; tracked.
+    pub fn carries<P: PartialEq + 'static>(&self, payload: &P) -> bool {
+        self.carry_with(payload).is_some()
     }
 
-    /// The frame of the carry whose payload is a `P`: where its item draws and whether it
-    /// floats; tracked. Peers are shown a carry by its site, which publishes the place
-    /// chosen in it (its `over`) as presence in its own terms, so their copy of the site
-    /// draws it in their view (a canvas's carried shapes at their world place).
-    pub fn frame_of<P: 'static>(&self) -> Option<DragFrame> {
-        let id = self.lifted.with(|lifted| {
+    /// The carry whose payload is `payload`; tracked.
+    fn carry_with<P: PartialEq + 'static>(&self, payload: &P) -> Option<CarryId> {
+        self.lifted.with(|lifted| {
             lifted
                 .iter()
-                .find(|(_, payload)| payload.is::<P>())
+                .find(|(_, carried)| carried.downcast_ref::<P>() == Some(payload))
                 .map(|(id, _)| *id)
-        })?;
-        self.frame_by(id)
+        })
+    }
+
+    /// The frame of the carry whose payload is `payload`: where its item draws and whether
+    /// it floats; tracked. A component names its own carry by its payload, so two carries
+    /// of one type (two rows of lists of one key type, two splitters) are told apart. Peers
+    /// are shown a carry by its site, which publishes the place chosen in it (its `over`) as
+    /// presence in its own terms, so their copy of the site draws it in their view (a
+    /// canvas's carried shapes at their world place).
+    pub fn frame_of<P: PartialEq + 'static>(&self, payload: &P) -> Option<DragFrame> {
+        self.frame_by(self.carry_with(payload)?)
     }
 
     /// The frame carry `id` shows; tracked.

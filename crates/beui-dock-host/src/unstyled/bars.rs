@@ -79,7 +79,7 @@ impl DockBarDriver for State {
     }
 
     fn moving(&self, bar: TabId) -> bool {
-        self.panels.is_alive() && self.carried() == Some(DockDragged::Bar(bar))
+        self.panels.is_alive() && self.carries(DockDragged::Bar(bar))
     }
 
     fn place(&self, bar: TabId, placement: DockBarPlacement) {
@@ -1776,7 +1776,7 @@ pub(super) fn DockBarLifted(dock: State) -> NodeId {
     };
     let at = create_memo(move || {
         let lift = lifting.lifted.get()?;
-        let frame = board.frame_of::<super::DockCarry>()?;
+        let frame = board.frame_of(&dock.carry(DockDragged::Bar(lift.bar)))?;
         let pointer = frame.item.center();
         let over = lifting.over.get().and_then(|over| over.get());
         let long = |grab: Vec2| match lift.size.x >= lift.size.y {

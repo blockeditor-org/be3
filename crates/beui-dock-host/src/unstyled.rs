@@ -35,7 +35,8 @@ use beui_components_unstyled::menu::{MenuItem, MenuNodes};
 use beui_components_unstyled::menu_popup::MenuStyle;
 use beui_components_unstyled::rubber_band::Band;
 use beui_components_unstyled::{
-    Reorder, ReorderHandle, ReorderItem, ReorderItemHandle, ReorderMove, carrying, use_drop_site,
+    Reorder, ReorderHandle, ReorderItem, ReorderItemHandle, ReorderMove, carrying, drag_board,
+    use_drop_site,
 };
 use beui_view::components::overlay::Overlay;
 use beui_view::components::root::Root;
@@ -1266,11 +1267,19 @@ impl State {
         })
     }
 
-    /// What this dock carries, if the board carries anything of it.
+    /// The tab or pane this dock carries, if the board carries one of it (a tool bar
+    /// carried at once is `carried_bar`'s).
     fn carried(&self) -> Option<DockDragged> {
         carrying::<DockCarry>()
+            .into_iter()
             .filter(|carry| carry.dock == self.id)
             .map(|carry| carry.dragged)
+            .find(|dragged| !matches!(dragged, DockDragged::Bar(_)))
+    }
+
+    /// Whether the board carries `dragged` of this dock; tracked.
+    fn carries(&self, dragged: DockDragged) -> bool {
+        drag_board().carries(&self.carry(dragged))
     }
 
     fn carry(&self, dragged: DockDragged) -> DockCarry {
@@ -1617,11 +1626,13 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     let offers = create_signal(HashMap::default());
     let id = NEXT_DOCK.with(|next| next.replace(next.get() + 1));
     let carried_bar = create_memo(move || {
-        let carry = carrying::<DockCarry>().filter(|carry| carry.dock == id)?;
-        match carry.dragged {
-            DockDragged::Bar(bar) => Some(bar),
-            _ => None,
-        }
+        carrying::<DockCarry>()
+            .into_iter()
+            .filter(|carry| carry.dock == id)
+            .find_map(|carry| match carry.dragged {
+                DockDragged::Bar(bar) => Some(bar),
+                _ => None,
+            })
     });
     let dock = State {
         state,
@@ -3038,7 +3049,7 @@ fn DockTabView(
                 .is_some_and(|index| index + 1 < entries.len())
         })
     });
-    let dragged = create_memo(move || dock.carried() == Some(DockDragged::Entry(entry)));
+    let dragged = create_memo(move || dock.carries(DockDragged::Entry(entry)));
     let close = Callback::new(move |()| dock.close_entry(entry));
     let float = Callback::new(move |()| dock.float_entry(entry));
     let group = Callback::new(move |()| {
@@ -3381,7 +3392,12 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
                 let (start, available) = (splitter.size, splitter.available(dock.thickness));
                 started.set(Some(start));
                 beui_view::drag::free(area, move |rect: Rect| {
-                    start.moved(available, direction.main(rect.min.to_vec2() - home))
+                    // A press that never moves leaves the size as it is, not clamped.
+                    let travel = direction.main(rect.min.to_vec2() - home);
+                    match travel == 0.0 {
+                        true => start,
+                        false => start.moved(available, travel),
+                    }
                 })
                 .unbounded()
                 // A keyboard carry steps as the arrows do.
@@ -3409,7 +3425,7 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
     {
         let kept = Rc::clone(&kept);
         create_effect_on_change(
-            move || carrying::<SplitterCarry>() == Some(carried),
+            move || drag_board().carries(&carried),
             move |held: &bool, _| {
                 if *held {
                     return;

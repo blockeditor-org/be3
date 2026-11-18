@@ -398,10 +398,14 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
 7. **Several carries at once (done).** The board holds one carry per pointer: a pointer that
    carries lifts nothing more, a source already carried is not lifted again, each pointer's
    points move and release only its own carry, and Escape puts down every one. `Driver` names
-   carries by id (`holds`, `frame(carry)`, `lifts(pointer)`), and a component reads the carry of
-   its payload type (`carrying::<P>()`, `Board::frame_of::<P>()`). A site gives places to one
-   carry at a time: a second carry lifted while a site gives them to another gets none from it,
-   so two fingers on one list's rows do not both reorder it. Of several carries, the first held
+   carries by id (`holds`, `frame(carry)`, `lifts(pointer)`), and a component names its own carry
+   by its payload's value (`Board::carries(&payload)`, `Board::frame_of(&payload)`), so two
+   carries of one type stay apart; `carrying::<P>()` lists every carried `P`. A site gives
+   places to one carry at a time: a second carry lifted while a site gives them to another gets
+   none from it, even once the first ends, so two pointers on one list's rows do not both
+   reorder it. Limits left: whether the pointer is outside every window is one flag for every
+   pointer (`Driver::set_outside`), and `Driver::stop_edge`, which the core calls when it has no
+   pointer position at all, stops every carry's edge scroll. Of several carries, the first held
    in an edge band scrolls it. The native core turns a second finger in one window into a
    gesture and cancels the first finger's press, so two fingers never carry at once there: the
    mouse and a finger, or the VR layer's two controllers, do. Moving two sliders with two
@@ -421,7 +425,10 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
    - **The dock's splitters (done).** A splitter is `free(canvas, ..)`, unbounded, lifted at
      the press and previewed by writing (`State::drag_edit`), its drop writing its place and a
      put-down (Escape, a cancelled press) writing back the size at the lift; a release outside
-     every window keeps where it was. Its arrows step it as before, and a keyboard carry steps
+     every window keeps where it was. Outside every window the board chooses no place, so the
+     splitter holds the size at the last point inside it, where on `on_drag` it followed the
+     captured pointer out, clamped; following a `free` place outside the window waits for a
+     need, since outside is where a tab floats into a window of its own. Its arrows step it as before, and a keyboard carry steps
      `SPLIT_STEP` too. It gained Escape; it lost nothing the splitter tests pin. Lines:
      `DockSplitterView` was 91 and is 155. What it writes that the language should give, before
      the sliders move: the splitter's offset in the area, found to turn the item's rect into
