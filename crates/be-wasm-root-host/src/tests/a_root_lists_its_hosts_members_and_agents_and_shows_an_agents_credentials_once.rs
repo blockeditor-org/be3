@@ -175,6 +175,26 @@ fn a_root_lists_its_hosts_members_and_agents_and_shows_an_agents_credentials_onc
     let _ = asks(&mut root, &mut time, key(Key::Escape));
     let _ = asks(&mut root, &mut time, key(OPENS_AGENTS));
     assert_eq!(painting(&mut root, &mut time), listed, "reopened, no credentials are held");
+    // A request whose dialog closed before the host took it is never made: no credentials
+    // are minted for nobody.
+    let _ = asks(
+        &mut root,
+        &mut time,
+        [ImeEvent::Enabled, ImeEvent::CommitText("Orphan".to_owned())]
+            .into_iter()
+            .map(|event| Input::Ime(event).into())
+            .collect(),
+    );
+    root.input(None, be_lib_ui_types::input::encode(&key(Key::Enter)))
+        .expect("the root takes input");
+    root.input(None, be_lib_ui_types::input::encode(&key(Key::Escape)))
+        .expect("the root takes input");
+    let _ = asks(&mut root, &mut time, Vec::new());
+    assert!(
+        root.take_secret_requests().is_empty(),
+        "a request cancelled before the host took it reaches it not"
+    );
+    let _ = asks(&mut root, &mut time, key(OPENS_AGENTS));
     let _ = root.take_core_commands();
     let commands = asks(&mut root, &mut time, click(pos2(297.0, 122.0)));
     assert!(
