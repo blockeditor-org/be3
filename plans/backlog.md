@@ -37,6 +37,12 @@ Fixed items are removed as they land.
 
 ## 7. Sessions
 
+- **A due restart others' writing keeps putting off.** A restart waits for a seal holding
+  everything the order numbered (`restart_short` in be-sdk-type-guest's replica.rs); a holder
+  alone gets one within a round trip, but a peer streaming keeps every seal short, and the
+  state grows until seals fail. The replica reports it past `RESTART_CEILING` times the limit.
+  plans/restart_carries_numbered_entries.md removes the wait.
+
 - **A Join channel test that once heard more than Closed.** be-host-stack's
   `a_joined_channel_opens_to_its_host_and_again_to_the_next` once failed where the first
   host leaves: it heard something other than (or before) `Closed`, maybe a second `Closed`
