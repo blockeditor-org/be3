@@ -370,13 +370,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   draining. Whether it counted 1 (the edit lost) or 21 (ordered twice) was not recorded;
   `wait_for_count` now says what it last counted. Done: the cause found from that output and
   fixed at its source, with a test that shows it.
-- **A take that returns before another's notices are told.** In a test that runs no frames,
-  be-host-stack's pump thread (`start`) applies an update under the stack's lock and tells the
-  watchers after it lets go (`take_updates`), so a `take_updates` on the test's thread meanwhile
-  (`wait_until`'s) finds nothing left and returns before the watchers heard what the state now
-  shows. be-host-runtime's passes take the updates as each starts, which stops the pump, but
-  be-host-stack's own tests still race it. Done: a take that finds another under way returns only
-  once that one has told its notices, shown by a stack test.
 - **A retried listing sent late.** be-host-runtime's
   `a_listing_the_host_could_not_load_reaches_the_app_as_failed` failed once in a full verify
   (`once a retry loads it, the answer is sent again`: nothing was sent) and passes alone. A
