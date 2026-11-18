@@ -5,12 +5,12 @@ use be_sdk_beui::beui::icons::{
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{
-    AccessLevel, BlockParent, ChildId, ChildMode, ChildState, DialogAnswer, LinkAdmits, ShareLink,
+    AccessLevel, AccessListing, BlockParent, ChildId, ChildMode, ChildState, DialogAnswer, LinkAdmits, ShareLink,
     Subregion, SubregionContent,
 };
 use uuid::Uuid;
 
-use super::share::{GRANTABLE, LINK_GRANTABLE, Member, Person, Share, ShareAction};
+use super::share::{GRANTABLE, Member, Person, Share, ShareAction};
 use super::workspace::Workspace;
 use be_sdk_beui::beui::TextAlign;
 use be_sdk_beui::beui::text::Phrase;
@@ -490,7 +490,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                     </Card>
                 </Show>
                 <Show value={links}>|links: ReadSignal<Vec<ShareLink>>|
-                    <LinksSection links choices={admits_choices} company state me act={act} />
+                    <LinksSection links listing choices={admits_choices} company state me act={act} />
                 </Show>
                 <Text style=TextStyle::HEADING>"People with access"</Text>
                 <Show value={loading}>
@@ -536,6 +536,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
 #[component]
 fn LinksSection(
     links: ReadSignal<Vec<ShareLink>>,
+    listing: Memo<Ready<AccessListing>>,
     choices: Memo<Vec<LinkAdmits>>,
     company: Memo<bool>,
     state: Signal<Option<Share>>,
@@ -547,12 +548,17 @@ fn LinksSection(
     });
     let allowed = create_memo(move || choices.with(|choices| !choices.is_empty()));
     let several = create_memo(move || choices.with(|choices| choices.len() > 1));
+    let levels = create_memo(move || {
+        listing.with(|listing| listing.as_ref().map(Share::link_levels).unwrap_or_default())
+    });
     let access = create_memo(move || {
-        Some(state.with(|share| {
-            share
-                .as_ref()
-                .map_or(AccessLevel::View, |share| share.link_access)
-        }))
+        listing.with(|listing| {
+            state.with(|share| {
+                share
+                    .as_ref()
+                    .map(|share| share.link_access(listing.as_ref().ok()))
+            })
+        })
     });
     let admits = create_memo(move || {
         Some(state.with(|share| {
@@ -641,7 +647,7 @@ fn LinksSection(
                         })}
                         label="Access the link grants"
                         options={view! {
-                            <ForEach value={LINK_GRANTABLE.to_vec()}>|level: AccessLevel|
+                            <ForEach value={levels}>|level: AccessLevel|
                                 <ChoiceOption value=level label={level.label()} />
                             </ForEach>
                         }}

@@ -76,6 +76,7 @@ pub fn mute_to(mode: be_block_protocol::NotifyMode) -> be_sdk_api::NotifyMode {
 
 pub fn grants_of(
     listed: Result<be_block_protocol::AccessList, String>,
+    hosted: bool,
 ) -> Result<be_sdk_api::AccessListing, String> {
     listed.map(|list| be_sdk_api::AccessListing {
         grants: list
@@ -102,6 +103,7 @@ pub fn grants_of(
         company: list.company,
         set_inside: list.set_inside,
         links_admit: list.links_admit.map(admits_of),
+        hosted,
     })
 }
 

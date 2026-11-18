@@ -303,6 +303,18 @@ pub fn manifests() -> Vec<Arc<AppManifest>> {
     apps().manifests.clone()
 }
 
+/// Whether a block of `content_type` is hosted: an app's manifest names a host component that
+/// runs on it (guides/apps/host_services.md, "Host components"), so its share links grant Join
+/// by default (guides/blocks/keys.md, "Share links").
+pub fn hosted(content_type: Uuid) -> bool {
+    apps().manifests.iter().any(|manifest| {
+        manifest
+            .hosts
+            .iter()
+            .any(|host| host.edits == content_type.into_bytes())
+    })
+}
+
 pub fn entry_point(app_id: &str, entry: &str) -> Option<String> {
     apps()
         .manifests
