@@ -646,10 +646,23 @@ opens it and makes nobody a contact, so it is no `link-kind` of the contact link
 - **Opening one** (`share_links::open_share_link`, the account's own call): the opener reads
   the link (`query.share-link`), opens what it hands with the code, seals the scope key to
   itself, and signs its own grant with the link's key (`Record::Opened`, `Entry::opened`),
-  endorsed by its own signing key, after the head of the block's log; the server appends it
-  and applies the grant. `check_log` takes such a grant only for its signer, at most the
-  link's level, raising them, while the link is open; the server never holds the code, so it
-  grants no one. `Checked::linked` names whom a link granted, and the access list marks them.
+  endorsed by its own signing key over the grant and the entry it follows, after the head of
+  the block's log; the server appends it and applies the grant. `check_log` takes such a
+  grant only for its signer, at most the link's level, raising them, while the link is open,
+  and for an account the log names already only with the signing key it names; the server
+  never holds the code, so it grants no one. `Checked::linked` names whom a link granted, and
+  the access list marks them. be-host opens one pasted into Open a share link, in the host
+  menu, or from the web build's address bar (`share_link.rs`): it reads the link first
+  (`preview_share_link`) and asks, naming the block (its name as the maker saw it, sealed
+  with the code), the organization, what it grants and whether the account joins as a guest,
+  and opens that organization when it is not the one open.
+- **Join links** (plans/hosted_blocks.md): a link of level Join carries no key, and its opener
+  reads nothing stored. Having no key that carries the block's root, it checks a host by the
+  log as served, taken when it holds this account's own `Opened` grant (`Peer::joined_log`):
+  its endorsement covers the entry before it, so the chain to the root is the account's own
+  word. A hosted block (an app's manifest runs a host component on its type,
+  `discovery::hosted`) offers Join in the share dialog's link row, first and by default; any
+  other block never does.
 - **Keys after a rotation.** The scope key a link carries opens the epochs current when it
   was made. Later epochs reach an opener through key work's `unsealed`, as any grantee: their
   grant names their keys, so an editor's `tend` seals to them by the block's log. Their

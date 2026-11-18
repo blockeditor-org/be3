@@ -20,7 +20,7 @@ its word:
 - **Membership.** Who is a member or guest of an organization, and so who may
   be granted there or see it listed. Administrators are signed; membership is
   not.
-- **Link policy.** Who may open a share link (plans/share_links.md) is a
+- **Link policy.** Who may open a share link (guides/blocks/keys.md, "Share links") is a
   setting the server enforces: a dishonest server can let anyone with the
   secret open it.
 - **Edit over View.** They hold the same keys, so a server granted View can
