@@ -58,7 +58,11 @@ impl Running {
         );
         self.shutdown = Some(shutdown);
         self.handle = Some(tokio::spawn(async move {
-            let _ = crate::serve_with_mail(listener, directory, config, mail, stopped).await;
+            if let Err(error) =
+                crate::serve_with_mail(listener, directory, config, mail, stopped).await
+            {
+                panic!("the test server stopped: {error}");
+            }
         }));
     }
 
@@ -78,10 +82,10 @@ impl Running {
 
     pub async fn register(&self, email: &str, name: &str) -> String {
         ServerStore::open(&self.directory)
-            .unwrap()
+            .unwrap_or_else(|error| panic!("the store beside the server did not open: {error}"))
             .register(email, name)
             .await
-            .unwrap()
+            .unwrap_or_else(|error| panic!("registering {email} failed: {error}"))
             .1
     }
 

@@ -58,6 +58,24 @@ pub fn open(path: impl AsRef<std::path::Path>) -> rusqlite::Result<Connection> {
     Ok(connection)
 }
 
+/// Puts the database in WAL mode, which it keeps. Of two connections switching one new database
+/// at once, the second fails at once with `SQLITE_BUSY`: it holds a read lock while the first
+/// holds the write lock, so SQLite never runs its busy handler (that could deadlock). That one
+/// then waits for the first's switch to end by taking the write lock with nothing held, which
+/// waits out the busy timeout (`BEGIN IMMEDIATE`), and finds the database in WAL mode already.
+pub fn use_wal(connection: &Connection) -> rusqlite::Result<()> {
+    loop {
+        match connection.pragma_update(None, "journal_mode", "WAL") {
+            Err(rusqlite::Error::SqliteFailure(error, _))
+                if error.code == rusqlite::ErrorCode::DatabaseBusy =>
+            {
+                connection.execute_batch("BEGIN IMMEDIATE; ROLLBACK")?;
+            }
+            switched => return switched,
+        }
+    }
+}
+
 /// Begins a transaction that may write, taking the write lock up front. A deferred
 /// transaction that reads and then writes fails at once with `SQLITE_BUSY` while another
 /// connection holds the lock, since SQLite never runs the busy handler for a read upgrading to

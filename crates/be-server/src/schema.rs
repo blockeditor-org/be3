@@ -4,7 +4,7 @@ use crate::ServerError;
 
 pub fn initialize(connection: &Connection) -> Result<(), ServerError> {
     connection.pragma_update(None, "foreign_keys", true)?;
-    connection.pragma_update(None, "journal_mode", "WAL")?;
+    be_block_sqlite_schema::use_wal(connection)?;
     be_block_sqlite_schema::ensure(connection, SCHEMA)?;
     Ok(())
 }
