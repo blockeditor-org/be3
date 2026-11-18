@@ -18,7 +18,7 @@ use be_sdk_beui::beui::{NodeId, Rect};
 use be_sdk_beui::{
     AccessLevel, AccessListing, BlockFilter, ChildState, ContactsWatch, DisplaysWatch, Editor,
     EditorHost, Failure, FocusedBlock, HostPanel, HostProgram, HostWindow, HostWindowId,
-    NotifyMode, NotifyModesWatch, PickAnchor, PickedBlock, ProgramsWatch, Pushed, ShellDialog,
+    NotifyMode, MutesWatch, PickAnchor, PickedBlock, ProgramsWatch, Pushed, ShellDialog,
     WindowsWatch,
 };
 use be_sdk_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, ChildTarget};
@@ -72,9 +72,9 @@ pub struct Workspace {
     views: Signal<HashMap<TabId, Uuid>>,
     pub(crate) titles: Signal<HashMap<TabId, String>>,
     simulated: Signal<HashMap<Uuid, AccessLevel>>,
-    /// The account's notification modes as the host publishes them (`NotifyModesWatch`), none
+    /// The account's notification modes as the host publishes them (`MutesWatch`), none
     /// until the server has said.
-    notify_modes: Memo<Option<HashMap<Uuid, NotifyMode>>>,
+    mutes: Memo<Option<HashMap<Uuid, NotifyMode>>>,
     /// Modes this workspace set, shown until the host publishes them: each with whether the
     /// host has answered, after which the next published modes take its place.
     setting_modes: Signal<HashMap<Uuid, (NotifyMode, bool)>>,
@@ -167,8 +167,8 @@ impl Workspace {
             views,
             titles,
             simulated,
-            notify_modes: {
-                let watched = editor.watch::<NotifyModesWatch>();
+            mutes: {
+                let watched = editor.watch::<MutesWatch>();
                 create_memo(move || {
                     watched.with(|modes| {
                         modes.as_ref().map(|modes| {
@@ -207,7 +207,7 @@ impl Workspace {
         });
         // Modes the host answered for give way to the next modes it publishes, which hold them.
         create_effect_on(
-            move || workspace.notify_modes.track(),
+            move || workspace.mutes.track(),
             move |_, _| {
                 workspace
                     .setting_modes
@@ -1199,7 +1199,7 @@ impl Workspace {
         if let Some((setting, _)) = self.setting_modes.with(|modes| modes.get(&block).copied()) {
             return Some(setting);
         }
-        self.notify_modes.with(|modes| {
+        self.mutes.with(|modes| {
             modes
                 .as_ref()
                 .map(|modes| modes.get(&block).copied().unwrap_or(NotifyMode::All))
@@ -1208,12 +1208,12 @@ impl Workspace {
 
     /// Sets how the account is notified about `block`, showing it until the host answers; a
     /// change the host refuses goes back to what it publishes, and says why.
-    pub(crate) fn set_notify_mode(&self, block: Uuid, mode: NotifyMode) {
+    pub(crate) fn set_mute(&self, block: Uuid, mode: NotifyMode) {
         self.setting_modes.update(|modes| {
             modes.insert(block, (mode, false));
         });
         let workspace = *self;
-        let asked = self.host().set_notify_mode(block, mode);
+        let asked = self.host().set_mute(block, mode);
         let task = self.editor.then(asked, move |set| match set {
             Ok(()) => workspace.setting_modes.update(|modes| {
                 if let Some((shown, answered)) = modes.get_mut(&block)

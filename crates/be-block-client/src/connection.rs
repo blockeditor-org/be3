@@ -107,8 +107,8 @@ pub enum Event {
     /// `Peer::keys_changed`, then reading again what was locked, opens what they unlock.
     KeysChanged,
     /// The account's notification modes changed on another of its devices
-    /// (`topic.notify-modes`).
-    NotifyModesChanged,
+    /// (`topic.mutes`).
+    MutesChanged,
     /// A message arrived in the account's mailbox, or another connection deleted one
     /// (`topic.mailbox`): a notice, an accepted link's card, a contact's key change, or a record
     /// of a contact made or removed. A device that takes a record into the account's block
@@ -328,7 +328,7 @@ impl Connection {
                 Topic::Roots => Event::Roots,
                 Topic::Keys => Event::KeysChanged,
                 Topic::KeyWork => Event::KeyWorkChanged,
-                Topic::NotifyModes => Event::NotifyModesChanged,
+                Topic::Mutes => Event::MutesChanged,
                 Topic::Mailbox => Event::MailboxChanged,
                 Topic::Storage => Event::StorageChanged,
                 Topic::Tree(_) | Topic::Session(_) => return None,

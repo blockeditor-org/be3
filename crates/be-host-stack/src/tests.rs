@@ -1621,7 +1621,7 @@ impl Member {
 
     fn mode(&self, block: Uuid, mode: be_block_protocol::NotifyMode) {
         self.runtime
-            .block_on(self.peer.set_notify_mode(block, mode))
+            .block_on(self.peer.set_mute(block, mode))
             .expect("the member sets its mode");
     }
 

@@ -38,7 +38,7 @@ async fn a_push_reaches_members_who_are_not_connected_and_want_it() {
             quiet_device.endpoint(PushService::WebPush, format!("{}/quiet", service.url)),
         )
         .await;
-    quiet.set_notify_mode(block, NotifyMode::Mentions).await;
+    quiet.set_mute(block, NotifyMode::Mentions).await;
     quiet.sign_out().await;
 
     owner.notify(block, b"first", Vec::new()).await;

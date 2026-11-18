@@ -5,7 +5,7 @@
 use be_block_commit::now_milliseconds;
 use be_block_content::Announcement;
 use be_block_protocol::{
-    BlockNotifyMode, MAX_NOTIFICATION_BYTES, NotifyMode, PushEndpoint, PushMessage,
+    BlockMute, MAX_NOTIFICATION_BYTES, NotifyMode, PushEndpoint, PushMessage,
 };
 use be_block_store::ObjectStore;
 use serde::{Deserialize, Serialize};
@@ -274,22 +274,22 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// The blocks whose mode the account set to other than `all`.
-    pub async fn notify_modes(&self) -> Result<Vec<BlockNotifyMode>, ClientError> {
+    pub async fn mutes(&self) -> Result<Vec<BlockMute>, ClientError> {
         Ok(
-            be_block_protocol::read::<Vec<be_block_protocol::BlockNotifyMode>, _>(
+            be_block_protocol::read::<Vec<be_block_protocol::BlockMute>, _>(
                 &self.connection(),
                 Some(self.organization),
-                be_block_protocol::Query::NotifyModes,
+                be_block_protocol::Query::Mutes,
             )
             .await??,
         )
     }
 
-    pub async fn set_notify_mode(&self, block: Uuid, mode: NotifyMode) -> Result<(), ClientError> {
+    pub async fn set_mute(&self, block: Uuid, mode: NotifyMode) -> Result<(), ClientError> {
         be_block_protocol::write::<(), _>(
             &self.connection(),
             Some(self.organization),
-            be_block_protocol::Op::SetNotifyMode {
+            be_block_protocol::Op::SetMute {
                 block: block,
                 mode: mode,
             },

@@ -55,7 +55,7 @@ be_wasm_ops_bindgen::generate!({
         "pinned-letter",
         "remove-contact",
         "set-recovery-key",
-        "set-notify-mode",
+        "set-mute",
         "session-target",
         "push-target",
         "tree-advanced",
@@ -522,7 +522,7 @@ answers!(FromPage, from_page, Page {
     Invitation => InvitationPreview,
     DownloadUrls => Vec<Option<String>>,
     ServerInfo => ServerInfo,
-    NotifyModes => Vec<BlockNotifyMode>,
+    Mutes => Vec<BlockMute>,
     Session => JoinedSession,
 });
 

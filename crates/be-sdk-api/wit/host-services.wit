@@ -196,8 +196,8 @@ interface host-services {
     terminal-host-build: async func() -> result<string, failure>;
 
     /// Sets how the signed-in account is notified about the block
-    /// (`account.notify-modes-watch` follows every block's).
-    set-notify-mode: async func(block: block-id, mode: notify-mode) -> result<_, failure>;
+    /// (`account.mutes-watch` follows every block's).
+    set-mute: async func(block: block-id, mode: notify-mode) -> result<_, failure>;
 
     /// Turns pushes to this device on or off (`account.push-device-watch`
     /// follows them). Turning them on asks the person's permission, so it must

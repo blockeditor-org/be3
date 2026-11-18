@@ -28,8 +28,8 @@ const REACHING_PAST: &[&str] = &[
     "put-keys (escrow)",
     "set-push-endpoint (register)",
     "set-push-endpoint (forget)",
-    "notify-modes",
-    "set-notify-mode",
+    "mutes",
+    "set-mute",
 ];
 
 /// Cases that name no block, which a terminal host makes on connecting; each answers only
@@ -55,7 +55,7 @@ const CONNECTING: &[&str] = &[
     "unfollow roots",
     "unfollow storage",
     "unfollow mailbox",
-    "unfollow notify-modes",
+    "unfollow mutes",
     "keys",
     "put-keys (rows)",
     "recovery-key",

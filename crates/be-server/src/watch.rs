@@ -69,8 +69,8 @@ pub enum Push {
         organization: Uuid,
     },
     /// The account's notification modes in the organization changed through another of its
-    /// connections (`topic.notify-modes`).
-    NotifyModesChanged {
+    /// connections (`topic.mutes`).
+    MutesChanged {
         organization: Uuid,
     },
 }

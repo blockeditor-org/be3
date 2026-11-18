@@ -750,10 +750,10 @@ impl<S: ObjectStore> Peer<S> {
                     after: None,
                 },
             ),
-            followed::<Vec<be_block_protocol::BlockNotifyMode>>(
+            followed::<Vec<be_block_protocol::BlockMute>>(
                 &connection,
                 organization,
-                be_block_protocol::Query::NotifyModes,
+                be_block_protocol::Query::Mutes,
             ),
             followed::<Vec<be_block_protocol::Message>>(
                 &connection,

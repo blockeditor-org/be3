@@ -35,8 +35,8 @@ interface notifications {
         off,
     }
 
-    /// A block whose notifications the account set to other than `all`.
-    record block-notify-mode {
+    /// A block the account muted: its notifications set to other than `all`.
+    record block-mute {
         block: block-id,
         mode: notify-mode,
     }

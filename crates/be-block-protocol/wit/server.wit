@@ -36,7 +36,7 @@ interface server {
     use keys.{key-page, key-work, recovery-key, retirement, revocation, signing-key};
     use members.{bound-agent, created-agent, member};
     use organizations.{organization, server-info};
-    use notifications.{block-notify-mode, notify-mode, push-endpoint};
+    use notifications.{block-mute, notify-mode, push-endpoint};
 
     /// A browser sign-in's step, made as a one-shot call (`POST .../call`)
     /// alone; a signed-in connection is refused it.
@@ -160,11 +160,11 @@ interface server {
         /// The server's own account, push key, whether it offers FCM, and its
         /// clock. Of no organization.
         server-info,
-        /// Every block in the organization whose notification mode the
-        /// account set to other than `all`, which every other block is.
-        /// Followed, the connection hears `notify-modes` when they changed
-        /// through another connection.
-        notify-modes,
+        /// Every block in the organization the account muted (its mode set
+        /// to other than `all`, which every other block is). The server reads
+        /// them to leave muted blocks out of pushes. Followed, the connection
+        /// hears `mutes` when they changed through another connection.
+        mutes,
         /// Joins a block's live session, running the build `tag` of its type:
         /// always followed, so its entries arrive as `session` events until
         /// `unfollow` leaves it. Joining a session the connection is in leaves
@@ -227,7 +227,7 @@ interface server {
         invitation(invitation-preview),
         download-urls(list<option<string>>),
         server-info(server-info),
-        notify-modes(list<block-notify-mode>),
+        mutes(list<block-mute>),
         session(joined-session),
     }
 
@@ -253,7 +253,7 @@ interface server {
         roots,
         storage,
         mailbox,
-        notify-modes,
+        mutes,
     }
 
     /// One change a `write` makes. A write's ops apply in order, in one
@@ -370,7 +370,9 @@ interface server {
         /// `limits::MAX_PUSH_ENDPOINTS` per organization, the oldest going
         /// first.
         set-push-endpoint(push-endpoint-change),
-        set-notify-mode(set-notify-mode),
+        /// Sets how the account is notified about a block it may view; `all`
+        /// unmutes it. Told to the account's other connections as `mutes`.
+        set-mute(set-mute),
         /// Deletes a message from the account's mailbox, for every device. A
         /// notice is refused in its first `NOTICE_HOLD` (a week), since
         /// whoever it warns about may hold a session too; a device hides it for
@@ -556,7 +558,7 @@ interface server {
         forget(string),
     }
 
-    record set-notify-mode {
+    record set-mute {
         block: block-id,
         mode: notify-mode,
     }

@@ -26,8 +26,8 @@ pub struct Changes {
     pub stale: bool,
     /// The answers to searches (`searched`).
     pub search: bool,
-    /// The account's notification modes (`notify_modes`).
-    pub notify_modes: bool,
+    /// The blocks the account muted (`mutes`).
+    pub mutes: bool,
     /// The blocks whose content, or what is shown of it, changed.
     pub blocks: be_lib_stable_hash::HashSet<Uuid>,
     /// Every block's content may have changed: the stack started or stopped.
@@ -44,7 +44,7 @@ impl Changes {
             storage: true,
             stale: true,
             search: true,
-            notify_modes: true,
+            mutes: true,
             blocks: Default::default(),
             every_block: true,
         }
@@ -60,7 +60,7 @@ impl Changes {
         self.storage |= other.storage;
         self.stale |= other.stale;
         self.search |= other.search;
-        self.notify_modes |= other.notify_modes;
+        self.mutes |= other.mutes;
         self.blocks.extend(other.blocks);
         self.every_block |= other.every_block;
     }
