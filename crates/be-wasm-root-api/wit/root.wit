@@ -252,10 +252,11 @@ interface host {
         /// Which change it is, which `answer-display` names, so an answer to an
         /// earlier one changes nothing.
         round: u64,
-        /// How long the person has to answer, in nanoseconds, counted from
-        /// when the root shows the question: the host reverts the settings
-        /// itself unless kept in time.
-        answer-within: u64,
+        /// When the host reverts the settings unless the person kept them, on
+        /// the frame clock `frame-request`'s `time` reads, in nanoseconds: the
+        /// host reverts then whether or not the root answered, and the root
+        /// counts down to it.
+        revert-at: u64,
     }
 
     /// Whether the host asks the person to keep display settings.
@@ -274,8 +275,8 @@ interface host {
 
     /// The person kept (`keep`) or reverted the display settings of `round`,
     /// or the time to answer ran out (not kept), which the host does; an
-    /// answer to a round it no longer asks changes nothing. It answers at
-    /// once; the change reaches `displays`.
+    /// answer to a round it does not ask now is dropped. It answers at once;
+    /// the change reaches `displays`.
     answer-display: async func(round: u64, keep: bool);
 }
 

@@ -75,9 +75,11 @@ struct Root {
     /// Whether its host's changes are saved, as its host said last, which the toasts' document
     /// shows (the slow save's toast).
     saving: Rc<Cell<Option<Signal<SavingState>>>>,
-    /// The display settings waiting to be kept, as its host said last, until a frame shows it:
-    /// none while the host said nothing new.
-    keep_asked: Rc<RefCell<Option<Option<DisplayQuestion>>>>,
+    /// The display settings its host asks to keep, as it said last: kept while the session is
+    /// locked, so the question shows once it is unlocked if the host still asks it.
+    keep_asking: Rc<RefCell<Option<DisplayQuestion>>>,
+    /// The round of display settings the root answered last, which it does not ask again.
+    keep_answered: Rc<Cell<Option<u64>>>,
     /// The surface a `RESIZES` frame configures and never presents.
     unpresented: Rc<RefCell<Option<OwnSurface>>>,
     /// The scrim under its dialog, filled with `SCRIM_COLOR` on its first frame.
@@ -168,7 +170,8 @@ impl Root {
             toasts: Rc::default(),
             shown: Rc::default(),
             saving: Rc::default(),
-            keep_asked: Rc::default(),
+            keep_asking: Rc::default(),
+            keep_answered: Rc::default(),
             unpresented: Rc::default(),
             scrim: Rc::default(),
             dialog: Rc::default(),
@@ -293,7 +296,7 @@ impl Root {
         let mut seen = 0;
         while let Ok(displays) = host::displays(seen).await {
             seen = displays.generation;
-            *self.keep_asked.borrow_mut() = Some(displays.asking);
+            *self.keep_asking.borrow_mut() = displays.asking;
             self.waker.wake();
         }
     }
@@ -521,9 +524,10 @@ impl Root {
         }
     }
 
-    /// Opens or closes its dialog as its input asked, or as the person closed it from inside.
-    /// It opens with its scrim, interception of Escape and, once drawn, the focus; it closes
-    /// giving the focus back to the layer that had it, and Escape to whatever has the focus.
+    /// Opens or closes its dialog as its input asked, as the person closed it from inside, or
+    /// as its host asks to keep display settings. It opens with its scrim, interception of
+    /// Escape and, once drawn, the focus; it closes giving the focus back to the layer that had
+    /// it, and Escape to whatever has the focus.
     fn settle_dialog(&self) -> Result<(), String> {
         let closed = self
             .dialog
@@ -531,7 +535,6 @@ impl Root {
             .as_ref()
             .and_then(|dialog| dialog.closed.borrow_mut().take());
         let asked = self.asked.take();
-        let keep = self.keep_asked.borrow_mut().take();
         let open_keep = self.dialog.borrow().as_ref().and_then(|dialog| dialog.keep);
         match &closed {
             Some(Closed::Renamed(name)) => {
@@ -541,29 +544,46 @@ impl Root {
                     text.enter(|| shown.set(Some(name)));
                 }
             }
-            Some(Closed::Kept(round)) => answer_display(*round, true),
-            Some(Closed::Reverted(round)) => answer_display(*round, false),
+            Some(Closed::Kept(round)) => self.answer_display(*round, true),
+            Some(Closed::Reverted(round)) => self.answer_display(*round, false),
             // Dismissing the question of keeping display settings reverts them.
             Some(Closed::Dismissed) => {
                 if let Some(round) = open_keep {
-                    answer_display(round, false);
+                    self.answer_display(round, false);
                 }
             }
             None => {}
         }
-        // Escape or a press on the scrim closes it, which for the question reverts.
+        // Escape or a press on the scrim closes it, which for the question reverts at once.
         if closed.is_none()
             && asked == Some(Asked::Close)
             && let Some(round) = open_keep
         {
-            answer_display(round, false);
+            self.answer_display(round, false);
         }
-        // The host no longer asks (answered, or reverted on its own): its question goes.
-        let withdrawn = matches!(&keep, Some(None)) && open_keep.is_some();
-        // A new question replaces whatever dialog is open.
+        // The question the host asks now, unless the root answered it already.
+        let keep = self
+            .keep_asking
+            .borrow()
+            .clone()
+            .filter(|asking| self.keep_answered.get() != Some(asking.round));
+        let keep_round = keep.as_ref().map(|asking| asking.round);
+        // The host no longer asks the round shown (answered, or reverted on its own): it goes.
+        let withdrawn = open_keep.is_some() && open_keep != keep_round;
+        // No dialog opens while the session is locked, so the focus the lock gives back is the
+        // one it took; a question the host asks meanwhile shows once it is unlocked.
+        let locked = self.lock.borrow().is_some()
+            || self
+                .lock_state
+                .borrow()
+                .as_ref()
+                .is_some_and(|state| state.locked);
+        // A question not shown yet replaces whatever dialog is open, which closes unanswered.
         let opening = match keep {
-            Some(Some(asked)) => Some(Asking::KeepDisplay(asked)),
-            _ if asked == Some(Asked::Open) && self.dialog.borrow().is_none() => {
+            Some(asking) if !locked && open_keep != keep_round => {
+                Some(Asking::KeepDisplay(asking))
+            }
+            _ if !locked && asked == Some(Asked::Open) && self.dialog.borrow().is_none() => {
                 Some(Asking::Rename)
             }
             _ => None,
@@ -571,18 +591,20 @@ impl Root {
         if closed.is_some() || asked == Some(Asked::Close) || withdrawn || opening.is_some() {
             self.close_dialog();
         }
-        // No dialog opens while the session is locked, so the focus the lock gives back is the
-        // one it took.
-        let locked = self.lock.borrow().is_some()
-            || self
-                .lock_state
-                .borrow()
-                .as_ref()
-                .is_some_and(|state| state.locked);
         match opening {
-            Some(opening) if !locked => self.open_dialog(opening),
-            _ => Ok(()),
+            Some(opening) => self.open_dialog(opening),
+            None => Ok(()),
         }
+    }
+
+    /// Tells its host whether the person kept the display settings of `round`, which it asks
+    /// no more.
+    fn answer_display(&self, round: u64, keep: bool) {
+        self.keep_answered.set(Some(round));
+        be_wasm_ops::guest::spawn(async move {
+            // A host that cannot hear it has stopped, which the root hears from its frames.
+            let _ = host::answer_display(round, keep).await;
+        });
     }
 
     /// Closes its dialog, if one is open, giving the focus back to the layer that had it, and
@@ -605,6 +627,8 @@ impl Root {
         };
         let closed = Rc::<RefCell<Option<Closed>>>::default();
         let closing = Rc::clone(&closed);
+        // The host's frame time it opens at, from which a question counts down to its host's.
+        let shown_at = beui.time();
         let waker = self.waker.clone();
         let keep = match &opening {
             Asking::KeepDisplay(asked) => Some(asked.round),
@@ -622,7 +646,7 @@ impl Root {
                 let shown = match opening {
                     Asking::Rename => view! { <RenameDialog done={done} /> },
                     Asking::KeepDisplay(asked) => {
-                        view! { <KeepDisplayDialog asked done={done} /> }
+                        view! { <KeepDisplayDialog asked shown_at done={done} /> }
                     }
                 };
                 view! {
@@ -1045,13 +1069,14 @@ fn power_glyph(action: PowerAction) -> Glyph {
     .to_owned()
 }
 
-/// The question of keeping display settings that just changed: Keep, or Revert, which it does
-/// itself once the time to answer runs out, counting down to it on its clock, which the root
-/// pins to its host's frame clock. Escape reverts too.
+/// The question of keeping display settings that just changed: Keep, or Revert. It counts down
+/// on its clock, which the root pins to its host's frame clock, from `shown_at`, the host's
+/// time it opened at, to `revert-at`, when the host reverts them itself; reaching it, it closes
+/// answering not kept, a courtesy the host does not wait for. Escape reverts at once.
 #[component]
-fn KeepDisplayDialog(asked: DisplayQuestion, done: Callback<Closed>) -> NodeId {
+fn KeepDisplayDialog(asked: DisplayQuestion, shown_at: Duration, done: Callback<Closed>) -> NodeId {
     let round = asked.round;
-    let within = Duration::from_nanos(asked.answer_within);
+    let within = Duration::from_nanos(asked.revert_at).saturating_sub(shown_at);
     let deadline = now() + within;
     let left = create_signal(within);
     let ticking = create_timer(move || {
@@ -1104,14 +1129,6 @@ fn KeepDisplayDialog(asked: DisplayQuestion, done: Callback<Closed>) -> NodeId {
             </DialogBody>
         </Frame>
     }
-}
-
-/// Tells its host whether the person kept the display settings of `round`.
-fn answer_display(round: u64, keep: bool) {
-    be_wasm_ops::guest::spawn(async move {
-        // A host that cannot hear it has stopped, which the root hears from its frames.
-        let _ = host::answer_display(round, keep).await;
-    });
 }
 
 /// The strip of text: `TEXT`, and `LATER_TEXT` from `LATER` on, or the `name` the dialog gave.

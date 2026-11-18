@@ -149,8 +149,9 @@ struct Core<G> {
     displays: be_wasm_root_api::DisplayState,
     /// The root's `host.displays` calls waiting for it to change from what they saw.
     display_watchers: Vec<Reply<be_wasm_root_api::DisplayState>>,
-    /// How the root answered the display questions (`host.answer-display`), each round and
-    /// whether kept, until the host takes them.
+    /// How the root answered the display question asked (`host.answer-display`), each round
+    /// and whether kept, until the host takes them: only answers to the round asked when the
+    /// answer came.
     display_answers: Vec<(u64, bool)>,
 }
 
@@ -683,7 +684,12 @@ impl<G: Inline> Core<G> {
                 }
             }
             embed::Call::Host(embed::host::Call::AnswerDisplay { round, keep, reply }) => {
-                self.display_answers.push((round, keep));
+                // An answer to a round no longer asked (answered, withdrawn, or one the root
+                // never saw) is dropped here, so the host hears only answers to its question.
+                let asked = self.displays.asking.as_ref().map(|asking| asking.round);
+                if asked == Some(round) {
+                    self.display_answers.push((round, keep));
+                }
                 reply.send(&mut self.connection, &());
             }
             embed::Call::Host(embed::host::Call::Saving { seen, reply }) => {
