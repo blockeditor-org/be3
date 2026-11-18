@@ -52,7 +52,8 @@ control's exact keys are in its code and tests. The patterns that span them:
   button), moves one place with Ctrl+Shift and an arrow, lifted, stepped and dropped at
   once, and offers Move in the command palette while it has the focus, which
   starts a keyboard carry. A source that does not also activate (a drag handle,
-  a row with no action) lifts that carry on Space too; one that activates (a
+  a row with no action) lifts that carry on Space too, and on Enter where its own
+  keys don't take Enter; one that activates (a
   tab, a row button) keeps Space and Enter for activating
   ([decision](../decisions/beui_activating_drag_sources_keep_their_keys.md)).
   While the keyboard holds it, the arrows step to the nearest place that way,
