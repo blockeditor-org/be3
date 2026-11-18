@@ -1122,6 +1122,27 @@ Each step lands on its own.
          Escape and at `revert-at`, sees a withdrawn question go unanswered and only the round
          asked answered, shows a question asked while locked once unlocked, sees a question
          replace a rename dialog without renaming, and snapshots the question.
+       - 4g6d. Built: the core's view and commands, starting with the changes not yet sent:
+         `host.core` is a watch of a `core-view`, its one field so far `unsent`, the blocks
+         whose changes this device could not send (each `unsent-edit`: the block, its name,
+         whether the person may edit it again, why it was set aside as a `set-aside` the root
+         words, none when access was lost, and the edits that never became a commit), and
+         `host.ask-core` takes a `core-command`, so far `restore-unsent` and `discard-unsent`
+         (be-wasm-root-host's `Root::show_core`, `take_core_commands`). Whether the list is
+         open and which block's discard is being asked are the root's, so they are not in the
+         view: be-host's `Unsent(bool)`, `DiscardUnsent`, `ConfirmDiscardUnsent` and
+         `CancelDiscardUnsent` become the root's own state, and only the confirmed discard
+         crosses. be-host's `--root` runs no block stack, so it shows no unsent changes and
+         drops what is asked (`refuse_unserved`, with the lock's and the displays'). 4g7's host
+         maps be-host-stack's `UnsentEdit` (its `be_block_client::Aside` rather than words)
+         onto it, saturating `kept-edits`. be-sdk-root-testing lists the unsent edits in its
+         dialog's place on F7 (`OPENS_UNSENT`, `UNSENT_TITLE`), splitting the view into a memo
+         for its area, with Restore and Discard per block; Discard asks first
+         (`DISCARD_UNSENT_TITLE`, an alert in the list's place), and a block that leaves the
+         list takes its question with it. be-wasm-root-host's
+         `a_root_lists_its_hosts_unsent_edits_and_asks_before_discarding_one` restores one,
+         cancels and confirms a discard, sees a question whose block left discard nothing,
+         and snapshots the list and the question.
        - 4g6a. Built: the lock screen, over the screen lock and password check the host grants.
          The lock is the host's (the platform's, a login session's): `be3:root` carries it as
          data, nothing beui's. `host.lock` is a watch, as `host.notices` is, answering the lock
