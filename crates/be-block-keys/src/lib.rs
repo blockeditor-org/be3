@@ -615,7 +615,11 @@ impl NameCard {
     /// This card, signed by `secret`'s signing key, as it travels.
     pub fn sign(&self, secret: &RecoverySecret) -> Vec<u8> {
         use ed25519_dalek::Signer;
-        let signature = secret.signing_key().sign(&self.message()).to_bytes().to_vec();
+        let signature = secret
+            .signing_key()
+            .sign(&self.message())
+            .to_bytes()
+            .to_vec();
         postcard::to_stdvec(&(self, signature)).expect("a signed name card always encodes")
     }
 
