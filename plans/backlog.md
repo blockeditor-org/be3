@@ -55,13 +55,6 @@ Fixed items are removed as they land.
   not fix it, so the cause is still open. Done when the backdrop fills the laid box, that test
   passes, and the keyboard loss has a test of its own.
 
-- **One order for a press on both cores.** The native core (`beui-core` `interact/pointer.rs`,
-  `press`) calls a node's `on_press` before `on_active_change(true)`, while beui-core-html arms
-  it first. Value controls no longer depend on the order (each reports its drag from whichever
-  comes first, `value_drag.rs`), but anything else reading `active` in `on_press` sees the two
-  cores differ. Done when the native core arms before `on_press`, as the HTML core does, with a
-  test on both cores.
-
 - **A live resize on macOS.** `CAMetalLayer`'s default `contentsGravity` (resize) may stretch
   the last frame while a window is resized live, before beui draws the new size. Check it, and
   set it to top left if so, as X11 keeps the last frame at the corner (beui-platform-winit's

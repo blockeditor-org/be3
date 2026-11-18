@@ -59,6 +59,8 @@ pub fn Interactive(
     on_hover_change: Callback<bool>,
     on_hover_move: Callback<PointerPress>,
     on_pointed_change: Callback<bool>,
+    /// `true` when a press arms it, before that press's `on_press` on both cores; `false` as
+    /// the press ends.
     on_active_change: Callback<bool>,
     on_cancel: Callback<()>,
     on_middle_click: Callback<()>,
