@@ -610,6 +610,14 @@ impl<S: ObjectStore> Peer<S> {
             .collect())
     }
 
+    /// The latest `count` entries of `block`'s signed log, read as `read_log` reads (and
+    /// following the log): a page from past its end names its length, then the page before it.
+    pub async fn read_log_tail(&self, block: Uuid, count: u32) -> Result<LogRead, ClientError> {
+        let end = self.read_log(block, u64::MAX, 1).await?.head.size;
+        self.read_log(block, end.saturating_sub(u64::from(count)), count)
+            .await
+    }
+
     /// The head of `block`'s signed log this device last verified: every head the server
     /// serves later must extend it.
     pub fn log_head(&self, block: Uuid) -> Option<LogHead> {
