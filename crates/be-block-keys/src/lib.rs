@@ -76,7 +76,8 @@ impl fmt::Display for KeyError {
 
 impl std::error::Error for KeyError {}
 
-fn random<const N: usize>() -> [u8; N] {
+/// `N` bytes from the operating system's entropy.
+pub fn random<const N: usize>() -> [u8; N] {
     let mut bytes = [0u8; N];
     rand::rngs::OsRng
         .try_fill_bytes(&mut bytes)

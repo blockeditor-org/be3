@@ -43,7 +43,7 @@ async fn a_local_accounts_log_is_numbered_on_the_device() {
     assert_eq!(
         read.entries
             .iter()
-            .map(|logged| logged.opened.clone().unwrap())
+            .map(|logged| logged.bytes().unwrap().to_vec())
             .collect::<Vec<_>>(),
         [&b"one"[..], b"two", b"three"]
     );

@@ -234,22 +234,50 @@ mod range_result {
     }
 }
 
+/// How many entries of a block's signed log an editor holds at most: the latest it heard or
+/// read. Older ones it reads again (`FromEditor::ReadLog`).
+pub const LOG_HELD: usize = 1024;
+
+/// What `take_logged` did with an entry.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Taken {
+    /// It was held as it is, or as well as it is now told.
+    Held,
+    /// It was not held at this place before.
+    New,
+    /// It was held at this place, and is now told better: who signed it, once that could be
+    /// told (`Unknown` to `Verified`), or its payload gone (`Redacted`).
+    Changed,
+}
+
 /// Keeps `item` in a log held by place, unless its id is held at an earlier place: a log
 /// read in pieces keeps the first place of each id (an entry served again under its id later
 /// in the log is never the one shown), and one heard at a later place first is moved back.
+/// One held at its place is replaced when told better, never by an `Unknown` verdict.
 pub(crate) fn take_logged(
     log: &mut BTreeMap<u64, be_block_content::LogItem>,
     ids: &mut BTreeMap<Uuid, u64>,
     item: be_block_content::LogItem,
-) {
-    match ids.get(&item.id) {
-        Some(seq) if *seq <= item.seq => {}
+) -> Taken {
+    match ids.get(&item.id).copied() {
+        Some(seq) if seq < item.seq => Taken::Held,
+        Some(seq) if seq == item.seq => {
+            let unchanged = log.get(&seq).is_none_or(|held| {
+                *held == item || item.signer == be_block_content::LogSigner::Unknown
+            });
+            if unchanged {
+                return Taken::Held;
+            }
+            log.insert(seq, item);
+            Taken::Changed
+        }
         held => {
-            if let Some(later) = held.copied() {
+            if let Some(later) = held {
                 log.remove(&later);
             }
             ids.insert(item.id, item.seq);
             log.insert(item.seq, item);
+            Taken::New
         }
     }
 }
@@ -323,7 +351,7 @@ pub struct EditorMirror<C: LiveEdit> {
     /// What `ToEditor::Appended` answered, by token, until taken.
     appended: Vec<(u64, Result<Option<(u64, i64)>, String>)>,
     /// The entries of the block's signed log this editor heard or read, by place, each id once
-    /// at its first place.
+    /// at its first place: the latest `LOG_HELD`.
     log: BTreeMap<u64, be_block_content::LogItem>,
     log_ids: BTreeMap<Uuid, u64>,
     /// The log's length as last read.
@@ -496,8 +524,8 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         (token, FromEditor::ReadLog { token, from, limit })
     }
 
-    /// The entries of the block's signed log this editor heard or read, in the log's order,
-    /// each id once at its first place: what an editor folds (`be_block_content::LogFold`).
+    /// The entries of the block's signed log this editor holds, in the log's order, each id
+    /// once at its first place: the latest `LOG_HELD` it heard or read.
     pub fn log(&self) -> impl Iterator<Item = &be_block_content::LogItem> {
         self.log.values()
     }
@@ -511,6 +539,12 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         for item in items {
             self.log_size = self.log_size.max(item.seq + 1);
             take_logged(&mut self.log, &mut self.log_ids, item);
+        }
+        // An editor holds the latest entries it heard or read, and reads older ones again.
+        while self.log.len() > LOG_HELD {
+            if let Some((_, oldest)) = self.log.pop_first() {
+                self.log_ids.remove(&oldest.id);
+            }
         }
         self.revision += 1;
     }

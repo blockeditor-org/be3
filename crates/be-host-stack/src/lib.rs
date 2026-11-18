@@ -1082,13 +1082,15 @@ pub fn detach(block: Uuid, editor: u64) {
     send(Command::Detach { block, editor });
 }
 
-pub fn from_editor(block: Uuid, editor: u64, frame: &[u8]) {
+/// What `app`'s editor sends its block's replica.
+pub fn from_editor(block: Uuid, editor: u64, app: &str, frame: &[u8]) {
     let Some(bytes) = replicas::unframe(frame) else {
         return;
     };
     send(Command::FromEditor {
         block,
         editor,
+        app: app.to_owned(),
         bytes,
         at: held_clock().unwrap_or_else(be_host_base::host::clock),
     });
