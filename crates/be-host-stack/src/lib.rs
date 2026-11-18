@@ -2398,6 +2398,50 @@ pub fn list_access(
     });
 }
 
+/// The share links on `block`, each with the link to send when this account keeps its code.
+pub fn list_share_links(
+    block: Uuid,
+    reply: impl FnOnce(Result<worker::ShareLinks, String>) + Send + 'static,
+) {
+    send(Command::ShareLink {
+        block,
+        change: worker::ShareLinkCommand::List(replies::expect(reply)),
+    });
+}
+
+/// Makes a share link on `block` granting `access` to whoever `admits` lets open it; `reply`
+/// hears the link to send.
+pub fn make_share_link(
+    block: Uuid,
+    access: be_block_graph::Access,
+    admits: be_block_keys::Admits,
+    reply: impl FnOnce(Result<String, String>) + Send + 'static,
+) {
+    send(Command::ShareLink {
+        block,
+        change: worker::ShareLinkCommand::Make {
+            access,
+            admits,
+            reply: replies::expect(reply),
+        },
+    });
+}
+
+/// Revokes share link `link` on `block`.
+pub fn revoke_share_link(
+    block: Uuid,
+    link: Uuid,
+    reply: impl FnOnce(Result<(), String>) + Send + 'static,
+) {
+    send(Command::ShareLink {
+        block,
+        change: worker::ShareLinkCommand::Revoke {
+            link,
+            reply: replies::expect(reply),
+        },
+    });
+}
+
 pub fn read_head(
     block: Uuid,
     commit: be_block_commit::CommitId,

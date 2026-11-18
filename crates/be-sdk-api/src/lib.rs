@@ -67,7 +67,8 @@ pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
 pub use dock::{DockChildRequest, DockClosedTab, DockDeclaredChild, DockHostedView, DockUpdate};
 pub use guest::dock::DockWatch;
 pub use host_services::{
-    AccessGrant, AccessListing, BlockAgent, ImportedBlock, PastedBlock, Revision, Signer,
+    AccessGrant, AccessListing, BlockAgent, ImportedBlock, LinkAdmits, PastedBlock, Revision,
+    ShareLink, Signer,
     TerminalHostBe, TerminalHostDownload, TerminalHostFile, TerminalHostSource,
 };
 pub use shared::access::AccessLevel;

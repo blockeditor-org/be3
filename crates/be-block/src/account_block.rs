@@ -30,6 +30,9 @@ pub struct AccountBlock {
     /// What the account pins for each company organization it is in: its access log's root and
     /// escrow key, by organization.
     pub pins: Map<Uuid, Bytes>,
+    /// The code of each share link the account made and the block it is on, by link, until it
+    /// is revoked (guides/blocks/keys.md, "Share links").
+    pub shares: Map<Uuid, Bytes>,
 }
 
 impl AccountBlock {
@@ -49,6 +52,16 @@ impl AccountBlock {
 
     pub fn set_link(link: Uuid, kept: Option<Vec<u8>>) -> Edit {
         Self::LINKS
+            .put(ObjectId::ROOT, &link, kept.map(Bytes::from).as_ref())
+            .into()
+    }
+
+    pub fn share(&self, link: Uuid) -> Option<&[u8]> {
+        self.shares.get(&link).map(|bytes| &bytes[..])
+    }
+
+    pub fn set_share(link: Uuid, kept: Option<Vec<u8>>) -> Edit {
+        Self::SHARES
             .put(ObjectId::ROOT, &link, kept.map(Bytes::from).as_ref())
             .into()
     }

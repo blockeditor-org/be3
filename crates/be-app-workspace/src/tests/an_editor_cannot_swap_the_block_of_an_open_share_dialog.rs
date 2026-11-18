@@ -24,6 +24,7 @@ fn an_editor_cannot_swap_the_block_of_an_open_share_dialog() {
             grants: Vec::new(),
             company: false,
             set_inside: 0,
+            links_admit: None,
         }),
     );
     fixture.settle();

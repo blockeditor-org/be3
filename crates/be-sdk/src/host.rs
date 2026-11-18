@@ -22,7 +22,7 @@ use be_sdk_api::{
     BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
     ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, Failure, FilePick, FileSave, FitArea,
     HostPanel, HostView, HostWindowId, MenuEntry, NotifyMode, Occluder, ParentView,
-    PerformanceMeasurement, Revision, ShellDialog, Signer, TerminalHostBe, ViewChange, ViewId,
+    LinkAdmits, PerformanceMeasurement, Revision, ShareLink, ShellDialog, Signer, TerminalHostBe, ViewChange, ViewId,
     ViewPlacement, Watched, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use be_sdk_api::{BlockFilter, FileFilter, SavedFile};
@@ -1979,6 +1979,30 @@ impl EditorHost {
 
     pub fn list_access(&self, block_id: Uuid) -> Asked<Result<AccessListing, Failure>> {
         Asked::of(self.ask(|| host_services::list_access(block_id.into_bytes())))
+    }
+
+    /// The share links open on `block_id` ("anyone with the link"), for its managers.
+    pub fn share_links(&self, block_id: Uuid) -> Asked<Result<Vec<ShareLink>, Failure>> {
+        Asked::of(self.ask(|| host_services::list_share_links(block_id.into_bytes())))
+    }
+
+    /// Makes a share link on `block_id` granting `access` to whoever `admits` lets open it, and
+    /// answers the link to send.
+    pub fn make_share_link(
+        &self,
+        block_id: Uuid,
+        access: AccessLevel,
+        admits: LinkAdmits,
+    ) -> Asked<Result<String, Failure>> {
+        Asked::of(
+            self.ask(|| host_services::make_share_link(block_id.into_bytes(), access, admits)),
+        )
+    }
+
+    /// Revokes the share link `link` (a `ShareLink::id`) on `block_id`.
+    pub fn revoke_share_link(&self, block_id: Uuid, link: &str) -> Asked<Result<(), Failure>> {
+        let link = link.to_owned();
+        Asked::of(self.ask(move || host_services::revoke_share_link(block_id.into_bytes(), &link)))
     }
 
     pub fn contact_link(

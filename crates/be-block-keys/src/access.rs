@@ -1462,6 +1462,11 @@ pub fn check_log(
                         state.set_level(account, Level::None);
                     }
                 }
+                // On a proof path the grants a link made may be reduced: whether revoking it
+                // lowered anyone is the record's signed word, which only outdates epochs.
+                if !link.open && state.partial && entry.lowers {
+                    state.last_lowering = place;
+                }
             }
             Record::Opened(opened) => {
                 // Granted by the link's key to its signer alone, at most what the link grants,

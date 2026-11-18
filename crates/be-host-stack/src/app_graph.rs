@@ -95,11 +95,27 @@ pub fn grants_of(
                 effective: level_of(entry.effective),
                 source: entry.source.map(Uuid::into_bytes),
                 waiting: entry.waiting,
+                through_link: entry.through_link,
             })
             .collect(),
         company: list.company,
         set_inside: list.set_inside,
+        links_admit: list.links_admit.map(admits_of),
     })
+}
+
+pub fn admits_of(admits: be_block_protocol::LinkAdmits) -> be_sdk_api::LinkAdmits {
+    match admits {
+        be_block_protocol::LinkAdmits::Members => be_sdk_api::LinkAdmits::Members,
+        be_block_protocol::LinkAdmits::Anyone => be_sdk_api::LinkAdmits::Anyone,
+    }
+}
+
+pub fn link_admits(admits: be_sdk_api::LinkAdmits) -> be_block_keys::Admits {
+    match admits {
+        be_sdk_api::LinkAdmits::Members => be_block_keys::Admits::Members,
+        be_sdk_api::LinkAdmits::Anyone => be_block_keys::Admits::Anyone,
+    }
 }
 
 pub fn level_of(access: be_block_graph::Access) -> AccessLevel {

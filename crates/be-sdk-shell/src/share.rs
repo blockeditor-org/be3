@@ -1,10 +1,13 @@
-use be_sdk_beui::{AccessGrant, AccessLevel, AccessListing};
+use be_sdk_beui::{AccessGrant, AccessLevel, AccessListing, LinkAdmits, ShareLink};
 use uuid::Uuid;
 
 /// What the share dialog offers. `KnowExists` is not among them: a reference
 /// gives it, and a grant of it is never what a person sharing means.
 pub(crate) const GRANTABLE: [AccessLevel; 3] =
     [AccessLevel::Manage, AccessLevel::Edit, AccessLevel::View];
+
+/// What a share link offers: never Manage, which a link holder could then hand on.
+pub(crate) const LINK_GRANTABLE: [AccessLevel; 2] = [AccessLevel::Edit, AccessLevel::View];
 
 const MAX_SUGGESTIONS: usize = 6;
 
@@ -71,6 +74,14 @@ pub(crate) enum ShareAction {
     CancelOwnership,
     /// Gives ownership to the member offered it (`Share::transferring`).
     ConfirmOwnership,
+    /// What the next share link grants.
+    LinkAccess(AccessLevel),
+    /// Whom the next share link admits.
+    LinkAdmits(LinkAdmits),
+    /// Makes a share link with the level and admits chosen.
+    MakeLink,
+    /// Revokes the share link with this id.
+    RevokeLink(String),
 }
 
 /// What the share dialog holds besides the listing of who has access, which the workspace
@@ -88,6 +99,11 @@ pub(crate) struct Share {
     pub(crate) invite_link: Option<String>,
     /// The member whom the person asked to give ownership to, until they confirm or cancel.
     pub(crate) transferring: Option<Uuid>,
+    /// What the next share link grants, and whom it admits.
+    pub(crate) link_access: AccessLevel,
+    pub(crate) link_admits: LinkAdmits,
+    /// The share link being made, by ask, until the host answers.
+    pub(crate) making_link: Option<u64>,
 }
 
 impl Share {
@@ -102,6 +118,9 @@ impl Share {
             inviting: None,
             invite_link: None,
             transferring: None,
+            link_access: AccessLevel::View,
+            link_admits: LinkAdmits::Members,
+            making_link: None,
         }
     }
 
@@ -180,7 +199,12 @@ impl Share {
                 }
             }
             ShareAction::CancelOwnership => self.transferring = None,
-            ShareAction::InviteNew | ShareAction::ConfirmOwnership => {}
+            ShareAction::LinkAccess(access) => self.link_access = access,
+            ShareAction::LinkAdmits(admits) => self.link_admits = admits,
+            ShareAction::InviteNew
+            | ShareAction::ConfirmOwnership
+            | ShareAction::MakeLink
+            | ShareAction::RevokeLink(_) => {}
         }
         (grants, reload)
     }
@@ -210,6 +234,49 @@ impl Share {
             .filter(|grant| has_access(grant, me))
             .map(|grant| member(grant, me, self.block, owner, &name_of))
             .collect()
+    }
+
+    /// Whether `me` manages the block as `listing` lists it: only a manager sees and makes its
+    /// share links.
+    pub(crate) fn manages(listing: &AccessListing, me: Uuid) -> bool {
+        listing
+            .grants
+            .iter()
+            .any(|grant| grant.account == me.into_bytes() && grant.effective == AccessLevel::Manage)
+    }
+
+    /// Whom links may admit: the organization's policy, and in a company organization a
+    /// choice between its members and anyone with an account on the server.
+    pub(crate) fn link_choices(listing: &AccessListing) -> Vec<LinkAdmits> {
+        match (listing.links_admit, listing.company) {
+            (None, _) => Vec::new(),
+            (Some(LinkAdmits::Anyone), true) => vec![LinkAdmits::Members, LinkAdmits::Anyone],
+            (Some(_), _) => vec![LinkAdmits::Members],
+        }
+    }
+
+    pub(crate) fn admits_label(admits: LinkAdmits) -> &'static str {
+        match admits {
+            LinkAdmits::Members => "People in the organization",
+            LinkAdmits::Anyone => "Anyone with an account here",
+        }
+    }
+
+    /// What a share link lets whoever opens it do, in a sentence.
+    pub(crate) fn describe_link(link: &ShareLink, company: bool) -> String {
+        let who = match (link.admits, company) {
+            (LinkAdmits::Members, true) => "Anyone in the organization with the link",
+            (LinkAdmits::Anyone, true) => "Anyone with the link and an account on this server",
+            (_, false) => "Anyone with the link",
+        };
+        let what = match link.access {
+            AccessLevel::Edit => "can edit",
+            _ => "can view",
+        };
+        match link.maker_name.is_empty() {
+            true => format!("{who} {what}."),
+            false => format!("{who} {what}. Made by {}.", link.maker_name),
+        }
     }
 
     pub(crate) fn inside_note(listing: &AccessListing) -> Option<String> {
@@ -270,6 +337,10 @@ fn member(
             Some("Opens for them once you have both confirmed each other as contacts".to_owned())
         }
         (false, false) if grant.author && source == Some(block) => None,
+        (false, false) if grant.through_link && source == Some(block) => Some(format!(
+            "{}, through a share link",
+            grant.effective.label()
+        )),
         (false, false) => origin(grant.effective, source, block, name_of),
     };
     let may_own = owner

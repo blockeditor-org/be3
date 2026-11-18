@@ -8,8 +8,8 @@ package be3:server@0.1.0;
 /// does is its `link-kind`.
 interface contacts {
     use types.{
-        access-level, account-id, block-id, entry-hash, error, link-id, organization-id,
-        pending-grant, public-key,
+        access-level, account-id, block-id, entry-hash, error, link-admits, link-id,
+        organization-id, pending-grant, public-key,
     };
 
     /// An invitation into an organization. Its link is a bearer secret: any
@@ -68,16 +68,6 @@ interface contacts {
         /// The accepter joins the organization as an editor. Only its
         /// administrator makes one.
         invitation(invitation),
-    }
-
-    /// Who may open a share link (be_block_keys::Admits).
-    enum link-admits {
-        /// Members of the block's organization: in the personal
-        /// organization, every account.
-        members,
-        /// Any account on the server; one from outside the organization
-        /// joins it as a guest.
-        anyone,
     }
 
     /// A share link as the holder of its code reads it to open it.
