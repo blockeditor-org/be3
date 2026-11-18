@@ -23,6 +23,7 @@ fn a_discarded_block_opened_before_a_join_says_it_may_be_edited_is_read_only() {
             &sharer.me().card(),
             &code,
             be_block_client::contacts::Expected::Contact,
+            &Default::default(),
         ))
         .expect("the sharer accepts the link");
     runtime

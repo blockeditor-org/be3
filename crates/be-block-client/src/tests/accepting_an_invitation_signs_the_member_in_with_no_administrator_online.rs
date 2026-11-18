@@ -46,6 +46,7 @@ async fn accepting_an_invitation_signs_the_member_in_with_no_administrator_onlin
                 &theirs,
                 &code,
                 crate::contacts::Expected::Invitation,
+                &Default::default(),
             )
             .await
         }

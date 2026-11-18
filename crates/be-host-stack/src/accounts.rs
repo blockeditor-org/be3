@@ -397,6 +397,7 @@ pub async fn accept_invitation(
         &me.card(),
         &code,
         be_block_client::contacts::Expected::Invitation,
+        &crate::contact_pins(),
     )
     .await?;
     Ok(invitation_of(link)?.organization)

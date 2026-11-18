@@ -23,6 +23,7 @@ fn edits_typed_after_a_demotion_stay_discarded_once_the_block_is_editable_again(
             &sharer.me().card(),
             &code,
             be_block_client::contacts::Expected::Contact,
+            &Default::default(),
         ))
         .expect("the sharer accepts the link");
     runtime

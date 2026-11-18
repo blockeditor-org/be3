@@ -1271,7 +1271,10 @@ async fn held_verified(
 }
 
 /// Accepts a link of the kind `expected`: a contact link's grant, or an invitation's escrow
-/// key, is sealed to `identity` as it is taken. Accepting an invitation signs this account into
+/// key, is sealed to `identity` as it is taken. The record it makes of the link's owner follows
+/// the newest of what the account's block holds and `pins`, what this device pinned (as
+/// `contacts` takes it), so a server that serves this device an older block makes no record it
+/// would read as a rollback. Accepting an invitation signs this account into
 /// its organization's log, with the key the code derives, after the head the link names; read
 /// again and signed again if the log moved meanwhile.
 pub async fn accept_link(
@@ -1280,6 +1283,7 @@ pub async fn accept_link(
     me: &ContactCard,
     code: &InviteCode,
     expected: Expected,
+    pins: &HashMap<Uuid, OwnContact>,
 ) -> Result<(Link, ContactCard), ClientError> {
     // The card names these keys; the server holds them first, so a record the link's owner
     // signs naming them (a member signed in) checks.
@@ -1291,7 +1295,11 @@ pub async fn accept_link(
         identity,
         Uuid::from_bytes(card.account),
     )
-    .await?;
+    .await?
+    .max(
+        pins.get(&Uuid::from_bytes(card.account))
+            .map_or(0, |pin| pin.verified),
+    );
     let key = match &link.kind {
         LinkKind::Contact(Some(grant)) => {
             let secret = code
@@ -1381,12 +1389,14 @@ const ACCEPT_TRIES: usize = 3;
 /// The links this account made that were accepted, each with its accepter's card opened with
 /// the code the account's block keeps, recorded in the block as a contact. One whose card does
 /// not open, or whose code the block no longer keeps, goes with its letter. A link for another
-/// organization waits for a peer of that one.
+/// organization waits for a peer of that one. Each record follows the newest of what the block
+/// holds and `pins`, as `accept_link`'s does.
 pub(crate) async fn finish_links(
     connection: &Arc<Connection>,
     account: Uuid,
     identity: &RecoverySecret,
     organization: Uuid,
+    pins: &HashMap<Uuid, OwnContact>,
 ) -> Result<Vec<Finished>, ClientError> {
     let held = mailbox(connection).await?;
     let accepted: Vec<(u64, Uuid, Uuid, Vec<u8>)> = held
@@ -1460,9 +1470,13 @@ pub(crate) async fn finish_links(
                     return Vec::new();
                 }
                 // Newer than whatever the block held, a removal included.
+                let pin = pins.get(&accepter).map_or(0, |pin| pin.verified);
                 let record = OwnContact {
                     through: letter,
-                    ..OwnContact::new(card.clone(), before.map_or(0, |before| before.verified()))
+                    ..OwnContact::new(
+                        card.clone(),
+                        before.map_or(0, |before| before.verified()).max(pin),
+                    )
                 };
                 vec![be_block::AccountBlock::set_contact(
                     accepter,

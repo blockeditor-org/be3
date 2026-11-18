@@ -24,6 +24,7 @@ fn a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else() {
             &sharer.me().card(),
             &code,
             be_block_client::contacts::Expected::Contact,
+            &Default::default(),
         ))
         .expect("the sharer accepts the link");
     runtime
