@@ -349,7 +349,7 @@ fn RenameDialog(done: Callback<Option<String>>) -> NodeId {
         move |event| {
             let closes = event
                 .press()
-                .is_some_and(|press| press.pressed && press.key == Key::Escape);
+                .is_some_and(|press| press.pressed && !press.repeat && press.key == Key::Escape);
             if closes {
                 done.call(None);
             }

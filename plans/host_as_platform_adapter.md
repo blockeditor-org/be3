@@ -288,11 +288,13 @@ the end of the frame who heard the pointer leave and the focus move (`entered`, 
 under the point, after its overlays, scrims, claims and the camera's gesture areas, and whether
 a middle press pans (`HitTest::pans`). `Router::route` builds the same steps into routing a
 window's raw `Input`, for the host once it routes between surfaces. Where the router's rules and
-the catchers' differed, the catchers' were kept, since every host test relies on them: a key's
-release goes to the focus (only a chord the compositor took sends its release there too),
-a mouse's or pen's press holds its catcher for its other buttons, and each finger is its own
+the catchers' differed, the catchers' were kept, since every host test relies on them: a
+mouse's or pen's press holds its catcher for its other buttons, and each finger is its own
 pointer. The one change is latching: a held scroll or touchpad gesture now stays with the catcher
-it began on. The IME area, accessibility actions by node id and drive's presses already take
+it began on. (A key's release went to the focus then; since 4g4's review it goes where its press
+went, the compositor for a chord it took, as beui holds a key for what took its press, so the
+release of an Escape that closed a root's dialog never reaches the surface the focus went back
+to. Only `Router::route`, the root's routing, routes keys.) The IME area, accessibility actions by node id and drive's presses already take
 this path, since they reach catchers through beui's document.
 
 Built (step 4f1): beui hands a program the platform's raw input (`Program::input`), and
@@ -980,7 +982,7 @@ Each step lands on its own.
        or Rename, which shows the name in its strip) gives the focus back to the layer that
        had it. be-wasm-root-host's
        `a_dialog_shows_over_its_scrim_which_captures_a_press_beside_it_and_closes_it`,
-       `escape_closes_a_dialog_while_the_root_intercepts_it` and
+       `escape_closes_a_dialog_that_has_the_focus` and
        `typing_through_the_input_method_reaches_a_dialogs_field_and_the_clipboard_is_the_hosts`
        check it through `be3:root`, and the host test
        `a_root_in_place_of_the_hosts_ui_opens_a_dialog_on_the_hosts_clipboard_and_input_method`
