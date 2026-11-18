@@ -2,9 +2,9 @@ use be_block_graph::Access;
 
 use super::*;
 
-/// A contact link's grant revoked before its maker's device finished the link: the revocation
-/// signs nothing, since the block's log names no one yet, so finishing finds the server no
-/// longer holds the grant and signs nothing either.
+/// A contact link's grant revoked before its maker's device finished the link: the block's log
+/// names no one yet, but the server holds the grant the link applied, so the revocation is
+/// signed into the log, and finishing the link, which reads the log, grants nothing back.
 #[tokio::test]
 async fn a_contact_link_revoked_before_it_is_finished_grants_nothing() {
     let harness = Harness::start().await;
@@ -38,6 +38,7 @@ async fn a_contact_link_revoked_before_it_is_finished_grants_nothing() {
         &member_card,
         &link,
         crate::contacts::Expected::Contact,
+        &Default::default(),
     )
     .await
     .unwrap();
@@ -46,6 +47,15 @@ async fn a_contact_link_revoked_before_it_is_finished_grants_nothing() {
         .grant(team, member.account(), Access::None)
         .await
         .unwrap();
+    let (_, checked) = admin.checked_access(team).await.unwrap();
+    assert_eq!(
+        checked
+            .grants
+            .get(&member.account().into_bytes())
+            .map(|(level, _)| *level),
+        Some(be_block_keys::Level::None),
+        "the revocation is in the block's log"
+    );
     admin.finish_links().await.unwrap();
     let (_, checked) = admin.checked_access(team).await.unwrap();
     assert!(
