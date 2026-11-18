@@ -249,10 +249,11 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   down owes its hello or its going and wants a frame by `FRAME_TIMEOUT`; one
   that runs and draws owes a frame due or in flight, and wants one at once
   while one is due or it animates, or when its pacing says; one with no
-  surface or that closed wants and owes nothing. be-sdk-root-testing is a root built on it, which
-  fills its own surface with `ROOT_COLOR` and draws a strip over it with
-  beui, a line of text in styled components, under the triangle's screen, and which be-wasm-root-host's tests run with the triangle
-  on a stand-in device, and be-host's host test with `--root`. A root is
+  surface or that closed wants and owes nothing. be-sdk-root-testing is a
+  root built on it, which fills its own surface with `ROOT_COLOR` and draws a
+  strip over it with beui, a line of text in styled components, under the
+  triangle's screen, and which be-wasm-root-host's tests run with the
+  triangle on a stand-in device, and be-host's host test with `--root`. A root is
   built as an app is (`app_module`, in the `wasi-guest` plan, linked against
   base and beui; decisions/a_root_links_beui_as_an_app_does.md); only
   be-wasm-root-testing, which draws no UI, is a pure guest in the `wasm32`

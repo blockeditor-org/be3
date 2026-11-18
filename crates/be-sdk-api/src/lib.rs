@@ -85,7 +85,7 @@ pub use types::{
     SurfaceSupport, TimedInput, TopBar, ViewAnchor, ViewEdge, ViewPlacement, ViewSize,
     ViewportMetrics,
 };
-/// The fonts a host tells an app, which beui shares (be3:ui).
+/// The fonts a host bundles, which it tells an app and a root (be3:ui's).
 pub use be_lib_ui_types::{FontFace, FontRole, Fonts};
 pub use types::{BlockFilter, BlockLocation, BlockPick, OpenPicker, OpenRename, PickedBlock};
 pub use types::{
