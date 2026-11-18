@@ -102,7 +102,6 @@ pub fn grants_of(
             .collect(),
         company: list.company,
         set_inside: list.set_inside,
-        links_admit: list.links_admit.map(admits_of),
         hosted,
     })
 }

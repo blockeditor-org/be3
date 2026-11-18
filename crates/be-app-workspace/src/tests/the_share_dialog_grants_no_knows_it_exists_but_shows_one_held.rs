@@ -49,7 +49,6 @@ fn the_share_dialog_grants_no_knows_it_exists_but_shows_one_held() {
             ],
             company: false,
             set_inside: 0,
-            links_admit: None,
             hosted: false,
         }),
     );
