@@ -1708,8 +1708,12 @@ async fn log_puts(
         .unwrap_or(0);
     let start = from;
     let (mut puts, mut removed) = (Vec::new(), Vec::new());
-    // What was redacted since says nothing any more, whoever redacted it, and nothing after
-    // brings it back: its removal is as of no time any entry reaches.
+    // What was redacted since says nothing any more, whoever redacted it: its removal is as of
+    // the server's clock now, after every entry that changed it, and nothing after brings it
+    // back (`search_log`).
+    let now = peer
+        .server_now()
+        .unwrap_or_else(be_block_commit::now_milliseconds);
     let redacted = shared
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -1725,7 +1729,7 @@ async fn log_puts(
                 key: key.clone(),
             },
             be_lib_search::Commit {
-                time: i64::MAX,
+                time: now,
                 id: *be_block_store::Hash::of(key.as_bytes()).as_bytes(),
             },
         ));
