@@ -2209,6 +2209,37 @@ impl ServerStore {
         .await
     }
 
+    /// Appends a ban (`Record::Ban`) of `account` to `block`'s log, signed by the caller, who
+    /// holds Edit or above (plans/hosted_blocks.md, "Hosting").
+    pub async fn ban(
+        &self,
+        identity: Identity,
+        block: Uuid,
+        account: Uuid,
+        record: Vec<u8>,
+    ) -> Result<(), ServerError> {
+        self.with_graph(identity.organization, move |_, graph, database| {
+            require_edit(graph, &visibility(identity), block)?;
+            crate::access::append_ban(
+                database,
+                identity.organization,
+                block,
+                identity.account,
+                account,
+                &record,
+            )
+        })
+        .await
+    }
+
+    /// Whether `block`'s log bars the caller from joining its host now.
+    pub async fn banned(&self, identity: Identity, block: Uuid) -> Result<bool, ServerError> {
+        self.with_graph(identity.organization, move |_, _, database| {
+            crate::access::banned(database, identity.organization, block, identity.account)
+        })
+        .await
+    }
+
     pub async fn list_access(
         &self,
         identity: Identity,

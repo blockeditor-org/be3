@@ -123,6 +123,7 @@ pub(crate) fn op_rule(op: &Op) -> Rule {
         Op::AppendLog(record) => match record {
             LogRecord::Grant { block: of, .. } => block(*of, Access::KnowExists),
             LogRecord::Role { .. } => Rule::Administrator,
+            LogRecord::Ban { block: of, .. } => block(*of, Access::Edit),
             // An administrator removes a person; anyone signs in or out an agent it made.
             LogRecord::Member { .. } => Rule::Member,
         },
@@ -1303,6 +1304,22 @@ impl Client {
         // none of it reaches the connection as if of the session it joins.
         self.drain_pushes().await;
         let connection = &self.connection;
+        // A ban binds anyone below Edit (an editor may change the block directly anyway).
+        let barred = || async {
+            let editor = connection
+                .store
+                .require_access(identity, vec![block], Access::Edit)
+                .await
+                .is_ok();
+            // A ban that cannot be read bars: it fails closed.
+            Ok::<_, ServerError>(!editor && connection.store.banned(identity, block).await.unwrap_or(true))
+        };
+        if barred().await? {
+            return Err(ServerError::Refused(
+                ErrorCode::PermissionDenied,
+                format!("this account is barred from joining block {block}'s host"),
+            ));
+        }
         // Below View, a Join member (the rule admitted Join): it hears who hosts and the host
         // channel, nothing of the order, and only the lease holder hears of it.
         if connection
@@ -1317,11 +1334,23 @@ impl Client {
                 .registry
                 .join_member(place, connection.client, identity.account)
                 .await;
-            // A Join lost since the rule ran leaves again.
-            let still = connection
+            // A Join lost, or a ban made, since the checks ran leaves again.
+            let mut still = connection
                 .store
                 .require_access(identity, vec![block], Access::Join)
                 .await;
+            if still.is_ok()
+                && connection
+                    .store
+                    .banned(identity, block)
+                    .await
+                    .unwrap_or(true)
+            {
+                still = Err(ServerError::Refused(
+                    ErrorCode::PermissionDenied,
+                    format!("this account is barred from joining block {block}'s host"),
+                ));
+            }
             if let Err(error) = still {
                 connection.registry.leave(place, connection.client).await;
                 self.following.sessions.remove(&place);
@@ -1974,6 +2003,24 @@ impl Client {
                             .after(After::Recheck {
                                 organization: identity.organization,
                                 account: None,
+                                within: Some(block),
+                            })
+                            .await;
+                    }
+                    LogRecord::Ban {
+                        block,
+                        account,
+                        signed,
+                    } => {
+                        connection
+                            .store
+                            .ban(identity, block, account, signed)
+                            .await?;
+                        // A banned Join member in the session leaves.
+                        connection
+                            .after(After::Recheck {
+                                organization: identity.organization,
+                                account: Some(account),
                                 within: Some(block),
                             })
                             .await;
@@ -3062,7 +3109,14 @@ impl Connection {
                     MemberKind::Participant => Access::View,
                     MemberKind::Join => Access::Join,
                 };
-                if access(needs).await.is_err() {
+                // A ban binds anyone below Edit, and one that cannot be read bars.
+                let barred = access(Access::Edit).await.is_err()
+                    && self
+                        .store
+                        .banned(identity, block.block)
+                        .await
+                        .unwrap_or(true);
+                if barred || access(needs).await.is_err() {
                     self.registry.leave(block, client).await;
                     continue;
                 }

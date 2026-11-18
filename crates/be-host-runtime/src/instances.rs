@@ -66,9 +66,21 @@ fn presence_wanted(instance: EditorInstanceId) -> bool {
 /// for: the pick runs in the app's next frame, which asks in that frame's answers.
 const MENU_PICK_COMMITS: u32 = 2;
 
+/// Counts every instance that came or went, in any app: what be-host looks at to know the
+/// blocks editors show may have changed (`roles_revision`).
+static ROLES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// How many instances ever came or went.
+pub fn roles_revision() -> u64 {
+    ROLES.load(std::sync::atomic::Ordering::Acquire)
+}
+
 #[derive(Default)]
 pub(super) struct Instances {
     entries: HashMap<EditorInstanceId, Instance>,
+    /// The stack's count of member events queued for host components as this pass last took
+    /// them (`be_host_stack::member_events_revision`): taken again only when it moved.
+    member_events: u64,
     focus: Focus,
     connection: Option<Connection>,
     next_screen: u64,
@@ -302,6 +314,7 @@ use be_sdk_app_host::blocks::Subject;
 
 impl Instance {
     fn new(role: InstanceRole) -> Self {
+        ROLES.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
         Self {
             role,
             artifact: ArtifactState::default(),
@@ -897,6 +910,9 @@ impl Drop for Instances {
     /// Answers the renders still asked of instances that go with their app, and says they
     /// closed.
     fn drop(&mut self) {
+        if !self.entries.is_empty() {
+            ROLES.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        }
         for (instance, entry) in &mut self.entries {
             for request in entry.renders.drain() {
                 super::events::emit(
@@ -914,6 +930,13 @@ impl Drop for Instances {
 }
 
 impl Instances {
+    /// Each instance with its role.
+    pub(crate) fn roles(&self) -> impl Iterator<Item = (EditorInstanceId, InstanceRole)> + '_ {
+        self.entries
+            .iter()
+            .map(|(instance, entry)| (*instance, entry.role))
+    }
+
     pub(super) fn translate(&self, message: &mut impl BlockIds, inward: bool) {
         let mut carries = false;
         message.visit_block_ids(&mut |_, _, _| carries = true);
@@ -1016,6 +1039,7 @@ impl Instances {
         let Some(entry) = self.entries.remove(&instance) else {
             return false;
         };
+        ROLES.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
         self.owners.retain(|_, owner| *owner != instance);
         be_host_stack::want(be_host_stack::Owner::Editor(instance.0), Vec::new());
         be_host_stack::want_searches(be_host_stack::Owner::Editor(instance.0), Vec::new());
@@ -2159,6 +2183,8 @@ impl Instances {
         self.touch(&changes);
         let graph_moved = changes.graph;
         let contacts_moved = changes.contacts;
+        let member_events = be_host_stack::member_events_revision();
+        let members_moved = std::mem::replace(&mut self.member_events, member_events) != member_events;
         let mut opened = Vec::new();
         let mut screens = Vec::new();
         self.relaying.clear();
@@ -2331,6 +2357,15 @@ impl Instances {
                         instance,
                         EditorEvent::SetEditable(editable),
                     ));
+                }
+            }
+            // A host component hears its block's host channel members come, speak and go
+            // (plans/hosted_blocks.md, "Hosting"), as the stack admits them.
+            if let InstanceRole::Host(_, block) = entry.role
+                && members_moved
+            {
+                for event in be_host_stack::take_member_events(block.id) {
+                    opened.push(Outbound::Event(instance, EditorEvent::Member(event)));
                 }
             }
             entry.offer_blocks(scope);

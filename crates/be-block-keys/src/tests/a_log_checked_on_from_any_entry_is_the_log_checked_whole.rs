@@ -2,7 +2,8 @@ use super::*;
 
 /// However much of a log a device checked before, checking on from there finds what a check from
 /// the root finds: through retirements, an opening closed, a share link opened, used and revoked,
-/// the retirement of an account granted through it, and the block changing owner.
+/// the retirement of an account granted through it, the block changing owner, and bans: one
+/// its account's own leaving does not lift, one a grant after lifts, and one that stands.
 #[test]
 fn a_log_checked_on_from_any_entry_is_the_log_checked_whole() {
     let creator = RecoveryPhrase::generate().secret();
@@ -106,8 +107,45 @@ fn a_log_checked_on_from_any_entry_is_the_log_checked_whole() {
         }),
     );
 
+    let ban = |account| {
+        Record::Ban(Ban {
+            account,
+            authority: Authority::Log,
+        })
+    };
+    append(&mut entries, &member, member_id, ban(other_id));
+    append(
+        &mut entries,
+        &other,
+        other_id,
+        Record::Grant(Grant {
+            grantee: other_id,
+            identity: other.identity(),
+            level: Level::None,
+            authority: Authority::Log,
+        }),
+    );
+    assert!(check(&entries).unwrap().banned.contains(&other_id));
+    append(
+        &mut entries,
+        &member,
+        member_id,
+        Record::Grant(Grant {
+            grantee: other_id,
+            identity: other.identity(),
+            level: Level::Join,
+            authority: Authority::Log,
+        }),
+    );
+    append(&mut entries, &member, member_id, ban(opener_id));
+
     let whole = check(&entries).unwrap();
     assert!(whole.last_lowering > 0 && whole.owner == Some(member_id));
+    assert_eq!(
+        whole.banned,
+        std::collections::HashSet::from([opener_id]),
+        "a grant after a ban lifted it, and the later ban stands"
+    );
     for split in 1..=entries.len() {
         let kept = check(&entries[..split]).unwrap();
         assert_eq!(

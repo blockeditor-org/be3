@@ -306,6 +306,10 @@ impl EditorSession {
         self.host.reveal(at);
     }
 
+    pub(crate) fn member(&self, event: be_sdk_api::blocks::MemberEvent) {
+        self.host.member(event);
+    }
+
     pub(crate) fn show_dialog(&self, block_id: Uuid, dialog: be_sdk_api::ShellDialog) {
         self.host.show_dialog(block_id, dialog);
     }

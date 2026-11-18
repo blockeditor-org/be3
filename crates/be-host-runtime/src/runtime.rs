@@ -30,7 +30,7 @@ use be_sdk_api::app::{EditorEvent, MenuChoice};
 
 use super::{
     ArtifactSlot, ArtifactState, CreationSlot, CreationState, HostAnchored, HostChild,
-    HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
+    EditorBlock, HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
     backend::{Availability, Backend, Deadline, Frame, ShownFrame},
     calls::{AppCall, EditorAnswer, EditorCall, Heard, Outbound},
     input::{BlockDrag, DragEvent},
@@ -2424,6 +2424,29 @@ pub fn in_use() -> Vec<String> {
             .collect();
         in_use.sort_unstable();
         in_use
+    })
+}
+
+/// What hosted blocks need of the runtime (plans/hosted_blocks.md, "Hosting"): each block an
+/// editor shows, with its type, and each host component running, by its app, instance and
+/// block.
+pub fn editing_and_hosting() -> (Vec<EditorBlock>, Vec<(String, EditorInstanceId, Uuid)>) {
+    HOST.with(|host| {
+        let host = host.borrow();
+        let mut editing = Vec::new();
+        let mut hosting = Vec::new();
+        for (app_id, runtime) in &host.runtimes {
+            for (instance, role) in runtime.instances.roles() {
+                match role {
+                    InstanceRole::Editor(_, block) => editing.push(block),
+                    InstanceRole::Host(_, block) => {
+                        hosting.push((app_id.clone(), instance, block.id));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        (editing, hosting)
     })
 }
 
