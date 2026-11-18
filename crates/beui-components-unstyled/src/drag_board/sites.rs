@@ -274,6 +274,10 @@ impl Board {
             return self.step_free(toward, last);
         };
         let target = &rests[at];
+        // A step to a place a scroll hides brings it into view, as moving the focus does.
+        if let Some((node, part)) = target.within {
+            beui_view::nodes::TreeNode::reveal_part(&node, part);
+        }
         // A zoned place is chosen while the pointer is in its zone; any other while the item
         // is drawn on its rest.
         let pos = match target.zone {

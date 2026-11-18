@@ -1028,6 +1028,9 @@ pub struct Rest {
     pub edge: Option<Side>,
     pub label: Option<String>,
     pub id: CandidateId,
+    /// The node the place is relative to, and the part of it the rest takes, in fractions
+    /// of its size: what a keyboard step reveals.
+    pub within: Option<(NodeId, Rect)>,
 }
 
 impl Rest {
@@ -1060,12 +1063,27 @@ pub fn rests<D>(spec: &DragSpec<D>, placed: &dyn Fn(NodeId) -> Option<(Rect, f32
                     ))
                 };
                 if let Some(rest) = place(candidate.rest) {
+                    let within = candidate.node.try_get().and_then(|node| {
+                        let (at, scale) = placed(node)?;
+                        let size = at.size() / scale;
+                        (size.x > 0.0 && size.y > 0.0).then(|| {
+                            let fraction = |pos: Pos2| Pos2::new(pos.x / size.x, pos.y / size.y);
+                            (
+                                node,
+                                Rect::from_min_max(
+                                    fraction(candidate.rest.min),
+                                    fraction(candidate.rest.max),
+                                ),
+                            )
+                        })
+                    });
                     into.push(Rest {
                         rest,
                         zone: candidate.zone.and_then(place),
                         edge: candidate.nearest.map(|(side, _)| side),
                         label: candidate.label.clone(),
                         id,
+                        within,
                     });
                 }
             }
