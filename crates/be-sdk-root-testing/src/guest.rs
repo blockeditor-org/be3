@@ -23,7 +23,7 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    FrameDone, FrameRequest, HostStatistics, LockState, Notice, PowerAction, SavingState,
+    DisplayQuestion, FrameDone, FrameRequest, HostStatistics, LockState, Notice, PowerAction, SavingState,
     StatisticRow, SyncState,
     guest::{
         exports::{frames, input, paintings},
@@ -37,7 +37,7 @@ use beui::styled::*;
 use beui::{Align, Align2, Direction, KeyPhase, NodeId, Overflow, Pos2, Rect, TextAlign, vec2};
 
 use crate::{
-    APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DIALOG_ORIGIN, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
+    APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DIALOG_ORIGIN, KEEP_DISPLAY_TITLE, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
     LATE_LAYER, LATER, LATER_TEXT, LOCK_LAYER, LOCK_SURFACE, LOCKS_SESSION, OPENS_DIALOG,
     OPENS_STATISTICS, ORIGIN, RASTER, RESIZED, RESIZES, ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE,
     SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE, SIZE, SLOW_SAVE,
@@ -75,6 +75,9 @@ struct Root {
     /// Whether its host's changes are saved, as its host said last, which the toasts' document
     /// shows (the slow save's toast).
     saving: Rc<Cell<Option<Signal<SavingState>>>>,
+    /// The display settings waiting to be kept, as its host said last, until a frame shows it:
+    /// none while the host said nothing new.
+    keep_asked: Rc<RefCell<Option<Option<DisplayQuestion>>>>,
     /// The surface a `RESIZES` frame configures and never presents.
     unpresented: Rc<RefCell<Option<OwnSurface>>>,
     /// The scrim under its dialog, filled with `SCRIM_COLOR` on its first frame.
@@ -103,12 +106,33 @@ struct Root {
 /// The root's dialog while it is open.
 struct Dialog {
     surface: BeuiSurface,
-    /// How the person closed it from inside, which its document sets: with a name, or none.
-    closed: Rc<RefCell<Option<Option<String>>>>,
+    /// How the person closed it from inside, which its document sets.
+    closed: Rc<RefCell<Option<Closed>>>,
+    /// The round of display settings it asks to keep, if it is that question rather than the
+    /// rename dialog.
+    keep: Option<u64>,
     /// The layer focused when it opened, which gets the focus back when it closes.
     had: Option<LayerId>,
     /// Whether it took the focus yet: once it has been drawn.
     focused: bool,
+}
+
+/// How the person closed a dialog of the root's from inside it.
+enum Closed {
+    /// Cancelled, its close button, or Escape.
+    Dismissed,
+    /// Renamed to this.
+    Renamed(String),
+    /// Kept the display settings of this round.
+    Kept(u64),
+    /// Reverted the display settings of this round, or the time to answer ran out.
+    Reverted(u64),
+}
+
+/// Which dialog to open.
+enum Asking {
+    Rename,
+    KeepDisplay(DisplayQuestion),
 }
 
 /// The root's lock screen while the session is locked.
@@ -144,6 +168,7 @@ impl Root {
             toasts: Rc::default(),
             shown: Rc::default(),
             saving: Rc::default(),
+            keep_asked: Rc::default(),
             unpresented: Rc::default(),
             scrim: Rc::default(),
             dialog: Rc::default(),
@@ -230,6 +255,7 @@ impl Root {
         be_wasm_ops::guest::spawn(self.clone().hear_notices());
         be_wasm_ops::guest::spawn(self.clone().hear_lock());
         be_wasm_ops::guest::spawn(self.clone().hear_saving());
+        be_wasm_ops::guest::spawn(self.clone().hear_displays());
         Ok(())
     }
 
@@ -258,6 +284,17 @@ impl Root {
             {
                 surface.enter(|| shown.set(saving));
             }
+        }
+    }
+
+    /// Keeps whether its host asks to keep display settings as each change of it comes, for
+    /// the next frame to show, until the host stops answering.
+    async fn hear_displays(self) {
+        let mut seen = 0;
+        while let Ok(displays) = host::displays(seen).await {
+            seen = displays.generation;
+            *self.keep_asked.borrow_mut() = Some(displays.asking);
+            self.waker.wake();
         }
     }
 
@@ -494,22 +531,45 @@ impl Root {
             .as_ref()
             .and_then(|dialog| dialog.closed.borrow_mut().take());
         let asked = self.asked.take();
-        if let Some(named) = &closed
-            && let Some(name) = named.clone()
-            && let (Some(text), Some(shown)) = (&mut *self.text.borrow_mut(), self.named.get())
-        {
-            text.enter(|| shown.set(Some(name)));
+        let keep = self.keep_asked.borrow_mut().take();
+        let open_keep = self.dialog.borrow().as_ref().and_then(|dialog| dialog.keep);
+        match &closed {
+            Some(Closed::Renamed(name)) => {
+                if let (Some(text), Some(shown)) = (&mut *self.text.borrow_mut(), self.named.get())
+                {
+                    let name = name.clone();
+                    text.enter(|| shown.set(Some(name)));
+                }
+            }
+            Some(Closed::Kept(round)) => answer_display(*round, true),
+            Some(Closed::Reverted(round)) => answer_display(*round, false),
+            // Dismissing the question of keeping display settings reverts them.
+            Some(Closed::Dismissed) => {
+                if let Some(round) = open_keep {
+                    answer_display(round, false);
+                }
+            }
+            None => {}
         }
-        if closed.is_some() || asked == Some(Asked::Close) {
-            let Some(dialog) = self.dialog.borrow_mut().take() else {
-                return Ok(());
-            };
-            let mut embedding = self.embedding.borrow_mut();
-            embedding.intercept(chords(false));
-            let told = embedding.focus(None, dialog.had);
-            drop(embedding);
-            self.heard(&told);
-            return Ok(());
+        // Escape or a press on the scrim closes it, which for the question reverts.
+        if closed.is_none()
+            && asked == Some(Asked::Close)
+            && let Some(round) = open_keep
+        {
+            answer_display(round, false);
+        }
+        // The host no longer asks (answered, or reverted on its own): its question goes.
+        let withdrawn = matches!(&keep, Some(None)) && open_keep.is_some();
+        // A new question replaces whatever dialog is open.
+        let opening = match keep {
+            Some(Some(asked)) => Some(Asking::KeepDisplay(asked)),
+            _ if asked == Some(Asked::Open) && self.dialog.borrow().is_none() => {
+                Some(Asking::Rename)
+            }
+            _ => None,
+        };
+        if closed.is_some() || asked == Some(Asked::Close) || withdrawn || opening.is_some() {
+            self.close_dialog();
         }
         // No dialog opens while the session is locked, so the focus the lock gives back is the
         // one it took.
@@ -519,28 +579,54 @@ impl Root {
                 .borrow()
                 .as_ref()
                 .is_some_and(|state| state.locked);
-        if asked != Some(Asked::Open) || self.dialog.borrow().is_some() || locked {
-            return Ok(());
+        match opening {
+            Some(opening) if !locked => self.open_dialog(opening),
+            _ => Ok(()),
         }
+    }
+
+    /// Closes its dialog, if one is open, giving the focus back to the layer that had it, and
+    /// Escape to whatever has the focus.
+    fn close_dialog(&self) {
+        let Some(dialog) = self.dialog.borrow_mut().take() else {
+            return;
+        };
+        let mut embedding = self.embedding.borrow_mut();
+        embedding.intercept(chords(false));
+        let told = embedding.focus(None, dialog.had);
+        drop(embedding);
+        self.heard(&told);
+    }
+
+    /// Opens `opening` with its scrim, interception of Escape and, once drawn, the focus.
+    fn open_dialog(&self, opening: Asking) -> Result<(), String> {
         let Some(beui) = self.beui.borrow().clone() else {
             return Ok(());
         };
-        let closed = Rc::<RefCell<Option<Option<String>>>>::default();
+        let closed = Rc::<RefCell<Option<Closed>>>::default();
         let closing = Rc::clone(&closed);
         let waker = self.waker.clone();
+        let keep = match &opening {
+            Asking::KeepDisplay(asked) => Some(asked.round),
+            Asking::Rename => None,
+        };
         let surface = BeuiSurface::new(
             &beui,
             OwnSurface::new(DIALOG_SURFACE, DIALOG_SIZE),
             1.0,
             move || waker.wake(),
             move || {
-                let done = Callback::new(move |name: Option<String>| {
-                    *closing.borrow_mut() = Some(name);
+                let done = Callback::new(move |how: Closed| {
+                    *closing.borrow_mut() = Some(how);
                 });
+                let shown = match opening {
+                    Asking::Rename => view! { <RenameDialog done={done} /> },
+                    Asking::KeepDisplay(asked) => {
+                        view! { <KeepDisplayDialog asked done={done} /> }
+                    }
+                };
                 view! {
-                    <Root clear_color=ColorRole::None>
-                        <RenameDialog done={done} />
-                    </Root>
+                    <Root clear_color=ColorRole::None>{shown}</Root>
                 }
             },
         )?;
@@ -552,6 +638,7 @@ impl Root {
         *self.dialog.borrow_mut() = Some(Dialog {
             surface,
             closed,
+            keep,
             had,
             focused: false,
         });
@@ -580,9 +667,9 @@ fn chords(escape: bool) -> Vec<KeyChord> {
 /// The dialog: a name, which it focuses, and Cancel and Rename, filling its surface. `done`
 /// hears how it closed: with the name, or none.
 #[component]
-fn RenameDialog(done: Callback<Option<String>>) -> NodeId {
+fn RenameDialog(done: Callback<Closed>) -> NodeId {
     let name = create_signal(String::new());
-    let rename = move || done.call(Some(name.get()));
+    let rename = move || done.call(Closed::Renamed(name.get()));
     // Escape closes it once nothing inside it, such as a popup, took the key first.
     on_key(
         KeyAt::Node(component_node()),
@@ -593,7 +680,7 @@ fn RenameDialog(done: Callback<Option<String>>) -> NodeId {
                 .press()
                 .is_some_and(|press| press.pressed && !press.repeat && press.key == Key::Escape);
             if closes {
-                done.call(None);
+                done.call(Closed::Dismissed);
             }
             closes
         },
@@ -610,7 +697,7 @@ fn RenameDialog(done: Callback<Option<String>>) -> NodeId {
                 title=DIALOG_TITLE
                 scrolls=false
                 actions={vec![DialogAction::cancel("Cancel"), DialogAction::primary("Rename", rename)]}
-                on_dismiss={move || done.call(None)}
+                on_dismiss={move || done.call(Closed::Dismissed)}
             >
                 <TextInput
                     value={name}
@@ -956,6 +1043,75 @@ fn power_glyph(action: PowerAction) -> Glyph {
         PowerAction::LogOut => ICON_LOG_OUT,
     }
     .to_owned()
+}
+
+/// The question of keeping display settings that just changed: Keep, or Revert, which it does
+/// itself once the time to answer runs out, counting down to it on its clock, which the root
+/// pins to its host's frame clock. Escape reverts too.
+#[component]
+fn KeepDisplayDialog(asked: DisplayQuestion, done: Callback<Closed>) -> NodeId {
+    let round = asked.round;
+    let within = Duration::from_nanos(asked.answer_within);
+    let deadline = now() + within;
+    let left = create_signal(within);
+    let ticking = create_timer(move || {
+        let remaining = deadline.saturating_duration_since(now());
+        left.set(remaining);
+        if remaining.is_zero() {
+            done.call(Closed::Reverted(round));
+            return None;
+        }
+        Some(remaining.min(Duration::from_secs(1)))
+    });
+    ticking.start(within.min(Duration::from_secs(1)));
+    let message = create_memo(move || match left.get().as_secs_f64().ceil() as u64 {
+        1 => "Reverting in 1 second.".to_owned(),
+        seconds => format!("Reverting in {seconds} seconds."),
+    });
+    on_key(
+        KeyAt::Node(component_node()),
+        KeyPhase::Bubble,
+        KeyReveal::Focus,
+        move |event| {
+            let closes = event
+                .press()
+                .is_some_and(|press| press.pressed && !press.repeat && press.key == Key::Escape);
+            if closes {
+                done.call(Closed::Reverted(round));
+            }
+            closes
+        },
+    );
+    view! {
+        <Frame
+            width=Length::FILL
+            height=Length::FILL
+            fill=ColorRole::Surface
+            border={Border::DEFAULT}
+            radius=Radius::Lg
+        >
+            <DialogBody
+                kind=DialogKind::Alert
+                title=KEEP_DISPLAY_TITLE
+                scrolls=false
+                actions={vec![
+                    DialogAction::primary("Keep", move || done.call(Closed::Kept(round))),
+                    DialogAction::cancel("Revert"),
+                ]}
+                on_dismiss={move || done.call(Closed::Reverted(round))}
+            >
+                <Text style=TextStyle::PARAGRAPH>{message}</Text>
+            </DialogBody>
+        </Frame>
+    }
+}
+
+/// Tells its host whether the person kept the display settings of `round`.
+fn answer_display(round: u64, keep: bool) {
+    be_wasm_ops::guest::spawn(async move {
+        // A host that cannot hear it has stopped, which the root hears from its frames.
+        let _ = host::answer_display(round, keep).await;
+    });
 }
 
 /// The strip of text: `TEXT`, and `LATER_TEXT` from `LATER` on, or the `name` the dialog gave.

@@ -552,6 +552,9 @@ fn statistic_row(row: be_host_base::performance::PerformanceRow) -> StatisticRow
 fn refuse_lock(root: &mut Root) {
     root.take_lock_asked();
     root.take_lock_powers();
+    // Nor does it manage displays (the desktop's), so it asks to keep none, and an answer
+    // changes nothing.
+    root.take_display_answers();
 }
 
 /// The host's notices as `be3:root` carries them, oldest first.
