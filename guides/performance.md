@@ -272,7 +272,7 @@ web host tests depend on be-host and every app. In CPU seconds:
 | 127 host tests (crates/be-host-tests), 0.8 to 7 each, median 2.5 | 355 |
 | be-host's `:push-web-host-test` (two accounts, the whole web host in Chromium), now thorough | 233 |
 | be-host's `:web-host-test`, now thorough | 104 |
-| be-host's `:shown-again-web-host-test` (with its idle check), thorough | 73 |
+| be-host's `:shown-again-web-host-test` (with its idle check), thorough | 79 |
 | be-host's `:grown-web-host-test`, thorough | 44 |
 | be-block-client, be-server, beui-host (in-process, many tests) | 51, 38, 43 |
 | beui-tests' and beui-demo-html's `:web-test` | 35, 23 |

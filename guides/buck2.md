@@ -283,7 +283,9 @@ too after a change to what they cover; `./scripts/test` runs one by name as any 
 thorough test may not paint (verify's paintings part would find its paintings unused). They are:
 
 - every `web_host_test` (buck/program/drive.bzl): `//crates/be-host:web-host-test`,
-  `//crates/be-host:push-web-host-test` and `//crates/be-host:own-memory-web-host-test`, the
+  `//crates/be-host:push-web-host-test`, `//crates/be-host:own-memory-web-host-test`,
+  `//crates/be-host:shown-again-web-host-test` (about 79 CPU seconds) and
+  `//crates/be-host:grown-web-host-test` (about 44 CPU seconds and 1.5 GB), the
   whole web page with every app in Chromium, drawn on
   SwiftShader. In November 2026 a run took about 84 and 159 CPU seconds, a fifth of all test CPU
   when every test reran, and depends on be-host and every app (guides/performance.md, Keeping

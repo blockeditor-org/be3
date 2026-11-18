@@ -9,7 +9,9 @@
 // The workspace clears to the theme's background, as the host does, so the test tells the two
 // apart by having the page's WebGL clear to magenta wherever the host's renderer clears to an
 // opaque colour: without the backdrop, the gap would read magenta. The app canvases draw in
-// their workers, which the init script does not reach, so they are unchanged.
+// their workers, which the init script does not reach, so they are unchanged. This assumes the
+// host's only opaque clear is the one that starts its frame; a renderer that cleared to an opaque
+// colour anywhere else (a backdrop drawn as a clear, say) would read magenta there too.
 
 const GROWN = { width: 1160, height: 700 };
 const CLEARED = [255, 0, 255];
@@ -52,7 +54,13 @@ export default async function (test) {
     await test.openPage();
     const { drive, page } = test;
     await drive("settle");
-    await drive("pause", "500");
+    // Settled, the workspace has drawn its screen: wait for its canvas to show, rather than for
+    // a length of time.
+    await page.waitForFunction(() =>
+        [...document.querySelectorAll("#apps canvas[data-kind=screen]")].some(
+            (canvas) => getComputedStyle(canvas).display !== "none" && canvas.getBoundingClientRect().width > 0,
+        ),
+    );
 
     // The workspace's canvas: the largest app screen shown, which fills the page.
     const before = await page.evaluate(() => {
