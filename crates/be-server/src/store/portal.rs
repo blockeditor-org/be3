@@ -58,7 +58,7 @@ impl ServerStore {
         let issuer = issuer.to_owned();
         self.with_database(move |_, database| {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
-            let valid: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM sessions WHERE account_id = ?1 AND token_hash = ?2 AND kind = 'browser' AND expires > ?3)", params![account.to_string(), hash_token(&issuer), now()], |row| row.get(0))?;
+            let valid: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM sessions WHERE account_id = ?1 AND token_hash = ?2 AND kind = 'browser' AND expires > ?3)", params![account.to_string(), hash_token(TokenKind::Session, &issuer), now()], |row| row.get(0))?;
             if !valid {
                 return Err(refused(
                     "The approving browser session expired or was revoked. Start sign-in again.",
@@ -80,7 +80,7 @@ impl ServerStore {
             let token = issue_token(&database, account)?;
             database.execute(
                 "UPDATE sessions SET kind = 'browser', expires = ?2, proved = ?3 WHERE token_hash = ?1",
-                params![hash_token(&token), now() + 30 * 86400, now()],
+                params![hash_token(TokenKind::Session, &token), now() + 30 * 86400, now()],
             )?;
             Ok(token)
         })
@@ -92,7 +92,7 @@ impl ServerStore {
         self.with_database(move |_, database| {
             let row: Option<(String, String, String)> = database.query_row(
                 "SELECT a.id, COALESCE(a.email, ''), a.display_name FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.token_hash = ?1 AND s.kind = 'browser' AND s.expires > ?2",
-                params![hash_token(&token), now()], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?))).optional()?;
+                params![hash_token(TokenKind::Session, &token), now()], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?))).optional()?;
             let (account, email, display_name) = row.ok_or_else(|| refused("Sign in to continue."))?;
             Ok(Profile {
                 account: parse_uuid(&account)?,
@@ -117,7 +117,7 @@ impl ServerStore {
                         id: row.get(0)?,
                         kind: row.get(1)?,
                         created: row.get(2)?,
-                        current: row.get::<_, String>(3)? == hash_token(&current),
+                        current: row.get::<_, String>(3)? == hash_token(TokenKind::Session, &current),
                     })
                 })?
                 .collect::<Result<Vec<_>, _>>()?;
@@ -135,7 +135,7 @@ impl ServerStore {
         browser: &str,
     ) -> Result<(), ServerError> {
         let own = {
-            let (id, browser) = (id.to_owned(), hash_token(browser));
+            let (id, browser) = (id.to_owned(), hash_token(TokenKind::Session, browser));
             self.with_database(move |_, database| {
                 Ok(database.query_row(
                     "SELECT EXISTS(SELECT 1 FROM sessions WHERE account_id = ?1 AND public_id = ?2 AND token_hash = ?3)",
@@ -170,7 +170,7 @@ impl ServerStore {
         current: &str,
     ) -> Result<(), ServerError> {
         self.require_fresh(current).await?;
-        let current = hash_token(current);
+        let current = hash_token(TokenKind::Session, current);
         let deleted = self
             .with_database(move |_, database| {
                 Ok(database.execute(
@@ -235,7 +235,7 @@ impl ServerStore {
             let row: Option<(String, String)> = transaction
                 .query_row(
                     "SELECT account_id, email FROM account_mail WHERE token_hash = ?1 AND expires > ?2",
-                    params![hash_token(&token), now()],
+                    params![hash_token(TokenKind::MailLink, &token), now()],
                     |row| Ok((row.get(0)?, row.get(1)?)),
                 )
                 .optional()?;
@@ -310,7 +310,7 @@ fn mail_link(
     let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
     database.execute(
         "INSERT INTO account_mail (token_hash, account_id, email, expires, address) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![hash_token(&token), account, email, now() + EMAIL_LINK_LIFETIME, address],
+        params![hash_token(TokenKind::MailLink, &token), account, email, now() + EMAIL_LINK_LIFETIME, address],
     )?;
     Ok(MailLink {
         email: email.into(),

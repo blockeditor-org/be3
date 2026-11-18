@@ -17,7 +17,7 @@ use uuid::Uuid;
 use super::codes::{
     Identity, account_of, make_account, open_browser_session, recover_account, unregistered,
 };
-use super::{ServerStore, hash_token, invite_codes, normalize_email, parse_uuid, portal::now};
+use super::{ServerStore, TokenKind, hash_token, invite_codes, normalize_email, parse_uuid, portal::now};
 use crate::ServerError;
 
 fn refused(message: &str) -> ServerError {
@@ -84,7 +84,7 @@ pub fn create(data_dir: &Path, whom: LinkFor<'_>) -> Result<LoginLink, ServerErr
     database.execute(
         "INSERT INTO login_links (token_hash, account_id, email, expires) VALUES (?1, ?2, ?3, ?4)",
         params![
-            hash_token(&token),
+            hash_token(TokenKind::LoginLink, &token),
             account,
             // A link to an account keeps no email, as it vouches for none.
             if vouches { email.as_str() } else { "" },
@@ -117,7 +117,7 @@ impl ServerStore {
         token: &str,
         address: &str,
     ) -> Result<UsedLink, ServerError> {
-        let token_hash = hash_token(token);
+        let token_hash = hash_token(TokenKind::LoginLink, token);
         let used = self
             .with_database(move |store, database| {
                 let transaction = be_block_sqlite_schema::write_transaction(database)?;

@@ -23,6 +23,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
 mod a_provider_sign_in_is_not_spent_by_its_callback_in_another_browser;
 mod a_request_with_a_transfer_encoding_or_two_lengths_is_refused;
+mod a_token_of_one_kind_never_hashes_as_another;
 mod an_email_change_is_confirmed_only_in_the_account_that_asked_for_it;
 mod a_block_agent_is_deleted_with_its_grant;
 mod a_block_agent_is_refused_while_its_block_is_in_the_trash;

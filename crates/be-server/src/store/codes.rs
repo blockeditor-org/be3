@@ -146,7 +146,7 @@ pub fn new_attempt() -> String {
 /// The name of an attempt the mail's link carries: enough to tell the browser that began it,
 /// and no use without that browser's secret.
 pub fn public_attempt(attempt: &str) -> String {
-    hash_token(&format!("attempt link {attempt}"))[..24].to_owned()
+    hash_token(TokenKind::PublicAttempt, attempt)[..24].to_owned()
 }
 
 /// What the network limit counts by: an IPv4 address, or an IPv6 address's /48.
@@ -196,7 +196,7 @@ pub fn normalize_code(code: &str) -> String {
 }
 
 fn code_hash(attempt: &str, code: &str) -> String {
-    hash_token(&format!("{attempt}:{}", normalize_code(code)))
+    hash_token(TokenKind::Code, &format!("{attempt}:{}", normalize_code(code)))
 }
 
 fn refused(message: &str) -> ServerError {
@@ -315,7 +315,7 @@ pub(crate) fn open_browser_session(
     let token = issue_token(database, account)?;
     database.execute(
         "UPDATE sessions SET kind = 'browser', expires = ?2, proved = ?3 WHERE token_hash = ?1",
-        params![hash_token(&token), now + 30 * 86400, now],
+        params![hash_token(TokenKind::Session, &token), now + 30 * 86400, now],
     )?;
     Ok(token)
 }
@@ -365,7 +365,7 @@ impl ServerStore {
         let invite = invite_codes::invite_hash(request.invite);
         let address = crate::address::address_key_text(request.address);
         let network = network_key(request.address);
-        let attempt = hash_token(request.attempt);
+        let attempt = hash_token(TokenKind::Attempt, request.attempt);
         let name = request.display_name.trim().to_owned();
         let device_code = request.device_code.to_owned();
         let asking = request.account;
@@ -472,7 +472,7 @@ impl ServerStore {
 
     /// The email a pending attempt's code went to, for the page that asks for it.
     pub async fn attempt_email(&self, attempt: &str) -> Option<String> {
-        let attempt = hash_token(attempt);
+        let attempt = hash_token(TokenKind::Attempt, attempt);
         self.with_database(move |_, database| {
             Ok(database
                 .query_row(
@@ -499,9 +499,9 @@ impl ServerStore {
         allowed: fn(CodePurpose, &crate::ServerConfig) -> bool,
         config: crate::ServerConfig,
     ) -> Result<EnteredCode, ServerError> {
-        let attempt_hash = hash_token(attempt);
+        let attempt_hash = hash_token(TokenKind::Attempt, attempt);
         let entered = code_hash(&attempt_hash, code);
-        let browser = hash_token(browser);
+        let browser = hash_token(TokenKind::Session, browser);
         let entered_code = self
             .with_database(move |store, database| {
                 let transaction = be_block_sqlite_schema::write_transaction(database)?;
@@ -610,7 +610,7 @@ impl ServerStore {
     /// Whether the browser session proved it is the account's owner in the last
     /// `FRESH_PROOF`: by a code to its email, or by signing in.
     pub async fn is_fresh(&self, browser: &str) -> Result<bool, ServerError> {
-        let browser = hash_token(browser);
+        let browser = hash_token(TokenKind::Session, browser);
         self.with_database(move |_, database| {
             Ok(database.query_row(
                 "SELECT EXISTS(SELECT 1 FROM sessions WHERE token_hash = ?1 AND kind = 'browser' AND expires > ?2 AND proved > ?3)",

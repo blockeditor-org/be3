@@ -14,7 +14,7 @@ use super::codes::{
     CodePurpose, CodeRequest, MailedCode, account_of, add_email_identity, make_account,
     open_browser_session, unregistered,
 };
-use super::{ServerStore, hash_token, invite_codes, parse_uuid, portal::now};
+use super::{ServerStore, TokenKind, hash_token, invite_codes, parse_uuid, portal::now};
 use crate::oidc::{Provider, Verified};
 use crate::{ServerConfig, ServerError};
 
@@ -106,13 +106,13 @@ pub(crate) enum Outcome {
 /// What the settings page's links to begin a link or a proof carry: only the browser's own
 /// session makes it, so a page elsewhere can't begin one for it.
 pub(crate) fn start_check(browser: &str) -> String {
-    hash_token(&format!("be3 provider start {browser}"))
+    hash_token(TokenKind::ProviderStart, browser)
 }
 
 /// Whether `given` is the browser's `start_check`. It compares their hashes, so how long the
 /// comparison takes says nothing about the check itself.
 pub(crate) fn is_start_check(browser: &str, given: &str) -> bool {
-    hash_token(given) == hash_token(&start_check(browser))
+    hash_token(TokenKind::ProviderStart, given) == hash_token(TokenKind::ProviderStart, &start_check(browser))
 }
 
 /// A provider identity's subject: the configured issuer and the token's `sub`.
@@ -279,12 +279,12 @@ impl ServerStore {
     ) -> Result<(), ServerError> {
         let (provider, state, verifier, nonce, device_code) = (
             provider.to_owned(),
-            hash_token(state),
+            hash_token(TokenKind::ProviderState, state),
             verifier.to_owned(),
             nonce.to_owned(),
             device_code.to_owned(),
         );
-        let attempt = hash_token(attempt);
+        let attempt = hash_token(TokenKind::Attempt, attempt);
         let address = crate::address::address_key_text(address);
         self.with_database(move |_, database| {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
@@ -320,7 +320,7 @@ impl ServerStore {
         attempt: &str,
     ) -> Result<Begun, ServerError> {
         let (provider, state, attempt) =
-            (provider.to_owned(), hash_token(state), hash_token(attempt));
+            (provider.to_owned(), hash_token(TokenKind::ProviderState, state), hash_token(TokenKind::Attempt, attempt));
         self.with_database(move |_, database| {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             #[allow(clippy::type_complexity)]
@@ -381,7 +381,7 @@ impl ServerStore {
                     config,
                     &format!("{} ", provider.issuer),
                 );
-                let browser = hash_token(browser);
+                let browser = hash_token(TokenKind::Session, browser);
                 self.with_database(move |store, database| {
                     let transaction = be_block_sqlite_schema::write_transaction(database)?;
                     // The browser must still be the account that began it, and have proved so
@@ -408,7 +408,7 @@ impl ServerStore {
                 let account = begun
                     .account
                     .ok_or_else(|| refused("Sign in to continue."))?;
-                let browser = hash_token(browser);
+                let browser = hash_token(TokenKind::Session, browser);
                 self.with_database(move |_, database| {
                     let linked: bool = database.query_row(
                         "SELECT EXISTS(SELECT 1 FROM identities WHERE kind = 'oidc' AND subject = ?1 AND account_id = ?2)",
@@ -436,7 +436,7 @@ impl ServerStore {
                 }
                 let allow_registration = config.allow_registration;
                 let (provider_id, name) = (provider.id.clone(), verified.name.clone());
-                let (pending_attempt, device_code) = (hash_token(attempt), begun.device_code);
+                let (pending_attempt, device_code) = (hash_token(TokenKind::Attempt, attempt), begun.device_code);
                 let found = self
                     .with_database(move |_, database| {
                         let transaction = be_block_sqlite_schema::write_transaction(database)?;
@@ -507,7 +507,7 @@ impl ServerStore {
     /// The provider and suggested name of the browser's provider sign-in that waits for an
     /// invite code.
     pub async fn pending_provider(&self, attempt: &str) -> Option<(String, String)> {
-        let attempt = hash_token(attempt);
+        let attempt = hash_token(TokenKind::Attempt, attempt);
         self.with_database(move |_, database| {
             Ok(database
                 .query_row(
@@ -532,7 +532,7 @@ impl ServerStore {
     ) -> Result<(String, String), ServerError> {
         super::portal::validate_name(display_name)?;
         let (attempt, invite, name) = (
-            hash_token(attempt),
+            hash_token(TokenKind::Attempt, attempt),
             invite_codes::invite_hash(invite),
             display_name.trim().to_owned(),
         );
