@@ -2267,6 +2267,7 @@ impl Session<'_> {
             .await;
         }
         self.replicas.pump((peer, shared)).await;
+        self.replicas.follow_logs((peer, shared));
         self.versions.reconnected();
         shared
             .lock()

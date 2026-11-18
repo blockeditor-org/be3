@@ -14,11 +14,8 @@ fn a_chat_message_sent_offline_into_a_closed_chat_notifies_once_as_the_outbox_dr
         for body in ["Running late", "Ten minutes", "Order for me"] {
             room.send(&mut editor, body, None);
         }
-        // The replica answered each one, so each is in the journal before the chat closes: the
-        // editor's own content shows them at once, before the host has them.
-        editor.until("took the messages", |editor| {
-            editor.mirror.pending() == 0 && editor.content().messages().len() == 4
-        });
+        // Each waits in the outbox before the chat closes.
+        editor.until("kept the messages", |editor| editor.kept().len() == 3);
     }
     flush();
     wait_until("kept the messages in the outbox", |shared| {
