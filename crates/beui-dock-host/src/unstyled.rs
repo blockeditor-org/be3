@@ -2980,24 +2980,26 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                     dock.give_keyboard(tab);
                 }
             });
+            // Scrolls the tab of `entry` into view, if it is out of view; false while it has no node.
+            let handles = dock.handles;
+            let reveal = move |entry: Entry| {
+                let tab = state.with_untracked(|state| state.entry_tabs(entry).first().copied());
+                let node = handles.with_untracked(|handles| {
+                    tab.and_then(|tab| handles.get(&tab))
+                        .and_then(|(handle, _)| handle.try_get())
+                });
+                node.inspect(|node| node.reveal()).is_some()
+            };
             // Another tab shown, picked from the strip's menu or by a key, scrolls into view.
             let revealed = StoredCell::new(selected.get_untracked());
-            let handles = dock.handles;
             create_effect(move || {
                 let Some(entry) = selected.get() else {
                     return;
                 };
-                if revealed.get() == Some(entry) {
-                    return;
-                }
-                let tab = state.with_untracked(|state| state.entry_tabs(entry).first().copied());
-                let node = handles.with(|handles| {
-                    tab.and_then(|tab| handles.get(&tab))
-                        .and_then(|(handle, _)| handle.try_get())
-                });
-                if let Some(node) = node {
+                // Tracked: a tab shown before its node is made is revealed once it is.
+                handles.with(|_| ());
+                if revealed.get() != Some(entry) && reveal(entry) {
                     revealed.set(Some(entry));
-                    node.reveal();
                 }
             });
             let menu = create_memo(move || {
@@ -3059,7 +3061,24 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
             });
             strip.fill(scroll);
             // Measured from the start: a lift's places leave the strip to the bar.
-            measure(scroll);
+            let laid = measure(scroll);
+            // A strip laid shorter than before (its pane narrowed) keeps its shown tab in view.
+            // Not when it grows, which hides nothing, so a scroll the person made stays; nor on
+            // its first layout, whose reveal would also scroll a page the dock sits in. A reveal
+            // leaves a tab already in view alone.
+            let length = create_memo(move || {
+                laid.with(|laid| laid.map(|laid| direction.main(laid.size)))
+            });
+            let was = StoredCell::new(None);
+            create_effect(move || {
+                let length = length.get();
+                if let (Some(was), Some(length)) = (was.replace(length), length)
+                    && length < was
+                    && let Some(entry) = selected.get_untracked()
+                {
+                    reveal(entry);
+                }
+            });
             scroll
         }</Reorder>
     }

@@ -165,7 +165,10 @@ A pane's tab strip scrolls when its tabs do not fit. The face's `strip` gets the
 fades the edge tabs lie past and, while any are hidden, ends in an All tabs button
 (`dock.<id>.all-tabs`, rows `dock.<id>.all-tabs.tab.<tab>`) with that menu, since a fade ending on
 the gap between two tabs shows nothing. Showing another tab, from that menu or a key, scrolls it into
-view.
+view, and so does laying the strip shorter than before (its pane narrowed) when that hides the shown
+tab: `DockTabBar` watches the strip's measured length, not on its first layout (whose reveal would
+also scroll a page the dock sits in) and not as it grows, so a scroll the person made stays until a
+narrowing hides the shown tab.
 
 ## History and the switcher
 
