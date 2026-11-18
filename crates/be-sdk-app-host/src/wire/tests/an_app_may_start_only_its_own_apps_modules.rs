@@ -19,7 +19,11 @@ fn unstaged(app: &str, module: &str) -> Result<be_wasm_host::sandbox::Staged, St
 struct Served(be_wasm_sandbox_host::Server);
 
 impl crate::sandbox::Sandbox for Served {
-    fn call(&mut self, call: be_wasm_sandbox_api::embed::sandbox::Call, connection: &mut Connection) {
+    fn call(
+        &mut self,
+        call: be_wasm_sandbox_api::embed::sandbox::Call,
+        connection: &mut Connection,
+    ) {
         self.0.call(call, connection);
     }
 

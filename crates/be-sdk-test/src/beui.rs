@@ -1,10 +1,6 @@
 use be_sdk_api::app::{DialogRequest, EditorEvent, MenuChoice, ViewFrame};
 use be_sdk_api::embed::debug::debug::Call as DebugCall;
 use be_sdk_api::embed::shell::Call as ShellCall;
-use be_sdk_app_host::{
-    calls::{AppCall, EditorCall, Heard},
-    wire::{Service, Wire},
-};
 use be_sdk_api::shell_types::{ChildCreation, ChildMenuChoice, ClipOffer, MenuSet, ShellMessage};
 use be_sdk_api::{
     BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameReport, HelloAccepted,
@@ -16,6 +12,10 @@ use be_sdk_api::{Opening, OpeningKind};
 use be_sdk_api::{
     embed::host_services::Call,
     ops::{OpError, OpId, Outcome, Reply},
+};
+use be_sdk_app_host::{
+    calls::{AppCall, EditorCall, Heard},
+    wire::{Service, Wire},
 };
 use be_sdk_beui::FromEditor;
 use be_sdk_beui::be_block_content::{LiveEdit, Merge};
@@ -637,10 +637,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.menu_entry(id);
         let id = id.to_owned();
         self.tell(vec![EditorEvent::MenuPick(MenuChoice {
-                    view: ViewId::MAIN,
-                    id,
-                    anchor: None,
-                })]);
+            view: ViewId::MAIN,
+            id,
+            anchor: None,
+        })]);
         self.run();
     }
 
@@ -1333,7 +1333,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
             Heard::Debug(_, call) => {
                 // The host keeps no performance report and simulates no access in a test.
                 match call {
-                    DebugCall::Performance { reply, .. } | DebugCall::SimulateAccess { reply, .. } => {
+                    DebugCall::Performance { reply, .. }
+                    | DebugCall::SimulateAccess { reply, .. } => {
                         let (op, outcome) = reply.answer(&());
                         self.wire.answer(op, outcome);
                     }
@@ -1360,25 +1361,32 @@ impl<A: BeuiRoot> BeuiTest<A> {
             | Heard::Unwatch(..) => return,
         };
         let call = match shell {
-            ShellCall::WebViewNew { resource, id, url, .. } => {
+            ShellCall::WebViewNew {
+                resource, id, url, ..
+            } => {
                 self.web_views.insert(resource.op(), id);
                 self.web_view_commands.push((id, WebViewCommand::Open(url)));
                 return;
             }
             call => call,
         };
-        let shown = |this: &be_sdk_api::embed::shell::WebView| self.web_views.get(&this.op()).copied();
+        let shown =
+            |this: &be_sdk_api::embed::shell::WebView| self.web_views.get(&this.op()).copied();
         let (commanded, reply) = match call {
-            ShellCall::WebViewLoad { this, url, reply } => {
-                (shown(&this).map(|id| (id, WebViewCommand::Load(url))), reply)
-            }
+            ShellCall::WebViewLoad { this, url, reply } => (
+                shown(&this).map(|id| (id, WebViewCommand::Load(url))),
+                reply,
+            ),
             ShellCall::WebViewReload { this, reply } => {
                 (shown(&this).map(|id| (id, WebViewCommand::Reload)), reply)
             }
-            ShellCall::WebViewFocusHost { this, reply } => {
-                (shown(&this).map(|id| (id, WebViewCommand::FocusHost)), reply)
-            }
-            ShellCall::Tell { reply, messages, .. } => {
+            ShellCall::WebViewFocusHost { this, reply } => (
+                shown(&this).map(|id| (id, WebViewCommand::FocusHost)),
+                reply,
+            ),
+            ShellCall::Tell {
+                reply, messages, ..
+            } => {
                 let (op, outcome) = reply.answer(&());
                 self.wire.answer(op, outcome);
                 self.told_host(messages);
@@ -1402,9 +1410,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
         for message in messages {
             match &message {
                 ShellMessage::Menu(MenuSet { view, items }) if view.is_main() => {
-                    self.menu = MenuEntry::nest(items.clone()).unwrap_or_else(|error| {
-                        panic!("the app sent a menu it may not: {error}")
-                    });
+                    self.menu = MenuEntry::nest(items.clone())
+                        .unwrap_or_else(|error| panic!("the app sent a menu it may not: {error}"));
                 }
                 ShellMessage::LeaveFrame => self.exited = true,
                 ShellMessage::ArtifactEdited(data) => self.draft.clone_from(data),
@@ -1603,9 +1610,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
 
     pub fn show_dialog(&mut self, block: Uuid, dialog: be_sdk_api::ShellDialog) {
         self.tell(vec![EditorEvent::ShowDialog(DialogRequest {
-                    block: block.into_bytes(),
-                    dialog,
-                })]);
+            block: block.into_bytes(),
+            dialog,
+        })]);
     }
 
     /// The host tells the editor it was opened at `at` in its block (`editor-event.reveal`).
