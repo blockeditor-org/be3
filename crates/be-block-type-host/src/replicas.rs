@@ -1431,7 +1431,6 @@ impl<H: Host> Replicas<H> {
             match futures_util::future::select(joining, waited).await {
                 futures_util::future::Either::Left((joined, _)) => {
                     joined.map(|(client, session, head, _, journal)| {
-                        let journal = journal.map(|(_, opened)| opened);
                         (client, session, head, false, journal)
                     })
                 }
@@ -1487,7 +1486,7 @@ impl<H: Host> Replicas<H> {
                 let (client, session, journal) = peer.join_session(block, tag).await?;
                 // Reading the head lists the block, so `changes` tells its next ones.
                 let head = peer.remote_head(block).await?;
-                let journal = journal.and_then(|journal| peer.open_journal(block, journal).ok());
+                let journal = opened(peer, block, journal);
                 Ok::<_, ClientError>((client, session, head, false, journal))
             }
             .await
@@ -1540,11 +1539,14 @@ impl<H: Host> Replicas<H> {
             true => head,
             false => ahead(peer, block).or(head),
         };
-        if !offline && journal.is_none() {
-            mirror_afresh(peer, block, head);
-        }
-        let (journal, journal_kept, load_at, sealed_head) =
-            journal_for(peer, block, journal, !offline, head);
+        mirror(peer, block, journal.as_ref(), !offline, head);
+        let (journal, journal_kept, load_at, sealed_head) = journal_for(
+            peer,
+            block,
+            journal.map(|(_, opened)| opened),
+            !offline,
+            head,
+        );
         let Some(replica) = self.start(
             peer,
             block,
@@ -5168,6 +5170,27 @@ fn sealed_on<S: be_block_store::ObjectStore>(
     peer.sealed_on(commit)
 }
 
+/// Makes this device's copy of `block`'s order the server's journal as joining answered it, or
+/// starts it afresh at `head` when the server holds none (`mirror_afresh`). However a replica
+/// joined, its first join or a rejoin, the device then numbers what the replica submits
+/// offline after what it opened on: a device with no copy would start its own order at 0,
+/// behind the replica, which would take its entries for ones it applied and never hear them.
+fn mirror<S: be_block_store::ObjectStore>(
+    peer: &Peer<S>,
+    block: Uuid,
+    server: Option<&ServerJournal>,
+    online: bool,
+    head: Option<CommitId>,
+) {
+    match server {
+        Some((sealed, _)) => {
+            let _ = peer.keep_journal(block, sealed);
+        }
+        None if online => mirror_afresh(peer, block, head),
+        None => {}
+    }
+}
+
 /// Starts this device's copy of the order afresh at `head` when the server holds no journal,
 /// so what it hears next is not kept beside an order that ended. A journal holding what only
 /// this device numbered is left for the replica opened on it to seal.
@@ -5402,13 +5425,7 @@ fn reopening<S: be_block_store::ObjectStore>(
     online: bool,
     head: Option<CommitId>,
 ) -> Loads {
-    match &server {
-        Some((sealed, _)) => {
-            let _ = peer.keep_journal(open.block, sealed);
-        }
-        None if online => mirror_afresh(peer, open.block, head),
-        None => {}
-    }
+    mirror(peer, open.block, server.as_ref(), online, head);
     open.reported_clean(open.journaled_taken);
     journal_for(
         peer,

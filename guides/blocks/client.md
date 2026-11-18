@@ -193,6 +193,10 @@ arrives.
   (`Peer::heard_entry`, as each `Event::Sequenced` arrives), and is trimmed by
   this device's seals, so a replica opened offline opens on the order as this
   device last knew it; offline it also holds what the device numbered itself.
+  Every join, first or again, makes it the journal joining answered
+  (`Peer::keep_journal`, `replicas::mirror`): with no copy, the device would
+  number offline from sequence zero, behind entries its replica opened on, and
+  the replica would pass its own entries over as ones it applied.
 - **A seal on its way.** The holder goes on applying the order while its seal
   waits on the server. The seal's commit records the last sequence it holds
   (`Commit::sealed_through`), and the server trims the journal to it as the
