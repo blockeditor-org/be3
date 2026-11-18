@@ -13,14 +13,28 @@ package main
 //
 // A blob is remembered for presentFor, after which the server is asked again, in case it lost it. A caller that never
 // uploads what it was told is missing (it failed, or did not need it) holds the others back for at most pendingFor.
+//
+// A FindMissingBlobs the relay answers itself does not reach the server, so does not move the blob up the server's
+// LRU; but the LRU is 270 GB (servers/build/nativelink.json5), far more than goes through it in presentFor, and an
+// action that reads a blob moves it up anyway.
+//
+// When the server lost a blob sooner (it evicted it, or its disk was wiped), the cache would go on answering that it
+// holds it, buck2 would not upload it, and every Execute naming it would fail until presentFor ran out. So the relay
+// watches the server's answers for word that a blob is missing and forgets what it believed (forget): an Execute or
+// WaitExecution that ends FAILED_PRECONDITION, in its status or in the Operation it streams (naming the blobs in a
+// PreconditionFailure's MISSING violations), and a read answered NOT_FOUND. buck2's next attempt asks the server again
+// and uploads.
 
 import (
 	"bufio"
+	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -31,6 +45,10 @@ const (
 	findMissingPath = "/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs"
 	batchUpdatePath = "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchUpdateBlobs"
 	writePath       = "/google.bytestream.ByteStream/Write"
+	readPath        = "/google.bytestream.ByteStream/Read"
+	batchReadPath   = "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchReadBlobs"
+	executePath     = "/build.bazel.remote.execution.v2.Execution/Execute"
+	waitPath        = "/build.bazel.remote.execution.v2.Execution/WaitExecution"
 	presentFor      = 10 * time.Minute
 	pendingFor      = 5 * time.Minute
 )
@@ -45,7 +63,8 @@ func digestKey(hash string, size uint64) blobKey {
 type casCache struct {
 	mu      sync.Mutex
 	now     func() time.Time
-	present map[blobKey]time.Time // until when the server is taken to hold it
+	logf    func(format string, args ...any) // re-relay's log
+	present map[blobKey]time.Time            // until when the server is taken to hold it
 	pending map[blobKey]*upload
 }
 
@@ -57,7 +76,10 @@ type upload struct {
 }
 
 func newCASCache() *casCache {
-	return &casCache{now: time.Now, present: map[blobKey]time.Time{}, pending: map[blobKey]*upload{}}
+	logf := func(format string, args ...any) {
+		fmt.Fprintf(os.Stderr, "re-relay: %s "+format+"\n", append([]any{time.Now().Format(time.RFC3339)}, args...)...)
+	}
+	return &casCache{now: time.Now, logf: logf, present: map[blobKey]time.Time{}, pending: map[blobKey]*upload{}}
 }
 
 func (c *casCache) isPresent(key blobKey) bool {
@@ -78,6 +100,24 @@ func (c *casCache) markPresent(keys ...blobKey) {
 		c.present[key] = until
 		c.end(key)
 	}
+}
+
+// The server said it lacks these: whoever asks about them next asks the server. With no keys, it lacks something it
+// did not name, and everything is forgotten.
+func (c *casCache) forget(why string, keys ...blobKey) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(keys) == 0 {
+		c.logf("forgot all %d blobs the server was taken to hold: %s", len(c.present), why)
+		c.present = map[blobKey]time.Time{}
+		return
+	}
+	names := make([]string, len(keys))
+	for i, key := range keys {
+		delete(c.present, key)
+		names[i] = string(key)
+	}
+	c.logf("forgot %s: %s", strings.Join(names, ", "), why)
 }
 
 func (c *casCache) end(key blobKey) {
@@ -257,14 +297,10 @@ func batchUpdateAccepted(answer []byte) (accepted, refused []blobKey, err error)
 	return accepted, refused, nil
 }
 
-// The blob a ByteStream Write uploads, from its first message's resource name:
-// [INSTANCE/]uploads/UUID/blobs/HASH/SIZE, or .../compressed-blobs/COMPRESSOR/HASH/SIZE.
-func writeKey(firstMessage []byte) (blobKey, error) {
-	name, err := firstBytesField(firstMessage, 1)
-	if err != nil {
-		return "", err
-	}
-	parts := strings.Split(string(name), "/")
+// The blob a ByteStream resource name names: [INSTANCE/]uploads/UUID/blobs/HASH/SIZE[/...] for a Write,
+// [INSTANCE/]blobs/HASH/SIZE for a Read, or compressed-blobs/COMPRESSOR/HASH/SIZE in place of blobs/HASH/SIZE.
+func resourceKey(name string) (key blobKey, compressed bool, err error) {
+	parts := strings.Split(name, "/")
 	for i, part := range parts {
 		hashAt := -1
 		if part == "blobs" {
@@ -275,12 +311,43 @@ func writeKey(firstMessage []byte) (blobKey, error) {
 		if hashAt > 0 && hashAt+1 < len(parts) {
 			size, err := strconv.ParseUint(parts[hashAt+1], 10, 64)
 			if err != nil {
-				return "", fmt.Errorf("a resource name with a bad size: %q", name)
+				return "", false, fmt.Errorf("a resource name with a bad size: %q", name)
 			}
-			return digestKey(parts[hashAt], size), nil
+			return digestKey(parts[hashAt], size), part == "compressed-blobs", nil
 		}
 	}
-	return "", fmt.Errorf("a resource name without a blob: %q", name)
+	return "", false, fmt.Errorf("a resource name without a blob: %q", name)
+}
+
+// The blob a ByteStream Write or Read is about, from its first message's resource name (field 1 of both requests).
+func writeKey(firstMessage []byte) (blobKey, bool, error) {
+	name, err := firstBytesField(firstMessage, 1)
+	if err != nil {
+		return "", false, err
+	}
+	return resourceKey(string(name))
+}
+
+// Whether a Write's answer says the server holds the whole blob: committed_size is its size, or for a compressed
+// upload -1 (the server had it already) or every byte sent, with the write finished. A call cut short, or a server
+// that took only part of it, says less.
+func writeCommitted(key blobKey, compressed bool, messages [][]byte, reply []byte) bool {
+	committed, err := firstVarintField(reply, 1)
+	if err != nil || reply == nil {
+		return false
+	}
+	if !compressed {
+		_, size, _ := strings.Cut(string(key), "/")
+		return strconv.FormatUint(committed, 10) == size
+	}
+	if int64(committed) == -1 {
+		return true
+	}
+	last := messages[len(messages)-1]
+	finished, _ := firstVarintField(last, 3)
+	offset, _ := firstVarintField(last, 2)
+	data, _ := firstBytesField(last, 4)
+	return finished == 1 && committed == offset+uint64(len(data))
 }
 
 // Handles the calls the cache takes part in, and reports whether it did; any other call is the relay's to make.
@@ -331,16 +398,16 @@ func (c *casCache) handle(w http.ResponseWriter, r *http.Request, body []byte, s
 			passFailure(w, code, failure)
 			return true
 		}
-		accepted, refused, err := batchUpdateAccepted(reply)
+		accepted, _, err := batchUpdateAccepted(reply)
 		if err != nil {
-			c.release(keys...)
-		} else {
-			c.markPresent(accepted...)
-			c.release(refused...)
+			accepted = nil
 		}
+		// What it accepted is held; the rest, refused or left out of the answer, nobody is uploading any more.
+		c.markPresent(accepted...)
+		c.release(keys...)
 		writeUnary(w, reply)
 	case writePath:
-		key, err := writeKey(messages[0])
+		key, compressed, err := writeKey(messages[0])
 		if err != nil {
 			return false
 		}
@@ -350,10 +417,170 @@ func (c *casCache) handle(w http.ResponseWriter, r *http.Request, body []byte, s
 			passFailure(w, code, failure)
 			return true
 		}
-		c.markPresent(key)
+		if writeCommitted(key, compressed, messages, reply) {
+			c.markPresent(key)
+		} else {
+			c.release(key)
+		}
 		writeUnary(w, reply)
 	}
 	return true
+}
+
+// What the server answers a call the cache does not take, watched for word that a blob it was taken to hold is
+// missing. nil for a call that cannot carry such word.
+type answerWatch struct {
+	cache   *casCache
+	path    string
+	request []byte // the call's one request message
+	named   bool   // already forgot what an Operation named
+}
+
+func (c *casCache) watch(path string, body []byte) *answerWatch {
+	switch path {
+	case executePath, waitPath, readPath, batchReadPath:
+	default:
+		return nil
+	}
+	messages, err := splitMessages(body)
+	if err != nil || len(messages) == 0 {
+		return nil
+	}
+	return &answerWatch{cache: c, path: path, request: messages[0]}
+}
+
+// One whole message of the answer, framed.
+func (a *answerWatch) message(framed []byte) {
+	if a == nil || len(framed) < 5 || framed[0] != 0 {
+		return
+	}
+	message := framed[5:]
+	switch a.path {
+	case executePath, waitPath:
+		// An Operation: its error (4), or its response (5), an Any holding an ExecuteResponse whose status is 3.
+		if status, err := firstBytesField(message, 4); err == nil {
+			a.status(status, "its Operation's error")
+		}
+		if response, err := firstBytesField(message, 5); err == nil {
+			if value, err := firstBytesField(response, 2); err == nil {
+				if status, err := firstBytesField(value, 3); err == nil {
+					a.status(status, "its ExecuteResponse")
+				}
+			}
+		}
+	case batchReadPath:
+		// Responses (1), each a digest (1) and a status (3).
+		_, responses, _ := splitRepeated(message, 1)
+		var lost []blobKey
+		for _, entry := range responses {
+			status, _ := firstBytesField(entry, 3)
+			if code, _ := firstVarintField(status, 1); code != codeNotFound {
+				continue
+			}
+			if digest, err := firstBytesField(entry, 1); err == nil {
+				if key, err := parseDigest(digest); err == nil {
+					lost = append(lost, key)
+				}
+			}
+		}
+		if len(lost) > 0 {
+			a.cache.forget(fmt.Sprintf("%s answered NOT_FOUND", shortPath(a.path)), lost...)
+		}
+	}
+}
+
+const (
+	codeNotFound           = 5
+	codeFailedPrecondition = 9
+)
+
+// A google.rpc.Status found in an Operation.
+func (a *answerWatch) status(status []byte, where string) {
+	code, _ := firstVarintField(status, 1)
+	if code != codeFailedPrecondition || a.named {
+		return
+	}
+	a.named = true
+	message, _ := firstBytesField(status, 2)
+	_, details, _ := splitRepeated(status, 3)
+	a.missing(missingSubjects(details), fmt.Sprintf("%s answered FAILED_PRECONDITION in %s: %s", shortPath(a.path), where, message))
+}
+
+// The call's end, the headers or trailers that carry its grpc-status.
+func (a *answerWatch) ended(h http.Header) {
+	if a == nil {
+		return
+	}
+	code, err := strconv.Atoi(h.Get("Grpc-Status"))
+	if err != nil {
+		return
+	}
+	why := fmt.Sprintf("%s answered %s: %s", shortPath(a.path), codeName(code), h.Get("Grpc-Message"))
+	switch {
+	case code == codeFailedPrecondition && (a.path == executePath || a.path == waitPath):
+		var details [][]byte
+		if bin := h.Get("Grpc-Status-Details-Bin"); bin != "" {
+			if status, err := base64.RawStdEncoding.DecodeString(strings.TrimRight(bin, "=")); err == nil {
+				_, details, _ = splitRepeated(status, 3)
+			}
+		}
+		a.missing(missingSubjects(details), why)
+	case code == codeNotFound && a.path == readPath:
+		if key, _, err := writeKey(a.request); err == nil {
+			a.cache.forget(why, key)
+		}
+	}
+}
+
+// Forgets the blobs the server named, and an Execute's Action, which it needs first; or, when it named none, all.
+func (a *answerWatch) missing(named []blobKey, why string) {
+	if len(named) > 0 && a.path == executePath {
+		if digest, err := firstBytesField(a.request, 6); err == nil {
+			if key, err := parseDigest(digest); err == nil && !slices.Contains(named, key) {
+				named = append(named, key)
+			}
+		}
+	}
+	a.cache.forget(why, named...)
+}
+
+// The blobs a google.rpc.Status's details (each an Any: type_url 1, value 2) name as missing: a PreconditionFailure's
+// violations (1), each a type (1) and a subject (2), "blobs/HASH/SIZE" for a MISSING one.
+func missingSubjects(details [][]byte) []blobKey {
+	var keys []blobKey
+	for _, detail := range details {
+		typeURL, _ := firstBytesField(detail, 1)
+		if !strings.HasSuffix(string(typeURL), "google.rpc.PreconditionFailure") {
+			continue
+		}
+		value, _ := firstBytesField(detail, 2)
+		_, violations, _ := splitRepeated(value, 1)
+		for _, violation := range violations {
+			kind, _ := firstBytesField(violation, 1)
+			subject, _ := firstBytesField(violation, 2)
+			if string(kind) != "MISSING" {
+				continue
+			}
+			if key, _, err := resourceKey(string(subject)); err == nil {
+				keys = append(keys, key)
+			}
+		}
+	}
+	return keys
+}
+
+func shortPath(path string) string {
+	return path[strings.LastIndex(path, "/")+1:]
+}
+
+func codeName(code int) string {
+	switch code {
+	case codeNotFound:
+		return "NOT_FOUND"
+	case codeFailedPrecondition:
+		return "FAILED_PRECONDITION"
+	}
+	return "status " + strconv.Itoa(code)
 }
 
 // A unary call's one answer, its status, or why there was none.

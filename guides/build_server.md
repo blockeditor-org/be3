@@ -73,8 +73,9 @@ is its release binary, pinned there, run in the action image by Docker. Its log 
   `cas/content.exec`, which the limit does not see and which can grow as large again, so the limit is under half the
   disk. Nothing is copied
   elsewhere: a lost server means a new one and a cold cache, whose first `./scripts/verify` took 30 minutes, most of it
-  the client uploading toolchain archives. buck2 and the relay remember for hours which blobs the server holds, so
-  after emptying the cache by hand restart every client's daemon (`./scripts/buck kill`).
+  the client uploading toolchain archives. buck2 remembers for hours which blobs the server holds (the relay for ten
+  minutes, and less once the server says one is missing), so after emptying the cache by hand restart every client's
+  daemon (`./scripts/buck kill`).
 - **One worker runs 16 actions**, one per vCPU. A rustc runs many threads, so a full queue keeps the load far above 16
   (up to 280), and a lone tail action, such as the last big compile or link, gets all 16 vCPUs.
 - **CI waits behind everyone else.** Among actions waiting for a slot NativeLink runs the highest priority first, then
@@ -126,15 +127,18 @@ Behind an HTTPS proxy, as in a cloud session, buck2 reaches nl.be3.pfg.pw throug
   what finished cached. Failing every time means the server is down or overloaded. The proxy
   also cuts every call after five minutes; the relay then repeats the `Execute`, which joins the
   running action (`broke off ..., making it again` in its log), and buck2 sees nothing.
-- **`action input missing from CAS`** (`not found in either fast or slow store`): the server lost a blob this client
-  remembers it holding (above): `./scripts/buck kill` and run it again. When it survives
-  `./scripts/buck clean`, run `./scripts/buck kill; rm -rf ~/.buck/buckd buck-out`. The relay
-  remembers too, and outlives `./scripts/buck kill`: each checkout (a worktree included) runs its own
-  pair, `target/tools/re-relay-*/re-relay serve` under that checkout. When the error survives the
-  steps above, `pgrep -a re-relay` lists them; kill this checkout's two by PID, and the next
-  `./scripts/buck` starts them again. Where that alone does not clear it, do all three
-  together, in this order: `./scripts/buck kill` (which starts the checkout's relays again
-  itself), then kill the checkout's relays, then `rm -rf ~/.buck/buckd buck-out`.
+- **`action input missing from CAS`** (`not found in either fast or slow store`), or **`Action ... is missing from
+  CAS; client should re-upload it and retry`**: the server lost a blob a client remembers it holding. The relay
+  recovers by itself: when an `Execute` is refused FAILED_PRECONDITION, or a read NOT_FOUND, it forgets the blobs the
+  server named (or, when it named none, all it remembered), logging `forgot ...` with the digests and why, so buck2's
+  next attempt (`./scripts/buck`'s own retry) asks the server again and uploads them. buck2 remembers too: when the
+  error survives the retries, `./scripts/buck kill` and run it again, and when it survives `./scripts/buck clean`,
+  run `./scripts/buck kill; rm -rf ~/.buck/buckd buck-out`. The fallback for the relay's memory: each checkout (a
+  worktree included) runs its own pair, `target/tools/re-relay-*/re-relay serve` under that checkout, and they outlive
+  `./scripts/buck kill`. `pgrep -a re-relay` lists them; kill this checkout's two by PID, and the next `./scripts/buck`
+  starts them again. Where that alone does not clear it, do all three together, in this order: `./scripts/buck kill`
+  (which starts the checkout's relays again itself), then kill the checkout's relays, then
+  `rm -rf ~/.buck/buckd buck-out`.
 - **`could not run ...: No such file`** after a full disk forced clearing part of `buck-out`:
   the daemon still believes the outputs it deleted exist. `./scripts/buck kill`, then remove all of
   `buck-out`, never only part of it.
