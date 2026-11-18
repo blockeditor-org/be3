@@ -14,6 +14,7 @@ use std::time::Duration;
 use crate::root::ChatRoot;
 
 mod a_conversation_shows_each_message_with_its_author_and_time;
+mod a_deletion_or_reaction_the_server_refuses_says_so_on_its_message;
 mod a_discarded_message_does_not_return_as_not_sent_when_the_chat_opens_again;
 mod a_draft_stays_in_the_editor_until_it_is_sent;
 mod a_drafts_made_blocks_come_back_as_chips_when_the_chat_opens_again;

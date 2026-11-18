@@ -330,7 +330,9 @@ who signed them, `LogSigner`) changes what the content shows.
   (`editor::HeldLog`); one held is replaced when told better (`Unknown` to a
   verdict, or `Redacted`), never by `Unknown`. An editor holds the latest
   `editor::LOG_HELD`, and every entry from where it paged back to (a read
-  from before all it held), so scrolling back is never trimmed away; be-sdk reads them through
+  from before all it held), so scrolling back is never trimmed away; the
+  floor never rises while the editor is open, so what it holds grows with
+  what it paged back to until it closes; be-sdk reads them through
   `ContentProjection::with_log`. The replica describes its content with the
   log folded onto a copy of it, in the log's order: the run of entries from
   the log's start it holds, up to the first place it lacks (stepping over

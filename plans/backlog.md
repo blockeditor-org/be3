@@ -651,6 +651,15 @@ decisions/tentative_edits_wait_for_release.md) left as it was.
   be-host-stack test that makes a block and lists its backrefs right away sees
   no such line.
 
+- **One bad log entry refuses its whole batch.** `Peer::send_appends` sends
+  a block's waiting entries in batches (`ENTRIES_PER_SEND`), and the server
+  refuses an append whole, so one entry it would refuse (over a limit, a
+  redaction it will not take) refuses every entry sent with it, each then kept
+  as refused (`Drained::NotAppended`). Done: the entries a refused batch held
+  go again one at a time, or the server names the entry it refused and takes
+  the rest, with a be-block-client test where one bad entry among good ones
+  leaves only it refused.
+
 ## 27. Unread counts
 
 - **An open block counted live.** A block's unread count is counted from its

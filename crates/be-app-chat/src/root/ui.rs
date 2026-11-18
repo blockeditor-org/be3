@@ -89,6 +89,9 @@ struct Row {
     /// The blocks sent with it.
     attachments: Vec<Uuid>,
     state: State,
+    /// What this account did to it that the server refused (a deletion, an edit, a reaction):
+    /// what to say, and the token of the append, to dismiss.
+    undone: Option<(String, u64)>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -439,11 +442,27 @@ pub fn Chat(editor: Editor) -> NodeId {
     create_effect(move || {
         let today = local_date(now());
         let mut list = Vec::new();
+        // What the server refused of what this account did to a message shows on its row.
+        let undone: HashMap<u64, (String, u64)> = refused.with(|refused| {
+            refused
+                .iter()
+                .filter_map(|(token, bytes, why)| {
+                    let (message, done) = match ChatEntry::decode(bytes)? {
+                        ChatEntry::Delete { message, .. } => (message, "Not deleted"),
+                        ChatEntry::Edit { message, .. } => (message, "Edit not saved"),
+                        ChatEntry::React { message, .. } => (message, "Reaction not saved"),
+                        ChatEntry::Message { .. } => return None,
+                    };
+                    Some((message, (format!("{done}: {why}"), *token)))
+                })
+                .collect()
+        });
         log.with(|log| {
-            list.extend(
-                log.messages()
-                    .filter_map(|shown| Some((RowKey::Logged(shown.seq), row(log, shown, me, today)?))),
-            );
+            list.extend(log.messages().filter_map(|shown| {
+                let mut row = row(log, shown, me, today)?;
+                row.undone = undone.get(&shown.seq).cloned();
+                Some((RowKey::Logged(shown.seq), row))
+            }));
             kept.with(|kept| {
                 list.extend(kept.iter().filter_map(|(id, bytes)| {
                     let row = unsent_row(log, bytes, me, State::Sending, today)?;
@@ -866,6 +885,7 @@ fn row(log: &ChatLog, shown: &Shown, me: Uuid, today: i64) -> Option<Row> {
             reactions: Vec::new(),
             attachments: Vec::new(),
             state: State::Removed,
+            undone: None,
         });
     }
     if let Some((_, signer)) = shown.deleted {
@@ -884,6 +904,7 @@ fn row(log: &ChatLog, shown: &Shown, me: Uuid, today: i64) -> Option<Row> {
             reactions: Vec::new(),
             attachments: Vec::new(),
             state: State::Deleted(signer),
+            undone: None,
         });
     }
     let body = shown.body.clone()?;
@@ -912,6 +933,7 @@ fn row(log: &ChatLog, shown: &Shown, me: Uuid, today: i64) -> Option<Row> {
             .map(|attachment| attachment.0)
             .collect(),
         state: State::Logged(shown.signer),
+        undone: None,
     })
 }
 
@@ -941,6 +963,7 @@ fn unsent_row(log: &ChatLog, bytes: &[u8], me: Uuid, state: State, today: i64) -
             .map(|attachment| attachment.0)
             .collect(),
         state,
+        undone: None,
     })
 }
 
@@ -1207,6 +1230,14 @@ fn MessageRow(
     let picking = create_memo(move || logged.is_some() && composer.picking.get() == logged);
     let sending = create_memo(move || matches!(state.get(), State::Sending));
     let failed = create_memo(move || matches!(state.get(), State::NotSent(..)));
+    let undone = create_memo(move || row.with(|row| row.undone.clone()));
+    let has_undone = create_memo(move || undone.with(Option::is_some));
+    let undone_text = create_memo(move || undone.with(|undone| undone.clone().unwrap_or_default().0));
+    let dismiss_undone = move || {
+        if let Some((_, token)) = undone.get_untracked() {
+            chat.dismiss_refused(token);
+        }
+    };
     // A message the server refused is sent again as a new one, or given up; either way the
     // one that failed goes.
     let let_go = move |again: bool| {
@@ -1359,6 +1390,22 @@ fn MessageRow(
                                         on_click={move || let_go(false)}
                                     />
                                 </List>
+                            </Show>
+                            <Show value={has_undone}>
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    color=TextColor::Danger
+                                    @test_id={format!("chat.message.{key}.undone")}
+                                >
+                                    {undone_text}
+                                </Text>
+                                <Button
+                                    label="Dismiss"
+                                    variant=ButtonVariant::Ghost
+                                    size=ButtonSize::Small
+                                    @test_id={format!("chat.message.{key}.dismiss")}
+                                    on_click={dismiss_undone}
+                                />
                             </Show>
                             <Show value={key_unverified}>
                                 <Text style=TextStyle::CAPTION>"not verified"</Text>
