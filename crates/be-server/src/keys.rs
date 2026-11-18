@@ -1475,7 +1475,10 @@ impl ServerStore {
                     )
                 })?;
             let dated = i64::try_from(card.dated).map_err(|_| {
-                ServerError::Refused(ErrorCode::InvalidRequest, "a name card's date is too late".into())
+                ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "a name card's date is too late".into(),
+                )
             })?;
             database.execute(
                 "UPDATE recovery_keys SET name = ?2, name_dated = ?3
