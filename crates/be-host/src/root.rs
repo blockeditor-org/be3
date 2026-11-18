@@ -32,6 +32,10 @@
 //! frame. The platform's input method shows where the root says its focused field is, and what
 //! it types reaches the root as input (plans/host_as_platform_adapter.md, step 4g4).
 //!
+//! While the root watches the host's statistics (`host.watch-statistics`), for its debug
+//! panels, be-host measures its memory and hands the root its performance and memory rows
+//! (`host.statistics`) as they change (plans/host_as_platform_adapter.md, step 4g5).
+//!
 //! It runs none of the host's core: no data directory or the lock that keeps a second be-host
 //! off it, no block stack, workspace or accounts, no screen lock, and none of the desktop's OS
 //! services. Step 4g brings back under this program what the host keeps (the plan's What the
@@ -54,7 +58,7 @@ use be_lib_layers::{Layer, LayerList, Surface};
 use be_lib_ui_types::ClipItem;
 use be_lib_ui_types::input::Timed;
 use be_sdk_app_host::pacing::FrameClock;
-use be_wasm_root_api::{FrameRequest, Notice, NoticeAction};
+use be_wasm_root_api::{FrameRequest, Notice, NoticeAction, StatisticRow};
 use be_wasm_root_host::Root;
 use beui::native::painting::{Painting, Paints, Placement, ScreenPaintings};
 use beui::native::texture_quad::{Pipelines, Quad, Quads};
@@ -229,6 +233,7 @@ impl RootShell {
                 .clock
                 .deadline(self.pass, context.clock_stopped(), since(Instant::now()));
         show_notices(root, &mut self.notices);
+        show_statistics(root);
         for (id, item) in self.pasted.take() {
             root.answer_paste(id, item.as_ref().map(be_sdk_api::ops::encode));
         }
@@ -462,6 +467,45 @@ fn show_notices(root: &mut Root, seen: &mut Option<u64>) {
         *seen = Some(generation);
         root.show_notices(shown_notices());
     }
+}
+
+/// Hands `root` the host's statistics while it watches them (`host.watch-statistics`), and
+/// measures be-host's memory only then, as be-host's own debug panels do: the sampling thread
+/// wakes the window for each sample while it is watched, and each frame hands the root what
+/// changed.
+fn show_statistics(root: &mut Root) {
+    let watching = root.watching_statistics();
+    #[cfg(target_os = "linux")]
+    {
+        if watching {
+            crate::memory::start();
+        }
+        crate::memory::watch(watching);
+    }
+    if !watching {
+        return;
+    }
+    let row = |row: be_host_base::performance::PerformanceRow| StatisticRow {
+        heading: row.heading,
+        name: row.name,
+        current: row.current,
+        average: row.average,
+        peak: row.peak,
+    };
+    let performance = be_host_base::performance::rows()
+        .into_iter()
+        .map(row)
+        .collect();
+    #[cfg(target_os = "linux")]
+    let (memory, file) = crate::memory::view()
+        .map(|memory| {
+            let rows = memory.rows.into_iter().map(|memory| row(memory.row));
+            (rows.collect(), memory.file)
+        })
+        .unwrap_or_default();
+    #[cfg(not(target_os = "linux"))]
+    let (memory, file) = (Vec::new(), None);
+    root.show_statistics(performance, memory, file);
 }
 
 /// The host's notices as `be3:root` carries them, oldest first.
