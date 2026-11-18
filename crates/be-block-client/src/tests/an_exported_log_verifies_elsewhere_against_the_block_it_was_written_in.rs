@@ -4,7 +4,8 @@ use super::*;
 /// the block file keeps it: read back by another account (a contact of the author's), which
 /// imports it as a block of its own, each entry still verifies against the block it was written
 /// in, and against nothing else; an entry changed in the file verifies as no one's. A redacted
-/// entry is carried without what it said, which leaves nothing to verify.
+/// entry is carried without what it said, which leaves nothing to verify. Imported, the log is
+/// history in the new block, each entry still as it was written, and new entries follow it.
 #[tokio::test]
 async fn an_exported_log_verifies_elsewhere_against_the_block_it_was_written_in() {
     let harness = Harness::start().await;
@@ -45,19 +46,49 @@ async fn an_exported_log_verifies_elsewhere_against_the_block_it_was_written_in(
     assert_eq!(saved.log.len(), 3);
     assert_eq!(
         elsewhere
-            .verify_exported(saved.id, "test.app", &saved.log[2])
+            .verify_exported("test.app", &saved.log[2])
             .await
             .unwrap(),
         None,
         "a redacted entry says nothing to verify"
     );
     let mut copy = crate::transfer::renumber(read);
+    let new = copy[0].id;
     let imported = import_one(&elsewhere, copy.remove(0)).await;
     assert!(!imported.is_empty(), "the block was imported");
+    // The imported block's log holds the history as it was written in the original, after
+    // which its own entries go.
+    elsewhere.drain(|_| false).await.unwrap();
+    elsewhere
+        .append(new, "test.app", b"after the import", be_block_content::Along::default())
+        .await
+        .unwrap();
+    let history = elsewhere.read_log(new, 0, 10).await.unwrap();
+    assert_eq!(
+        history
+            .entries
+            .iter()
+            .map(|logged| (
+                logged.imported.as_ref().map(|original| original.block),
+                logged.bytes().map(<[u8]>::to_vec)
+            ))
+            .collect::<Vec<_>>(),
+        [
+            (Some(chat), Some(b"one".to_vec())),
+            (Some(chat), Some(b"two".to_vec())),
+            (Some(chat), None),
+            (None, Some(b"after the import".to_vec())),
+        ]
+    );
+    assert_eq!(
+        history.entries[0].imported.as_ref().map(|original| original.author),
+        Some(owner.account()),
+        "an imported entry keeps its original author"
+    );
     for entry in &saved.log[..2] {
         assert_eq!(
             elsewhere
-                .verify_exported(saved.id, "test.app", entry)
+                .verify_exported("test.app", entry)
                 .await
                 .unwrap(),
             Some(Signer::Verified),
@@ -65,7 +96,13 @@ async fn an_exported_log_verifies_elsewhere_against_the_block_it_was_written_in(
         );
         assert_eq!(
             elsewhere
-                .verify_exported(Uuid::new_v4(), "test.app", entry)
+                .verify_exported(
+                    "test.app",
+                    &crate::ExportedEntry {
+                        block: Uuid::new_v4(),
+                        ..entry.clone()
+                    },
+                )
                 .await
                 .unwrap(),
             Some(Signer::Bad),
@@ -73,7 +110,7 @@ async fn an_exported_log_verifies_elsewhere_against_the_block_it_was_written_in(
         );
         assert_eq!(
             elsewhere
-                .verify_exported(saved.id, "another.app", entry)
+                .verify_exported("another.app", entry)
                 .await
                 .unwrap(),
             Some(Signer::Bad),
@@ -84,7 +121,7 @@ async fn an_exported_log_verifies_elsewhere_against_the_block_it_was_written_in(
     changed.said.as_mut().unwrap().bytes = b"changed in the file".to_vec();
     assert_eq!(
         elsewhere
-            .verify_exported(saved.id, "test.app", &changed)
+            .verify_exported("test.app", &changed)
             .await
             .unwrap(),
         Some(Signer::Bad)
