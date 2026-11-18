@@ -107,12 +107,8 @@ fn every_record_reads_back_with_each_option_none_and_some() {
         let mut frontier = be_block_keys::merkle::Frontier::default();
         frontier.push([13; 32]);
         let creator = be_block_keys::RecoveryPhrase::generate().secret();
-        let root = be_block_keys::Entry::root(
-            &creator,
-            [1; 16],
-            be_block_keys::LogKind::Block,
-            [2; 16],
-        );
+        let root =
+            be_block_keys::Entry::root(&creator, [1; 16], be_block_keys::LogKind::Block, [2; 16]);
         reads_back(&KeptLog {
             head: root.hash(),
             place: 0,

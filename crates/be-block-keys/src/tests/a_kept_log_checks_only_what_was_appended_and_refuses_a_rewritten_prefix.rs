@@ -61,20 +61,15 @@ fn a_kept_log_checks_only_what_was_appended_and_refuses_a_rewritten_prefix() {
         kept = Some(check_log(LogKind::Block, block, root.hash(), &entries, &|_| None).unwrap());
     });
     let kept = kept.unwrap();
-    assert!(first >= LENGTH as usize, "the first check verifies every entry");
+    assert!(
+        first >= LENGTH as usize,
+        "the first check verifies every entry"
+    );
     assert_eq!(kept.head, entries.last().unwrap().hash());
 
     // The device keeps it, as the refs database does, and reads it back.
     let kept: Checked = postcard::from_bytes(&postcard::to_stdvec(&kept).unwrap()).unwrap();
-    let appended = grants(
-        &creator,
-        creator_id,
-        block,
-        reader,
-        kept.head,
-        LENGTH,
-        1,
-    );
+    let appended = grants(&creator, creator_id, block, reader, kept.head, LENGTH, 1);
     let grown: Vec<Entry> = entries.iter().chain(&appended).cloned().collect();
     let mut resumed = None;
     let second = verified(|| {
@@ -88,20 +83,39 @@ fn a_kept_log_checks_only_what_was_appended_and_refuses_a_rewritten_prefix() {
     let resumed = resumed.unwrap();
     assert_eq!(resumed.head, appended[0].hash());
     assert_eq!(
-        resumed.level_as_of({
-            let Record::Grant(grant) = &appended[0].record else { unreachable!() };
-            grant.grantee
-        }, &resumed.head),
+        resumed.level_as_of(
+            {
+                let Record::Grant(grant) = &appended[0].record else {
+                    unreachable!()
+                };
+                grant.grantee
+            },
+            &resumed.head
+        ),
         Some(Level::View)
     );
 
     // What is kept and extended is what a check from the root finds.
-    let short = check_log(LogKind::Block, block, root.hash(), &entries[..1000], &|_| None).unwrap();
+    let short = check_log(
+        LogKind::Block,
+        block,
+        root.hash(),
+        &entries[..1000],
+        &|_| None,
+    )
+    .unwrap();
     assert_eq!(
         short
             .resume(LogKind::Block, block, &entries[..1001], &|_| None)
             .unwrap(),
-        check_log(LogKind::Block, block, root.hash(), &entries[..1001], &|_| None).unwrap()
+        check_log(
+            LogKind::Block,
+            block,
+            root.hash(),
+            &entries[..1001],
+            &|_| None
+        )
+        .unwrap()
     );
 
     // The server rewrites an entry the device checked: the last it kept, so every entry still
@@ -136,8 +150,16 @@ fn a_kept_log_checks_only_what_was_appended_and_refuses_a_rewritten_prefix() {
     );
     // One in the middle: the entry after it no longer names it.
     let mut rewritten = grown.clone();
-    rewritten[5] = grants(&creator, creator_id, block, reader, entries[4].hash(), LENGTH * 3, 1)
-        .remove(0);
+    rewritten[5] = grants(
+        &creator,
+        creator_id,
+        block,
+        reader,
+        entries[4].hash(),
+        LENGTH * 3,
+        1,
+    )
+    .remove(0);
     assert!(
         kept.clone()
             .resume(LogKind::Block, block, &rewritten, &|_| None)

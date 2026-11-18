@@ -24,7 +24,14 @@ fn a_log_checked_on_from_any_entry_is_the_log_checked_whole() {
         let checked = check(entries).unwrap();
         let lowers = checked.lowers(&record);
         let previous = checked.head;
-        entries.push(Entry::sign(by, signer, block, Some(previous), lowers, record));
+        entries.push(Entry::sign(
+            by,
+            signer,
+            block,
+            Some(previous),
+            lowers,
+            record,
+        ));
         check(entries).unwrap();
     };
     let push = |entries: &mut Vec<Entry>, entry: Entry| {

@@ -10,7 +10,9 @@ fn a_failure_of_the_servers_storage_reaches_the_client_without_its_text() {
             rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CORRUPT),
             Some("database disk image is malformed in table accounts".into()),
         )),
-        ServerError::Io(std::io::Error::other("/srv/be-server/data/objects: no space")),
+        ServerError::Io(std::io::Error::other(
+            "/srv/be-server/data/objects: no space",
+        )),
         ServerError::Store(be_block_store::StoreError::Io(std::io::Error::other(
             "/srv/be-server/data/objects/ab/cdef: permission denied",
         ))),

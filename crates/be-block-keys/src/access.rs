@@ -1392,7 +1392,8 @@ impl Checked {
                     }
                 }
                 Record::Grant(grant) => {
-                    let own_revocation = grant.grantee == entry.signer && grant.level == Level::None;
+                    let own_revocation =
+                        grant.grantee == entry.signer && grant.level == Level::None;
                     // Authorship is Manage from the root and owner records alone: no grant lowers or
                     // names the owner.
                     if kind != LogKind::Block || state.owner == Some(grant.grantee) {
@@ -1415,7 +1416,8 @@ impl Checked {
                 }
                 Record::Opening(opening) => {
                     // Open to view, or closed: no other level, so the record has one meaning.
-                    if kind != LogKind::Block || !matches!(opening.level, Level::None | Level::View) {
+                    if kind != LogKind::Block || !matches!(opening.level, Level::None | Level::View)
+                    {
                         return Err(KeyError::Record);
                     }
                     state.granting(
@@ -1595,7 +1597,8 @@ impl Checked {
                     let inviter = state.invitations.get(key).copied().flatten();
                     let may = kind == LogKind::Organization
                         && entry.signer == *account
-                        && inviter.is_some_and(|inviter| state.administrators.contains_key(&inviter))
+                        && inviter
+                            .is_some_and(|inviter| state.administrators.contains_key(&inviter))
                         && !state.members.contains_key(account)
                         && !state.administrators.contains_key(account)
                         && entry.signed_by(key)
