@@ -8,8 +8,7 @@ fn queued_until(
     block: Uuid,
     ready: impl Fn(&[MemberEvent]) -> bool,
 ) -> Vec<MemberEvent> {
-    wait_until(what, |shared| ready(&crate::hosting::queued(shared, block)));
-    take_member_events(block)
+    take_member_events_until(what, block, ready)
 }
 
 /// While this device holds a hosted block's lease, a member that speaks on its host channel is
