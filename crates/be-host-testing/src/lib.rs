@@ -93,6 +93,41 @@ impl Harness {
         );
     }
 
+    /// A block this account made on the server from another device, in the organization, under
+    /// a parent this device has not opened: nothing here lists it, so a create here naming its
+    /// id is one the server refuses, though this device knows of no such block.
+    pub fn block_out_of_sight(&self, content_type: Uuid) -> Uuid {
+        let (parent, block) = (Uuid::now_v7(), Uuid::now_v7());
+        runtime().block_on(async {
+            let peer = be_block_client::Peer::connect(
+                be_block_client::PeerConfig::new(
+                    be_block_client::socket_url(&self.url),
+                    self.phrase.secret(),
+                    be_block_client::Credentials::Token(self.token.clone()),
+                )
+                .organization(Some(self.organization)),
+                be_block_store::MemoryStore::new(),
+            )
+            .await
+            .expect("another device signs in");
+            for (id, under) in [
+                (parent, be_block_graph::BlockParent::Root),
+                (block, be_block_graph::BlockParent::Block(parent)),
+            ] {
+                peer.create_block(
+                    id,
+                    content_type,
+                    under,
+                    &be_block_content::BlockMetadata::default(),
+                    false,
+                )
+                .await
+                .expect("another device makes its block");
+            }
+        });
+        block
+    }
+
     pub fn connect(&self) {
         be_host_stack::start(Config {
             local: false,

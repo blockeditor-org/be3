@@ -1288,7 +1288,9 @@ starts one beside the web build.
   which serves the first-party types in process
   (`be_host_stack::testing::serve_in_process`), and stops and starts its server
   on the same address (`stop_server`, `start_server`) for a test of what the
-  host does while it is out of reach.
+  host does while it is out of reach, and makes a block from another device
+  under a folder the host never lists (`block_out_of_sight`) for a test of a
+  create the server refuses.
 - `crates/be-block-fault-relay` sits between a client and a server and can
   `stall`, `stall_at_next_request`, `cut`, `hold_new` or `jam_at_next_request`
   connections, go `offline` (cut them and refuse new ones until it is back), and `count` the calls the client starts (method ids are

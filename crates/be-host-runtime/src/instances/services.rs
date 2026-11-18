@@ -44,11 +44,11 @@ pub(super) struct Services {
     pub(super) answers: Vec<(OpId, Outcome)>,
     /// What an app without `sharing` asked to open to anyone inside on a block it made, held
     /// until the server takes the create (`Instances::settle_openings`).
-    openings: Vec<Opening>,
+    pub(super) openings: Vec<Opening>,
 }
 
 /// A `set-access` held until the block it opens is the server's (`Services::openings`).
-struct Opening {
+pub(super) struct Opening {
     block: Uuid,
     access: be_block_graph::Access,
     created_by: Option<String>,
@@ -925,10 +925,15 @@ impl Instances {
         for op in ops {
             self.withdraw(op);
         }
+        // An instance that stops waits on no opening.
+        self.services
+            .openings
+            .retain(|opening| opening.answering.instance != instance);
         self.forget_fetches(Some(instance));
     }
 
     pub(super) fn forget_services(&mut self) {
+        self.services.openings.clear();
         self.forget_fetches(None);
         for (_, work) in self.services.serving.drain() {
             work.aborted.abort();

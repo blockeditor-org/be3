@@ -1846,7 +1846,10 @@ name = "be-host-testing"
 version = "0.1.0"
 dependencies = [
  "be-block-client",
+ "be-block-content",
+ "be-block-graph",
  "be-block-keys",
+ "be-block-store",
  "be-host-server",
  "be-host-stack",
  "be-lib-build-id",
