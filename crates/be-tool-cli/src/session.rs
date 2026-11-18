@@ -257,6 +257,11 @@ pub async fn stack_config(settings: &Settings) -> Result<be_host_stack::Config, 
     };
     let identity = identity(&connection, &settings.phrase).await?;
     connection.close();
+    let data_dir = settings
+        .cache
+        .join("host")
+        .join(organization.simple().to_string());
+    hold_host_data(&data_dir)?;
     Ok(be_host_stack::Config {
         local: false,
         server_url: settings.server.clone(),
@@ -266,11 +271,19 @@ pub async fn stack_config(settings: &Settings) -> Result<be_host_stack::Config, 
         identity: identity.to_bytes(),
         display_name: "be".to_owned(),
         email: String::new(),
-        data_dir: settings
-            .cache
-            .join("host")
-            .join(organization.simple().to_string()),
+        data_dir,
         clock: be_block_client::Clock::real(),
+    })
+}
+
+/// Holds `data_dir` for this process, as be-host-stack holds its data directory
+/// (`be_host_stack::refs_in`): a second `be ... host` of the organization on this machine is
+/// refused here, before it starts, rather than numbering edits beside the first.
+pub fn hold_host_data(data_dir: &std::path::Path) -> Result<(), String> {
+    be_host_stack::refs_in(data_dir).map(drop).map_err(|error| {
+        format!(
+            "{error}: another `be ... host` of this organization runs on this machine; stop it first"
+        )
     })
 }
 
