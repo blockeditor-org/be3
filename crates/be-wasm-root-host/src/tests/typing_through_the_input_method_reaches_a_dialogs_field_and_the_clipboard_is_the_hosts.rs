@@ -32,11 +32,8 @@ fn typing_through_the_input_method_reaches_a_dialogs_field_and_the_clipboard_is_
     let pastes = (0..8)
         .find_map(|step_at| {
             if step_at == 2 {
-                root.input(
-                    None,
-                    be_lib_ui_types::input::encode(&chord(Key::V, CTRL)),
-                )
-                .expect("the root takes input");
+                root.input(None, be_lib_ui_types::input::encode(&chord(Key::V, CTRL)))
+                    .expect("the root takes input");
             }
             time += 1;
             step(&mut root, time);

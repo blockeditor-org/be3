@@ -28,7 +28,10 @@ fn the_focus_given_back_to_a_layer_that_went_goes_to_no_layer() {
     list.windows[0].layers.retain(|layer| layer.id != SCREEN);
     windows.drew(list);
     assert!(
-        windows.focus(None, had).iter().all(|told| told.target != SCREEN),
+        windows
+            .focus(None, had)
+            .iter()
+            .all(|told| told.target != SCREEN),
         "the screen that went hears nothing"
     );
     assert_eq!(
