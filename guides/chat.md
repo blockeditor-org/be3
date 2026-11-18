@@ -66,7 +66,8 @@ replica neither reads nor keeps the log, and each editor reads what it shows.
   too: the device keeps it until then, so one refused while the chat is
   closed shows when it opens again. A deletion, edit or reaction the server
   refused shows on its message's row instead ("Not deleted: why", "Edit not
-  saved", "Reaction not saved"), with Dismiss.
+  saved", "Reaction not saved"), all of a message's in one line under it,
+  with Dismiss.
 - **Who signed it.** Each row shows its verdict: "not verified" (a key no
   contact card vouches for), "key changed", "sent with an old key" (a key its
   author replaced before the server took it), "forged". A message its author
@@ -93,8 +94,9 @@ replica neither reads nor keeps the log, and each editor reads what it shows.
   chip whose block left the drafts. Removing a made chip takes the block out
   of `drafts` (`drop_draft`, which deletes it) only while it is still the
   chat's child; the chat's `child_edit` deletes a draft and refuses a block a
-  message carries. Deleting a message unlists what it carried
-  (`ChatContent::delete`). A referenced block is never deleted.
+  message carries. A message's deletion unlists what it carried
+  once it is in the log (`ChatContent::delete`, by whichever of its author's
+  editors is open), so one the server refused unlists nothing. A referenced block is never deleted.
 
 ## Notifications
 
