@@ -45,6 +45,9 @@ pub struct LoggedEntry {
     /// in its own block, which it verifies against (`Peer::verify_exported`); `opened` is what
     /// it said.
     pub imported: Option<ExportedEntry>,
+    /// For one of those, the place in this log and the length of the history its importer
+    /// signed it at (`Peer::verify_imported`).
+    pub imported_at: Option<(u64, u64)>,
 }
 
 impl LoggedEntry {
@@ -97,14 +100,18 @@ const SAID: u8 = 0;
 const IMPORTED: u8 = 1;
 
 impl ExportedEntry {
-    /// What an entry an import brings in seals: `IMPORTED`, then the entry as it was written.
-    pub(crate) fn sealed(&self) -> Vec<u8> {
+    /// What an entry an import brings in seals: `IMPORTED`, then its place in the new block's
+    /// log and the length of the history it is part of, which its importer signs with it, then
+    /// the entry as it was written.
+    pub(crate) fn sealed(&self, place: u64, count: u64) -> Vec<u8> {
         let mut sealed = vec![IMPORTED];
-        sealed.extend(postcard::to_stdvec(self).expect("an exported entry always encodes"));
+        sealed.extend(
+            postcard::to_stdvec(&(place, count, self)).expect("an exported entry always encodes"),
+        );
         sealed
     }
 
-    fn opened(plain: &[u8]) -> Option<Self> {
+    fn opened(plain: &[u8]) -> Option<(u64, u64, Self)> {
         let (kind, rest) = plain.split_first()?;
         (*kind == IMPORTED)
             .then(|| postcard::from_bytes(rest).ok())
@@ -770,12 +777,13 @@ impl<S: ObjectStore> Peer<S> {
             .payload
             .as_ref()
             .and_then(|sealed| self.open_for(block, sealed).ok());
-        if let Some(imported) = plain.as_deref().and_then(ExportedEntry::opened) {
+        if let Some((place, count, imported)) = plain.as_deref().and_then(ExportedEntry::opened) {
             return LoggedEntry {
                 entry,
                 opened: imported.said.clone(),
                 malformed: false,
                 imported: Some(imported),
+                imported_at: Some((place, count)),
             };
         }
         let malformed = plain
@@ -786,6 +794,7 @@ impl<S: ObjectStore> Peer<S> {
             opened: plain.and_then(Said::opened),
             malformed,
             imported: None,
+            imported_at: None,
         }
     }
 
@@ -864,27 +873,33 @@ impl<S: ObjectStore> Peer<S> {
 
     /// Who signed an imported entry of `block`'s log (`LoggedEntry::imported`) as the app
     /// `app`'s, in the block it was written in: none for one whose original was redacted, and
-    /// `Bad` for one that may not be history here. History is only the log's leading run
-    /// (redacted entries aside), appended by the block's creator, each signed by them as
-    /// importing it, so no member can replay another block's signed entries into this one.
+    /// `Bad` for one that may not be history here. History is the log's leading run: each entry
+    /// is appended by the block's creator, who signs it with its place in the log and the
+    /// history's length (`ExportedEntry::sealed`), and lands at that place, within that length.
+    /// No member can replay another block's signed entries into this one, and nothing is read:
+    /// the entry alone says whether it is history, the same on every device.
     pub async fn verify_imported(
         &self,
         block: Uuid,
         app: &str,
         logged: &LoggedEntry,
     ) -> Result<Option<Signer>, ClientError> {
-        let Some(original) = &logged.imported else {
+        let (Some(original), Some((place, count))) = (&logged.imported, logged.imported_at) else {
             return Ok(None);
         };
         let entry = &logged.entry;
+        if place != entry.seq || place >= count {
+            return Ok(Some(Signer::Bad));
+        }
         let creator = match self.refs.summary(block).and_then(|summary| summary.author) {
             Some(creator) => Some(creator),
             None => self.summary(block).await?.author,
         };
-        if creator != Some(entry.author) || self.imported_run(block).await? <= entry.seq {
+        if creator != Some(entry.author) {
             return Ok(Some(Signer::Bad));
         }
-        let signed = be_block_protocol::log_signed(entry.id, Hash::of(&original.sealed()));
+        let signed =
+            be_block_protocol::log_signed(entry.id, Hash::of(&original.sealed(place, count)));
         let importer = self
             .verify_authored(
                 entry.author,
@@ -898,31 +913,6 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(Some(Signer::Bad));
         }
         self.verify_exported(app, original).await
-    }
-
-    /// How many entries from the start of `block`'s log are imported history, redacted ones
-    /// among them: read from the start up to the first entry of the block's own, and kept once
-    /// one ends it.
-    async fn imported_run(&self, block: Uuid) -> Result<u64, ClientError> {
-        if let Some(run) = self.imported_runs.lock().unwrap().get(&block) {
-            return Ok(*run);
-        }
-        let mut from = 0;
-        loop {
-            let read = self.read_log(block, from, u32::MAX).await?;
-            if read.entries.is_empty() {
-                return Ok(from);
-            }
-            for logged in &read.entries {
-                let own = logged.imported.is_none() && logged.entry.payload.is_some();
-                if own {
-                    let run = logged.entry.seq;
-                    self.imported_runs.lock().unwrap().insert(block, run);
-                    return Ok(run);
-                }
-            }
-            from += read.entries.len() as u64;
-        }
     }
 
     /// Drops the payload of the entry at `seq` of `block`'s log on the server, for everyone: its
