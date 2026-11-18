@@ -1079,13 +1079,24 @@ pub(crate) fn AppView(
             // so the place reads the pointer's window point rather than the local one.
             drag::custom(area, move |_: Pos2, point: DragPoint| {
                 let rect = state.with_untracked(|view| view.rect);
-                (rect.contains(point.pos) && takes(point.pos - rect.min.to_vec2()))
-                    .then_some((drag, point.pos, DropAction::of(point.modifiers)))
+                (rect.contains(point.pos) && takes(point.pos - rect.min.to_vec2())).then_some((
+                    drag,
+                    point.pos,
+                    DropAction::of(point.modifiers),
+                ))
             })
         }),
-        Callback::new(move |(_, over): (BlockDrag, (BlockDrag, Pos2, DropAction))| {
-            be_host_runtime::drag_over_view(&app_id.value(), instance, region.id, Some(over), true);
-        }),
+        Callback::new(
+            move |(_, over): (BlockDrag, (BlockDrag, Pos2, DropAction))| {
+                be_host_runtime::drag_over_view(
+                    &app_id.value(),
+                    instance,
+                    region.id,
+                    Some(over),
+                    true,
+                );
+            },
+        ),
     );
     create_effect_on(
         move || site.over.get(),
@@ -1196,54 +1207,54 @@ pub(crate) fn AppView(
     let backdrop_radius = create_memo(move || corner_radius.map_or(0.0, |radius| radius.get()));
     let upright = create_memo(move || rotation.get() == 0.0 && opacity.get() >= 1.0);
     let built = view! {
-            <Layers @node_ref=&area>
-                <Backdrop state radius={backdrop_radius} upright />
-                <ViewChildren state={state} rect={rect} nodes={children} below=true />
-                <Interactive
-                    @node_ref={&catcher}
-                    focusable=true
-                    press_focus={move || !presented.get()}
-                    cursor={cursor}
-                    ime={ime}
-                    keyboard={keyboard}
-                    ime_cursor={ime_cursor}
-                    ime_text={ime_text}
-                    pastes={pastes}
-                    clipboard_keys={clipboard_keys}
-                    every_sample={every_sample}
-                    on_forward={forward}
-                    hit_area={hit_area}
-                    claims={claims}
-                    drawing={pen_surface}
-                    on_press_outside={pressed_outside}
-                    on_focus_change={move |focused: bool| {
-                        if focused {
-                            if docked {
-                                // The keyboard is in the instance's dock tab view: a main view
-                                // that went with it must not take it back if it is built again.
-                                forget_main_rebuild(&app_id.value(), instance);
-                            }
-                            on_focus.call(());
+        <Layers @node_ref=&area>
+            <Backdrop state radius={backdrop_radius} upright />
+            <ViewChildren state={state} rect={rect} nodes={children} below=true />
+            <Interactive
+                @node_ref={&catcher}
+                focusable=true
+                press_focus={move || !presented.get()}
+                cursor={cursor}
+                ime={ime}
+                keyboard={keyboard}
+                ime_cursor={ime_cursor}
+                ime_text={ime_text}
+                pastes={pastes}
+                clipboard_keys={clipboard_keys}
+                every_sample={every_sample}
+                on_forward={forward}
+                hit_area={hit_area}
+                claims={claims}
+                drawing={pen_surface}
+                on_press_outside={pressed_outside}
+                on_focus_change={move |focused: bool| {
+                    if focused {
+                        if docked {
+                            // The keyboard is in the instance's dock tab view: a main view
+                            // that went with it must not take it back if it is built again.
+                            forget_main_rebuild(&app_id.value(), instance);
                         }
-                    }}
-                >
-                    <Embed slot={slot} punch=false @node_ref={&anchor}>
-                        <Drawing draw={base} />
-                    </Embed>
-                </Interactive>
-                <Notices loading failure id={crash_id.clone()} />
-                <ViewChildren state rect nodes={children} below=false />
-                <Drawing draw={marks} />
-                {shows_desktop.then(|| view! {
-                    <DesktopWindows editor={desktop_editor.with(Clone::clone)} state rect />
-                })}
-                <Scrims state />
-                <Drawing draw={floating} />
-                <Show value={blocked}>||
-                    <Interactive press_focus=false on_forward={|_: ForwardedInput| {}} />
-                </Show>
-                {windows}
-            </Layers>
+                        on_focus.call(());
+                    }
+                }}
+            >
+                <Embed slot={slot} punch=false @node_ref={&anchor}>
+                    <Drawing draw={base} />
+                </Embed>
+            </Interactive>
+            <Notices loading failure id={crash_id.clone()} />
+            <ViewChildren state rect nodes={children} below=false />
+            <Drawing draw={marks} />
+            {shows_desktop.then(|| view! {
+                <DesktopWindows editor={desktop_editor.with(Clone::clone)} state rect />
+            })}
+            <Scrims state />
+            <Drawing draw={floating} />
+            <Show value={blocked}>||
+                <Interactive press_focus=false on_forward={|_: ForwardedInput| {}} />
+            </Show>
+            {windows}
+        </Layers>
     };
     on_back(handles_back, back);
     built

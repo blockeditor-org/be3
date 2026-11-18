@@ -40,7 +40,10 @@ fn a_carry_whose_touch_is_cancelled_drops_nothing() {
     harness.touch(TouchPhase::Start, from);
     harness.touch(TouchPhase::Move, to);
     assert!(
-        board.get().expect("the board was made with the view").carrying(),
+        board
+            .get()
+            .expect("the board was made with the view")
+            .carrying(),
         "the finger lifted the carry past its threshold"
     );
     harness.touch(TouchPhase::Cancel, to);
@@ -51,7 +54,10 @@ fn a_carry_whose_touch_is_cancelled_drops_nothing() {
         "a cancelled touch drops nothing"
     );
     assert!(
-        !board.get().expect("the board was made with the view").carrying(),
+        !board
+            .get()
+            .expect("the board was made with the view")
+            .carrying(),
         "but the board lets go of what it carried"
     );
 }

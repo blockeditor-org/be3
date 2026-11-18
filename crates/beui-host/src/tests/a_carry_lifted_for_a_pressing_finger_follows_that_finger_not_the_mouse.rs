@@ -2,8 +2,8 @@ use std::cell::OnceCell;
 use std::rc::Rc;
 
 use super::*;
-use crate::drag::{self, Carry, DragPoint};
 use crate::PointerId;
+use crate::drag::{self, Carry, DragPoint};
 use crate::unstyled::{drag_board, use_drop_site};
 
 /// What a host does for a drag an app begins (`Editor::drag`): it lifts a carry from outside
@@ -20,7 +20,9 @@ fn a_carry_lifted_for_a_pressing_finger_follows_that_finger_not_the_mouse() {
         let basket = NodeRef::new();
         let site = use_drop_site(
             Func::new(|_: u32| true),
-            Func::new(move |_: u32| drag::custom(basket, |_: Pos2, point: DragPoint| Some(point.pos))),
+            Func::new(move |_: u32| {
+                drag::custom(basket, |_: Pos2, point: DragPoint| Some(point.pos))
+            }),
             Callback::new(move |(_, at): (u32, Pos2)| dropped.set(Some(at))),
         );
         create_effect(move || {
@@ -45,7 +47,9 @@ fn a_carry_lifted_for_a_pressing_finger_follows_that_finger_not_the_mouse() {
 
     harness.touch(TouchPhase::Start, pad.center());
     // The mouse moves after the finger pressed: its event is the latest.
-    harness.frame(vec![Input::PointerMoved(basket.left_top() + vec2(10.0, 10.0))]);
+    harness.frame(vec![Input::PointerMoved(
+        basket.left_top() + vec2(10.0, 10.0),
+    )]);
     let pressing = harness
         .document()
         .last_pointer
@@ -79,7 +83,10 @@ fn a_carry_lifted_for_a_pressing_finger_follows_that_finger_not_the_mouse() {
 
     harness.frame(vec![Input::PointerMoved(pad.center())]);
     assert_eq!(
-        harness.document().last_pointer.and_then(|sample| sample.pointer),
+        harness
+            .document()
+            .last_pointer
+            .and_then(|sample| sample.pointer),
         None,
         "with nothing pressing, the sample names no pointer, so nothing is lifted for it"
     );

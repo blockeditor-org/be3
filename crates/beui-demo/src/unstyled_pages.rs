@@ -4,9 +4,8 @@ use beui::Rect;
 use beui::drag;
 use beui::unstyled::{
     AnchoredSheetHandle, AnchoredStyle, ButtonHandle, ChoiceKind, ChoiceOptionHandle,
-    DisclosureHandle, Dropdown, MenuRowHandle,
-    PopupTriggerHandle, ScrollHandle, ScrollStyle, ScrollbarHandle, SliderHandle, TextInputHandle,
-    TextInputStyle, ToggleHandle, TooltipHandle,
+    DisclosureHandle, Dropdown, MenuRowHandle, PopupTriggerHandle, ScrollHandle, ScrollStyle,
+    ScrollbarHandle, SliderHandle, TextInputHandle, TextInputStyle, ToggleHandle, TooltipHandle,
 };
 use beui::unstyled::{ColorAreaHandle, ColorPickerArea, HueSlider, SwatchHandle, Swatches};
 use beui::unstyled::{
@@ -875,7 +874,9 @@ fn FruitBin(bin: usize, bins: Signal<Vec<usize>>) -> NodeId {
     let area = NodeRef::new();
     let site = unstyled::use_drop_site(
         Func::new(move |fruit: usize| bins.with_untracked(|bins| bins[fruit] != bin)),
-        Func::new(move |_: usize| unstyled::place_on(area, ()).map_or(drag::floating(), drag::fixed)),
+        Func::new(move |_: usize| {
+            unstyled::place_on(area, ()).map_or(drag::floating(), drag::fixed)
+        }),
         Callback::new(move |(fruit, ()): (usize, ())| bins.update(|bins| bins[fruit] = bin)),
     );
     let edge = create_memo(move || match site.over.get() {

@@ -127,7 +127,11 @@ pub fn DragFixture() -> NodeId {
     use_drop_site(
         Func::new(|_: String| true),
         Func::new(move |_: String| {
-            beui::drag::closest([place_on(basket, ()), place_on(bin, ())].into_iter().flatten())
+            beui::drag::closest(
+                [place_on(basket, ()), place_on(bin, ())]
+                    .into_iter()
+                    .flatten(),
+            )
         }),
         Callback::new(move |(fruit, ()): (String, ())| dropped.set(fruit)),
     );

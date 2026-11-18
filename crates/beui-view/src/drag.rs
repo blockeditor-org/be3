@@ -1,12 +1,12 @@
 use std::rc::Rc;
 
-pub use crate::types::drag::{DragPoint, Driver, EDGE_BAND, EdgeScroller, Order, Space};
 pub use crate::types::drag::{
     After, Candidate, CandidateId, Carry, CarryFace, CarryId, DragFrame, DragSpec, Evaluated,
     Evaluation, FREE_STEP, REACH, Rest, SNAP_RADIUS, STICKY, THROW_SECONDS, THROW_SPEED, closest,
     custom, evaluate, fixed, floating, free, free_step, into, move_after, nodes, rests,
     step_toward,
 };
+pub use crate::types::drag::{DragPoint, Driver, EDGE_BAND, EdgeScroller, Order, Space};
 
 pub fn space() -> Rc<dyn Space> {
     crate::core::drag::space()
