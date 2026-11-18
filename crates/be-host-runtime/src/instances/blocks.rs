@@ -9,7 +9,7 @@ use be_sdk_app_host::blocks::{
 };
 use uuid::Uuid;
 
-use super::{ContentLink, EditorInstanceId, Instance, Instances};
+use super::{ContentLink, EditorInstanceId, Instance, InstanceRole, Instances};
 use crate::{EditorAction, events::InstanceEvent};
 
 pub(super) type Translate<'a> = dyn FnMut(BlockIdRole, &mut [u8; 16]) + 'a;
@@ -137,6 +137,16 @@ impl Instances {
                 }
                 be_host_stack::define(block, vec![(key, value)]);
                 Ok(true)
+            }
+            BlockCommand::TellMember(said) => {
+                let hosting = self.entries.get(&instance).is_some_and(
+                    |entry| matches!(entry.role, InstanceRole::Host(_, own) if own.id == block),
+                );
+                if !hosting {
+                    return Err(OpError::Denied);
+                }
+                be_host_stack::tell_member(block, said.member, said.payload);
+                Ok(false)
             }
             command => {
                 if !self.entries.contains_key(&instance) {

@@ -38,6 +38,15 @@ impl Renaming {
                 untrack(|| renaming.start(key));
             }
         });
+        // Another block taking the keyboard is the person moving on: a new block's name is
+        // no longer asked for once its row shows. A started rename's field ends itself, as
+        // left, when its window loses the keyboard.
+        let keyboard = editor.has_keyboard();
+        create_effect(move || {
+            if !keyboard.get() && pending.with_untracked(Option::is_some) {
+                pending.set(None);
+            }
+        });
         on_key(
             KeyAt::Window,
             KeyPhase::Capture,

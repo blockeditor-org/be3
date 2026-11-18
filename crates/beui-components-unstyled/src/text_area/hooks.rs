@@ -11,7 +11,7 @@ use beui_view::types::Color;
 use beui_view::types::Corners;
 use beui_view::types::{SpanBackground, SpanStyle};
 
-use super::rows::{RowTable, quote_in_text};
+use super::rows::{RowTable, quote_in_text, quoted_nesting_em};
 use super::state::TextAreaState;
 use beui_view::types::{Align2, Extent, Sides};
 
@@ -131,6 +131,15 @@ impl Margin {
             hangs,
         }
     }
+
+    /// The room a code block leaves inside its background on each side, around its text: some
+    /// where markers hang into the margin, none where its background stands just outside it.
+    pub fn code_padding(&self, size: f32) -> f32 {
+        match self.hangs {
+            true => size * CODE_PADDING_EM,
+            false => 0.0,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -228,9 +237,34 @@ impl TextLine {
 
     pub fn code_padding(&self) -> Memo<f32> {
         let (look, size, margin) = (self.look, self.size, self.margin);
-        create_memo(move || match look.get().code_block && margin.get().hangs {
-            true => size.get() * CODE_PADDING_EM,
+        create_memo(move || match look.get().code_block {
+            true => margin.get().code_padding(size.get()),
             false => 0.0,
+        })
+    }
+
+    /// How far past `left` a code line's background starts: past its quote's gutter and any
+    /// list nesting after it, which its row lays out before the text (`quote_in_text`).
+    pub fn code_start(&self) -> Memo<f32> {
+        let (look, size) = (self.look, self.size);
+        create_memo(move || {
+            let look = look.get();
+            match look.code_block && quote_in_text(&look) {
+                true => {
+                    (look.quote as f32 * QUOTE_INDENT_EM + quoted_nesting_em(&look)) * size.get()
+                }
+                false => 0.0,
+            }
+        })
+    }
+
+    /// The code padding a line puts before its text: none where its row lays it out after the
+    /// quote's gutter.
+    pub fn code_lead(&self) -> Memo<f32> {
+        let (look, padding) = (self.look, self.code_padding());
+        create_memo(move || match quote_in_text(&look.get()) {
+            true => 0.0,
+            false => padding.get(),
         })
     }
 
@@ -425,10 +459,11 @@ pub fn LeafSpan(
 #[component]
 pub fn PlainLine(line: TextLine) -> NodeId {
     let (left, right, code) = (line.left(), line.right(), line.code_padding());
+    let lead = line.code_lead();
     let padding = create_memo(move || {
         let (above, below) = line.space.get();
         Sides::new(
-            left.get() + code.get(),
+            left.get() + lead.get(),
             above,
             right.get() + code.get(),
             below,

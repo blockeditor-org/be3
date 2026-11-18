@@ -183,9 +183,38 @@ a role inside the app, since the share dialog grants no roles. A game:
    takes it out and it joins again as a Join member) handshake again.
 4. **Hosting.** The host component, starting and stopping it with the editor,
    Keep hosting and the shell's list, lease handoff and reconnecting, ban
-   records; then `be BLOCK host`. Done: a test with two editors and two
-   players where the first host closes the world and the second carries on;
-   one where Keep hosting outlives the editor and Stop ends it.
+   records; then `be BLOCK host`. In reviewed pieces:
+   - a. Ban records (done): `Record::Ban`, `append-log(ban)`, `Peer::ban`;
+     `a_banned_member_is_refused_until_a_grant_lifts_the_ban`.
+   - b. The host side in be-host (done): the host component runs while an
+     editor is open here, the account may edit and this device's replica
+     holds the lease (`crates/be-host/src/hosting.rs`), so the lease passes
+     to the next editor by the session's order; be-host-stack admits members
+     and drops their channels on leaving (`joiner.left`, a `left` membership
+     entry), on a message that does not open (taken then as the member's new
+     handshake), when the component falls `EVENTS_KEPT` behind, and when a
+     check against the signed logs fails, run on `KeysChanged`, `Roots`,
+     `TreeAdvanced`, a resynchronized connection, and after this device's own
+     change of access or ban (`crates/be-host-stack/src/hosting.rs`); the
+     component hears `editor-event.member` and answers with `tell-member`
+     (guides/apps/host_services.md, "Host components"), and one that starts
+     hears every admitted member join again;
+     `a_member_is_admitted_hears_its_host_and_goes_when_revoked`,
+     `a_member_that_handshakes_again_is_admitted_again_and_goes_when_banned`.
+     Known gap, fixed in d: a device that holds a hosted block's replica open
+     for another reason (a child, a preview) holds its lease and runs no host
+     component; d claims a hosted type's lease only while a component runs.
+   - c. The Join side: an editor opened by a Join member with no content
+     frame (`opening-kind.join`), its channel and whether a host is online,
+     handshaking again on a host change, and a participant that falls to Join
+     handshaking again.
+   - d. Keep hosting in the frame menu and the device's list of what it hosts,
+     with Stop, in be-host's organization menu.
+   - e. `be BLOCK host` (plans/headless_apps.md, step 2).
+   Done: a be-host-tests test with two editor devices and two players as raw
+   peers, where the first host closes the world and the second carries on;
+   and a be-host-stack test where Keep hosting outlives the editor and Stop
+   ends it.
 5. **The share dialog.**
    - a. The offered levels, names and lines from the manifest (above) (done):
      a host component's `levels` (`HostManifest::levels`, Join required), the

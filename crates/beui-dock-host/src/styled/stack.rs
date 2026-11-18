@@ -80,7 +80,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                                 value={titled}
                                 fallback={move || view! {
                                     <Frame padding={Padding::horizontal(TITLE_PADDING)}>
-                                        <DockTitle title icon noticed opens=false />
+                                        <DockTitle title icon noticed cue={create_memo(|| None)} />
                                     </Frame>
                                 }}
                             >
@@ -115,6 +115,16 @@ fn DockTitleButton(
                 .unwrap_or_default()
         })
     });
+    // What a tap does, after the title: the action's own glyph (a pencil for Rename), so the
+    // title reads as renamable rather than as a menu.
+    let cue = create_memo(move || match disabled.get() {
+        true => None,
+        false => action.with(|action| {
+            action
+                .as_ref()
+                .map(|action| action.glyph().unwrap_or(ICON_CHEVRON_DOWN))
+        }),
+    });
     view! {
         <unstyled::Button
             @test_id={"dock.title"}
@@ -140,7 +150,7 @@ fn DockTitleButton(
                     padding={Padding::horizontal(TITLE_PADDING)}
                     align={Align2::new(Align::Stretch, Align::Center)}
                 >
-                    <DockTitle title icon noticed opens={move || !disabled.get()} />
+                    <DockTitle title icon noticed cue />
                 </Frame>
             }
         }</unstyled::Button>
@@ -152,7 +162,7 @@ fn DockTitle(
     title: Memo<String>,
     icon: Memo<Option<Glyph>>,
     noticed: Memo<bool>,
-    opens: Prop<bool>,
+    cue: Memo<Option<Glyph>>,
 ) -> NodeId {
     let label = create_memo(move || match noticed.get() {
         true => TextColor::Accent,
@@ -168,9 +178,9 @@ fn DockTitle(
             <ListItem shrink=1.0>
                 <Text color={label} overflow=Overflow::Ellipsis>{title}</Text>
             </ListItem>
-            <Show value={opens}>
-                <Text color=TextColor::Muted align=TextAlign::Center>
-                    <Icon glyph=ICON_CHEVRON_DOWN />
+            <Show value={move || cue.with(Option::is_some)}>
+                <Text color=TextColor::Muted align=TextAlign::Center @test_id={"dock.title.cue"}>
+                    <Icon glyph={cue} />
                 </Text>
             </Show>
         </List>

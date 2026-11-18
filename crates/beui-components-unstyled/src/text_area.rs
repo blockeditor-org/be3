@@ -53,6 +53,7 @@ use beui_view::types::{Extent, Sides};
 pub use colors::{SyntaxColors, TextAreaColors};
 pub use completion::{Completer, Completion, CompletionMenu, CompletionRowHandle};
 pub use emoji::{emoji_completer, search_emoji};
+use hooks::MARGIN_MIN_WIDTH_EM;
 pub use hooks::{
     LeafSpan, Margin, MarkerColumn, MarkerKind, PlainLine, QuoteBar, TableFill, TableLines,
     TextLeaf, TextLine, TextMarker,
@@ -176,6 +177,8 @@ struct Surface {
     prose: Memo<Option<Prose>>,
     metrics: Memo<(f32, u64)>,
     gutter: Memo<f32>,
+    /// The room a document's lines leave at their sides, the same for every row.
+    margin: Memo<Margin>,
     padding: Memo<Sides>,
     scroll: ReadSignal<ScrollPosition>,
     offset: Signal<f32>,
@@ -1485,6 +1488,28 @@ pub fn TextArea(
             false => gutter_width(font_size.get(), &geometry.get()),
         }
     });
+    let margin = create_memo(move || {
+        content.track();
+        let document = state.with_snapshot(|snapshot| {
+            matches!(
+                snapshot.language,
+                TextLanguage::Markdown | TextLanguage::RichText
+            )
+        });
+        if !document || prose.with(Option::is_some) || single_line {
+            return Margin::default();
+        }
+        let size = font_size.get();
+        let padding = padding.get();
+        let width = view_width.get() - gutter.get() - padding.left - padding.right;
+        // Beside the gutter, markers do not hang into a margin of their own: the gutter is the
+        // room at the text's side.
+        Margin::centered(
+            width,
+            size,
+            gutter.get() == 0.0 && view_width.get() >= size * MARGIN_MIN_WIDTH_EM,
+        )
+    });
     let composition = create_memo(move || {
         state.cursors().track();
         state.content().track();
@@ -1544,6 +1569,7 @@ pub fn TextArea(
             (scale.get(), previous.map_or(0, |(_, changes)| changes + 1))
         }),
         gutter,
+        margin,
         padding,
         scroll: scrolled.read_only(),
         offset,

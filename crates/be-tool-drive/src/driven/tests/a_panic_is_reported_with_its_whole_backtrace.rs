@@ -17,7 +17,7 @@ fn panic_with_backtrace(message: &str, frames: usize) -> Vec<String> {
 fn a_panic_is_reported_with_its_whole_backtrace() {
     let mut log = vec!["be-host: started".to_owned()];
     log.extend(panic_with_backtrace("node was removed", 60));
-    let report = log_report(&log.join("\n"));
+    let report = log_report("be-host", &log.join("\n"));
     assert!(
         report.contains("panicked at crates/beui-core/src/node.rs:1:1:\nnode was removed"),
         "a panic at the end of the log is reported from its first line, got {report}"
@@ -28,9 +28,9 @@ fn a_panic_is_reported_with_its_whole_backtrace() {
 
     let mut log = panic_with_backtrace("the replica was gone", 60);
     log.extend((0..50).map(|line| format!("be-host: later line {line}")));
-    let report = log_report(&log.join("\n"));
+    let report = log_report("be-host", &log.join("\n"));
     let (before, end) = report
-        .split_once("The end of the app's log:\n")
+        .split_once("The end of be-host's log:\n")
         .expect("the report has the log's end");
     assert!(
         before.contains("the replica was gone\n\n   0: frame_0\n")

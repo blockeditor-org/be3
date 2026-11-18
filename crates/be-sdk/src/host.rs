@@ -501,10 +501,13 @@ pub enum Pushed {
     Searches,
     /// The editor was opened at a place in its block (`take_reveal`).
     Reveal,
+    /// A host component's block's host channel members came, spoke or went
+    /// (`take_member_events`).
+    MemberEvents,
 }
 
 impl Pushed {
-    pub const ALL: [Self; 16] = [
+    pub const ALL: [Self; 17] = [
         Self::Peers,
         Self::Histories,
         Self::Artifacts,
@@ -521,6 +524,7 @@ impl Pushed {
         Self::Docks,
         Self::Searches,
         Self::Reveal,
+        Self::MemberEvents,
     ];
 }
 
@@ -562,6 +566,7 @@ pub struct EditorHost {
     gestures: Rc<Cell<u64>>,
     opens: Rc<RefCell<Vec<OpenRequest>>>,
     reveal: Rc<RefCell<Option<be_sdk_api::SearchLocation>>>,
+    member_events: Rc<RefCell<Vec<be_sdk_api::blocks::MemberEvent>>>,
     shows: Rc<RefCell<Vec<ShowRequest>>>,
     focused: Rc<RefCell<FocusedBlock>>,
     reported_focus: Rc<RefCell<Option<FocusedBlock>>>,
@@ -775,6 +780,26 @@ impl EditorHost {
     pub(crate) fn reveal(&self, at: be_sdk_api::SearchLocation) {
         *self.reveal.borrow_mut() = Some(at);
         self.push(Pushed::Reveal);
+    }
+
+    /// What a host component's block's host channel members did since this was last taken
+    /// (`Pushed::MemberEvents`; plans/hosted_blocks.md, "Hosting"), in order.
+    pub fn take_member_events(&self) -> Vec<be_sdk_api::blocks::MemberEvent> {
+        std::mem::take(&mut self.member_events.borrow_mut())
+    }
+
+    pub(crate) fn member(&self, event: be_sdk_api::blocks::MemberEvent) {
+        self.member_events.borrow_mut().push(event);
+        self.push(Pushed::MemberEvents);
+    }
+
+    /// A host component tells `member` of its block's host channel `payload`, sealed on the
+    /// member's channel by the host.
+    pub fn tell_member(&self, block_id: Uuid, member: u64, payload: Vec<u8>) {
+        self.command(
+            block_id,
+            BlockCommand::TellMember(be_sdk_api::blocks::MemberSaid { member, payload }),
+        );
     }
 
     pub fn take_show_requests(&self) -> Vec<ShowRequest> {

@@ -18,6 +18,7 @@ pub mod device_push;
 mod diff;
 pub mod discovery;
 mod graph;
+mod hosting;
 pub mod invite_link;
 pub mod keys;
 pub mod link;
@@ -855,10 +856,10 @@ fn stop_now() {
         drop(stack);
         taken.tell();
     }
-    drop(told);
     if stopped {
         changes::everything();
     }
+    drop(told);
 }
 
 /// Stops as a crash would: like `stop`, but the worker ends without keeping what open replicas
@@ -1190,6 +1191,55 @@ pub fn attach(block: Uuid, content_type: Uuid, editor: u64, editable: bool) {
 
 pub fn detach(block: Uuid, editor: u64) {
     send(Command::Detach { block, editor });
+}
+
+/// What the host component running on `block` has yet to hear of its host channel's members
+/// (plans/hosted_blocks.md, "Hosting"), taken: the runtime passes it on as `member-event`s.
+pub fn take_member_events(block: Uuid) -> Vec<be_sdk_api::blocks::MemberEvent> {
+    let Some((events, upto)) = with_seen(|seen| {
+        let (news, last) = seen.member_news.of(block)?;
+        let events = news.into_iter().map(hosting::event_of).collect();
+        Some((events, last))
+    })
+    .flatten() else {
+        return Vec::new();
+    };
+    edit(vec![Edit::TookMemberNews { block, upto }]);
+    events
+}
+
+/// How many times the blocks whose lease this device holds changed: be-host looks again at
+/// which host components should run only when this, or the editors open, moved.
+pub fn lease_revision() -> u64 {
+    with_seen(|seen| seen.leases_changed).unwrap_or_default()
+}
+
+/// A host component starts on `block`: it hears every member already admitted join, and none of
+/// what an earlier component left untaken.
+pub fn restart_host(block: Uuid) {
+    // The worker drops the rest and replays the joins in one step; the page drops what it holds
+    // now, so the new component takes none of it before that step reaches it. The replayed
+    // joins are numbered after all of it.
+    if let Some(upto) = with_seen(|seen| seen.member_news.of(block).map(|(_, last)| last)).flatten()
+    {
+        edit(vec![Edit::TookMemberNews { block, upto }]);
+    }
+    send(Command::RestartHost(block));
+}
+
+/// Whether this device's replica holds `block`'s session's lease, so a host component may run
+/// on it here.
+pub fn holds_lease(block: Uuid) -> bool {
+    with_seen(|seen| seen.hosted.contains(&block)).unwrap_or_default()
+}
+
+/// A host component of `block` tells `member` of its host channel `payload`, sealed on the
+/// member's channel; nothing when it is no admitted member.
+pub fn tell_member(block: Uuid, member: u64, payload: Vec<u8>) {
+    send(Command::TellMember {
+        block,
+        said: be_sdk_api::blocks::MemberSaid { member, payload },
+    });
 }
 
 /// What `app`'s editor sends its block's replica.
@@ -2244,6 +2294,16 @@ pub fn set_access(
         block,
         account,
         access,
+        reply: replies::expect(reply),
+    });
+}
+
+/// Bars `account` from joining `block`'s host (plans/hosted_blocks.md, "Hosting"); `reply`
+/// hears whether the server took it. A member of what this device hosts that it bars goes.
+pub fn ban(block: Uuid, account: Uuid, reply: impl FnOnce(Result<(), String>) + Send + 'static) {
+    send(Command::Ban {
+        block,
+        account,
         reply: replies::expect(reply),
     });
 }

@@ -519,6 +519,7 @@ fn insert_entry(
         Record::Retirement(retirement) => retirement.account,
         Record::Owner(owner) => owner.account,
         Record::Opened(opened) => opened.grantee,
+        Record::Ban(ban) => ban.account,
         Record::Opening(_) | Record::Parent(_) | Record::Invitation(_) | Record::ShareLink(_) => {
             entry.signer
         }
@@ -906,6 +907,49 @@ pub(crate) fn block_head(
     Ok(entries(connection, LogKind::Block, organization, block)?
         .last()
         .map(Entry::hash))
+}
+
+/// Appends `record`, signed by `signer`, to `block`'s log once it checks at its head: a ban
+/// barring `account` from joining the block's host (plans/hosted_blocks.md, "Hosting"), which the
+/// log takes only from a signer with Edit or above.
+pub(crate) fn append_ban(
+    connection: &Connection,
+    organization: Uuid,
+    block: Uuid,
+    signer: Uuid,
+    account: Uuid,
+    record: &[u8],
+) -> Result<(), ServerError> {
+    let entry = Entry::decode(record).map_err(|_| refused("the record does not read"))?;
+    let Record::Ban(ban) = &entry.record else {
+        return Err(refused("a ban is a ban record"));
+    };
+    if entry.signer != signer.into_bytes() || ban.account != account.into_bytes() {
+        return Err(refused(
+            "the ban record is signed by its caller and bars the account the call names",
+        ));
+    }
+    authority_current(connection, organization, &ban.authority)?;
+    append_checked(connection, organization, block, entry)
+}
+
+/// Whether `block`'s log bars `account` from joining its host now (`Record::Ban`).
+pub(crate) fn banned(
+    connection: &Connection,
+    organization: Uuid,
+    block: Uuid,
+    account: Uuid,
+) -> Result<bool, ServerError> {
+    // Checked on from where the server last checked the log (`CHECKED`).
+    let entries = entries(connection, LogKind::Block, organization, block)?;
+    if entries.is_empty() {
+        return Ok(false);
+    }
+    Ok(
+        checked_block_log(connection, organization, block, &entries)?
+            .banned
+            .contains(&account.into_bytes()),
+    )
 }
 
 /// Whether `record` is an owner record: `set-access` carrying one moves the block's ownership

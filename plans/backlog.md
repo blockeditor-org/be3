@@ -7,41 +7,14 @@ Fixed items are removed as they land.
 
 ## 1. Text
 
-- **A quoted code block's prefix.** A fenced code block inside a quote
-  (`> ```) keeps its `> ` in a zero-width marker, so its caret positions and
-  selection have no room there, unlike every other quoted line, whose row lays
-  the prefix over the quote's gutter (`quote_in_text`). Its text sits inside
-  the block's background frame in the line hook, and the code padding inside
-  that frame depends on the margin, which the row cannot see. Done: the line
-  hook draws the code background apart from the text, starting past the
-  gutter, the row lays the quoted code line's prefix over the gutter with the
-  code inset after it, and a text app painting shows carets at each prefix
-  offset of a quoted code line.
-
-- **A long text's first row heights.** Opening a long Markdown text far from
-  its top (a restored scroll), the rows around a fenced code block above the
-  view are first placed tens of points apart from where they settle a layout
-  later, so the scrollbar's thumb jumps as they are measured (the line at the
-  top now stays put: `VirtualList`'s `anchor`). Find whether the list places
-  them by its estimate before measuring them or a row measures short at first.
-  Done: the first layout places them where they settle, shown by a beui test.
-
-- **Anchored rows on the web without `overflow-anchor`.** On the HTML core a
-  `VirtualList` leaves its `anchor` to the browser's scroll anchoring, which
-  Safari (and so every iOS browser) lacks, so rows measured anew above the view
-  move what is shown there. Done: the HTML list keeps its anchor row in place
-  itself where `overflow-anchor` is missing, shown by a test on the HTML core.
-
-- **A row's rename that outlives its moment.** be-app-file-tree's `Renaming`
-  keeps a `pending` rename of a new block until its row shows, and a started
-  one (`editing`) until its field finishes, even after the tree lost the
-  keyboard to another block. Done: a pending rename is dropped, and a started
-  one ends as left, once the tree's keyboard goes to another block, shown by a
-  file tree test.
-- **Renaming from a stacked bar's title.** On a phone a new block is named from
-  its title in the stacked bar, which shows no cue that a tap renames it.
-  Done: the title reads as renamable (a cue the styled dock draws), shown in a
-  painting of the stacked bar.
+- **An unquoted list code block's continuation spaces.** A fenced code block in
+  a list outside a quote draws the list's continuation spaces as code text, so
+  its content sits about 8px right of its own fence (the fence's backticks at
+  x≈87, the code at x≈95 in be-app-text's markdown showcase, lines ~187-189),
+  where a quoted one now keeps them in its marker, unseen, and lays the nesting
+  as a gap (`quote_prefix`). Done: an unquoted list code line keeps the
+  continuation spaces in its marker the same way, so its code lines up with its
+  fence, shown by the showcase painting.
 
 ## 2. Docking
 
@@ -99,15 +72,8 @@ Fixed items are removed as they land.
 
 ## 7. Sessions
 
-- **A diverged replica's journaled edits after it closes.** A replica that
-  diverged, or whose seal cannot merge, seals nothing as it closes, so journaled
-  edits no seal holds (as a held rejoin's, `rejoin_held`, be-block-type-host's
-  replicas.rs) are left only in this device's journal; `ended` drops them from
-  its open edits as the order holds them, and a replica opened online passes
-  that journal over for the server's when there is one (`journal_for`). Whether
-  to give them again on the content a reload replaces is a product call. Done:
-  decided, and if they are kept, a test with a replica that really diverged
-  shows them given again once after it closes and opens online.
+- **A diverged replica's journaled edits after it closes.** Decided: kept, given
+  again, and a conflict where they no longer apply; plans/journaled_edits_kept.md.
 
 - **A seal of its own during a join that holds kept edits.** `rejoined` seals
   and waits only for a join begun on a settled made-up session
@@ -333,7 +299,10 @@ Depends on #686 (session catch-ups replaced by server ordering).
   8 runs of the whole test binary (the server refused an edit: "not editable by
   this account"); it fails 1 in 40 alone. Done: the cause
   found (under the suite's load, or `stress` at more at a time) and fixed at
-  its source, with a test that shows it.
+  its source, with a test that shows it. Not seen since the take ordering fix
+  (`telling` in be-host-stack's lib.rs), which may be what it was: 0 of 600 runs
+  alone (200 at 8 at a time, 400 at 16, on a 4-core VM, the harness run
+  directly) and 8 of 8 runs of the whole test binary, 4 at a time.
 
 - **A note made offline, once under the render-props branch's tests.**
   `a_note_made_while_a_device_is_offline_reaches_it_once_it_reconnects`
@@ -352,7 +321,9 @@ Depends on #686 (session catch-ups replaced by server ordering).
   included, so a `search-text` that failed once (`NotSearched`, a type module
   busy or starting under load) leaves that hit's snippet empty until its head
   moves. Done: the cause found from a failing run's output and fixed at its
-  source, with a test that shows it.
+  source, with a test that shows it. The suspect is gone: a text that could not be
+  read is no longer kept (`text_of` answers `Err`), though the hit shown then still
+  has no snippet until its answer is shown again, when the mirror next moves.
 
 - **A crash test that once never counted 11 after the restart.**
   `an_edit_to_a_block_made_editable_again_after_its_edits_were_discarded_lands_once_across_a_crash`
@@ -392,7 +363,9 @@ Depends on #686 (session catch-ups replaced by server ordering).
   `type 'Plant the tomatoes'` with "a block type module has yet to settle",
   1 to 2 runs in 100 under `stress` at `--latency 75`. Done: the module that
   never settles found and fixed at its source, and the test passes 300 runs at
-  that latency.
+  that latency. Not seen in 100 runs at 8 at a time and
+  `--latency 75` on a 4-core VM after be-host-runtime counted an app starting for a
+  view the host asked of it as busy.
 
 ## 16. Host test tools
 

@@ -379,7 +379,137 @@ pub struct Seen, delta SeenDelta {
     /// The block types the worker's modules know (`crate::is_known`): each declared one, with
     /// what the page reads of it once a module described it.
     pub kinds: imbl::OrdMap<Uuid, Option<KnownKind>>,
+    /// The blocks whose session's lease this device's replica holds, so a host component may
+    /// run on them here (`crate::hosting`).
+    pub hosted: imbl::OrdSet<Uuid>,
+    /// Counts each change of `hosted`.
+    pub leases_changed: u64,
+    /// What each block's host component has yet to hear of its host channel's members
+    /// (`crate::hosting`, `Edit::TookMemberNews`).
+    pub member_news: NewsQueue<MemberNews>,
 }
+}
+
+/// News of hosted blocks' channels the worker queued, each numbered so the page can say which
+/// it took (`Edit::TookMemberNews`). Kept by block and number, so queuing and taking one costs
+/// a logarithm, and an update to the page carries only the news that changed.
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct NewsQueue<T: Clone> {
+    news: imbl::OrdMap<(Uuid, u64), T>,
+    /// How many each block has queued.
+    held: imbl::OrdMap<Uuid, usize>,
+    /// The number the last news got.
+    queued: u64,
+}
+
+impl<T: Clone> Default for NewsQueue<T> {
+    fn default() -> Self {
+        Self {
+            news: imbl::OrdMap::new(),
+            held: imbl::OrdMap::new(),
+            queued: 0,
+        }
+    }
+}
+
+impl<T: Clone> NewsQueue<T> {
+    /// Queues `news` for `block`, numbered after the last.
+    pub(crate) fn push(&mut self, block: Uuid, news: T) {
+        self.queued += 1;
+        self.news.insert((block, self.queued), news);
+        *self.held.entry(block).or_insert(0) += 1;
+        crate::changes::wake();
+    }
+
+    /// How many news `block` has queued.
+    pub fn len(&self, block: Uuid) -> usize {
+        self.held.get(&block).copied().unwrap_or_default()
+    }
+
+    /// `block`'s news, oldest first, with the number of the last.
+    pub fn of(&self, block: Uuid) -> Option<(Vec<&T>, u64)> {
+        let range = self.news.range((block, 0)..=(block, u64::MAX));
+        let mut last = None;
+        let news = range
+            .map(|((_, number), news)| {
+                last = Some(*number);
+                news
+            })
+            .collect();
+        Some((news, last?))
+    }
+
+    /// Drops `block`'s news up to and including `upto`.
+    pub(crate) fn took(&mut self, block: Uuid, upto: u64) {
+        let taken: Vec<(Uuid, u64)> = self
+            .news
+            .range((block, 0)..=(block, upto))
+            .map(|(key, _)| *key)
+            .collect();
+        for key in &taken {
+            self.news.remove(key);
+        }
+        let left = self.len(block).saturating_sub(taken.len());
+        match left {
+            0 => self.held.remove(&block),
+            left => self.held.insert(block, left),
+        };
+    }
+
+    /// Drops all of `block`'s news.
+    pub(crate) fn clear(&mut self, block: Uuid) {
+        self.took(block, u64::MAX);
+    }
+}
+
+/// What changed in a `NewsQueue`: the news queued and taken, the counts, and the last number.
+#[derive(serde::Deserialize, serde::Serialize)]
+pub(crate) struct NewsDelta<T> {
+    news: Option<crate::diff::MapDelta<(Uuid, u64), T>>,
+    held: Option<crate::diff::MapDelta<Uuid, usize>>,
+    queued: u64,
+}
+
+impl<T> crate::diff::Diff for NewsQueue<T>
+where
+    T: Clone + PartialEq + serde::Serialize + serde::de::DeserializeOwned,
+{
+    type Delta = NewsDelta<T>;
+
+    fn diff(old: &Self, new: &Self) -> Option<NewsDelta<T>> {
+        let delta = NewsDelta {
+            news: crate::diff::Diff::diff(&old.news, &new.news),
+            held: crate::diff::Diff::diff(&old.held, &new.held),
+            queued: new.queued,
+        };
+        (delta.news.is_some() || delta.held.is_some() || old.queued != new.queued).then_some(delta)
+    }
+
+    fn apply(&mut self, delta: NewsDelta<T>) {
+        if let Some(news) = delta.news {
+            crate::diff::Diff::apply(&mut self.news, news);
+        }
+        if let Some(held) = delta.held {
+            crate::diff::Diff::apply(&mut self.held, held);
+        }
+        self.queued = delta.queued;
+    }
+}
+
+/// What a host component hears of a member of its block's host channel (`member-event`).
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+pub enum MemberNews {
+    Joined {
+        member: u64,
+        account: Uuid,
+        level: be_block_keys::Level,
+    },
+    Said {
+        member: u64,
+        #[serde(with = "serde_bytes")]
+        payload: Vec<u8>,
+    },
+    Left(u64),
 }
 
 /// What the page reads of a block type a module described (`crate::kind_of`).
@@ -645,6 +775,12 @@ pub(crate) enum Edit {
         editor: EditorId,
         upto: u64,
     },
+    /// The page took a host component's news of its block's channel members up to and
+    /// including `upto` (`crate::take_member_events`).
+    TookMemberNews {
+        block: Uuid,
+        upto: u64,
+    },
 }
 
 impl Edit {
@@ -805,6 +941,9 @@ impl Edit {
                     crate::changes::stale();
                     return vec![*block];
                 }
+            }
+            Edit::TookMemberNews { block, upto } => {
+                seen.member_news.took(*block, *upto);
             }
             Edit::TookFrames { editor, upto } => {
                 let Some(frames) = seen.editor_frames.get(editor) else {

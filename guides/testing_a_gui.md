@@ -345,7 +345,10 @@ Debugging:
   host tests' harness once and runs the tests whose names contain NAME N times (20), K at a
   time (twice the cores), killing a run that takes more than SECONDS (300). It prints how many
   runs failed, grouped by the panic's message with the numbers blurred and the first logs of
-  each group, which are under target/stress/NAME/. Every run uses the host that has every app
+  each group, which are under target/stress/NAME/: a failing run's output as N.log, and in
+  N.logs/ the whole log of each program it drove, which each writes there as it runs, so a run
+  killed for passing SECONDS keeps them too (a failure carries only the end of one, and says
+  when it logged nothing). Every run uses the host that has every app
   unless `--apps` lists the apps the test names in `APPS`; verify stages only those, which
   changes the timing, so try both. `--apps` builds the host apps.bzl defines for that set, so
   it takes only a set some test in `APPS` names already. `--latency` delays each read of what
@@ -428,7 +431,9 @@ it `measure`s in a `Text` (`wait 'Inner 50x20 at 140,50'`). To cross a timeout, 
   natively): the browser-only commands are `attribute`, `history`, `history-state` (the current
   history entry holds the page's own back entry or not), `loads` (how many times the page has
   loaded), `reload`, `selection`, `elements` (how many elements match a selector; a text's
-  marks are `.beui-mark` boxes), `role` and `roles`; web-test.mjs's header says what each takes.
+  marks are `.beui-mark` boxes), `role`, `roles` and `css` (adds a stylesheet, to stand in for a
+  browser without a feature: `css '* { overflow-anchor: none !important; }'` is Safari's missing
+  scroll anchoring); web-test.mjs's header says what each takes.
 - To see a screen: `./scripts/buck run //crates/beui-tests:dev -- NAME` and `drive`; in a browser,
   serve `:web` with COOP `same-origin` and COEP `require-corp` and open
   `index.html?fixture=NAME`.

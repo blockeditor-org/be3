@@ -47,7 +47,7 @@ pub use description::describe;
 pub use events::{Heard, InstanceEvent, listen};
 pub use input::BlockDrag;
 pub use instances::gift::{GiftView, KeyProgress, is_press};
-pub use instances::{EditorView, Focus};
+pub use instances::{EditorView, Focus, roles_revision};
 pub(crate) use palette::host_draws_palette;
 pub use palette::{PaletteAsk, draw_palette, instance_actions, run_view_action, take_palette_asks};
 pub use pieces::uncovered as uncovered_pieces;
@@ -69,14 +69,14 @@ pub use runtime::{
 pub use runtime::{
     artifact, artifact_draft, assigned_size, begin_frame, busy, card, close, commit_creation,
     content_delivered, content_moved, content_view, crash, creation, dialog_status, dismiss,
-    docked_placer, drawing, flush, forget_dialog_answer, frame_child, frame_rects, frames_answered,
-    hold, host, in_use, install, install_headless, intrinsic_size, kill, menu, menu_pick,
-    pass_child_focus, picked, poll, present, presenting, preview_image, record_pacing,
-    regenerate_artifact, render_clip, replace_gpu, report_child_details, report_child_focus,
-    report_children, request_painting, resized, restart_app, reveal, revoke_frame_child, running,
-    set_artifact_states, set_focus, set_presence_visible, set_presented, set_shell, settle,
-    show_block, show_dialog, show_history, show_panel, start_frames, take_steps, take_stopped,
-    view_placement_of, view_size, warm,
+    docked_placer, drawing, editing_and_hosting, flush, forget_dialog_answer, frame_child,
+    frame_rects, frames_answered, hold, host, in_use, install, install_headless, intrinsic_size,
+    kill, menu, menu_pick, pass_child_focus, picked, poll, present, presenting, preview_image,
+    record_pacing, regenerate_artifact, render_clip, replace_gpu, report_child_details,
+    report_child_focus, report_children, request_painting, resized, restart_app, reveal,
+    revoke_frame_child, running, set_artifact_states, set_focus, set_presence_visible,
+    set_presented, set_shell, settle, show_block, show_dialog, show_history, show_panel,
+    start_frames, take_steps, take_stopped, view_placement_of, view_size, warm,
 };
 pub use runtime::{
     child_failed_for_gift, child_up_for_gift, end_gift, forget_keys, route_keys, sent_press,

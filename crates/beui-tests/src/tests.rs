@@ -101,5 +101,6 @@ mod time_list;
 mod toasts;
 mod toggles;
 mod tree;
+mod virtual_anchor;
 mod virtual_handle;
 mod virtual_list;

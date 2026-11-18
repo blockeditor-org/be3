@@ -6,9 +6,9 @@ pub mod lru;
 pub mod merkle;
 pub mod noise;
 pub use access::{
-    Administrator, Admits, Asked, Authority, CarriedKey, Checked, Entry, EntryHash, FORMER_OWNER,
-    Grant, Heads, Invitation, Invited, KeyRole, Label, Level, Link, LogKind, Logged, Logs,
-    MAX_ANCESTRY, Member, Named, Opened, Opening, Owner, Parent, Placement, Record, Reduced,
+    Administrator, Admits, Asked, Authority, Ban, CarriedKey, Checked, Entry, EntryHash,
+    FORMER_OWNER, Grant, Heads, Invitation, Invited, KeyRole, Label, Level, Link, LogKind, Logged,
+    Logs, MAX_ANCESTRY, Member, Named, Opened, Opening, Owner, Parent, Placement, Record, Reduced,
     Retirement, Root, ShareLink, Step, StepRef, agent_account, answer, check_log, check_log_as_of,
     proof_path,
 };

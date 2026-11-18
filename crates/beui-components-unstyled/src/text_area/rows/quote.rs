@@ -9,17 +9,18 @@ use super::{Builder, SpanKind, UNSEEN_SIZE};
 use crate::text_area::hooks::{LIST_INDENT_EM, QUOTE_INDENT_EM};
 
 /// Whether a line's row lays out its quote's gutter itself, every level's column with the `>`
-/// and space it holds, then any list nesting, rather than its text being indented past them:
-/// a quote line holding a `>`, but for a code block's, which sits in its block's frame. The one
-/// answer the row and its line's indent both follow (`TextLine::indent`).
+/// and space it holds, then any list nesting or a code block's padding, rather than its text
+/// being indented past them: a quote line holding a `>`. The one answer the row and its line's
+/// indent both follow (`TextLine::indent`, `TextLine::code_start`).
 pub fn quote_in_text(look: &LineLook) -> bool {
-    look.quote_marks > 0 && !look.code_block
+    look.quote_marks > 0
 }
 
 /// The ems of list nesting a row whose quote is in its text lays out after the quote's
-/// columns, as its line would otherwise indent it.
+/// columns, as its line would otherwise indent it; a code line's, as a list's continuation
+/// lines would be, so its block's background starts where they do (`TextLine::code_start`).
 pub fn quoted_nesting_em(look: &LineLook) -> f32 {
-    match look.list.is_some() || look.continues {
+    match look.list.is_some() || look.continues || look.code_block {
         true => (look.depth + usize::from(look.continues)) as f32 * LIST_INDENT_EM,
         false => 0.0,
     }
@@ -31,8 +32,10 @@ impl Builder<'_> {
     /// the rest of the column, so the caret stands left of a bar before its `>`, just right of
     /// it after, and at the next column or the text after the space; a level whose `>` has no
     /// space after it leaves that room as a gap. A level with no `>` on the line (a lazy
-    /// continuation) is a gap of the column's width. Then any list nesting, as a gap. Gives
-    /// where the text after it starts, and how wide it is.
+    /// continuation) is a gap of the column's width. Then any list nesting, and a code line's
+    /// padding inside its block's background, as gaps. `body` is the style of the line's text,
+    /// a code line's monospace, so the prefix's spans make the line no taller. Gives where the
+    /// text after it starts, and how wide it is.
     pub(super) fn quote_prefix(
         &mut self,
         look: &LineLook,
@@ -84,10 +87,16 @@ impl Builder<'_> {
             }
         }
         let nesting = quoted_nesting_em(look) * options.body_size;
-        if nesting > 0.0 {
-            self.gap(GapWidth::px(nesting), body);
+        let padding = match look.code_block {
+            true => options.code_padding,
+            false => 0.0,
+        };
+        for width in [nesting, padding] {
+            if width > 0.0 {
+                self.gap(GapWidth::px(width), body);
+            }
         }
         self.row.hang = self.row.display.len();
-        (at, look.quote as f32 * column + nesting)
+        (at, look.quote as f32 * column + nesting + padding)
     }
 }

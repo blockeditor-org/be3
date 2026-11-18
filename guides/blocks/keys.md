@@ -222,8 +222,10 @@ for, is weak (`RootPin::Weak`): shown unverified, never passed on, its key
 untrusted. A device hands a key on with a root only when it holds that root
 pinned in full (`KeyBook::carried_plain`).
 
-Records after the root: grants (`Record::Grant`, a revocation is a grant to
-`None`), openings of a kind of settings to anyone inside (`Record::Opening`,
+Records after the root: bans (`Record::Ban`: an account barred from joining a
+hosted block's host, signed by a member with Edit or above, lifted by a grant
+to it signed after; `Checked::banned`; "Hosted channels"), grants
+(`Record::Grant`, a revocation is a grant to `None`), openings of a kind of settings to anyone inside (`Record::Opening`,
 closing is an opening to `None`), parent records (`Record::Parent`) and owner
 records (`Record::Owner`) in a block's log, the first three naming where their
 signer's right comes from (`Authority`); administrators, members and
@@ -933,16 +935,20 @@ cannot read.
   answers only if its log reaches that head and the signed logs give that
   account `Join` on the block itself, or View or above from anywhere up its
   path (View holds Join; Join itself never passes down), now, with the key the
-  handshake carried; a member revoked since, or one speaking with another
-  account's key, is refused. IK's first message can be replayed, so the host
+  handshake carried; a member revoked since, one speaking with another
+  account's key, or one below Edit the log bans (`Checked::banned`), is
+  refused. A ban binds no editor, who may change the block directly anyway.
+  `Peer::ban` signs one; a proof path keeps whole every ban naming its reader. IK's first message can be replayed, so the host
   counts the member as admitted only once the member's first message on the
   channel opens (`Admitting::confirm`); the member sends one at once.
 - **Messages** (`noise::Channel`) each carry a 64-bit counter, the seal's
   nonce, and a side takes only the next one: a message out of place (dropped,
   held back, replayed) or changed breaks the channel for good, and the member
-  handshakes again, as it does after a host change or a reconnect. A sealed
-  message the server refuses (`SlowDown`) is sent again as the same bytes,
-  never sealed again (`Channel::seal`). So the
+  handshakes again, as it does after a host change or a reconnect; a host
+  takes a message that does not open on a member's channel as that member's
+  new handshake. Only a member's sends to the host are rate limited: one the
+  server refuses (`SlowDown`) is sent again as the same bytes, never sealed
+  again (`Channel::seal`). So the
   server can neither read, forge, reorder, replay nor silently drop a
   transport message; the handshake's own first message it can replay, which
   admits no one. Keys and the chaining key are wiped when dropped.

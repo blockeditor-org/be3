@@ -63,6 +63,17 @@ pub fn find(node: NodeId) -> Option<Rc<Scroller>> {
     SCROLLERS.with(|held| held.borrow().get(&node).and_then(Weak::upgrade))
 }
 
+/// Whether `element` is an `Offset`'s, which keeps what it shows in place itself.
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn anchors(element: &web_sys::Element) -> bool {
+    SCROLLERS.with(|held| {
+        held.borrow().iter().any(|(node, scroller)| {
+            scroller.strong_count() > 0
+                && crate::dom::element(*node).is_some_and(|held| held == *element)
+        })
+    })
+}
+
 pub fn first_within(node: NodeId) -> Option<NodeId> {
     if find(node).is_some() {
         return Some(node);
