@@ -105,11 +105,11 @@ Notes on particular calls:
 - `list_access`, `set_access`, `transfer_ownership` and the share and contact
   link calls grant access or reveal who has it, so the host denies them unless
   the manifest sets `"sharing": true` (an app the person opened cannot share
-  what it shows, or read its links, unasked). Any app may still open a
-  settings kind of the block it shows, or one below it, to anyone inside
-  (`set_access(ANYONE_INSIDE, View)` or none), as the editor framework does when
-  it makes a kind every member reads (`ensure_edit_kind`): that
-  names no one.
+  what it shows, or read its links, unasked). Any app may still open a block
+  it just made (one it created in this run) to anyone inside
+  (`set_access(ANYONE_INSIDE, View)`), as the editor framework does when it
+  makes a settings kind every member reads (`ensure_block_kind`,
+  `ensure_edit_kind`): that names no one and shares nothing the person had.
 - `sign(bytes)` signs as the person and `verify(account, bytes, signature,
   arrived)` answers a `Signer` (verified, unverified, changed, replaced or
   bad), both in
