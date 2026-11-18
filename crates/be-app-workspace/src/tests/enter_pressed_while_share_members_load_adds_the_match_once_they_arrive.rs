@@ -44,6 +44,7 @@ fn enter_pressed_while_share_members_load_adds_the_match_once_they_arrive() {
         source: granted.map(|_| block.into_bytes()),
         waiting: false,
         through_link: false,
+        guest: false,
     };
     fixture.test.answer(
         listing,

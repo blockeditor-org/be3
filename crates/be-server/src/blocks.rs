@@ -72,6 +72,9 @@ pub(crate) struct Visibility {
     account: Uuid,
     organization: Uuid,
     administrator: bool,
+    /// A guest of the organization (guides/blocks/keys.md, "Share links"): it reaches only what
+    /// links granted it, not the organization's settings, and is served its log as a proof path.
+    guest: bool,
     /// The block a block's agent is bound to, outside which it reaches nothing.
     bound: Option<Uuid>,
     visible: std::cell::OnceCell<BTreeMap<Uuid, Access>>,
@@ -85,6 +88,7 @@ impl Visibility {
             // A block's agent never administers, whatever its role says.
             administrator: identity.role == OrganizationRole::Administrator
                 && identity.bound.is_none(),
+            guest: identity.role == OrganizationRole::Guest,
             bound: identity.bound,
             visible: std::cell::OnceCell::new(),
         }
@@ -108,7 +112,10 @@ impl Visibility {
                 false => graph.inherited(block, self.account).min(Access::KnowExists),
             },
             (true, true) => Access::Manage,
-            (true, false) if crate::organization::in_settings(graph, self.organization, block) => {
+            (true, false)
+                if !self.guest
+                    && crate::organization::in_settings(graph, self.organization, block) =>
+            {
                 Access::View
             }
             (true, false) => graph.inherited(block, self.account),
@@ -153,7 +160,11 @@ impl Visibility {
 
     /// Whether this caller is served the organization's whole log rather than a proof path: it
     /// administers the organization, or has Edit or above on any of its blocks.
+    /// A guest never is: it would learn every member.
     pub(crate) fn served_whole_organization(&self, graph: &BlockGraph) -> bool {
+        if self.guest {
+            return false;
+        }
         match self.candidates(graph) {
             None => true,
             Some(blocks) => blocks.into_iter().any(|block| self.can_edit(graph, block)),
@@ -177,7 +188,9 @@ impl Visibility {
             .keys()
             .copied()
             .collect();
-        blocks.extend(graph.subtree(crate::organization::settings_of(self.organization)));
+        if !self.guest {
+            blocks.extend(graph.subtree(crate::organization::settings_of(self.organization)));
+        }
         Some(blocks)
     }
 
@@ -2012,11 +2025,6 @@ impl ServerStore {
                     &record,
                 )?;
             }
-            // A guest is there only through what links granted it: with its last grant gone, it
-            // leaves.
-            if access == Access::None {
-                crate::share_links::drop_idle_guest(&transaction, identity.organization, account)?;
-            }
             let forgotten = crate::store::forget_orphaned_block_agents(
                 graph,
                 &transaction,
@@ -2382,6 +2390,7 @@ pub(crate) fn write_grant(
             ],
         )?;
     }
+    let organization_id = organization;
     let organization = organization.to_string();
     database.execute(
         "UPDATE blocks SET version = version + 1 WHERE organization_id = ?1 AND id = ?2",
@@ -2395,6 +2404,9 @@ pub(crate) fn write_grant(
                  WHERE organization_id = ?1 AND block_id = ?2 AND account_id = ?3",
                 params![organization, block.to_string(), account.to_string()],
             )?;
+            // A guest is there only through what links granted it: with its last grant gone,
+            // whatever took it, it leaves.
+            crate::share_links::drop_idle_guest(database, organization_id, account)?;
         }
         Some(encoded) => {
             database.execute(

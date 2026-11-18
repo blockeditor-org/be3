@@ -1476,7 +1476,11 @@ pub fn check_log(
                     .grants
                     .get(&opened.grantee)
                     .map_or(Level::None, |(level, _)| *level);
+                // An account the log names already keeps the key it signs with here: the record
+                // may name no other, which only its own retirement changes.
+                let known = own.is_none_or(|signing| signing == opened.identity.signing);
                 let may = kind == LogKind::Block
+                    && known
                     && entry.signer == opened.grantee
                     && state.owner != Some(opened.grantee)
                     && opened.level >= Level::View

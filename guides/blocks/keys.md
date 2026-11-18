@@ -645,13 +645,16 @@ opens it and makes nobody a contact, so it is no `link-kind` of the contact link
   checks the sender's Edit in the log); `refresh_keys` reads such a block's log first. An
   opener after a rotation so waits for an editor to come online.
 - **Revoking one** (`Peer::revoke_share_link`): a share link record closing it, by a manager.
-  Every grant made through it falls in the log (`check_log`), the server revokes their rows,
-  and the block rotates as for any lost access. On a proof path the grants a link made may be
+  Every grant made through it falls in the log (`check_log`), even where a manager had given
+  the opener a lower grant before (the link's raised it, and revoking leaves none), the server
+  revokes their rows, and the block rotates as for any lost access. The share dialog asks to
+  confirm and says so. On a proof path the grants a link made may be
   reduced, so whether the closing lowered anyone is the record's signed `lowers`.
 - **Guests.** A link admits members of the block's organization (in the personal organization,
   every account) or, where the policy allows it, any account on the server. One from outside
   the organization joins it as a guest (`OrganizationRole::Guest`): a member row holding only
-  grants made through links, which may not make blocks, agents or links, move or grant
+  grants made through links, reads none of the organization's settings, is served its log as
+  a proof path, so it learns no member, and may not make blocks, agents or links, move or grant
   (`client::guest_may_write`), is no member for a grant or a pending grant
   (`store::is_member_of`), and leaves when its last grant falls
   (`share_links::drop_idle_guest`). Accepting an invitation makes it a member.

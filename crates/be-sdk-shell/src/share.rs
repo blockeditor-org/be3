@@ -80,8 +80,11 @@ pub(crate) enum ShareAction {
     LinkAdmits(LinkAdmits),
     /// Makes a share link with the level and admits chosen.
     MakeLink,
-    /// Revokes the share link with this id.
-    RevokeLink(String),
+    /// Asks to confirm revoking the share link with this id.
+    OfferRevoke(String),
+    CancelRevoke,
+    /// Revokes the share link offered (`Share::revoking`).
+    ConfirmRevoke,
 }
 
 /// What the share dialog holds besides the listing of who has access, which the workspace
@@ -104,6 +107,10 @@ pub(crate) struct Share {
     pub(crate) link_admits: LinkAdmits,
     /// The share link being made, by ask, until the host answers.
     pub(crate) making_link: Option<u64>,
+    /// The share link the person asked to revoke, until they confirm or cancel.
+    pub(crate) revoking: Option<String>,
+    /// The share links whose revocation the host has not answered yet.
+    pub(crate) revoking_now: Vec<String>,
 }
 
 impl Share {
@@ -121,6 +128,8 @@ impl Share {
             link_access: AccessLevel::View,
             link_admits: LinkAdmits::Members,
             making_link: None,
+            revoking: None,
+            revoking_now: Vec::new(),
         }
     }
 
@@ -201,10 +210,12 @@ impl Share {
             ShareAction::CancelOwnership => self.transferring = None,
             ShareAction::LinkAccess(access) => self.link_access = access,
             ShareAction::LinkAdmits(admits) => self.link_admits = admits,
+            ShareAction::OfferRevoke(link) => self.revoking = Some(link),
+            ShareAction::CancelRevoke => self.revoking = None,
             ShareAction::InviteNew
             | ShareAction::ConfirmOwnership
             | ShareAction::MakeLink
-            | ShareAction::RevokeLink(_) => {}
+            | ShareAction::ConfirmRevoke => {}
         }
         (grants, reload)
     }
@@ -263,7 +274,7 @@ impl Share {
     }
 
     /// What a share link lets whoever opens it do, in a sentence.
-    pub(crate) fn describe_link(link: &ShareLink, company: bool) -> String {
+    pub(crate) fn describe_link(link: &ShareLink, company: bool, me: Uuid) -> String {
         let who = match (link.admits, company) {
             (LinkAdmits::Members, true) => "Anyone in the organization with the link",
             (LinkAdmits::Anyone, true) => "Anyone with the link and an account on this server",
@@ -273,9 +284,10 @@ impl Share {
             AccessLevel::Edit => "can edit",
             _ => "can view",
         };
-        match link.maker_name.is_empty() {
-            true => format!("{who} {what}."),
-            false => format!("{who} {what}. Made by {}.", link.maker_name),
+        match (link.maker == me.into_bytes(), link.maker_name.is_empty()) {
+            (true, _) => format!("{who} {what}. Made by you."),
+            (false, true) => format!("{who} {what}."),
+            (false, false) => format!("{who} {what}. Made by {}.", link.maker_name),
         }
     }
 
@@ -343,9 +355,13 @@ fn member(
         )),
         (false, false) => origin(grant.effective, source, block, name_of),
     };
+    // Someone there only through a link is no one to hand the block to: a guest, or a member
+    // whose access is the link's alone.
     let may_own = owner
         && grant.account != me.into_bytes()
         && !grant.author
+        && !grant.guest
+        && !grant.through_link
         && !grant.waiting
         && has_access(grant, me);
     Member {

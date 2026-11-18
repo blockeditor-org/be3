@@ -548,7 +548,10 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   opened; the access list names the most a link may admit (`links-admit`). An account a link
   admits from outside joins as a guest (`OrganizationRole::Guest`), which `is_member_of` does
   not count, makes no blocks, agents or links and grants nothing (`client::guest_may_write`),
-  and leaves once it holds no grant (`share_links::drop_idle_guest`). Anyone may revoke their
+  and leaves once it holds no grant (`share_links::drop_idle_guest`, from `write_grant`, so
+  every path that removes a grant). A guest reads none of the organization's settings and is
+  served its log as a proof path, so it learns no member. Narrowing the policy refuses new links
+  and openings only: guests and grants made through links before stay. Anyone may revoke their
   own grant. `ListAccess` never lists the rest of the membership. Carrying an
   owner record, it moves ownership (`transfer_owner`): only from the owner, to
   a member who is their contact, and the block counts against the new owner's

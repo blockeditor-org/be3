@@ -37,6 +37,7 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
         source: granted.map(|_| block.into_bytes()),
         waiting: false,
         through_link: false,
+        guest: false,
     };
     fixture.test.answer(
         listing,
