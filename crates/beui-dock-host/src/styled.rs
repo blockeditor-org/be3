@@ -34,8 +34,8 @@ use beui_dock::{DockEdge, DockHostLink, DockMode, Entry};
 use beui_view::component_ref::ComponentRef;
 use beui_view::primitives::Interactive;
 use beui_view::types::Align2;
-use beui_view::types::ScrollPosition;
 use beui_view::types::PointerPress;
+use beui_view::types::ScrollPosition;
 use beui_view::types::Vec2;
 use beui_view::types::{Align, Direction, Justify};
 use std::rc::Rc;
@@ -47,7 +47,8 @@ use beui_view::types::Image;
 use beui_view::types::Modifiers;
 use beui_view::types::TextAlign;
 use beui_view::types::icons::{
-    ICON_APP_WINDOW, ICON_CHEVRON_DOWN, ICON_GRIP_VERTICAL, ICON_LOCK, ICON_MAXIMIZE, ICON_MINIMIZE, ICON_X,
+    ICON_APP_WINDOW, ICON_CHEVRON_DOWN, ICON_GRIP_VERTICAL, ICON_LOCK, ICON_MAXIMIZE,
+    ICON_MINIMIZE, ICON_X,
 };
 use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
@@ -857,22 +858,31 @@ fn DockStrip(handle: DockStripHandle) -> NodeId {
                 </Scroll>
             </ListItem>
             <Show value={clipped}>
-                <Frame padding={apart}>
-                <MenuButton
-                    icon_only=true
-                    variant=ButtonVariant::Ghost
-                    @test_id={all_tabs.clone()}
-                    label="All tabs"
-                    glyph=ICON_CHEVRON_DOWN
-                    size=ButtonSize::Toolbar
-                    capture_presses=true
-                    items={view! {
-                        <MenuNodes nodes={menu} test_prefix={all_tabs.clone()} />
-                    }}
-                />
-                </Frame>
+                <AllTabs menu apart id={all_tabs.clone()} />
             </Show>
         </List>
+    }
+}
+
+/// The menu a clipped strip ends in, `apart` from the strip's cut edge.
+#[component]
+fn AllTabs(menu: Memo<Vec<MenuNode>>, apart: Padding, id: String) -> NodeId {
+    let items = id.clone();
+    view! {
+        <Frame padding={apart}>
+            <MenuButton
+                icon_only=true
+                variant=ButtonVariant::Ghost
+                @test_id={id}
+                label="All tabs"
+                glyph=ICON_CHEVRON_DOWN
+                size=ButtonSize::Toolbar
+                capture_presses=true
+                items={view! {
+                    <MenuNodes nodes={menu} test_prefix={items} />
+                }}
+            />
+        </Frame>
     }
 }
 
