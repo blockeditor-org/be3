@@ -530,19 +530,26 @@ impl ServerStore {
 }
 
 /// Removes `account` from `organization` when it is a guest that holds no grant there any more:
-/// a guest is there only through what links granted it. Answers whether it went. Every path that
-/// removes a grant calls it (`blocks::write_grant`).
+/// a guest is there only through what links granted it. Its shell's own blocks, which only it
+/// reads (decisions/a_guest_makes_only_its_own_shell.md), go with it. Answers whether it went.
+/// Every path that removes a grant calls it (`blocks::write_grant`).
 pub(crate) fn drop_idle_guest(
     connection: &Connection,
+    graph: &mut BlockGraph,
     organization: Uuid,
     account: Uuid,
 ) -> Result<bool, ServerError> {
     if role_in(connection, account, organization)? != Some(OrganizationRole::Guest) {
         return Ok(false);
     }
+    // A grant on a block it made itself (its shell's own) keeps it no more than none.
     let held: i64 = connection
         .prepare_cached(
-            "SELECT COUNT(*) FROM block_access WHERE organization_id = ?1 AND account_id = ?2",
+            "SELECT COUNT(*) FROM block_access AS access
+             JOIN blocks ON blocks.organization_id = access.organization_id
+                 AND blocks.id = access.block_id
+             WHERE access.organization_id = ?1 AND access.account_id = ?2
+                 AND blocks.author != ?2",
         )?
         .query_row(
             params![organization.to_string(), account.to_string()],
@@ -555,5 +562,23 @@ pub(crate) fn drop_idle_guest(
         "DELETE FROM memberships WHERE organization_id = ?1 AND account_id = ?2",
         params![organization.to_string(), account.to_string()],
     )?;
+    // Every block below its own settings is its shell's too; what refers to them cascades.
+    let shell: Vec<Uuid> = graph
+        .children(be_block_graph::BlockParent::Root)
+        .into_iter()
+        .filter(|block| {
+            graph
+                .get(*block)
+                .is_some_and(|node| node.author == account && node.owner_only)
+        })
+        .flat_map(|root| graph.subtree(root))
+        .collect();
+    for block in shell {
+        connection.execute(
+            "DELETE FROM blocks WHERE organization_id = ?1 AND id = ?2",
+            params![organization.to_string(), block.to_string()],
+        )?;
+        graph.remove(block);
+    }
     Ok(true)
 }
