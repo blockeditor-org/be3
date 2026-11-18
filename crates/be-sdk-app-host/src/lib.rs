@@ -6,6 +6,7 @@
 pub mod blocks;
 pub mod calls;
 pub mod docks;
+pub mod pacing;
 pub mod published;
 pub mod sandbox;
 pub mod sent;

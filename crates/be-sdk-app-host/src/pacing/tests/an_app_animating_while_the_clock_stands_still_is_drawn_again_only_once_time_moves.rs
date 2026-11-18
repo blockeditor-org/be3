@@ -8,21 +8,21 @@ fn ms(milliseconds: u64) -> Duration {
 fn an_app_animating_while_the_clock_stands_still_is_drawn_again_only_once_time_moves() {
     let mut pacing = Pacing::default();
     pacing.request(ms(1000), 1);
-    pacing.ready(ms(1000), Some(Duration::ZERO), false);
+    pacing.presented(ms(1000), false, Some(Duration::ZERO), false);
     assert!(
-        !pacing.due(ms(1000), 2),
+        !pacing.due(false, ms(1000), 2),
         "a frame asked for at once is not drawn again while the clock stands still"
     );
-    assert!(!pacing.due(ms(1000), 3));
+    assert!(!pacing.due(false, ms(1000), 3));
 
-    assert!(pacing.due(ms(1016), 4), "once time moves the app draws");
+    assert!(pacing.due(false, ms(1016), 4), "once time moves the app draws");
     pacing.request(ms(1016), 4);
-    pacing.ready(ms(1016), Some(Duration::ZERO), false);
-    assert!(!pacing.due(ms(1016), 5));
+    pacing.presented(ms(1016), false, Some(Duration::ZERO), false);
+    assert!(!pacing.due(false, ms(1016), 5));
 
     pacing.needed = true;
     assert!(
-        pacing.due(ms(1016), 5),
+        pacing.due(false, ms(1016), 5),
         "a change still reaches the app while the clock stands still"
     );
 }
