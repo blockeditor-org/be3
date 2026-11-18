@@ -1,13 +1,17 @@
 //! be-host with a root guest in place of its own UI (`--root=APP`;
 //! plans/host_as_platform_adapter.md, step 4e5c): the staged app `APP`'s entry point runs as the
-//! root (be-wasm-root-host's `Root`) on the window's device. Each host frame hands it the
+//! root (be-wasm-root-host's `Root`) on the window's device, loaded and linked against the app
+//! libraries as an app is (decisions/a_root_links_beui_as_an_app_does.md), with the fonts be-host
+//! bundles (`be3:root`'s `host.fonts`). Each host frame hands it the
 //! window's input since the last, asks it for a frame, and draws the frame's layer list: each
 //! screen it names by handle (`Surface::Screen`) is the texture `Root::surface` resolves, drawn
 //! as `beui::native::compose::quad` places it, and so is each surface of the root's own
 //! (`Surface::Root`), which the root draws on the window's device as an app draws
 //! (`Root::own_surface`); where it draws nothing the window shows its plain background. The host
 //! draws on demand: when the root asks for its next frame (`frame-done`'s `next`) or has
-//! something to step for (`Root::on_wake`).
+//! something to step for (`Root::on_wake`). `drive paint` paints what the root's own surfaces
+//! painted (`be3:root`'s `paintings`) where its layer list shows them; an app's screen it
+//! embeds is not in the painting yet.
 //!
 //! This is the path step 4g turns on and makes the default, so it runs on be-host's real
 //! startup path and window, through beui's runner; only what the window shows comes from the
@@ -29,6 +33,7 @@
 
 use std::{
     cell::RefCell,
+    collections::BTreeMap,
     error::Error,
     rc::Rc,
     time::{Duration, Instant},
@@ -40,6 +45,7 @@ use be_sdk_app_host::pacing::FrameClock;
 use be_wasm_root_api::FrameRequest;
 use be_wasm_root_host::Root;
 use beui::native::texture_quad::{Pipelines, Quad, Quads};
+use beui::native::painting::{Painting, Paints, Placement, ScreenPaintings};
 use beui::native::{Draw, DrawAt, Drawing as GpuDrawing, compose, draw_gpu};
 use beui::reactive::*;
 use beui::styled::*;
@@ -92,6 +98,13 @@ struct RootShell {
     /// What the root's last frame asked of the window beside its input method's area, which
     /// the window is asked again every frame.
     requests: Requests,
+    /// What the root's own surfaces painted when last asked (drive's `paint`), by their ids.
+    paintings: Rc<RefCell<BTreeMap<u32, Painting>>>,
+    /// Whether drive asked for a painting the root has not answered yet: be-host is busy until
+    /// it has.
+    painting: bool,
+    /// Wakes the window for a frame, which asks the root for what drive asked.
+    waker: Option<beui::native::Waker>,
 }
 
 /// What a root's frame asks of its window (`frame-done`'s `cursor`, `pointer-locked` and
@@ -130,6 +143,9 @@ impl RootShell {
             stopped,
             drawn: Vec::new(),
             requests: Requests::default(),
+            paintings: Rc::default(),
+            painting: false,
+            waker: None,
         }
     }
 
@@ -184,6 +200,11 @@ impl RootShell {
             context.last_prepared().map(since),
         );
         self.pass += 1;
+        if self.painting
+            && let Err(why) = root.ask_paintings()
+        {
+            return self.stopped(&why);
+        }
         let deadline = origin
             + self
                 .clock
@@ -193,6 +214,22 @@ impl RootShell {
             Ok(done) => done,
             Err(why) => return self.stopped(&why),
         };
+        if let Some(painted) = root.take_paintings() {
+            self.painting = false;
+            *self.paintings.borrow_mut() = match painted.is_empty() {
+                true => BTreeMap::new(),
+                false => match ScreenPaintings::decode(&painted) {
+                    Ok(painted) => painted
+                        .screens
+                        .into_iter()
+                        .filter_map(|(id, painting)| Some((u32::try_from(id).ok()?, painting)))
+                        .collect(),
+                    Err(why) => {
+                        return self.stopped(&format!("its paintings cannot be read: {why}"));
+                    }
+                },
+            };
+        }
         self.next = done.next.map(Duration::from_nanos);
         self.owed = done.owed;
         self.requests = Requests {
@@ -240,12 +277,13 @@ impl RootShell {
         }
         self.drawn = drawn;
         let drawing = (!layers.is_empty()).then(|| {
-            beui::native::drawing(ShownLayers {
+            beui::native::painted_drawing(ShownLayers {
                 layers: layers
                     .into_iter()
                     .map(|(layer, _, texture)| (layer, texture))
                     .collect(),
                 quads: Quads::default(),
+                paintings: Rc::clone(&self.paintings),
             })
         });
         let shown = self.shown;
@@ -255,6 +293,7 @@ impl RootShell {
 
 impl beui::native::Program for RootShell {
     fn setup(&mut self, setup: &beui::native::Setup) {
+        self.waker = Some(setup.waker.clone());
         match start(&self.app, setup) {
             Ok(root) => self.root = Some(root),
             Err(why) => self.stopped(&format!("it did not start: {why}")),
@@ -307,11 +346,25 @@ impl beui::native::Program for RootShell {
     }
 
     /// Only what the root owes now: a frame it wants later, or for an animation, is the repaint
-    /// it asked for, which drive tells apart itself.
+    /// it asked for, which drive tells apart itself. A painting drive asked for is owed until
+    /// the root answers it.
     fn busy(&self) -> Vec<String> {
-        match self.owed {
-            true => vec![format!("the root {} owes a frame", self.app)],
-            false => Vec::new(),
+        let mut busy = Vec::new();
+        if self.owed {
+            busy.push(format!("the root {} owes a frame", self.app));
+        }
+        if self.painting && self.root.is_some() {
+            busy.push(format!("the root {} owes a painting", self.app));
+        }
+        busy
+    }
+
+    /// drive asks what the window shows: the root is asked what its own surfaces painted with
+    /// the next frame, which this wakes the window for.
+    fn request_painting(&mut self) {
+        self.painting = true;
+        if let Some(waker) = &self.waker {
+            waker.wake();
         }
     }
 
@@ -345,17 +398,41 @@ fn start(app: &str, setup: &beui::native::Setup) -> Result<Root, String> {
             "{app} is an app, not a root: its manifest does not say \"root\": true"
         ));
     }
-    let host = be_wasm_host::Host::pure()?.with_display(gpu.device.clone(), gpu.queue.clone());
+    // Loaded as an app is, linked against the libraries it names, which every app on this
+    // device shares one compile of; but stepped inline on the window's thread, never on a
+    // thread of its own.
+    let host = be_wasm_host::Host::new(gpu.device.clone(), gpu.queue.clone())?;
     let module = be_host_runtime::staged_app(app, &manifest.entry_point)?.load(&host)?;
     let root = Root::start(
         module,
         Box::new(be_host_runtime::staged_app),
         gpu.device.clone(),
         gpu.queue.clone(),
-    )?;
+    )?
+    .with_fonts(fonts());
     let waker = setup.waker.clone();
     root.on_wake(move || waker.wake());
     Ok(root)
+}
+
+/// The fonts be-host bundles, which it tells its apps (be-host-runtime's `fonts::bundled`), as
+/// `be3:root` hands them to its root.
+fn fonts() -> Vec<be_wasm_root_api::FontFace> {
+    use be_wasm_root_api::{FontFace, FontRole};
+    be_host_runtime::bundled_fonts()
+        .faces
+        .into_iter()
+        .map(|face| FontFace {
+            role: match face.role {
+                be_sdk_api::FontRole::Text => FontRole::Text,
+                be_sdk_api::FontRole::Monospace => FontRole::Monospace,
+                be_sdk_api::FontRole::Fallback => FontRole::Fallback,
+                be_sdk_api::FontRole::Icons => FontRole::Icons,
+            },
+            index: face.index,
+            data: face.data,
+        })
+        .collect()
 }
 
 fn nanos(time: Duration) -> u64 {
@@ -367,6 +444,58 @@ fn nanos(time: Duration) -> u64 {
 struct ShownLayers {
     layers: Vec<(Layer, wgpu::Texture)>,
     quads: Quads,
+    /// What the root's own surfaces painted when drive last asked, by their ids.
+    paintings: Rc<RefCell<BTreeMap<u32, Painting>>>,
+}
+
+impl Paints for ShownLayers {
+    /// Each of the root's own surfaces' paintings where its layer shows it in the window, bottom
+    /// first. An app's screen the root embeds is left out: its painting would come
+    /// through the root (plans/host_as_platform_adapter.md, Other moves).
+    fn painting(&self, _rect: beui::Rect) -> Option<Painting> {
+        let paintings = self.paintings.borrow();
+        let mut primitives = Vec::new();
+        let mut textures = BTreeMap::new();
+        for (layer, _) in &self.layers {
+            let Surface::Root(surface) = layer.surface else {
+                continue;
+            };
+            let Some(painting) = paintings.get(&surface) else {
+                continue;
+            };
+            let (width, height) = (layer.size.0 as f32, layer.size.1 as f32);
+            let corners = [(0.0, 0.0), (width, 0.0), (width, height), (0.0, height)].map(
+                |(x, y)| {
+                    let at = layer.transform.apply(beui::pos2(x, y));
+                    [at.x, at.y]
+                },
+            );
+            let clip = [
+                corners.iter().map(|at| at[0]).fold(f32::MAX, f32::min),
+                corners.iter().map(|at| at[1]).fold(f32::MAX, f32::min),
+                corners.iter().map(|at| at[0]).fold(f32::MIN, f32::max),
+                corners.iter().map(|at| at[1]).fold(f32::MIN, f32::max),
+            ];
+            primitives.extend(painting.placed(Placement {
+                source: [0.0, 0.0, 1.0, 1.0],
+                corners,
+                clip,
+                corner_radius: layer.corner_radius,
+            }));
+            for (key, pixels) in &painting.textures {
+                textures.entry(*key).or_insert_with(|| pixels.clone());
+            }
+        }
+        Some(Painting {
+            frame: beui::native::painting::Frame {
+                size: [1, 1],
+                pixels_per_point: 1.0,
+                background: [0; 4],
+                primitives,
+            },
+            textures,
+        })
+    }
 }
 
 impl Draw for ShownLayers {

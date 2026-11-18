@@ -9,6 +9,26 @@ interface host {
     /// draws what it has. The root's own calls have no deadline. Called
     /// outside a frame, it answers at once.
     deadline: async func();
+
+    /// What a font face is for.
+    enum font-role {
+        text,
+        monospace,
+        fallback,
+        icons,
+    }
+
+    /// A font file, or one face of a collection (`index`).
+    record font-face {
+        role: font-role,
+        index: u32,
+        data: list<u8>,
+    }
+
+    /// The fonts the host bundles, which the root draws its text in and tells
+    /// the apps it embeds, as a host tells an app (be-sdk-api's `fonts`). The
+    /// same faces every call: a root asks once.
+    fonts: async func() -> list<font-face>;
 }
 
 /// The window's input, which the host hands the root inline on its frame thread
@@ -85,10 +105,23 @@ interface frames {
     frame: async func(request: frame-request) -> frame-done;
 }
 
+/// What the host's tests ask of the root, beside the frames (an extension, as
+/// `be3:debug`'s `paintings` is beside the app protocol): a host without
+/// those tests never calls it.
+interface paintings {
+    /// What the root's own surfaces painted, in beui-paint-format's encoding
+    /// of screen paintings (`ScreenPaintings`), each under its surface's id
+    /// (`Surface::Root`), in its pixels; a surface it paints no painting of is
+    /// left out, and none at all may be answered as no bytes. The host places each where the layer list drawn last shows
+    /// its surface.
+    paintings: async func() -> list<u8>;
+}
+
 /// The root guest: be-host's own module, which the host calls synchronously
 /// and serves the sandbox (`be3:sandbox/spawner`) and `host`.
 world root {
     import host;
     export input;
     export frames;
+    export paintings;
 }

@@ -26,7 +26,7 @@ use std::time::{Duration, Instant};
 
 use be_wasm_guest_host::STEP_TIMEOUT;
 use be_wasm_ops::{Connection, Incoming, OpError, OpId, Outcome, Reply, Side, Ticket};
-use be_wasm_root_api::{FrameDone, FrameRequest, embed};
+use be_wasm_root_api::{FontFace, FrameDone, FrameRequest, embed};
 use be_wasm_sandbox_host::Server;
 pub use be_wasm_sandbox_host::{Loader, Staged};
 
@@ -89,6 +89,12 @@ struct Core<G> {
     failure: Option<String>,
     /// How long past a frame's deadline the root itself may take before it counts as stopped.
     patience: Duration,
+    /// The fonts the host bundles, which `host.fonts` answers.
+    fonts: Vec<FontFace>,
+    /// The paintings asked of the root and not answered yet.
+    painting: Option<Ticket<Vec<u8>, be_wasm_ops::wire::Bytes>>,
+    /// What the root answered it painted, until the host takes it.
+    painted: Option<Vec<u8>>,
 }
 
 impl<G: Inline> Core<G> {
@@ -103,6 +109,9 @@ impl<G: Inline> Core<G> {
             drawn: None,
             failure: None,
             patience: STEP_TIMEOUT,
+            fonts: Vec::new(),
+            painting: None,
+            painted: None,
         };
         core.received()?;
         Ok(core)
@@ -123,6 +132,23 @@ impl<G: Inline> Core<G> {
         }
         let _answered = embed::exports::input::deliver(&mut self.connection, window, events);
         Ok(())
+    }
+
+    /// Asks the root what its own surfaces painted, which it answers as it steps through the
+    /// next frame (`take_paintings`). A root that stopped says why.
+    fn ask_paintings(&mut self) -> Result<(), String> {
+        if let Some(failure) = &self.failure {
+            return Err(failure.clone());
+        }
+        if self.painting.is_none() {
+            self.painting = Some(embed::exports::paintings::paintings(&mut self.connection));
+        }
+        Ok(())
+    }
+
+    /// What the root answered `ask_paintings` with, once it did.
+    fn take_paintings(&mut self) -> Option<Vec<u8>> {
+        self.painted.take()
     }
 
     /// Asks the root for a frame for `request`, drawn by `deadline`, or says why the root drew
@@ -266,6 +292,14 @@ impl<G: Inline> Core<G> {
                 Incoming::Completed { op, outcome } if self.drawing_op() == Some(op) => {
                     self.drawn = Some(outcome);
                 }
+                Incoming::Completed { op, outcome }
+                    if self.painting.is_some_and(|ticket| ticket.op() == op) =>
+                {
+                    if let Some(ticket) = self.painting.take() {
+                        // A root that cannot answer paints nothing the host can show.
+                        self.painted = Some(ticket.decode(outcome).unwrap_or_default());
+                    }
+                }
                 // Includes a frame answered after the host gave up on it: no one waits for it.
                 Incoming::Completed { .. }
                 | Incoming::Yielded { .. }
@@ -285,6 +319,9 @@ impl<G: Inline> Core<G> {
                 Some(drawing) if !drawing.passed => self.deadlines.push(reply),
                 Some(_) | None => reply.send(&mut self.connection, &()),
             },
+            embed::Call::Host(embed::host::Call::Fonts { reply }) => {
+                reply.send(&mut self.connection, &self.fonts);
+            }
         }
     }
 }

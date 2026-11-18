@@ -1,4 +1,4 @@
-use be_sdk_root_testing::{ORIGIN, ROOT_COLOR, SCREEN_SIZE, SIZE};
+use be_sdk_root_testing::{ORIGIN, ROOT_COLOR, SCREEN_SIZE, SIZE, TEXT_ORIGIN, TEXT_SIZE};
 
 use super::*;
 
@@ -64,6 +64,17 @@ fn a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds() {
         "past the root's surface the window shows its own background, not the root's colour: \
          {past:?}"
     );
+    // The root draws its own surface with beui, with a line of text in the host's fonts in the
+    // strip above the screen: white glyphs on its colour.
+    let (text_left, text_top) = TEXT_ORIGIN;
+    let lit = (0..(TEXT_SIZE as u32))
+        .flat_map(|y| (0..120).map(move |x| (text_left + x as f32, text_top + y as f32)))
+        .filter(|&(x, y)| at(x, y).iter().all(|channel| *channel > 200))
+        .count();
+    assert!(
+        lit > 20,
+        "the root's line of text shows white glyphs above the screen, not {lit} lit points"
+    );
     // Below its top corner, which is red, the triangle is mostly red; beside its bottom left,
     // which is green, mostly green.
     let (x, y) = point(0.0, 0.7);
@@ -80,5 +91,8 @@ fn a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds() {
         "the triangle's bottom left is green: {:?}",
         [red, green, blue]
     );
+    // What the root painted of its own surface: its colour and its line of text, the painting
+    // beui made of its document. The triangle's screen is not in it, since its app paints none.
+    host.snapshot("a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds");
     host.close();
 }

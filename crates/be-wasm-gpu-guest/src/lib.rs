@@ -85,6 +85,12 @@ pub fn acquire_surface_texture(surface: u32) -> Result<wgpu::Texture, String> {
     described(texture)
 }
 
+/// `texture`, from the guest bindings (such as a surface's texture be-sdk-root's `OwnSurface`
+/// acquired), as a wgpu texture to draw into.
+pub fn texture(texture: gpu::Texture) -> Result<wgpu::Texture, String> {
+    described(texture)
+}
+
 pub fn import_texture(image: u64) -> Option<wgpu::Texture> {
     described(gpu::import_texture(image)?).ok()
 }

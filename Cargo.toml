@@ -109,6 +109,7 @@ members = [
     "crates/be-sdk-api",
     "crates/be-sdk-app-host",
     "crates/be-sdk-root",
+    "crates/be-sdk-beui-root",
     "crates/be-sdk-root-testing",
     "crates/be-sdk-manifest",
     "crates/be-sdk-shell",

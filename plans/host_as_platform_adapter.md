@@ -815,8 +815,8 @@ Each step lands on its own.
          `a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds` check it, the second by
          the window's pixels: the root's colour beside the screen and through its clear
          corner, the window's background past the root's surface. The root draws with
-         be3:gpu's raw bindings (be-wasm-gpu-abi), not wgpu: a root linking wgpu needs it
-         built for a pure guest, which is 4g2's to settle.
+         be3:gpu's raw bindings (be-wasm-gpu-abi), not wgpu: a root linking wgpu needed it
+         built for a pure guest, which 4g2 settled by linking a root as an app is.
        - The gpu shim got a plan and a platform of its own (`wasm32_bindgen`, the `bindgen`
          constraint): in the shared wasm32 plan its `wgpu` feature reached be-wasm-gpu-abi, so
          a root that called the gpu linked wgpu and web-sys, whose wasm-bindgen imports a pure
@@ -847,13 +847,47 @@ Each step lands on its own.
        Left for later: no test shows be-host honouring the cursor, the lock or every sample,
        since no app a root embeds asks for them before step 5 gives one content (the triangle
        asks none); and the web's half of a root's own surfaces, since no page runs a root yet.
-     - 4g2. beui in the root: the root draws its own surfaces with beui (be-sdk-beui's
-       renderer over `be3:gpu`) and hands its document what the router delivers to them, with
-       text in the host's fonts. This settles how a root links beui: as a pure guest, which
-       then needs beui and wgpu's `custom` backend built for wasm32-unknown-unknown without
-       threads, or as a guest linked against the app libraries (guides/app_libraries.md),
-       which needs `Root` to run a linked module inline. Nothing of the host's UI moves yet;
-       be-sdk-root-testing draws a line of text, which the host test reads.
+     - 4g2. Built: beui in the root. A root is a linked guest, built and loaded as an app is
+       (decisions/a_root_links_beui_as_an_app_does.md): `app_module` in the `wasi-guest` plan,
+       linked against base and beui, which be-host loads with `be_wasm_host::Host::new` on the
+       window's device (sharing each library's compile with the apps) and `Root` steps inline as
+       before; only be-wasm-root-testing, which draws no UI, stays a pure guest. A pure root was
+       rejected: FreeType and HarfBuzz need a libc `wasm32-unknown-unknown` lacks, and it would
+       be a second build of beui and wgpu for a triple no app uses.
+       `crates/be-sdk-beui-root`'s `BeuiSurface` draws a beui document on one of the root's
+       `OwnSurface`s: beui's runner runs it as a program whose one window is the surface, beui's
+       wgpu renderer draws it over `be3:gpu`'s `custom` backend into the surface's texture
+       (`be_wasm_gpu_guest::texture`), and it hears what the router lands on the surface
+       (`Embedding::input` and `drew`'s `own`) in its points. `be3:root` gained what any
+       framework needs, nothing beui's: `host.fonts`, the fonts the host bundles (be-host's
+       `be_host_runtime::bundled_fonts`, which it tells its apps; `Root::with_fonts`), which the
+       root asks once and draws its text in; and the export `paintings`, what its own surfaces
+       painted in beui-paint-format's `ScreenPaintings` keyed by surface id, as `be3:debug`'s
+       `paintings` is for an app, which `drive paint` under `--root` asks for
+       (`Root::ask_paintings`, `take_paintings`; be-host is busy until it is answered) and places
+       where the layers show those surfaces. be-sdk-root-testing draws its own surface with
+       beui, `ROOT_COLOR` and `TEXT` in the host's fonts above the triangle's screen;
+       be-wasm-root-host's `a_root_paints_its_own_surface_with_beui_in_the_hosts_fonts` reads its
+       glyphs from its painting, and the host test
+       `a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds` reads the text's pixels and
+       snapshots the painting.
+       Left for later, and what it changes for 4g3 onward:
+       - The apps a root embeds are still told no fonts (`Run::tell`): `Embedding` can tell them
+         the faces `host.fonts` gave. Missing characters (an app's `MissingCharacters`, and a
+         `BeuiSurface`'s own) have no host call yet: a `host.fallbacks(characters)` would answer
+         from the system's fonts, as be-host-runtime's `Fallbacks` does.
+       - `drive paint` leaves out the app screens a root embeds: their paintings come through the
+         root (Other moves, Paintings), which needs `Embedded` to ask its apps for theirs.
+       - `drive tree`, `find` and pressing by name do not reach the root's beui document: its
+         accessibility tree is not published through `be3:root` yet.
+       - `BeuiSurface`'s window offers no clipboard, file dialogs or input method: each area that
+         moves (dialogs in 4g4, the lock screen's password field in 4g6) needs the host's half
+         of it through `be3:root` or the sandbox, as be-host-runtime serves an app's.
+       - A frame of the document is drawn whole (`Repaint::Region` of the surface), not by its
+         damage: the surface keeps no record of which older frame its texture holds.
+       - On the web, a linked root needs the page to link its libraries on the main thread with
+         `dylink.js` and `wasi.js`, which only an app's worker does today; no page runs a root
+         yet.
      - 4g3. Toasts: shown over everything, on a layer of the root's own that is hit only where
        a toast is and never focuses; they need nothing from the block stack.
      - 4g4. Dialogs: a scrim layer that `captures` presses and dismisses, the dialog's layer

@@ -261,7 +261,8 @@ The `be_sdk_manifest` types document every field. What is easy to get wrong:
 - `"root": true` makes the module a root guest, which `be-host --root=APP` runs
   in place of its own UI (guides/apps/runtime.md, The root guest): it declares
   no editors, block types or host components, and be-host refuses to run an
-  app without it as a root.
+  app without it as a root. A root is built with `app_module` as an editor is,
+  linked against base and beui (decisions/a_root_links_beui_as_an_app_does.md).
 
 The first editor found for a type is its built-in editor; others are offered
 beside it (Open with, and the Default editors setting). Only the workspace's

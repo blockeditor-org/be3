@@ -118,6 +118,24 @@ impl Root {
         self
     }
 
+    /// The fonts the host bundles, which the root's `host.fonts` answers: none unless set.
+    pub fn with_fonts(mut self, fonts: Vec<be_wasm_root_api::FontFace>) -> Self {
+        self.core.fonts = fonts;
+        self
+    }
+
+    /// Asks the root what its own surfaces painted, which it answers as it steps through the
+    /// next frame (`take_paintings`). A root that stopped says why.
+    pub fn ask_paintings(&mut self) -> Result<(), String> {
+        self.core.ask_paintings()
+    }
+
+    /// What the root answered `ask_paintings` with, once it did: `be3:root`'s `paintings`,
+    /// beui-paint-format's `ScreenPaintings` keyed by its own surfaces' ids, or no bytes.
+    pub fn take_paintings(&mut self) -> Option<Vec<u8>> {
+        self.core.take_paintings()
+    }
+
     /// Calls `wake` on whatever thread it happens on whenever the root has something to step
     /// for between frames: an instance it spawned sent frames or stopped, a compile finished, or
     /// it woke itself. A host that draws only on demand draws a frame for it, which steps the

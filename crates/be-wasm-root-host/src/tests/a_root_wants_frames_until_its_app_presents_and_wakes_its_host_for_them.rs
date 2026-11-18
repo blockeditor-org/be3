@@ -4,7 +4,7 @@ use super::*;
 
 #[test]
 fn a_root_wants_frames_until_its_app_presents_and_wakes_its_host_for_them() {
-    let mut root = start(EMBEDDING_ROOT);
+    let mut root = embedding();
     let woken = Arc::new(AtomicUsize::new(0));
     let rung = Arc::clone(&woken);
     root.on_wake(move || {

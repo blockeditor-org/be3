@@ -120,8 +120,9 @@ pub(crate) const PLANS: &[Plan] = &[
     },
     // The apps, the libraries apps are linked against and the crates that
     // test linking them (wasm_library and linked_app in buck/wasm/defs.bzl),
-    // the echo guest staged as an app and its worker, the apps' workers, beui's demo and the paint
-    // review, whose tests paint as an app's do: a plan of their own, since they want a
+    // the echo guest staged as an app and its worker, the apps' workers, beui's demo, the paint
+    // review, whose tests paint as an app's do, and the root guests linked as apps are
+    // (decisions/a_root_links_beui_as_an_app_does.md): a plan of their own, since they want a
     // different wgpu.
     Plan {
         name: "wasi-guest",
@@ -138,12 +139,13 @@ pub(crate) const PLANS: &[Plan] = &[
             Named("be-sdk-beui"),
             Named("beui-demo"),
             Named("be-tool-paint-review"),
+            Named("be-sdk-root-testing"),
         ]),
         html: false,
         lib: false,
     },
     // The games, every app's type module (be-type-bundle runs them in process
-    // on the host), the remap module, the pure guests and the root guests
+    // on the host), the remap module, the pure guests and the pure root guest
     // be-wasm-root-host's tests run: pure guests all, which import no
     // JavaScript.
     Plan {
@@ -156,7 +158,6 @@ pub(crate) const PLANS: &[Plan] = &[
             Named("be-lib-remap-module"),
             Named("be-wasm-guest-echo"),
             Named("be-wasm-root-testing"),
-            Named("be-sdk-root-testing"),
         ]),
         html: false,
         lib: false,
