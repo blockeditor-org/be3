@@ -540,8 +540,7 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     fold: Option<Fold<C>>,
     /// The entries of the block's signed log this replica heard or read, by place, each id once
     /// at its first place, folded onto what it describes.
-    signed_log: BTreeMap<u64, be_block_content::LogItem>,
-    signed_ids: BTreeMap<Uuid, u64>,
+    signed_log: crate::editor::HeldLog,
     /// What it describes with a type's log: the content as last described, with the log's
     /// entries before the place it names folded onto it, which the log's next entries fold onto
     /// in turn while the content stays as it is.
@@ -896,8 +895,7 @@ where
                 debug_assert!(fold.is_some(), "a fold of another content type");
                 fold
             }),
-            signed_log: BTreeMap::new(),
-            signed_ids: BTreeMap::new(),
+            signed_log: crate::editor::HeldLog::default(),
             folded: None,
             log_grew: false,
             appends: BTreeMap::new(),
@@ -3824,13 +3822,20 @@ where
         let mut fresh = Vec::new();
         for item in items {
             let seq = item.seq;
-            match crate::editor::take_logged(&mut self.signed_log, &mut self.signed_ids, item) {
+            match self.signed_log.take(item) {
                 crate::editor::Taken::Held => continue,
+                // A repeat's place may be the one the fold waits on.
+                crate::editor::Taken::Skipped => {
+                    self.log_grew = true;
+                    continue;
+                }
                 crate::editor::Taken::New => self.log_grew = true,
-                // Folded already as it was told then: the fold starts over.
-                crate::editor::Taken::Changed => self.described = true,
+                // Folded already as it was told then, or at a later place: the fold starts over.
+                crate::editor::Taken::Changed | crate::editor::Taken::Moved => {
+                    self.described = true
+                }
             }
-            fresh.extend(self.signed_log.get(&seq).cloned());
+            fresh.extend(self.signed_log.items.get(&seq).cloned());
         }
         fresh
     }
@@ -4362,7 +4367,8 @@ where
             let organization = self.organization;
             let description = match self.fold {
                 // What the content shows with its log folded onto it, in the log's order: the
-                // run of entries from its start this replica holds, up to the first it lacks,
+                // run of entries from its start this replica holds, up to the first it lacks
+                // (stepping over the places of an id served again),
                 // and each signed as nobody's (`Bad`) left out. Content changed folds again from
                 // the start; entries that follow on fold onto what was folded.
                 Some(fold) => {
@@ -4371,8 +4377,10 @@ where
                     }
                     let (folded, through) = self.folded.as_mut().expect("folded is kept above");
                     let from = *through;
-                    while let Some(item) = self.signed_log.get(&*through) {
-                        if item.signer != be_block_content::LogSigner::Bad {
+                    while self.signed_log.holds(*through) {
+                        if let Some(item) = self.signed_log.items.get(&*through)
+                            && item.signer != be_block_content::LogSigner::Bad
+                        {
                             fold(folded, item);
                         }
                         *through += 1;

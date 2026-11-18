@@ -9,7 +9,8 @@ fn said(log: &[be_block_content::LogItem]) -> Vec<String> {
 /// Two devices' editors append to a block's signed log through their replicas: the server's
 /// order is the log's, every replica and editor hears every entry, its own too, and each folds
 /// them in that one order into what it describes. An entry served again under its id at a later
-/// place is not folded twice: the first place of an id is the one kept.
+/// place is not folded twice: the first place of an id is the one kept, and what follows it
+/// folds on past the place it took.
 #[test]
 fn two_replicas_append_to_one_log_and_fold_it_in_one_order() {
     let mut sim = Sim::<Logbook>::new(2, logbook_module);
@@ -82,6 +83,29 @@ fn two_replicas_append_to_one_log_and_fold_it_in_one_order() {
                 .map(|described| described.derived.clone()),
             Some(be_block_content::derived_metadata(&folded)),
             "an entry served again under its id was folded twice"
+        );
+    }
+
+    // Entries that follow the repeat still fold.
+    let mirror = sim.editors.get_mut(&(1, 1)).unwrap();
+    let (_, message) = mirror.append(b"five".to_vec());
+    sim.send_from_editor(1, 1, message);
+    sim.settle();
+    let mut order = order;
+    order.push("five".to_owned());
+    let folded = Logbook {
+        said: order.clone(),
+        ..Logbook::default()
+    };
+    for device in 0..2 {
+        assert_eq!(said(&sim.mirror_log(device, 1)), order);
+        assert_eq!(
+            sim.devices[device]
+                .described
+                .as_ref()
+                .map(|described| described.derived.clone()),
+            Some(be_block_content::derived_metadata(&folded)),
+            "an entry after a repeat was not folded"
         );
     }
 

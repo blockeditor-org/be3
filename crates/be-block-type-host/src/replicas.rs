@@ -163,8 +163,8 @@ fn announcement(sent: be_sdk_type_api::Announcement) -> be_block_content::Announ
 
 /// Entries of `block`'s signed log as a replica of the app `app` is handed them: opened, and
 /// who signed each as that app's, judged by its arrival (`Peer::verify_entry`); `unknown` where
-/// that cannot be told now (offline, or unopened), and `redacted` for an entry whose payload is
-/// gone. An author that cannot be told of is asked about once a page, not once an entry.
+/// that cannot be told now (offline, or unopened), `redacted` for an entry whose payload is
+/// gone, and `bad` for one whose payload opens to no salt. An author that cannot be told of is asked about once a page, not once an entry.
 async fn log_items<S: be_block_store::ObjectStore>(
     peer: &Peer<S>,
     block: Uuid,
@@ -177,6 +177,7 @@ async fn log_items<S: be_block_store::ObjectStore>(
         let entry = logged.entry;
         let signer = match &logged.opened {
             None if entry.payload.is_none() => be_sdk_type_api::Signer::Redacted,
+            None if logged.malformed => be_sdk_type_api::Signer::Bad,
             None => be_sdk_type_api::Signer::Unknown,
             Some(_) if untold.contains(&entry.author) => be_sdk_type_api::Signer::Unknown,
             Some(said) => match peer
@@ -2302,8 +2303,10 @@ impl<H: Host> Replicas<H> {
 
     /// What an app's editor sends its block's replica. Only the app whose module serves the
     /// block's type writes in its signed log: the host signs each entry as that app
-    /// (`be_block_client::by_app`), so an `Append` from any other app's editor is answered
-    /// `Appended` with an error and goes no further.
+    /// (`be_block_client::Said::hash`), so an `Append` from any other app's editor is answered
+    /// `Appended` with an error and goes no further. The module is sent the message as the host
+    /// read it, so what it acts on is what the host checked; one the host cannot read goes no
+    /// further.
     pub fn relay_from_app(
         &mut self,
         shared: &Arc<Mutex<H>>,
@@ -2313,12 +2316,15 @@ impl<H: Host> Replicas<H> {
         bytes: Vec<u8>,
         at: Instant,
     ) {
-        if let Some(FromEditor::Append { token, .. }) = FromEditor::decode(&bytes)
+        let Some(message) = FromEditor::decode(&bytes) else {
+            return;
+        };
+        if let FromEditor::Append { token, .. } = &message
             && let Some((_, open)) = self.replica_of(block)
             && self.modules.name(open.module) != app
         {
             let refused = be_sdk_type_guest::editor::ToEditor::Appended {
-                token,
+                token: *token,
                 result: Err(format!(
                     "only {} writes in this block's log",
                     self.modules.name(open.module)
@@ -2327,7 +2333,7 @@ impl<H: Host> Replicas<H> {
             H::to_editor(shared, block, editor, refused.encode());
             return;
         }
-        self.relay_from_editor(block, editor, bytes, at);
+        self.relay_from_editor(block, editor, message.encode(), at);
     }
 
     /// What an editor the host trusts sends its block's replica: the host's own, or one an app

@@ -291,15 +291,18 @@ who signed them, `LogSigner`) changes what the content shows.
   else, or make an entry another app's `verify` takes. Only that app's
   editors may ask: be-host-stack relays an editor's messages with its app's
   id (`from_editor`, `Replicas::relay_from_app`), and an `Append` from any
-  other app's editor is answered with an error and goes no further.
+  other app's editor is answered with an error and goes no further. The
+  module is sent each message as the host decoded it, so it acts on what the
+  host checked, and a message the host cannot decode goes no further.
 - **Hearing.** A replica reads its first 256 entries as it loads
   (`host.read-log`, which follows the log) and hears the rest through
   `replica.logged`, every device's own included, which the host takes from
   `Event::Appended` once `Peer::logged` proved it (`Replicas::appended`) and
   hands on with who signed each, judged by its arrival (`Peer::verify_entry`,
-  asking about an author it cannot tell of once a page). A push told after a
-  read already moved the head past it is still handed on, and the replica
-  drops what it holds. Neither is kept for a replica opened again, which
+  asking about an author it cannot tell of once a page; `bad` for an entry
+  whose payload opens to no salt). A push told after a read already moved
+  the head past it is still handed on, as read again against the kept head,
+  and the replica drops what it holds. Neither is kept for a replica opened again, which
   reads the log afresh; a first read that fails (a restart, offline) is no
   error, and the replica describes its content without the log until it
   hears entries. An editor hears each as `ToEditor::Logged` and reads more
@@ -307,12 +310,14 @@ who signed them, `LogSigner`) changes what the content shows.
 - **Folding.** The replica and each `EditorMirror` keep the entries they
   heard or read by place, each id once at its first place
   (`editor::take_logged`), so an entry a server serves again under its id is
-  never shown twice; one held is replaced when told better (`Unknown` to a
+  never shown twice, and the place a repeat takes is held as skipped
+  (`editor::HeldLog`); one held is replaced when told better (`Unknown` to a
   verdict, or `Redacted`), never by `Unknown`. An editor holds the latest
   `editor::LOG_HELD`, and be-sdk reads them through
   `ContentProjection::with_log`. The replica describes its content with the
   log folded onto a copy of it, in the log's order: the run of entries from
-  the log's start it holds, up to the first it lacks, so entries heard past a
+  the log's start it holds, up to the first place it lacks (stepping over
+  skipped ones), so entries heard past a
   gap (a long log read only from its start) wait until it is filled, and
   never an entry signed as nobody's (`Bad`); a type decides what the other
   verdicts count for. It keeps the folded copy and folds entries that follow
