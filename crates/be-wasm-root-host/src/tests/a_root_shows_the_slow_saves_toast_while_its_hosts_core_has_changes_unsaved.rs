@@ -12,6 +12,7 @@ fn core(unsaved: bool, saves: u64) -> CoreView {
             unsent: 0,
             sync: SyncState::Syncing,
         },
+        keep_display: None,
     }
 }
 

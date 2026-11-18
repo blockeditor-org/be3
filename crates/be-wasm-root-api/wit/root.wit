@@ -239,16 +239,42 @@ interface host {
     /// displays and the block stack's status, which leave the host with the
     /// block stack (step 5). One record, a field per area, each the area's
     /// plain data.
+    /// Display settings just changed, which the person keeps or reverts: the
+    /// host reverts them itself unless kept in time.
+    record keep-display {
+        /// Which change it is, which `keep-display` and `revert-display` name,
+        /// so an answer to an earlier one changes nothing.
+        round: u64,
+        /// How long the person has to answer, in nanoseconds, counted from
+        /// when the root shows the question.
+        answer-within: u64,
+    }
+
     record core-view {
         /// Which change of the view this is, which the next `core` call names
         /// as `seen`: never 0.
         generation: u64,
         saving: saving,
+        /// Display settings waiting to be kept or reverted, while any are.
+        keep-display: option<keep-display>,
+    }
+
+    /// What the person asked of be-host's core, as `core-view` showed it.
+    variant core-command {
+        /// Keep the display settings of this round.
+        keep-display(u64),
+        /// Revert the display settings of this round: chosen, or the time to
+        /// answer ran out.
+        revert-display(u64),
     }
 
     /// The core's view, once it differs from the generation `seen`, as
     /// `notices` answers: at once for any other generation, such as 0.
     core: async func(seen: u64) -> core-view;
+
+    /// The person asked `command` of be-host's core, which does it; what it
+    /// changes reaches `core`. It answers at once.
+    ask-core: async func(command: core-command);
 }
 
 /// The window's input, which the host hands the root inline on its frame thread

@@ -1064,7 +1064,7 @@ Each step lands on its own.
          (saving, the display awaiting keep or revert, the accounts, the organizations, the
          sessions, invitations, contacts, members, recovery), each the plain data be-host's
          `HostUi` holds for it, with block ids as UUIDs and no labels the root can word itself.
-       - `host.core-command(command)`, a `core-command` variant with a case per `UiCommand` the
+       - `host.ask-core(command)`, a `core-command` variant with a case per `UiCommand` the
          area sends, answering at once; what it changes reaches `core`.
        One watch and one command call, rather than a pair per area, because they are one
        thing that moves whole: step 5 makes the core the root's own, and these two calls go,
@@ -1087,6 +1087,20 @@ Each step lands on its own.
          afresh, until they are saved or it is dismissed; be-wasm-root-host's
          `a_root_shows_the_slow_saves_toast_while_its_hosts_core_has_changes_unsaved` checks
          it and snapshots the toast.
+       - 4g6c. Built: `host.ask-core`, the core's commands (`core-command`, a case per command an
+         area sends; named apart from the variant, since a WIT function and type cannot share a
+         name), with keep changes: `core-view` gains `keep-display` (the round of display
+         settings that just changed and how long the person has to answer), and
+         `core-command` `keep-display(round)` and `revert-display(round)`, an answer to an earlier
+         round changing nothing (be-wasm-root-host's `Root::take_core_commands`). be-host's
+         `--root` runs no displays, so it takes the commands and does nothing with them.
+         be-sdk-root-testing asks in its dialog's place while the core asks (`KEEP_DISPLAY_TITLE`,
+         an alert with Keep and Revert over the scrim, taking the focus), counting down to
+         reverting on its clock; Escape, a press on the scrim and the time running out revert,
+         and the core withdrawing the question closes it unanswered. be-wasm-root-host's
+         `a_root_asks_to_keep_display_settings_and_answers_its_hosts_core` keeps with Enter,
+         reverts with Escape and by the timeout, sees a withdrawn question go unanswered, and
+         snapshots the question.
        - 4g6a. Built: the lock screen, over the screen lock and password check the host grants.
          The lock is the host's (the platform's, a login session's): `be3:root` carries it as
          data, nothing beui's. `host.lock` is a watch, as `host.notices` is, answering the lock

@@ -144,6 +144,8 @@ struct Core<G> {
     core: CoreView,
     /// The root's `host.core` calls waiting for it to change from what they saw.
     core_watchers: Vec<Reply<CoreView>>,
+    /// What the root asked of be-host's core (`host.ask-core`), until the host takes it.
+    core_commands: Vec<be_wasm_root_api::CoreCommand>,
 }
 
 impl<G: Inline> Core<G> {
@@ -203,8 +205,10 @@ impl<G: Inline> Core<G> {
                     unsent: 0,
                     sync: be_wasm_root_api::SyncState::Saved,
                 },
+                keep_display: None,
             },
             core_watchers: Vec::new(),
+            core_commands: Vec::new(),
         };
         core.received()?;
         Ok(core)
@@ -373,6 +377,11 @@ impl<G: Inline> Core<G> {
             reply.send(&mut self.connection, &self.core);
         }
         answered
+    }
+
+    /// What the root asked of be-host's core since the last call, oldest first.
+    fn take_core_commands(&mut self) -> Vec<be_wasm_root_api::CoreCommand> {
+        std::mem::take(&mut self.core_commands)
     }
 
     /// Whether the root asked to lock the session since the last call.
@@ -640,6 +649,10 @@ impl<G: Inline> Core<G> {
                     true => self.core_watchers.push(reply),
                     false => reply.send(&mut self.connection, &self.core),
                 }
+            }
+            embed::Call::Host(embed::host::Call::AskCore { command, reply }) => {
+                self.core_commands.push(command);
+                reply.send(&mut self.connection, &());
             }
             embed::Call::Host(embed::host::Call::LockSession { reply }) => {
                 self.lock_asked = true;

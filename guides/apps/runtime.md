@@ -206,9 +206,11 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   that carried it once read; the guest's own buffers are not. `host.core` is a
   watch of what be-host's core shows (its accounts, organizations, displays
   and the block stack's status, until step 5 moves the core into the root):
-  one `core-view` record, a field per area (`saving` so far), answered once
-  anything in it changed (`Root::show_core`); the core's commands will come
-  back through one call beside it (plans/host_as_platform_adapter.md, 4g6).
+  one `core-view` record, a field per area (`saving` and `keep-display` so
+  far), answered once anything in it changed (`Root::show_core`); the core's
+  commands come back through one call beside it, `host.ask-core`, a
+  `core-command` variant (`Root::take_core_commands`;
+  plans/host_as_platform_adapter.md, 4g6).
   The input method
   needs nothing more: the platform's input-method events reach the root as
   input, which its router hands the focused surface, and the field that
@@ -339,7 +341,8 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   everything, on a layer listed only while one shows, hit only where they are
   and never taking the focus, a dialog F2 opens over a scrim, and a panel of
   its host's statistics F3 opens and closes, its host's lock screen while the
-  session is locked, and the slow save's toast, and which be-wasm-root-host's tests run with the
+  session is locked, the slow save's toast, and the question of keeping display
+  settings its core asks, and which be-wasm-root-host's tests run with the
   triangle on a stand-in device, and be-host's host test with `--root`. A root is
   built as an app is (`app_module`, in the `wasi-guest` plan, linked against
   base and beui; decisions/a_root_links_beui_as_an_app_does.md); only

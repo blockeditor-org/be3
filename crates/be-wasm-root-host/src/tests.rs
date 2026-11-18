@@ -10,6 +10,7 @@ use be_wasm_root_testing::{
 use super::*;
 
 mod a_child_that_lets_its_surface_go_names_nothing_there_any_more;
+mod a_root_asks_to_keep_display_settings_and_answers_its_hosts_core;
 mod a_dialog_shows_over_its_scrim_which_captures_a_press_beside_it_and_closes_it;
 mod a_frame_asks_its_host_for_what_the_surface_under_the_pointer_and_the_focus_ask;
 mod a_frame_past_its_deadline_draws_without_the_child_it_waits_for;

@@ -35,7 +35,9 @@
 //! shows why the host refused it. F4 (`LOCKS_SESSION`) asks the host to lock the session.
 //! It shows what its host's core shows (`host.core`): while its changes stay unsaved for
 //! `SLOW_SAVE`, the slow save's toast among its toasts, until they are saved or it is
-//! dismissed.
+//! dismissed; and while its core asks to keep display settings that just changed, that question
+//! in its dialog's place (`KEEP_DISPLAY_TITLE`), counting down to reverting them, answered
+//! through `host.ask-core`, which Escape or a press on the scrim answers with revert.
 //! A frame at `CLOSES` lets go of the app, which stops it. The window's input is routed by the
 //! library over the layers it drew last; what lands on `TEXT_SURFACE` its beui document hears,
 //! and what lands on its own surface beside the strip nothing does.
@@ -165,6 +167,10 @@ pub const DIALOG_ORIGIN: (f32, f32) = (
 
 /// The dialog's title.
 pub const DIALOG_TITLE: &str = "Rename";
+
+/// The title of the question of keeping display settings that just changed, which the root
+/// asks in its dialog's place while its host's core asks it (`host.core`'s `keep-display`).
+pub const KEEP_DISPLAY_TITLE: &str = "Keep these display settings?";
 
 /// The key that opens the root's statistics panel, and closes it again, pressed with no
 /// modifiers: the root intercepts it wherever the focus is.

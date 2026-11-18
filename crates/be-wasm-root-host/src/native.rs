@@ -201,6 +201,12 @@ impl Root {
         }
     }
 
+    /// What the root asked of be-host's core since the last call (`host.ask-core`), oldest
+    /// first, which the core does and shows the outcome of (`show_core`).
+    pub fn take_core_commands(&mut self) -> Vec<be_wasm_root_api::CoreCommand> {
+        self.core.take_core_commands()
+    }
+
     /// Shows the root the session's screen lock (`host.lock`), in place of what it showed (its
     /// `generation` is ignored: the root counts the changes). If the root waits on it and it
     /// changed, it is stepped for it.

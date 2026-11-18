@@ -552,6 +552,8 @@ fn statistic_row(row: be_host_base::performance::PerformanceRow) -> StatisticRow
 fn refuse_lock(root: &mut Root) {
     root.take_lock_asked();
     root.take_lock_powers();
+    // It runs no core either (no displays to keep), so the root's commands to it change nothing.
+    root.take_core_commands();
 }
 
 /// The host's notices as `be3:root` carries them, oldest first.
