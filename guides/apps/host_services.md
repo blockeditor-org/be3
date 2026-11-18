@@ -280,10 +280,13 @@ editor; nothing else lists them. Tests use `BeuiTest::set_watched::<W>`,
 An app learns who may view its own block, and what to call them, from a
 `block-watch` of the `members` subject (`editor.members()`, a
 `Ready<Vec<BlockMember>>`): each account that may view the block, and its
-author, with a name and `verified`. A contact is named by the name on its
-contact card this device verified, the signed-in account by its own, and
-anyone else by the name its account gave the server, which the server could
-change, so `verified` is false and the editor marks it. Nothing else of a
+author while it may view it too, with a name and `verified`. A contact is
+named by the name on its contact card this device verified (`Contact::verified`
+set, and no `mismatch` since), the signed-in account by its own (the name this
+device holds of it, `be_host_stack::own_name`, which it puts on the card it
+hands out), and anyone else by the name its account gave the server, which the
+server could change, so `verified` is false and the editor marks it.
+`verified` never covers a name the server gave. Nothing else of a
 member reaches the app (no email, role or grant; a manager lists those with
 `list-access`). It is a block watch, not a published `*-watch`, because its
 answer differs per block and per editor; it is scoped to the editor's own
@@ -293,9 +296,12 @@ with.
 The server names them for anyone who may view the block (`query.names`,
 guides/blocks/server.md); be-host-runtime asks through
 `be_host_stack::list_names` once the watch opens (`members.rs`), and again
-when the block changes other than by a new head (a grant, a move or a share
-above it; a sent message does not), or after a failed ask (offline) once the
-graph moves. Each answer is named afresh from the contacts
+whenever the block's `changed` moves (a grant, a revoke, a move or a share
+above it, any of which can land in the same summary as a new head, so a sent
+message asks again too), or after a failed ask (offline) once the graph
+moves. A member removed from the organization whose removal changes no grant
+on the block (an author, or a viewer through a block open in a workspace) is
+dropped only at the next ask (plans/backlog.md, "Member names"). Each answer is named afresh from the contacts
 (`app_graph::members_of`), so a contact's new card reaches the editor without
 asking the server. A host component may not watch it
 (`may_be_made_by_a_host`): names are for a person. Tests answer it with

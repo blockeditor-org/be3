@@ -214,8 +214,10 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   (`editor.members()`, guides/apps/host_services.md, "Naming a block's
   members"): "You", a contact by its card's name, anyone else by the name the
   server gave, marked "unverified name" (which stands in for "not verified"
-  too, so a message by someone who is not a contact carries one caption). A reply's quote names its author the
-  same way. An account the host has not named (before it answers, offline, or
+  too, so a message by someone who is not a contact carries one caption). A
+  reply's quote and the composer's "Replying to" name the author the same way,
+  with "(unverified name)" after a name the server gave, as no caption follows
+  it there and a server could name someone as one of the reader's contacts. An account the host has not named (before it answers, offline, or
   one that may no longer view the chat) shows as "Member" and its account's
   first digits. Rows keep the author's account and resolve the name as they
   show, so a name arriving or changing touches only the labels. Mentioning

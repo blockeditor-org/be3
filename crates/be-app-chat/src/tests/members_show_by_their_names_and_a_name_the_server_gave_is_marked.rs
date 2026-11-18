@@ -51,12 +51,30 @@ fn members_show_by_their_names_and_a_name_the_server_gave_is_marked() {
     assert!(!chat.editor.shown(&format!("chat.message.{rosa}.name_unverified")));
     assert!(chat.editor.shown(&format!("chat.message.{teo}.name_unverified")));
 
-    // A reply quotes its message's author by name too.
+    // A reply quotes its message's author by name too, and a name the server gave says so in
+    // the quote, as in the composer's "Replying to", where no caption follows it.
+    chat.click(&format!("chat.message.{teo}.reply"));
+    chat.send("Great, thank you.");
+    let reply = chat.id(3);
+    assert!(
+        chat.row(reply)
+            .contains("Teo Lind (unverified name): I can check the installers."),
+        "{}",
+        chat.row(reply)
+    );
+    chat.click(&format!("chat.message.{rosa}.reply"));
+    assert!(
+        chat.editor
+            .label("chat.replying")
+            .contains("Replying to Rosa Diaz: Morning!"),
+        "a contact's name is quoted as it is: {}",
+        chat.editor.label("chat.replying")
+    );
     chat.click(&format!("chat.message.{teo}.reply"));
     assert!(
         chat.editor
             .label("chat.replying")
-            .contains("Replying to Teo Lind: I can check the installers."),
+            .contains("Replying to Teo Lind (unverified name): I can check the installers."),
         "{}",
         chat.editor.label("chat.replying")
     );

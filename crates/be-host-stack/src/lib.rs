@@ -319,6 +319,9 @@ pub fn try_anyway(block: Uuid) {
 struct Stack {
     account: Uuid,
     organization: Uuid,
+    /// The account's own name, the one this device puts on the card it hands its contacts
+    /// (`Config::display_name`).
+    name: String,
     commands: Option<worker::CommandPost>,
     nudges: Option<nudge::Nudges>,
     /// Dropped as the stack stops, which has the worker close its connection
@@ -614,6 +617,7 @@ pub fn start(config: Config) {
     let handover = Arc::new(seen::Handover::default());
     let account = config.account;
     let organization = config.organization;
+    let name = config.display_name.clone();
     // A test that runs no frames has nothing to take the worker's updates in, so a thread takes
     // each as it lands, until a frame takes them (`take_updates_in_frame`): a test that runs
     // frames reads what they took, as the host does.
@@ -660,6 +664,7 @@ pub fn start(config: Config) {
     *stack().lock().unwrap_or_else(PoisonError::into_inner) = Some(Stack {
         account,
         organization,
+        name,
         commands: Some(commands),
         nudges: Some(nudges),
         _stopping: stopping,
@@ -1798,6 +1803,15 @@ pub fn account() -> Option<Uuid> {
         .unwrap_or_else(PoisonError::into_inner)
         .as_ref()
         .map(|stack| stack.account)
+}
+
+/// The signed-in account and its own name, the one on the card this device hands its contacts.
+pub fn own_name() -> Option<(Uuid, String)> {
+    stack()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_ref()
+        .map(|stack| (stack.account, stack.name.clone()))
 }
 
 pub fn identity() -> Option<(Uuid, Uuid)> {
