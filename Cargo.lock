@@ -2468,6 +2468,7 @@ dependencies = [
  "be-wasm-ops",
  "bytes",
  "futures-util",
+ "hkdf 0.12.4",
  "http",
  "httparse",
  "hyper-util",

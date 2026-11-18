@@ -1334,11 +1334,7 @@ pub fn normalize_email(email: &str) -> Result<String, ServerError> {
 pub const APP_SESSION_IDLE: i64 = 90 * 86400;
 
 fn issue_token(database: &Connection, account: Uuid) -> Result<String, ServerError> {
-    let mut bytes = [0u8; 32];
-    rand::rngs::OsRng
-        .try_fill_bytes(&mut bytes)
-        .expect("the operating system has entropy");
-    let token = Hash::from_bytes(bytes).to_hex();
+    let token = crate::new_secret();
     database.execute(
         "INSERT INTO sessions (token_hash, account_id, kind, public_id, created, expires) VALUES (?1, ?2, 'app', ?3, ?4, ?5)",
         params![hash_token(TokenKind::Session, &token), account.to_string(), Uuid::new_v4().to_string(), portal::now(), portal::now() + APP_SESSION_IDLE],

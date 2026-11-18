@@ -307,7 +307,7 @@ fn mail_link(
 ) -> Result<MailLink, ServerError> {
     may_send(database, email, address)?;
     super::codes::unregistered(database, email)?;
-    let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
+    let token = crate::new_secret();
     database.execute(
         "INSERT INTO account_mail (token_hash, account_id, email, expires, address) VALUES (?1, ?2, ?3, ?4, ?5)",
         params![hash_token(TokenKind::MailLink, &token), account, email, now() + EMAIL_LINK_LIFETIME, address],

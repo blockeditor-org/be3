@@ -79,7 +79,7 @@ pub fn create(data_dir: &Path, whom: LinkFor<'_>) -> Result<LoginLink, ServerErr
             (account.unwrap_or_default(), email, true)
         }
     };
-    let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
+    let token = crate::new_secret();
     database.execute("DELETE FROM login_links WHERE expires <= ?1", [now()])?;
     database.execute(
         "INSERT INTO login_links (token_hash, account_id, email, expires) VALUES (?1, ?2, ?3, ?4)",

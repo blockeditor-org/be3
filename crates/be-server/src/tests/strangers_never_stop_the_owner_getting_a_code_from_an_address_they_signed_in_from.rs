@@ -21,7 +21,7 @@ async fn strangers_never_stop_the_owner_getting_a_code_from_an_address_they_sign
     let store = ServerStore::open(&harness.directory).unwrap();
     // The owner signs in once from home, which remembers the address for the account.
     let home = "2001:db8:1:2::7";
-    let attempt = codes::new_attempt();
+    let attempt = crate::new_secret();
     let mailed = store
         .request_code(sign_in("owner@example.com", &attempt, home))
         .await
@@ -42,7 +42,7 @@ async fn strangers_never_stop_the_owner_getting_a_code_from_an_address_they_sign
     let mut refused = false;
     for stranger in 0..codes::CODES_PER_ACCOUNT + 1 {
         let address = format!("2001:db8:{:x}::1", 0x100 + stranger);
-        let attempt = codes::new_attempt();
+        let attempt = crate::new_secret();
         match store
             .request_code(sign_in("owner@example.com", &attempt, &address))
             .await
@@ -53,7 +53,7 @@ async fn strangers_never_stop_the_owner_getting_a_code_from_an_address_they_sign
     }
     assert!(refused, "strangers are held to the account's budget");
     // The owner still gets one from home.
-    let attempt = codes::new_attempt();
+    let attempt = crate::new_secret();
     let mailed = store
         .request_code(sign_in("owner@example.com", &attempt, home))
         .await
@@ -63,7 +63,7 @@ async fn strangers_never_stop_the_owner_getting_a_code_from_an_address_they_sign
     let mut held = 0;
     for request in 0..codes::CODES_PER_NETWORK + 1 {
         let address = format!("2001:db8:ffff:{:x}::1", request / codes::CODES_PER_ADDRESS);
-        let attempt = codes::new_attempt();
+        let attempt = crate::new_secret();
         if store
             .request_code(sign_in(
                 &format!("{request}@example.com"),

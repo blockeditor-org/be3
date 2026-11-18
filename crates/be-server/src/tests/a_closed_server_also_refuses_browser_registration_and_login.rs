@@ -1,5 +1,5 @@
 use super::*;
-use crate::store::codes::{self, CodePurpose, CodeRequest};
+use crate::store::codes::{CodePurpose, CodeRequest};
 
 #[tokio::test]
 async fn a_closed_server_also_refuses_browser_registration_and_login() {
@@ -30,7 +30,7 @@ async fn a_closed_server_also_refuses_browser_registration_and_login() {
     }
     assert!(harness.mail.0.lock().unwrap().is_empty());
     // A right code, asked for while the server was open, signs nothing in once it is closed.
-    let attempt = codes::new_attempt();
+    let attempt = crate::new_secret();
     let mailed = store
         .request_code(CodeRequest {
             purpose: CodePurpose::SignIn,

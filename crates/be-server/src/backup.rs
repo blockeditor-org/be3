@@ -10,7 +10,6 @@ use be_block_store::{Hash, ObjectStore};
 
 use crate::objects::{BucketConfig, Objects};
 use be_block_keys::aead;
-use rand::TryRngCore;
 use rusqlite::Connection;
 
 const SEALED_MAGIC: &[u8] = b"be3-backup-v2";
@@ -242,11 +241,7 @@ pub struct BackupKey([u8; 32]);
 
 impl BackupKey {
     pub fn generate() -> Self {
-        let mut key = [0u8; 32];
-        rand::rngs::OsRng
-            .try_fill_bytes(&mut key)
-            .expect("the operating system has entropy");
-        Self(key)
+        Self(crate::new_secret_bytes())
     }
 
     pub fn to_hex(&self) -> String {

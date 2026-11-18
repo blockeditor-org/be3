@@ -14,7 +14,6 @@ use tokio::{
     net::TcpStream,
     sync::{Mutex, mpsc},
 };
-use uuid::Uuid;
 
 use crate::{
     Admitted, Client, HANDSHAKE_TIMEOUT, IDLE_TIMEOUT, OUTBOUND_BYTES, Outbound, ServerError,
@@ -107,7 +106,7 @@ impl Sessions {
         if sessions.len() >= MAX_HTTP_SESSIONS {
             return Err(client);
         }
-        let id = Uuid::new_v4().simple().to_string();
+        let id = crate::new_secret();
         let session = Session {
             client: Some(client),
             queued,

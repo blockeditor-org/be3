@@ -23,7 +23,9 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
 mod a_provider_sign_in_is_not_spent_by_its_callback_in_another_browser;
 mod a_request_with_a_transfer_encoding_or_two_lengths_is_refused;
+mod a_secret_derived_from_the_servers_own_is_hkdf_of_it;
 mod a_token_of_one_kind_never_hashes_as_another;
+mod every_secret_the_server_hands_out_is_256_random_bits;
 mod an_email_change_is_confirmed_only_in_the_account_that_asked_for_it;
 mod a_block_agent_is_deleted_with_its_grant;
 mod a_block_agent_is_refused_while_its_block_is_in_the_trash;
@@ -2751,8 +2753,8 @@ async fn fixture_account(
 
 /// Proves the browser session is the account's owner, as the portal's code to its email does.
 async fn prove(store: &ServerStore, account: Uuid, email: &str, browser: &str) {
-    use crate::store::codes::{self, CodePurpose, CodeRequest};
-    let attempt = codes::new_attempt();
+    use crate::store::codes::{CodePurpose, CodeRequest};
+    let attempt = crate::new_secret();
     let mailed = store
         .request_code(CodeRequest {
             purpose: CodePurpose::Proof,

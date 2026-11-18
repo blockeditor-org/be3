@@ -59,7 +59,7 @@ impl ServerKey {
 
     fn create(connection: &Connection) -> Result<Self, ServerError> {
         let account = Uuid::new_v4();
-        let secret = RecoverySecret::from_bytes(random_secret());
+        let secret = RecoverySecret::from_bytes(crate::new_secret_bytes());
         connection.execute(
             "INSERT INTO accounts (id, email, display_name) VALUES (?1, ?2, ?3)",
             params![
@@ -82,13 +82,11 @@ impl ServerKey {
     /// A secret for `purpose` derived from the server's own, so it lasts as long as the data
     /// directory without being stored apart from it.
     pub(crate) fn derived(&self, purpose: &str) -> [u8; 32] {
-        use sha2::{Digest, Sha256};
-        let mut hasher = Sha256::new();
-        hasher.update(b"be3.server.derived.v1\0");
-        hasher.update(purpose.as_bytes());
-        hasher.update(b"\0");
-        hasher.update(self.secret.to_bytes());
-        hasher.finalize().into()
+        let mut derived = [0u8; 32];
+        hkdf::Hkdf::<sha2::Sha256>::new(Some(b"be3 server derived"), &self.secret.to_bytes())
+            .expand(purpose.as_bytes(), &mut derived)
+            .expect("32 bytes is a valid HKDF-SHA256 length");
+        derived
     }
 
     pub(crate) fn described(&self) -> ServerAccount {
@@ -299,13 +297,6 @@ impl ServerKey {
         }
         Ok(())
     }
-}
-
-fn random_secret() -> [u8; 32] {
-    use rand::RngCore;
-    let mut bytes = [0u8; 32];
-    rand::rng().fill_bytes(&mut bytes);
-    bytes
 }
 
 fn unreadable(block: Uuid) -> ServerError {

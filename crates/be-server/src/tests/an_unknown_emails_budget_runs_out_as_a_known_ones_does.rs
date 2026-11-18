@@ -13,7 +13,7 @@ async fn an_unknown_emails_budget_runs_out_as_a_known_ones_does() {
         let mut refused_at = None;
         for stranger in 0..codes::CODES_PER_ACCOUNT + 1 {
             let address = format!("2001:db8:{:x}::1", 0x1000 + stranger);
-            let attempt = codes::new_attempt();
+            let attempt = crate::new_secret();
             let answer = store
                 .request_code(CodeRequest {
                     purpose: CodePurpose::SignIn,
