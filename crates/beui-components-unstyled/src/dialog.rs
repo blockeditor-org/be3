@@ -180,6 +180,11 @@ pub fn footer_order(actions: &[DialogAction], narrow: bool) -> FooterOrder {
     }
 }
 
+/// Whether the dialog around a `DialogBody` is open: it keeps its body while
+/// closed, so the body asks for its focus again each time it reopens.
+#[derive(Clone, Copy)]
+struct DialogOpen(Memo<bool>);
+
 #[derive(Clone, Copy)]
 pub struct DialogBodyHandle {
     pub kind: DialogKind,
@@ -215,8 +220,14 @@ pub fn DialogBody(
     let title = create_memo(move || title.get());
     let narrow = create_memo(move || narrow.get());
     let footer = create_memo(move || actions.with(|actions| footer_order(actions, narrow.get())));
+    let shown_now = use_context::<DialogOpen>().map(|open| open.0);
     let focus = create_memo(move || {
         if kind != DialogKind::Alert || !focuses.get() {
+            return None;
+        }
+        // A dialog keeps its body while closed, so the request falls when it
+        // closes and rises again, refocusing, each time it reopens.
+        if shown_now.is_some_and(|open| !open.get()) {
             return None;
         }
         let shown = actions.with(|actions| shown(actions));
@@ -514,6 +525,7 @@ pub fn Dialog(
     };
     provide_context(layout);
     provide_context(Modality(create_memo(|| true)));
+    provide_context(DialogOpen(open));
     let mut ever = false;
     let opened = create_memo(move || {
         ever |= open.get();

@@ -8,6 +8,7 @@ use be_sdk_beui::{
     AccessLevel, AccessListing, BlockParent, ChildId, ChildMode, ChildState, DialogAnswer, LinkAdmits, ShareLink,
     Subregion, SubregionContent,
 };
+use be_sdk_beui::be_block::OrganizationPolicies;
 use uuid::Uuid;
 
 use super::share::{GRANTABLE, Member, Person, Share, ShareAction};
@@ -308,9 +309,14 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
         manages.then(|| workspace.share_links.get()).flatten()
     });
     // Whom a link may admit, as the organization's policy allows: none where it allows no links.
+    // It follows the policy as it changes, the dialog open or not.
+    let policy = workspace
+        .editor()
+        .effective_settings::<OrganizationPolicies>();
     let admits_choices = create_memo(move || {
+        let policy = policy.with(OrganizationPolicies::link_sharing);
         listing.with(|listing| match listing {
-            Ok(listing) => Share::link_choices(listing),
+            Ok(listing) => Share::link_choices(policy, listing.company),
             Err(_) => Vec::new(),
         })
     });
