@@ -76,6 +76,26 @@ entry once. It need not see each again.
 3. **Proof paths with inclusion proofs.** Done: a reader below Edit of a log
    of 100,000 entries is served the entries naming it and O(log n) hashes;
    every test of `holds`, `current_at` and `outdates` on paths passes.
+
+   Needs a decision first (decisions/), since it changes what a reader can
+   verify. Today each reduced step carries the flags its hash commits to
+   (`Reduced`: `lowers`, `places`, `owns`), and `check_log` reads the newest
+   lowering, the placement and a hidden owner transfer from them. Served only
+   the whole entries and inclusion proofs, a reader would take those from the
+   server's word unless the tree commits them. A design that keeps them
+   verifiable: a Merkle sum tree whose leaf is an entry's hash with its three
+   flags, and whose node commits its children's hashes and a summary of its
+   leaves (the place of the newest lowering, of the newest parent record and
+   of the newest owner record, and how many owner records), each child's
+   summary merged into its parent's. An inclusion proof's sibling subtrees
+   then cover every gap between whole entries, so the reader computes each
+   gap's summary from them, and the head's root binds it all. What is left to
+   settle: a whole entry's `previous` names an entry left out, so the chain is
+   checked by place (its leaf index) rather than by hash; a signer's key at a
+   whole entry's place needs every retirement of that signer whole, as paths
+   serve now; and epochs keep naming heads by hash, which the reader learns
+   only for the entries it is sent and the head, so `holds` on another head
+   needs that head's place too.
 4. **The server keeps checked state.** Done: an append to a log of 100,000
    entries checks one entry on the server.
 5. **Guides.** guides/blocks/keys.md "Access logs" and "Proof paths",

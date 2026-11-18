@@ -392,9 +392,58 @@ pub struct Peer<S: ObjectStore> {
     /// Each commit waiting in the outbox that was sealed again in this run (`Peer::reseal`),
     /// with the one in its place: a write on the first goes on the second.
     resealed: Mutex<HashMap<CommitId, CommitId>>,
-    /// The whole access logs served in this run, by log (the organization's under its id): a
-    /// read names the last entry held and is sent only the entries after it (`served_access`).
-    served_logs: Mutex<HashMap<Uuid, Arc<Vec<be_block_keys::Step>>>>,
+    /// The whole access logs served in this run, the most recently read of them, by log (the
+    /// organization's under its id): a read names the last entry held and is sent only the
+    /// entries after it (`served_access`).
+    served_logs: Mutex<ServedLogs>,
+}
+
+/// The access logs a peer holds for reading again (`Peer::served_access`): at most
+/// `SERVED_LOGS` of them, the one read longest ago let go first, so a run that reads many logs
+/// holds no more than the ones it reads again.
+#[derive(Default)]
+pub(crate) struct ServedLogs {
+    logs: HashMap<Uuid, (u64, Arc<Vec<be_block_keys::Step>>)>,
+    next: u64,
+}
+
+/// How many whole access logs a peer holds for reading again: a block's check reads its own,
+/// the organization's and those of the blocks its records name, at most
+/// `be_block_keys::MAX_ANCESTRY`, so a few checks' worth stay.
+pub(crate) const SERVED_LOGS: usize = 4 * (be_block_keys::MAX_ANCESTRY + 2);
+
+impl ServedLogs {
+    /// `log` as held, now the most recently read.
+    pub(crate) fn get(&mut self, log: Uuid) -> Option<Arc<Vec<be_block_keys::Step>>> {
+        self.next += 1;
+        let next = self.next;
+        let (read, steps) = self.logs.get_mut(&log)?;
+        *read = next;
+        Some(Arc::clone(steps))
+    }
+
+    /// Holds `steps` as `log`, letting go of the one read longest ago past `SERVED_LOGS`.
+    pub(crate) fn insert(&mut self, log: Uuid, steps: Arc<Vec<be_block_keys::Step>>) {
+        self.next += 1;
+        self.logs.insert(log, (self.next, steps));
+        if self.logs.len() > SERVED_LOGS
+            && let Some(oldest) = self
+                .logs
+                .iter()
+                .min_by_key(|(_, (read, _))| *read)
+                .map(|(log, _)| *log)
+        {
+            self.logs.remove(&oldest);
+        }
+    }
+
+    pub(crate) fn remove(&mut self, log: Uuid) {
+        self.logs.remove(&log);
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.logs.len()
+    }
 }
 
 /// How long a read of an access log before a write may take before what was kept of it is
@@ -2589,7 +2638,7 @@ impl<S: ObjectStore> Peer<S> {
         log: Option<Uuid>,
     ) -> Result<Vec<be_block_keys::Step>, ClientError> {
         let id = log.unwrap_or(self.organization);
-        let held = self.served_logs.lock().unwrap().get(&id).cloned();
+        let held = self.served_logs.lock().unwrap().get(id);
         let held_entry = held.as_ref().and_then(|steps| {
             Some(be_block_protocol::HeldEntry {
                 place: steps.len().checked_sub(1)? as u64,
@@ -2618,8 +2667,8 @@ impl<S: ObjectStore> Peer<S> {
         let mut served = self.served_logs.lock().unwrap();
         match steps.iter().all(|step| step.entry().is_some()) {
             true => served.insert(id, Arc::new(steps.clone())),
-            false => served.remove(&id),
-        };
+            false => served.remove(id),
+        }
         Ok(steps)
     }
 
