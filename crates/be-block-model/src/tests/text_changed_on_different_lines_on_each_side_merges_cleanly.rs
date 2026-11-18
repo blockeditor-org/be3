@@ -12,4 +12,12 @@ fn text_changed_on_different_lines_on_each_side_merges_cleanly() {
 
     assert_eq!(conflicts, 0);
     assert_eq!(body(&merged), "one!\ntwo\nthree?\n");
+    // The "!" ours typed: rebuilt from its items, the merge would name it anew.
+    let typed = |document: &Document<Note>| {
+        document
+            .text(ObjectId::ROOT, Note::BODY)
+            .expect("the note has a body")
+            .pos(3)
+    };
+    assert_eq!(typed(&merged), typed(&ours), "what ours typed keeps its identity");
 }

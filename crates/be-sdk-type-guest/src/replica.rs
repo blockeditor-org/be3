@@ -667,6 +667,8 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// may still be showing are kept (`prune_shown`); none after a replacement, which drops
     /// them.
     shown_before: BTreeMap<u64, C>,
+    /// Editors said to have fallen further behind than `shown_before` reaches, each once.
+    fell_behind: BTreeSet<EditorId>,
     projected: Settling<C>,
     landed: Vec<(Landed<C::Op>, Option<EditorId>)>,
     resnapshot: bool,
@@ -994,6 +996,7 @@ where
             reloads: 0,
             shown_reloads: BTreeMap::new(),
             shown_before: BTreeMap::new(),
+            fell_behind: BTreeSet::new(),
             landed: Vec::new(),
             resnapshot: false,
             described: false,
@@ -1850,6 +1853,7 @@ where
                 self.holding.remove(&editor);
                 self.snapshots_shown.remove(&editor);
                 self.shown_reloads.remove(&editor);
+                self.fell_behind.remove(&editor);
                 self.prune_shown();
                 self.lacking.unfollow(editor);
             }
@@ -2468,9 +2472,23 @@ where
                 self.take_heard_seal();
             }
 
-            // The head is made into what the order holds by a merge into it, unsealed work or
-            // none: loaded as it is, everything in it would be new, and what the order numbers
-            // after the reload (edits on their way here, and peers') would name nothing in it.
+            // Nothing could name what the replica holds (no editor shows it, no edit of its is
+            // on its way, no peer's could be): the order takes the head as it is, which spares
+            // the merge, a pass over the whole content.
+            Resume::FastForward { to }
+                if !unsealed
+                    && self.editors.is_empty()
+                    && self.pending.is_empty()
+                    && self.unsent.is_empty()
+                    && self.tentative.is_empty()
+                    && self.alone() =>
+            {
+                self.submit_reload(to, true, false, Vec::new(), None);
+            }
+            // Otherwise the head is made into what the order holds by a merge into it, unsealed
+            // work or none: loaded as it is, everything in it would be new, and what the order
+            // numbers after the reload (edits on their way here, and peers') would name nothing
+            // in it. The merge costs a pass over the content.
             Resume::FastForward { to } => {
                 self.read(vec![self.base, Some(to)], Then::FastForwardMerge { to });
             }
@@ -3842,6 +3860,7 @@ where
             }
             FromEditor::Shown { reloads } => {
                 self.shown_reloads.insert(editor, reloads);
+                self.fell_behind.remove(&editor);
                 self.prune_shown();
             }
             FromEditor::FollowLacking => self.lacking.follow(editor),
@@ -4775,8 +4794,27 @@ where
             .copied()
             .unwrap_or(self.reloads);
         self.shown_before.retain(|reloads, _| *reloads >= lowest);
+        let mut dropped = None;
         while self.shown_before.len() > SHOWN_BEFORE_KEPT {
-            self.shown_before.pop_first();
+            dropped = self.shown_before.pop_first().map(|(reloads, _)| reloads);
+        }
+        // An editor still showing what was let go for room: its late edits go as made. Said
+        // once.
+        let Some(dropped) = dropped else {
+            return;
+        };
+        let behind: Vec<EditorId> = self
+            .shown_reloads
+            .iter()
+            .filter(|(editor, shown)| **shown <= dropped && !self.fell_behind.contains(*editor))
+            .map(|(editor, _)| *editor)
+            .collect();
+        for editor in behind {
+            self.fell_behind.insert(editor);
+            self.error(format!(
+                "editor {editor} has not been shown the last {SHOWN_BEFORE_KEPT} reloads: what \
+                 it sends meanwhile is not carried over them"
+            ));
         }
     }
 

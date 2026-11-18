@@ -515,9 +515,14 @@ order: presence and channel messages. The rules an agent most needs:
   fast-forward too: loaded as it is, the head would hold none of the
   identities the edits on their way name), stashes its side when the merge
   conflicts, publishes the result and submits it as a head `Reload` carrying
-  the merge's session state, so every replica takes those identities and what
-  the order numbers after the merge lands on it; it seals nothing while that
-  reload is on its way. A replica made
+  the merge's session state (inline, or past `LARGEST_RELAYED_OPERATION` by
+  the part it is put as, which every replica reads first), so every replica
+  takes those identities and what the order numbers after the merge lands on
+  it, edits not yet submitted included: they rely on it, and need no carrying
+  of their own. It seals nothing while that reload is on its way; one the
+  server refuses is let go, and the merge made again on its timer. A
+  fast-forward merges too, a pass over the content, unless nothing could name
+  what the replica holds (no editor, nothing on its way, alone in the session). A replica made
   holder carries on from the last seal's head: nothing moves with the lease.
 - **The lease.** The host hands the replica the session's membership
   (`replica.lease`, applying each membership entry as it hears it, and joining

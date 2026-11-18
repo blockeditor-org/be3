@@ -147,7 +147,9 @@ How the model works:
   Texts, rich texts and series merge into ours: ours is spliced where the
   merge differs from it (be-block-model's `spliced`), so what both share keeps
   its identities in ours and an edit made on ours still lands on the merge,
-  which a replica's reload of a merge relies on (guides/type_modules.md).
+  which a replica's reload of a merge relies on (guides/type_modules.md). What
+  the merge inserts it names under a client derived from its sides, so two
+  merges made apart name theirs apart.
 - **Undo** (`Document::step`) records an undo and redo change per change, taken
   before the edit. Register undo is conditional (`Change::SetIf`,
   `Change::PutIf`), which is how undo leaves other people's edits alone; a
