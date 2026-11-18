@@ -343,6 +343,13 @@ runs be-server in the test's process on a directory of its own, and hosts join i
   sent, and everything it missed asked for. What another device changes arrives by push after
   that, so wait for it to show. Never pause for sync.
 - Each device is a host: keep a test to two unless it needs more.
+- `Server::player(name)` is an account with no device: a raw be-block-client peer in the test's
+  process (crates/be-host-tests/src/player.rs), as a hosted block's own client would be. It
+  opens a share link a device's dialog showed (`open_share_link`, then joining that
+  organization, as a guest if need be), joins the block's session as a Join member (`join`),
+  waits for the server to name a new host (`host_other_than`), and handshakes with the host,
+  saying a first message on the channel it opens (`handshake`). It is how a test plays a hosted
+  block from outside, as in `players_carry_on_with_the_next_host_once_the_first_closes_the_world`.
 
 Debugging:
 

@@ -95,6 +95,7 @@ mod going_back_from_the_add_pickers_location_page_draws_the_menu_and_its_card_in
 mod going_back_from_the_add_pickers_location_page_grows_the_menu_again;
 mod in_a_narrow_pane_a_deleted_block_puts_restore_below_its_notice;
 mod keep_hosting_outlives_the_editor_until_stop;
+mod players_carry_on_with_the_next_host_once_the_first_closes_the_world;
 mod killing_the_desktop_shell_shows_the_session_picker;
 mod leaving_a_workspace_someone_shared_asks_first;
 mod more_blocks_from_the_add_menu_in_space_opens_the_search;
@@ -225,6 +226,23 @@ fn open_beui_demo(host: &mut HostTest) {
     host.wait("Tab \"Docking\"");
     host.gone("#editor.loading");
     host.run(&["settle"]);
+}
+
+const MORE: &str = "#dock.editors.menu";
+const KEEP_HOSTING: &str = "#dock.editors.menu.editor.keep-hosting";
+const DETAILS: &str = "#dock.editors.menu.editor.details";
+
+/// Waits until the open counter's More menu offers Keep hosting (`hosting`), which it does only
+/// while this device hosts the counter, or until it shows the menu without it.
+fn hosts(host: &mut HostTest, hosting: bool) {
+    host.click(MORE);
+    host.wait(DETAILS);
+    match hosting {
+        true => host.wait(KEEP_HOSTING),
+        false => host.gone(KEEP_HOSTING),
+    }
+    host.key("Escape");
+    host.gone(DETAILS);
 }
 
 fn open_add_to_my_files(host: &mut HostTest) {

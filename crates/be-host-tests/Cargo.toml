@@ -5,12 +5,16 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+be-block-client = { path = "../be-block-client" }
 be-block-commit = { path = "../be-block-commit" }
+be-block-keys = { path = "../be-block-keys" }
+be-block-protocol = { path = "../be-block-protocol" }
+be-block-store = { path = "../be-block-store" }
 beui-core = { path = "../beui-core" }
 be-block-fault-relay = { path = "../be-block-fault-relay" }
 be-block-sqlite-schema = { path = "../be-block-sqlite-schema" }
 be-server = { path = "../be-server" }
-tokio = { version = "1", features = ["rt-multi-thread"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
 uuid = { version = "1", features = ["v4"] }
 be-tool-drive = { path = "../be-tool-drive" }
 beui-layer-drive = { path = "../beui-layer-drive" }
