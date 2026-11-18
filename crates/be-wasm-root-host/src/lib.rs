@@ -26,7 +26,7 @@ use std::time::{Duration, Instant};
 
 use be_wasm_guest_host::STEP_TIMEOUT;
 use be_wasm_ops::{Connection, Incoming, OpError, OpId, Outcome, Reply, Side, Ticket};
-use be_wasm_root_api::{FrameDone, FrameRequest, embed};
+use be_wasm_root_api::{FrameDone, FrameRequest, embed, host::Notice, host::ShownNotices};
 use be_wasm_sandbox_host::Server;
 pub use be_wasm_sandbox_host::{Loader, Staged};
 
@@ -95,6 +95,12 @@ struct Core<G> {
     painting: Option<Ticket<Vec<u8>, be_wasm_ops::wire::Bytes>>,
     /// What the root answered it painted, until the host takes it.
     painted: Option<Vec<u8>>,
+    /// The host's notices, which `host.notices` answers: the generation counts each change.
+    notices: ShownNotices,
+    /// The root's `host.notices` calls waiting for the notices to change from those it saw.
+    watching: Vec<Reply<ShownNotices>>,
+    /// How the root answered notices (`host.answer-notice`), until the host takes them.
+    answers: Vec<(u64, Option<String>)>,
 }
 
 impl<G: Inline> Core<G> {
@@ -112,6 +118,12 @@ impl<G: Inline> Core<G> {
             fonts: Vec::new(),
             painting: None,
             painted: None,
+            notices: ShownNotices {
+                generation: 1,
+                shown: Vec::new(),
+            },
+            watching: Vec::new(),
+            answers: Vec::new(),
         };
         core.received()?;
         Ok(core)
@@ -149,6 +161,31 @@ impl<G: Inline> Core<G> {
     /// What the root answered `ask_paintings` with, once it did.
     fn take_paintings(&mut self) -> Option<Vec<u8>> {
         self.painted.take()
+    }
+
+    /// Shows the person `shown`, the host's notices, oldest first, in place of those shown
+    /// before: the root's `host.notices` calls waiting for a change answer, which its next
+    /// step hears. Answers whether any did, so the host steps the root for them.
+    fn show_notices(&mut self, shown: Vec<Notice>) -> bool {
+        if shown == self.notices.shown {
+            return false;
+        }
+        self.notices = ShownNotices {
+            generation: self.notices.generation + 1,
+            shown,
+        };
+        let watching = std::mem::take(&mut self.watching);
+        let answered = !watching.is_empty();
+        for reply in watching {
+            reply.send(&mut self.connection, &self.notices);
+        }
+        answered
+    }
+
+    /// How the root answered the host's notices since the last call, in order: each notice's
+    /// id and the key of the action the person chose, or none where they dismissed it.
+    fn take_answers(&mut self) -> Vec<(u64, Option<String>)> {
+        std::mem::take(&mut self.answers)
     }
 
     /// Asks the root for a frame for `request`, drawn by `deadline`, or says why the root drew
@@ -281,10 +318,17 @@ impl<G: Inline> Core<G> {
                     }
                 }
                 Incoming::Canceled { op } => {
-                    if !self.sandbox.canceled(op, &mut self.connection)
-                        && let Some(at) = self.deadlines.iter().position(|reply| reply.op() == op)
-                    {
+                    if self.sandbox.canceled(op, &mut self.connection) {
+                        continue;
+                    }
+                    if let Some(at) = self.deadlines.iter().position(|reply| reply.op() == op) {
                         self.deadlines
+                            .remove(at)
+                            .fail(&mut self.connection, OpError::Canceled);
+                    } else if let Some(at) =
+                        self.watching.iter().position(|reply| reply.op() == op)
+                    {
+                        self.watching
                             .remove(at)
                             .fail(&mut self.connection, OpError::Canceled);
                     }
@@ -321,6 +365,16 @@ impl<G: Inline> Core<G> {
             },
             embed::Call::Host(embed::host::Call::Fonts { reply }) => {
                 reply.send(&mut self.connection, &self.fonts);
+            }
+            embed::Call::Host(embed::host::Call::Notices { seen, reply }) => {
+                match seen == self.notices.generation {
+                    true => self.watching.push(reply),
+                    false => reply.send(&mut self.connection, &self.notices),
+                }
+            }
+            embed::Call::Host(embed::host::Call::AnswerNotice { id, action, reply }) => {
+                self.answers.push((id, action));
+                reply.send(&mut self.connection, &());
             }
         }
     }

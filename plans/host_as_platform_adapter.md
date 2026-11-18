@@ -882,10 +882,10 @@ Each step lands on its own.
        `a_root_in_place_of_the_hosts_ui_shows_the_editor_it_embeds` reads the text's pixels and
        snapshots the painting.
        Left for later, and what it changes for 4g3 onward:
-       - The apps a root embeds are still told no fonts (`Run::tell`): `Embedding` can tell them
-         the faces `host.fonts` gave. Missing characters (an app's `MissingCharacters`, and a
-         `BeuiSurface`'s own) have no host call yet: a `host.fallbacks(characters)` would answer
-         from the system's fonts, as be-host-runtime's `Fallbacks` does.
+       - Missing characters (an app's `MissingCharacters`, and a `BeuiSurface`'s own) have no
+         host call yet: a `host.fallbacks(characters)` would answer from the system's fonts, as
+         be-host-runtime's `Fallbacks` does. (The apps a root embeds are told the faces
+         `host.fonts` gave since 4g3.)
        - `drive paint` leaves out the app screens a root embeds: their paintings come through the
          root (Other moves, Paintings), which needs `Embedded` to ask its apps for theirs.
        - `drive tree`, `find` and pressing by name do not reach the root's beui document: its
@@ -898,8 +898,46 @@ Each step lands on its own.
        - On the web, a linked root needs the page to link its libraries on the main thread with
          `dylink.js` and `wasi.js`, which only an app's worker does today; no page runs a root
          yet.
-     - 4g3. Toasts: shown over everything, on a layer of the root's own that is hit only where
-       a toast is and never focuses; they need nothing from the block stack.
+     - 4g3. Built: toasts, shown over everything, on a layer of the root's own that is hit only
+       where a toast is and never focuses; they need nothing from the block stack. What they
+       show is the host's own notices (be-host-base's `notices`: what of its own failed, or why
+       it refused something), which `be3:root` carries as data, nothing beui's: `host.notices`
+       is a watch, answering the notices (each its id, message, whether it says something
+       failed, and its actions' keys and labels) once they differ from the generation the root
+       saw, so the root hears each change rather than asking again; `host.answer-notice` hands
+       back what the person chose, an action's key or none to dismiss it, which the host does,
+       since copying a report and opening a link are the platform's (be-wasm-root-host's
+       `Root::show_notices` and `take_answers`). be-host's `--root` hands the root
+       be-host-base's notices each frame (a notice shown wakes the window, through the host's
+       waker it now installs) and dismisses, copies or opens what the root answers; the keys and
+       labels are be-host-base's (`Notice::actions`, `COPY_REPORT`, `OPEN_LINK`), which
+       be-host's own UI reads too. be-sdk-beui-root's `BeuiSurface` gained `overlay_area`,
+       where its document's overlays take the pointer (beui's `Document::overlay_rects`), in
+       the surface's pixels: as a layer's hit area, a document showing only overlays over a
+       clear window is hit there alone; and `enter`, which sets the signals a document reads
+       from outside. be-sdk-root-testing draws its host's notices as styled `Toasts` at the top
+       right of a surface of its own (`TOAST_SURFACE`), listed as `TOAST_LAYER` over
+       everything only while one shows, with `overlay_area` as its hit area and
+       `focuses: false`; a toast dismissed, or gone when its time is up, it answers with no
+       action. be-wasm-root-host's
+       `a_root_shows_its_hosts_notices_as_toasts_hit_only_where_they_are` shows a failure with
+       a report and a refusal, checks the layer is on top, hit at the toasts and not past them,
+       and never focuses, snapshots the toasts, and sees the refusal answered as dismissed once
+       its time is up while the failure stays.
+       With it, of 4g2's leftovers: the apps a root embeds are told the fonts `host.fonts` gave
+       (`Spawn::fonts`, told once the app runs, with UTC as the offset since the root has no
+       offset from its host yet).
+       Left for later:
+       - No host test shows a notice under `--root`: nothing under it reports one yet, since
+         it runs none of the host's core. A notice's account (one the server keeps, which
+         dismissing dismisses on every device) is not dismissed on the server under `--root`,
+         which signs in no account.
+       - The slow save's toast is the block stack's (saving, 4g6), and the desktop's
+         notification toasts are the desktop app's own.
+       - `drive tree`, `find` and pressing by name still do not reach the root's documents, so
+         a toast's live region reaches no screen reader under `--root`, and tests press it only
+         by position; and `drive paint` still leaves out the app screens a root embeds. Both
+         need `be3:root` to carry the root's accessibility tree and its apps' paintings.
      - 4g4. Dialogs: a scrim layer that `captures` presses and dismisses, the dialog's layer
        above it, Escape among the chords the root intercepts while one is open, and the
        platform's own dialogs (files) still the host's.

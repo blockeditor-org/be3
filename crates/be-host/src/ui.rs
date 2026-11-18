@@ -32,28 +32,22 @@ thread_local! {
     static COMMANDS: RefCell<Vec<UiCommand>> = const { RefCell::new(Vec::new()) };
 }
 
-const COPY_REPORT: &str = "copy-report";
-const OPEN_LINK: &str = "open-link";
-
 pub(crate) fn notice_toasts() -> Vec<Toast> {
     be_host_base::notices::shown()
         .into_iter()
-        .map(|notice| {
-            let report = notice.report.iter().map(|_| ToastAction {
-                key: COPY_REPORT.to_owned(),
-                label: "Copy report".to_owned(),
-            });
-            let link = notice.link.iter().map(|_| ToastAction {
-                key: OPEN_LINK.to_owned(),
-                label: "Open".to_owned(),
-            });
-            Toast {
-                id: notice.id,
-                message: notice.message,
-                danger: notice.link.is_none() && !notice.refusal,
-                actions: report.chain(link).collect(),
-                ..Toast::default()
-            }
+        .map(|notice| Toast {
+            id: notice.id,
+            danger: notice.failure(),
+            actions: notice
+                .actions()
+                .into_iter()
+                .map(|(key, label)| ToastAction {
+                    key: key.to_owned(),
+                    label: label.to_owned(),
+                })
+                .collect(),
+            message: notice.message,
+            ..Toast::default()
         })
         .collect()
 }
@@ -713,12 +707,12 @@ fn DisplayChrome(view: HostUiStore, area: NodeRef, primary: bool) -> NodeId {
                     id => send(UiCommand::DismissToast(id)),
                 }}
                 on_action={move |(id, key): (u64, String)| {
-                    if key == COPY_REPORT
+                    if key == be_host_base::notices::COPY_REPORT
                         && let Some(report) = be_host_base::notices::report_of(id)
                     {
                         copy(Clip::text(report));
                     }
-                    if key == OPEN_LINK
+                    if key == be_host_base::notices::OPEN_LINK
                         && let Some(link) = be_host_base::notices::link_of(id)
                     {
                         if let Err(error) = be_host_base::platform::open_link(&link) {

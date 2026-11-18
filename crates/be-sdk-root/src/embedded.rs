@@ -15,14 +15,14 @@ use be_lib_layers::{Affine, Layer, LayerId, LayerInput, Surface};
 use be_lib_stable_hash::HashMap;
 use be_lib_ui_types::input::{Input, PenPhase, TouchPhase};
 use be_sdk_api::{
-    ImeArea, InputBatch, Opening, Preferences, ScreenId, ScreenPlacement, ScreenRequest,
+    Fonts, ImeArea, InputBatch, Opening, Preferences, ScreenId, ScreenPlacement, ScreenRequest,
     SurfaceSpec, TimedInput, WindowRequests, embed::shell::Call as ShellCall,
 };
 use be_sdk_app_host::{
     calls::{AppCall, Heard, Outbound},
     holds::Held,
     pacing::{Ask, Asking, FRAME_TIMEOUT, Pacing},
-    run::Run,
+    run::{Run, Telling},
     session::{Session, SessionFailure, SessionState},
     wire::Wire,
 };
@@ -49,6 +49,9 @@ pub struct Spawn {
     pub screens: Vec<ScreenRequest>,
     /// The surface the app draws to, granted if its hello asks for one.
     pub surface: SurfaceSpec,
+    /// The fonts the app is told once it runs, which it draws its text in: those its root's
+    /// host bundles (`be3:root`'s `host.fonts`), shared by every app the root spawns.
+    pub fonts: Rc<Fonts>,
 }
 
 /// An app the root spawned and runs as its host. Clones are the same app. It stops when the
@@ -66,6 +69,8 @@ struct State {
     /// The app's run: its session, pacing, holds and layout. The root holds no answers for a
     /// later poll, so its holds keep only layouts.
     run: Run<()>,
+    /// The fonts it is told once it runs.
+    fonts: Rc<Fonts>,
     /// The frame clock's time, as the last frame was asked for.
     now: Duration,
     /// The root's frames so far, the pass the app's pacing counts.
@@ -137,6 +142,7 @@ impl Embedded {
             instance: Rc::clone(&instance),
             wire: Wire::default(),
             run,
+            fonts: spawn.fonts,
             now,
             pass: 0,
             painted: HashMap::default(),
@@ -419,6 +425,7 @@ impl State {
                 self.wire.accept(&accepted);
                 let queued = self.run.deliverable();
                 self.wire.send(queued);
+                self.tell();
             }
             Heard::Layout(layout) => {
                 let layout = self.run.place(layout, |_| false);
@@ -485,6 +492,25 @@ impl State {
             | Heard::Debug(..)
             | Heard::Published(..) => {}
         }
+    }
+
+    /// Tells the app what it has yet to hear of what every app is told once it runs: the fonts
+    /// its root's host bundles. The root asks its apps to describe nothing, keeps the
+    /// preferences it said hello with, and has no UTC offset from its host yet, so it tells
+    /// UTC.
+    fn tell(&mut self) {
+        let fonts = Rc::clone(&self.fonts);
+        let telling = Telling {
+            fonts: || (*fonts).clone(),
+            describing: false,
+            preferences: self.run.preferences(),
+            utc_offset: 0,
+        };
+        let told = self.run.tell(telling);
+        let send = self
+            .run
+            .send_for_frame(told.into_iter().map(Into::into).collect(), Some);
+        self.wire.send(send);
     }
 
     /// Notes a session that failed, as one that timed out starting does.

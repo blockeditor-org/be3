@@ -10,7 +10,8 @@ cargo_library()
 # EMBEDDING_ROOT_WASM is a root built on be-sdk-root, which spawns the
 # triangle (TRIANGLE_WASM, linked against BASE_LIBRARY_WASM) and shows its
 # editor's screen, and draws its own surface with beui: it is linked against
-# BASE_LIBRARY_WASM and BEUI_LIBRARY_WASM, as an editor is.
+# BASE_LIBRARY_WASM and BEUI_LIBRARY_WASM, as an editor is. Its toasts are
+# compared with the painting in snapshots/.
 cargo_test(
     env = {
         "BASE_LIBRARY_WASM": "$(location //crates/be-sdk-library-base:module)",
@@ -19,5 +20,6 @@ cargo_test(
         "GUEST_ECHO_APP_WASM": "$(location //crates/be-wasm-guest-echo:app)",
         "ROOT_GUEST_WASM": "$(location //crates/be-wasm-root-testing:module)",
         "TRIANGLE_WASM": "$(location //crates/be-app-example-triangle:module)",
-    }
+    },
+    paints = True,
 )

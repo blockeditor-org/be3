@@ -9,6 +9,10 @@
 //! Its own surface (`ROOT_SURFACE`) it fills with `ROOT_COLOR` through `be3:gpu`; over it, the
 //! strip `TEXT_SURFACE` it draws with beui (be-sdk-beui-root): `TEXT` in the host's fonts, and
 //! `LATER_TEXT` in its place from `LATER` on.
+//! It tells the app the fonts its host gave. Over everything it shows its host's notices (`be3:root`'s `host.notices`) as toasts, drawn
+//! with beui on `TOAST_SURFACE` at the window's top right and shown by `TOAST_LAYER` while any
+//! show, hit only where they are and never taking the focus; what the person answers it tells
+//! its host (`answer-notice`).
 //! A frame at `CLOSES` lets go of the app, which stops it. The window's input is routed by the
 //! library over the layers it drew last; what lands on `TEXT_SURFACE` its beui document hears,
 //! and what lands on its own surface beside the strip nothing does.
@@ -93,6 +97,17 @@ pub const LATER: std::time::Duration = std::time::Duration::from_secs(60 * 60);
 
 /// What `TEXT_SURFACE` shows from `LATER` on.
 pub const LATER_TEXT: &str = "The root draws this line with beui, and redraws it on time";
+
+/// The layer showing `TOAST_SURFACE`, over everything else, while a toast shows.
+pub const TOAST_LAYER: LayerId = LayerId(3);
+
+/// A surface of the root's own that beui draws its host's notices on, as toasts at its top
+/// right: clear but for them.
+pub const TOAST_SURFACE: u32 = 4;
+
+/// `TOAST_SURFACE`'s size, a pixel to a point, at the window's top left: as tall as the root's
+/// surface, and wider, so a toast and its margins fit.
+pub const TOAST_AREA: (u32, u32) = (480, 240);
 
 #[cfg(target_arch = "wasm32")]
 mod guest;

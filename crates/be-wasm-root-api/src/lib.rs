@@ -13,3 +13,4 @@ be_wasm_ops_bindgen::generate!({
 });
 
 pub use frames::{FrameDone, FrameRequest};
+pub use host::{Notice, NoticeAction, ShownNotices};

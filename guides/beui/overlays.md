@@ -293,7 +293,12 @@ Code that places its own body uses the parts (`DialogCard`, `DialogBody`, a
 
 `unstyled::Toasts` is a `Pass` overlay at an `Inside*` edge with a live region;
 `styled::Toasts` takes any anchor, so the desktop stacks toasts in a display's
-corner above its bar, at `LayerLevel::Top`. `unstyled::Floating` pins a child
+corner above its bar, at `LayerLevel::Top`. A root guest shows the host's
+notices as toasts on a surface of its own over everything, anchored to a
+rectangle (`OverlayAnchor::Rect`), whose layer is hit only where the
+document's overlays are (`Document::overlay_rects`, through be-sdk-beui-root's
+`BeuiSurface::overlay_area`; guides/apps/runtime.md, Apps in a root).
+`unstyled::Floating` pins a child
 to the top or bottom edge of another node, taking no space (`styled::Tree`'s
 reveal button).
 

@@ -1,7 +1,7 @@
 //! The root itself, built for the apps' platform alone.
 
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     future::Future,
     pin::{Pin, pin},
     rc::Rc,
@@ -10,9 +10,9 @@ use std::{
 };
 
 use be_lib_geometry::pos2;
-use be_lib_layers::{LayerList, Surface, WindowLayers};
+use be_lib_layers::{Area, LayerInput, LayerList, Surface, WindowLayers};
 use be_sdk_api::{
-    EditorInstanceId, OpenBlock, Opening, OpeningKind, ParentView, Pos2 as ViewPos2, ScreenRequest,
+    EditorInstanceId, Fonts, OpenBlock, Opening, OpeningKind, ParentView, Pos2 as ViewPos2, ScreenRequest,
     SurfaceFormat, SurfaceSpec, Vec2 as ViewVec2, ViewId, ViewPlacement, ViewportMetrics,
 };
 use be_sdk_beui_root::{BeuiRoot, BeuiSurface};
@@ -20,7 +20,7 @@ use be_sdk_root::{Delivery, Embedded, Embedding, OwnSurface, Spawn};
 use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_root_api::{
-    FrameDone, FrameRequest,
+    FrameDone, FrameRequest, Notice,
     guest::{
         exports::{frames, input, paintings},
         host,
@@ -29,12 +29,12 @@ use be_wasm_root_api::{
 use beui::native::painting::{Frame as PaintFrame, Painting, ScreenPaintings};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Align2, NodeId};
+use beui::{Align2, NodeId, Pos2, Rect, vec2};
 
 use crate::{
     APP, APP_ENTRY, CLOSES, LATE_LAYER, LATER, LATER_TEXT, ORIGIN, RASTER, RESIZED, RESIZES,
     ROOT_COLOR, ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE, SIZE, TEXT, TEXT_LAYER, TEXT_STRIP,
-    TEXT_SURFACE, UNPRESENTED_SURFACE,
+    TEXT_SURFACE, TOAST_AREA, TOAST_LAYER, TOAST_SURFACE, UNPRESENTED_SURFACE,
 };
 
 /// The triangle's editor, by its manifest's id.
@@ -51,12 +51,18 @@ const BLOCK_TYPE: [u8; 16] = [
 struct Root {
     embedding: Rc<RefCell<Embedding>>,
     app: Rc<RefCell<Option<Embedded>>>,
+    /// The fonts its host gave, which it tells the app it spawns, had on its first frame.
+    fonts: Rc<RefCell<Option<Rc<Fonts>>>>,
     /// What its surfaces drawn with beui share, made on its first frame.
     beui: Rc<RefCell<Option<BeuiRoot>>>,
     /// Its own surface, filled with `ROOT_COLOR` on its first frame.
     own: Rc<RefCell<Option<OwnSurface>>>,
     /// The strip of text over it, which beui draws, made on its first frame.
     text: Rc<RefCell<Option<BeuiSurface>>>,
+    /// Its host's notices as toasts, which beui draws, made on its first frame.
+    toasts: Rc<RefCell<Option<BeuiSurface>>>,
+    /// The toasts that document shows, which the host's notices set.
+    shown: Rc<Cell<Option<Signal<Vec<Toast>>>>>,
     /// The surface a `RESIZES` frame configures and never presents.
     unpresented: Rc<RefCell<Option<OwnSurface>>>,
     /// Wakes the root, and so its host, for a frame its beui document wants.
@@ -68,9 +74,12 @@ impl Root {
         Self {
             embedding: Rc::new(RefCell::new(Embedding::new(ROOT_LAYER))),
             app: Rc::default(),
+            fonts: Rc::default(),
             beui: Rc::default(),
             own: Rc::default(),
             text: Rc::default(),
+            toasts: Rc::default(),
+            shown: Rc::default(),
             unpresented: Rc::default(),
             waker,
         }
@@ -89,6 +98,8 @@ impl Root {
             .await
             .map_err(|error| format!("the host gave no fonts: {error:?}"))?;
         let beui = BeuiRoot::new(&fonts, time, wall_clock)?;
+        let fonts: Fonts = be_wasm_ops::decode(&fonts).ok_or("the host's fonts cannot be read")?;
+        *self.fonts.borrow_mut() = Some(Rc::new(fonts));
         let waker = self.waker.clone();
         let text = BeuiSurface::new(
             &beui,
@@ -103,10 +114,44 @@ impl Root {
                 }
             },
         )?;
+        let waker = self.waker.clone();
+        let shown = Rc::clone(&self.shown);
+        let toasts = BeuiSurface::new(
+            &beui,
+            OwnSurface::new(TOAST_SURFACE, TOAST_AREA),
+            1.0,
+            move || waker.wake(),
+            move || {
+                let toasts = create_signal(Vec::<Toast>::new());
+                shown.set(Some(toasts));
+                view! {
+                    <Root clear_color=ColorRole::None>
+                        <Notices toasts={toasts} />
+                    </Root>
+                }
+            },
+        )?;
         *self.own.borrow_mut() = Some(own);
         *self.beui.borrow_mut() = Some(beui);
         *self.text.borrow_mut() = Some(text);
+        *self.toasts.borrow_mut() = Some(toasts);
+        be_wasm_ops::guest::spawn(self.clone().hear_notices());
         Ok(())
+    }
+
+    /// Shows its host's notices as toasts as each change of them comes, until the host stops
+    /// answering.
+    async fn hear_notices(self) {
+        let mut seen = 0;
+        while let Ok(notices) = host::notices(seen).await {
+            seen = notices.generation;
+            let toasts: Vec<Toast> = notices.shown.into_iter().map(toast).collect();
+            if let (Some(surface), Some(shown)) =
+                (&mut *self.toasts.borrow_mut(), self.shown.get())
+            {
+                surface.enter(|| shown.set(toasts));
+            }
+        }
     }
 
     /// The triangle, spawned the first time.
@@ -123,6 +168,7 @@ impl Root {
                         format: SurfaceFormat::Rgba8Unorm,
                         render: true,
                     },
+                    fonts: self.fonts.borrow().clone().unwrap_or_default(),
                 },
                 now,
             );
@@ -132,11 +178,63 @@ impl Root {
         app.clone()
     }
 
-    /// Hands its beui document what landed on its strip of text.
+    /// Hands its beui documents what landed on their surfaces: its strip of text and its
+    /// toasts.
     fn heard(&self, own: &[Delivery]) {
         if let Some(text) = &mut *self.text.borrow_mut() {
             text.input(own);
         }
+        if let Some(toasts) = &mut *self.toasts.borrow_mut() {
+            toasts.input(own);
+        }
+    }
+}
+
+/// A notice of its host's as a toast: one that says something failed is an alert, which stays
+/// until it is answered.
+fn toast(notice: Notice) -> Toast {
+    Toast {
+        id: notice.id,
+        message: notice.message,
+        danger: notice.failure,
+        actions: notice
+            .actions
+            .into_iter()
+            .map(|action| ToastAction {
+                key: action.key,
+                label: action.label,
+            })
+            .collect(),
+        ..Toast::default()
+    }
+}
+
+/// Tells its host how the person answered its notice `id`: with the key of one of its
+/// actions, or none to dismiss it.
+fn answer(id: u64, action: Option<String>) {
+    be_wasm_ops::guest::spawn(async move {
+        // A host that cannot hear it has stopped, which the root hears from its frames.
+        let _ = host::answer_notice(id, action).await;
+    });
+}
+
+/// Its host's notices as toasts at the top right of its surface, each gone at once from here
+/// when dismissed, as its host lets go of it.
+#[component]
+fn Notices(toasts: Signal<Vec<Toast>>) -> NodeId {
+    let (width, height) = TOAST_AREA;
+    let area = Rect::from_min_size(Pos2::ZERO, vec2(width as f32, height as f32));
+    view! {
+        <Toasts
+            anchor={OverlayAnchor::Rect(area)}
+            edge=Edge::TopEnd
+            toasts={toasts}
+            on_dismiss={move |id: u64| {
+                toasts.update(|toasts| toasts.retain(|toast| toast.id != id));
+                answer(id, None);
+            }}
+            on_action={move |(id, key): (u64, String)| answer(id, Some(key))}
+        />
     }
 }
 
@@ -189,6 +287,9 @@ impl frames::Guest for Root {
                 .as_ref()
                 .map(|text| text.layer(TEXT_LAYER, pos2(0.0, 0.0)))
                 .expect("the root made its strip of text");
+            if let Some(toasts) = &mut *root.toasts.borrow_mut() {
+                toasts.frame().expect("the root draws its toasts with beui");
+            }
             let mut layers = vec![own.clone(), text];
             if request.time == CLOSES {
                 if let Some(app) = root.app.borrow_mut().take() {
@@ -207,6 +308,19 @@ impl frames::Guest for Root {
                     layers.push(marker);
                 }
             }
+            // Over everything, while a toast shows: hit only where one is, and never taking the
+            // focus from what the person works in.
+            if let Some(toasts) = &*root.toasts.borrow()
+                && let hit @ Area::Region(_) = toasts.overlay_area()
+            {
+                let mut layer = toasts.layer(TOAST_LAYER, pos2(0.0, 0.0));
+                layer.input = LayerInput {
+                    hit,
+                    focuses: false,
+                    ..LayerInput::default()
+                };
+                layers.push(layer);
+            }
             let list = LayerList {
                 windows: vec![WindowLayers {
                     window: None,
@@ -218,12 +332,11 @@ impl frames::Guest for Root {
             let drawn = embedding.drew(list);
             root.heard(&drawn.own);
             let requests = embedding.requests(None);
-            // Its document wants a frame at once (it heard input or was woken) or later.
-            let document = root.text.borrow().as_ref().and_then(BeuiSurface::next);
-            let next = match (wants.next, document) {
-                (Some(left), Some(right)) => Some(left.min(right)),
-                (left, right) => left.or(right),
-            };
+            // Its documents want a frame at once (one heard input or was woken) or later.
+            let documents = [&root.text, &root.toasts]
+                .into_iter()
+                .filter_map(|surface| surface.borrow().as_ref().and_then(BeuiSurface::next));
+            let next = wants.next.into_iter().chain(documents).min();
             FrameDone {
                 layers: drawn.layers,
                 next: next.map(|at| u64::try_from(at.as_nanos()).unwrap_or(u64::MAX)),
@@ -250,7 +363,8 @@ impl input::Guest for Root {
 }
 
 impl paintings::Guest for Root {
-    /// Its own surface's painting, all `ROOT_COLOR`, and what beui painted of its strip. After a
+    /// Its own surface's painting, all `ROOT_COLOR`, and what beui painted of its strip and its
+    /// toasts. After a
     /// `RESIZES` frame the painting has the surface's new size while the host still shows the
     /// first fill at the old one: the root never presents it again, which is what that frame
     /// tests (the host keeps a surface's last frame until it is presented anew).
@@ -268,13 +382,17 @@ impl paintings::Guest for Root {
             };
             (u64::from(own.id()), painting)
         });
-        let text = self
-            .text
+        let painted = |surface: &BeuiSurface| Some((u64::from(surface.id()), surface.painting()?));
+        let text = self.text.borrow().as_ref().and_then(painted);
+        // Its toasts only while one shows, as its layer list shows them.
+        let toasts = self
+            .toasts
             .borrow()
             .as_ref()
-            .and_then(|text| Some((u64::from(text.id()), text.painting()?)));
+            .filter(|toasts| toasts.overlay_area() != Area::Nowhere)
+            .and_then(painted);
         let painted = ScreenPaintings {
-            screens: own.into_iter().chain(text).collect(),
+            screens: own.into_iter().chain(text).chain(toasts).collect(),
             overflows: Vec::new(),
         };
         Box::pin(async move { painted.encode() })
