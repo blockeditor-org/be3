@@ -1,10 +1,10 @@
 use super::*;
-use be_type_example_counter::CounterContent;
 use be_sdk_api::{
     AccessLevel,
     embed::host_services::Call,
     ops::{OpError, Outcome},
 };
+use be_type_example_counter::CounterContent;
 
 /// An app grants or reveals access only if its manifest sets `sharing`: it cannot share the
 /// block it shows, open it to anyone inside or close it, read who has it, or make or read its
