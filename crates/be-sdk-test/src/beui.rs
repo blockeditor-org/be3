@@ -916,6 +916,13 @@ impl<A: BeuiRoot + AppEditor> BeuiTest<A> {
         self.run();
     }
 
+    /// Tells the editor whether this device hosts its block, as be-host does
+    /// (`editor-event.hosting`).
+    pub fn set_hosting(&mut self, hosting: be_sdk_api::blocks::HostingHere) {
+        self.tell(vec![EditorEvent::Hosting(hosting)]);
+        self.run();
+    }
+
     /// Tells the editor its embed was resized to `size`, as the host does when a person
     /// resizes the embed in the block that holds it (`Editor::resized`). The window keeps
     /// its size, which `set_size` changes.

@@ -322,6 +322,9 @@ impl OpenEditor {
             EditorEvent::Channel(event) => {
                 wire.call(instance, move |session| session.channel(event));
             }
+            EditorEvent::Hosting(hosting) => {
+                wire.call(instance, move |session| session.set_hosting(hosting));
+            }
         }
     }
 }

@@ -277,6 +277,18 @@ fn handshake(
             };
             joined.state = State::Handshaking(Box::new(joining));
         }
+        // A message of the channel before still on its way goes first: sent after it, the
+        // handshake reaches the host after it, as the host expects.
+        loop {
+            let held = lock(&shared);
+            match held.joining.current(block, attempt) {
+                None => return,
+                Some(joined) if !joined.sending => break,
+                Some(_) => {}
+            }
+            drop(held);
+            peer.connection().clock().sleep(SLOWED / 5).await;
+        }
         loop {
             match peer
                 .connection()
