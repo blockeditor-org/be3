@@ -75,8 +75,7 @@ struct Drawing {
 }
 
 /// The answer to the root's `host.paste`: a clip item in be-wasm-ops' encoding, or none.
-type PasteReply =
-    Reply<Option<Vec<u8>>, be_wasm_ops::wire::Optional<be_wasm_ops::wire::Bytes>>;
+type PasteReply = Reply<Option<Vec<u8>>, be_wasm_ops::wire::Optional<be_wasm_ops::wire::Bytes>>;
 
 /// The stepping both platforms share: the root, its connection, its sandbox and the frame it
 /// draws.
