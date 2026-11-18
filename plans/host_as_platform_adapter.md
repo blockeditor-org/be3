@@ -773,8 +773,13 @@ Each step lands on its own.
        `a_root_in_place_of_the_hosts_ui_hands_its_editor_keys_presses_and_touches` presses,
        types and taps on the triangle's screen, which tints itself by the input it heard
        (`Heard::tint`), and beui-host's
-       `a_program_takes_the_platforms_input_before_its_document_hears_it` tests the hook. The
-       IME area is not yet shown by a test: no app a root embeds edits text before step 5.
+       `a_program_takes_the_platforms_input_before_its_document_hears_it` tests the hook;
+       be-sdk-root tests the IME area's mapping (`ime_in_window`) and the focus, but no test
+       shows an app's field reaching the window, since no app a root embeds edits text before
+       step 5. Left for later: input the root takes carries no timestamps, and its moves are
+       merged per frame, since the root cannot yet ask for every sample as a beui
+       `Interactive` does (`WindowRequests::every_sample`), which a pen stroke in an embedded
+       canvas needs.
      - 4f2. The `HitTest` moves from beui's catchers to the last committed `WindowLayers` for
        the host's own UI. `AppView`, anchored views, scrims and popups declare each layer's
        `LayerInput` (hit and gesture areas, `captures`, `focuses`, `placer`), the host's UI its

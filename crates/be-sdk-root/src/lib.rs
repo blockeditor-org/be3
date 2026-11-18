@@ -28,7 +28,8 @@ mod windows;
 pub use embedded::{Embedded, Spawn, Wants};
 pub use windows::{Delivery, Windows};
 
-use be_lib_layers::{LayerId, LayerList, Surface};
+use be_lib_geometry::{Rect, pos2};
+use be_lib_layers::{Layer, LayerId, LayerList, Surface};
 use be_lib_ui_types::{ImeArea, input};
 
 /// The apps a root embeds and the routing of its windows' input to them.
@@ -97,12 +98,8 @@ impl Embedding {
             return None;
         };
         let app = self.apps.iter().find(|app| app.instance() == instance)?;
-        let area = app.ime(surface)?;
-        Some(ImeArea {
-            rect: layer.to_window(area.rect),
-            cursor: layer.to_window(area.cursor),
-            ..area
-        })
+        let (area, raster) = app.ime(surface)?;
+        Some(ime_in_window(area, raster, layer))
     }
 
     /// Takes `list` as the layers drawn last, which input is routed by from now on, and answers
@@ -134,6 +131,22 @@ impl Embedding {
     }
 }
 
+/// `area`, an input method's area in a screen's points, in the window's points: the screen's
+/// surface is painted at `raster` pixels per point and shown by `layer`.
+pub fn ime_in_window(area: ImeArea, raster: f32, layer: &Layer) -> ImeArea {
+    let pixels = |rect: Rect| {
+        layer.to_window(Rect::from_min_max(
+            pos2(rect.min.x * raster, rect.min.y * raster),
+            pos2(rect.max.x * raster, rect.max.y * raster),
+        ))
+    };
+    ImeArea {
+        rect: pixels(area.rect),
+        cursor: pixels(area.cursor),
+        ..area
+    }
+}
+
 /// A frame the root drew, as `Embedding::drew` takes it.
 pub struct Drawn {
     /// The layer list, as `be3:root`'s `frame-done` carries it.
@@ -141,3 +154,6 @@ pub struct Drawn {
     /// What the root's own surfaces hear of it: the focus a window that went took with it.
     pub own: Vec<Delivery>,
 }
+
+#[cfg(test)]
+mod tests;

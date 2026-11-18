@@ -10,7 +10,8 @@ struct Window;
 
 impl PlatformServices for Window {}
 
-/// Takes every touch and pointer press for itself, and leaves the rest to its document.
+/// Takes every touch, pointer press and change of modifiers for itself, and leaves the rest to
+/// its document.
 #[derive(Default)]
 struct Taking {
     taken: Rc<RefCell<Vec<(WindowId, Input)>>>,
@@ -24,7 +25,10 @@ impl Program for Taking {
     }
 
     fn input(&mut self, window: WindowId, input: &Input) -> bool {
-        let takes = matches!(input, Input::Touch { .. } | Input::PointerButton { .. });
+        let takes = matches!(
+            input,
+            Input::Touch { .. } | Input::PointerButton { .. } | Input::Modifiers(_)
+        );
         if takes {
             self.taken.borrow_mut().push((window, input.clone()));
         }
@@ -116,6 +120,14 @@ fn a_program_takes_the_platforms_input_before_its_document_hears_it() {
             ),
         ],
         "the program takes what it wants in its window's points, whatever units it came in, in order"
+    );
+    taken.borrow_mut().clear();
+    runner.push(Input::Modifiers(Modifiers::SHIFT));
+    runner.frame(&mut window, SafeArea::default());
+    assert_eq!(
+        runner.modifiers(),
+        Modifiers::SHIFT,
+        "the intake still follows the modifiers the program took, for the input it leaves"
     );
     let heard = heard.borrow();
     assert!(

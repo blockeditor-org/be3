@@ -81,3 +81,6 @@ impl WindowReport {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

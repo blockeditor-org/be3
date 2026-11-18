@@ -245,27 +245,16 @@ impl Embedded {
         })
     }
 
-    /// The input method's area the screen showing `surface` asks for, in the surface's pixels:
-    /// the field its app edits there, if any.
-    pub(crate) fn ime(&self, surface: u32) -> Option<ImeArea> {
+    /// The input method's area the screen showing `surface` asks for, in its own points, and
+    /// the pixels per point the surface is painted at: the field its app edits there, if any.
+    pub(crate) fn ime(&self, surface: u32) -> Option<(ImeArea, f32)> {
         let state = self.state.borrow();
         let placement = state
             .painted
             .values()
             .find(|placement| placement.surface == surface)?;
         let area = state.windows.get(&placement.screen)?.ime.clone()?;
-        let pixels = raster(placement);
-        let scaled = |rect: Rect| {
-            Rect::from_min_max(
-                pos2(rect.min.x * pixels, rect.min.y * pixels),
-                pos2(rect.max.x * pixels, rect.max.y * pixels),
-            )
-        };
-        Some(ImeArea {
-            rect: scaled(area.rect),
-            cursor: scaled(area.cursor),
-            ..area
-        })
+        Some((area, raster(placement)))
     }
 
     /// Sends the app `input` routed to its surface `surface`, its positions in the surface's
