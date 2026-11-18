@@ -146,6 +146,36 @@ interface blocks {
         close-editor,
         set-parent(block-location),
         define(define-command),
+        /// Sends a member of the block's host channel `payload`, sealed on its
+        /// channel (plans/hosted_blocks.md, "Hosting"). Only a host component
+        /// of the block, while this device hosts it, and only to a member it
+        /// heard join (`member-event.joined`).
+        tell-member(member-said),
+    }
+
+    /// A member of the host channel of the block a host component runs on came,
+    /// spoke or went (plans/hosted_blocks.md, "Hosting"). The host admits a
+    /// member once the signed logs give its account Join or above and it proves
+    /// its key; one whose access ends, or that leaves, goes.
+    variant member-event {
+        joined(joined-member),
+        said(member-said),
+        left(u64),
+    }
+
+    /// A member admitted to the channel: the number the host calls it by while
+    /// it stays, its account, and the level the signed logs give it, as the host
+    /// checked them.
+    record joined-member {
+        member: u64,
+        account: account-id,
+        level: access-level,
+    }
+
+    /// What a member said, or what is said to it.
+    record member-said {
+        member: u64,
+        payload: list<u8>,
     }
 
     enum conflict-side {

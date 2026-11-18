@@ -18,6 +18,7 @@ pub mod device_push;
 mod diff;
 pub mod discovery;
 mod graph;
+mod hosting;
 pub mod invite_link;
 pub mod keys;
 pub mod link;
@@ -1191,6 +1192,60 @@ pub fn detach(block: Uuid, editor: u64) {
     send(Command::Detach { block, editor });
 }
 
+/// What the host component running on `block` has yet to hear of its host channel's members
+/// (plans/hosted_blocks.md, "Hosting"), taken: the runtime passes it on as `member-event`s.
+pub fn take_member_events(block: Uuid) -> Vec<be_sdk_api::blocks::MemberEvent> {
+    let held = stack().lock().unwrap_or_else(PoisonError::into_inner);
+    let Some(stack) = held.as_ref() else {
+        return Vec::new();
+    };
+    hosting::take_events(&stack.shared, block)
+}
+
+/// How many events were ever queued for host components: the runtime takes them
+/// (`take_member_events`) only when this moved.
+pub fn member_events_revision() -> u64 {
+    hosting::events_revision()
+}
+
+/// How many times the blocks whose lease this device holds changed: be-host looks again at
+/// which host components should run only when this, or the editors open, moved.
+pub fn lease_revision() -> u64 {
+    hosting::lease_revision()
+}
+
+/// A host component starts on `block`: it hears every member already admitted join, and none of
+/// what an earlier component left untaken.
+pub fn restart_host(block: Uuid) {
+    let held = stack().lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some(stack) = held.as_ref() {
+        hosting::restart(&stack.shared, block);
+    }
+}
+
+/// Whether this device's replica holds `block`'s session's lease, so a host component may run
+/// on it here.
+pub fn holds_lease(block: Uuid) -> bool {
+    let held = stack().lock().unwrap_or_else(PoisonError::into_inner);
+    held.as_ref().is_some_and(|stack| {
+        stack
+            .shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .hosting
+            .holds(block)
+    })
+}
+
+/// A host component of `block` tells `member` of its host channel `payload`, sealed on the
+/// member's channel; nothing when it is no admitted member.
+pub fn tell_member(block: Uuid, member: u64, payload: Vec<u8>) {
+    send(Command::TellMember {
+        block,
+        said: be_sdk_api::blocks::MemberSaid { member, payload },
+    });
+}
+
 /// What `app`'s editor sends its block's replica.
 pub fn from_editor(block: Uuid, editor: u64, app: &str, frame: &[u8]) {
     let Some(bytes) = replicas::unframe(frame) else {
@@ -2218,6 +2273,20 @@ pub fn set_access(
         block,
         account,
         access,
+        reply: replies::expect(reply),
+    });
+}
+
+/// Bars `account` from joining `block`'s host (plans/hosted_blocks.md, "Hosting"); `reply`
+/// hears whether the server took it. A member of what this device hosts that it bars goes.
+pub fn ban(
+    block: Uuid,
+    account: Uuid,
+    reply: impl FnOnce(Result<(), String>) + Send + 'static,
+) {
+    send(Command::Ban {
+        block,
+        account,
         reply: replies::expect(reply),
     });
 }

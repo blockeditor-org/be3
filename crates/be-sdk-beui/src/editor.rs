@@ -1126,6 +1126,31 @@ impl Editor {
         });
     }
 
+    /// For a host component (`BeuiRoot::host`): calls `receive` with each member of the
+    /// block's host channel that comes, speaks or goes (plans/hosted_blocks.md, "Hosting"), in
+    /// order. A member is known by the number the host gives it while it stays.
+    pub fn on_member(&self, receive: impl Fn(be_sdk_api::blocks::MemberEvent) + 'static) {
+        let core = self.core();
+        let changed = self.pushed(Pushed::Members);
+        create_effect(move || {
+            changed.track();
+            let events = core.host().take_member_events();
+            untrack(|| {
+                for event in events {
+                    receive(event);
+                }
+            });
+        });
+    }
+
+    /// For a host component: tells `member` of the block's host channel `payload`, sealed on
+    /// its channel; nothing when it is no member the component heard join.
+    pub fn tell_member(&self, member: u64, payload: Vec<u8>) {
+        self.core()
+            .host()
+            .tell_member(self.block_id(), member, payload);
+    }
+
     pub fn presence_visible(&self) -> ReadSignal<bool> {
         self.state().shown.presence_visible.read_only()
     }

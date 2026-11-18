@@ -172,6 +172,12 @@ pub(super) enum Command {
         block: Uuid,
         editor: EditorId,
     },
+    /// A host component tells a member of its block's host channel something
+    /// (`crate::hosting::tell`).
+    TellMember {
+        block: Uuid,
+        said: be_sdk_api::blocks::MemberSaid,
+    },
     FromEditor {
         block: Uuid,
         editor: EditorId,
@@ -256,6 +262,12 @@ pub(super) enum Command {
         block: Uuid,
         account: Uuid,
         access: Access,
+        reply: DoneReply,
+    },
+    /// Bars `account` from joining `block`'s host (`Peer::ban`; plans/hosted_blocks.md).
+    Ban {
+        block: Uuid,
+        account: Uuid,
         reply: DoneReply,
     },
     TransferOwnership {
@@ -442,6 +454,7 @@ impl Command {
             Command::FromFile { .. } => "from file",
             Command::Attach { .. } => "attach",
             Command::Detach { .. } => "detach",
+            Command::TellMember { .. } => "tell member",
             Command::FromEditor { .. } => "from editor",
             Command::HoldClock(..) => "hold clock",
             Command::OfflineChoices(..) => "offline choices",
@@ -463,6 +476,7 @@ impl Command {
             Command::SetParent { .. } => "set parent",
             Command::Define { .. } => "define",
             Command::SetAccess { .. } => "set access",
+            Command::Ban { .. } => "ban",
             Command::TransferOwnership { .. } => "transfer ownership",
             Command::ListAccess { .. } => "list access",
             Command::ShareLink { .. } => "share link",
@@ -497,6 +511,7 @@ impl Command {
         matches!(
             self,
             Command::SetAccess { .. }
+                | Command::Ban { .. }
                 | Command::TransferOwnership { .. }
                 | Command::ListAccess { .. }
                 | Command::ListNames { .. }
@@ -589,10 +604,12 @@ impl Command {
             | Command::FromFile { block, .. }
             | Command::Detach { block, .. }
             | Command::FromEditor { block, .. }
+            | Command::TellMember { block, .. }
             | Command::Create { block, .. }
             | Command::SetParent { block, .. }
             | Command::Define { block, .. }
             | Command::SetAccess { block, .. }
+            | Command::Ban { block, .. }
             | Command::TransferOwnership { block, .. }
             | Command::ListAccess { block, .. }
             | Command::ShareLink { block, .. }
@@ -802,6 +819,8 @@ pub struct Shared {
     pub presence: HashMap<Uuid, (u64, Vec<Presence>)>,
     pub presence_revision: u64,
     pub peer_messages: HashMap<Uuid, std::collections::VecDeque<(u64, PeerMessage)>>,
+    /// The host's side of the hosted blocks whose lease this device holds (`crate::hosting`).
+    pub(crate) hosting: crate::hosting::Hosting,
     pub peer_message_count: u64,
     /// Passes of the loop in a row whose wait was over before it began: a loop that keeps
     /// waking itself shows here.
@@ -1756,6 +1775,7 @@ impl Session<'_> {
                             Some(message) => self.replicas.heard((peer, shared), message),
                             None => self.replicas.resynchronize((peer, shared)),
                         }
+                        crate::hosting::heard(peer, shared, &self.tasks.0, event.as_ref());
                         heard(peer, shared, &self.tasks.0, event).await;
                         if keyed {
                             self.unlock(peer, shared).await;
@@ -2829,9 +2849,9 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
         ) => reply.send(Err(NEEDS_CONNECTION.to_owned())),
         // These need the server's say, so they are refused, not kept for later: the caller
         // shows the refusal where the person acted.
-        Command::SetAccess { reply, .. } | Command::TransferOwnership { reply, .. } => {
-            reply.send(Err(OFFLINE_SHARING.to_owned()))
-        }
+        Command::SetAccess { reply, .. }
+        | Command::Ban { reply, .. }
+        | Command::TransferOwnership { reply, .. } => reply.send(Err(OFFLINE_SHARING.to_owned())),
         Command::Leave { reply, .. } => reply.send(Err(OFFLINE_LEAVING.to_owned())),
         Command::ApprovePairing { reply, .. } => reply.send(Err(OFFLINE_PAIRING.to_owned())),
         Command::ListAccess { reply, .. } => reply.send(Err(NEEDS_CONNECTION.to_owned())),
@@ -3717,6 +3737,26 @@ async fn serve_command(
                     false => error.to_string(),
                 });
             tend(peer, shared).await;
+            // A member this device revoked goes from what it hosts now, whatever the server
+            // does about it.
+            crate::hosting::recheck(peer, shared, tasks);
+            reply.send(failed.map_or(Ok(()), Err));
+            crate::changes::wake();
+        }
+        Command::Ban {
+            block,
+            account,
+            reply,
+        } => {
+            let failed = peer
+                .ban(block, account)
+                .await
+                .err()
+                .map(|error| match error.is_unreachable() {
+                    true => OFFLINE_SHARING.to_owned(),
+                    false => error.to_string(),
+                });
+            crate::hosting::recheck(peer, shared, tasks);
             reply.send(failed.map_or(Ok(()), Err));
             crate::changes::wake();
         }
@@ -3826,6 +3866,7 @@ async fn apply(
             true
         }
         Command::SetAccess { .. }
+        | Command::Ban { .. }
         | Command::TransferOwnership { .. }
         | Command::ListAccess { .. }
         | Command::ShareLink { .. }
@@ -4017,6 +4058,10 @@ async fn apply(
             if !wanted.wanted(block) {
                 replicas.close(block);
             }
+            false
+        }
+        Command::TellMember { block, said } => {
+            crate::hosting::tell(peer, shared, tasks, block, said);
             false
         }
         Command::FromEditor {
