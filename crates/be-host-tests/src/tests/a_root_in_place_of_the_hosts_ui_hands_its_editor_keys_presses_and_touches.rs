@@ -44,11 +44,7 @@ fn a_root_in_place_of_the_hosts_ui_hands_its_editor_keys_presses_and_touches() {
     );
     // Inside the screen, away from the triangle: the root routes what lands there to it.
     let (left, top) = ORIGIN;
-    let inside = format!(
-        "#root+{},{}",
-        left + 10.0,
-        top + SCREEN_SIZE.1 as f32 / 2.0
-    );
+    let inside = format!("#root+{},{}", left + 10.0, top + SCREEN_SIZE.1 as f32 / 2.0);
 
     host.run(&["click", &inside]);
     host.run(&["settle"]);

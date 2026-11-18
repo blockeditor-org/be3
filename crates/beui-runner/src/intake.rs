@@ -396,11 +396,7 @@ impl Intake {
                 pos,
                 force,
             }),
-            Input::Pen { phase, pos, pen } => events.push(Event::Pen {
-                phase,
-                pos,
-                pen,
-            }),
+            Input::Pen { phase, pos, pen } => events.push(Event::Pen { phase, pos, pen }),
             Input::Predicted(pos) => events.push(Event::Predicted(pos)),
             Input::PointersCancelled => {
                 self.held = 0;
