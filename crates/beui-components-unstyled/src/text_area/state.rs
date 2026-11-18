@@ -643,6 +643,7 @@ impl TextAreaState {
             single_line: false,
             prose: Some(prose),
             geometry,
+            code_padding: 0.0,
         };
         let font = FontId::proportional(font_size).bold(prose.bold);
         let wrap = match prose.wrap {

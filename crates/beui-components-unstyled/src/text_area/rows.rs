@@ -93,6 +93,9 @@ pub struct RowOptions {
     pub single_line: bool,
     pub prose: Option<Prose>,
     pub geometry: TextAreaGeometry,
+    /// The room a code block leaves inside its background before its text
+    /// (`Margin::code_padding`), which a quoted code line lays out after its quote's gutter.
+    pub code_padding: f32,
 }
 
 impl RowOptions {
