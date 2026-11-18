@@ -235,11 +235,17 @@ fn a_root_asks_its_hosts_questions_and_shows_an_invitations_link_only_once() {
     let again = requested(&mut root, &mut time);
     assert!(matches!(again.1, SecretCommand::InvitationLink(MINE)), "{again:?}");
     root.answer_secret(again.0, None);
-    assert_eq!(
+    assert_ne!(
         dialog_painting(&mut root, &mut time),
-        listed,
+        shown,
         "a link not made shows none"
     );
+    // Answered, it may ask again.
+    root.input(None, be_lib_ui_types::input::encode(&click(pos2(222.0, 128.0))))
+        .expect("the root takes input");
+    let retried = requested(&mut root, &mut time);
+    assert!(matches!(retried.1, SecretCommand::InvitationLink(MINE)), "{retried:?}");
+    root.answer_secret(retried.0, None);
     let commands = settle(&mut root, &mut time);
     assert!(commands.is_empty(), "{commands:?}");
     root.input(None, be_lib_ui_types::input::encode(&click(pos2(299.0, 128.0))))
