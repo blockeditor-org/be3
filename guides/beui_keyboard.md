@@ -55,7 +55,8 @@ control's exact keys are in its code and tests. The patterns that span them:
   Space or Enter drops it there and Escape or Tab puts it down, keeping the
   focus; the source hears these before the node within it that has the focus.
   A dock tab steps between its bar's places and the dock's ("right of Files",
-  "with Files").
+  "with Files"). A control's thumb (a slider's, a scrollbar's) lifts by no keys
+  (`lifts_by_keys=false`): its own keys step it.
 - The context menu opens on Shift+F10 or the Menu key with the focus in its
   `ContextMenu` or on the control it is part of; Escape closes one level.
 - Typing letters in a tree or a menu (each submenu on its own) moves to the
