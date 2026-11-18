@@ -17,6 +17,8 @@ use be_host_runtime::EditorBlock;
 use be_sdk_api::EditorInstanceId;
 use be_sdk_api::blocks::HostingHere;
 use be_sdk_manifest::AppManifest;
+
+use crate::ui::KeptHost;
 use uuid::Uuid;
 
 /// The host component of each block's type, from the apps' manifests (`hosts`).
@@ -96,16 +98,20 @@ impl Hosts {
 
     /// The blocks kept hosting, by name (their type's, for one not named), for the host menu's
     /// Stop.
-    pub(crate) fn kept(&self, registry: &crate::editors::EditorRegistry) -> Vec<(Uuid, String)> {
-        let mut kept: Vec<(Uuid, String)> = self
+    pub(crate) fn kept(&self, registry: &crate::editors::EditorRegistry) -> Vec<KeptHost> {
+        let mut kept: Vec<KeptHost> = self
             .kept
             .iter()
             .map(|(block, kept)| {
                 let type_name = registry.display_name(kept.block_type).unwrap_or("Untitled");
-                (*block, crate::name_of(*block, type_name))
+                KeptHost {
+                    block: *block,
+                    name: crate::name_of(*block, type_name),
+                    now: self.told.get(block).is_some(),
+                }
             })
             .collect();
-        kept.sort_by(|left, right| left.1.cmp(&right.1).then(left.0.cmp(&right.0)));
+        kept.sort_by(|left, right| left.name.cmp(&right.name).then(left.block.cmp(&right.block)));
         kept
     }
 

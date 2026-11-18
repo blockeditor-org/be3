@@ -1,6 +1,7 @@
 use super::*;
 
 const STOP: &str = "MenuItem \"Stop hosting Counter\"";
+const HOSTING_NOW: &str = "MenuItem \"Stop hosting Counter\" #host.menu.hosting-now.";
 
 /// The count the open counter shows.
 fn count(host: &mut HostTest) -> String {
@@ -58,6 +59,11 @@ fn keep_hosting_outlives_the_editor_until_stop() {
     let before = count(&mut phone);
     phone.click("Button \"Close tab\"");
     phone.gone("#counter.value");
+    // The laptop's host menu says once it hosts the counter now rather than standing by, so
+    // the phone opens it only then, rather than racing the laptop to claim it.
+    laptop.click("#file-tree.host-menu");
+    laptop.wait(HOSTING_NOW);
+    laptop.key("Escape");
     phone.click("TreeItem \"Counter\"");
     phone.wait("#counter.value");
     phone.gone(&format!("value=\"{before}\" #counter.value"));
