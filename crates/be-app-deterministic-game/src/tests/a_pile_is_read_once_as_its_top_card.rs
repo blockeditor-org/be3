@@ -10,7 +10,10 @@ fn a_pile_is_read_once_as_its_top_card() {
         .accessibility_view()
         .expect("the editor has an accessibility tree")
         .nodes()
-        .filter(|node| node.label().is_some_and(|label| label.starts_with("Card, pile 1")))
+        .filter(|node| {
+            node.label()
+                .is_some_and(|label| label.starts_with("Card, pile 1"))
+        })
         .count();
     assert_eq!(read, 1, "the draw pile is read once, not once a card");
     assert!(document.find_test_id("game.piece.pile.0").is_some());

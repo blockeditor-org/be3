@@ -155,8 +155,8 @@ impl Play {
         self.editable.get()
             && self.actions.with(|actions| {
                 actions.iter().any(
-                    |action| matches!(action.gesture, Some(Gesture::Drag { from, .. }) if from == spot),
-                )
+                |action| matches!(action.gesture, Some(Gesture::Drag { from, .. }) if from == spot),
+            )
             })
     }
 

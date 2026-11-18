@@ -620,7 +620,9 @@ impl Document {
 
     pub fn set_frame_accessibility_hidden(&mut self, frame: NodeOf<FrameNode>, hidden: bool) {
         if self.arena.get_as::<FrameNode>(frame).accessibility_hidden != hidden {
-            self.arena.get_mut_as::<FrameNode>(frame).accessibility_hidden = hidden;
+            self.arena
+                .get_mut_as::<FrameNode>(frame)
+                .accessibility_hidden = hidden;
             // Every node within is described again: what the tree kept of them while the
             // frame was hidden (or shown) no longer holds.
             let mut within = vec![frame.id()];

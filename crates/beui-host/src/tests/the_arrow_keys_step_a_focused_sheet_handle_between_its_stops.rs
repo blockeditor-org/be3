@@ -44,17 +44,33 @@ fn the_arrow_keys_step_a_focused_sheet_handle_between_its_stops() {
         Some(handle),
         "a press never focuses the handle, so a drag keeps the field being edited"
     );
-    assert_eq!(height(&harness), Some(300.0), "a click leaves it where it is");
+    assert_eq!(
+        height(&harness),
+        Some(300.0),
+        "a click leaves it where it is"
+    );
 
     harness.key(Key::Tab, Modifiers::NONE);
     harness.settle();
-    assert_eq!(harness.document().focused_node(), Some(handle), "Tab reaches it");
+    assert_eq!(
+        harness.document().focused_node(),
+        Some(handle),
+        "Tab reaches it"
+    );
     harness.key(Key::ArrowUp, Modifiers::NONE);
     harness.settle();
-    assert_eq!(height(&harness), Some(540.0), "Up takes it to the stop above");
+    assert_eq!(
+        height(&harness),
+        Some(540.0),
+        "Up takes it to the stop above"
+    );
     harness.key(Key::ArrowUp, Modifiers::NONE);
     harness.settle();
-    assert_eq!(height(&harness), Some(540.0), "and no further than the top one");
+    assert_eq!(
+        height(&harness),
+        Some(540.0),
+        "and no further than the top one"
+    );
 
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.key(Key::ArrowDown, Modifiers::NONE);

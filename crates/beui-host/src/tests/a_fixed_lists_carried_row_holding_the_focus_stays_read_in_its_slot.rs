@@ -57,7 +57,10 @@ fn a_fixed_lists_carried_row_holding_the_focus_stays_read_in_its_slot() {
     harness.frame(vec![Input::PointerMoved(grab + vec2(0.0, 30.0))]);
     harness.frame(vec![Input::PointerMoved(grab + vec2(0.0, 40.0))]);
     harness.settle();
-    assert!(harness.document().focused_node().is_some(), "the press focused the row");
+    assert!(
+        harness.document().focused_node().is_some(),
+        "the press focused the row"
+    );
     assert_eq!(
         read(&mut harness),
         2,

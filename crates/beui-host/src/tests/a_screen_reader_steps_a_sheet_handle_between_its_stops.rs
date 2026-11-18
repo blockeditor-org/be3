@@ -67,7 +67,11 @@ fn a_screen_reader_steps_a_sheet_handle_between_its_stops() {
         "read as the stop it rests at, its value the share of the extent it stands at"
     );
     act(&mut harness, Action::Increment);
-    assert_eq!(height(&harness), Some(540.0), "Increment takes it a stop up");
+    assert_eq!(
+        height(&harness),
+        Some(540.0),
+        "Increment takes it a stop up"
+    );
     assert_eq!(value(&mut harness), Some((90.0, "Stop 3 of 3".to_owned())));
     act(&mut harness, Action::Decrement);
     assert_eq!(height(&harness), Some(300.0), "and Decrement a stop down");

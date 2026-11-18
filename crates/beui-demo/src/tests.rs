@@ -8,7 +8,6 @@ use beui_host::native::build;
 use super::*;
 use crate::{DemoRoot, LoneRoot, PAGES, Page};
 
-mod a_sheet_handle_shows_its_focus_ring_when_tabbed_to;
 mod a_banner_says_what_failed_until_it_is_dismissed;
 mod a_bar_carried_into_a_band_moves_the_bars_beside_its_slot_aside;
 mod a_bar_floating_over_the_dock_stays_above_its_windows_which_keep_off_its_band;
@@ -58,6 +57,7 @@ mod a_sample_shows_its_code_when_asked;
 mod a_scrollbar_shows_over_a_page_as_it_scrolls_and_widens_to_a_track_under_the_pointer;
 mod a_select_in_a_narrow_side_pane_lists_as_wide_as_itself_within_the_pane;
 mod a_selected_row_stays_selected_under_the_pointer;
+mod a_sheet_handle_shows_its_focus_ring_when_tabbed_to;
 mod a_sheet_rises_from_the_bottom_on_a_phone;
 mod a_show_with_a_fallback_swaps_the_one_child_a_frame_holds;
 mod a_slow_diagonal_to_a_submenu_across_the_gaps_between_rows_keeps_it_open;

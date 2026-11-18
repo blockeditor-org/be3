@@ -60,12 +60,20 @@ fn enter_lifts_a_source_whose_own_keys_turn_it_down() {
     harness.key(Key::Enter, Modifiers::NONE);
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(dropped.get_untracked(), [1], "Enter lifts it, and Enter drops it");
+    assert_eq!(
+        dropped.get_untracked(),
+        [1],
+        "Enter lifts it, and Enter drops it"
+    );
 
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::NONE);
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(entered.get_untracked(), 2, "the source's own Enter is its own");
+    assert_eq!(
+        entered.get_untracked(),
+        2,
+        "the source's own Enter is its own"
+    );
     assert_eq!(dropped.get_untracked(), [1], "and lifts nothing");
 }

@@ -1339,7 +1339,9 @@ pub fn Sheet(
                                             on_pointer={gestures::scroll_drag(axis, move |gesture: DragGesture| motion.value().drag(gesture))}
                                         >
                                             <List spacing=0.0>
-                                                <SheetHandle motion focused={handle_focused}>{grip}</SheetHandle>
+                                                <SheetHandle motion focused={handle_focused}>
+                                                    {grip}
+                                                </SheetHandle>
                                                 <ListItem shrink=1.0>
                                                     <Frame fade_edges={edges}>
                                                         <Offset

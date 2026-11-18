@@ -7,8 +7,8 @@ use be_sdk_beui::Editor;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{
-    Color32, FontId, Key, KeyPress, NodeId, PointerId, PointerPress, Pos2, Rect,
-    SecondaryDrag, TextLayout, Vec2, accesskit, drag, reactive::Painter,
+    Color32, FontId, Key, KeyPress, NodeId, PointerId, PointerPress, Pos2, Rect, SecondaryDrag,
+    TextLayout, Vec2, accesskit, drag, reactive::Painter,
 };
 use tabletop_api::Spot;
 use tabletop_api::board::{CARD_HEIGHT, CARD_WIDTH, HandCard, ItemId, Sprite};
@@ -386,22 +386,29 @@ pub(crate) fn Stage(
     // The stage's presses are caught by the `Interactive` around the table.
     let built = view! {
         <Interactive
-                focusable=true
-                on_key={on_key}
-                capture_presses=true
-                on_press={on_press}
-                drag={drag}
-                on_drag={on_drag}
-                on_click_at={on_click_at}
-                on_active_change={on_active_change}
-                on_pointer={beui::unstyled::gestures::secondary_drag(on_secondary_drag)}
-            >
+            focusable=true
+            on_key={on_key}
+            capture_presses=true
+            on_press={on_press}
+            drag={drag}
+            on_drag={on_drag}
+            on_click_at={on_click_at}
+            on_active_change={on_active_change}
+            on_pointer={beui::unstyled::gestures::secondary_drag(on_secondary_drag)}
+        >
             <Layers @node_ref=&stage>
                 <List spacing=Space::None>
                     <ListItem grow=1.0>
                         <Canvas view={canvas} @node_ref={&content}>
                             <ForEach value={item_keys}>|id: ItemId|
-                                <TableItem id layout={layout} faces play={play} hidden={hidden} lift_from />
+                                <TableItem
+                                    id
+                                    layout={layout}
+                                    faces
+                                    play={play}
+                                    hidden={hidden}
+                                    lift_from
+                                />
                             </ForEach>
                             <ForEach value={spot_keys}>|spot: Spot|
                                 <SpotItem spot layout={layout} play={play} />
