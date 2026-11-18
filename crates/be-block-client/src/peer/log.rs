@@ -440,7 +440,10 @@ impl<S: ObjectStore> Peer<S> {
                 return self.open_entries(block, appended.entries).await;
             }
             let count = u32::try_from(appended.entries.len()).unwrap_or(u32::MAX);
-            return Ok(self.read_log(block, appended.previous, count).await?.entries);
+            return Ok(self
+                .read_log(block, appended.previous, count)
+                .await?
+                .entries);
         }
         if appended.previous == size
             && let Some(entries) = self.take_entries(
