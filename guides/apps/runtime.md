@@ -153,9 +153,14 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   A frame also says what the root asks of the host's one window: its input
   method's area (`ime`), the cursor shape by its CSS name (`cursor`), the
   pointer lock (`pointer-locked`) and every sample of the pointer's moves
-  (`every-sample`). `host.fonts` answers the fonts the host bundles
-  (`Root::with_fonts`; be-host's `be_host_runtime::bundled_fonts`, which it
-  tells its apps), which a root asks once and draws its text in. The root's
+  (`every-sample`). `host.fonts` answers the fonts the host bundles as the
+  app protocol's `Fonts`, encoded (`Root::with_fonts`; be-host's
+  `be_host_runtime::bundled_fonts`, which it tells its apps), which a root
+  asks once and draws its text in. `frame-request` carries the frame clock's
+  time and the host's wall clock (`wall-clock`), the only clocks a root reads.
+  A root may start no threads (`App::refuse_threads`, which `Root::start`
+  sets): it runs on the host's frame thread, which must never wait on a lock
+  another thread holds, and on the page such a wait traps. The root's
   `paintings` export answers what its own surfaces painted, in
   beui-paint-format's `ScreenPaintings` keyed by surface id
   (`Root::ask_paintings`, answered with the next frame's steps as
@@ -220,13 +225,17 @@ tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thre
   anew), and every sample
   while one shown asks for them. `OwnSurface` is a surface of the root's own,
   which it configures, draws (`fill`, or `acquire` and `present`) and names
-  as a layer. `crates/be-sdk-beui-root`'s `BeuiSurface` draws one with beui:
-  a beui document run by beui's runner as a program of its own, whose one
-  window is the surface, drawn with beui's wgpu renderer over `be3:gpu`'s
-  `custom` backend (`be_wasm_gpu_guest::texture` of the surface's texture),
-  its text in the fonts `host.fonts` gave, hearing what the router lands on
-  the surface (`BeuiSurface::input`, from `Embedding::input` and `drew`) in
-  its points, and painting what it drew (`BeuiSurface::painting`).
+  as a layer. `crates/be-sdk-beui-root` draws them with beui: `BeuiRoot` is
+  what a root's surfaces share (the device `be3:gpu` gives it, the fonts
+  `host.fonts` gave, and the host's clocks, which it pins as beui's now each
+  frame), and `BeuiSurface` a beui document run by beui's runner as a program
+  of its own, whose one window is the surface, drawn with beui's wgpu
+  renderer (`Renderer::draw_onto`, as an app's screens are) into the
+  surface's texture (`be_wasm_gpu_guest::texture`). It hears what the router
+  lands on the surface (`BeuiSurface::input`, from `Embedding::input` and
+  `drew`) in its points, draws when it heard input, was woken or a frame it
+  asked for is due (`BeuiSurface::next`, which the root folds into
+  `frame-done`'s `next`), and paints what it drew (`BeuiSurface::painting`).
   Input for a window the last list leaves out is still routed, against the
   layers it had last, until its presses lift, and only then its router goes,
   the surface it focused hearing `Focus(false)`; one never drawn routes

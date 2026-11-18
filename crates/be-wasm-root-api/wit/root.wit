@@ -10,25 +10,12 @@ interface host {
     /// outside a frame, it answers at once.
     deadline: async func();
 
-    /// What a font face is for.
-    enum font-role {
-        text,
-        monospace,
-        fallback,
-        icons,
-    }
-
-    /// A font file, or one face of a collection (`index`).
-    record font-face {
-        role: font-role,
-        index: u32,
-        data: list<u8>,
-    }
-
     /// The fonts the host bundles, which the root draws its text in and tells
-    /// the apps it embeds, as a host tells an app (be-sdk-api's `fonts`). The
-    /// same faces every call: a root asks once.
-    fonts: async func() -> list<font-face>;
+    /// the apps it embeds: the app protocol's `fonts` record (be-sdk-api's
+    /// `Fonts`, with `replace` set) as a host tells an app, in be-wasm-ops'
+    /// encoding (`be_wasm_ops::encode`), as the layer list is bytes. The same
+    /// faces every call: a root asks once.
+    fonts: async func() -> list<u8>;
 }
 
 /// The window's input, which the host hands the root inline on its frame thread
@@ -60,6 +47,10 @@ interface frames {
         /// for. It moves only when the host's clock does, so a stopped clock
         /// (drive's) draws every frame for the same time.
         time: u64,
+        /// The wall clock at `time`, in nanoseconds since the Unix epoch: the
+        /// host's, which a driver may pin (drive's pinned wall clock), so a
+        /// root reads neither clock of its own.
+        wall-clock: u64,
     }
 
     /// A drawn frame.

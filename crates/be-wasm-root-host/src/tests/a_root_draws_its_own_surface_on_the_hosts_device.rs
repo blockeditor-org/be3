@@ -12,7 +12,7 @@ fn a_root_draws_its_own_surface_on_the_hosts_device() {
         "the root has drawn nothing of its own before its first frame"
     );
     let done = root
-        .frame(FrameRequest { time: 1 }, Instant::now() + PATIENT)
+        .frame(FrameRequest { time: 1, wall_clock: 0 }, Instant::now() + PATIENT)
         .expect("the root draws");
     let list = LayerList::decode(&done.layers).expect("the frame is a layer list");
     let own = &list.windows[0].layers[0];
@@ -33,7 +33,7 @@ fn a_root_draws_its_own_surface_on_the_hosts_device() {
     );
     assert_eq!(own.size, SIZE, "its layer shows the whole of it");
 
-    root.frame(FrameRequest { time: 2 }, Instant::now() + PATIENT)
+    root.frame(FrameRequest { time: 2, wall_clock: 0 }, Instant::now() + PATIENT)
         .expect("the root draws");
     let kept = root
         .own_surface(ROOT_SURFACE)
@@ -48,7 +48,7 @@ fn a_root_draws_its_own_surface_on_the_hosts_device() {
          when its frame is late"
     );
 
-    root.frame(FrameRequest { time: RESIZES }, Instant::now() + PATIENT)
+    root.frame(FrameRequest { time: RESIZES, wall_clock: 0 }, Instant::now() + PATIENT)
         .expect("the root draws");
     let resized = root
         .own_surface(ROOT_SURFACE)

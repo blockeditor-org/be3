@@ -34,7 +34,9 @@ pub(crate) fn context() -> Context {
     Context::new(FreetypeFonts::new(fonts()))
 }
 
-fn sources(faces: &[HostFont]) -> FontSources {
+/// beui's font sources of the faces a host gave: an app's (`host_fonts`), or a root's
+/// (be-sdk-beui-root).
+pub fn sources(faces: &[HostFont]) -> FontSources {
     let mut sources = FontSources::default();
     for face in faces {
         let list = match face.role {

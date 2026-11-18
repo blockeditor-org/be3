@@ -37,7 +37,8 @@ be-sdk-root-testing = { path = "../be-sdk-root-testing" }
 be-wasm-dylink = { path = "../be-wasm-dylink" }
 be-wasm-guest-echo = { path = "../be-wasm-guest-echo" }
 be-wasm-root-testing = { path = "../be-wasm-root-testing" }
-beui-font-freetype = { path = "../beui-font-freetype" }
+be-sdk-api = { path = "../be-sdk-api" }
+beui-fonts = { path = "../beui-fonts" }
 beui-paint-format = { path = "../beui-paint-format" }
 wat = "1"
 wgpu = { version = "29", default-features = false, features = ["noop"] }

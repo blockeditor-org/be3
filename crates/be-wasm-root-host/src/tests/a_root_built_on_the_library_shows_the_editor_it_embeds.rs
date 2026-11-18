@@ -9,7 +9,7 @@ use super::*;
 /// The layers the embedding root shows in its one window for a frame at `time`.
 fn drawn(root: &mut Root, time: u64) -> Vec<Layer> {
     let done = root
-        .frame(FrameRequest { time }, Instant::now() + PATIENT)
+        .frame(FrameRequest { time, wall_clock: 0 }, Instant::now() + PATIENT)
         .expect("the root draws");
     let list = LayerList::decode(&done.layers).expect("the frame is a layer list");
     let [window] = &list.windows[..] else {
