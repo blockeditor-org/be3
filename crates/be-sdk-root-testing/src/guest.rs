@@ -23,18 +23,16 @@ use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_password::Password;
 use be_wasm_root_api::{
-    FrameDone, FrameRequest, HostStatistics, LockState, MemoryMinutes, Notice, PowerAction,
-    StatisticRow,
+    FrameDone, FrameRequest, HostStatistics, LockState, Notice,
     guest::{
         exports::{frames, input, paintings},
         host,
     },
 };
-use beui::icons::{Glyph, ICON_LOG_OUT, ICON_MOON, ICON_POWER, ICON_ROTATE_CCW};
 use beui::native::painting::{Frame as PaintFrame, Painting, ScreenPaintings};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Align, Align2, Direction, KeyPhase, NodeId, Overflow, Pos2, Rect, TextAlign, vec2};
+use beui::{Align2, Direction, KeyPhase, NodeId, Pos2, Rect, vec2};
 
 use crate::{
     APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DIALOG_ORIGIN, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
@@ -87,8 +85,6 @@ struct Root {
     statistics: Rc<RefCell<Option<BeuiSurface>>>,
     /// The statistics that panel shows, which the host's answers set.
     shown_statistics: Rc<Cell<Option<Signal<HostStatistics>>>>,
-    /// The memory over time that panel graphs, which the host's answers set.
-    shown_memory: Rc<Cell<Option<Signal<MemoryMinutes>>>>,
     /// Counts the panel's openings, so a watch begun for an earlier one stops.
     statistics_opened: Rc<Cell<u64>>,
     /// The session's screen lock as the host said last, until a frame shows it.
@@ -115,8 +111,6 @@ struct Locked {
     surface: BeuiSurface,
     /// The lock as its document shows it.
     shown: Signal<LockState>,
-    /// The host's frame time when it was shown, from which the document counts down a wait.
-    shown_at: Signal<Duration>,
     /// The layer focused when it locked, which gets the focus back once unlocked.
     had: Option<LayerId>,
     /// Whether it took the focus yet: once it has been drawn.
@@ -149,7 +143,6 @@ impl Root {
             named: Rc::default(),
             statistics: Rc::default(),
             shown_statistics: Rc::default(),
-            shown_memory: Rc::default(),
             statistics_opened: Rc::default(),
             lock_state: Rc::default(),
             lock: Rc::default(),
@@ -262,17 +255,9 @@ impl Root {
             }
             return Ok(());
         }
-        let time = self
-            .beui
-            .borrow()
-            .as_ref()
-            .map_or(Duration::ZERO, BeuiRoot::time);
         if let Some(locked) = &mut *self.lock.borrow_mut() {
-            let (shown, shown_at) = (locked.shown, locked.shown_at);
-            locked.surface.enter(|| {
-                shown_at.set(time);
-                shown.set(state);
-            });
+            let shown = locked.shown;
+            locked.surface.enter(|| shown.set(state));
             return Ok(());
         }
         let Some(beui) = self.beui.borrow().clone() else {
@@ -288,23 +273,21 @@ impl Root {
             move || waker.wake(),
             move || {
                 let state = create_signal(state);
-                let shown_at = create_signal(time);
-                made.set(Some((state, shown_at)));
+                made.set(Some(state));
                 view! {
                     <Root>
-                        <LockCard state={state} shown_at={shown_at} />
+                        <LockScreen state={state} />
                     </Root>
                 }
             },
         )?;
-        let (shown, shown_at) = shown
+        let shown = shown
             .get()
             .ok_or("the lock screen's document made its state")?;
         let had = self.embedding.borrow().focused(None).map(|layer| layer.id);
         *self.lock.borrow_mut() = Some(Locked {
             surface,
             shown,
-            shown_at,
             had,
             focused: false,
         });
@@ -347,8 +330,14 @@ impl Root {
                     Some(key) if key == OPENS_DIALOG && !open => Some(Asked::Open),
                     Some(key) if key == OPENS_STATISTICS => Some(Asked::ToggleStatistics),
                     Some(key) if key == UNLOCKS_TWICE => {
-                        unlock(STRAY_PASSWORD.to_owned());
-                        unlock(STRAY_PASSWORD.to_owned());
+                        for _ in 0..2 {
+                            let stray = Password::from(STRAY_PASSWORD.to_owned());
+                            be_wasm_ops::guest::spawn(async move {
+                                // A host that cannot hear it has stopped, which the root hears
+                                // from its frames.
+                                let _ = host::unlock(stray).await;
+                            });
+                        }
                         None
                     }
                     Some(key) if key == LOCKS_SESSION => {
@@ -410,7 +399,6 @@ impl Root {
         };
         let waker = self.waker.clone();
         let shown = Rc::clone(&self.shown_statistics);
-        let graphed = Rc::clone(&self.shown_memory);
         let panel = BeuiSurface::new(
             &beui,
             OwnSurface::new(STATISTICS_SURFACE, STATISTICS_AREA),
@@ -424,11 +412,9 @@ impl Root {
                     memory_file: None,
                 });
                 shown.set(Some(statistics));
-                let history = create_signal(MemoryMinutes::default());
-                graphed.set(Some(history));
                 view! {
                     <Root>
-                        <StatisticsPanel statistics={statistics} history={history} />
+                        <StatisticRows statistics={statistics} />
                     </Root>
                 }
             },
@@ -439,25 +425,6 @@ impl Root {
             Err(_) => return,
         }
         be_wasm_ops::guest::spawn(self.clone().hear_statistics(opened));
-        be_wasm_ops::guest::spawn(self.clone().hear_memory(opened));
-    }
-
-    /// Watches the host's memory over time and graphs each change of it in the panel opened as
-    /// the `opened`th, until it closes or the host stops answering. Its rows change every frame,
-    /// these once a minute, so they are a watch of their own.
-    async fn hear_memory(self, opened: u64) {
-        let mut seen = 0;
-        while let Ok(history) = host::memory_history(seen).await {
-            if self.statistics_opened.get() != opened {
-                return;
-            }
-            seen = history.generation;
-            if let (Some(panel), Some(shown)) =
-                (&mut *self.statistics.borrow_mut(), self.shown_memory.get())
-            {
-                panel.enter(|| shown.set(history));
-            }
-        }
     }
 
     /// Watches the host's statistics and shows each change of them in the panel opened as the
@@ -668,256 +635,92 @@ fn Notices(toasts: Signal<Vec<Toast>>) -> NodeId {
     }
 }
 
-/// The host's statistics as its debug panels show them: a row a measurement, under headings,
-/// its performance first and then its memory, scrolling.
+/// The strip of text: `TEXT`, and `LATER_TEXT` from `LATER` on, or the `name` the dialog gave.
+/// The fixture's statistics panel: its title and each row the host showed it, a line of text
+/// apiece, which is all its tests check. be-root's is the one a person sees.
 #[component]
-fn StatisticsPanel(statistics: Signal<HostStatistics>, history: Signal<MemoryMinutes>) -> NodeId {
-    let rows = create_memo(move || {
-        statistics.with(|statistics| {
-            let mut rows = statistics.performance.clone();
-            rows.extend(statistics.memory.iter().cloned());
-            rows
-        })
-    });
-    let keys = create_memo(move || (0..rows.with(Vec::len)).collect::<Vec<_>>());
-    let file = create_memo(move || {
+fn StatisticRows(statistics: Signal<HostStatistics>) -> NodeId {
+    let lines = create_memo(move || {
         statistics.with(|statistics| {
             statistics
-                .memory_file
-                .as_ref()
-                .map(|file| format!("Memory is written to {file}"))
-                .unwrap_or_default()
+                .performance
+                .iter()
+                .chain(&statistics.memory)
+                .map(|row| {
+                    [&row.name, &row.current, &row.average, &row.peak]
+                        .into_iter()
+                        .filter(|cell| !cell.is_empty())
+                        .cloned()
+                        .collect::<Vec<_>>()
+                        .join("  ")
+                })
+                .collect::<Vec<_>>()
         })
     });
+    let keys = create_memo(move || (0..lines.with(Vec::len)).collect::<Vec<_>>());
     view! {
-        <Scroll>
-            <Frame padding=Space::Md>
-                <List spacing=Space::Xs>
-                    <Text style=TextStyle::TITLE>{STATISTICS_TITLE}</Text>
-                    <MemoryGraph history={history} />
-                    <StatisticLine
-                        row={create_memo(|| Some(StatisticRow {
-                            heading: true,
-                            name: "Measurement".to_owned(),
-                            current: "Latest".to_owned(),
-                            average: "Average".to_owned(),
-                            peak: "Peak".to_owned(),
-                        }))}
-                    />
-                    <ForEach value={keys}>|index: usize| {
-                        let row = create_memo(move || rows.with(|rows| rows.get(index).cloned()));
-                        view! {
-                            <StatisticLine row />
-                        }
-                    }</ForEach>
-                    <Text size=TextSize::Xs color=TextColor::Muted>{file}</Text>
-                </List>
-            </Frame>
-        </Scroll>
-    }
-}
-
-/// The host's memory over time, as be-host's own panel graphs it: resident, anonymous,
-/// shared and wasm memory a point a minute, each line in its own colour role, against a top of
-/// the peak resident size rounded up to 64 MiB, a gap of more than two minutes breaking a line,
-/// each line's name below it in its colour. Nothing shows until a minute is measured.
-#[component]
-fn MemoryGraph(history: Signal<MemoryMinutes>) -> NodeId {
-    let measured = create_memo(move || history.with(|history| !history.points.is_empty()));
-    view! {
-        <Show value={measured}>
-            <MemoryDrawing history={history} />
-        </Show>
-    }
-}
-
-/// The graph itself, drawn each time the minutes or the theme change.
-#[component]
-fn MemoryDrawing(history: Signal<MemoryMinutes>) -> NodeId {
-    let theme = use_theme();
-    let draw: Prop<Draw> = Prop::dynamic(move || {
-        let history = history.get();
-        let colors = [
-            theme.accent.get(),
-            theme.success.get(),
-            theme.warning.get(),
-            theme.danger.get(),
-        ];
-        let border = theme.border.get();
-        Rc::new(move |painter: &Painter, rect: Rect| {
-            draw_memory(painter, rect, &history, colors, border);
-        }) as Draw
-    });
-    view! {
-        <List spacing=Space::Xs2>
-            <Frame height={Size::Custom(MEMORY_GRAPH_HEIGHT)}>
-                <Drawing draw />
-            </Frame>
-            <List direction=Direction::Horizontal spacing=Space::Md>
-                <Text size=TextSize::Xs color=TextColor::Accent>"Resident"</Text>
-                <Text size=TextSize::Xs color=TextColor::Success>"Anonymous"</Text>
-                <Text size=TextSize::Xs color=TextColor::Warning>"Shared"</Text>
-                <Text size=TextSize::Xs color=TextColor::Danger>"Wasm"</Text>
+        <Frame width=Length::FILL height=Length::FILL padding=Space::Md>
+            <List spacing=Space::Xs>
+                <Text style=TextStyle::TITLE>{STATISTICS_TITLE}</Text>
+                <ForEach value={keys}>|index: usize| {
+                    let line = create_memo(move || {
+                        lines.with(|lines| lines.get(index).cloned().unwrap_or_default())
+                    });
+                    view! { <Text>{line}</Text> }
+                }</ForEach>
             </List>
-        </List>
-    }
-}
-
-/// The memory graph's height, in points.
-const MEMORY_GRAPH_HEIGHT: f32 = 60.0;
-
-fn draw_memory(
-    painter: &Painter,
-    rect: Rect,
-    history: &MemoryMinutes,
-    colors: [beui::Color; 4],
-    border: beui::Color,
-) {
-    painter.rect_stroke(rect, 0.0, 1.0, border);
-    let Some(first) = history.points.first() else {
-        return;
-    };
-    const STEP: u64 = 64 << 20;
-    let peak = history
-        .points
-        .iter()
-        .map(|point| point.resident)
-        .max()
-        .unwrap_or(0);
-    let top = peak.div_ceil(STEP).max(1) * STEP;
-    let span = history.now.saturating_sub(first.at).max(60) as f32;
-    let at = |point: &be_wasm_root_api::MemoryPoint, value: u64| {
-        pos2(
-            rect.left() + rect.width() * point.at.saturating_sub(first.at) as f32 / span,
-            rect.bottom() - rect.height() * value as f32 / top as f32,
-        )
-    };
-    let lines: [fn(&be_wasm_root_api::MemoryPoint) -> u64; 4] = [
-        |point| point.resident,
-        |point| point.anonymous,
-        |point| point.shared,
-        |point| point.wasm,
-    ];
-    for (line, color) in lines.into_iter().zip(colors).rev() {
-        let mut path = beui::Path::new();
-        let mut previous: Option<u64> = None;
-        for point in &history.points {
-            let spot = at(point, line(point));
-            path = match previous {
-                Some(before) if point.at.saturating_sub(before) <= 120 => path.line_to(spot),
-                _ => path.move_to(spot),
-            };
-            previous = Some(point.at);
-        }
-        if let [only] = history.points.as_slice() {
-            path = path.line_to(pos2(rect.right(), at(only, line(only)).y));
-        }
-        painter.stroke_path(
-            &path,
-            &beui::Stroke::new(1.5).join(beui::LineJoin::Round),
-            color,
-        );
-    }
-}
-
-/// One row of the host's statistics: its name, and its latest value, average and peak, each
-/// right-aligned in a column of its own.
-#[component]
-fn StatisticLine(row: Memo<Option<StatisticRow>>) -> NodeId {
-    let cell = |read: fn(&StatisticRow) -> String| {
-        create_memo(move || row.with(|row| row.as_ref().map(read).unwrap_or_default()))
-    };
-    let name = cell(|row| row.name.clone());
-    let current = cell(|row| row.current.clone());
-    let average = cell(|row| row.average.clone());
-    let peak = cell(|row| row.peak.clone());
-    let weight =
-        create_memo(
-            move || match row.with(|row| row.as_ref().is_some_and(|row| row.heading)) {
-                true => Weight::Bold,
-                false => Weight::Normal,
-            },
-        );
-    view! {
-        <List direction=Direction::Horizontal spacing=Space::Sm>
-            <ListItem grow=1.0>
-                <Text overflow=Overflow::Ellipsis size=TextSize::Xs weight={weight}>{name}</Text>
-            </ListItem>
-            <StatisticCell value={current} weight={weight} />
-            <StatisticCell value={average} weight={weight} />
-            <StatisticCell value={peak} weight={weight} />
-        </List>
-    }
-}
-
-/// One value of a row, right-aligned in its column.
-#[component]
-fn StatisticCell(value: Memo<String>, weight: Memo<Weight>) -> NodeId {
-    view! {
-        <Frame width=Size::Xl3>
-            <Text size=TextSize::Xs family=Family::Mono weight={weight} align=TextAlign::End>
-                {value}
-            </Text>
         </Frame>
     }
 }
 
-/// The lock screen: whose session it is, a password field it focuses, why the last password
-/// was refused, and what the host offers besides unlocking. What is typed is handed to the host
-/// to check, and the field cleared as it is.
+/// The fixture's lock screen: a password field it focuses, which hands what was typed to its
+/// host to check, the host's refusal, and a button for each power action the host offers,
+/// which is all its tests check. be-root's is the one a person sees.
 #[component]
-fn LockCard(state: Signal<LockState>, shown_at: Signal<Duration>) -> NodeId {
+fn LockScreen(state: Signal<LockState>) -> NodeId {
     let password = create_signal(String::new());
-    let user = create_memo(move || state.with(|state| state.user.clone()));
-    let checking = create_memo(move || state.with(|state| state.checking));
     let refused = create_memo(move || state.with(|state| state.refused.clone()));
     let powers = create_memo(move || state.with(|state| state.power.clone()));
-    let wait = retry_wait(state, shown_at);
     let slots = create_memo(move || (0..powers.with(Vec::len)).collect::<Vec<usize>>());
     let submit = move |typed: String| {
-        if typed.is_empty() || checking.get_untracked() {
-            return;
-        }
         password.set(String::new());
-        unlock(typed);
+        let typed = Password::from(typed);
+        be_wasm_ops::guest::spawn(async move {
+            // A host that cannot hear it has stopped, which the root hears from its frames.
+            let _ = host::unlock(typed).await;
+        });
     };
     view! {
-        <Frame width=Length::FILL height=Length::FILL align=Align2::CENTER padding=Space::Lg>
-            <List spacing=Space::Md align=Align::Center>
-                <Text style=TextStyle::TITLE>{user}</Text>
+        <Frame width=Length::FILL height=Length::FILL padding=Space::Lg>
+            <List spacing=Space::Md>
                 <TextInput
                     value={password}
-                    placeholder="Password"
                     label="Password"
                     kind={InputKind::Password}
-                    disabled={checking}
                     focused=true
                     on_submit={submit}
                 />
-                <Show value={move || checking.get() && refused.with(Option::is_none)}>
-                    <Text style=TextStyle::CAPTION>"Checking…"</Text>
-                </Show>
                 <Show value={refused}>|reason: ReadSignal<String>|
-                    <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
-                </Show>
-                <Show value={wait}>|left: ReadSignal<String>|
-                    <Text style=TextStyle::CAPTION>{left}</Text>
+                    <Text>{reason}</Text>
                 </Show>
                 <List direction=Direction::Horizontal spacing=Space::Xs>
                     <ForEach value={slots}>|index: usize| {
                         let action = create_memo(move || {
                             powers.with(|powers| powers.get(index).copied())
                         });
-                        let label = create_memo(move || action.get().map(power_label).unwrap_or_default());
-                        let glyph = create_memo(move || action.get().map(power_glyph));
+                        let label = create_memo(move || {
+                            action.get().map(|action| format!("{action:?}")).unwrap_or_default()
+                        });
                         view! {
                             <Button
-                                icon_only=true
-                                glyph
                                 label
                                 on_click={move || {
                                     if let Some(action) = action.get_untracked() {
-                                        lock_power(action);
+                                        be_wasm_ops::guest::spawn(async move {
+                                            // A host that cannot hear it has stopped, which the
+                                            // root hears from its frames.
+                                            let _ = host::lock_power(action).await;
+                                        });
                                     }
                                 }}
                             />
@@ -929,78 +732,6 @@ fn LockCard(state: Signal<LockState>, shown_at: Signal<Duration>) -> NodeId {
     }
 }
 
-/// "Try again in N s" while the host makes the person wait after failed passwords (`retry-at`,
-/// on the host's frame clock), counted down a second at a time by a timer on beui's clock, which
-/// the root pins to the host's: `shown_at` is the host's frame time when the state was shown.
-/// None once the wait is over.
-fn retry_wait(state: Signal<LockState>, shown_at: Signal<Duration>) -> Memo<Option<String>> {
-    let retry_at = create_memo(move || state.with(|state| state.retry_at));
-    let left = create_signal(None::<u64>);
-    // When the wait was last shown, on beui's clock and on the host's.
-    let from = StoredCell::new((now(), Duration::ZERO));
-    let tick = create_timer(move || {
-        let at = retry_at.get_untracked()?;
-        let (since, host) = from.get();
-        let host_now = host + now().saturating_duration_since(since);
-        let host_now = u64::try_from(host_now.as_nanos()).unwrap_or(u64::MAX);
-        let seconds = at.saturating_sub(host_now).div_ceil(1_000_000_000);
-        left.set((seconds > 0).then_some(seconds));
-        (seconds > 0).then_some(Duration::from_secs(1))
-    });
-    create_effect(move || {
-        retry_at.get();
-        let host = shown_at.get();
-        untrack(|| {
-            from.set((now(), host));
-            left.set(None);
-            tick.restart(Duration::ZERO);
-        });
-    });
-    create_memo(move || {
-        left.get()
-            .map(|seconds| format!("Try again in {seconds} s"))
-    })
-}
-
-/// Hands `typed` to the host to check (`host.unlock`), keeping no copy: whether it unlocked the
-/// session reaches the root as the lock's next change, and why it was refused with it.
-fn unlock(typed: String) {
-    let password = Password::from(typed);
-    be_wasm_ops::guest::spawn(async move {
-        // A host that cannot hear it has stopped, which the root hears from its frames.
-        let _ = host::unlock(password).await;
-    });
-}
-
-/// Tells the host the person chose `action` on the lock screen.
-fn lock_power(action: PowerAction) {
-    be_wasm_ops::guest::spawn(async move {
-        // A host that cannot hear it has stopped, which the root hears from its frames.
-        let _ = host::lock_power(action).await;
-    });
-}
-
-fn power_label(action: PowerAction) -> String {
-    match action {
-        PowerAction::Suspend => "Suspend",
-        PowerAction::Restart => "Restart",
-        PowerAction::PowerOff => "Power off",
-        PowerAction::LogOut => "Log out",
-    }
-    .to_owned()
-}
-
-fn power_glyph(action: PowerAction) -> Glyph {
-    match action {
-        PowerAction::Suspend => ICON_MOON,
-        PowerAction::Restart => ICON_ROTATE_CCW,
-        PowerAction::PowerOff => ICON_POWER,
-        PowerAction::LogOut => ICON_LOG_OUT,
-    }
-    .to_owned()
-}
-
-/// The strip of text: `TEXT`, and `LATER_TEXT` from `LATER` on, or the `name` the dialog gave.
 #[component]
 fn Strip(name: Signal<Option<String>>) -> NodeId {
     let later = create_signal(false);

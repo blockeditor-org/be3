@@ -28,8 +28,7 @@
 //! F3 (`OPENS_STATISTICS`), which it always intercepts too, opens and closes a debug panel
 //! (`STATISTICS_LAYER`, drawn with beui on `STATISTICS_SURFACE`) of its host's statistics: it
 //! watches them while the panel is open (`be3:root`'s `host.watch-statistics`) and shows each
-//! change of them (`host.statistics`) as rows, with its memory over time graphed
-//! (`host.memory-history`), never taking the focus.
+//! change of them (`host.statistics`) as lines of text, never taking the focus.
 //! It shows its host's screen lock (`host.lock`): while the session is locked, a lock screen
 //! (`LOCK_LAYER`, drawn with beui on `LOCK_SURFACE`) over everything, toasts hidden, which takes
 //! the focus for its password field and gives it back once unlocked; it intercepts none of its

@@ -1089,7 +1089,7 @@ Each step lands on its own.
        zeroed by the host, never in the view. Each area adds its field and its commands with
        the slice that moves it; be-host's `--root` answers what it has, which is nothing before
        it runs the core (4g7): nothing to save, no display waiting, no accounts. be-host's own
-       `SlowSave` is a copy of the root's slow save's toast, and be-sdk-root-testing's
+       `SlowSave` is a copy of the root's slow save's toast, and be-root's
        `MemoryGraph` and `draw_memory` a copy of be-host's memory graph, until the root becomes
        the default (4g7), which deletes be-host's UI and the copies with it; a crate shared
        for interim duplicates is not worth it. The slices: 4g6b saving (the slow save's toast); 4g6c keep
@@ -1464,7 +1464,8 @@ Each step lands on its own.
          the slow save's toast, keep changes, the core's areas and their dialogs, and the
          statistics panel, worded and laid out as be-host's own UI (its `src/ui`), on
          be-host-accounts-ui moved into a crate a root may use. be-sdk-root-testing keeps
-         only what its own tests check (a dialog, the lock, a notice, the statistics), and
+         only what its own tests check (a dialog, the lock, a notice, the statistics), each a
+         fixture of its own rather than the product's, and
          be-wasm-root-host's area tests move to the real root's crate, run on the same host.
          In two parts:
          - 4g7a1 (built). `crates/be-root`, a family of its own (`be-root-*` in
@@ -1478,11 +1479,15 @@ Each step lands on its own.
            menu it opens shows) opens what be-host's organization menu does: unsent edits,
            contacts, a share link, invitations, members, agents, sessions, switching
            organization or account, a new recovery phrase, locking the session, and the
-           statistics. be-host-accounts-ui is be-root-accounts-ui. be-sdk-root-testing is
-           back to its fixture of before 4g6b (the triangle, the strip, the rename dialog,
-           toasts, the lock screen, the statistics panel with the memory graph, F2 to F5), and
-           be-wasm-root-host's area tests run be-root in its own crate (`BE_ROOT_WASM`), their
-           dialogs opened from the menu. be-host's `:native` stages be-root, and `--root`
+           statistics. Its guest is split by area (`guest/onboarding.rs`, `dialogs.rs`,
+           `lock.rs`, `notices.rs`, `statistics.rs`, `menu.rs`). be-host-accounts-ui is
+           be-root-accounts-ui. be-sdk-root-testing is back to its fixture of before 4g6b
+           (the triangle, the strip, the rename dialog, toasts, F2 to F5), with nothing of
+           the product's in it: its lock screen is a password field, the host's refusal and
+           the power buttons, and its statistics panel the rows as lines of text, no graph;
+           the lock card and the memory graph are be-root's alone, their paintings moved
+           with them. be-wasm-root-host's area tests run be-root in its own crate
+           (`BE_ROOT_WASM`), their dialogs opened from the menu. be-host's `:native` stages be-root, and `--root`
            alone runs it (`be_root_in_place_of_the_hosts_ui_shows_its_onboarding`).
          - 4g7a2. be-host's wording and layout: the window's size rather than the fixture's
            400 by 240 (`SIZE`) and the dialog's fixed 152 points, be-host's titles and
@@ -1505,8 +1510,9 @@ Each step lands on its own.
          capability 4g6 gave it: the block stack's `core-view` and its commands and
          secrets (until step 5 moves the stack), the login session's lock and PAM, the
          displays' keep changes, and the clipboard and notices already wired; then, once the
-         real root passes the host tests that exercise be-host's own `src/ui` today, with
-         their paintings compared, and only then, the root
+         real root has 4g7a2's layout (so the fixture's geometry, `SIZE`, `DIALOG_SIZE` and
+         `MENU_BUTTON`, never ships) and passes the host tests that exercise be-host's own
+         `src/ui` today, with their paintings compared, and only then, the root
          becomes the default and be-host's `src/ui` and `src/compositor` go, with the copies
          noted above (`SlowSave`, the memory graph).
 5. The block stack as an instance the root guest spawns, behind capabilities, building on the
