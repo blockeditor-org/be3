@@ -1101,18 +1101,27 @@ Each step lands on its own.
          and the toast hidden while locked, and snapshots the toast.
        - 4g6c. Built: keep changes, as the platform's own capability: `host.displays` is a watch,
          as `host.notices` is, of whether the host asks the person to keep display settings
-         that just changed (`display-state`'s `asking`, a `display-question`: its round and how
-         long the person has to answer), and `host.answer-display(round, keep)` answers it, an
-         answer to a round no longer asked changing nothing (be-wasm-root-host's
-         `Root::show_displays`, `take_display_answers`). be-host's `--root` manages no displays
-         (the desktop's), so it asks nothing and an answer changes nothing. be-sdk-root-testing
-         asks in its dialog's place while the host asks (`KEEP_DISPLAY_TITLE`, an alert with
-         Keep and Revert over the scrim, taking the focus), counting down to reverting on its
-         clock; Escape, a press on the scrim and the time running out revert, and the host
-         withdrawing the question closes it unanswered. be-wasm-root-host's
+         that just changed (`display-state`'s `asking`, a `display-question`: its round and
+         `revert-at`, the frame clock's time the host reverts them at unless kept, whether or
+         not the root answered, as `lock-state`'s `retry-at` is a time the root counts down
+         to), and `host.answer-display(round, keep)` answers it; be3:root drops an answer to a
+         round it does not ask now, so the host hears only answers to its question
+         (be-wasm-root-host's `Root::show_displays`, `take_display_answers`). be-host's `--root`
+         manages no displays (the desktop's), so it asks nothing and an answer changes nothing.
+         be-sdk-root-testing asks in its dialog's place while the host asks (`KEEP_DISPLAY_TITLE`,
+         an alert with Keep and Revert over the scrim, taking the focus), counting down on its
+         clock to `revert-at` and answering not kept when it is reached, a courtesy the host
+         does not wait for. It keeps the question it heard last, so one asked while the session
+         is locked shows once it is unlocked if still asked and not answered; a question
+         replaces an open rename dialog, which closes without renaming. Escape and a press on
+         the scrim revert at once here, the shortest path for a test root; the real root
+         (4g7) chooses deliberately, since reverting on a stray press is harsh and some
+         desktops make the scrim of such a question inert. The host withdrawing the question
+         closes it unanswered. be-wasm-root-host's
          `a_root_asks_to_keep_display_settings_its_host_changed` keeps with Enter, reverts with
-         Escape and by the timeout, sees a withdrawn question go unanswered, and snapshots the
-         question.
+         Escape and at `revert-at`, sees a withdrawn question go unanswered and only the round
+         asked answered, shows a question asked while locked once unlocked, sees a question
+         replace a rename dialog without renaming, and snapshots the question.
        - 4g6a. Built: the lock screen, over the screen lock and password check the host grants.
          The lock is the host's (the platform's, a login session's): `be3:root` carries it as
          data, nothing beui's. `host.lock` is a watch, as `host.notices` is, answering the lock

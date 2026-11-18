@@ -210,9 +210,10 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   (plans/host_as_platform_adapter.md, 4g6, has how the rest of be-host's core
   reaches the root). Keep changes is the platform's: `host.displays` is
   a watch of whether the host asks to keep display settings that just changed
-  (the round and how long the person has to answer; `Root::show_displays`),
-  and `host.answer-display(round, keep)` answers it
-  (`Root::take_display_answers`).
+  (the round and `revert-at`, the frame clock's time the host reverts them
+  unless kept, answered or not; `Root::show_displays`), and
+  `host.answer-display(round, keep)` answers it, an answer to a round not
+  asked now being dropped (`Root::take_display_answers`).
   The input method
   needs nothing more: the platform's input-method events reach the root as
   input, which its router hands the focused surface, and the field that
