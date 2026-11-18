@@ -10,12 +10,8 @@ const PLAN: [u8; 16] = [2; 16];
 /// The block stack's view with `unsent` set aside.
 fn view(unsent: Vec<UnsentEdit>) -> CoreView {
     CoreView {
-        generation: 0,
         unsent,
-        choosing_account: false,
-        accounts: Vec::new(),
-        signing_in: None,
-        account_error: None,
+        ..CoreView::default()
     }
 }
 

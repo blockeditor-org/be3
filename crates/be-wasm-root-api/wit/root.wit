@@ -3,7 +3,7 @@ package be3:root@0.1.0;
 /// What the host serves the root guest beside the sandbox
 /// (plans/host_as_platform_adapter.md, The root guest).
 interface host {
-    use be3:shared/ids@0.1.0.{block-id};
+    use be3:shared/ids@0.1.0.{block-id, block-type-id, organization-id, uuid};
 
     /// Answers once the frame being drawn reaches its deadline: the display's
     /// next present less the time the host's own work after the frame takes.
@@ -355,6 +355,97 @@ interface host {
         browser: option<browser-sign-in>,
     }
 
+    /// What the block stack waits for the person to do before it opens an
+    /// organization's blocks.
+    enum core-wait {
+        /// Open or add an account.
+        account,
+        /// Choose, join or create an organization.
+        organization,
+        /// Choose a session in the organization.
+        session,
+    }
+
+    /// An organization the account belongs to.
+    record organization-row {
+        id: organization-id,
+        name: string,
+    }
+
+    /// Whether the account's organizations are listed yet.
+    variant organizations-listed {
+        /// Asked of the server, not answered yet.
+        loading,
+        /// The organizations, as the server answered.
+        loaded(list<organization-row>),
+        /// The server could not list them, which `reload-organizations` asks
+        /// again.
+        failed,
+    }
+
+    /// An invitation into an organization, opened from its link.
+    record invitation {
+        /// The organization's name.
+        organization: string,
+        /// Who invited the person, as their card says.
+        inviter: string,
+        /// Why this account cannot take it (already a member, say), or why
+        /// nobody can (it expired), in words; none while it can be joined.
+        problem: option<string>,
+        /// Whether the account open may join it now.
+        can-join: bool,
+    }
+
+    /// The account's organizations, and joining or creating one.
+    record organizations-area {
+        listed: organizations-listed,
+        /// The invitation opened, until it is joined or put aside.
+        joining: option<invitation>,
+        /// Whether joining, creating or listing is under way.
+        busy: bool,
+        /// Why joining, creating or listing failed last, in words.
+        error: option<string>,
+    }
+
+    /// A session of the organization: the blocks the person had open, as
+    /// they left them.
+    record session-row {
+        id: uuid,
+        name: string,
+        /// The type of session it is, which the editor it opens in names.
+        session-type: block-type-id,
+        /// Whether it is the session the person used last.
+        current: bool,
+    }
+
+    /// A type a new session can be, with its name.
+    record session-type {
+        id: block-type-id,
+        name: string,
+    }
+
+    /// A profile: which settings this device uses.
+    record profile-row {
+        id: uuid,
+        name: string,
+        /// Whether this device uses it now.
+        current: bool,
+    }
+
+    /// The organization's sessions and this device's profiles.
+    record sessions-area {
+        /// Whether the sessions and profiles are read yet.
+        loaded: bool,
+        /// The organization's sessions, of every type.
+        sessions: list<session-row>,
+        /// The types a new session can be.
+        session-types: list<session-type>,
+        /// The type of session this device opens, which a new session is
+        /// unless the person picks another.
+        session-type: block-type-id,
+        profiles: list<profile-row>,
+    }
+
     /// What the block stack shows the person, a field per area, each the
     /// plain data its area shows; the root words it, and holds what is open
     /// and what is being asked itself. It changes at the rate its slowest
@@ -365,9 +456,9 @@ interface host {
         generation: u64,
         /// The blocks whose changes could not be sent, oldest first.
         unsent: list<unsent-edit>,
-        /// Whether the block stack waits for the person to open or add an
-        /// account, for which the root shows the accounts.
-        choosing-account: bool,
+        /// What the block stack waits for the person to do, which the root
+        /// shows its area for; none once an organization's blocks are open.
+        waits-for: option<core-wait>,
         /// The accounts this device keeps.
         accounts: list<account-row>,
         /// Adding an account, while the host is at it.
@@ -375,6 +466,10 @@ interface host {
         /// Why adding, opening or removing an account failed last, in words,
         /// until the next attempt.
         account-error: option<string>,
+        /// The account's organizations.
+        organizations: organizations-area,
+        /// The organization's sessions.
+        sessions: sessions-area,
     }
 
     /// What the block stack shows the person, once it differs from the
@@ -424,6 +519,35 @@ interface host {
         check-sign-in,
         /// Stop adding an account, and forget why the last attempt failed.
         cancel-sign-in,
+        /// Leave the account open for the accounts, keeping it on this device.
+        switch-account,
+        /// List the account's organizations again.
+        reload-organizations,
+        /// Open the organization, in the session the person used last.
+        open-organization(organization-id),
+        /// Open the organization, choosing its session.
+        choose-session-in(organization-id),
+        /// Create an organization of this name.
+        create-organization(string),
+        /// Open the invitation of the link the person pasted: a bearer
+        /// secret, so a `password`, zeroed once decoded.
+        open-invitation(password),
+        /// Join the organization of the invitation opened.
+        join-invited,
+        /// Put the invitation opened aside.
+        cancel-join,
+        /// Choose another session of the organization open.
+        choose-session,
+        /// Stop choosing a session, back in the one open.
+        close-sessions,
+        /// Open the session of this id.
+        open-session(uuid),
+        /// Open a new session of this type.
+        new-session(block-type-id),
+        /// Use the profile of this id on this device.
+        use-profile(uuid),
+        /// Make a new profile, and use it on this device.
+        new-profile,
     }
 
     /// The person asked `command` of the block stack, which the host does. It

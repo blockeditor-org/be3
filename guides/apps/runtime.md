@@ -209,13 +209,17 @@ its own (a `v8::SharedIsolate`, locked by the thread that runs it):
   anything slower since it moves at the rate the person types. The rest of
   the block stack's state is one watch, `host.core`, a `core-view` with a field
   per area (`unsent`, the blocks whose changes could not be sent, and why, as
-  data the root words; the accounts, whether the stack waits for one to be
-  opened, the sign-in in progress and why one failed; `Root::show_core`), and
+  data the root words; what the stack waits for the person to do, `waits-for`;
+  the accounts, the sign-in in progress and why one failed; the organizations
+  and the invitation opened; the sessions and profiles; `Root::show_core`), and
   one call, `host.ask-core(core-command)`, a case per request of an area
   (restoring or discarding unsent changes; opening, forgetting and adding
-  accounts and the browser sign-in; `Root::take_core_commands`); the root
+  accounts and the browser sign-in; listing, opening, creating and joining
+  organizations; choosing and making sessions and profiles;
+  `Root::take_core_commands`); the root
   holds what it has open and what it asks the person itself. A secret the
-  person types into a command (an account's gateway token) is a `password`,
+  person types into a command (an account's gateway token, an invitation's
+  link) is a `password`,
   zeroed once decoded as `host.unlock`'s is: the bindings' `secret` option
   covers every type holding one, which derives `Debug` alone
   (plans/host_as_platform_adapter.md, 4g6, has how the rest of be-host's core

@@ -234,15 +234,22 @@ pub const UNSENT_TITLE: &str = "Unsent edits";
 /// The title of the question the list asks before discarding a block's unsent edits.
 pub const DISCARD_UNSENT_TITLE: &str = "Discard edits?";
 
-/// The layer showing `ACCOUNTS_SURFACE` while the block stack waits for the person to open or
-/// add an account (`core-view`'s `choosing-account`): over the app and the statistics panel,
-/// under the dialog, the lock screen and the toasts, taking every press and, once drawn, the
-/// focus.
-pub const ACCOUNTS_LAYER: LayerId = LayerId(8);
+/// The layer showing `ONBOARDING_SURFACE` while the block stack waits for the person before it
+/// opens an organization's blocks (`core-view`'s `waits-for`): over the app and the statistics
+/// panel, under the dialog, the lock screen and the toasts, taking every press and, once drawn,
+/// the focus.
+pub const ONBOARDING_LAYER: LayerId = LayerId(8);
 
-/// A surface of the root's own the size of the window that beui draws the accounts on, as
-/// be-host-accounts-ui's `AccountsScreen`.
-pub const ACCOUNTS_SURFACE: u32 = 9;
+/// A surface of the root's own the size of the window that beui draws what the block stack waits
+/// for on: the accounts (be-host-accounts-ui's `AccountsScreen`), the organizations or the
+/// sessions.
+pub const ONBOARDING_SURFACE: u32 = 9;
+
+/// The title of the organizations while the block stack waits for one to be chosen.
+pub const ORGANIZATIONS_TITLE: &str = "Organizations";
+
+/// The title of the sessions while the block stack waits for one to be chosen.
+pub const SESSIONS_TITLE: &str = "Sessions";
 
 /// The title of the dialog that adds an account, before it knows where.
 pub const ADD_ACCOUNT_TITLE: &str = "Add account";
