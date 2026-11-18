@@ -324,8 +324,9 @@ held for the organization), and a device takes one only over an older,
 whatever its place in the mailbox, so an old pin the server sends again is
 never taken. A device working in a company organization reads its
 pin from there as its session opens (`Peer::open_session`), so a new device
-needs only the identity secret to open the organization's escrow chain. `Peer::organization_log` refuses a log whose root
-is not the pinned one. The personal organization has no log.
+needs only the identity secret to open the organization's escrow chain.
+`Peer::organization_log` refuses a log whose root is not the pinned one. The
+personal organization has no log.
 
 A device takes a log only checked from its pinned root to its head
 (`be_block_keys::check_log`): each entry names the hash of the one before and
@@ -335,13 +336,17 @@ log (`Checked`) also tells whether it reaches an entry (`holds`) and each
 account's level as of any entry it reaches (`level_as_of`; for an
 organization's log, administering it is Manage). `check_log` is
 `Checked::extend` from the empty state (`Checked::unchecked`), and a device
-checks each signature once: a whole block log it checked is kept with the refs
-(`KeptLog::checked`), and `checked_access` and `checked_organization` check the log served next on from
-it (`Checked::resume`), which takes its prefix only when every entry names the
-one before and the last kept hashes to the kept head, verifying no signature
-there, and refuses it as forged otherwise. A proof path is checked whole each
-time (plans/access_logs_checked_once.md has what is left: Merkle reads, proof
-paths, the organization's log and the server).
+checks each signature once: a whole log it checked, a block's or the
+organization's (kept under the organization's id), is kept with the refs
+(`KeptLog::checked`), and `checked_access` and `checked_organization` check
+the log served next on from it (`Checked::resume`). That takes the served
+prefix only when every entry names the one before and the last kept hashes to
+the kept head, verifying no signature there, and refuses the log as forged
+otherwise, as it does a log at least as long that does not reach the kept
+head (one shorter is checked whole, and withheld). A proof path is
+checked whole each time (plans/access_logs_checked_once.md has what is left:
+Merkle reads, proof paths, the organization's log as a block's check reads it,
+and the server).
 
 **Who is served what.** A sealer must see every entry up to the head, since
 an entry reduced to its hash could be the revocation of whom it seals to, or of

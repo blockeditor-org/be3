@@ -79,7 +79,24 @@ pub enum ServerError {
     Socket(String),
 }
 
+/// What a client did wrong: refused, with this text, as an invalid request.
+pub(crate) fn refused(message: &str) -> ServerError {
+    ServerError::Refused(ErrorCode::InvalidRequest, message.to_owned())
+}
+
 impl ServerError {
+    /// What a client is told of this error: why it was refused, and nothing of the server's
+    /// own failures (its storage, its build), whose text is logged instead.
+    pub(crate) fn told(self) -> String {
+        match self {
+            Self::Refused(_, message) => message,
+            error => {
+                tracing::warn!(%error, "a request failed");
+                "the request failed".to_owned()
+            }
+        }
+    }
+
     pub fn code(&self) -> ErrorCode {
         match self {
             Self::Refused(code, _) => *code,
@@ -303,7 +320,7 @@ pub(crate) fn new_secret() -> String {
 }
 
 fn not_reading() -> ServerError {
-    ServerError::Socket("the client is not reading what it is sent".into())
+    refused("the client is not reading what it is sent")
 }
 
 fn is_ping(frame: &[u8]) -> bool {
@@ -764,7 +781,7 @@ where
     };
     let frame = tokio::time::timeout(HANDSHAKE_TIMEOUT, greeting_frame)
         .await
-        .map_err(|_| ServerError::Socket("the client never said which build it is".into()))??;
+        .map_err(|_| refused("the client never said which build it is"))??;
     let (ours, greeting) = greeting(frame.as_deref().and_then(read_hello).as_ref())?;
     if greeting.is_none() {
         sink.send(Message::Binary(hello(ours, &()))).await?;

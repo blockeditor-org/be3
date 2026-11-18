@@ -1695,7 +1695,9 @@ impl Checked {
     /// checked: each names the hash of the one before, and the last of them hashes to this head
     /// (no signature is verified for them). Else the server rewrote what was checked, and the
     /// log is refused as forged. Only the entries after the head are checked. A partial log is
-    /// checked again from its root.
+    /// checked again from its root. A whole kept log checked on through a proof path's tail
+    /// knows its prefix whole, as checked before, and is partial from there: it holds more than
+    /// the path checked from its root would.
     pub fn resume(
         self,
         kind: LogKind,
