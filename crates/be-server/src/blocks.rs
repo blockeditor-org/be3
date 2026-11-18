@@ -2641,6 +2641,13 @@ impl ServerStore {
         organization: Uuid,
         blocks: &[Uuid],
     ) -> Result<(), ServerError> {
+        // Parents first, so taking them out of the graph deepest first leaves no child behind.
+        debug_assert!(blocks.iter().enumerate().all(|(at, block)| {
+            graph
+                .get(*block)
+                .and_then(|node| node.parent.block())
+                .is_none_or(|parent| !blocks.contains(&parent) || blocks[..at].contains(&parent))
+        }));
         let mut freed = Vec::new();
         let mut released: Vec<(Uuid, Vec<Hash>)> = Vec::new();
         {

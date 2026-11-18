@@ -1774,8 +1774,10 @@ impl ServerStore {
             .filter(|hash| {
                 database
                     .query_row(
+                        // An upload of the same bytes since, not yet confirmed, keeps them.
                         "SELECT NOT EXISTS(SELECT 1 FROM object_refs WHERE hash = ?1)
-                            AND NOT EXISTS(SELECT 1 FROM object_sizes WHERE hash = ?1)",
+                            AND NOT EXISTS(SELECT 1 FROM object_sizes WHERE hash = ?1)
+                            AND NOT EXISTS(SELECT 1 FROM object_uploads WHERE hash = ?1)",
                         [hash.to_hex()],
                         |row| row.get::<_, bool>(0),
                     )
