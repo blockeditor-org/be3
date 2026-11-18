@@ -1767,7 +1767,18 @@ fn track(doc: &mut Document, frame: &Frame) {
         }
         return;
     };
-    doc.last_pointer = Some(PointerSample { pos, window, touch });
+    let pressing = doc
+        .pointers
+        .sessions
+        .iter()
+        .find(|session| session.role == Role::Press)
+        .map_or(PointerId::Mouse, |session| session.pointer);
+    doc.last_pointer = Some(PointerSample {
+        pos,
+        window,
+        touch,
+        pointer: pressing,
+    });
     let Some(drags) = doc.drags.clone() else {
         return;
     };

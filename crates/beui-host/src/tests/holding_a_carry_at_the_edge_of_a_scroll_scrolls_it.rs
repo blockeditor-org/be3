@@ -1,26 +1,23 @@
 use super::*;
+use crate::drag::Carry;
 use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::Scroll;
-use crate::unstyled::{DragHandle, Draggable};
 
 #[test]
-fn holding_a_drag_at_the_edge_of_a_scroll_scrolls_it() {
+fn holding_a_carry_at_the_edge_of_a_scroll_scrolls_it() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
     let source = NodeRef::new();
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Draggable
-                    payload={7_u32}
-                    preview={|_: u32| view! {
-                        <Frame width=40.0 height=40.0 />
-                    }}
+                <Interactive
                     @node_ref=&source
-                >|_: DragHandle|
+                    drag={Func::new(|_: PointerPress| Some(Carry::new(7_u32)))}
+                >
                     <Frame width=40.0 height=40.0 />
-                </Draggable>
+                </Interactive>
                 <ListItem grow=1.0>
                     <Scroll @node_ref=&scroll>
                         <ForEach value={indices(100)}>|index: usize|
@@ -82,13 +79,6 @@ fn holding_a_drag_at_the_edge_of_a_scroll_scrolls_it() {
     assert_eq!(
         harness.document().scroll_offset(scroll),
         dropped,
-        "and once the drag ends"
-    );
-    assert!(
-        harness
-            .document()
-            .overlay_rects(crate::WindowId::MAIN)
-            .is_empty(),
-        "an edge scroll shows no autoscroll marker"
+        "and once the carry is let go"
     );
 }

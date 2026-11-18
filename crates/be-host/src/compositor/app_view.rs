@@ -17,7 +17,7 @@ use beui::styled::*;
 use beui::{
     Align, CursorIcon, Dismiss, Forwarded, ForwardedInput, ImeCursor, LayerPolicy, Modifiers,
     NodeId, OverlayAnchor, Placement, PointerButton, PointerEvent, PointerId, PointerPhase, Pos2,
-    Rect, Vec2, WindowId, WindowPlacement, WindowReport, native::Region, pos2,
+    Rect, Vec2, WindowId, WindowPlacement, WindowReport, drag, native::Region, pos2,
 };
 use uuid::Uuid;
 
@@ -1064,26 +1064,30 @@ pub(crate) fn AppView(
                     })
             })
     };
-    let taken = move |point: DragPoint| {
-        takes(point.pos - state.with_untracked(|view| view.rect.min.to_vec2()))
-    };
-    let over = move |over: Option<(BlockDrag, DragPoint)>| {
-        let over = over
-            .filter(|(_, point)| taken(*point))
-            .map(|(drag, point)| (drag, point.pos, DropAction::of(point.modifiers)));
-        be_host_runtime::drag_over_view(&app_id.value(), instance, region.id, over, false);
-    };
-    let dropped = move |(drag, point): (BlockDrag, DragPoint)| {
-        if taken(point) {
-            be_host_runtime::drag_over_view(
-                &app_id.value(),
-                instance,
-                region.id,
-                Some((drag, point.pos, DropAction::of(point.modifiers))),
-                true,
-            );
-        }
-    };
+    // A block carried over the view is the app's to take where it takes the pointer: the
+    // site's place is the window point and what the keys held make of the drop, which the
+    // app hears as the drag moves and on the drop.
+    let area = NodeRef::new();
+    let site = use_drop_site(
+        Func::new(|_: BlockDrag| true),
+        Func::new(move |drag: BlockDrag| {
+            drag::custom(area, move |local: Pos2, held: Modifiers| {
+                let (at, scale) = area.try_get().and_then(|node| drag::space().placed(node))?;
+                let pos = at.min + local.to_vec2() * scale;
+                takes(pos - state.with_untracked(|view| view.rect.min.to_vec2()))
+                    .then_some((drag, pos, DropAction::of(held)))
+            })
+        }),
+        Callback::new(move |(_, over): (BlockDrag, (BlockDrag, Pos2, DropAction))| {
+            be_host_runtime::drag_over_view(&app_id.value(), instance, region.id, Some(over), true);
+        }),
+    );
+    create_effect_on(
+        move || site.over.get(),
+        move |over: &Option<(BlockDrag, Pos2, DropAction)>, _| {
+            be_host_runtime::drag_over_view(&app_id.value(), instance, region.id, *over, false);
+        },
+    );
     let pressed_outside = move |pos: Pos2| {
         if state.with_untracked(|view| view.anchored.iter().any(|layer| layer.takes(pos))) {
             return;
@@ -1187,8 +1191,7 @@ pub(crate) fn AppView(
     let backdrop_radius = create_memo(move || corner_radius.map_or(0.0, |radius| radius.get()));
     let upright = create_memo(move || rotation.get() == 0.0 && opacity.get() >= 1.0);
     let built = view! {
-        <DropTarget on_over={over} on_drop={dropped}>|_: DropHandle|
-            <Layers>
+            <Layers @node_ref=&area>
                 <Backdrop state radius={backdrop_radius} upright />
                 <ViewChildren state={state} rect={rect} nodes={children} below=true />
                 <Interactive
@@ -1236,7 +1239,6 @@ pub(crate) fn AppView(
                 </Show>
                 {windows}
             </Layers>
-        </DropTarget>
     };
     on_back(handles_back, back);
     built
@@ -1621,16 +1623,16 @@ fn edge_of(edge: be_sdk_api::WindowEdge) -> beui::WindowEdge {
     }
 }
 
+/// Lifts a block an app began to drag onto the board, where the pointer pressing in it is:
+/// from there the app views it is carried over hear it (`drag_over_view`).
 pub(super) fn carry(drag: BlockDrag) {
-    let Some(pointer) = try_with_document(|document| document.last_pointer) else {
+    let Some(pointer) = try_with_document(|document| document.last_pointer).flatten() else {
         return;
     };
-    let board = beui::unstyled::drag_board();
-    let Some(pointer) = pointer.filter(|_| !board.carrying()) else {
-        return;
-    };
-    let point = DragPoint::at(pointer.pos, Modifiers::NONE);
-    board.begin(beui::unstyled::DragSource::new(Rc::new(drag)), point);
+    let point = DragPoint::at(pointer.pos, Modifiers::NONE)
+        .in_window(pointer.window)
+        .by(pointer.pointer);
+    beui::unstyled::drag_board().lift(drag::Carry::new(drag).drawn_by_site(), point);
 }
 
 fn focus_when_asked(

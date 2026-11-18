@@ -208,6 +208,8 @@ pub struct PointerSample {
     pub pos: Pos2,
     pub window: be_lib_ui_types::window::WindowId,
     pub touch: bool,
+    /// The pointer pressing, or the mouse while none is.
+    pub pointer: PointerId,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]

@@ -5,7 +5,7 @@ fn a_custom_site_chooses_the_drop_its_place_gives_for_the_point() {
     let root = RootScope::new();
     let node = origin(&root);
     // Frames along x, one per 10 points, taken only in the first 100.
-    let spec = custom(node, |at: Pos2| {
+    let spec = custom(node, |at: Pos2, _| {
         (at.x < 100.0).then(|| (at.x / 10.0) as u32)
     });
 

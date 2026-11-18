@@ -155,12 +155,13 @@ pub enum DragSpec<D> {
     /// A nested site: chosen while the pointer is in `region`, which chooses from there on.
     Into { region: NodeRef, drop: D },
     /// A site whose places are a function of the point (a timeline, where a clip lands at the
-    /// frame under the pointer): `place` takes the point in `node`'s own coordinates and gives
-    /// what dropping there means, or `None` where nothing is taken. Chosen wherever it answers;
+    /// frame under the pointer): `place` takes the point in `node`'s own coordinates and the
+    /// keys held (a block dropped with Ctrl is copied) and gives what dropping there means, or
+    /// `None` where nothing is taken. Chosen wherever it answers;
     /// the item floats under the pointer, and the site draws where it would land from `over`.
     Custom {
         node: NodeRef,
-        place: Rc<dyn Fn(Pos2) -> Option<D>>,
+        place: Rc<dyn Fn(Pos2, Modifiers) -> Option<D>>,
     },
 }
 
@@ -192,7 +193,10 @@ pub fn into<D>(region: NodeRef, drop: D) -> DragSpec<D> {
     DragSpec::Into { region, drop }
 }
 
-pub fn custom<D>(node: NodeRef, place: impl Fn(Pos2) -> Option<D> + 'static) -> DragSpec<D> {
+pub fn custom<D>(
+    node: NodeRef,
+    place: impl Fn(Pos2, Modifiers) -> Option<D> + 'static,
+) -> DragSpec<D> {
     DragSpec::Custom {
         node,
         place: Rc::new(place),
@@ -436,7 +440,7 @@ impl<D: 'static> DragSpec<D> {
             },
             DragSpec::Custom { node, place } => DragSpec::Custom {
                 node,
-                place: Rc::new(move |point| place(point).map(|made| drop(made))),
+                place: Rc::new(move |point, held| place(point, held).map(|made| drop(made))),
             },
         }
     }
@@ -998,7 +1002,7 @@ fn walk<'s, D: Clone>(
         DragSpec::Custom { node, place } => {
             let (at, scale) = (evaluation.placed)(node.try_get()?)?;
             let local = Pos2::ZERO + (evaluation.point.pos - at.min) / scale;
-            let drop = place(local)?;
+            let drop = place(local, evaluation.point.modifiers)?;
             Some(Found {
                 item: carried,
                 chosen: Some(id),

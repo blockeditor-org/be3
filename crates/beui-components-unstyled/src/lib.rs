@@ -20,7 +20,6 @@ pub mod date_time_picker;
 pub mod datetime;
 pub mod dialog;
 pub mod disclosure;
-pub mod drag;
 mod drag_board;
 pub mod drop_site;
 pub mod first_fit;
@@ -73,7 +72,7 @@ pub use anchored::{
 };
 pub use back_slide::{BackSlide, SlideCurves};
 pub use banner::Banner;
-pub use beui_view::drag::{DragPoint, DragSource};
+pub use beui_view::drag::DragPoint;
 pub use button::{Button, ButtonApi, ButtonHandle};
 pub use calendar::{Calendar, CalendarApi, CalendarCellHandle, CalendarHeaderHandle, CalendarMode};
 pub use choice::{Choice, ChoiceApi, ChoiceItem, ChoiceKind, ChoiceOption, ChoiceOptionHandle};
@@ -109,9 +108,6 @@ pub use dialog::{
     provide_frame_anchor, use_frame_anchor,
 };
 pub use disclosure::{Disclosure, DisclosureApi, DisclosureHandle};
-pub use drag::{
-    DRAG_PREVIEW_OFFSET, DRAG_THRESHOLD, DragHandle, Draggable, DropHandle, DropTarget,
-};
 pub use drag_board::{Board, drag_board};
 pub use drop_site::{DropSiteHandle, carrying, is_carried, place_on, slots_in, use_drop_site};
 pub use first_fit::FirstFit;

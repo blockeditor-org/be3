@@ -2,7 +2,7 @@ use crate::measured_rect;
 use beui::primitives::Interactive;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget, use_drop_site};
+use beui::unstyled::{place_on, use_drop_site};
 use beui::{Align, Direction, ScrollPosition};
 use beui::{PointerPress, Pos2, Rect, Vec2};
 
@@ -117,42 +117,42 @@ pub fn ScrollChainFixture() -> NodeId {
     }
 }
 
+/// Fruit carried onto the places that take it, one of each in a scroll that cannot show
+/// both at once.
 #[component]
 pub fn DragFixture() -> NodeId {
     let dropped = create_signal(String::from("nothing"));
     let report = create_memo(move || format!("Dropped {}", dropped.get()));
+    let (basket, bin) = (NodeRef::new(), NodeRef::new());
+    use_drop_site(
+        Func::new(|_: String| true),
+        Func::new(move |_: String| {
+            beui::drag::closest([place_on(basket, ()), place_on(bin, ())].into_iter().flatten())
+        }),
+        Callback::new(move |(fruit, ()): (String, ())| dropped.set(fruit)),
+    );
+    let carried = |fruit: &'static str| {
+        Func::new(move |_: PointerPress| Some(beui::drag::Carry::new(fruit.to_owned())))
+    };
     view! {
         <List spacing=Space::Xl>
-            <Draggable
-                payload={Some("apple".to_owned())}
-                preview={|fruit: String| view! {
-                    <Text>{fruit}</Text>
-                }}
-            >|_: DragHandle|
+            <Interactive drag={carried("apple")}>
                 <Card @test_id="drag.apple">
                     <Text>"Apple"</Text>
                 </Card>
-            </Draggable>
-            <DropTarget
-                on_drop={move |(fruit, _): (String, DragPoint)| dropped.set(fruit)}
-            >|_: DropHandle|
-                <Frame
-                    width=Size::Custom(200.0)
-                    height=Size::Custom(80.0)
-                    fill=ColorRole::Surface
-                    @test_id="drag.basket"
-                >
-                    <Text>"Basket"</Text>
-                </Frame>
-            </DropTarget>
+            </Interactive>
+            <Frame
+                @node_ref=&basket
+                width=Size::Custom(200.0)
+                height=Size::Custom(80.0)
+                fill=ColorRole::Surface
+                @test_id="drag.basket"
+            >
+                <Text>"Basket"</Text>
+            </Frame>
             <Frame width=Size::Custom(200.0) height=Size::Custom(120.0)>
                 <Scroll>
-                    <Draggable
-                        payload={Some("pear".to_owned())}
-                        preview={|fruit: String| view! {
-                            <Text>{fruit}</Text>
-                        }}
-                    >|_: DragHandle|
+                    <Interactive drag={carried("pear")}>
                         <Frame
                             height=Size::Custom(60.0)
                             fill=ColorRole::Surface
@@ -160,19 +160,16 @@ pub fn DragFixture() -> NodeId {
                         >
                             <Text>"Pear"</Text>
                         </Frame>
-                    </Draggable>
+                    </Interactive>
                     <Frame height=Size::Custom(40.0) />
-                    <DropTarget
-                        on_drop={move |(fruit, _): (String, DragPoint)| dropped.set(fruit)}
-                    >|_: DropHandle|
-                        <Frame
-                            height=Size::Custom(60.0)
-                            fill=ColorRole::Surface
-                            @test_id="drag.box"
-                        >
-                            <Text>"Box"</Text>
-                        </Frame>
-                    </DropTarget>
+                    <Frame
+                        @node_ref=&bin
+                        height=Size::Custom(60.0)
+                        fill=ColorRole::Surface
+                        @test_id="drag.box"
+                    >
+                        <Text>"Box"</Text>
+                    </Frame>
                 </Scroll>
             </Frame>
             <Text>{report}</Text>

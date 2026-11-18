@@ -74,8 +74,11 @@ Notes on particular calls:
   (guides/type_modules.md); renders such as PNG or PDF are the editor's own and go
   through `save_file`.
 - `drag()` is a block the host drags over the screen; the editor draws the
-  feedback and answers `accept_drag`. A drag inside the editor's own document
-  never reaches the host: that is beui's `Draggable` and `DropTarget`
+  feedback and answers `accept_drag`. The host lifts the block onto its drag
+  board, where each app view is a place wherever the view takes the pointer,
+  and tells the editor the point, the action the keys held make (`DropAction`)
+  and the drop. A drag inside the editor's own document never reaches the host:
+  that is a carry on the editor's own board and its drop sites
   (guides/beui/components.md, Drag and drop).
 - `present(on)` asks for the whole window; the host may take it away (Escape,
   another instance on screen), so read `presenting()` rather than remembering

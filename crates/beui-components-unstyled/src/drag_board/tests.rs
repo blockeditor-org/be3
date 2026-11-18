@@ -76,16 +76,6 @@ impl Fixture {
         })
     }
 
-    fn target(&self, name: &'static str, rect: Rect, order: usize) -> TargetBuilder<'_> {
-        TargetBuilder {
-            fixture: self,
-            name,
-            node: self.node(rect, order),
-            hides_preview: false,
-            holds: false,
-        }
-    }
-
     fn scroller(&self, name: &'static str, rect: Rect, order: usize) -> u64 {
         let log = Rc::clone(&self.log);
         let id = self.board.register_scroller(EdgeScroller {
@@ -100,87 +90,19 @@ impl Fixture {
         id
     }
 
-    fn begin(&self, from: Pos2) {
-        let log = Rc::clone(&self.log);
-        let floating = Rc::clone(&self.log);
-        let cancelled = Rc::clone(&self.log);
-        let dropped = Rc::clone(&self.log);
-        let outside = Rc::clone(&self.log);
-        self.sync();
-        self.board.begin(
-            DragSource {
-                item: Rect::from_min_max(pos2(-5.0, -5.0), pos2(5.0, 5.0)),
-                follow: Rc::new(move |point: DragPoint| {
-                    log.push(format!("follows {}", at(point.pos)));
-                }),
-                floating: Rc::new(move |on| floating.push(format!("floating {on}"))),
-                cancelled: Rc::new(move || cancelled.push("cancelled")),
-                dropped: Rc::new(move || dropped.push("source dropped")),
-                outside: Rc::new(move |point: DragPoint| {
-                    outside.push(format!("outside at {}", at(point.pos)));
-                }),
-                ..DragSource::new(Rc::new("card"))
-            },
-            at_point(from),
-        );
+    /// The core's tracking `pos`: the board follows the carry of the pointer there.
+    fn track(&self, pos: Pos2) {
+        let flat = Rc::clone(&self.flat);
+        let order = move |node: NodeId| {
+            let order = flat
+                .rects
+                .borrow()
+                .get(&node)
+                .map_or(0, |(_, order)| *order);
+            (vec![order], WindowId::MAIN)
+        };
+        Driver::track(&self.board, at_point(pos), &order);
     }
-}
-
-struct TargetBuilder<'a> {
-    fixture: &'a Fixture,
-    name: &'static str,
-    node: NodeRef,
-    hides_preview: bool,
-    holds: bool,
-}
-
-impl TargetBuilder<'_> {
-    fn hides_preview(self) -> Self {
-        Self {
-            hides_preview: true,
-            ..self
-        }
-    }
-
-    fn holds(self) -> Self {
-        Self {
-            holds: true,
-            ..self
-        }
-    }
-
-    fn register(self) -> u64 {
-        let name = self.name;
-        let (carrying, over, dropped) = (
-            Rc::clone(&self.fixture.log),
-            Rc::clone(&self.fixture.log),
-            Rc::clone(&self.fixture.log),
-        );
-        let (hides, holds) = (self.hides_preview, self.holds);
-        let id = self.fixture.board.register(Target {
-            id: 0,
-            node: self.node,
-            accepts: Rc::new(|payload| payload.is::<&str>()),
-            carrying: Rc::new(move |on| carrying.push(format!("{name} carrying {on}"))),
-            over: Rc::new(move |point: Option<(&dyn Any, DragPoint)>| {
-                over.push(match point {
-                    Some((_, point)) => format!("{name} over {}", at(point.local)),
-                    None => format!("{name} left"),
-                });
-            }),
-            dropped: Rc::new(move |_, point: DragPoint| {
-                dropped.push(format!("{name} dropped at {}", at(point.local)));
-            }),
-            hides_preview: Rc::new(move || hides),
-            holds: Rc::new(move |_| holds),
-        });
-        self.fixture.sync();
-        id
-    }
-}
-
-fn at(pos: Pos2) -> String {
-    format!("{} {}", pos.x, pos.y)
 }
 
 fn at_point(pos: Pos2) -> DragPoint {
@@ -191,14 +113,6 @@ fn rect(x: f32, y: f32, width: f32, height: f32) -> Rect {
     Rect::from_min_size(pos2(x, y), vec2(width, height))
 }
 
-mod a_carried_item_drops_on_the_topmost_target_under_the_pointer;
 mod a_carry_that_scrolls_nothing_leaves_the_scroller_under_it_still;
-mod a_drag_begun_at_a_mouse_point_follows_the_first_pointer_that_moves_it;
 mod a_lifted_carry_scrolls_the_scroller_whose_edge_holds_it;
-mod a_release_over_no_target_cancels_the_drag;
 mod edge_scrolling_runs_the_topmost_scroller_whose_band_holds_the_pointer;
-mod escape_cancels_a_drag_over_a_target_without_dropping_it;
-mod every_target_hears_the_drag_end_before_the_drop;
-mod released_outside_the_window_the_item_goes_to_the_sources_outside;
-mod the_first_point_floats_the_item_unless_its_target_hides_the_preview;
-mod the_only_target_that_holds_the_item_takes_it_wherever_the_pointer_is;
