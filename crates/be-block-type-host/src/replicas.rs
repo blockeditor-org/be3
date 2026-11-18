@@ -3752,12 +3752,13 @@ impl<H: Host> Replicas<H> {
     /// holds them (`reopening`).
     ///
     /// A rejoin whose seal `reconnect` asked as it began (`sealed_before_joining`), or that
-    /// sealed once, and still holds journaled edits no seal holds, which a seal
-    /// cannot take now (`owes_seal` is false: a reload is on its way, its seal backs off, or a
-    /// merge cannot read its parts), is settling too: its answer stays held, asking nothing, until a status says a seal would take
-    /// them (`rejoined`), or its block closes. A replica in its made-up session never diverges
-    /// (the session speaks its own build), and its seal goes to the outbox without merging
-    /// (`merge_diverged` merges it once a drain sends it), so neither holds a rejoin.
+    /// sealed once, and still holds journaled edits no seal holds, which a seal cannot take now
+    /// (`owes_seal` is false: a reload is on its way, its seal backs off, or a merge cannot read
+    /// its parts), is settling too: its answer stays held, asking nothing, until a status says a
+    /// seal would take them (`rejoined`), or its block closes. A replica in its made-up session
+    /// never diverges (the session speaks its own build), and its seal goes to the outbox
+    /// without merging (`merge_diverged` merges it once a drain sends it), so neither holds a
+    /// rejoin.
     fn settling(&self, replica: ReplicaId) -> bool {
         self.open.get(&replica).is_some_and(|open| {
             open.publishing > 0

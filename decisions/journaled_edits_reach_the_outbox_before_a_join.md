@@ -32,11 +32,13 @@ is passed over for it. So each way the edits seemed to be lost reaches a commit:
   before joining still goes to the outbox, and a held join waits as for a failed seal. No test
   holds this one; it follows from the code.
 
-Open, not handled: an edit made on the content before a reload of a merge and numbered after
-the reload applies as nothing when the merge rebuilt what it was made on (a text merge with
-conflict markers). Its replica journals it and the join waits for a seal of it, but the content
-sealed does not hold it: `carry_pending` carries edits over a restart, not over a reload. This
-happens with or without a join.
+Open, not handled: edits typed after the merge and before its reload lands are lost today. An
+edit its editor made on what it showed before the reload, numbered after it, applies as nothing
+when the merge rebuilt what it names (a text merge with conflict markers): its replica journals
+it and the join waits for a seal of it, but the content sealed does not hold it, as
+`carry_pending` carries edits over a restart, not over a reload. This happens with or without a
+join. The fix is on branch claude/journaled-edits-s2; plans/backlog.md, "An edit made before a
+reload of a merge", tracks it until that lands.
 
 Edits of another build are lost by design: a journal of another build's tag is opened with none
 of its entries (`replayable`), and the replica says its edits were lost (`lost_edits`). That

@@ -18,6 +18,20 @@ fn edits_typed_offline_whose_seal_before_joining_fails_reach_the_server() {
                 .await
                 .expect("the device is connected again");
             replicas.reconnect((&peer, &shared));
+            step_until_replicas(
+                &peer,
+                &shared,
+                &mut replicas,
+                "held the join with the seal backing off",
+                |replicas, _| {
+                    replicas.joining()
+                        && replicas.status(block).is_some_and(|status| {
+                            !status.owes_seal && status.journaled_taken > status.sealed_taken
+                        })
+                },
+            )
+            .await;
+            assert_eq!(replicas.failing_seals, 0, "the seal before joining failed");
             let joined = tokio::time::timeout(std::time::Duration::from_secs(30), async {
                 loop {
                     let stepped = tokio::time::timeout(
@@ -39,7 +53,6 @@ fn edits_typed_offline_whose_seal_before_joining_fails_reach_the_server() {
             })
             .await;
             assert!(joined.is_ok(), "never joined");
-            assert_eq!(replicas.failing_seals, 0, "the seal before joining failed");
 
             drain_all(&peer, &shared, &mut replicas, block).await;
             assert_eq!(

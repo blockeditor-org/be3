@@ -53,6 +53,11 @@ Fixed items are removed as they land.
 
 ## 7. Sessions
 
+- **An edit made before a reload of a merge.** An editor's edit made on what it showed before a
+  reload of a merge, numbered after it, applies as nothing when the merge rebuilt what it names
+  (decisions/journaled_edits_reach_the_outbox_before_a_join.md). Fixed on branch
+  claude/journaled-edits-s2, which carries such edits over the reload; done when that lands.
+
 - **A seal of its own during a join that holds kept edits.** `rejoined` seals
   and waits only for a join begun on a settled made-up session
   (`Open::joined_settled`). One that joins holding kept or doubtful edits takes
