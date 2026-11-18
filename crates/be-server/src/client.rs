@@ -582,7 +582,10 @@ enum After {
         told: Arc<crate::log::Told>,
     },
     /// An entry of a block's log redacted, told to its followers who may view it.
-    Redacted { place: Place, seq: u64 },
+    Redacted {
+        place: Place,
+        seq: u64,
+    },
     /// A push to the account's other connections.
     Tell {
         account: Uuid,
@@ -1565,11 +1568,9 @@ impl Client {
             Query::Log { log: None, held } => {
                 Page::Log(store.organization_log(admitted.identity()?, held).await?)
             }
-            Query::LogRedactions(asked) => Page::LogRedactions(
-                store
-                    .log_redactions(admitted.identity()?, asked)
-                    .await?,
-            ),
+            Query::LogRedactions(asked) => {
+                Page::LogRedactions(store.log_redactions(admitted.identity()?, asked).await?)
+            }
             Query::Access(block) => {
                 let identity = admitted.identity()?;
                 let mut list = store.list_access(identity, block).await?;

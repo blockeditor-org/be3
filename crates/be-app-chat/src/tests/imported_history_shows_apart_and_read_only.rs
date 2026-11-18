@@ -16,7 +16,12 @@ fn imported_history_shows_apart_and_read_only() {
             (old, place),
         );
     }
-    store.log_entry(None, ROSA, message(MORNING, "Welcome to the new chat").encode(), Some(MORNING));
+    store.log_entry(
+        None,
+        ROSA,
+        message(MORNING, "Welcome to the new chat").encode(),
+        Some(MORNING),
+    );
     let mut chat = chat.reopened();
     chat.run();
 

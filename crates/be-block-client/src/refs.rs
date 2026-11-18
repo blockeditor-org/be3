@@ -1656,7 +1656,12 @@ impl Refs {
     /// How many of `block`'s log redactions this device caught up with, none for a log it never
     /// read (`LogPage::redactions`).
     pub fn log_redactions(&self, block: Uuid) -> Option<u64> {
-        self.state.lock().unwrap().log_redactions.get(&block).copied()
+        self.state
+            .lock()
+            .unwrap()
+            .log_redactions
+            .get(&block)
+            .copied()
     }
 
     pub fn set_log_redactions(&self, block: Uuid, redactions: u64) -> Result<(), StoreError> {
@@ -1674,7 +1679,13 @@ impl Refs {
 
     /// The blocks whose signed log this device verified a head of.
     pub fn logs_kept(&self) -> Vec<Uuid> {
-        self.state.lock().unwrap().log_heads.keys().copied().collect()
+        self.state
+            .lock()
+            .unwrap()
+            .log_heads
+            .keys()
+            .copied()
+            .collect()
     }
 
     /// The entry of `block`'s log this device kept at `seq`.

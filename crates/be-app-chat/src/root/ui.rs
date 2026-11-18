@@ -514,7 +514,8 @@ pub fn Chat(editor: Editor) -> NodeId {
         history_rows.reconcile_owned(list);
     });
     let history_ids = history_rows.keys();
-    let importer = create_memo(move || log.with(|log| log.history().map(|history| history.importer)));
+    let importer =
+        create_memo(move || log.with(|log| log.history().map(|history| history.importer)));
     let has_history = create_memo(move || importer.get().is_some());
     let history_heading = create_memo(move || match importer.get() {
         Some(importer) => format!("Imported by {} from an export", names.name(importer)),
@@ -761,10 +762,7 @@ pub fn Chat(editor: Editor) -> NodeId {
                                 </List>
                             </Show>
                             <Show value={has_history}>
-                                <Text
-                                    style=TextStyle::CAPTION
-                                    @test_id={"chat.history"}
-                                >
+                                <Text style=TextStyle::CAPTION @test_id={"chat.history"}>
                                     {history_heading}
                                 </Text>
                                 <ForEach value={history_ids} view={history_message_rows} />

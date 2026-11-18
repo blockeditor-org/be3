@@ -13,7 +13,12 @@ async fn a_redaction_made_while_a_device_was_away_is_told_as_it_reconnects() {
     let chat = workspace(&laptop, "Chat").await;
     for said in ["keep this", "take this back"] {
         laptop
-            .append(chat, "test.app", said.as_bytes(), be_block_content::Along::default())
+            .append(
+                chat,
+                "test.app",
+                said.as_bytes(),
+                be_block_content::Along::default(),
+            )
             .await
             .unwrap();
     }

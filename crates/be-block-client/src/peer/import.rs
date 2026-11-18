@@ -99,7 +99,12 @@ impl<S: ObjectStore> Peer<S> {
         // place in it, which its importer signs (`verify_imported`).
         let count = ready.log.len() as u64;
         for (place, original) in ready.log.iter().enumerate() {
-            self.push_imported(ready.id, ready.creation.key, (place as u64, count), original)?;
+            self.push_imported(
+                ready.id,
+                ready.creation.key,
+                (place as u64, count),
+                original,
+            )?;
         }
         // The outbox keeps the creation: so does the device the log made with it.
         self.keep_made_log(&ready.creation)?;
