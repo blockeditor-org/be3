@@ -231,8 +231,8 @@ counts and records nothing: `reserve-uploads` did before it signed.
   of its own.
 - **Following.** What the server pushes goes on the connection's one `events`
   stream (a second replaces the first): `tree-advanced` for the trees it
-  follows, `session` for the live sessions it is in, `appended` for the signed
-  logs it follows, `topic-changed` for the
+  follows, `session` for the live sessions it is in, `appended` and `redacted` for
+  the signed logs it follows, `topic-changed` for the
   other topics it follows, and `paired` for its account's other connections'
   messages. A read with `follow` follows its query's topic first, so nothing
   changed during the read is missed: `tree` its entry (in `WatchHub`),
@@ -865,7 +865,9 @@ is what its authors add, and only they (or a manager) may take back.
   `event.appended`: the entries, the size before them and a consistency proof
   from it, so a follower holding that head takes them with no round trip. The
   hub keeps who follows each log (`WatchHub::follow_log`), and an append tells
-  only those who may still view the block (`Connection::logged`).
+  only those who may still view the block (`Connection::logged`). A
+  redaction that took a payload (`Op::Redact`, by the entry's author or a
+  manager) tells them the same way as `event.redacted`, naming its place.
 - **Commits name a log head.** `new-commit.log-through` names the head of the
   block's log a commit was made on, and a publish naming a head the log never
   had (past its size, or another root for that prefix) is refused
