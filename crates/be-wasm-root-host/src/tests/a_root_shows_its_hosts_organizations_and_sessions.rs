@@ -143,7 +143,10 @@ fn a_root_shows_its_hosts_organizations_and_sessions() {
     // Each organization opens in its last session, or choosing one.
     let commands = asks(&mut root, &mut time, click(pos2(350.0, 75.0)));
     assert!(
-        matches!(commands.as_slice(), [CoreCommand::OpenOrganization(ENGINES)]),
+        matches!(
+            commands.as_slice(),
+            [CoreCommand::OpenOrganization(ENGINES)]
+        ),
         "Open opens the organization: {commands:?}"
     );
     let commands = asks(&mut root, &mut time, click(pos2(262.0, 118.0)));
@@ -163,7 +166,11 @@ fn a_root_shows_its_hosts_organizations_and_sessions() {
 
     // An invitation's link, a bearer secret, crosses as typed inside the command alone.
     let _ = asks(&mut root, &mut time, click(pos2(130.0, 220.0)));
-    let _ = asks(&mut root, &mut time, typed("https://example.com/invite#code"));
+    let _ = asks(
+        &mut root,
+        &mut time,
+        typed("https://example.com/invite#code"),
+    );
     let commands = asks(&mut root, &mut time, click(pos2(318.0, 220.0)));
     match commands.as_slice() {
         [CoreCommand::OpenInvitation(link)] => assert_eq!(

@@ -22,7 +22,9 @@ be_wasm_ops_bindgen::generate!({
 
 pub use frames::{FrameDone, FrameRequest};
 pub use host::{
-    AccountRow, BrowserSignIn, CoreCommand, CoreView, CoreWait, Invitation, OrganizationRow,
-    OrganizationsArea, OrganizationsListed, ProfileRow, SessionKind, SessionRow, SessionsArea, DisplayQuestion, DisplayState, HostStatistics, LockState, Notice, NoticeAction, PowerAction, SavingState, ShownNotices,
-    NewAccount, Refusal, ServerAccount, SetAside, SigningIn, StatisticRow, SyncState, UnsentEdit,
+    AccountRow, BrowserSignIn, CoreCommand, CoreView, CoreWait, DisplayQuestion, DisplayState,
+    HostStatistics, Invitation, LockState, NewAccount, Notice, NoticeAction, OrganizationRow,
+    OrganizationsArea, OrganizationsListed, PowerAction, ProfileRow, Refusal, SavingState,
+    ServerAccount, SessionKind, SessionRow, SessionsArea, SetAside, ShownNotices, SigningIn,
+    StatisticRow, SyncState, UnsentEdit,
 };
