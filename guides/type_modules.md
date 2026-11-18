@@ -341,9 +341,10 @@ who signed them, `LogSigner`) changes what the content shows.
   `Peer::export_log`), which verifies against the block it was written in
   wherever the file goes, with no key of the block (`Peer::verify_exported`);
   a redacted entry, or one this device could not open, is carried without
-  what it said. A duplicate (`transfer::renumber`) starts its own log, and
-  nothing reads an imported block's exported entries yet
-  (plans/signed_logs.md, step 5b).
+  what it said. An import keeps the entries as history in the new block's
+  log, which a replica is handed with their original author and arrival,
+  verified against the block they were written in (guides/blocks/client.md,
+  "Imports"); a duplicate starts an empty log.
 
 Hosts: be-block-type-host's `Replicas`, be-sdk-test's store (one device, so
 every entry is its own and verified) and be-sdk-type-guest's `Sim`. Tests:

@@ -289,15 +289,22 @@ taken unproven.
   own proof first: one that does not prove is `Tampered`, not a fork. `forget` drops a log's entries
   but keeps its head.
 - **Exports.** `Peer::export_log` reads a block's whole log, opened, as an
-  export carries it (`ExportedEntry`, `transfer::Saved::log`), and
-  `Peer::verify_exported` checks an entry against the block it was written in
-  (the file's id for it) and its salt, wherever the file was imported, with
+  export carries it (`ExportedEntry`, `transfer::Saved::log`), each entry
+  naming the block it was written in, and `Peer::verify_exported` checks an
+  entry against that block and its salt, wherever the file was imported, with
   no key of the block. A redacted entry, or one this device cannot open, is
   carried without what it said, and verifies as nothing (`None`). Offline it
   carries the run from the log's start this device kept. An export proves
   each entry's author, app and block, not that the file holds the whole log
   or its order: it carries no head or proof, so whoever edits the file can
   drop entries or reorder them unseen.
+- **Imports.** An import keeps a log's entries as read-only history
+  (`transfer::renumber` keeps them; a duplicate starts an empty log): each
+  goes in the new block's outbox behind its creation (`peer/import.rs`), its
+  payload the entry as it was written (`ExportedEntry::sealed`, told apart
+  from what an author says by its first byte), so it reads back as
+  `LoggedEntry::imported` and still verifies against its own block; an
+  export of the new block carries it as it was. New entries append after it.
 - **Redactions.** A device keeps a payload it already holds until it reads
   that page again; what tells it to is a later entry naming the redacted one
   (chat's deletion entry, plans/signed_logs.md step 5).
