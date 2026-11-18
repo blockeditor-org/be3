@@ -132,7 +132,10 @@ impl Canvases {
         }
         for mut shown in left {
             let hides = retained.contains(&shown.surface)
-                && !self.hidden.iter().any(|hidden| hidden.surface == shown.surface);
+                && !self
+                    .hidden
+                    .iter()
+                    .any(|hidden| hidden.surface == shown.surface);
             if !hides {
                 shown.element.remove();
                 channel.forget(shown.id);

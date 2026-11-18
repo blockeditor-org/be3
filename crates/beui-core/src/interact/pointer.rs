@@ -788,7 +788,9 @@ fn press(doc: &mut Document, frame: &Frame, session: &mut Session, claimant: Opt
     doc.set_focus_visible(false);
     for owner in session.owners.clone().into_iter().rev() {
         // Armed before `on_press`, as on the HTML core, so `on_press` reads it active.
-        if let Some((on_active_change, active)) = node_mut(doc, owner).and_then(|node| node.arm(true)) {
+        if let Some((on_active_change, active)) =
+            node_mut(doc, owner).and_then(|node| node.arm(true))
+        {
             on_active_change.call(active);
         }
         let pressed = rect_of(doc, frame.rects, owner).zip(interactive(doc, owner));

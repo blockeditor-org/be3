@@ -26,7 +26,10 @@ fn a_narrow_panes_clipped_tab_strip_fades_and_lists_every_tab_in_a_menu() {
         "a strip too short for its tabs ends in a menu of them"
     );
     let first = format!("dock.tab.{}.close", tab(Page::Docking));
-    assert!(test.shown(&first), "the strip still starts at its first tab");
+    assert!(
+        test.shown(&first),
+        "the strip still starts at its first tab"
+    );
     test.record();
 
     test.click(ALL_TABS);

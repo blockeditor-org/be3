@@ -98,9 +98,7 @@ fn grip_of(harness: &Harness, name: &str) -> Pos2 {
 
 /// The middle layer's bar as the outer dock holds it (the one bar that may show on three
 /// panes): the tab naming the pane it shows on, and its placement.
-fn middle_bar(
-    outer: &dock::DockingLayout<u64>,
-) -> (Option<dock::TabId>, Option<DockBarPlacement>) {
+fn middle_bar(outer: &dock::DockingLayout<u64>) -> (Option<dock::TabId>, Option<DockBarPlacement>) {
     let state = outer.state().get_untracked();
     let bar = state
         .bars()

@@ -1759,7 +1759,9 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         }),
         strip: strip.unwrap_or_else(|| {
             RenderFn::new(move |handle: DockStripHandle| {
-                let DockStripHandle { direction, tabs, .. } = handle;
+                let DockStripHandle {
+                    direction, tabs, ..
+                } = handle;
                 view! {
                     <Scroll direction style={ScrollStyle::new(curves.rubber)}>{tabs}</Scroll>
                 }
