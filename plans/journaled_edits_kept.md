@@ -36,13 +36,18 @@ Each part is a step of its own, with its test.
 
 ## The harness
 
-No test makes a replica really diverge today. Step 1 starts with one in be-block-type-host's
-tests (beside `an_edit_carried_over_a_restart_keeps_the_identity_it_goes_again_under_across_a_crash`):
-a block opened online on two devices, one of which has its replica's order cut (the server
-trims the journal under it to a seal it never heard, so its next `Sequenced` is past a gap it
-cannot fill) while it holds journaled edits that are not sealed. Its module reports
-`Status::diverged`, which the harness waits for. It controls when the replica closes and when
-the block opens again, online or not.
+No test makes a replica really diverge today. A replica diverges (`Status::diverged`) when the
+session speaks another build of the block's type than its module (`check_build` in
+be-sdk-type-guest's replica.rs): a session's tag is its first participant's
+(be-block-session's membership.rs). So the harness, beside
+`an_edit_carried_over_a_restart_keeps_the_identity_it_goes_again_under_across_a_crash` in
+be-block-type-host's tests: a device opens the block offline and types three edits, which its
+replica journals and no seal holds (as `text_whose_rejoin_is_held` does); meanwhile another
+device joins the block's session first with another build's tag; the first device connects
+again and joins second, hears the session's tag, and its module reports `diverged`, which the
+harness waits for. It controls when the replica closes and when the block opens again, online
+or not, and with which build. The other way to the same loss, a seal that cannot merge, gets a
+test of its own once step 1 works for the first.
 
 ## The test
 
