@@ -315,7 +315,7 @@ impl HeldLog {
         while self.items.len() > count {
             if let Some((seq, oldest)) = self.items.pop_first() {
                 self.ids.remove(&oldest.id);
-                self.skipped = self.skipped.split_off(&seq);
+                self.skipped = self.skipped.split_off(&(seq + 1));
             }
         }
     }
