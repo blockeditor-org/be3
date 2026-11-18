@@ -19,7 +19,9 @@ async fn a_vanished_client_is_given_up_though_the_server_still_writes_to_it() {
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
             let ping = sink.send(WsMessage::Ping(Vec::new().into())).await;
-            let push = sink.send(WsMessage::Binary(vec![7u8; 1 << 10].into())).await;
+            let push = sink
+                .send(WsMessage::Binary(vec![7u8; 1 << 10].into()))
+                .await;
             if ping.is_err() || push.is_err() {
                 return;
             }
