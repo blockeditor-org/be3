@@ -19,9 +19,10 @@ is named by its place in the log (its seq).
   five minutes, in the editor) was written offline, and says when it arrived.
 - `Edit { message, time, body }`: what the message says now; only its author's
   count, the latest by place.
-- `React { message, reaction, kept, time }`: each person's latest record of
-  each reaction (a Lucide icon name) counts; taking one back appends a record
-  that keeps nothing and redacts the one that kept it.
+- `React { message, reaction, kept, takes_back, time }`: each person's latest
+  record of each reaction (a Lucide icon name) counts; taking one back appends
+  a record that keeps nothing, names the one that kept it (`takes_back`) and
+  redacts it.
 - `Delete { message, time }`: only the message's author's counts; it redacts
   the message's entry, so its body is gone everywhere while the log still
   proves it existed and who wrote it.
@@ -31,7 +32,11 @@ each message with its author's latest edit, its kept reactions and its
 author's deletion. A row's verdict is the least trusted of the entries it
 shows (`least_trusted`); an entry signed as nobody's (`LogSigner::Bad`)
 changes nothing, though a message so signed still shows, marked "forged". A
-redacted entry shows only as the message its author's deletion names.
+redacted entry its author took back (named by a later entry of theirs: a
+deletion, a `takes_back`) shows only as the message the deletion names; one
+redacted by anyone else (a manager, the server) shows in its place as
+"Removed, not by its author" (`Shown::removed`). A deletion or take-back
+naming another author's entry counts for nothing.
 
 ## The content
 
@@ -75,8 +80,10 @@ replica neither reads nor keeps the log, and each editor reads what it shows.
   it. The draft shows each with its type's icon and name, marks made ones as
   new, says so when what it carries is made here, and sends a made block only
   once it is one of the chat's children (`BlockQuery::Children`). Once the
-  host answers the message's entry id, what it carries moves from `drafts` to
-  `carried` (`ChatContent::send`); a message may be attachments alone, which
+  message's entry has an id (in the log, or sending), what it carries moves
+  from `drafts` to `carried` (`ChatContent::send`), by whichever of this
+  account's editors is open, so one that closed before its append was
+  answered leaves it to the next; a message may be attachments alone, which
   has no text to edit. Each shows as a `BlockLink` under the message, typed
   from the chat's children and references; one this account cannot read shows
   a lock and "No access", not a link. The editor shows this account's
@@ -102,7 +109,8 @@ Each device keeps where it read each chat up to, the place of the last entry
 read, in the owner-only `ChatReads` (guides/settings.md), under its own key,
 so devices moving on at once never meet and the furthest place counts. What
 is unread is the messages others sent after that place and after the
-account's own last message, since answering is reading (`ChatLog::unread`).
+account's own last message, since answering is reading (`ChatLog::unread`);
+forged ones count for nothing.
 The editor moves its device's place while the chat is shown at its newest
 message with the keyboard. The host counts a chat it is not showing from the
 log's latest entries (`be_block_content::UNREAD_ENTRIES`, guides/blocks/host.md,
