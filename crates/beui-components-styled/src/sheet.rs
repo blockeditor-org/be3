@@ -3,7 +3,8 @@ use beui_macros::{component, view};
 
 use crate::border::Separator;
 use crate::list::List;
-use crate::tokens::{Movement, Size, Space};
+use crate::focus_ring::FocusRing;
+use crate::tokens::{Movement, Size, Space, Stroke};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{AnchoredSheetHandle, SheetCurves, SheetGripHandle};
 use beui_view::reactive::NodeId;
@@ -47,8 +48,8 @@ pub fn Sheet(
             fit
             fade={crate::theme::SCROLL_FADE}
             curves=CURVES
-            grip={|_: SheetGripHandle| view! {
-                <SheetGrip />
+            grip={|handle: SheetGripHandle| view! {
+                <SheetGrip focused={handle.focused} />
             }}
             panel={|content: NodeId| view! {
                 <SheetPanel>{content}</SheetPanel>
@@ -80,8 +81,8 @@ pub fn ModalSheet(
             fade={crate::theme::SCROLL_FADE}
             curves=CURVES
             scrim={scrim}
-            grip={|_: SheetGripHandle| view! {
-                <SheetGrip />
+            grip={|handle: SheetGripHandle| view! {
+                <SheetGrip focused={handle.focused} />
             }}
             panel={|content: NodeId| view! {
                 <SheetPanel>{content}</SheetPanel>
@@ -121,17 +122,19 @@ fn SheetPanel(children: Child) -> NodeId {
 }
 
 #[component]
-fn SheetGrip() -> NodeId {
+fn SheetGrip(focused: ReadSignal<bool>) -> NodeId {
     view! {
         <List spacing=Space::None>
             <Separator />
             <Frame height=HANDLE_HEIGHT align=Align::Center>
-                <Frame
-                    width=GRIP_WIDTH
-                    height=GRIP_HEIGHT
-                    radius=Radius::Xs
-                    fill=ColorRole::TextMuted
-                />
+                <FocusRing focused offset=Stroke::Focus>
+                    <Frame
+                        width=GRIP_WIDTH
+                        height=GRIP_HEIGHT
+                        radius=Radius::Xs
+                        fill=ColorRole::TextMuted
+                    />
+                </FocusRing>
             </Frame>
         </List>
     }

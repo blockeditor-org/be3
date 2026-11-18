@@ -29,6 +29,10 @@ control's exact keys are in its code and tests. The patterns that span them:
   is one (`yields_tab_stop`). It takes its scrolling keys only while it can
   scroll that way, so they bubble to the next area out, as nested boxes do in
   a browser.
+- A sheet's handle, a Tab stop only when the sheet has more than one stop and
+  never focused by a press, settles the sheet on the next stop up or down with
+  Up and Down, taking both keys even at the end stop, so they never scroll what
+  holds the sheet; a key never closes it (Escape does).
 - A single-line text input with no `on_submit` leaves Enter to what is around
   it: a dialog runs its confirm action on an Enter nothing took, unless that
   action is disabled or destructive. A multiline area takes Tab to indent;
