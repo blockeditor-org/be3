@@ -48,7 +48,7 @@ pub use be_sdk_api::SearchLocation;
 pub use be_sdk_api::accesskit;
 pub use be_sdk_api::guest::desktop;
 pub use be_sdk_api::{
-    AccessGrant, AccessLevel, AccessListing, AccountStorage, AdministratorWatch, ArtifactAction,
+    AccessGrant, AccessLevel, AccessListing, AccountRole, AccountStorage, ArtifactAction,
     AudioCommand, AudioOutput, AudioSource, AudioStatus, BlockAgent, BlockCommand, BlockFilter,
     BlockLocation, BlockMute, BlockPick, BlockTypeDescriptor, CapturedChord, CapturedTrigger,
     Catalog, ChildContent, ChildId, ChildLayer, ChildMode, ChildOperations, ChildPlacement,
@@ -60,7 +60,7 @@ pub use be_sdk_api::{
     HostTrayItem, HostWindow, HostWindowId, ImeArea, ImportedBlock, IncomingNotification, Input,
     InputCapture, InputCaptureWatch, InputDevicesWatch, InputReach, InputReachWatch,
     InteractionMode, Key, KeyChord, KeyboardLayout, KeyboardLayouts, KeyboardLayoutsWatch,
-    LinkAdmits, LinkBaseWatch, MediaLevel, MediaLevels, MediaRequest, MediaWatch, MenuAsk,
+    LinkAdmits, LinkBaseWatch, RoleWatch, MediaLevel, MediaLevels, MediaRequest, MediaWatch, MenuAsk,
     MenuCheck, MenuCommand, MenuEntry, MenuPin, MenuSubmenu, Modifiers, MutesWatch,
     NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
     NotificationSignal, NotificationUrgency, NotificationsWatch, NotifyMode, Occluder, OpenProgram,

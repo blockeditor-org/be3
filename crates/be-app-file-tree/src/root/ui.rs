@@ -12,7 +12,7 @@ use be_sdk_beui::beui::icons::{
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{ClipItem, Color32, NodeId, Rect};
-use be_sdk_beui::{AdministratorWatch, BlockFilter, Drag, Editor, phone_layout};
+use be_sdk_beui::{AccountRole, BlockFilter, Drag, Editor, RoleWatch, phone_layout};
 use be_sdk_database::tags::{ShownTag, TagChip};
 use uuid::Uuid;
 
@@ -1063,8 +1063,10 @@ fn picker(
 }
 
 pub(crate) fn leavable(editor: Editor, row: Memo<Option<Row>>) -> Memo<bool> {
-    let administrator = editor.watch::<AdministratorWatch>();
-    create_memo(move || !administrator.get() && row.get().is_some_and(|row| row.can_leave))
+    let role = editor.watch::<RoleWatch>();
+    create_memo(move || {
+        role.get() != AccountRole::Administrator && row.get().is_some_and(|row| row.can_leave)
+    })
 }
 
 #[derive(Clone, PartialEq)]

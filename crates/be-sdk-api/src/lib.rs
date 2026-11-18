@@ -37,7 +37,7 @@ be_wasm_ops_bindgen::generate!({
         "power-availability", "media-level", "audio-output", "media-levels", "wifi-security",
         "wifi-network", "wifi-link", "wifi-status", "incoming-notification", "notification-inbox",
         "notification-report", "host-program", "program-catalog", "tray-toggle", "tray-menu-item", "host-tray-item",
-        "dialog-status", "dialog-frame", "window-kind", "insets", "picture", "block-history",
+        "account-role", "dialog-status", "dialog-frame", "window-kind", "insets", "picture", "block-history",
         "search-hit", "search-results",
     ],
     inline: [
@@ -107,7 +107,7 @@ pub use types::{
 
 pub use account::AccountStorage;
 pub use account::HostPreferenceSources;
-pub use account::{BlockMute, NotifyMode, PushDevice};
+pub use account::{AccountRole, BlockMute, NotifyMode, PushDevice};
 pub use be_wasm_ops::Watched;
 pub use contacts::HostContact;
 pub use desktop::{
@@ -133,7 +133,7 @@ pub use desktop::{
 };
 pub use desktop_types::TrayMenuEntry;
 pub use guest::account::{
-    AdministratorWatch, LinkBaseWatch, MutesWatch, PreferenceSourcesWatch, PushDeviceWatch,
+    LinkBaseWatch, MutesWatch, RoleWatch, PreferenceSourcesWatch, PushDeviceWatch,
     StorageUsageWatch,
 };
 pub use guest::contacts::ContactsWatch;
@@ -570,7 +570,7 @@ impl ChildPlacements {
 }
 
 pub fn is_published(interface: &str) -> bool {
-    interface == AdministratorWatch::INTERFACE
+    interface == RoleWatch::INTERFACE
         || interface == ContactsWatch::INTERFACE
         || extension_of(interface).is_some()
 }

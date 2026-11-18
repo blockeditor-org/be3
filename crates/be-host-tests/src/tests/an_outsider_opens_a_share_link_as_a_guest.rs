@@ -64,8 +64,21 @@ fn an_outsider_opens_a_share_link_as_a_guest() {
     host.wait("#host.share-link.opened");
     host.key("Escape");
     host.pause(500);
-    // The host opens Studio, where the block is shared with this guest.
+    // The host opens Studio, where a guest keeps only its settings: its files pane is what is
+    // shared with it, and nothing it made waits on a server that would refuse it.
+    host.wait("TreeItem \"Shared with me\"");
     host.wait("TreeItem \"Showcase\"");
+    let tree = host.tree();
+    for section in ["My files", "Unfiled", "Recently Deleted", "System"] {
+        assert!(
+            !tree.contains(&format!("TreeItem \"{section}\"")),
+            "a guest's files pane has no {section}: {tree}"
+        );
+    }
+    host.gone("#file-tree.new");
+    host.synced();
+    host.crop("Pane \"Files\"");
+    host.snapshot("a_guests_files_pane_shows_only_what_is_shared_with_it");
     host.close();
     dev_device.close();
 }
