@@ -382,6 +382,17 @@ Depends on #686 (session catch-ups replaced by server ordering).
   does not set `RUST_BACKTRACE`, so a failure there again has another cause.
   Done: if it recurs on the build server, what each waits on found from that
   run's output and made an explicit signal.
+- **An edit waiting on a session whose lease holder switched organization.**
+  Writing `players_carry_on_with_the_next_host_once_the_first_closes_the_world`,
+  with the phone paired before the laptop switched to a new organization, the
+  phone (still in the personal one) timed out at its next step with "1 edit(s)
+  wait to be sent: 1 unsealed" on its view-state block (`editor-view`),
+  "submitted, not yet numbered", for over 30 s. The laptop, which likely held
+  that session's lease, had left the organization by switching. The test now
+  pairs the phone after the switch. Done: a host test that switches one device's
+  organization while another of the account's devices edits a block both had in
+  a session, the lease passing to the device that stays, and the cause fixed at
+  its source.
 
 - **Keep hosting through a closed editor, under verify load.** be-host-tests'
   `keep_hosting_outlives_the_editor_until_stop` failed in 3 of 5 full verifies on one branch
