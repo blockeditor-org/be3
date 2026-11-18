@@ -363,6 +363,12 @@ Debugging:
   A run whose painting differs from the accepted one fails with what changed, and keeps that
   variant in target/stress/NAME/N/changed/ with a `.why` beside it (`rasterize`, then compare
   the pictures).
+- A symptom that shows only in a log (a warning line, no failure): `./scripts/test` prints
+  nothing of a passing host test, and `stress` keeps only failing runs' logs, so make the line
+  panic for the moment (an `eprintln!` turned `panic!`) and run `stress NAME`: each run that
+  logs it fails and keeps its logs, and the failure count is the symptom's rate. Take the panic
+  out before committing; with it in place, the whole `//crates/be-host-tests:test` passing says
+  no host test logs the line.
 
 Writing a test that does not flake (decisions/host_tests_stay_flake_free.md says why these):
 
