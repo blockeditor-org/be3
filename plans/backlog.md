@@ -373,10 +373,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   node's window at the lift (a `Space` that answers it on both cores), and a
   test on the fake `Space` lifts with a place in another window under the
   pointer's coordinates.
-- **Keyboard steps into a custom site.** A `custom` site (the video timeline)
-  gives no fixed places, so a keyboard carry cannot step into it. Done: a
-  custom site offers stepping points (a frame grid along the timeline), shown
-  by a test that carries a clip there from the keyboard.
 - **A floating row's announcements.** The live region that says a carry's
   places (`Interactive`'s `CarryStatus`) is inside the source, so a `Reorder`
   row carried off its list, collapsed, says nothing more until it lands, when
@@ -402,6 +398,10 @@ Depends on #686 (session catch-ups replaced by server ordering).
   `is_carried` row) reruns on any lift or put-down anywhere in the tree. Done: a
   per-payload signal or keyed subscription, so a lift wakes only the readers of
   its own payload, shown by a test that counts the effects a lift runs.
+- **A game item finds its place in one step.** Each `PieceStop` (be-app-deterministic-game
+  board.rs) finds its item with `Layout::item(id)`, a scan of the layout's items, so a new
+  layout costs every item a scan. Done: the layout keeps an index from `ItemId` to its
+  place, built once with it, and `item` reads that.
 - **The display arrangement refits for a carried display.** The area's view
   fits the arrangement at the lift and clips what it draws, so a display
   carried to a place beyond that fit (below a display beside it) is cut off at

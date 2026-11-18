@@ -159,10 +159,31 @@ pub enum DragSpec<D> {
     /// pointer's `DragPoint` (its window point, the keys held: a block dropped with Ctrl is
     /// copied) and gives what dropping there means, or `None` where nothing is taken. Chosen wherever it answers;
     /// the item floats under the pointer, and the site draws where it would land from `over`.
+    /// `stops`, given the node's size in its own points, are the points a keyboard carry
+    /// steps between (`DragSpec::stepping`); without them it steps over the site.
     Custom {
         node: NodeRef,
         place: Rc<dyn Fn(Pos2, DragPoint) -> Option<D>>,
+        stops: Option<Rc<dyn Fn(Vec2) -> Vec<Stop>>>,
     },
+}
+
+/// A point a keyboard carry steps to in a `custom` site, as a `Rest` of a fixed place: `rect`,
+/// in the site node's own points, is where the pointer is aimed (at its middle) and what a
+/// step reveals, and `label` is what the carry says it is over ("lane 2, 0:01:12").
+#[derive(Clone, PartialEq, Debug)]
+pub struct Stop {
+    pub rect: Rect,
+    pub label: String,
+}
+
+impl Stop {
+    pub fn new(rect: Rect, label: impl Into<String>) -> Self {
+        Self {
+            rect,
+            label: label.into(),
+        }
+    }
 }
 
 pub fn fixed<D>(candidate: Candidate<D>) -> DragSpec<D> {
@@ -200,6 +221,7 @@ pub fn custom<D>(
     DragSpec::Custom {
         node,
         place: Rc::new(place),
+        stops: None,
     }
 }
 
@@ -210,6 +232,20 @@ impl<D> From<Candidate<D>> for DragSpec<D> {
 }
 
 impl<D> DragSpec<D> {
+    /// A `custom` site whose `stops` a keyboard carry steps between, as it steps between a
+    /// fixed site's places: each arrow aims the pointer at the nearest stop that way, and the
+    /// site's `place` answers what dropping there means. On any other spec, `self`.
+    pub fn stepping(self, stops: impl Fn(Vec2) -> Vec<Stop> + 'static) -> Self {
+        match self {
+            DragSpec::Custom { node, place, .. } => DragSpec::Custom {
+                node,
+                place,
+                stops: Some(Rc::new(stops)),
+            },
+            other => other,
+        }
+    }
+
     /// `self` while the item is near it, `far` beyond `REACH`.
     pub fn when_far(self, far: DragSpec<D>) -> Self {
         DragSpec::WhenFar {
@@ -438,9 +474,10 @@ impl<D: 'static> DragSpec<D> {
                 region,
                 drop: drop(into),
             },
-            DragSpec::Custom { node, place } => DragSpec::Custom {
+            DragSpec::Custom { node, place, stops } => DragSpec::Custom {
                 node,
                 place: Rc::new(move |point, held| place(point, held).map(|made| drop(made))),
+                stops,
             },
         }
     }
@@ -999,7 +1036,7 @@ fn walk<'s, D: Clone>(
                 forced: false,
             })
         }
-        DragSpec::Custom { node, place } => {
+        DragSpec::Custom { node, place, .. } => {
             let (at, scale) = (evaluation.placed)(node.try_get()?)?;
             let local = Pos2::ZERO + (evaluation.point.pos - at.min) / scale;
             let drop = place(local, evaluation.point)?;
@@ -1040,8 +1077,9 @@ impl Rest {
     }
 }
 
-/// Every fixed place in `spec`, where it is now, in the spec's order. A place whose node is
-/// gone is left out; ids are counted as `evaluate` counts them.
+/// Every fixed place in `spec`, where it is now, in the spec's order, and a `custom` site's
+/// stops, which share its id. A place whose node is gone is left out; ids are counted as
+/// `evaluate` counts them.
 /// Both sides of a `when_held` are walked, as `evaluate` counts both, so a keyboard carry,
 /// which holds no modifier, steps among the places of either.
 pub fn rests<D>(spec: &DragSpec<D>, placed: &dyn Fn(NodeId) -> Option<(Rect, f32)>) -> Vec<Rest> {
@@ -1105,6 +1143,41 @@ pub fn rests<D>(spec: &DragSpec<D>, placed: &dyn Fn(NodeId) -> Option<(Rect, f32
             | DragSpec::Following { spec, .. }
             | DragSpec::Shaped { spec, .. }
             | DragSpec::Open { spec, .. } => walk(spec, placed, next, into),
+            DragSpec::Custom {
+                node,
+                stops: Some(stops),
+                ..
+            } => {
+                let Some((node, (at, scale))) =
+                    node.try_get().and_then(|node| Some((node, placed(node)?)))
+                else {
+                    return;
+                };
+                let size = at.size() / scale;
+                for stop in stops(size) {
+                    let rest = Rect::from_min_size(
+                        at.min + stop.rect.min.to_vec2() * scale,
+                        stop.rect.size() * scale,
+                    );
+                    let within = (size.x > 0.0 && size.y > 0.0).then(|| {
+                        let fraction = |pos: Pos2| Pos2::new(pos.x / size.x, pos.y / size.y);
+                        (
+                            node,
+                            Rect::from_min_max(fraction(stop.rect.min), fraction(stop.rect.max)),
+                        )
+                    });
+                    // Chosen where the pointer is, as the site's every point is: aimed at the
+                    // stop's middle, its zone.
+                    into.push(Rest {
+                        rest,
+                        zone: Some(rest),
+                        edge: None,
+                        label: Some(stop.label),
+                        id,
+                        within,
+                    });
+                }
+            }
             DragSpec::Free { .. }
             | DragSpec::Floating
             | DragSpec::Into { .. }

@@ -5,7 +5,9 @@ use std::rc::Rc;
 
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{CursorIcon, NodeId, PointerPress, Pos2, Rect, ScrollGesture, Vec2, drag};
+use be_sdk_beui::beui::{
+    CursorIcon, NodeId, PointerId, PointerPress, Pos2, Rect, ScrollGesture, Vec2, drag,
+};
 use be_sdk_beui::{ChildBlock, ChildMode, Drag};
 use uuid::Uuid;
 
@@ -19,6 +21,44 @@ use beui::{Align, Direction};
 
 const THUMBNAIL_MARGIN: Space = Space::Xs2;
 const CLIP_RADIUS: Radius = Radius::Sm;
+
+/// How far apart, in points, a keyboard carry's stops along a lane are at the least.
+const KEYBOARD_STOP_SPACING: f32 = 8.0;
+
+/// The stops a clip carried from the keyboard steps between, in the timeline's own points:
+/// a grid of frames on each lane, at least `KEYBOARD_STOP_SPACING` apart, where the clip would
+/// land, each named by its lane and the time it starts at.
+fn keyboard_stops(
+    video: &be_type_video::Video,
+    rows: &[ClipRow],
+    content: Rect,
+    pixels_per_frame: f32,
+    (lanes, offset, frame_rate): (usize, Vec2, be_type_video::VideoFrameRate),
+    dragged: &ClipDrag,
+) -> Vec<drag::Stop> {
+    let scale = pixels_per_frame.max(f32::EPSILON);
+    let stride = (KEYBOARD_STOP_SPACING / scale).ceil().max(1.0) as u64;
+    let frames = (content.width() / scale) as u64;
+    let width = stride as f32 * scale;
+    (0..lanes)
+        .flat_map(|lane| {
+            let y = RULER_HEIGHT + lane as f32 * (LANE_HEIGHT + LANE_GAP) + LANE_HEIGHT / 2.0;
+            (0..=frames).step_by(stride as usize).filter_map(move |frame| {
+                let at = Pos2::new(content.left() + frame as f32 * scale, y);
+                timeline::drop_target_at(video, rows, content, scale, at, Some(dragged))?;
+                let start = frame.saturating_sub(dragged.grab);
+                Some(drag::Stop::new(
+                    Rect::from_center_size(at - offset, Vec2::new(width, LANE_HEIGHT)),
+                    format!(
+                        "lane {}, {}",
+                        lane + 1,
+                        timeline::timecode(frame_rate, start)
+                    ),
+                ))
+            })
+        })
+        .collect()
+}
 
 #[component]
 pub(crate) fn Timeline(state: VideoState) -> NodeId {
@@ -92,6 +132,25 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
                             pixels_per_frame.get(),
                             at,
                             Some(&dragged),
+                        )
+                    })
+                })
+            })
+            // From the keyboard the clip steps along a grid of frames on each lane, stopping
+            // only where it would land.
+            .stepping(move |_| {
+                let Some(dragged) = state.drag.get_untracked() else {
+                    return Vec::new();
+                };
+                untrack(|| {
+                    edit.with(|video| {
+                        keyboard_stops(
+                            video,
+                            &timeline::lane_rows(video),
+                            content.get(),
+                            pixels_per_frame.get(),
+                            (lanes.get(), offset.get(), state.frame_rate.get()),
+                            &dragged,
                         )
                     })
                 })
@@ -292,9 +351,13 @@ fn Clip(
     let grabbing = Rc::clone(&grabbed_at);
     // Carried, the clip is moved by its own drag: how far into it it was grabbed sets where it
     // starts when it lands.
-    let drag = Func::new(move |_: PointerPress| {
+    let drag = Func::new(move |press: PointerPress| {
         let scale = scale.get_untracked().max(f32::EPSILON);
-        let pressed = grabbed_at.get().map_or(0.0, |pos| pos.x);
+        // The keyboard lifts a clip by its start, so the stop it steps to is where it starts.
+        let pressed = match press.pointer {
+            PointerId::Keyboard => 0.0,
+            _ => grabbed_at.get().map_or(0.0, |pos| pos.x),
+        };
         state.begin_drag(Some(ClipDrag {
             clip: id,
             grab: (pressed / scale).max(0.0) as u64,
@@ -321,6 +384,7 @@ fn Clip(
         <CanvasItem x={x} y={y} width={width} height=LANE_HEIGHT>
             <Interactive
                 @test_id={element_test_id}
+                focusable=true
                 cursor=CursorIcon::Grab
                 drag={Some(drag)}
                 on_click={move || state.select(Some(id))}
