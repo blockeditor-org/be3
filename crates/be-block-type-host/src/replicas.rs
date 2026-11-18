@@ -2407,8 +2407,8 @@ impl<H: Host> Replicas<H> {
         });
     }
 
-    /// A rejoin held for journaled edits no seal would take (`rejoin_held`) may hold forever,
-    /// as for a diverged replica: closing (or reopening) its block hands its answer back, and the
+    /// A rejoin held for journaled edits no seal would take (`rejoin_held`) may hold until a
+    /// status says one would: closing (or reopening) its block hands its answer back, and the
     /// join is let go of (`rejoined`). The answer goes back through the io channel, not `pending`,
     /// so the loop wakes for it (`woken`): nothing else would after a close.
     fn let_go_if_held(&mut self, replica: ReplicaId) {
@@ -3741,9 +3741,11 @@ impl<H: Host> Replicas<H> {
     /// holds them (`reopening`).
     ///
     /// A rejoin that sealed once and still holds journaled edits no seal holds, which a seal
-    /// cannot take now (`owes_seal` is false: it diverged, a reload is on its way, or its seal
-    /// backs off or cannot merge), is settling too: its answer stays held, asking nothing, until
-    /// a status says a seal would take them (`rejoined`), or its block closes.
+    /// cannot take now (`owes_seal` is false: a reload is on its way, or its seal backs off), is
+    /// settling too: its answer stays held, asking nothing, until a status says a seal would take
+    /// them (`rejoined`), or its block closes. A replica in its made-up session never diverges
+    /// (the session speaks its own build), and its seal goes to the outbox without merging
+    /// (`merge_diverged` merges it once a drain sends it), so neither holds a rejoin.
     fn settling(&self, replica: ReplicaId) -> bool {
         self.open.get(&replica).is_some_and(|open| {
             open.publishing > 0
@@ -3925,10 +3927,10 @@ impl<H: Host> Replicas<H> {
         // Closed (or reopened) while its rejoin was held (`rejoin_held`): it lets go of the join
         // rather than open again on the server's journal, which would lose the journaled edits
         // no seal holds, and ends, leaving the session (`ended`): the replica seals as it closes,
-        // so the commit it leaves holds them where that seal can take them (a hold for a seal
-        // backing off, or a reload on its way). One that diverged, or whose seal cannot merge,
-        // seals nothing, and they stay only in this device's journal (plans/backlog.md). What
-        // the session said meanwhile is not its own.
+        // so the commit it leaves holds them (a hold for a seal backing off, or a reload on its
+        // way). Its seal goes to the outbox, and `merge_diverged` merges it once a drain sends it
+        // (decisions/journaled_edits_reach_the_outbox_before_a_join.md). What the session said
+        // meanwhile is not its own.
         if letting_go {
             return self.close_if_asked(replica);
         }
