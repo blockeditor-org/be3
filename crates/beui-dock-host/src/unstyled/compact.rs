@@ -224,9 +224,23 @@ fn DockGathered(dock: State, tree: Tree, vertical: bool, folded: bool) -> NodeId
             }</ForEach>
         </List>
     };
+    let menu = create_memo(move || {
+        let shown = shown.get();
+        let rows = tabs.get().into_iter().map(|tab| {
+            let id = format!("tab.{}", dock.test_key(tab));
+            (id, Entry::Tab(tab), shown == Some(tab))
+        });
+        strip_menu(dock, rows, move |entry| {
+            if let Entry::Tab(tab) = entry {
+                pick_gathered(dock, tab);
+            }
+        })
+    });
     let strip = dock.strip.call(DockStripHandle {
         direction,
         tabs: list,
+        menu,
+        test_prefix: String::from("dock"),
     });
     let focused = create_memo(move || {
         let shown = shown.get();
@@ -325,10 +339,7 @@ fn DockGatheredTab(dock: State, tab: TabId, shown: Memo<Option<TabId>>, vertical
         node.set_selected(selected.get());
         node
     }));
-    let pick = Callback::new(move |()| {
-        dock.edit(|state| state.pick_gathered(tab));
-        dock.release_dialog_focus();
-    });
+    let pick = Callback::new(move |()| pick_gathered(dock, tab));
     view! {
         <Interactive
             @node_ref=&handle
@@ -342,4 +353,9 @@ fn DockGatheredTab(dock: State, tab: TabId, shown: Memo<Option<TabId>>, vertical
             children={face}
         />
     }
+}
+
+fn pick_gathered(dock: State, tab: TabId) {
+    dock.edit(|state| state.pick_gathered(tab));
+    dock.release_dialog_focus();
 }

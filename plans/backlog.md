@@ -18,10 +18,6 @@ Fixed items are removed as they land.
 
 ## 2. Docking
 
-- **A clipped tab strip says so.** A pane's tab strip scrolls and clips tabs
-  past its edge with no cue that more lie there (the inspector at its default
-  width hides its last tabs). Done: a clipped edge fades, or an overflow menu
-  lists the hidden tabs, shown by a painting.
 - **A bar on a deeper layer's pane, saved.** A joined dock's bar dropped on a
   pane of a dock joined below its own layer goes back to its joined dock's
   first pane after a save and restore: `DockingLayout::snapshot` unhosts the
