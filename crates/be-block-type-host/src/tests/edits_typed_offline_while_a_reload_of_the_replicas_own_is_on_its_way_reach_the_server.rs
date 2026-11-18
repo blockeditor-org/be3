@@ -12,8 +12,8 @@ fn edits_typed_offline_while_a_reload_of_the_replicas_own_is_on_its_way_reach_th
     with_test_types_on(
         be_block_client::Clock::manual(),
         |peer, shared, mut replicas| async move {
-            let (block, base, connection, token) =
-                text_typed_offline(&peer, &shared, &mut replicas).await;
+            let (block, base, connection, token, _) =
+                text_typed_offline(&peer, &shared, &mut replicas, "base").await;
             let kept = match peer.save(block, &TextBlock::of("base!"), Some(base)).await {
                 Ok(be_block_client::Saved::Kept(kept)) => kept,
                 saved => panic!("the commit is kept offline: {saved:?}"),
