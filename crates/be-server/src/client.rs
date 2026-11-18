@@ -82,6 +82,7 @@ pub(crate) fn query_rule(query: &Query) -> Rule {
         // Of a block the caller views, or one above a block it views (`access_log`).
         Query::Log(_) => Rule::Member,
         Query::Access(of) => block(*of, Access::Manage),
+        Query::Names(of) => block(*of, Access::View),
         Query::Keys { .. }
         | Query::KeyWork
         | Query::Revocations { .. }
@@ -209,6 +210,7 @@ pub(crate) fn bound_may_read(query: &Query, follow: bool) -> bool {
         // The keys topic tells of keys for any block the account may open.
         Query::Keys { .. } => !follow,
         Query::Access(_)
+        | Query::Names(_)
         | Query::Revocations { .. }
         | Query::SigningKeys(_)
         | Query::Members
@@ -1446,6 +1448,9 @@ impl Client {
             Query::Log(None) => Page::Log(store.organization_log(admitted.identity()?).await?),
             Query::Access(block) => {
                 Page::Access(store.list_access(admitted.identity()?, block).await?)
+            }
+            Query::Names(block) => {
+                Page::Names(store.list_names(admitted.identity()?, block).await?)
             }
             Query::Keys { blocks, after } => {
                 Page::Keys(store.get_keys(admitted.identity()?, blocks, after).await?)

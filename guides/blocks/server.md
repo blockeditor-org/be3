@@ -541,7 +541,12 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   the creator's after the root.
 - `SetAccess` needs `Manage`, and a grant above `None` must name a member who
   is a contact of the granter (guides/blocks/keys.md). Anyone may revoke their
-  own grant. `ListAccess` never lists the rest of the membership. Carrying an
+  own grant. `ListAccess` never lists the rest of the membership. `query.names`
+  (`list_names`) tells anyone who may view a block who else may view it, and
+  its author, each with the display name the account gave the server and
+  nothing more (no email, role or grant): what an editor names a member by
+  when they are not the reader's contact (guides/apps/host_services.md,
+  "Naming a block's members"). A block's agent may not ask it. Carrying an
   owner record, it moves ownership (`transfer_owner`): only from the owner, to
   a member who is their contact, and the block counts against the new owner's
   bound on blocks (`OverQuota`), checked after the rest, so an owner learns
