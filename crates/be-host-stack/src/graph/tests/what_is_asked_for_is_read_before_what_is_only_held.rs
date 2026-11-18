@@ -22,7 +22,10 @@ fn what_is_asked_for_is_read_before_what_is_only_held() {
         held.iter().copied().map(at).collect(),
         1,
     );
-    graph.want(Owner::Editor(1), vec![Query::Roots, Query::Children(opened)]);
+    graph.want(
+        Owner::Editor(1),
+        vec![Query::Roots, Query::Children(opened)],
+    );
     graph.take_wanted();
     graph.listed(Listing::Block(opened), vec![at(opened)], 1);
 

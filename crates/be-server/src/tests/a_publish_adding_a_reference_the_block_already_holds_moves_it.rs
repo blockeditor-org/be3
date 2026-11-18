@@ -67,7 +67,10 @@ async fn a_publish_adding_a_reference_the_block_already_holds_moves_it() {
     let Ok(be_block_protocol::PublishOutcome::Published(head)) = first else {
         panic!("{first:?}");
     };
-    assert_eq!(harness.kept_references(organization, view).await, vec![a, b]);
+    assert_eq!(
+        harness.kept_references(organization, view).await,
+        vec![a, b]
+    );
 
     // `b` is added at the front though the block holds it, and `c` at the end.
     let readding = ReferenceChange {

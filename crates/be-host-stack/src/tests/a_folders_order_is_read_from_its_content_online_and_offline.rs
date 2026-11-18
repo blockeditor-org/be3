@@ -56,10 +56,9 @@ fn a_folders_order_is_read_from_its_content_online_and_offline() {
     wait_until("read the folder's order from its content", |shared| {
         shared.graph.ready(Query::References(folder)) && order(shared, folder).len() == 3
     });
-    let (read, opened) = with_shared(|shared| {
-        (order(shared, folder), shared.blocks.contains_key(&folder))
-    })
-    .expect("the stack runs");
+    let (read, opened) =
+        with_shared(|shared| (order(shared, folder), shared.blocks.contains_key(&folder)))
+            .expect("the stack runs");
     assert_eq!(read, order_made, "the folder's order is its content's");
     assert!(!opened, "read without opening a replica of the folder");
 

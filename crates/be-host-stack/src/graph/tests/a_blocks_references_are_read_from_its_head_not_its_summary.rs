@@ -32,7 +32,10 @@ fn a_blocks_references_are_read_from_its_head_not_its_summary() {
         vec![child(first), child(second)],
         1,
     );
-    assert_eq!(graph.get(folder).and_then(|node| node.references.clone()), None);
+    assert_eq!(
+        graph.get(folder).and_then(|node| node.references.clone()),
+        None
+    );
     assert!(
         !graph.ready(Query::References(folder)),
         "its order waits for its content"
@@ -45,7 +48,10 @@ fn a_blocks_references_are_read_from_its_head_not_its_summary() {
     // and pinned after `READ_ATTEMPTS`.
     for _ in 1..READ_ATTEMPTS {
         graph.read_failed(folder, one, false);
-        assert!(graph.take_to_read().is_empty(), "waits for the server's next answer");
+        assert!(
+            graph.take_to_read().is_empty(),
+            "waits for the server's next answer"
+        );
         graph.listed(
             Listing::References(folder),
             vec![child(first), child(second)],
@@ -62,7 +68,11 @@ fn a_blocks_references_are_read_from_its_head_not_its_summary() {
     assert_eq!(ids(graph.query(Query::References(folder))), [first, second]);
     assert!(graph.take_to_read().is_empty());
     graph.relist_all();
-    assert_eq!(graph.take_to_read(), [(folder, one)], "a new connection tries again");
+    assert_eq!(
+        graph.take_to_read(),
+        [(folder, one)],
+        "a new connection tries again"
+    );
     graph.take_wanted();
     graph.listed(Listing::Block(folder), vec![at(one)], 1);
     graph.listed(

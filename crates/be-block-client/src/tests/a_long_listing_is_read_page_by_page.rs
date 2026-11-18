@@ -91,7 +91,10 @@ async fn a_long_listing_is_read_page_by_page() {
         .map(|summary| summary.id)
         .collect();
     order.sort();
-    assert_eq!(references, order, "every reference, in the order of their ids");
+    assert_eq!(
+        references, order,
+        "every reference, in the order of their ids"
+    );
 
     harness.stop().await;
 }

@@ -857,7 +857,8 @@ impl Graph {
         // read, or once its content could not be read (answered from the server's listing then).
         if let Query::References(block) | Query::Children(block) = query
             && self.nodes.get(&block).is_some_and(|node| {
-                node.references.is_none() && (self.wants_read(node) || self.reading.contains(&block))
+                node.references.is_none()
+                    && (self.wants_read(node) || self.reading.contains(&block))
             })
         {
             return false;
@@ -1342,7 +1343,8 @@ impl Graph {
     pub fn refers(&self, block: Uuid, references: &[Uuid]) -> bool {
         self.referenced.get(&block).map(Vec::as_slice) == Some(references)
             && self.nodes.get(&block).is_none_or(|node| {
-                node.references.as_ref() == Some(&with_described(references.to_vec(), &node.metadata))
+                node.references.as_ref()
+                    == Some(&with_described(references.to_vec(), &node.metadata))
             })
             && self
                 .listings
@@ -1660,7 +1662,11 @@ impl Graph {
             // No summary names them: what was read at this head, or for a block with no
             // content yet, its metadata's; at a head not read yet, what was known before, until
             // the read lands (`wants_read`).
-            let known = || self.nodes.get(&node.id).and_then(|known| known.references.clone());
+            let known = || {
+                self.nodes
+                    .get(&node.id)
+                    .and_then(|known| known.references.clone())
+            };
             node.references = match node.head {
                 _ if !node.access.can_view() || node.locked => None,
                 Some(head) => self

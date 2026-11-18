@@ -663,10 +663,9 @@ impl Edit {
             Edit::Placing(block, placing) => seen.graph.placing(*block, *placing),
             Edit::Parent(block, parent) => {
                 let placing = match parent {
-                    BlockParent::Block(above) => seen
-                        .graph
-                        .get(*above)
-                        .is_some_and(|above| !above.unfiled() && above.refers_to(*block) != Some(true)),
+                    BlockParent::Block(above) => seen.graph.get(*above).is_some_and(|above| {
+                        !above.unfiled() && above.refers_to(*block) != Some(true)
+                    }),
                     BlockParent::Root | BlockParent::Detached => false,
                 };
                 seen.graph.placing(*block, placing);

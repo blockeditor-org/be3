@@ -2978,9 +2978,7 @@ impl<S: ObjectStore> Peer<S> {
         };
         if self.local {
             let mut blocks = match listing {
-                Listing::References(block) => {
-                    self.references_here(block).await.unwrap_or_default()
-                }
+                Listing::References(block) => self.references_here(block).await.unwrap_or_default(),
                 Listing::Backrefs(block) => self.backrefs_here(block).await,
                 _ => self.refs.local_listing(listing),
             };

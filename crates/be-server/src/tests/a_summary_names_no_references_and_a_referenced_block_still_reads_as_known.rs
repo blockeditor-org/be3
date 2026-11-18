@@ -82,7 +82,10 @@ async fn a_summary_names_no_references_and_a_referenced_block_still_reads_as_kno
             ..summary
         })
     };
-    let (page, plain) = (viewer.read_block(page).await, viewer.read_block(plain).await);
+    let (page, plain) = (
+        viewer.read_block(page).await,
+        viewer.read_block(plain).await,
+    );
     assert!(page.access.can_view() && plain.access.can_view());
     assert_eq!(
         bytes(page),

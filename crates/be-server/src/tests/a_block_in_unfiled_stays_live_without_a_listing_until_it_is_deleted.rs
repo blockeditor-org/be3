@@ -23,7 +23,12 @@ async fn a_block_in_unfiled_stays_live_without_a_listing_until_it_is_deleted() {
     let deleted = client.create_block(BlockParent::Block(unfiled)).await;
     assert!(client.read_block(kept).await.held);
     assert!(client.read_block(deleted).await.held);
-    assert!(harness.kept_references(organization, unfiled).await.is_empty());
+    assert!(
+        harness
+            .kept_references(organization, unfiled)
+            .await
+            .is_empty()
+    );
 
     let response = client
         .move_keyed(deleted, BlockParent::Detached, KeySet::default())
