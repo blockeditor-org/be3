@@ -8,8 +8,10 @@ use beui_layer_drive::Reply;
 use beui_paint_format::Painting;
 use beui_paint_snapshot::Snapshot;
 
+mod player;
 mod server;
 
+pub use player::Player;
 pub use server::{Account, Server};
 
 const SIZE: &str = "1100x720";

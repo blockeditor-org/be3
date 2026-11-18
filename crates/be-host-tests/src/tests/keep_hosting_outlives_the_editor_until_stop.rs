@@ -1,8 +1,5 @@
 use super::*;
 
-const MORE: &str = "#dock.editors.menu";
-const KEEP_HOSTING: &str = "#dock.editors.menu.editor.keep-hosting";
-const DETAILS: &str = "#dock.editors.menu.editor.details";
 const STOP: &str = "MenuItem \"Stop hosting Counter\"";
 
 /// The count the open counter shows.
@@ -18,19 +15,6 @@ fn count(host: &mut HostTest) -> String {
         .and_then(|rest| rest.split('"').next())
         .unwrap_or_else(|| panic!("no count in {line}"))
         .to_owned()
-}
-
-/// Waits until the open counter's More menu offers Keep hosting (`hosting`), which it does only
-/// while this device hosts the counter, or until it shows the menu without it.
-fn hosts(host: &mut HostTest, hosting: bool) {
-    host.click(MORE);
-    host.wait(DETAILS);
-    match hosting {
-        true => host.wait(KEEP_HOSTING),
-        false => host.gone(KEEP_HOSTING),
-    }
-    host.key("Escape");
-    host.gone(DETAILS);
 }
 
 /// Keep hosting, from the frame menu, keeps a block's host component running on this device
