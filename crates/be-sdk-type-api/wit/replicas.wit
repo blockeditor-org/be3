@@ -246,13 +246,17 @@ interface replicas {
         reads: list<list<u8>>,
     ) -> result<list<block-place>, failure>;
 
-    /// How many things in `content` the account has not read, by its `place` from
-    /// `places` (none: the default place). `content` is a commit of the block as
-    /// `host.load` answers it (only its first part for a type with `first-part`).
+    /// How many things in `content` and `log` the account has not read, by its
+    /// `place` from `places` (none: the default place). `content` is a commit of
+    /// the block as `host.load` answers it (only its first part for a type with
+    /// `first-part`), and `log` its signed log's latest entries for a type with
+    /// `type-info.log` (`be_block_content::UNREAD_ENTRIES` at most; who signed
+    /// each is not told, `unknown`).
     unread: async func(
         content-type: content-type-id,
         content: loaded,
         place: option<list<u8>>,
+        log: list<log-item>,
         account: account-id,
     ) -> result<u32, failure>;
 

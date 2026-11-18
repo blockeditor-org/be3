@@ -1828,6 +1828,14 @@ impl Session<'_> {
                         if keyed {
                             peer.keys_changed();
                         }
+                        // An unread count made from a block's log is made again.
+                        if let Some(Event::Appended(appended)) = &event {
+                            shared
+                                .lock()
+                                .unwrap_or_else(PoisonError::into_inner)
+                                .counting
+                                .appended(appended.block);
+                        }
                         match &event {
                             Some(message) => self.replicas.heard((peer, shared), message),
                             None => self.replicas.resynchronize((peer, shared)),

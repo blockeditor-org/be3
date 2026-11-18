@@ -91,7 +91,7 @@ pub(crate) struct Counting {
     /// The reads' change and the known kinds' revision the places were last brought up to.
     placed: Option<(u64, u64)>,
     counted: HashMap<Uuid, Counted>,
-    /// Each node's head as its type loads it, kept so a count with a new place loads nothing.
+    /// Each node's head as its type loads it, held from its load until it is counted.
     heads: HashMap<Uuid, (CommitId, be_sdk_type_api::Loaded)>,
     /// Heads being loaded.
     loading: HashSet<Uuid>,
@@ -138,6 +138,14 @@ impl Counting {
         self.dirty
             .extend(self.failed.drain().map(|(block, _)| block));
         self.placed = None;
+    }
+
+    /// Something was appended to `block`'s signed log, which a type with a log counts from:
+    /// it is counted again.
+    pub(crate) fn appended(&mut self, block: Uuid) {
+        if self.counted.remove(&block).is_some() {
+            self.dirty.insert(block);
+        }
     }
 
     fn forget(&mut self, block: Uuid) {
@@ -195,6 +203,7 @@ pub(crate) async fn step(
         let counted = replicas
             .unread(
                 (peer, shared),
+                block,
                 content_type,
                 content,
                 place.clone(),
@@ -202,6 +211,9 @@ pub(crate) async fn step(
             )
             .await;
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        // The head counted is let go: a place that moves loads it again, rather than every
+        // block's head held for as long as the stack runs.
+        held.counting.heads.remove(&block);
         #[cfg(test)]
         {
             held.counting.made.1 += 1;

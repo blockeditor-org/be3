@@ -3039,9 +3039,13 @@ impl<H: Host> Replicas<H> {
     /// (`places`; none: the type's default place): `be_block_content::Unread`. `content` is
     /// the commit as the type loads it (`Kind::load`), which a caller reads beforehand, away
     /// from the replicas.
+    /// How many things in `block` the account has not read, by its place: its type counts its
+    /// commit's `content` and, for a type with a signed log, the log's latest entries
+    /// (`be_block_content::UNREAD_ENTRIES`), read here.
     pub async fn unread(
         &mut self,
         ctx: Ctx<'_, H>,
+        block: Uuid,
         content_type: Uuid,
         content: be_sdk_type_api::Loaded,
         place: Option<Vec<u8>>,
@@ -3049,12 +3053,31 @@ impl<H: Host> Replicas<H> {
     ) -> Result<u32, NotSearched> {
         let no_module =
             || NotSearched::Type(format!("no type module has the block type {content_type}"));
-        self.kind(content_type).await.ok_or_else(no_module)?;
+        let kind = self.kind(content_type).await.ok_or_else(no_module)?;
+        let log = match kind.log {
+            true => ctx
+                .0
+                .read_log_tail(block, be_block_content::UNREAD_ENTRIES)
+                .await
+                .map_err(NotSearched::Read)?
+                .entries
+                .into_iter()
+                .map(|logged| be_sdk_type_api::LogItem {
+                    seq: logged.entry.seq,
+                    id: logged.entry.id,
+                    author: logged.entry.author,
+                    arrival: logged.entry.arrival,
+                    payload: logged.opened.map(|said| said.bytes),
+                    signer: be_sdk_type_api::Signer::Unknown,
+                })
+                .collect(),
+            false => Vec::new(),
+        };
         let module = self.modules.module_of(content_type).ok_or_else(no_module)?;
         let scope = types::Scope::of([&content]);
         let (answer, mut scope) = self
             .ask_reading(ctx, module, scope, |connection| {
-                replicas::unread(connection, content_type, content, place, account)
+                replicas::unread(connection, content_type, content, place, &log, account)
             })
             .await;
         if let Some(failed) = scope.take_failure() {
