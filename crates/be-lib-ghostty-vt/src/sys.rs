@@ -429,7 +429,8 @@ unsafe extern "C" {
 
     pub fn ghostty_key_encoder_new(allocator: *const c_void, encoder: *mut KeyEncoder) -> Result;
     pub fn ghostty_key_encoder_free(encoder: KeyEncoder);
-    pub fn ghostty_key_encoder_set_from_terminal(encoder: KeyEncoder, terminal: Terminal) -> Result;
+    pub fn ghostty_key_encoder_set_from_terminal(encoder: KeyEncoder, terminal: Terminal)
+    -> Result;
     pub fn ghostty_key_encoder_encode(
         encoder: KeyEncoder,
         event: KeyEvent,
@@ -452,10 +453,15 @@ unsafe extern "C" {
         encoder: *mut MouseEncoder,
     ) -> Result;
     pub fn ghostty_mouse_encoder_free(encoder: MouseEncoder);
-    pub fn ghostty_mouse_encoder_set(encoder: MouseEncoder, option: c_int, value: *const c_void)
-    -> Result;
-    pub fn ghostty_mouse_encoder_set_from_terminal(encoder: MouseEncoder, terminal: Terminal)
-    -> Result;
+    pub fn ghostty_mouse_encoder_set(
+        encoder: MouseEncoder,
+        option: c_int,
+        value: *const c_void,
+    ) -> Result;
+    pub fn ghostty_mouse_encoder_set_from_terminal(
+        encoder: MouseEncoder,
+        terminal: Terminal,
+    ) -> Result;
     pub fn ghostty_mouse_encoder_encode(
         encoder: MouseEncoder,
         event: MouseEvent,

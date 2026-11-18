@@ -198,13 +198,10 @@ impl Emulator {
         let mut bytes = Vec::new();
         for _ in 0..wheel.lines.unsigned_abs() {
             if self.terminal.mouse_tracking() {
-                match self.mouse.wheel(
-                    &self.terminal,
-                    up,
-                    wheel.col,
-                    wheel.row,
-                    Mods::default(),
-                ) {
+                match self
+                    .mouse
+                    .wheel(&self.terminal, up, wheel.col, wheel.row, Mods::default())
+                {
                     Ok(encoded) => bytes.extend(encoded),
                     Err(error) => {
                         eprintln!("be: could not encode a wheel turn for the terminal: {error}");

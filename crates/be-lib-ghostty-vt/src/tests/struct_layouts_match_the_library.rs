@@ -71,13 +71,19 @@ fn struct_layouts_match_the_library() {
     let style = sys::Style::default();
     let base = std::ptr::from_ref(&style).addr();
     for (field, offset) in [
-        ("bg_color", std::ptr::from_ref(&style.bg_color).addr() - base),
+        (
+            "bg_color",
+            std::ptr::from_ref(&style.bg_color).addr() - base,
+        ),
         (
             "underline_color",
             std::ptr::from_ref(&style.underline_color).addr() - base,
         ),
         ("flags", std::ptr::from_ref(&style.flags).addr() - base),
-        ("reserved", std::ptr::from_ref(&style.reserved).addr() - base),
+        (
+            "reserved",
+            std::ptr::from_ref(&style.reserved).addr() - base,
+        ),
     ] {
         assert_offset(types, "GhosttyStyle", field, offset);
     }
