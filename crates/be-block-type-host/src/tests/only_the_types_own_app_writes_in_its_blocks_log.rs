@@ -23,6 +23,8 @@ fn only_the_types_own_app_writes_in_its_blocks_log() {
         }
         let other = 8;
         let mut held = attach_mirror::<Tally>(&peer, &shared, &mut replicas, block, other).await;
+        let own = 7;
+        let mut mirror = attach_mirror::<Tally>(&peer, &shared, &mut replicas, block, own).await;
         let (_, message) = held.append(b"as tally".to_vec());
         replicas.relay_from_app(
             &shared,
@@ -32,8 +34,6 @@ fn only_the_types_own_app_writes_in_its_blocks_log() {
             message.encode(),
             std::time::Instant::now(),
         );
-        let own = 7;
-        let mut mirror = attach_mirror::<Tally>(&peer, &shared, &mut replicas, block, own).await;
         let (_, message) = mirror.append(b"mine".to_vec());
         replicas.relay_from_app(
             &shared,
@@ -46,8 +46,18 @@ fn only_the_types_own_app_writes_in_its_blocks_log() {
         let mut refused = Vec::new();
         while refused.is_empty() || mirror.log().count() < 1 {
             step(&peer, &shared, &mut replicas).await;
-            receive_frames(&shared, other, &mut held);
-            receive_frames(&shared, own, &mut mirror);
+            // Each editor's frames, taken once for both.
+            let frames = std::mem::take(&mut shared.lock().unwrap().frames);
+            for (to, frame) in frames {
+                shared.lock().unwrap().frames.push((to, frame));
+                match to {
+                    to if to == other => receive_frames(&shared, other, &mut held),
+                    to if to == own => receive_frames(&shared, own, &mut mirror),
+                    _ => {
+                        shared.lock().unwrap().frames.clear();
+                    }
+                }
+            }
             refused.extend(held.take_appended());
         }
         assert!(
