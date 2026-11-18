@@ -6,6 +6,7 @@ use std::rc::Rc;
 use beui_macros::{component, view};
 
 use crate::color_picker::thumb;
+use beui_components_unstyled::ValueDrag;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ColorPickerState, ColorWheelHandle, WheelGeometry, WheelPoint};
 use beui_view::primitives::Drawing;
@@ -60,7 +61,7 @@ pub fn ColorWheel(
     #[prop(default = WheelModel::default())] model: WheelModel,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
-    on_drag_change: Callback<bool>,
+    on_drag_change: Callback<ValueDrag>,
 ) -> NodeId {
     match model {
         WheelModel::Hsv => view! {
@@ -77,7 +78,7 @@ fn HsvWheel(
     value: Binding<Color32>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
-    on_drag_change: Callback<bool>,
+    on_drag_change: Callback<ValueDrag>,
 ) -> NodeId {
     let picker: ColorPickerState<Hsva> = ColorPickerState::new(value, disabled, on_drag_change);
     let color = picker.color();
@@ -93,7 +94,7 @@ fn HsvWheel(
                 thumb={THUMB_RADIUS * 2.0 + GRAB_SLOP}
                 focused
                 disabled={picker.disabled()}
-                on_drag_change={move |dragging: bool| picker.drag(dragging)}
+                on_drag_change={move |change: ValueDrag| picker.drag(change)}
             >|handle: ColorWheelHandle|
                 <WheelFace handle model=WheelModel::Hsv />
             </unstyled::ColorWheel>
@@ -106,7 +107,7 @@ fn OklchWheel(
     value: Binding<Color32>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
-    on_drag_change: Callback<bool>,
+    on_drag_change: Callback<ValueDrag>,
 ) -> NodeId {
     let picker: ColorPickerState<Oklch> = ColorPickerState::new(value, disabled, on_drag_change);
     let color = picker.color();
@@ -145,7 +146,7 @@ fn OklchWheel(
                 focused
                 disabled={picker.disabled()}
                 accessibility
-                on_drag_change={move |dragging: bool| picker.drag(dragging)}
+                on_drag_change={move |change: ValueDrag| picker.drag(change)}
             >|handle: ColorWheelHandle|
                 <WheelFace handle model=WheelModel::Oklch />
             </unstyled::ColorWheel>

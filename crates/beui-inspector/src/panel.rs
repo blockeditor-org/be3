@@ -615,7 +615,8 @@ fn BackSection(state: Stored<State>, handles_back: Memo<bool>) -> NodeId {
             swipe.set(Swipe::Idle);
         }
     };
-    let released = move |held: bool| {
+    let released = move |change: ValueDrag| {
+        let held = change == ValueDrag::Started;
         dragging.set(held);
         if held {
             return;

@@ -111,9 +111,12 @@ view of the block on this device and are sent and saved only when it commits;
 a cancel, the instance closing or a crash leaves no trace. A tentative edit only
 moves or changes what exists: anything a drop creates, create on commit.
 beui's value controls write `value` on every move of a drag and report the drag
-around it (`NumberInput`'s `on_scrub`, `on_drag_change` on `Slider` and the
-colour controls), so an editor opens a tentative gesture when the drag starts and
-commits it when it ends. That decision is about block content; view state is
+around it as `ValueDrag` (`NumberInput`'s `on_scrub`, `on_drag_change` on `Slider`
+and the colour controls): hold those writes with `DragHold`, passing its `drag` to
+the control and making the editor's edits through its `operate`. Where an edit
+cannot wait in a tentative gesture (a graph definition, an editor command), wrap
+the control's value in beui's `HeldValue`, which shows the drag and writes once
+when it is kept. That decision is about block content; view state is
 written on every change whatever the gesture.
 
 Bracket a gesture that writes as it goes with `begin_gesture` and

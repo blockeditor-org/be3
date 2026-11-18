@@ -239,8 +239,17 @@ a carry whose gesture ended, so the item glides home and the site stops previewi
    `a_scrubbed_number_previews_and_is_written_once_released`;
    `dragging_the_opacity_slider_previews_and_is_written_once_released`;
    `a_typed_transform_value_is_one_edit` and
-   `typing_a_transform_value_and_pressing_escape_edits_nothing`) and beui-host
-   (`dragging_a_color_picker_writes_each_move_between_its_drag_changes`). As built:
+   `typing_a_transform_value_and_pressing_escape_edits_nothing`;
+   `a_sidebar_drag_whose_control_goes_lets_go_of_its_hold`;
+   `the_eraser_writes_one_removal_and_none_of_its_dimming`;
+   `an_undo_mid_move_puts_it_back_and_lets_go_of_the_drag`;
+   `escape_mid_resize_puts_the_size_back_and_writes_nothing`;
+   `a_duplicating_move_writes_its_copies_as_it_goes`) and beui-host
+   (`dragging_a_color_picker_writes_each_move_between_its_drag_changes`,
+   `a_cancelled_scrub_writes_back_its_start_and_reports_it_called_off`,
+   `a_scrub_released_off_its_face_is_kept_once`,
+   `a_press_off_a_sliders_thumb_reports_the_drag_before_its_jump`,
+   `a_slider_removed_mid_drag_reports_the_drag_called_off`). As built:
    - The canvas keeps its undo group (`writing`, `open_writes`) and a tentative gesture beside
      it (`holding`, `open_hold`); an edit goes in the hold when one is open, else the group.
      `Gesture::chooses` picks which a canvas gesture opens. `commit_writes` commits the hold
@@ -257,18 +266,28 @@ a carry whose gesture ended, so the item glides home and the site stops previewi
      raster stroke, which are made as drawn; and a duplicating move, whose copies are created
      as it starts and carried as it goes (holding the copies' move apart from their creation
      would make two undo steps).
-   - The sidebar's value controls: `NumberInput`'s scrub, `Slider`s and the colour inputs open
-     the hold when their drag starts and commit it when it ends (`CanvasState::drag_value`),
-     and a number typed into a transform field previews in the hold until Enter commits it or
-     Escape drops it (`type_value`): a number half typed is not one anyone chose either.
-   - The colour picker's `on_preview` went: it writes `value` on every move and reports the
-     drag through `on_drag_change`, called before the first write, as `Slider` does
-     (`ColorPicker`, `ColorWheel`, `ColorInput`). The workspace's rename dialog, whose colour is
-     a graph definition with no tentative gesture, previews a drag itself and defines the colour
-     once on release.
+   - beui's value controls report a drag as `ValueDrag` (`Started`, `Kept`, `Cancelled`;
+     beui-components-unstyled `value_drag.rs`): `NumberInput`'s `on_scrub`, and `on_drag_change`
+     on `Slider`, `ColorArea`, `ColorWheel` and the colour pickers and inputs. Each writes
+     `value` on every move, reports `Started` before its first write (a `Slider` press off the
+     thumb reports it before the jump), writes back its start before `Cancelled`, and reports
+     `Cancelled` when its scope is disposed mid-drag (`DragReport`), so an owner is never left
+     holding a drag whose control went. The colour picker's `on_preview` went.
    - `NumberInput` ended a scrub only from `on_click`, which a drag's release does not fire, so
      an undo group left open was committed later by chance. It now ends the scrub when the
-     press ends, and a cancelled scrub writes back the value it started from first.
+     press ends.
+   - Owners: the canvas's sidebar opens its hold on `Started`, commits it on `Kept` and drops it
+     on `Cancelled` (`CanvasState::drag_value`); a number typed into a transform field previews
+     in the hold until Enter commits it or Escape drops it (`type_value`): a number half typed is
+     not one anyone chose either. An editor whose controls write through one path holds them
+     with be-sdk-beui's `DragHold` (the map's point and region fields and colour, the video's
+     clip length and offset). An owner that cannot hold block content in a tentative gesture
+     shows the drag itself and writes once when it is kept, with beui's `HeldValue`: the rename
+     dialog's colour (a graph definition), be-sdk-database's number and colour fields (a library
+     handing values to its app), the text editor's indentation width (an editor command), the
+     database schema's number options, and the settings app's sliders and remap times. No value
+     control writes every frame of a drag any more, outside the desktop's volume slider, which
+     sets the system's volume rather than any block.
    - The test store (`be-sdk-test` `store.rs`) follows `Holds` as the host does, so
      `take_written` and `applied` count a held edit only once its layer commits.
    - Peers no longer see a canvas move, resize, rotation or erase until it is dropped: the
@@ -278,6 +297,5 @@ a carry whose gesture ended, so the item glides home and the site stops previewi
      - Tagging the mirror's pending edits by gesture: a drag sends one edit per frame, but a
        snapshot answers only an edit the replica drops in a gesture it ended (an undo mid-drag
        or a replacement), once per frame still in flight, which did not show.
-     - Other apps' value controls still write every frame of a drag outside any gesture:
-       be-sdk-database's number and colour fields and be-app-video's clip fields. Each needs its
-       owner to pass the drag through (`on_scrub`, `on_drag_change`) and hold it.
+     - The canvas keeps its own hold beside its undo group rather than `DragHold`, since its
+       canvas gestures and sidebar drags share it.

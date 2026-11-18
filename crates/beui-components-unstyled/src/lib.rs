@@ -58,6 +58,7 @@ pub mod text_input;
 pub mod text_menu;
 pub mod time_list;
 pub mod toast;
+pub mod value_drag;
 pub mod toggle;
 pub mod tooltip;
 pub mod tree;
@@ -150,6 +151,7 @@ pub use search_list::{
 pub use select::{Select, SelectApi, SelectOptionHandle, SelectTriggerHandle};
 pub use sheet::{ModalSheet, Sheet, SheetCurves, SheetGripHandle};
 pub use slider::{Slider, SliderApi, SliderHandle, SliderScale};
+pub use value_drag::{HeldValue, ValueDrag};
 pub use split_button::SplitButton;
 pub use stack::Stack;
 pub use table::{Table, TableCell, TableColumnHeader, TableRow, TableRowHeader};

@@ -571,6 +571,10 @@ fn SliderSetting(
     #[prop(default = true)] separated: bool,
     on_change: Callback<Option<f32>>,
 ) -> NodeId {
+    // A drag shows on the slider and sets the setting once, when it is kept.
+    let held = HeldValue::new(Binding::new(value, move |value: f32| {
+        on_change.call(Some(value))
+    }));
     view! {
         <LayeredSettingsRow
             setting={row}
@@ -582,7 +586,8 @@ fn SliderSetting(
         >
             <ListItem grow=1.0>
                 <Slider
-                    value={Binding::new(value, move |value: f32| on_change.call(Some(value)))}
+                    value={held.value}
+                    on_drag_change={held.on_drag}
                     min={min}
                     max={max}
                     label={label}

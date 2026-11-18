@@ -477,7 +477,8 @@ fn OptionalNumber(
         let fallback = bound.fallback(options.get_untracked());
         write(enabled.then_some(fallback));
     };
-    let typed = move |value: f64| write(Some(value));
+    // A scrub shows here and is written once, when it is kept.
+    let typed = HeldValue::new(Binding::new(value, move |value: f64| write(Some(value))));
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
             <Checkbox
@@ -488,7 +489,8 @@ fn OptionalNumber(
             />
             <Frame width=NUMBER_WIDTH>
                 <NumberInput
-                    value={Binding::new(value, typed)}
+                    value={typed.value}
+                    on_scrub={typed.on_drag}
                     label={bound.label()}
                     disabled={move || !set.get() || read_only.get()}
                     @test_id={format!("database-schema.number.{id}.{}", bound.test_id())}

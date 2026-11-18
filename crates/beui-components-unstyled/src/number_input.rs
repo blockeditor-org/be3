@@ -4,6 +4,8 @@ use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+
+use crate::value_drag::{DragReport, ValueDrag};
 use beui_view::reactive::{KeyAt, KeyEvent};
 use beui_view::types::KeyPhase;
 use beui_view::types::Pos2;
@@ -58,9 +60,8 @@ struct Parts {
 /// A number shown as a face that a horizontal drag scrubs and a click or
 /// Space/Enter turns into a text field. In the field, Enter or losing the focus
 /// keeps the typed number, clamped to `min` and `max`; Escape reverts it and
-/// returns the focus to the face. A scrub writes `value` on every move between
-/// `on_scrub(true)` and `on_scrub(false)`, so an owner can hold those writes until
-/// release; a cancelled scrub writes back the value it started from first.
+/// returns the focus to the face. A scrub writes `value` on every move and reports
+/// itself around those writes through `on_scrub` (`ValueDrag`).
 #[component]
 pub fn NumberInput(
     #[prop(default = ComponentRef::new())] api: ComponentRef<NumberInputApi>,
@@ -74,7 +75,7 @@ pub fn NumberInput(
     face: Render<NumberFaceHandle, NodeId>,
     field: Render<NumberFieldHandle, NodeId>,
     on_preview: Callback<Option<f64>>,
-    on_scrub: Callback<bool>,
+    on_scrub: Callback<ValueDrag>,
 ) -> NodeId {
     let text = create_linked_signal(move |typed: Option<&String>| {
         let next = value.get();
@@ -104,6 +105,7 @@ pub fn NumberInput(
     component_accessibility(accessibility);
 
     let held = StoredCell::new(None::<(Pos2, f64, bool)>);
+    let scrub = DragReport::new(on_scrub);
     let pressed = move |press: PointerPress| {
         if off.get_untracked() {
             return;
@@ -123,7 +125,7 @@ pub fn NumberInput(
         };
         held.set(Some((origin, start, true)));
         if !moved {
-            on_scrub.call(true);
+            scrub.start();
         }
         let next = next.clamp(min, max);
         text.set(format_number(next, decimals.get_untracked()));
@@ -136,7 +138,7 @@ pub fn NumberInput(
     };
     let clicked = move || match held.take() {
         Some((_, _, false)) => open(),
-        Some((_, _, true)) => on_scrub.call(false),
+        Some((_, _, true)) => scrub.end(true),
         None => {}
     };
     // A scrub ends when the press does, whether or not the release counts as a click.
@@ -144,14 +146,14 @@ pub fn NumberInput(
         active.set(pressed);
         if !pressed && let Some((_, _, true)) = held.get() {
             held.set(None);
-            on_scrub.call(false);
+            scrub.end(true);
         }
     };
     let cancelled = move || {
         if let Some((_, start, true)) = held.take() {
             text.set(format_number(start, decimals.get_untracked()));
             value.set(start);
-            on_scrub.call(false);
+            scrub.end(false);
         }
     };
 

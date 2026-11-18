@@ -7,7 +7,8 @@ use be_sdk_beui::be_block_content::Edit;
 use be_sdk_beui::be_sdk_ui::BlockLabel;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::{Image, Pos2, Rect, Vec2};
-use be_sdk_beui::{BlockFilter, ContentProjection, Drag, Editor, FileDrop, Waker};
+use be_sdk_beui::beui::unstyled::ValueDrag;
+use be_sdk_beui::{BlockFilter, ContentProjection, Drag, DragHold, Editor, FileDrop, Waker};
 use be_sdk_beui::{BlockInfo, BlockParent, BlockQuery};
 use be_type_map::{Map, MapColor, MapContent, MapCoordinate, MapPoint, MapRegion};
 use uuid::Uuid;
@@ -46,6 +47,8 @@ impl TileState {
 
 struct MapInner {
     block: ContentProjection<MapContent>,
+    /// What a sidebar control's drag writes, held until it is kept (`drag_value`).
+    hold: DragHold<MapContent>,
     worker: RefCell<Option<TileWorker>>,
     tiles: RefCell<HashMap<TileId, TileState>>,
     used: RefCell<HashMap<TileId, u64>>,
@@ -113,6 +116,7 @@ impl MapState {
             anchor,
             inner: store(MapInner {
                 block,
+                hold: DragHold::new(block),
                 worker: RefCell::new(None),
                 tiles: RefCell::new(HashMap::new()),
                 used: RefCell::new(HashMap::new()),
@@ -162,8 +166,13 @@ impl MapState {
     }
 
     pub(crate) fn record(&self, edit: Edit) {
-        let inner = self.inner.value();
-        inner.block.operate(edit);
+        self.inner.value().hold.operate(edit);
+    }
+
+    /// A sidebar control's drag starts or ends: what it writes between is held
+    /// (`DragHold`).
+    pub(crate) fn drag_value(&self, change: ValueDrag) {
+        self.inner.value().hold.drag(change);
     }
 
     pub(crate) fn remove_point(&self, id: Uuid) {

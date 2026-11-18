@@ -6,7 +6,7 @@ use crate::styled::*;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Heard {
-    Dragging(bool),
+    Dragging(ValueDrag),
     Value(Color32),
 }
 
@@ -23,8 +23,8 @@ fn dragging_a_color_picker_writes_each_move_between_its_drag_changes() {
                     value={Binding::new(Hsva::new(0.0, 1.0, 1.0, 1.0).to_color(), move |next| {
                         heard.update(|heard| heard.push(Heard::Value(next)))
                     })}
-                    on_drag_change={move |dragging| {
-                        heard.update(|heard| heard.push(Heard::Dragging(dragging)))
+                    on_drag_change={move |change| {
+                        heard.update(|heard| heard.push(Heard::Dragging(change)))
                     }}
                 />
             </List>
@@ -43,10 +43,10 @@ fn dragging_a_color_picker_writes_each_move_between_its_drag_changes() {
     let heard = heard.get_untracked();
     assert_eq!(
         heard.first(),
-        Some(&Heard::Dragging(true)),
+        Some(&Heard::Dragging(ValueDrag::Started)),
         "the drag starts before anything is written, so an owner can hold what follows"
     );
-    assert_eq!(heard.last(), Some(&Heard::Dragging(false)));
+    assert_eq!(heard.last(), Some(&Heard::Dragging(ValueDrag::Kept)));
     let values: Vec<Color32> = heard
         .iter()
         .filter_map(|heard| match heard {

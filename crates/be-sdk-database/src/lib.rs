@@ -321,9 +321,12 @@ fn NumberValue(
     let edited = changer(field, on_change, true, |typed: f64| {
         Some(DatabaseValue::Number(typed))
     });
+    // A scrub shows here and reaches `on_change` once, when it is kept.
+    let held = HeldValue::new(Binding::new(number, edited));
     view! {
         <NumberInput
-            value={Binding::new(number, edited)}
+            value={held.value}
+            on_scrub={held.on_drag}
             min={bounds.minimum.unwrap_or(f64::NEG_INFINITY)}
             max={bounds.maximum.unwrap_or(f64::INFINITY)}
             drag={number_drag(bounds)}
@@ -442,9 +445,12 @@ fn ColorValue(
             alpha,
         }))
     });
+    // A drag shows here and reaches `on_change` once, when it is kept.
+    let held = HeldValue::new(Binding::new(color, edited));
     view! {
         <ColorInput
-            value={Binding::new(color, edited)}
+            value={held.value}
+            on_drag_change={held.on_drag}
             label="Color"
             disabled={disabled}
             @test_id={id}

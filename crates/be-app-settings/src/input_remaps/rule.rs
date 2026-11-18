@@ -313,6 +313,10 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
         edit(RuleEdit::Key(chord.text()));
     });
     let hold = create_memo(move || outline.get().hold_ms.unwrap_or(0).max(0) as f64);
+    // A scrub shows in the field and is set once, when it is kept.
+    let held_hold = HeldValue::new(Binding::new(hold, move |ms: f64| {
+        edit(RuleEdit::HoldMs(Some(ms.round() as i64)))
+    }));
     let steps = create_memo(move || {
         (0..outline.with(|outline| outline.steps.len())).collect::<Vec<usize>>()
     });
@@ -445,7 +449,8 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
                                     <Text style=TextStyle::CAPTION>"or"</Text>
                                     <ListItem length=MS_WIDTH>
                                         <NumberInput
-                                            value={Binding::new(hold, move |ms: f64| edit(RuleEdit::HoldMs(Some(ms.round() as i64))))}
+                                            value={held_hold.value}
+                                            on_scrub={held_hold.on_drag}
                                             min=0.0
                                             decimals={Some(0)}
                                             label="Hold for, in milliseconds"
@@ -771,6 +776,10 @@ fn StepTile(
         StepOutline::Tap { hold_ms, .. } => hold_ms.unwrap_or(0) as f64,
         StepOutline::Wait { ms } => ms as f64,
     });
+    // A scrub shows in the field and is set once, when it is kept.
+    let held_ms = HeldValue::new(Binding::new(ms, move |ms: f64| {
+        edit(RuleEdit::StepMs(step, Some(ms.round() as i64)))
+    }));
     let number = format!("{}", step + 1);
     view! {
         <Frame
@@ -805,7 +814,8 @@ fn StepTile(
                 </Show>
                 <ListItem length=MS_WIDTH>
                     <NumberInput
-                        value={Binding::new(ms, move |ms: f64| edit(RuleEdit::StepMs(step, Some(ms.round() as i64))))}
+                        value={held_ms.value}
+                        on_scrub={held_ms.on_drag}
                         min=0.0
                         decimals={Some(0)}
                         label="Milliseconds"
