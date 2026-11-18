@@ -437,15 +437,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   as wip on claude/backlog-keys-6 at c44edb62. Done: the path that seals to an
   old key is found, and a test that fails without the change passes with it.
 
-- **A test of an app's create that names a block the server holds.** An app
-  without `sharing` opens a block it made only once the server took the create
-  and the block is still the app's (`made_state`, `Instances::settle_openings`),
-  but no test shows the case it guards: the create names a block the server
-  already holds and this device has not loaded. `an_app_opens_a_block_it_made_only_once_the_server_took_it`
-  passes without the hold, as the outbox sends the create before the opening.
-  Done: be-host-testing can take the host offline or drop a node from its graph,
-  and a test where the create names such a block shows the opening refused.
-
 ## 19. Local accounts
 
 - **Share and Access offered with no server.** A local account's block menus
