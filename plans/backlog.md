@@ -397,7 +397,9 @@ Depends on #686 (session catch-ups replaced by server ordering).
   `type 'Plant the tomatoes'` with "a block type module has yet to settle",
   1 to 2 runs in 100 under `stress` at `--latency 75`. Done: the module that
   never settles found and fixed at its source, and the test passes 300 runs at
-  that latency.
+  that latency. Not seen in 100 runs at 8 at a time and
+  `--latency 75` on a 4-core VM after be-host-runtime counted an app starting for a
+  view the host asked of it as busy.
 
 ## 16. Host test tools
 
