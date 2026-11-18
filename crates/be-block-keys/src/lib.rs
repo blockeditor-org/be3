@@ -5,9 +5,10 @@ pub mod aead;
 pub mod merkle;
 pub use access::{
     Administrator, Asked, Authority, CarriedKey, Checked, Entry, EntryHash, FORMER_OWNER, Grant,
-    Heads, Invitation, Invited, KeyRole, Label, Level, Link, LogKind, Logged, Logs, MAX_ANCESTRY,
-    Member, Named, Opening, Owner, Parent, Placement, Record, Reduced, Retirement, Root, Step,
-    StepRef, agent_account, answer, check_log, check_log_as_of, proof_path,
+    Admits, Heads, Invitation, Invited, KeyRole, Label, Level, Link, LogKind, Logged, Logs,
+    MAX_ANCESTRY, Member, Named, Opened, Opening, Owner, Parent, Placement, Record, Reduced,
+    Retirement, Root, ShareLink, Step, StepRef, agent_account, answer, check_log, check_log_as_of,
+    proof_path,
 };
 
 use hkdf::Hkdf;
@@ -24,6 +25,8 @@ const PAIRING_CONTEXT: &[u8] = b"be3.pairing.v1";
 const INVITE_INFO: &[u8] = b"be3.invite.v1";
 const INVITE_LOOKUP_INFO: &[u8] = b"be3.invite.lookup.v1";
 const INVITE_SIGNING_INFO: &[u8] = b"be3.invite.signing.v1";
+const SHARE_SIGNING_INFO: &[u8] = b"be3.share.signing.v1";
+const SHARE_SEALED_INFO: &[u8] = b"be3.share.sealed.v1";
 const OWN_INFO: &[u8] = b"be3.own.v1";
 const OWN_CONTACT: &[u8] = b"be3.own.contact.v1";
 const OWN_PIN: &[u8] = b"be3.own.pin.v1";
@@ -502,6 +505,32 @@ impl InviteCode {
             &[INVITE_SIGNING_INFO, &organization].concat(),
             INVITE_SIGNING_INFO,
         ))
+    }
+
+    /// The key a share link on `block` made with this code signs its openers' grants with
+    /// (guides/blocks/keys.md, "Share links"): its public half is in the block's log, and the
+    /// server, which never holds the code, cannot sign with it.
+    pub(crate) fn share_signing(&self, block: [u8; 16]) -> ed25519_dalek::SigningKey {
+        ed25519_dalek::SigningKey::from_bytes(&expand(
+            &self.0,
+            &[SHARE_SIGNING_INFO, &block].concat(),
+            SHARE_SIGNING_INFO,
+        ))
+    }
+
+    /// The public half of `share_signing`, which the share link record names.
+    pub fn share_key(&self, block: [u8; 16]) -> SigningPublic {
+        SigningPublic(self.share_signing(block).verifying_key().to_bytes())
+    }
+
+    /// What a share link on `block` hands its opener, sealed with the code: the server stores
+    /// it and never opens it.
+    pub fn seal_share(&self, block: [u8; 16], plain: &[u8]) -> Vec<u8> {
+        self.seal(&[SHARE_SEALED_INFO, &block].concat(), plain)
+    }
+
+    pub fn open_share(&self, block: [u8; 16], sealed: &[u8]) -> Result<Vec<u8>, KeyError> {
+        self.open(&[SHARE_SEALED_INFO, &block].concat(), sealed)
     }
 
     /// The public half of `invitation_signing`, which the invitation record names.
