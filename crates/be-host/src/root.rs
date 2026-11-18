@@ -32,6 +32,10 @@
 //! frame. The platform's input method shows where the root says its focused field is, and what
 //! it types reaches the root as input (plans/host_as_platform_adapter.md, step 4g4).
 //!
+//! While the root watches the host's statistics (`host.watch-statistics`), for its debug
+//! panels, be-host measures its memory and hands the root its performance and memory rows
+//! (`host.statistics`) as they change (plans/host_as_platform_adapter.md, step 4g5).
+//!
 //! It runs none of the host's core: no data directory or the lock that keeps a second be-host
 //! off it, no block stack, workspace or accounts, no screen lock, and none of the desktop's OS
 //! services. Step 4g brings back under this program what the host keeps (the plan's What the
@@ -54,7 +58,7 @@ use be_lib_layers::{Layer, LayerList, Surface};
 use be_lib_ui_types::ClipItem;
 use be_lib_ui_types::input::Timed;
 use be_sdk_app_host::pacing::FrameClock;
-use be_wasm_root_api::{FrameRequest, Notice, NoticeAction};
+use be_wasm_root_api::{FrameRequest, Notice, NoticeAction, StatisticRow};
 use be_wasm_root_host::Root;
 use beui::native::painting::{Painting, Paints, Placement, ScreenPaintings};
 use beui::native::texture_quad::{Pipelines, Quad, Quads};
@@ -122,6 +126,8 @@ struct RootShell {
     /// What the window's clipboard answered the root's pastes with, by their ids, until the
     /// root is handed them.
     pasted: Rc<RefCell<Vec<(u64, Option<ClipItem>)>>>,
+    /// The memory rows the root was last handed while it watches the host's statistics.
+    memory: Option<MemoryRows>,
 }
 
 /// What a root's frame asks of its window (`frame-done`'s `cursor`, `pointer-locked` and
@@ -165,6 +171,7 @@ impl RootShell {
             waker: None,
             notices: None,
             pasted: Rc::default(),
+            memory: None,
         }
     }
 
@@ -229,6 +236,7 @@ impl RootShell {
                 .clock
                 .deadline(self.pass, context.clock_stopped(), since(Instant::now()));
         show_notices(root, &mut self.notices);
+        show_statistics(root, &mut self.memory);
         for (id, item) in self.pasted.take() {
             root.answer_paste(id, item.as_ref().map(be_sdk_api::ops::encode));
         }
@@ -461,6 +469,72 @@ fn show_notices(root: &mut Root, seen: &mut Option<u64>) {
     if *seen != Some(generation) {
         *seen = Some(generation);
         root.show_notices(shown_notices());
+    }
+}
+
+/// Hands `root` the host's statistics while it watches them (`host.watch-statistics`), and
+/// measures be-host's memory only then, writing it nowhere: the sampling thread parks while
+/// nothing watches and wakes the window for each sample while the root does, and each frame
+/// hands the root what changed.
+fn show_statistics(root: &mut Root, memory: &mut Option<MemoryRows>) {
+    let watching = root.watching_statistics();
+    #[cfg(target_os = "linux")]
+    {
+        if watching {
+            // Under `--root` it samples only while watched, and writes no file.
+            crate::memory::start_watched();
+        }
+        crate::memory::watch(watching);
+    }
+    if !watching {
+        *memory = None;
+        return;
+    }
+    // Cached by be-host-base for a quarter of a second, so cheap to ask each frame.
+    let performance = be_host_base::performance::rows()
+        .into_iter()
+        .map(statistic_row)
+        .collect();
+    // Read again only once a new sample came.
+    #[cfg(target_os = "linux")]
+    {
+        let generation = crate::memory::generation();
+        if memory.as_ref().is_none_or(|shown| shown.generation != generation) {
+            let (rows, file) = crate::memory::view()
+                .map(|view| {
+                    let rows = view.rows.into_iter().map(|memory| statistic_row(memory.row));
+                    (rows.collect(), view.file)
+                })
+                .unwrap_or_default();
+            *memory = Some(MemoryRows {
+                generation,
+                rows,
+                file,
+            });
+        }
+    }
+    let (rows, file) = memory
+        .as_ref()
+        .map(|shown| (shown.rows.clone(), shown.file.clone()))
+        .unwrap_or_default();
+    root.show_statistics(performance, rows, file);
+}
+
+/// The memory rows the root was last handed, and the sample they are of.
+struct MemoryRows {
+    generation: u64,
+    rows: Vec<StatisticRow>,
+    file: Option<String>,
+}
+
+/// One of be-host-base's performance rows, or a memory row, as `be3:root` carries it.
+fn statistic_row(row: be_host_base::performance::PerformanceRow) -> StatisticRow {
+    StatisticRow {
+        heading: row.heading,
+        name: row.name,
+        current: row.current,
+        average: row.average,
+        peak: row.peak,
     }
 }
 

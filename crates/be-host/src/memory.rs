@@ -1,15 +1,15 @@
 //! be-host's memory statistics, on Linux under `--desktop`: a sample every ten seconds, kept as a
 //! point a minute (the peak of each measurement through it) for two days, drawn in the
 //! Performance panel and written to `memory.tsv` in the state directory, beside the login
-//! session's log. The previous run's file is kept as `memory.previous.tsv`.
+//! session's log. The previous run's file is kept as `memory.previous.tsv`. Under `--root` it
+//! samples only while the root watches the host's statistics, and writes no file.
 
 use std::collections::{BTreeMap, VecDeque};
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufRead, BufReader, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use be_host_base::performance::PerformanceRow;
@@ -187,23 +187,37 @@ fn history() -> MutexGuard<'static, History> {
         .unwrap_or_else(|held| held.into_inner())
 }
 
-static WATCHED: AtomicBool = AtomicBool::new(false);
+/// Whether a Performance panel is open, which each sample then wakes the host to redraw, and
+/// what a sampler that samples only while watched parks on.
+static WATCHED: Mutex<bool> = Mutex::new(false);
+static WATCHING: Condvar = Condvar::new();
 
-/// Whether a Performance panel is open, which each sample then wakes the host to redraw.
-pub(crate) fn watch(watched: bool) {
-    WATCHED.store(watched, Ordering::Relaxed);
+fn watched() -> MutexGuard<'static, bool> {
+    WATCHED.lock().unwrap_or_else(|held| held.into_inner())
+}
+
+/// Whether a Performance panel is open, which each sample then wakes the host to redraw. A
+/// sampler started by `start_watched` samples only while one is.
+pub(crate) fn watch(watched_now: bool) {
+    let mut watching = watched();
+    if *watching != watched_now {
+        *watching = watched_now;
+        WATCHING.notify_all();
+    }
+}
+
+/// Counts the samples taken: the view changes only when it does.
+pub(crate) fn generation() -> u64 {
+    history().generation
 }
 
 pub(crate) fn view() -> Option<MemoryView> {
     history().view()
 }
 
-/// Starts sampling, once a process.
+/// Starts sampling for good, once a process, written to `memory.tsv` in the state directory:
+/// the desktop's, whose file outlives a run.
 pub(crate) fn start() {
-    static STARTED: OnceLock<()> = OnceLock::new();
-    if STARTED.set(()).is_err() {
-        return;
-    }
     let log = match crate::login_session::state_directory() {
         Some(directory) => match Log::open(&directory) {
             Ok(log) => Some(log),
@@ -214,17 +228,41 @@ pub(crate) fn start() {
         },
         None => None,
     };
+    begin(log, true);
+}
+
+/// Starts sampling only while a Performance panel is open (`watch`), once a process, written
+/// nowhere: a root's (`--root`), which keeps no data directory and must not touch a desktop
+/// session's file. Its sampler parks while nothing watches.
+pub(crate) fn start_watched() {
+    begin(None, false);
+}
+
+/// Starts the sampling thread, once a process: sampling `always`, or only while watched.
+fn begin(log: Option<Log>, always: bool) {
+    static STARTED: OnceLock<()> = OnceLock::new();
+    if STARTED.set(()).is_err() {
+        return;
+    }
     history().file = log.as_ref().map(|log| log.path.clone());
     let started = std::thread::Builder::new()
         .name("memory statistics".to_owned())
-        .spawn(move || run(log));
+        .spawn(move || run(log, always));
     if let Err(error) = started {
         eprintln!("be-host: memory statistics did not start: {error}");
     }
 }
 
-fn run(mut log: Option<Log>) {
+fn run(mut log: Option<Log>, always: bool) {
     loop {
+        if !always {
+            // Parked until something watches.
+            drop(
+                WATCHING
+                    .wait_while(watched(), |watching| !*watching)
+                    .unwrap_or_else(|held| held.into_inner()),
+            );
+        }
         let ended = history().record(sample());
         if let (Some(ended), Some(writing)) = (ended, log.as_mut())
             && let Err(error) = writing.write(&ended)
@@ -232,10 +270,14 @@ fn run(mut log: Option<Log>) {
             eprintln!("be-host: memory statistics stopped being written: {error}");
             log = None;
         }
-        if WATCHED.load(Ordering::Relaxed) {
+        if *watched() {
             be_host_base::host::wake();
         }
-        std::thread::sleep(INTERVAL);
+        // Until the next sample; a sampler that samples only while watched parks at once
+        // when watching stops.
+        let _ = WATCHING
+            .wait_timeout_while(watched(), INTERVAL, |watching| always || *watching)
+            .unwrap_or_else(|held| held.into_inner());
     }
 }
 

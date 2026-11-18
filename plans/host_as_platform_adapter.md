@@ -288,11 +288,13 @@ the end of the frame who heard the pointer leave and the focus move (`entered`, 
 under the point, after its overlays, scrims, claims and the camera's gesture areas, and whether
 a middle press pans (`HitTest::pans`). `Router::route` builds the same steps into routing a
 window's raw `Input`, for the host once it routes between surfaces. Where the router's rules and
-the catchers' differed, the catchers' were kept, since every host test relies on them: a key's
-release goes to the focus (only a chord the compositor took sends its release there too),
-a mouse's or pen's press holds its catcher for its other buttons, and each finger is its own
+the catchers' differed, the catchers' were kept, since every host test relies on them: a
+mouse's or pen's press holds its catcher for its other buttons, and each finger is its own
 pointer. The one change is latching: a held scroll or touchpad gesture now stays with the catcher
-it began on. The IME area, accessibility actions by node id and drive's presses already take
+it began on. (A key's release went to the focus then; since 4g4's review it goes where its press
+went, the compositor for a chord it took, as beui holds a key for what took its press, so the
+release of an Escape that closed a root's dialog never reaches the surface the focus went back
+to. Only `Router::route`, the root's routing, routes keys.) The IME area, accessibility actions by node id and drive's presses already take
 this path, since they reach catchers through beui's document.
 
 Built (step 4f1): beui hands a program the platform's raw input (`Program::input`), and
@@ -980,7 +982,7 @@ Each step lands on its own.
        or Rename, which shows the name in its strip) gives the focus back to the layer that
        had it. be-wasm-root-host's
        `a_dialog_shows_over_its_scrim_which_captures_a_press_beside_it_and_closes_it`,
-       `escape_closes_a_dialog_while_the_root_intercepts_it` and
+       `escape_closes_a_dialog_that_has_the_focus` and
        `typing_through_the_input_method_reaches_a_dialogs_field_and_the_clipboard_is_the_hosts`
        check it through `be3:root`, and the host test
        `a_root_in_place_of_the_hosts_ui_opens_a_dialog_on_the_hosts_clipboard_and_input_method`
@@ -1010,8 +1012,44 @@ Each step lands on its own.
        - A clip of `be3/blocks` reaches the root, and the host from it, with its block refs
          untranslated: a root's own documents name no blocks before the block stack is the
          root's (4g6, step 5), which then translates them as be-host-runtime does an app's.
-     - 4g5. The debug panels, over the read-only statistics the host grants (What the host
-       keeps).
+     - 4g5. Built in part: the debug panels' Performance panel, over the read-only statistics
+       the host grants (What the host keeps). `be3:root` carries them as data, nothing beui's:
+       `host.watch-statistics` says whether the root shows them, and the host measures what
+       only they need (its memory) only while it does; `host.statistics` is a watch, as
+       `host.notices` is, answering the host's statistics once they change from the generation
+       the root saw: its performance rows (the full frame, and each group it times, with the
+       latest, average and peak of each) and memory rows, each a heading or a measurement as
+       the host words it (`statistic-row`, be-host-base's `PerformanceRow`), and the file its
+       memory statistics are written to (be-wasm-root-host's `Root::watching_statistics` and
+       `show_statistics`); turning the watch off answers a call still waiting. be-host's
+       `--root` samples its memory only while the root watches (a sampler that parks on a
+       condition variable while nothing does, and writes no file, unlike the desktop's, which
+       samples for good into `memory.tsv`), whose samples wake the window, and hands the root
+       be-host-base's performance rows each frame and its memory rows once a new sample came,
+       which the root hears only once they changed. be-sdk-root-testing opens and closes a panel of them on F3, which it always
+       intercepts (`STATISTICS_LAYER`, drawn with beui on `STATISTICS_SURFACE` at the window's
+       right), watching them while it is open and never taking the focus.
+       be-wasm-root-host's
+       `a_root_shows_its_hosts_statistics_in_a_panel_watching_them_while_it_is_open` shows it
+       rows and snapshots the panel, and the host test
+       `a_root_in_place_of_the_hosts_ui_shows_the_hosts_statistics_in_a_panel` opens and closes
+       it in be-host.
+       Carried from 4g4's re-review: a key's repeats and release go where its press went
+       (be-lib-input-router's `Router`), so the release of an Escape that closed a root's
+       dialog never reaches the layer the focus went back to; the release of a key held when
+       the window lost the keyboard goes nowhere; and be-sdk-root's `Windows::drew` forgets a
+       layer its list leaves out, so the focus, a lock, a press or a key it held goes to no
+       layer that later takes its id.
+       Left for later:
+       - The memory graph (be-host's `MemoryGraph`): `be3:root` would carry the minutes'
+         points (resident, anonymous, shared and wasm, in bytes) beside the rows.
+       - The Block stack panel, whose lines are the block stack's: the root's once the block
+         stack is (step 5).
+       - The Running apps panel and its kill and crash commands: the apps a root embeds are
+         the root's own (`Embedding::apps`), so it lists them itself, once it runs the apps
+         be-host runs today (4g7).
+       - The panels as the shell's host panels (`HostPanel`), docked beside its editors: they
+         move with the compositor (4g7); until then a root shows them as it likes.
      - 4g6. The lock screen, onboarding, saving, keep changes, organization and
        be-host-accounts-ui, over the block stack's messages and the password check the host
        grants.

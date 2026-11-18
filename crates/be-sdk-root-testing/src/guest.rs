@@ -22,7 +22,7 @@ use be_sdk_root::{Delivery, Embedded, Embedding, OwnSurface, Spawn};
 use be_wasm_guest_abi::{Flow, Guest, Waker};
 use be_wasm_ops::guest::{Executor, LocalFuture};
 use be_wasm_root_api::{
-    FrameDone, FrameRequest, Notice,
+    FrameDone, FrameRequest, Notice, StatisticRow, HostStatistics,
     guest::{
         exports::{frames, input, paintings},
         host,
@@ -31,11 +31,13 @@ use be_wasm_root_api::{
 use beui::native::painting::{Frame as PaintFrame, Painting, ScreenPaintings};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Align2, KeyPhase, NodeId, Pos2, Rect, vec2};
+use beui::{Align2, Direction, KeyPhase, NodeId, Overflow, Pos2, Rect, TextAlign, vec2};
 
 use crate::{
     APP, APP_ENTRY, CLOSES, DIALOG_LAYER, DIALOG_ORIGIN, DIALOG_SIZE, DIALOG_SURFACE, DIALOG_TITLE,
-    LATE_LAYER, LATER, LATER_TEXT, OPENS_DIALOG, ORIGIN, RASTER, RESIZED, RESIZES, ROOT_COLOR,
+    LATE_LAYER, LATER, LATER_TEXT, OPENS_DIALOG, OPENS_STATISTICS, ORIGIN, RASTER, RESIZED, RESIZES,
+    ROOT_COLOR, STATISTICS_AREA, STATISTICS_LAYER, STATISTICS_ORIGIN, STATISTICS_SURFACE,
+    STATISTICS_TITLE,
     ROOT_LAYER, ROOT_SURFACE, SCREEN, SCREEN_SIZE, SCRIM_COLOR, SCRIM_LAYER, SCRIM_SURFACE, SIZE,
     TEXT, TEXT_LAYER, TEXT_STRIP, TEXT_SURFACE, TOAST_AREA, TOAST_LAYER, TOAST_SURFACE,
     UNPRESENTED_SURFACE,
@@ -78,6 +80,12 @@ struct Root {
     /// The name the strip shows in place of `TEXT` once the dialog renamed it, which its
     /// document sets.
     named: Rc<Cell<Option<Signal<Option<String>>>>>,
+    /// Its panel of the host's statistics, while it is open.
+    statistics: Rc<RefCell<Option<BeuiSurface>>>,
+    /// The statistics that panel shows, which the host's answers set.
+    shown_statistics: Rc<Cell<Option<Signal<HostStatistics>>>>,
+    /// Counts the panel's openings, so a watch begun for an earlier one stops.
+    statistics_opened: Rc<Cell<u64>>,
     /// Wakes the root, and so its host, for a frame its beui document wants.
     waker: Waker,
 }
@@ -93,11 +101,12 @@ struct Dialog {
     focused: bool,
 }
 
-/// What the root's input asked of its dialog.
+/// What the root's input asked of its dialog, or of its statistics panel.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Asked {
     Open,
     Close,
+    ToggleStatistics,
 }
 
 impl Root {
@@ -116,6 +125,9 @@ impl Root {
             dialog: Rc::default(),
             asked: Rc::default(),
             named: Rc::default(),
+            statistics: Rc::default(),
+            shown_statistics: Rc::default(),
+            statistics_opened: Rc::default(),
             waker,
         }
     }
@@ -232,6 +244,7 @@ impl Root {
             let asked = match &delivery.input {
                 Input::Key(stroke) if stroke.pressed && !stroke.repeat => match stroke.key {
                     Some(key) if key == OPENS_DIALOG && !open => Some(Asked::Open),
+                    Some(key) if key == OPENS_STATISTICS => Some(Asked::ToggleStatistics),
                     Some(Key::Escape) if open => Some(Asked::Close),
                     _ => None,
                 },
@@ -242,8 +255,11 @@ impl Root {
                 } if open => Some(Asked::Close),
                 _ => None,
             };
-            if asked.is_some() {
-                self.asked.set(asked);
+            match asked {
+                // Toggled at once: what it draws is the next frame's.
+                Some(Asked::ToggleStatistics) => self.toggle_statistics(),
+                Some(asked) => self.asked.set(Some(asked)),
+                None => {}
             }
         }
         if let Some(text) = &mut *self.text.borrow_mut() {
@@ -254,6 +270,75 @@ impl Root {
         }
         if let Some(dialog) = &mut *self.dialog.borrow_mut() {
             dialog.surface.input(own);
+        }
+        if let Some(statistics) = &mut *self.statistics.borrow_mut() {
+            statistics.input(own);
+        }
+    }
+
+    /// Opens its panel of the host's statistics, watching them while it is open, or closes it,
+    /// which stops the watch.
+    fn toggle_statistics(&self) {
+        let opened = self.statistics_opened.get() + 1;
+        self.statistics_opened.set(opened);
+        if self.statistics.borrow_mut().take().is_some() {
+            be_wasm_ops::guest::spawn(async {
+                // A host that cannot hear it has stopped, which the root hears from its frames.
+                let _ = host::watch_statistics(false).await;
+            });
+            return;
+        }
+        let Some(beui) = self.beui.borrow().clone() else {
+            return;
+        };
+        let waker = self.waker.clone();
+        let shown = Rc::clone(&self.shown_statistics);
+        let panel = BeuiSurface::new(
+            &beui,
+            OwnSurface::new(STATISTICS_SURFACE, STATISTICS_AREA),
+            1.0,
+            move || waker.wake(),
+            move || {
+                let statistics = create_signal(HostStatistics {
+                    generation: 0,
+                    performance: Vec::new(),
+                    memory: Vec::new(),
+                    memory_file: None,
+                });
+                shown.set(Some(statistics));
+                view! {
+                    <Root>
+                        <StatisticsPanel statistics={statistics} />
+                    </Root>
+                }
+            },
+        );
+        match panel {
+            Ok(panel) => *self.statistics.borrow_mut() = Some(panel),
+            // The panel is for debugging: one that cannot be drawn is left closed.
+            Err(_) => return,
+        }
+        be_wasm_ops::guest::spawn(self.clone().hear_statistics(opened));
+    }
+
+    /// Watches the host's statistics and shows each change of them in the panel opened as the
+    /// `opened`th, until it closes or the host stops answering.
+    async fn hear_statistics(self, opened: u64) {
+        if host::watch_statistics(true).await.is_err() {
+            return;
+        }
+        let mut seen = 0;
+        while let Ok(statistics) = host::statistics(seen).await {
+            if self.statistics_opened.get() != opened {
+                return;
+            }
+            seen = statistics.generation;
+            if let (Some(panel), Some(shown)) = (
+                &mut *self.statistics.borrow_mut(),
+                self.shown_statistics.get(),
+            ) {
+                panel.enter(|| shown.set(statistics));
+            }
         }
     }
 
@@ -324,11 +409,15 @@ impl Root {
     }
 }
 
-/// The chords the root takes ahead of the focus: F2, which opens the dialog, and Escape while
+/// The chords the root takes ahead of the focus: F2, which opens the dialog, F3, which opens and
+/// closes the statistics panel, and Escape while
 /// the dialog is open but the focus is outside it. With the focus in the dialog, Escape is its
 /// document's, which closes it once nothing in it (a popup) took the key first.
 fn chords(escape: bool) -> Vec<KeyChord> {
-    let mut chords = vec![KeyChord::new(OPENS_DIALOG, Modifiers::NONE)];
+    let mut chords = vec![
+        KeyChord::new(OPENS_DIALOG, Modifiers::NONE),
+        KeyChord::new(OPENS_STATISTICS, Modifiers::NONE),
+    ];
     if escape {
         chords.push(KeyChord::new(Key::Escape, Modifiers::NONE));
     }
@@ -349,7 +438,7 @@ fn RenameDialog(done: Callback<Option<String>>) -> NodeId {
         move |event| {
             let closes = event
                 .press()
-                .is_some_and(|press| press.pressed && press.key == Key::Escape);
+                .is_some_and(|press| press.pressed && !press.repeat && press.key == Key::Escape);
             if closes {
                 done.call(None);
             }
@@ -429,6 +518,93 @@ fn Notices(toasts: Signal<Vec<Toast>>) -> NodeId {
     }
 }
 
+/// The host's statistics as its debug panels show them: a row a measurement, under headings,
+/// its performance first and then its memory, scrolling.
+#[component]
+fn StatisticsPanel(statistics: Signal<HostStatistics>) -> NodeId {
+    let rows = create_memo(move || {
+        statistics.with(|statistics| {
+            let mut rows = statistics.performance.clone();
+            rows.extend(statistics.memory.iter().cloned());
+            rows
+        })
+    });
+    let keys = create_memo(move || (0..rows.with(Vec::len)).collect::<Vec<_>>());
+    let file = create_memo(move || {
+        statistics.with(|statistics| {
+            statistics
+                .memory_file
+                .as_ref()
+                .map(|file| format!("Memory is written to {file}"))
+                .unwrap_or_default()
+        })
+    });
+    view! {
+        <Scroll>
+            <Frame padding=Space::Md>
+                <List spacing=Space::Xs>
+                    <Text style=TextStyle::TITLE>{STATISTICS_TITLE}</Text>
+                    <StatisticLine row={create_memo(|| Some(StatisticRow {
+                        heading: true,
+                        name: "Measurement".to_owned(),
+                        current: "Latest".to_owned(),
+                        average: "Average".to_owned(),
+                        peak: "Peak".to_owned(),
+                    }))} />
+                    <ForEach value={keys}>|index: usize| {
+                        let row = create_memo(move || rows.with(|rows| rows.get(index).cloned()));
+                        view! {
+                            <StatisticLine row />
+                        }
+                    }</ForEach>
+                    <Text size=TextSize::Xs color=TextColor::Muted>{file}</Text>
+                </List>
+            </Frame>
+        </Scroll>
+    }
+}
+
+/// One row of the host's statistics: its name, and its latest value, average and peak, each
+/// right-aligned in a column of its own.
+#[component]
+fn StatisticLine(row: Memo<Option<StatisticRow>>) -> NodeId {
+    let cell = |read: fn(&StatisticRow) -> String| {
+        create_memo(move || row.with(|row| row.as_ref().map(read).unwrap_or_default()))
+    };
+    let name = cell(|row| row.name.clone());
+    let current = cell(|row| row.current.clone());
+    let average = cell(|row| row.average.clone());
+    let peak = cell(|row| row.peak.clone());
+    let weight = create_memo(move || {
+        match row.with(|row| row.as_ref().is_some_and(|row| row.heading)) {
+            true => Weight::Bold,
+            false => Weight::Normal,
+        }
+    });
+    view! {
+        <List direction=Direction::Horizontal spacing=Space::Sm>
+            <ListItem grow=1.0>
+                <Text overflow=Overflow::Ellipsis size=TextSize::Xs weight={weight}>{name}</Text>
+            </ListItem>
+            <StatisticCell value={current} weight={weight} />
+            <StatisticCell value={average} weight={weight} />
+            <StatisticCell value={peak} weight={weight} />
+        </List>
+    }
+}
+
+/// One value of a row, right-aligned in its column.
+#[component]
+fn StatisticCell(value: Memo<String>, weight: Memo<Weight>) -> NodeId {
+    view! {
+        <Frame width=Size::Xl3>
+            <Text size=TextSize::Xs family=Family::Mono weight={weight} align=TextAlign::End>
+                {value}
+            </Text>
+        </Frame>
+    }
+}
+
 /// The strip of text: `TEXT`, and `LATER_TEXT` from `LATER` on, or the `name` the dialog gave.
 #[component]
 fn Strip(name: Signal<Option<String>>) -> NodeId {
@@ -490,6 +666,11 @@ impl frames::Guest for Root {
                     .frame()
                     .expect("the root draws its dialog with beui");
             }
+            if let Some(statistics) = &mut *root.statistics.borrow_mut() {
+                statistics
+                    .frame()
+                    .expect("the root draws its statistics with beui");
+            }
             // The dialog's own actions closed it: gone from this frame already.
             root.settle_dialog()
                 .expect("the root draws its dialog with beui");
@@ -510,6 +691,16 @@ impl frames::Guest for Root {
                     marker.surface = Surface::Root(1);
                     layers.push(marker);
                 }
+            }
+            // Its statistics panel while it is open, over the app: it scrolls, so it takes
+            // presses, but never the focus from what the person works in.
+            if let Some(statistics) = &*root.statistics.borrow() {
+                let mut layer = statistics.layer(
+                    STATISTICS_LAYER,
+                    pos2(STATISTICS_ORIGIN.0, STATISTICS_ORIGIN.1),
+                );
+                layer.input.focuses = false;
+                layers.push(layer);
             }
             // While the dialog is open, over the rest: its scrim, which takes no press itself but
             // captures every one that misses the dialog for the root's own layer, which closes
@@ -580,7 +771,18 @@ impl frames::Guest for Root {
                 .borrow()
                 .as_ref()
                 .and_then(|dialog| dialog.surface.next());
-            let next = wants.next.into_iter().chain(documents).chain(dialog).min();
+            let statistics = root
+                .statistics
+                .borrow()
+                .as_ref()
+                .and_then(BeuiSurface::next);
+            let next = wants
+                .next
+                .into_iter()
+                .chain(documents)
+                .chain(dialog)
+                .chain(statistics)
+                .min();
             // The input method is where the focused surface edits: an app's screen, or the
             // field of its dialog.
             let ime = embedding.ime(None).or_else(|| {
@@ -668,10 +870,13 @@ impl paintings::Guest for Root {
             };
             Some((u64::from(scrim.id()), painting))
         });
+        // Its statistics panel only while it is open.
+        let statistics = self.statistics.borrow().as_ref().and_then(painted);
         let painted = ScreenPaintings {
             screens: own
                 .into_iter()
                 .chain(text)
+                .chain(statistics)
                 .chain(scrim)
                 .chain(dialog)
                 .chain(toasts)
