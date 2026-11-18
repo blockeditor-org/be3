@@ -63,7 +63,7 @@ async fn a_log_appended_offline_is_sent_in_order_once_the_device_reconnects() {
     assert_eq!(
         read.entries
             .iter()
-            .map(|logged| logged.opened.clone().unwrap())
+            .map(|logged| logged.bytes().unwrap().to_vec())
             .collect::<Vec<_>>(),
         [&b"sent online"[..], b"one", b"two", b"three"]
     );
@@ -77,7 +77,7 @@ async fn a_log_appended_offline_is_sent_in_order_once_the_device_reconnects() {
                     logged.entry.author,
                     logged.entry.id,
                     logged.entry.arrival,
-                    logged.opened.as_deref().unwrap(),
+                    logged.opened.as_ref().unwrap(),
                     &logged.entry.signature,
                 )
                 .await
@@ -93,7 +93,7 @@ async fn a_log_appended_offline_is_sent_in_order_once_the_device_reconnects() {
     let page = phone.read_log(chat, 2, 1).await.unwrap();
     assert_eq!(page.head, read.head);
     assert_eq!(page.entries.len(), 1);
-    assert_eq!(page.entries[0].opened.as_deref(), Some(&b"two"[..]));
+    assert_eq!(page.entries[0].bytes(), Some(&b"two"[..]));
     offline.append(chat, "test.app", b"four").await.unwrap();
     let appended = loop {
         if let Ok(crate::Event::Appended(appended)) = events.recv().await {
@@ -103,7 +103,7 @@ async fn a_log_appended_offline_is_sent_in_order_once_the_device_reconnects() {
     let took = phone.logged(appended).await.unwrap();
     assert_eq!(took.len(), 1);
     assert_eq!(took[0].entry.seq, 4);
-    assert_eq!(took[0].opened.as_deref(), Some(&b"four"[..]));
+    assert_eq!(took[0].bytes(), Some(&b"four"[..]));
     assert_eq!(phone.log_head(chat).map(|head| head.size), Some(5));
     harness.stop().await;
 }

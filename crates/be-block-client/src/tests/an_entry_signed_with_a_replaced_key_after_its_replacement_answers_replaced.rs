@@ -48,14 +48,14 @@ async fn an_entry_signed_with_a_replaced_key_after_its_replacement_answers_repla
     // (Its payload is not sealed here, so the guest opens nothing of it: it is judged by what
     // the phone said.)
     let payload = b"sealed by the phone".to_vec();
-    let from_phone = b"from the phone";
+    let from_phone = crate::Said {
+        salt: [7; crate::LOG_SALT_BYTES],
+        bytes: b"from the phone".to_vec(),
+    };
     let id = Uuid::new_v4();
     let signature = old.sign_authored(
         team.into_bytes(),
-        &be_block_protocol::log_signed(
-            id,
-            be_block_store::Hash::of(&crate::by_app("test.app", from_phone)),
-        ),
+        &be_block_protocol::log_signed(id, from_phone.hash("test.app")),
     );
     let database = harness.database();
     be_server::log::append(
@@ -77,7 +77,7 @@ async fn an_entry_signed_with_a_replaced_key_after_its_replacement_answers_repla
     assert_eq!(read.head.size, 3);
     let mut signers = Vec::new();
     for logged in &read.entries {
-        let said = logged.opened.as_deref().unwrap_or(from_phone);
+        let said = logged.opened.as_ref().unwrap_or(&from_phone);
         let entry = &logged.entry;
         signers.push(
             guest
@@ -100,7 +100,7 @@ async fn an_entry_signed_with_a_replaced_key_after_its_replacement_answers_repla
         "the old key before the change, the new key, the old key after it"
     );
     assert_eq!(
-        read.entries[1].opened.as_deref(),
+        read.entries[1].bytes(),
         Some(&b"after, with the new key"[..])
     );
     harness.stop().await;

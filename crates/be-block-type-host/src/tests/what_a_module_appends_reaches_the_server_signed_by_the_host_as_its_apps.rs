@@ -55,10 +55,10 @@ fn what_a_module_appends_reaches_the_server_signed_by_the_host_as_its_apps() {
         assert_eq!(read.entries.len(), 2);
         for logged in &read.entries {
             let entry = &logged.entry;
-            let said = logged.opened.as_deref().expect("the entry opens");
+            let said = logged.opened.as_ref().expect("the entry opens");
             let as_app = |app: &'static str| {
                 let peer = Arc::clone(&peer);
-                let said = said.to_vec();
+                let said = said.clone();
                 let entry = entry.clone();
                 async move {
                     peer.verify_entry(

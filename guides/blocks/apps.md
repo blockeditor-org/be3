@@ -91,9 +91,11 @@ the bytes against the index (`read_segment`).
 
 A type with a signed log (guides/type_modules.md, "Signed logs") is appended
 to and read through the same projection: `ContentProjection::append(bytes)`,
-which the host signs as the app's, `take_appended` for where each went,
-`read_log(from, limit)`, and `log()`, the entries heard or read in the log's
-order, each with who signed it; each moves the revision.
+which the host signs as the app's (only the type's own app may append; another
+app's append is answered with an error), `take_appended` for where each went,
+`read_log(from, limit)`, and `with_log`, which reads the latest entries heard or
+read (up to `editor::LOG_HELD`) in the log's order, each with who signed it;
+each moves the revision.
 
 ### Sending
 

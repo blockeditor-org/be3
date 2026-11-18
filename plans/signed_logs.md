@@ -227,12 +227,17 @@ within one page: step 4's fold takes the first occurrence of an id.
    an entry served again under its id later is folded once (its first
    place); an app's unsigned or foreign-signed entry never reaches the
    server; an export reimported elsewhere verifies against the original
-   block id. Where it differs: an entry's signature covers the app's bytes
-   framed by the app's id (`by_app`), not the sealed bytes, so an export
+   block id; only the type's own app may append; a push told after a read
+   moved the head past it is still heard. Where it differs: an entry's
+   signature covers a salt sealed with the payload and the app's bytes framed
+   by the app's id (`Said::hash`), not the sealed bytes, so an export
    verifies without the block's key (a redacted entry's author is then the
-   log's word alone); search does not fold the log yet (step 5's "search per
-   log page"); and an import keeps the exported entries in the file, verified,
-   without appending them to the new block, which step 5 decides for chat.
+   log's word alone) while the signature confirms no guessed payload; an
+   export carries no head or proof, so it proves each entry but not that it
+   holds them all; the description folds the run of entries from the log's
+   start a replica holds; search does not fold the log yet (step 5's "search
+   per log page"); and an import does nothing with the exported entries yet
+   (see Decided: step 5 keeps them).
 5. **Chat on the log.** Messages, edits, reactions and deletions as entries;
    content keeps drafts and settings; deletion redacts; unread places are
    seqs; notifications go as `[append, push]`; search per log page. Done:
@@ -273,3 +278,7 @@ The user chose option A, and these answers (2026-11-18):
   in the log (a million-message chat's first page, from a search hit) costs
   that page plus about 20 hashes; a new head comes with a consistency proof
   from the kept one. No device ever reads a whole log to trust a part of it.
+- **Import** of a log type keeps the export's entries as read-only history
+  from the original block: each is verified against the original block's id
+  as it is imported and shown with its original author, and new entries
+  append after them. Built in step 5.

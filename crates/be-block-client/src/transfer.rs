@@ -20,7 +20,8 @@ pub struct Saved {
     pub references: Vec<Uuid>,
     pub content: Option<Vec<u8>>,
     /// The block's signed log, opened, each entry as its author signed it in the block `id`
-    /// (`Peer::export_log`, `Peer::verify_exported`); empty for a block with none.
+    /// (`Peer::export_log`, `Peer::verify_exported`), a redacted one without what it said;
+    /// empty for a block with none.
     pub log: Vec<crate::ExportedEntry>,
 }
 
@@ -58,8 +59,15 @@ pub fn encode(blocks: &[Saved]) -> Vec<u8> {
             out.extend(entry.id.as_bytes());
             out.extend(entry.author.as_bytes());
             out.extend(entry.arrival.to_le_bytes());
-            out.extend((entry.said.len() as u64).to_le_bytes());
-            out.extend(&entry.said);
+            match &entry.said {
+                Some(said) => {
+                    out.push(1);
+                    out.extend(said.salt);
+                    out.extend((said.bytes.len() as u64).to_le_bytes());
+                    out.extend(&said.bytes);
+                }
+                None => out.push(0),
+            }
             out.extend((entry.signature.len() as u32).to_le_bytes());
             out.extend(&entry.signature);
         }
@@ -109,9 +117,21 @@ pub fn decode(bytes: &[u8]) -> Result<Vec<Saved>, String> {
             let id = reader.uuid()?;
             let author = reader.uuid()?;
             let arrival = reader.u64()? as i64;
-            let length = usize::try_from(reader.u64()?)
-                .map_err(|_| "an entry in the file is too large".to_owned())?;
-            let said = reader.take(length)?.to_vec();
+            let said = match reader.take(1)?[0] {
+                0 => None,
+                _ => {
+                    let salt = reader
+                        .take(crate::LOG_SALT_BYTES)?
+                        .try_into()
+                        .expect("the salt is taken whole");
+                    let length = usize::try_from(reader.u64()?)
+                        .map_err(|_| "an entry in the file is too large".to_owned())?;
+                    Some(crate::Said {
+                        salt,
+                        bytes: reader.take(length)?.to_vec(),
+                    })
+                }
+            };
             let length = reader.u32()? as usize;
             let signature = reader.take(length)?.to_vec();
             log.push(crate::ExportedEntry {

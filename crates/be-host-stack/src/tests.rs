@@ -229,6 +229,7 @@ impl<C: LiveEdit + Clone + Default> Editor<C> {
         from_editor(
             self.block,
             self.id,
+            "be3.test",
             &be_sdk_type_api::encode_frame(&message),
         );
     }
