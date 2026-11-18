@@ -4,8 +4,7 @@ use uuid::Uuid;
 
 /// What the share dialog offers. `KnowExists` is not among them: a reference
 /// gives it, and a grant of it is never what a person sharing means.
-const GRANTABLE: [AccessLevel; 3] =
-    [AccessLevel::Manage, AccessLevel::Edit, AccessLevel::View];
+const GRANTABLE: [AccessLevel; 3] = [AccessLevel::Manage, AccessLevel::Edit, AccessLevel::View];
 
 /// What a share link offers on a block that is not hosted: never Manage, which a link holder
 /// could then hand on, nor Join, which only a hosted block offers.
@@ -457,9 +456,10 @@ fn member(
             Some("Opens for them once you have both confirmed each other as contacts".to_owned())
         }
         (false, false) if grant.author && source == Some(block) => None,
-        (false, false) if grant.through_link && source == Some(block) => {
-            Some(format!("{}, through a share link", offered.name(grant.effective)))
-        }
+        (false, false) if grant.through_link && source == Some(block) => Some(format!(
+            "{}, through a share link",
+            offered.name(grant.effective)
+        )),
         (false, false) => origin(grant.effective, source, block, offered, name_of),
     };
     // Someone there only through a link is no one to hand the block to: a guest, or a member

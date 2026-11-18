@@ -1,6 +1,7 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 use beui_view::types::Overflow;
+use beui_view::types::ScrollPosition;
 use beui_view::types::icons::Glyph;
 
 use crate::border::Separator;
@@ -101,7 +102,7 @@ pub fn MenuPopup(
     view! {
         <unstyled::MenuPopup
             items={items.into_run()}
-            menu={sized_menu_style(min_width.get_untracked())}
+            menu={sized_menu_style(min_width.get_untracked(), Callback::empty())}
             anchor
             open
             at
@@ -114,26 +115,30 @@ pub fn MenuPopup(
     }
 }
 
+/// The rows of a menu, laid out in place. `on_scroll` hears where its rows scroll, so a host
+/// that sizes the menu to them can tell what they need beyond what they were given
+/// (`content - viewport`): what they measure is only what their place lets them have.
 #[component]
 pub fn MenuRows(
     items: Children<MenuItem>,
     #[prop(default = Size::Menu)] min_width: Prop<Size>,
     #[prop(default = false)] active: Prop<bool>,
+    on_scroll: Callback<ScrollPosition>,
 ) -> NodeId {
     view! {
         <unstyled::MenuRows
             items={items.into_run()}
-            menu={sized_menu_style(min_width.get_untracked())}
+            menu={sized_menu_style(min_width.get_untracked(), on_scroll)}
             active
         />
     }
 }
 
 pub fn menu_style() -> MenuStyle {
-    sized_menu_style(Size::Menu)
+    sized_menu_style(Size::Menu, Callback::empty())
 }
 
-fn sized_menu_style(min_width: Size) -> MenuStyle {
+fn sized_menu_style(min_width: Size, on_scroll: Callback<ScrollPosition>) -> MenuStyle {
     MenuStyle::new(
         MENU_ROW_SPACING.px(),
         |handle| {
@@ -143,7 +148,7 @@ fn sized_menu_style(min_width: Size) -> MenuStyle {
         },
         move |content| {
             view! {
-                <MenuPanel min_width>{content}</MenuPanel>
+                <MenuPanel min_width on_scroll={on_scroll}>{content}</MenuPanel>
             }
         },
     )
@@ -548,7 +553,7 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
 }
 
 #[component]
-fn MenuPanel(min_width: Size, children: Child) -> NodeId {
+fn MenuPanel(min_width: Size, on_scroll: Callback<ScrollPosition>, children: Child) -> NodeId {
     let min_width = min_width.px();
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
@@ -558,6 +563,7 @@ fn MenuPanel(min_width: Size, children: Child) -> NodeId {
                         <ListItem shrink=1.0>
                             <unstyled::Scroll
                                 fit=true
+                                on_change={on_scroll}
                                 style={ScrollStyle::new(Movement::Rubber.spring()).fading(SCROLL_FADE).marker(autoscroll_marker())}
                             >
                                 <Frame padding=MENU_PADDING>{children}</Frame>
